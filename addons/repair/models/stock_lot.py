@@ -2,22 +2,35 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockLot(models.Model):
     _inherit = "stock.lot"
 
     repair_line_ids = fields.Many2many(
-        "repair.order", string="Repair Orders", compute="_compute_repair_line_ids"
+        comodel_name="repair.order",
+        string="Repair Orders",
+        compute="_compute_repair_line_ids",
     )
-    repair_part_count = fields.Count("repair_line_ids", "Repair part count")
+    repair_part_count = fields.Count(
+        count_of="repair_line_ids",
+        string="Repair part count",
+    )
     in_repair_count = fields.Integer(
-        "In repair count", compute="_compute_in_repair_count"
+        string="In repair count",
+        compute="_compute_in_repair_count",
     )
-    repaired_count = fields.Integer("Repaired count", compute="_compute_repaired_count")
+    repaired_count = fields.Integer(
+        string="Repaired count",
+        compute="_compute_repaired_count",
+    )
 
     @api.depends("name")
     def _compute_repair_line_ids(self):
+        _debug.perf.count("repair_lot_lines_compute", lots=self)
         repair_orders = defaultdict(lambda: self.env["repair.order"])
         repair_moves = self.env["stock.move"].search(
             [
@@ -86,6 +99,7 @@ class StockLot(models.Model):
         return action
 
     def _check_lots_allowed(self, product_ids):
+        _debug.logic("repair_lots_allowed_check", lots=self)
         active_repair_id = self.env.context.get("active_repair_id")
         if active_repair_id:
             active_repair = self.env["repair.order"].browse(active_repair_id)

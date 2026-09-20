@@ -6,6 +6,7 @@ from unittest.mock import patch
 from odoo import api
 from odoo.api import SUPERUSER_ID
 from odoo.db import db_connect
+from odoo.exceptions import MissingError
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, TransactionCase, get_db_name, tagged
 from odoo.tools.assets.constants import like_escape
@@ -21,6 +22,9 @@ from odoo.addons.base.models.assetsbundle import (
 from odoo.addons.base.models.assetsbundle import bundle as bundle_module
 from odoo.addons.base.models.assetsbundle.common import _pipeline_fingerprint
 from odoo.addons.base.models.ir_attachment import IrAttachment
+from odoo.addons.base.models.ir_attachment_assets import (
+    IrAttachment as AssetIrAttachment,
+)
 
 PLAIN_JS = "(function () {\n    window.auditX = 1;\n})();\n"
 
@@ -37,13 +41,20 @@ class _FakeIrAsset:
         return self._get_asset_bundle_url(like_escape(filename), unique, assets_params)
 
 
+class _FakeIrAttachment:
+    _prepare_generated_asset_vals = AssetIrAttachment._prepare_generated_asset_vals
+
+
 class _FakeEnv:
     def __init__(self, calls):
-        self._asset = _FakeIrAsset(calls)
+        self._models = {
+            "ir.asset": _FakeIrAsset(calls),
+            "ir.attachment": _FakeIrAttachment(),
+        }
 
     def __getitem__(self, model):
-        assert model == "ir.asset", model
-        return self._asset
+        assert model in self._models, model
+        return self._models[model]
 
 
 class TestAssetAttachmentStoreUnit(BaseCase):
@@ -120,6 +131,10 @@ class TestSaveAttachmentGuard(TransactionCase):
         self.assertEqual(bundle.save_attachment("min.css", "b{}").mimetype, "text/css")
         self.assertEqual(
             bundle.save_attachment("js.map", "{}").mimetype, "application/json"
+        )
+        # the same mimetype the ESM route and the bridge shims serve
+        self.assertEqual(
+            bundle.save_attachment("min.js", "x").mimetype, "text/javascript"
         )
 
     def test_xml_extensions_rejected(self):
@@ -210,7 +225,7 @@ class TestCleanAttachmentsIdentityFilter(TransactionCase):
                 "url": real.url,
             }
         )
-        store._clean_attachments("min.css", keep_url="/web/assets/nomatch/x.min.css")
+        store._clean_attachments("min.css", keep_id=0)
         self.assertFalse(real.exists(), "the real outdated artifact is GC'd")
         self.assertTrue(rogue.exists(), "the rogue non-ir.ui.view row is left alone")
 
@@ -244,6 +259,65 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
                 [("url", "like", "/web/assets/hardeningtest/%")]
             )
         )
+
+
+class TestSaveKeepsOneRowPerUrl(TransactionCase):
+    FILES = [asset_file("/test_assetsbundle/static/src/js/audit_one.js", PLAIN_JS)]
+
+    def test_a_second_save_of_the_same_version_replaces_the_first(self):
+        bundle = AssetsBundle("test.audit_one", self.FILES, env=self.env, css=False)
+        first = bundle.save_attachment("min.js", "/* first */")
+        first_url = first.url
+        second = bundle.save_attachment("min.js", "/* second */")
+
+        self.assertEqual(first_url, second.url)
+        self.assertFalse(first.exists(), "a same-url twin is superseded, not kept")
+        self.assertEqual(
+            bundle.get_attachments("min.js", ignore_version=True).ids, [second.id]
+        )
+
+    def test_a_debug_build_writes_its_map_once_with_content(self):
+        bundle = AssetsBundle(
+            "test.audit_map", self.FILES, env=self.env, css=False, debug_assets=True
+        )
+        with patch.object(
+            IrAttachment, "write", autospec=True, side_effect=IrAttachment.write
+        ) as write:
+            js = bundle.js()
+        maps = bundle.get_attachments("js.map", ignore_version=True)
+
+        self.assertEqual(len(maps), 1)
+        self.assertEqual(js.url + ".map", maps.url)
+        self.assertIn(b'"version"', maps.raw)
+        self.assertFalse(
+            [c for c in write.call_args_list if "raw" in c.args[1]],
+            "the map is created with its content, never written after the fact",
+        )
+
+
+class TestUnlinkAttachmentsLeavesNoCache(TransactionCase):
+    def test_a_deleted_row_stops_answering_from_the_cache(self):
+        env = self.env
+        attachment = env["ir.attachment"].create(
+            {
+                "name": "cachetest.js",
+                "type": "binary",
+                "raw": b"// cache " + b"x" * 200,
+                "res_model": "ir.ui.view",
+                "res_id": 0,
+                "public": True,
+                "url": "/web/assets/cachetest/cachetest.js",
+            }
+        )
+        self.assertEqual(attachment.name, "cachetest.js")
+        store = AssetsBundle("test_assetsbundle.cachetest", [], env=env)._store
+
+        with patch.object(IrAttachment, "_mark_for_gc_multi"):
+            store._unlink_attachments(attachment)
+
+        self.assertFalse(attachment.exists())
+        with self.assertRaises(MissingError):
+            attachment.name
 
 
 class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):

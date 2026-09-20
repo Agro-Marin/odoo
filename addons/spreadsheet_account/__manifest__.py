@@ -22,6 +22,5 @@
             "spreadsheet_account/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

@@ -3,6 +3,7 @@ from collections import defaultdict
 from odoo import api, models
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
 
 
@@ -106,7 +107,7 @@ class StockPickingPackage(models.Model):
                 ["quantity:sum"],
             )
             for picking, product, product_uom_id, quantity in res_groups:
-                totals[picking.id] += product_uom_id._compute_quantity(
+                totals[picking.id] += product_uom_id._get_quantity_in_unit(
                     quantity, product.uom_id
                 ) * getattr(product, product_attr)
         for picking in self - saved:
@@ -116,7 +117,7 @@ class StockPickingPackage(models.Model):
             ):
                 quantity_by_group[line.product_id, line.product_uom_id] += line.quantity
             for (product, product_uom_id), quantity in quantity_by_group.items():
-                totals[picking.id] += product_uom_id._compute_quantity(
+                totals[picking.id] += product_uom_id._get_quantity_in_unit(
                     quantity, product.uom_id
                 ) * getattr(product, product_attr)
         return totals
@@ -132,6 +133,9 @@ class StockPickingPackage(models.Model):
         if self.env.context.get("sml_specific_default"):
             self = self.with_context(clean_context(self.env.context))
         if self.state in DONE_CANCEL_STATES:
+            dbg.logic.debug(
+                "[picking:%s] action_put_in_pack on closed picking", self.id
+            )
             return None
         if self.env.context.get("all_move_line_ids"):
             self = self.with_context(
@@ -159,6 +163,12 @@ class StockPickingPackage(models.Model):
                 lambda ml: ml.package_id.id in all_package_ids,
             ).unlink()
             move_line_vals = self._prepare_entire_pack_move_line_vals(all_packages)
+            dbg.pipeline.debug(
+                "[picking:%s] action_add_entire_packs %s -> %d lines",
+                self.id,
+                dbg.rec(all_packages),
+                len(move_line_vals),
+            )
             pack_move_lines = self.env["stock.move.line"].create(move_line_vals)
             pack_move_lines._apply_putaway_strategy()
             self.move_line_ids.result_package_id._update_package_dest_for_entire_packs(
@@ -187,6 +197,7 @@ class StockPickingPackage(models.Model):
             for package_quant in packages.quant_ids
         ]
 
+    @dbg.timed
     def _check_entire_pack(self):
         for package, package_move_lines in self.move_line_ids.grouped(
             "package_id"
@@ -201,6 +212,12 @@ class StockPickingPackage(models.Model):
                     lambda ml: (
                         not ml.result_package_id and ml.state not in DONE_CANCEL_STATES
                     ),
+                )
+                dbg.logic.debug(
+                    "_check_entire_pack: package %s entirely moved, %s keep it (%s)",
+                    package.id,
+                    dbg.rec(move_lines_to_pack),
+                    package.package_type_id.package_use,
                 )
                 if package.package_type_id.package_use != "reusable":
                     move_lines_to_pack.write(

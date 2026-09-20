@@ -13,7 +13,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
     @classmethod
     def get_default_groups(cls):
         groups = super().get_default_groups()
-        return groups | cls.quick_ref("sales_team.group_sale_manager")
+        return groups | cls.quick_ref("sale.group_sale_manager")
 
     def test_settle_order_with_kit(self):
         if not self.env["ir.module.module"].search(
@@ -102,7 +102,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             {
                 "group_ids": [
                     (4, self.env.ref("stock.group_stock_user").id),
-                    (4, self.env.ref("sales_team.group_sale_salesman_all_leads").id),
+                    (4, self.env.ref("sale.group_sale_salesman_all_leads").id),
                     (4, self.env.ref("account.group_account_user").id),
                     (4, self.env.ref("base.group_system").id),  # FIXME refacto
                 ]
@@ -714,7 +714,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
 
         current_session.close_session_from_ui()
         self.env.flush_all()
-        self.env.user.group_ids += self.quick_ref("sales_team.group_sale_salesman")
+        self.env.user.group_ids += self.quick_ref("sale.group_sale_salesman")
         self.assertEqual(self.desk_pad.sales_count, 1)
 
     def test_untaxed_invoiced_amount(self):
@@ -1286,15 +1286,17 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                 "taxes_id": False,
             }
         )
-        sale_team = self.env["crm.team"].create({"name": "Test team"})
-        self.main_pos_config.write({"crm_team_id": sale_team})
+        sale_team = self.env["team.team"].create(
+            {"use_sale": True, "name": "Test team"}
+        )
+        self.main_pos_config.write({"team_id": sale_team})
         self.main_pos_config.open_ui()
         self.start_tour(
             "/pos/ui/%d" % self.main_pos_config.id, "PosSaleTeam", login="accountman"
         )
         order = self.env["pos.order"].search([])
         self.assertEqual(len(order), 1)
-        self.assertEqual(order.crm_team_id, sale_team)
+        self.assertEqual(order.team_id, sale_team)
 
     def test_show_orders_for_pos_currency_only(self):
         currency = self.env["res.currency"].create(
@@ -1595,7 +1597,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         selected_groups = self.user.group_ids
         self.user.group_ids = self.env.ref(
             "account.group_account_manager"
-        ) + self.env.ref("sales_team.group_sale_salesman_all_leads")
+        ) + self.env.ref("sale.group_sale_salesman_all_leads")
 
         downpayment_line = sale_order.line_ids.filtered(
             lambda l: l.is_downpayment and not l.display_type
@@ -1921,6 +1923,14 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
                 "last_order_preparation_change": "{}",
             }
         )
+
+        payment_context = {"active_ids": pos_order.ids, "active_id": pos_order.id}
+        self.env["pos.make.payment"].with_context(**payment_context).create(
+            {
+                "amount": pos_order.amount_total,
+                "payment_method_id": current_session.payment_method_ids[0].id,
+            }
+        ).with_context(**payment_context).action_make_payment()
 
         # generate an invoice for pos order
         res = pos_order.action_pos_order_invoice()
@@ -2331,10 +2341,11 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         }
         self.assertEqual(
             sale_order.amount_taxinc_to_invoice,
-            100.0,
-            "Amount to invoice should be 100.0",
+            0.0,
+            "A quotation has nothing to invoice yet",
         )
         self.env["pos.order"].sync_from_ui([order_data])
+        self.assertEqual(sale_order.state, "done")
         self.assertEqual(
             sale_order.amount_taxinc_to_invoice, 0.0, "Amount to invoice should be 0.0"
         )
@@ -2457,7 +2468,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         Tests that the fiscal position of the sale order is not the same as the partner's fiscal position.
         The PoS should always use the fiscal position of the sale order when settling it.
         """
-        self.env.user.group_ids += self.quick_ref("sales_team.group_sale_salesman")
+        self.env.user.group_ids += self.quick_ref("sale.group_sale_salesman")
         tax = self.env["account.tax"].create(
             {
                 "name": "Base Tax",
@@ -2819,7 +2830,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         """
         Tests that when a partner is selected in the PoS, then a quotation for this partner is loaded
         """
-        self.env.user.group_ids += self.quick_ref("sales_team.group_sale_salesman")
+        self.env.user.group_ids += self.quick_ref("sale.group_sale_salesman")
         product_a = self.env["product.product"].create(
             {
                 "name": "Product A",
@@ -2880,7 +2891,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         Tests that a Sale Order fully paid via a payment.transaction (eCommerce)
         does not appear in the list of orders fetched by the Point of Sale.
         """
-        self.env.user.group_ids += self.quick_ref("sales_team.group_sale_salesman")
+        self.env.user.group_ids += self.quick_ref("sale.group_sale_salesman")
         partner_1 = self.env["res.partner"].create({"name": "A Test Partner 1"})
         product_a = self.env["product.product"].create(
             {
@@ -2940,7 +2951,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         Tests that a Sale Order fully paid via a payment.transaction (eCommerce)
         does not appear in the list of orders fetched by the Point of Sale.
         """
-        self.env.user.group_ids += self.quick_ref("sales_team.group_sale_salesman")
+        self.env.user.group_ids += self.quick_ref("sale.group_sale_salesman")
         partner_1 = self.env["res.partner"].create({"name": "A Test Partner 1"})
         product_a = self.env["product.product"].create(
             {

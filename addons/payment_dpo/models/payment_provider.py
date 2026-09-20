@@ -10,17 +10,24 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "dpo_company_token": "dpo_company_token",
+    }
 
     code = fields.Selection(
-        selection_add=[("dpo", "DPO")], ondelete={"dpo": "set default"}
+        selection_add=[("dpo", "DPO")],
+        ondelete={"dpo": "set default"},
     )
     dpo_service_ref = fields.Char(
-        string="DPO Service ID", required_if_provider="dpo", copy=False
+        string="DPO Service ID",
+        copy=False,
+        required_if_provider="dpo",
     )
     dpo_company_token = fields.Char(
         string="DPO Company Token",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="dpo",
-        copy=False,
         groups="base.group_system",
     )
 

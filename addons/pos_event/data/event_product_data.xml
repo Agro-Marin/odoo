@@ -9,7 +9,7 @@
             <field name="available_in_pos">True</field>
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_event.pos_category_event')])]" />
+                eval="[Command.set([ref('pos_event.pos_category_event')])]" />
         </record>
     </data>
 

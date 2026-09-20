@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { reactive, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js";
 import { Record } from "./record.js";
@@ -32,7 +33,8 @@ export function observeKey(target, key, callback) {
         const val = /** @type {Object<string, unknown> | undefined} */ (
             subscription.proxy
         )?.[/** @type {string} */ (key)];
-        if (typeof val === "object" && val !== null) {
+        // a markup is a String object: its keys are its character indices, one per byte
+        if (typeof val === "object" && val !== null && !(val instanceof String)) {
             void Object.keys(val);
         }
         if (Array.isArray(val)) {
@@ -54,6 +56,8 @@ export function observeKey(target, key, callback) {
         subscription.callback = undefined;
     };
 }
+const log = makeLogger("mail.model");
+
 export class Store extends Record {
     /** @type {StoreModels} */
     Models;
@@ -90,6 +94,10 @@ export class Store extends Record {
      * @throws {Error}
      */
     handleError(err) {
+        log.logic("handleError", () => ({
+            deferred: this._.UPDATE !== 0,
+            message: err?.message,
+        }));
         if (this._.UPDATE === 0) {
             if (this.logErrors) {
                 console.warn(err);
@@ -282,24 +290,34 @@ export class Store extends Record {
             this._.RHD_QUEUE.size > 0
         );
     }
+    /**
+     * @template {"FC_QUEUE"|"FS_QUEUE"|"FA_QUEUE"|"FD_QUEUE"|"FU_QUEUE"|"RO_QUEUE"|"RD_QUEUE"|"RHD_QUEUE"} K
+     * @param {K} name
+     * @returns {StoreInternal[K]}
+     */
+    _takeQueue(name) {
+        const queue = this._[name];
+        this._[name] = /** @type {StoreInternal[K]} */ (new Map());
+        return queue;
+    }
     /** @param {Map<string, Record>} deletingRecordsByLocalId */
     _drainQueuesOnce(deletingRecordsByLocalId) {
-        const FC_QUEUE = new Map(this._.FC_QUEUE);
-        const FS_QUEUE = new Map(this._.FS_QUEUE);
-        const FA_QUEUE = new Map(this._.FA_QUEUE);
-        const FD_QUEUE = new Map(this._.FD_QUEUE);
-        const FU_QUEUE = new Map(this._.FU_QUEUE);
-        const RO_QUEUE = new Map(this._.RO_QUEUE);
-        const RD_QUEUE = new Map(this._.RD_QUEUE);
-        const RHD_QUEUE = new Map(this._.RHD_QUEUE);
-        this._.FC_QUEUE.clear();
-        this._.FS_QUEUE.clear();
-        this._.FA_QUEUE.clear();
-        this._.FD_QUEUE.clear();
-        this._.FU_QUEUE.clear();
-        this._.RO_QUEUE.clear();
-        this._.RD_QUEUE.clear();
-        this._.RHD_QUEUE.clear();
+        const FC_QUEUE = this._takeQueue("FC_QUEUE");
+        const FS_QUEUE = this._takeQueue("FS_QUEUE");
+        const FA_QUEUE = this._takeQueue("FA_QUEUE");
+        const FD_QUEUE = this._takeQueue("FD_QUEUE");
+        const FU_QUEUE = this._takeQueue("FU_QUEUE");
+        const RO_QUEUE = this._takeQueue("RO_QUEUE");
+        const RD_QUEUE = this._takeQueue("RD_QUEUE");
+        log.pipeline("drainQueuesOnce", () => ({
+            compute: FC_QUEUE.size,
+            sort: FS_QUEUE.size,
+            onAdd: FA_QUEUE.size,
+            onDelete: FD_QUEUE.size,
+            onUpdate: FU_QUEUE.size,
+            observers: RO_QUEUE.size,
+            delete: RD_QUEUE.size,
+        }));
         this._drainForcedComputes(FC_QUEUE);
         this._drainForcedSorts(FS_QUEUE);
         this._drainOnAdd(FA_QUEUE);
@@ -307,12 +325,14 @@ export class Store extends Record {
         this._drainOnUpdate(FU_QUEUE);
         this._drainCallbacks(RO_QUEUE);
         this._drainDeletes(RD_QUEUE, deletingRecordsByLocalId);
-        this._drainHardDeletes(RHD_QUEUE, deletingRecordsByLocalId);
+        // taken after the deletes so the hard deletes they queue drain in this iteration
+        this._drainHardDeletes(this._takeQueue("RHD_QUEUE"), deletingRecordsByLocalId);
     }
     _flushQueues() {
         const deletingRecordsByLocalId = new Map();
         this._.UPDATE++;
         let flushIterations = 0;
+        const endFlush = log.perf("flushQueues");
         try {
             while (this._hasQueuedWork()) {
                 if (++flushIterations > 1000) {
@@ -325,12 +345,17 @@ export class Store extends Record {
             }
         } finally {
             this._.UPDATE--;
+            endFlush({
+                iterations: flushIterations,
+                deleted: deletingRecordsByLocalId.size,
+            });
         }
     }
     _throwFirstQueuedError() {
         if (!this._.ERRORS.length) {
             return;
         }
+        log.logic("throwFirstQueuedError", () => ({ errors: this._.ERRORS.length }));
         if (this.logErrors) {
             console.warn("Store data insert aborted due to following errors:");
             for (const err of this._.ERRORS) {
@@ -361,7 +386,9 @@ export class Store extends Record {
             this._.UPDATE--;
         }
         if (this._.UPDATE === 0) {
-            this._flushQueues();
+            if (this._hasQueuedWork()) {
+                this._flushQueues();
+            }
             this._throwFirstQueuedError();
         }
         // A failed callback is rethrown above, after queued updates are flushed.
@@ -376,16 +403,36 @@ export class Store extends Record {
         const store = this;
         const rawStore = toRaw(this)._raw;
         const ctx = store._makeInsertContext();
+        const endInsert = log.perf("insert");
+        log.pipeline("insert", () =>
+            Object.fromEntries(
+                Object.entries(dataByModelName).map(([name, data]) => [
+                    name,
+                    Array.isArray(data) ? data.length : 1,
+                ]),
+            ),
+        );
         rawStore.MAKE_UPDATE(function storeInsert() {
             /** @type {Map<string|number, [string, RecordData]>} */
             const recordsDataToDelete = new Map();
             let unresolvedIdentity = 0;
+            /**
+             * @param {string} modelName
+             * @param {RecordData} vals
+             * @returns {string|number}
+             */
+            const identityOf = (modelName, vals) => {
+                try {
+                    return `${modelName}:${models[modelName].localId(vals)}`;
+                } catch {
+                    return ++unresolvedIdentity;
+                }
+            };
+            const models = /** @type {StoreModels} */ (/** @type {unknown} */ (store));
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
                 const modelName = store._insertModelName(ctx, pyOrJsModelName);
-                const models = /** @type {StoreModels} */ (
-                    /** @type {unknown} */ (store)
-                );
                 if (!models[modelName]) {
+                    log.logic("insert unknown model", () => ({ modelName }));
                     console.warn(
                         `store.insert() received data for unknown model “${modelName}”.`,
                     );
@@ -397,20 +444,21 @@ export class Store extends Record {
                     if (extraFields) {
                         vals = { ...vals, ...extraFields };
                     }
-                    let identity;
-                    try {
-                        identity = `${modelName}:${models[modelName].localId(vals)}`;
-                    } catch {
-                        identity = ++unresolvedIdentity;
-                    }
+                    // the identity only matters to pair a `_DELETE` row with an
+                    // insert of the same record in one payload: the later one wins
                     if (vals._DELETE) {
                         if (!extraFields) {
                             vals = { ...vals };
                         }
                         delete vals._DELETE;
-                        recordsDataToDelete.set(identity, [modelName, vals]);
+                        recordsDataToDelete.set(identityOf(modelName, vals), [
+                            modelName,
+                            vals,
+                        ]);
                     } else {
-                        recordsDataToDelete.delete(identity);
+                        if (recordsDataToDelete.size) {
+                            recordsDataToDelete.delete(identityOf(modelName, vals));
+                        }
                         insertData.push(vals);
                     }
                 }
@@ -426,6 +474,7 @@ export class Store extends Record {
                     ?.delete();
             }
         });
+        endInsert({ models: Object.keys(dataByModelName).length });
     }
     /**
      * @param {Record} record

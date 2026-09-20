@@ -1,6 +1,6 @@
 {
     "name": "Data Recycle",
-    "version": "1.4",
+    "version": "1.6",
     "category": "Productivity/Data Cleaning",
     "summary": "Find old records and archive/delete them",
     "description": "Find old records and archive/delete them",
@@ -27,6 +27,5 @@
             "data_recycle/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

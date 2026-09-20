@@ -9,12 +9,14 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import Speedscope
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.misc import str2bool
 from odoo.tools.profiler import get_session_name
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrProfile(models.Model):
@@ -24,31 +26,46 @@ class IrProfile(models.Model):
     _order = "session desc, id desc"
     _allow_sudo_commands = False
 
-    create_date = fields.Datetime("Creation Date")
+    create_date = fields.Datetime(string="Creation Date")
 
-    session = fields.Char("Session", index=True)
-    name = fields.Char("Description")
-    duration = fields.Float("Duration", digits=(9, 3), help="Real elapsed time")
+    session = fields.Char(index=True)
+    name = fields.Char(string="Description")
+    duration = fields.Float(
+        digits=(9, 3),
+        help="Real elapsed time",
+    )
     cpu_duration = fields.Float(
-        "CPU Duration",
+        string="CPU Duration",
         digits=(9, 3),
         help="CPU clock (not including other processes or SQL)",
     )
 
-    init_stack_trace = fields.Text("Initial stack trace", prefetch=False)
+    init_stack_trace = fields.Text(
+        string="Initial stack trace",
+        prefetch=False,
+    )
 
-    sql = fields.Text("Sql", prefetch=False)
-    sql_count = fields.Integer("Queries Count")
-    traces_async = fields.Text("Traces Async", prefetch=False)
-    traces_sync = fields.Text("Traces Sync", prefetch=False)
-    others = fields.Text("others", prefetch=False)
-    qweb = fields.Text("Qweb", prefetch=False)
-    entry_count = fields.Integer("Entry count")
+    sql = fields.Text(prefetch=False)
+    sql_count = fields.Integer(string="Queries Count")
+    traces_async = fields.Text(prefetch=False)
+    traces_sync = fields.Text(prefetch=False)
+    others = fields.Text(
+        string="others",
+        prefetch=False,
+    )
+    qweb = fields.Text(prefetch=False)
+    entry_count = fields.Integer(string="Entry count")
 
-    speedscope = fields.Binary("Speedscope", compute="_compute_speedscope")
-    speedscope_url = fields.Text("Open", compute="_compute_speedscope_url")
+    speedscope = fields.Binary(compute="_compute_speedscope")
+    speedscope_url = fields.Text(
+        string="Open",
+        compute="_compute_speedscope_url",
+    )
 
-    config_url = fields.Text("Open profiles config", compute="_compute_config_url")
+    config_url = fields.Text(
+        string="Open profiles config",
+        compute="_compute_config_url",
+    )
 
     @api.autovacuum
     def _gc_profile(self) -> tuple[int, bool]:
@@ -61,6 +78,7 @@ class IrProfile(models.Model):
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle("gc_profile", count=len(records))
         return len(records), len(records) == GC_UNLINK_LIMIT
 
     def _has_memory(self) -> bool:
@@ -73,6 +91,7 @@ class IrProfile(models.Model):
         self.check_access("read")
         memory_graph = []
         memory_limit = params.get("memory_limit", 0)
+        _debug.pipeline("memory_profile", profiles=len(self), memory_limit=memory_limit)
         for profile in self:
             if profile.others:
                 memory = json.loads(profile.others).get("memory", "[]")
@@ -105,6 +124,9 @@ class IrProfile(models.Model):
     def _prepare_profile_params_default(self) -> dict[str, bool]:
         has_sql = any(profile.sql for profile in self)
         has_traces = any(profile.traces_async for profile in self)
+        _debug.logic(
+            "profile_defaults", profiles=len(self), sql=has_sql, traces=has_traces
+        )
         return {
             "combined_profile": has_sql and has_traces,
             "sql_no_gap_profile": has_sql and not has_traces,
@@ -116,6 +138,9 @@ class IrProfile(models.Model):
         aggregation_mode = params.get("profile_aggregation_mode")
         if aggregation_mode not in ("tabs", "temporal"):
             aggregation_mode = "tabs"
+        _debug.logic(
+            "profile_params_parsed", keys=sorted(params), aggregation=aggregation_mode
+        )
         return {
             "constant_time": str2bool(
                 params.get("constant_time", False), default=False
@@ -153,9 +178,13 @@ class IrProfile(models.Model):
         self.check_access("read")
         init_stack_trace = self[0].init_stack_trace
         if not init_stack_trace:
+            _debug.logic("speedscope_empty", profiles=self.ids)
             return b"{}"
         for record in self:
             if record.init_stack_trace != init_stack_trace:
+                _debug.logic(
+                    "speedscope_refused", reason="stack_mismatch", profiles=self.ids
+                )
                 raise UserError(
                     self.env._(
                         "All profiles must have the same initial stack trace to be displayed together."
@@ -183,7 +212,9 @@ class IrProfile(models.Model):
         if params["profile_aggregation_mode"] == "temporal":
             self._add_outputs(sp, "all", params)
 
-        result = json.dumps(sp.prepare_document(**params))
+        with _debug.perf("speedscope_document", profiles=len(self)) as span:
+            result = json.dumps(sp.prepare_document(**params))
+            span.set(bytes=len(result))
         return result.encode("utf-8")
 
     def _add_outputs(self, sp: Speedscope, suffix: str, params: dict[str, Any]) -> None:
@@ -220,7 +251,9 @@ class IrProfile(models.Model):
             .get_param("base.profiling_enabled_until", "")
         )
         limit_dt = fields.Datetime.from_string(limit)
-        return limit if limit_dt and fields.Datetime.now() < limit_dt else None
+        enabled = bool(limit_dt and fields.Datetime.now() < limit_dt)
+        _debug.logic("profiling_window", enabled=enabled, until=limit or None)
+        return limit if enabled else None
 
     @api.model
     def set_profiling(
@@ -230,6 +263,7 @@ class IrProfile(models.Model):
         params: dict | None = None,
     ) -> dict[str, Any]:
         if not request:
+            _debug.logic("profiling_refused", reason="no_request")
             raise UserError(
                 self.env._("Profiling can only be toggled from an HTTP request.")
             )
@@ -238,6 +272,11 @@ class IrProfile(models.Model):
             _logger.info("User %s started profiling", self.env.user.name)
             if not limit:
                 request.session["profile_session"] = None
+                _debug.logic(
+                    "profiling_not_enabled",
+                    uid=self.env.uid,
+                    system=self.env.user._is_system(),
+                )
                 if self.env.user._is_system():
                     return {
                         "type": "ir.actions.act_window",
@@ -252,6 +291,7 @@ class IrProfile(models.Model):
                     )
                 )
             if not request.session.get("profile_session"):
+                _debug.lifecycle("profile_session_opened", uid=self.env.uid)
                 request.session["profile_session"] = get_session_name(
                     self.env.user.name
                 )
@@ -261,6 +301,7 @@ class IrProfile(models.Model):
                 if request.session.get("profile_params") is None:
                     request.session["profile_params"] = {}
         elif profile is not None:
+            _debug.lifecycle("profile_session_closed", uid=self.env.uid)
             request.session["profile_session"] = None
 
         if collectors is not None:
@@ -269,6 +310,13 @@ class IrProfile(models.Model):
         if params is not None:
             request.session["profile_params"] = params
 
+        _debug.lifecycle(
+            "profiling_toggled",
+            uid=self.env.uid,
+            profile=profile,
+            session=request.session.get("profile_session"),
+            collectors=request.session.get("profile_collectors"),
+        )
         return {
             "session": request.session.get("profile_session"),
             "collectors": request.session.get("profile_collectors"),
@@ -289,7 +337,7 @@ class BaseEnableProfilingWizard(models.TransientModel):
     _description = "Enable profiling for some time"
 
     duration = fields.Selection(
-        [
+        selection=[
             ("minutes_5", "5 Minutes"),
             ("hours_1", "1 Hour"),
             ("days_1", "1 Day"),
@@ -298,7 +346,7 @@ class BaseEnableProfilingWizard(models.TransientModel):
         string="Enable profiling for",
     )
     expiration = fields.Datetime(
-        "Enable profiling until",
+        string="Enable profiling until",
         compute="_compute_expiration",
         store=True,
         readonly=False,
@@ -313,6 +361,9 @@ class BaseEnableProfilingWizard(models.TransientModel):
             )
 
     def submit(self) -> bool:
+        _debug.lifecycle(
+            "profiling_enabled_until", uid=self.env.uid, until=str(self.expiration)
+        )
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", self.expiration
         )

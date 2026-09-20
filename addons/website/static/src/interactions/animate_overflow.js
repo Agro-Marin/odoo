@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.animate_overflow");
 
 export class AnimateOverflow extends Interaction {
     static selector = "#wrapwrap";
@@ -27,15 +30,15 @@ export class AnimateOverflow extends Interaction {
 
     setup() {
         this.scrollingElement = getScrollingElement(this.el.ownerDocument);
+        const endScan = log.perf("AnimateOverflow setup: scan animated transforms");
         const animatedElements = this.el.querySelectorAll(".o_animate");
-        // Fix for "transform: none" not overriding keyframe transforms on
-        // some iPhone using Safari. All animated elements are checked
-        // (not only one) as the bug is not systematic and may depend on some
-        // other conditions (for example: an animated image in a block which is
-        // hidden on mobile would not have the issue).
         this.forceOverflowXYHidden = [...animatedElements].some(
             (el) => window.getComputedStyle(el).transform !== "none",
         );
+        endScan(() => ({
+            animated: animatedElements.length,
+            forceOverflowXYHidden: this.forceOverflowXYHidden,
+        }));
     }
 
     get hasAnimationInProgress() {

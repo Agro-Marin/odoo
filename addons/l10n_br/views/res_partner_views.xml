@@ -15,64 +15,64 @@
                         <field
                             name="street"
                             placeholder="Street..."
-                            class="o_address_street oe_read_only"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_street oe_read_only" />
                         <div class="oe_edit_only o_row">
                             <field
                                 name="street_name"
                                 placeholder="Street"
-                                style="flex: 3 1 auto"
-                                readonly="type == 'contact' and parent_id" />
+                                readonly="type == 'contact' and parent_id"
+                                style="flex: 3 1 auto" />
                             <span> </span>
                             <field
                                 name="street_number"
                                 placeholder="Street #"
-                                style="flex: 1 1 auto"
-                                readonly="type == 'contact' and parent_id" />
+                                readonly="type == 'contact' and parent_id"
+                                style="flex: 1 1 auto" />
                             <span> - </span>
                             <field
                                 name="street_number2"
                                 placeholder="Complement"
-                                style="flex: 1 1 auto"
-                                readonly="type == 'contact' and parent_id" />
+                                readonly="type == 'contact' and parent_id"
+                                style="flex: 1 1 auto" />
                         </div>
                         <field
                             name="street2"
                             placeholder="Neighborhood"
-                            class="o_address_street"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_street" />
                         <field
                             name="city_id"
                             placeholder="City"
-                            class="o_address_city"
                             domain="[('country_id', '=', country_id)]"
+                            context="{'default_country_id': country_id, 'default_state_id': state_id, 'default_zipcode': zip}"
                             invisible="not country_enforce_cities"
                             readonly="type == 'contact' and parent_id"
-                            context="{'default_country_id': country_id, 'default_state_id': state_id, 'default_zipcode': zip}" />
+                            class="o_address_city" />
                         <field
                             name="city"
                             placeholder="City"
-                            class="o_address_city"
                             invisible="country_enforce_cities and (city_id or city in ('', False))"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_city" />
                         <field
                             name="state_id"
-                            class="o_address_state"
                             placeholder="State"
-                            readonly="type == 'contact' and parent_id"
+                            context="{'default_country_id': country_id}"
                             options="{'no_open': True, 'no_quick_create': True}"
-                            context="{'default_country_id': country_id}" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_state" />
                         <field
                             name="zip"
                             placeholder="ZIP"
-                            class="o_address_zip"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_zip" />
                         <field
                             name="country_id"
                             placeholder="Country"
-                            class="o_address_country"
+                            options="{'no_open': True, 'no_create': True}"
                             readonly="type == 'contact' and parent_id"
-                            options="{'no_open': True, 'no_create': True}" />
+                            class="o_address_country" />
                     </div>
                 </form>
             </field>

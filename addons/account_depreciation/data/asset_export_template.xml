@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="account_asset_export_template" model="ir.exports">
+        <field name="name">Assets</field>
+        <field name="resource">resource.asset</field>
+        <field name="export_fields">
+            <record
+                id="account_asset_export_template_line_name"
+                model="ir.exports.line">
+                <field name="name">name</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_original_value"
+                model="ir.exports.line">
+                <field name="name">value_original</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_acquisition_date"
+                model="ir.exports.line">
+                <field name="name">date_acquisition</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_asset_group_id"
+                model="ir.exports.line">
+                <field name="name">asset_group_id</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_method"
+                model="ir.exports.line">
+                <field name="name">depreciation_method</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_method_number"
+                model="ir.exports.line">
+                <field name="name">depreciation_duration</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_method_period"
+                model="ir.exports.line">
+                <field name="name">depreciation_period</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_method_progress_factor"
+                model="ir.exports.line">
+                <field name="name">depreciation_factor</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_prorata_computation_type"
+                model="ir.exports.line">
+                <field name="name">depreciation_prorata</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_prorata_date"
+                model="ir.exports.line">
+                <field name="name">date_prorata</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_already_depreciated_amount_import"
+                model="ir.exports.line">
+                <field name="name">value_depreciated_import</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_salvage_value"
+                model="ir.exports.line">
+                <field name="name">value_salvage</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_company_id"
+                model="ir.exports.line">
+                <field name="name">company_id</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_account_asset_id"
+                model="ir.exports.line">
+                <field name="name">account_asset_id</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_account_depreciation_id"
+                model="ir.exports.line">
+                <field name="name">account_depreciation_id</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_account_depreciation_expense_id"
+                model="ir.exports.line">
+                <field name="name">account_depreciation_expense_id</field>
+            </record>
+            <record
+                id="account_asset_export_template_line_journal_id"
+                model="ir.exports.line">
+                <field name="name">depreciation_journal_id</field>
+            </record>
+        </field>
+    </record>
+
+</odoo>

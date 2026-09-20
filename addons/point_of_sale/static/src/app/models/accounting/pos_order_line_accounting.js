@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 
 import { Base } from "../related_models/index.js";
+const log = makeLogger("pos.orderline.accounting");
 
 export class PosOrderlineAccounting extends Base {
     static accountingFields = new Set([
@@ -161,11 +163,24 @@ export class PosOrderlineAccounting extends Base {
             is_refund: this.qty * priceUnit < 0,
             ...customValues,
         };
-        if (order?.fiscal_position_id && product !== this.config.discount_product_id) {
+        const applyFiscalPosition = Boolean(
+            order?.fiscal_position_id && product !== this.config.discount_product_id,
+        );
+        if (applyFiscalPosition) {
             values.tax_ids = order.fiscal_position_id.getTaxesAfterFiscalPosition(
                 values.tax_ids,
             );
         }
+        log.logic("prepareBaseLine", () => ({
+            line: this.uuid,
+            product: product?.id,
+            qty: values.quantity,
+            priceUnit: values.price_unit,
+            discount,
+            taxes: values.tax_ids?.map?.((t) => t.id),
+            fiscalPosition: applyFiscalPosition ? order.fiscal_position_id.id : null,
+            isRefund: values.is_refund,
+        }));
         return values;
     }
 

@@ -1,12 +1,15 @@
 from odoo import _, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrJob(models.Model):
     _inherit = "hr.job"
 
     survey_id = fields.Many2one(
-        "survey.survey",
-        "Interview Form",
+        comodel_name="survey.survey",
+        string="Interview Form",
         index="btree_not_null",
         help="Choose an interview form for this job position and you will be able to print/answer this interview from all applicants who apply for this job",
     )
@@ -23,6 +26,7 @@ class HrJob(models.Model):
                 "survey_type": "recruitment",
             }
         )
+        _debug.lifecycle("interview_form_created", job=self, survey=survey)
         self.write({"survey_id": survey.id})
 
         return {

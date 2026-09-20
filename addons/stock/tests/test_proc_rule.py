@@ -8,6 +8,8 @@ from odoo.fields import Command
 from odoo.tests import Form, TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.stock.tests.common import RECEPTION_ROUTE_BOUGHT, is_module_installed
+
 
 class TestProcRule(TransactionCase):
     @classmethod
@@ -879,7 +881,22 @@ class TestProcRule(TransactionCase):
         )
         stock_move._action_confirm()
         shelf1.active = False
-        self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
+        self.env.flush_all()
+
+        action = self.env["stock.warehouse.orderpoint"].action_view_orderpoints()
+
+        self.assertEqual(action["type"], "ir.actions.act_window")
+        proposed = self.env["stock.warehouse.orderpoint"].search(
+            [("product_id", "=", product.id)]
+        )
+        self.assertTrue(proposed, "the negative forecast must still propose a rule")
+        # the risk this guards: a rule proposed on the location that was just
+        # archived, which the user can neither see nor replenish from
+        self.assertTrue(
+            all(orderpoint.location_id.active for orderpoint in proposed),
+            "an orderpoint was proposed on an archived location",
+        )
+        self.assertNotIn(shelf1, proposed.location_id)
 
     def test_compute_qty_to_order(self):
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
@@ -930,6 +947,9 @@ class TestProcRule(TransactionCase):
         self.assertFalse(orderpoint_list_view.product_id)
 
     def test_orderpoint_warning(self):
+        # the reception route's pull rule is the supply the warning expects
+        if is_module_installed(self.env, "purchase_stock"):
+            self.skipTest(RECEPTION_ROUTE_BOUGHT)
         self.product.is_storable = True
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {

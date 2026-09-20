@@ -5,17 +5,6 @@ class PortalWizardUser(models.TransientModel):
     _inherit = "portal.wizard.user"
 
     def _get_domain_similar_users(self, portal_users_with_email):
-        """Widen the base "similar user" domain to also match on website_id.
-
-        Collects every website_id relevant to this batch of invites (each
-        invited partner's own website_id, plus the current website whenever
-        any invited partner has none) so _is_portal_similar_than_user can
-        later do exact per-user matching against it. Widening here, not
-        narrowing, is required by res_users.py's unique(login, website_id)
-        relaxation: the same login can legitimately exist once per website,
-        so "similar" must consider website_id or it would miss/misreport
-        genuine duplicates across websites.
-        """
         similar_user_domain = super()._get_domain_similar_users(portal_users_with_email)
         portal_user_website_ids = []
         for portal_user in portal_users_with_email:

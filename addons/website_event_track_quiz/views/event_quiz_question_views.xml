@@ -10,8 +10,8 @@
                 <field name="quiz_id" />
                 <group>
                     <filter
-                        string="Quiz"
                         name="groupby_quiz_id"
+                        string="Quiz"
                         context="{'group_by': 'quiz_id'}" />
                 </group>
             </search>
@@ -53,8 +53,8 @@
                     <h1>
                         <field
                             name="name"
-                            default_focus="1"
-                            placeholder="e.g. What is Joe's favorite motto?" />
+                            placeholder="e.g. What is Joe's favorite motto?"
+                            default_focus="1" />
                     </h1>
                     <group>
                         <field name="quiz_id" />

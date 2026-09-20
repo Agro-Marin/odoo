@@ -1,4 +1,7 @@
+from dateutil.relativedelta import relativedelta
+
 from odoo import api, fields, models
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 
 class MixinEventMailSchedule(models.AbstractModel):
@@ -7,21 +10,21 @@ class MixinEventMailSchedule(models.AbstractModel):
     _name = "mixin.event.mail.schedule"
     _description = "Event Communication Scheduling"
 
-    interval_nbr = fields.Integer("Interval", default=1)
+    interval_nbr = fields.Integer(
+        string="Interval",
+        default=1,
+    )
     interval_unit = fields.Selection(
-        [
+        selection=[
             ("now", "Immediately"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
+            *time_unit_selection("hour", "day", "week", "month"),
         ],
         string="Unit",
-        default="hours",
+        default="hour",
         required=True,
     )
     interval_type = fields.Selection(
-        [
+        selection=[
             # attendee based
             ("after_sub", "After each registration"),
             # event based: start date
@@ -38,13 +41,15 @@ class MixinEventMailSchedule(models.AbstractModel):
         "If the event has multiple slots, the interval is related to each time slot instead of the whole event.",
     )
     notification_type = fields.Selection(
-        [("mail", "Mail")], string="Send", compute="_compute_notification_type"
+        selection=[("mail", "Mail")],
+        string="Send",
+        compute="_compute_notification_type",
     )
     template_ref = fields.Reference(
-        string="Template",
-        ondelete={"mail.template": "cascade"},
-        required=True,
         selection=[("mail.template", "Mail")],
+        string="Template",
+        required=True,
+        ondelete={"mail.template": "cascade"},
     )
 
     @api.depends("template_ref")
@@ -67,3 +72,9 @@ class MixinEventMailSchedule(models.AbstractModel):
             "interval_type": self.interval_type,
             "template_ref": f"{self.template_ref._name},{self.template_ref.id}",
         }
+
+    def _get_schedule_delta(self, count):
+        self.check_singleton()
+        if self.interval_unit == "now":
+            return relativedelta()
+        return get_timedelta(count, self.interval_unit)

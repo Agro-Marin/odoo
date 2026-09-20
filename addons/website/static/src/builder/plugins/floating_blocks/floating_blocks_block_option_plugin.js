@@ -17,12 +17,10 @@ class FloatingBlocksBlockOptionPlugin extends Plugin {
             withSequence(LAYOUT_GRID, FloatingBlocksBlockOption),
         ],
         dropzone_selector: [
-            // Lock grid-items within their grid
             {
                 selector: ".s_floating_blocks_block_grid .o_grid_item",
                 dropLockWithin: ".s_floating_blocks_block_grid",
             },
-            // Lock block-items within the snippet
             {
                 selector: ".s_floating_blocks .s_floating_blocks_block",
                 dropLockWithin: ".s_floating_blocks",

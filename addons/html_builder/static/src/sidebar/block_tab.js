@@ -203,6 +203,11 @@ export class BlockTab extends Component {
             );
         });
 
+        if (this.env.editor.isDestroyed) {
+            // the dialog outlived the editor: nothing to insert or restore
+            delete this.cancelDragAndDrop;
+            return;
+        }
         if (selectedSnippetEl) {
             await scrollTo(selectedSnippetEl, { extraOffset: 50 });
             await this.processDroppedSnippet(selectedSnippetEl);

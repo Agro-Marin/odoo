@@ -5,8 +5,9 @@ from typing import Literal
 
 import requests
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import LockError, UserError
+from odoo.http import request
 
 from .account_edi_proxy_auth import OdooEdiProxyAuth
 
@@ -26,37 +27,53 @@ class Account_Edi_Proxy_ClientUser(models.Model):
     """A user of the proxy for one electronic-invoicing format, identified by a per-format key."""
 
     _name = "account_edi_proxy_client.user"
+    _inherit = ["mixin.credential.holder"]
     _description = "Account EDI proxy user"
+    _credential_holder_field = "proxy_credential_id"
+    _credential_purpose = "account_edi_proxy_client:auth"
+    _CREDENTIAL_FIELDS = {"refresh_token": "refresh_token"}
 
     active = fields.Boolean(default=True)
     id_client = fields.Char(required=True)
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        required=True,
-        index=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company,
+        index=True,
+        required=True,
     )
     edi_identification = fields.Char(
-        required=True, help="The unique id that identifies this user, typically the vat"
+        required=True,
+        help="The unique id that identifies this user, typically the vat",
     )
     private_key_id = fields.Many2one(
-        string="Private Key",
         comodel_name="certificate.key",
         required=True,
         domain=[("public", "=", False)],
         help="The key to encrypt all the user's data",
     )
-    refresh_token = fields.Char(groups="base.group_system")
+    refresh_token = fields.Char(
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        groups="base.group_system",
+    )
+    proxy_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds this proxy user's refresh token.",
+    )
     is_token_out_of_sync = fields.Boolean(
         string="Token Out of Sync",
         help="This field is used to indicate that the edi user token is out of sync with the proxy server. "
         "It is set to True when the token needs to be refreshed or updated.",
     )
-    token_sync_version = fields.Integer(
-        string="Token Sync Version",
+    token_sync_version = fields.Integer()
+    proxy_type = fields.Selection(
+        selection=[],
+        required=True,
     )
-    proxy_type = fields.Selection(selection=[], required=True)
     edi_mode = fields.Selection(
         selection=[
             ("prod", "Production mode"),
@@ -117,8 +134,10 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             )
 
         try:
-            res = requests.post(
+            res = self.env["ir.egress"].request(
+                "POST",
                 url,
+                purpose="edi_proxy",
                 json=payload,
                 timeout=DEFAULT_TIMEOUT,
                 headers={"content-type": "application/json"},
@@ -128,10 +147,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             response = res.json()
         except (
             ValueError,
-            requests.exceptions.ConnectionError,
-            requests.exceptions.MissingSchema,
-            requests.exceptions.Timeout,
-            requests.exceptions.HTTPError,
+            requests.exceptions.RequestException,
         ) as e:
             _logger.warning(
                 "Connection error <%(url)s>: %(error)s", {"url": url, "error": e}
@@ -180,7 +196,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
 
         return response["result"]
 
-    def _get_iap_params(self, company, proxy_type, private_key_sudo):
+    def _prepare_iap_params(self, company, proxy_type, private_key_sudo):
         edi_identification = self._get_proxy_identification(company, proxy_type)
 
         return {
@@ -220,7 +236,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
                 server_url = self._get_server_url(proxy_type, edi_mode)
                 response = self._prepare_request(
                     f"{server_url}/iap/account_edi/2/create_user",
-                    params=self._get_iap_params(company, proxy_type, private_key_sudo),
+                    params=self._prepare_iap_params(company, proxy_type, private_key_sudo),
                 )
             except AccountEdiProxyError as e:
                 raise UserError(e.message) from e
@@ -284,3 +300,28 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         return self.env["certificate.key"]._account_edi_fernet_decrypt(
             decrypted_key, base64.b64decode(data)
         )
+
+    @api.model
+    def _admit_proxy_webhook(self, edi_user, event_type):
+        httprequest = request.httprequest
+        if not edi_user:
+            self.env["inbound.access.log"]._record_unknown_caller(
+                self._name,
+                event_type,
+                httprequest.remote_addr,
+                user_agent=httprequest.headers.get("User-Agent"),
+                status_code=204,
+            )
+            return False
+        edi_user = edi_user.sudo()
+        receiver = self.env["integration.receiver"]._for_record(
+            edi_user,
+            self.env._("%(user)s proxy webhooks", user=edi_user.display_name),
+        )
+        return receiver._admit_checked_request(
+            _signed_token_was_resolved, event_type=event_type
+        )
+
+
+def _signed_token_was_resolved():
+    return None

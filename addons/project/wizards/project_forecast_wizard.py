@@ -5,6 +5,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import DELIVERED_STATES
 
 
@@ -15,32 +16,45 @@ class ProjectForecastWizard(models.TransientModel):
     SIMULATION_WEEK_CAP = 200
 
     project_id = fields.Many2one(
-        "project.project",
-        string="Project",
-        required=True,
+        comodel_name="project.project",
         default=lambda self: self.env.context.get("active_id"),
+        required=True,
     )
     remaining_items = fields.Integer(
-        "Remaining Items",
         compute="_compute_remaining_items",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Number of tasks to complete. Defaults to open task count.",
     )
     simulation_count = fields.Integer(
-        "Simulations",
+        string="Simulations",
         default=1000,
         help="Number of Monte Carlo iterations (more = more accurate).",
     )
     weeks_of_history = fields.Integer(
-        "Weeks of History",
+        string="Weeks of History",
         default=12,
         help="How many weeks of throughput data to sample from.",
     )
-    p50_weeks = fields.Float("50th Percentile (weeks)", readonly=True, digits=(5, 1))
-    p85_weeks = fields.Float("85th Percentile (weeks)", readonly=True, digits=(5, 1))
-    p95_weeks = fields.Float("95th Percentile (weeks)", readonly=True, digits=(5, 1))
-    result_text = fields.Text("Forecast Summary", readonly=True)
+    p50_weeks = fields.Float(
+        string="50th Percentile (weeks)",
+        digits=(5, 1),
+        readonly=True,
+    )
+    p85_weeks = fields.Float(
+        string="85th Percentile (weeks)",
+        digits=(5, 1),
+        readonly=True,
+    )
+    p95_weeks = fields.Float(
+        string="95th Percentile (weeks)",
+        digits=(5, 1),
+        readonly=True,
+    )
+    result_text = fields.Text(
+        string="Forecast Summary",
+        readonly=True,
+    )
 
     @api.depends("project_id")
     def _compute_remaining_items(self) -> None:
@@ -50,16 +64,31 @@ class ProjectForecastWizard(models.TransientModel):
             else:
                 wiz.remaining_items = 0
 
+    @dbg.timed
     def action_run_forecast(self) -> dict:
         self.check_singleton()
         if self.simulation_count < 1:
             raise UserError(self.env._("The number of simulations must be at least 1."))
         sim_count = min(self.simulation_count, 100_000)
+        dbg.lifecycle.debug(
+            "project.forecast.wizard.action_run_forecast [project:%s]: remaining=%s "
+            "sims=%s (requested %s) weeks=%s",
+            self.project_id.id,
+            self.remaining_items,
+            sim_count,
+            self.simulation_count,
+            self.weeks_of_history,
+        )
         if not self.remaining_items or self.remaining_items <= 0:
             self.result_text = "No remaining items to forecast."
             return self._prepare_action_reopen()
 
         throughput = self._get_weekly_throughput()
+        dbg.logic.debug(
+            "forecast [project:%s]: throughput series %s",
+            self.project_id.id,
+            throughput,
+        )
         if not throughput or all(t == 0 for t in throughput):
             self.result_text = (
                 "No historical throughput data available. "
@@ -86,6 +115,15 @@ class ProjectForecastWizard(models.TransientModel):
         self.p50_weeks = results[int(n * 0.50)]
         self.p85_weeks = results[int(n * 0.85)]
         self.p95_weeks = results[int(n * 0.95)]
+        dbg.logic.debug(
+            "forecast [project:%s]: p50=%s p85=%s p95=%s truncated=%d/%d",
+            self.project_id.id,
+            self.p50_weeks,
+            self.p85_weeks,
+            self.p95_weeks,
+            truncated,
+            sim_count,
+        )
 
         avg_tp = sum(throughput) / len(throughput)
         lines = [
@@ -132,6 +170,7 @@ class ProjectForecastWizard(models.TransientModel):
         self.result_text = "\n".join(lines)
         return self._prepare_action_reopen()
 
+    @dbg.timed
     def _get_weekly_throughput(self) -> list[int]:
         self.project_id.check_access("read")
         since = self.env.cr.now() - timedelta(weeks=self.weeks_of_history)

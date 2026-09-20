@@ -6,7 +6,6 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id.display_name", "event_ticket_id.display_name")
     def _compute_name_short(self):
-        """Override of `website_sale` to replace the product name with the ticket name."""
         super()._compute_name_short()
 
         for line in self:
@@ -14,7 +13,6 @@ class SaleOrderLine(models.Model):
                 line.name_short = line.event_ticket_id.display_name
 
     def _is_strikethrough_price_shown(self):
-        """Override of `website_sale` to hide the strikethrough price for events."""
         return super()._is_strikethrough_price_shown() and not self.event_id
 
     def _is_reorder_allowed(self):

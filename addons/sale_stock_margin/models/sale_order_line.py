@@ -1,4 +1,7 @@
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrderLine(models.Model):
@@ -32,8 +35,15 @@ class SaleOrderLine(models.Model):
                         qty_from_delivery * price_unit_from_delivery
                         + qty_from_std_price * product.standard_price
                     ) / (qty_from_delivery + qty_from_std_price)
-                purch_price_uom = line.product_id.uom_id._compute_price(
+                purch_price_uom = line.product_id.uom_id._get_price_in_unit(
                     purch_price, line.product_uom_id
+                )
+                _debug.logic(
+                    "line_cost",
+                    line=line,
+                    by="weighted_delivery_and_standard",
+                    delivered=qty_from_delivery,
+                    cost=purch_price,
                 )
                 line.purchase_price = line._convert_to_sol_currency(
                     purch_price_uom,

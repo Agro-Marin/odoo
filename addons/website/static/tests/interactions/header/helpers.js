@@ -11,16 +11,12 @@ export { setupTest } from "@website/../tests/interactions/snippets/helpers";
  */
 export async function customScroll(scrollingElement, start, end) {
     const step = (end - start) / Math.abs(end - start);
-    // Ensure the update of variables with the scroll.
-    // Otherwise, we would teleport and not update the
-    // values correctly.
     await scroll(scrollingElement, { y: start + step });
     await scroll(scrollingElement, { y: end });
     await endTransition();
 }
 
 /**
- *
  * @param {import("@odoo/hoot-dom").Target} header
  * @param {HTMLElement} main
  * @param {any} core
@@ -42,7 +38,7 @@ export function checkHeader(header, main, core, expectedStatus) {
  * @param {string} className
  */
 export function getTemplateWithoutHideOnScroll(className) {
-    return /* xml */ `
+    return `
         <header class="${className}" style="height:50px; background-color:#CCFFCC;">
         </header>
         <main style="height:2000px;  background-color:#CCCCFF;">
@@ -51,13 +47,10 @@ export function getTemplateWithoutHideOnScroll(className) {
 }
 
 /**
- * We use a class to set the height of the hide on scroll element because
- * otherwise it would be override by the interaction.
- *
  * @param {string} className
  */
 export function getTemplateWithHideOnScroll(className) {
-    return /* xml */ `
+    return `
         <header class="${className}" style="background-color:#CCFFCC">
             <div class="o_header_hide_on_scroll h20" style="background-color:#CCFF33;"></div>
             <div style="height: 30px; background-color:#33FFCC;"></div>

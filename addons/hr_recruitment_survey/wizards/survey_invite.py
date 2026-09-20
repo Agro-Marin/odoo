@@ -1,13 +1,13 @@
 from markupsafe import Markup
 
-from odoo import _, fields, models
+from odoo import fields, models
 from odoo.tools.misc import clean_context
 
 
 class SurveyInvite(models.TransientModel):
     _inherit = "survey.invite"
 
-    applicant_id = fields.Many2one("hr.applicant", string="Applicant")
+    applicant_id = fields.Many2one(comodel_name="hr.applicant")
 
     def _get_done_partners_emails(self, existing_answers):
         partners_done, emails_done, answers = super()._get_done_partners_emails(
@@ -20,11 +20,18 @@ class SurveyInvite(models.TransientModel):
                 partners_done |= self.applicant_id.partner_id
         return partners_done, emails_done, answers
 
-    def _prepare_mail_values(self, answer, rendered):
-        mail_values = super()._prepare_mail_values(answer, rendered)
-        if answer.applicant_id:
-            answer.applicant_id.message_post(body=Markup(mail_values["body_html"]))
-        return mail_values
+    def _send_mails(self, answers):
+        mails = super()._send_mails(answers)
+        author_env = self.with_context(lang=self.env.user.lang).env
+        survey_link = self.survey_id._get_html_link(title=self.survey_id.title)
+        for applicant in answers.applicant_id:
+            content = author_env._(
+                "The survey %(survey_link)s has been sent to %(partner_link)s",
+                survey_link=survey_link,
+                partner_link=applicant.partner_id._get_html_link(),
+            )
+            applicant.message_post(body=Markup("<p>%s</p>") % content)
+        return mails
 
     def action_invite(self):
         self.check_singleton()
@@ -40,20 +47,9 @@ class SurveyInvite(models.TransientModel):
                             self.applicant_id.response_ids
                             | survey.sudo()._create_answer(
                                 partner=self.applicant_id.partner_id,
-                                **self._get_answers_values(),
+                                **self._prepare_answer_params(),
                             )
                         ).ids
                     }
                 )
-
-            partner = self.applicant_id.partner_id
-            survey_link = survey._get_html_link(title=survey.title)
-            partner_link = partner._get_html_link()
-            content = _(
-                "The survey %(survey_link)s has been sent to %(partner_link)s",
-                survey_link=survey_link,
-                partner_link=partner_link,
-            )
-            body = Markup("<p>%s</p>") % content
-            self.applicant_id.message_post(body=body)
         return super().action_invite()

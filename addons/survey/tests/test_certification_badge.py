@@ -1,6 +1,6 @@
 from psycopg import IntegrityError
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tools import mute_logger
 
 from odoo.addons.survey.tests import common
@@ -224,7 +224,7 @@ class TestCertificationBadge(common.TestSurveyCommon):
             self.env["gamification.badge"],
             "Badge should be empty",
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(UserError):
             duplicate_survey.write({"certification_give_badge": True})
 
     def test_certification_badge_access(self):
@@ -250,6 +250,25 @@ class TestCertificationBadge(common.TestSurveyCommon):
             self.certification_badge.with_user(self.user_public).write(
                 {"description": "What did you expect ? Schwepps!"}
             )
+
+    def test_a_survey_user_cannot_edit_a_badge_another_app_awards(self):
+        awarded = self.env["gamification.badge"].create(
+            {"name": "Awarded by a challenge", "rule_auth": "nobody"}
+        )
+        self.env["gamification.challenge"].create(
+            {
+                "name": "Challenge",
+                "reward_id": awarded.id,
+                "line_ids": [],
+            }
+        )
+        with self.assertRaises(AccessError):
+            awarded.with_user(self.survey_user).write({"description": "mine now"})
+        with self.assertRaises(AccessError):
+            awarded.with_user(self.survey_user).unlink()
+        self.certification_badge.with_user(self.survey_user).write(
+            {"description": "a certification badge is still the survey's"}
+        )
 
     def test_badge_configuration_multi(self):
         vals = {

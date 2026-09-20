@@ -28,7 +28,7 @@ _logger = logging.getLogger(__name__)
 class PrinterDriver(PrinterDriverBase):
     def __init__(self, identifier, device):
         super().__init__(identifier, device)
-        self.device_connection = self._compute_device_connection(device)
+        self.device_connection = self._get_device_connection(device)
         self.device_name = device.get("identifier")
         self.printer_handle = device.get("printer_handle")
 
@@ -63,7 +63,7 @@ class PrinterDriver(PrinterDriverBase):
         return True
 
     @staticmethod
-    def _compute_device_connection(device):
+    def _get_device_connection(device):
         return (
             "direct"
             if device["port"].startswith(("USB", "TMUSB", "COM", "LPT"))
@@ -225,7 +225,7 @@ class PrinterDriver(PrinterDriverBase):
         elif self.device_type == "label_printer":
             self.print_raw(b"^XA^CI28 ^FT35,40 ^A0N,30 ^FDIoT Box Test Label^FS^XZ")
         else:
-            self.print_raw("IoT Box Test Page".encode())  # noqa: UP012
+            self.print_raw(b"IoT Box Test Page")
 
     def _cancel_job_with_error(self, job_id, error_message):
         self.job_ids.remove(job_id)

@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { logPosMessage } from "../../utils/pretty_console_log.js";
 import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
+
+const log = makeLogger("pos.order.accounting");
 
 export class PosOrderAccounting extends Base {
     static accountingFields = new Set([
@@ -146,10 +149,22 @@ export class PosOrderAccounting extends Base {
         const amount = this.shouldRound(paymentMethod)
             ? this.config.rounding_method.round(this.remainingDue)
             : this.remainingDue;
+        log.logic("getDefaultAmountDueToPayIn", () => ({
+            order: this.uuid,
+            method: paymentMethod.id,
+            rounded: this.shouldRound(paymentMethod),
+            remainingDue: this.remainingDue,
+            amount,
+            change: this.change,
+        }));
         return amount || this.change;
     }
 
     setOrderPrices() {
+        log.pipeline("setOrderPrices", () => ({
+            order: this.uuid,
+            lines: this.lines.length,
+        }));
         this.amount_paid = this.amountPaid;
         this.amount_tax = this.amountTaxes;
         this.amount_total = this.currency.round(this.totalDue);
@@ -158,6 +173,13 @@ export class PosOrderAccounting extends Base {
             line.price_subtotal = line.currency.round(line.prices.total_excluded);
             line.price_subtotal_incl = line.currency.round(line.prices.total_included);
         });
+        log.lifecycle("setOrderPrices: stored", () => ({
+            order: this.uuid,
+            amount_total: this.amount_total,
+            amount_tax: this.amount_tax,
+            amount_paid: this.amount_paid,
+            amount_return: this.amount_return,
+        }));
     }
     getPriceWithOptions(opts = {}) {
         return this._constructPriceData(opts);
@@ -167,9 +189,17 @@ export class PosOrderAccounting extends Base {
      * @private Compute
      */
     _constructPriceData(opts = {}) {
+        const endConstruct = log.perf("constructPriceData");
         const data = this._computeAllPrices(opts);
         const lines = opts.lines || this.lines;
-        const noDiscount = lines.some((l) => l.getDiscount() > 0)
+        const hasDiscount = lines.some((l) => l.getDiscount() > 0);
+        log.logic("constructPriceData: discount pass", () => ({
+            order: this.uuid,
+            lines: lines.length,
+            hasDiscount,
+            secondPass: hasDiscount,
+        }));
+        const noDiscount = hasDiscount
             ? this._computeAllPrices({
                   ...opts,
                   baseLineOpts: { ...(opts.baseLineOpts || {}), discount: 0.0 },
@@ -207,6 +237,12 @@ export class PosOrderAccounting extends Base {
                 [data],
             );
         }
+        endConstruct({
+            order: this.uuid,
+            lines: lines.length,
+            total: data.taxDetails.total_amount_currency,
+            tax: data.taxDetails.tax_amount_currency,
+        });
         return data;
     }
 
@@ -214,6 +250,7 @@ export class PosOrderAccounting extends Base {
      * @private Compute
      */
     _computeAllPrices(opts = {}) {
+        const endCompute = log.perf("computeAllPrices");
         const currency = this.currency;
         const lines = opts.lines || this.lines;
         const documentSign = this.isRefund ? -1 : 1;
@@ -251,6 +288,7 @@ export class PosOrderAccounting extends Base {
             acc[line.record.uuid] = line;
             return acc;
         }, {});
+        endCompute({ order: this.uuid, lines: lines.length });
 
         return {
             taxDetails: data,

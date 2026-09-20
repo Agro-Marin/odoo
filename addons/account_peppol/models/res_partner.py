@@ -18,9 +18,7 @@ _logger = logging.getLogger(__name__)
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    invoice_sending_method = fields.Selection(
-        selection_add=[("peppol", "by Peppol")],
-    )
+    invoice_sending_method = fields.Selection(selection_add=[("peppol", "by Peppol")])
     peppol_eas = fields.Selection(
         selection_add=[("odemo", "Odoo Demo ID")]
     )  # Not a real EAS, used for demonstration.
@@ -130,7 +128,9 @@ class ResPartner(models.Model):
         smp_url = f"http://B-{hash_participant}.iso6523-actorid-upis.{sml_zone}.tech.ec.europa.eu/{endpoint_participant}"
 
         try:
-            response = requests.get(smp_url, timeout=TIMEOUT)
+            response = self.env["ir.egress"].request(
+                "GET", smp_url, purpose="peppol_smp", timeout=TIMEOUT
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             _logger.debug(e)
@@ -164,7 +164,7 @@ class ResPartner(models.Model):
         )
 
     @api.model
-    def _peppol_lookup_participant(self, edi_identification):
+    def _peppol_get_participant(self, edi_identification):
         """NAPTR DNS peppol participant lookup through Odoo's Peppol proxy"""
         if (edi_mode := self.env.company._get_peppol_edi_mode()) == "demo":
             return None
@@ -176,7 +176,9 @@ class ResPartner(models.Model):
         endpoint = f"{origin}/api/peppol/1/lookup?{query}"
 
         try:
-            response = requests.get(endpoint, timeout=TIMEOUT)
+            response = self.env["ir.egress"].request(
+                "GET", endpoint, purpose="peppol_proxy", timeout=TIMEOUT
+            )
         except requests.exceptions.RequestException as e:
             _logger.debug(
                 "failed to query peppol participant %s: %s", edi_identification, e
@@ -270,7 +272,7 @@ class ResPartner(models.Model):
                 all_companies = (
                     self.env["res.company"]
                     .sudo()
-                    .search(
+                    .search(  # noqa: E8507 - computed once, on first need
                         [
                             ("account_peppol_proxy_state", "in", can_send),
                         ]
@@ -359,7 +361,7 @@ class ResPartner(models.Model):
             return "not_verified"
 
         edi_identification = f"{peppol_eas}:{peppol_endpoint}".lower()
-        participant_info = self._peppol_lookup_participant(edi_identification)
+        participant_info = self._peppol_get_participant(edi_identification)
         if participant_info is None:
             return "not_valid"
         else:

@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import OUTGOING_BLOCK_TYPES
 
 
@@ -12,7 +13,7 @@ class PosConfigStock(models.Model):
         help="Display product stock quantities on POS product cards",
     )
     stock_display_location = fields.Selection(
-        [
+        selection=[
             ("top_left", "Top Left"),
             ("top_right", "Top Right"),
             ("bottom_left", "Bottom Left"),
@@ -28,7 +29,7 @@ class PosConfigStock(models.Model):
         help="Products with stock below this threshold will be highlighted as low stock",
     )
     stock_warehouse_id = fields.Many2one(
-        "stock.warehouse",
+        comodel_name="stock.warehouse",
         check_company=True,
         help="Select specific warehouse for stock display. Leave empty to show total from all warehouses.",
     )
@@ -37,10 +38,10 @@ class PosConfigStock(models.Model):
         string="Warehouse View Location",
     )
     stock_location_ids = fields.Many2many(
-        "stock.location",
-        "pos_config_stock_location_rel",
-        "config_id",
-        "location_id",
+        comodel_name="stock.location",
+        relation="pos_config_stock_location_rel",
+        column1="config_id",
+        column2="location_id",
         string="Stock Locations",
         domain="[('usage', '=', 'internal')]",
         help="Select specific locations to count stock from. Leave empty to use all locations from the warehouse.",
@@ -57,7 +58,7 @@ class PosConfigStock(models.Model):
             return "warehouse_id", self.stock_warehouse_id.ids
         return None
 
-    def _get_stock_quantity_context(self):
+    def _prepare_stock_quantity_context(self):
         scope = self._get_stock_scope()
         return dict([scope]) if scope else {}
 
@@ -76,8 +77,17 @@ class PosConfigStock(models.Model):
             )
             roots = warehouses.view_location_id.ids
         if not roots:
+            dbg.logic.debug("[config:%s] no stock roots: no locations", self.id)
             return Location
         domain = [("location_id", "child_of", roots), ("usage", "=", "internal")]
         if not self.env.user.has_group("stock.group_stock_user"):
             domain.append(("effective_block_type", "not in", OUTGOING_BLOCK_TYPES))
-        return Location.search(domain)
+        locations = Location.search(domain)
+        dbg.logic.debug(
+            "[config:%s] stock scope %s roots=%s -> %s",
+            self.id,
+            scope,
+            roots,
+            dbg.rec(locations),
+        )
+        return locations

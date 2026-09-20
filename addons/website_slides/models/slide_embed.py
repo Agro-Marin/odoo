@@ -2,22 +2,31 @@ from odoo import _, api, fields, models
 
 
 class SlideEmbed(models.Model):
-    """Embedding in third party websites. Track view count, generate statistics."""
-
     _name = "slide.embed"
     _description = "Embedded Slides View Counter"
     _rec_name = "website_name"
 
     slide_id = fields.Many2one(
-        "slide.slide",
+        comodel_name="slide.slide",
         string="Presentation",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
-    url = fields.Char("Third Party Website URL")
-    website_name = fields.Char("Website", compute="_compute_website_name")
-    count_views = fields.Integer("# Views", default=1)
+    url = fields.Char(string="Third Party Website URL")
+    website_name = fields.Char(
+        string="Website",
+        compute="_compute_website_name",
+    )
+    count_views = fields.Integer(
+        string="# Views",
+        default=1,
+    )
+
+    _slide_id_url_uniq = models.Constraint(
+        "unique nulls not distinct (slide_id, url)",
+        "A slide can only have one view counter per third-party website URL.",
+    )
 
     @api.depends("url")
     def _compute_website_name(self):

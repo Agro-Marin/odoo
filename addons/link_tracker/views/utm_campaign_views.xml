@@ -10,9 +10,9 @@
                 <button
                     name="%(link_tracker_action_campaign)d"
                     type="action"
-                    class="oe_stat_button order-12"
-                    icon="fa-mouse-pointer">
-                    <field name="click_count" widget="statinfo" string="Clicks" />
+                    icon="fa-mouse-pointer"
+                    class="oe_stat_button order-12">
+                    <field name="click_count" string="Clicks" widget="statinfo" />
                 </button>
             </xpath>
         </field>

@@ -1,33 +1,34 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountTaxUnit(models.Model):
     _name = "account.tax.unit"
     _description = "Tax Unit"
 
-    name = fields.Char(string="Name", required=True)
+    name = fields.Char(required=True)
     country_id = fields.Many2one(
-        string="Country",
         comodel_name="res.country",
-        required=True,
         inverse="_inverse_vat_and_country_id",
+        required=True,
         help="The country in which this tax unit is used to group your companies' tax reports declaration.",
     )
     vat = fields.Char(
         string="Tax ID",
-        required=True,
         inverse="_inverse_vat_and_country_id",
+        required=True,
         help="The identifier to be used when submitting a report for this unit.",
     )
     company_ids = fields.Many2many(
-        string="Companies",
         comodel_name="res.company",
+        string="Companies",
         required=True,
         help="Members of this unit",
     )
     main_company_id = fields.Many2one(
-        string="Main Company",
         comodel_name="res.company",
         required=True,
         help="Main company of this unit; the one actually reporting and paying the taxes.",
@@ -39,7 +40,15 @@ class AccountTaxUnit(models.Model):
     )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         res = super().create(vals_list)
 
         horizontal_groups = self.env["account.report.horizontal.group"].create(
@@ -59,6 +68,11 @@ class AccountTaxUnit(models.Model):
             ]
         )
 
+        _debug.pipeline(
+            "tax_unit_horizontal_groups_created",
+            tax_units=res,
+            horizontal_groups=horizontal_groups,
+        )
         generic_tax_report = self.env.ref("account.generic_tax_report")
         generic_tax_report.horizontal_group_ids |= horizontal_groups
 
@@ -77,7 +91,9 @@ class AccountTaxUnit(models.Model):
 
         for tax_unit in res:
             generic_tax_report.variant_report_ids.filtered(
-                lambda variant: variant.country_id == tax_unit.country_id  # noqa: B023
+                lambda variant, tax_unit=tax_unit: (
+                    variant.country_id == tax_unit.country_id
+                )
             ).write(
                 {
                     "horizontal_group_ids": [
@@ -86,10 +102,17 @@ class AccountTaxUnit(models.Model):
                 }
             )
 
+        _debug.pipeline(
+            "tax_unit_returns_sync",
+            tax_units=res,
+            report=generic_tax_report,
+        )
         self.env["account.return.type"]._sync_all_returns(res.company_ids.root_id)
         return res
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         root_companies_before = self.company_ids.root_id
         result = super().write(vals)
         if any(
@@ -102,6 +125,7 @@ class AccountTaxUnit(models.Model):
         return result
 
     @api.depends("company_ids")
+    @_debug.perf.timed
     def _compute_fpos_synced(self):
         # The real input is every company partner's property_account_position_id, which
         # no @api.depends can reach: it is company-dependent, on arbitrary partners.
@@ -115,7 +139,7 @@ class AccountTaxUnit(models.Model):
                 fp = unit._get_tax_unit_fiscal_positions(companies=origin_company)
                 all_partners_with_fp = (
                     all_companies.with_company(origin_company).partner_id.filtered(
-                        lambda p: p.property_account_position_id == fp  # noqa: B023
+                        lambda p, fp=fp: p.property_account_position_id == fp
                     )
                     if fp
                     else self.env["res.partner"]
@@ -156,9 +180,18 @@ class AccountTaxUnit(models.Model):
                     existing_fp = fiscal_positions._load_records([data])
                 if existing_fp:
                     fiscal_positions += existing_fp
+        _debug.pipeline(
+            "unit_fiscal_positions_resolved",
+            units=self,
+            companies=companies,
+            create_or_refresh=create_or_refresh,
+            fiscal_positions=fiscal_positions,
+        )
         return fiscal_positions
 
+    @_debug.perf.timed
     def action_sync_unit_fiscal_positions(self):
+        _debug.lifecycle("action_sync_unit_fiscal_positions", records=self)
         self._get_tax_unit_fiscal_positions(
             companies=self.env["res.company"].search([])
         ).unlink()
@@ -175,14 +208,17 @@ class AccountTaxUnit(models.Model):
         # so without this the flag keeps the value it had before the sync ran.
         self.invalidate_recordset(["fpos_synced"])
 
+    @_debug.perf.timed
     def unlink(self):
         # EXTENDS base
+        _debug.lifecycle("unlink", unlink=self)
         self._get_tax_unit_fiscal_positions(
             companies=self.env["res.company"].search([])
         ).unlink()
         return super().unlink()
 
     @api.constrains("country_id", "company_ids")
+    @_debug.perf.timed
     def _check_companies_country(self):
         for record in self:
             currencies = set()
@@ -193,6 +229,12 @@ class AccountTaxUnit(models.Model):
                     unit != record and unit.country_id == record.country_id
                     for unit in company.account_tax_unit_ids
                 ):
+                    _debug.logic(
+                        "tax_unit_company_conflict",
+                        unit=record,
+                        company=company,
+                        reason="company_in_same_country_unit",
+                    )
                     raise ValidationError(
                         _(
                             "Company %(company)s already belongs to a tax unit in %(country)s. A company can at most be part of one tax unit per country.",
@@ -202,6 +244,11 @@ class AccountTaxUnit(models.Model):
                     )
 
             if len(currencies) > 1:
+                _debug.logic(
+                    "tax_unit_currency_mismatch",
+                    unit=record,
+                    currencies=len(currencies),
+                )
                 raise ValidationError(
                     _(
                         "A tax unit can only be created between companies sharing the same main currency."
@@ -209,6 +256,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids", "main_company_id")
+    @_debug.perf.timed
     def _check_main_company(self):
         for record in self:
             if record.main_company_id not in record.company_ids:
@@ -217,6 +265,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids")
+    @_debug.perf.timed
     def _check_company_ids(self):
         for record in self:
             if len(record.company_ids) < 2:
@@ -232,6 +281,7 @@ class AccountTaxUnit(models.Model):
             self.country_id, self.vat, validation=False
         )
 
+    @_debug.perf.timed
     def _inverse_vat_and_country_id(self):
         for record in self:
             if not record.vat:
@@ -243,6 +293,11 @@ class AccountTaxUnit(models.Model):
                 partner_name=_("tax unit [%s]", record.name),
             )
             if checked_country_code and checked_country_code != record.country_id.code:
+                _debug.logic(
+                    "tax_unit_vat_country_mismatch",
+                    unit=record,
+                    detected_country=checked_country_code,
+                )
                 raise ValidationError(
                     _(
                         "The country detected for this VAT number does not match the one set on this Tax Unit."

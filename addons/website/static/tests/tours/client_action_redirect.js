@@ -42,7 +42,6 @@ const checkEditorSteps = [
 registry.category("web_tour.tours").add("client_action_redirect", {
     url: testUrl,
     steps: () => [
-        // Case 1: From frontend, click on `enable_editor=1` link without `/@/` in it
         {
             content: "Check we are in the frontend",
             trigger: "body:not(:has(.o_website_preview)) #test_contact_FE",
@@ -55,7 +54,6 @@ registry.category("web_tour.tours").add("client_action_redirect", {
         },
         ...checkEditorSteps,
 
-        // Case 2: From frontend, click on `enable_editor=1` link with `/@/` in it
         ...goToBackendSteps,
         {
             content: "Click on the link to backend",
@@ -65,17 +63,6 @@ registry.category("web_tour.tours").add("client_action_redirect", {
         },
         ...checkEditorSteps,
 
-        // Case 3: From backend, click on `enable_editor=1` link without `/@/` in it
-        // TODO: This will be fixed in another fix related to the listening of the
-        //       URL changes from the client action.
-        // ...goToBackendSteps,
-        // {
-        //     content: "Click on the link to frontend (2)",
-        //     trigger: ':iframe #test_contact_FR',
-        // },
-        // ...checkEditorSteps,
-
-        // Case 4: From backend, click on `enable_editor=1` link with `/@/` in it
         ...goToBackendSteps,
         {
             content: "Click on the link to backend (2)",

@@ -9,16 +9,21 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "mollie_api_key": "mollie_api_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("mollie", "Mollie")], ondelete={"mollie": "set default"}
+        selection_add=[("mollie", "Mollie")],
+        ondelete={"mollie": "set default"},
     )
     mollie_api_key = fields.Char(
         string="Mollie API Key",
-        help="The Test or Live API Key depending on the configuration of the provider",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="mollie",
-        copy=False,
         groups="base.group_system",
+        help="The Test or Live API Key depending on the configuration of the provider",
     )
 
     # === COMPUTE METHODS === #

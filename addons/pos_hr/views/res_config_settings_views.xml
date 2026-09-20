@@ -14,8 +14,8 @@
                         class="col-lg-4 o_light_label" />
                     <field
                         name="pos_advanced_employee_ids"
-                        widget="many2many_tags"
                         placeholder="Select Employee(s)"
+                        widget="many2many_tags"
                         domain="[('company_id', '=', company_id)]" />
                 </div>
                 <div class="row">
@@ -25,8 +25,8 @@
                         class="col-lg-4 o_light_label" />
                     <field
                         name="pos_basic_employee_ids"
-                        widget="many2many_tags"
                         placeholder="All Employees"
+                        widget="many2many_tags"
                         domain="[('company_id', '=', company_id)]" />
                 </div>
                 <div class="row">
@@ -36,8 +36,8 @@
                         class="col-lg-4 o_light_label" />
                     <field
                         name="pos_minimal_employee_ids"
-                        widget="many2many_tags"
                         placeholder="Select Employee(s)"
+                        widget="many2many_tags"
                         domain="[('company_id', '=', company_id)]" />
                 </div>
             </xpath>

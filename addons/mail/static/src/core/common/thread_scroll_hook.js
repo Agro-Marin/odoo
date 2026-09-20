@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Record } from "@mail/core/common/record";
 import { useVisible } from "@mail/utils/common/hooks";
+import { awaitScrollEnd } from "@mail/utils/common/misc";
 import {
     onWillDestroy,
     onWillPatch,
@@ -9,8 +10,9 @@ import {
     toRaw,
     useEffect,
 } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
-import { Deferred } from "@web/core/utils/concurrency";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.thread.scroll");
 
 export const AT_BOTTOM_THRESHOLD = 30;
 
@@ -151,10 +153,8 @@ export class ThreadScroll {
     loadOlderState;
     /** @type {ReturnType<typeof useVisible>} */
     loadNewerState;
-    /** @type {Deferred|undefined} */
+    /** @type {ReturnType<typeof awaitScrollEnd>|undefined} */
     smoothScrollingDeferred;
-    /** @type {number|undefined} */
-    smoothScrollingTimeout;
     isSmoothScrolling = false;
 
     /** @param {import("@mail/core/common/thread_scroll_hook").ThreadScrollOptions} options */
@@ -174,17 +174,6 @@ export class ThreadScroll {
         return this.options.scrollableRef.el;
     }
 
-    get isAtBottom() {
-        const el = this.el;
-        return isScrolledToBottom({
-            order: this.options.getOrder(),
-            scrollTop: el.scrollTop,
-            scrollHeight: el.scrollHeight,
-            clientHeight: el.clientHeight,
-            loadNewer: this.loadNewer,
-        });
-    }
-
     applyScroll() {
         if (!this.options.getThread().isLoaded || !this.options.getMountedAndLoaded()) {
             this.reset();
@@ -197,6 +186,7 @@ export class ThreadScroll {
         this.oldestPersistentMessage = thread.oldestPersistentMessage;
         this.loadNewer = thread.loadNewer;
         if (!this.loadedAndPatched) {
+            log.lifecycle("loadedAndPatched", () => ({ thread: thread.localId }));
             this.loadedAndPatched = true;
             this.loadOlderState.ready = true;
             this.loadNewerState.ready = true;
@@ -221,6 +211,14 @@ export class ThreadScroll {
             lastSetValue: this.lastSetValue,
             isSmoothScrolling: this.isSmoothScrolling,
         });
+        if (action.type !== "none") {
+            log.logic("scroll action", () => ({
+                thread: thread.localId,
+                ...action,
+                threadScrollTop: thread.scrollTop,
+                snapshot: this.snapshot,
+            }));
+        }
         switch (action.type) {
             case "snapshot-top":
             case "snapshot-bottom":
@@ -233,6 +231,10 @@ export class ThreadScroll {
     }
 
     reset() {
+        log.lifecycle("reset", () => ({
+            thread: toRaw(this.options.getThread())?.localId,
+            loadedAndPatched: this.loadedAndPatched,
+        }));
         this.options.onReset();
         this.loadOlderState.ready = false;
         this.loadNewerState.ready = false;
@@ -264,29 +266,19 @@ export class ThreadScroll {
     setScroll(value, { smooth = false } = {}) {
         if (smooth) {
             const el = this.el;
-            browser.clearTimeout(this.smoothScrollingTimeout);
-            this.smoothScrollingDeferred?.resolve();
-            const deferred = new Deferred();
+            this.smoothScrollingDeferred?.settle();
+            const deferred = awaitScrollEnd({
+                target: el,
+                onSettle: () => {
+                    log.logic("smooth scroll end", () => ({ value }));
+                    if (this.smoothScrollingDeferred === deferred) {
+                        this.smoothScrollingDeferred = undefined;
+                        this.isSmoothScrolling = false;
+                    }
+                },
+            });
             this.smoothScrollingDeferred = deferred;
             this.isSmoothScrolling = true;
-            const onSmoothScrollingEnd = () => {
-                browser.clearTimeout(this.smoothScrollingTimeout);
-                document.removeEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                if (this.smoothScrollingDeferred === deferred) {
-                    this.smoothScrollingDeferred = undefined;
-                    this.isSmoothScrolling = false;
-                }
-                deferred.resolve();
-            };
-            /** @param {Event} ev */
-            const onScrollEnd = (ev) => {
-                if (ev.target !== el) {
-                    return;
-                }
-                onSmoothScrollingEnd();
-            };
             const { noMovement } = computeSmoothScrollTarget({
                 value,
                 scrollTop: el.scrollTop,
@@ -294,20 +286,7 @@ export class ThreadScroll {
                 clientHeight: el.clientHeight,
             });
             if (noMovement) {
-                onSmoothScrollingEnd();
-            } else if ("onscrollend" in window) {
-                document.addEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                this.smoothScrollingTimeout = browser.setTimeout(
-                    onSmoothScrollingEnd,
-                    3000,
-                );
-            } else {
-                this.smoothScrollingTimeout = browser.setTimeout(
-                    onSmoothScrollingEnd,
-                    250,
-                );
+                deferred.settle();
             }
         }
         this.el.scrollTo({
@@ -347,6 +326,9 @@ export function useThreadScroll(options) {
                 scroll.smoothScrollingDeferred,
             ]);
             if (scroll.loadOlderState.isVisible) {
+                log.logic("load-older visible", () => ({
+                    thread: toRaw(options.getThread()).localId,
+                }));
                 toRaw(options.getThread()).fetchMoreMessages();
             }
         },
@@ -360,6 +342,9 @@ export function useThreadScroll(options) {
                 scroll.smoothScrollingDeferred,
             ]);
             if (scroll.loadNewerState.isVisible) {
+                log.logic("load-newer visible", () => ({
+                    thread: toRaw(options.getThread()).localId,
+                }));
                 toRaw(options.getThread()).fetchMoreMessages("newer");
             }
         },
@@ -407,10 +392,23 @@ export function useThreadScroll(options) {
             options.getOrder(),
         ];
     });
-    const observer = new ResizeObserver(() => {
-        options.onResize();
-        scroll.applyScroll();
-    });
+    // observed from mount: the callback runs after layout, so the measurements
+    // `onResize` takes there are free, and a scrollable that outgrows the window
+    // while its messages are still loading is seen the frame it happens
+    const resizeObserver = new ResizeObserver(() => options.onResize());
+    useEffect(
+        /** @param {HTMLElement|null} el */
+        (el) => {
+            if (el) {
+                resizeObserver.observe(el);
+                return () => resizeObserver.unobserve(el);
+            }
+        },
+        () => [options.scrollableRef.el],
+    );
+    // observed once loaded: the first callback after `observe()` applies the saved
+    // scroll position after layout, and every later resize keeps it
+    const scrollObserver = new ResizeObserver(() => scroll.applyScroll());
     useEffect(
         /**
          * @param {HTMLElement|null} el
@@ -419,9 +417,9 @@ export function useThreadScroll(options) {
         (el, mountedAndLoaded) => {
             if (el && mountedAndLoaded) {
                 el.addEventListener("scroll", options.onScroll);
-                observer.observe(el);
+                scrollObserver.observe(el);
                 return () => {
-                    observer.unobserve(el);
+                    scrollObserver.unobserve(el);
                     el.removeEventListener("scroll", options.onScroll);
                 };
             }

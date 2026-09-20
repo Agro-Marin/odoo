@@ -1,5 +1,6 @@
 {
     "name": "CRM Livechat",
+    "version": "1.1",
     "category": "Sales/CRM",
     "summary": "Create lead from livechat conversation",
     "description": "Create new lead with using /lead command in the channel",
@@ -19,7 +20,9 @@
         "security/crm_livechat_security.xml",
     ],
     "assets": {
-        "web.assets_backend": {"crm_livechat/static/src/core/**/*"},
+        "web.assets_backend": [
+            "crm_livechat/static/src/core/**/*",
+        ],
         "web.assets_unit_tests": [
             "crm_livechat/static/tests/**/*",
             (

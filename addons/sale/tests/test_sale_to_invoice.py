@@ -1553,19 +1553,20 @@ class TestSaleToInvoice(TestSaleCommon):
             len(self.sale_order.invoice_ids) == 2, "Sale: invoice is missing"
         )
 
-        self.sol_serv_deliver.write({"qty_transferred": 10})
+        self.sol_serv_order.write({"qty_transferred": 10})
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertTrue(
-            self.sale_order.invoice_state == "partial",
-            'Sale: SO invoice_state should be "partial" (line has more to invoice but also some already invoiced)',
+            self.sale_order.invoice_state == "done",
+            'Sale: SO invoice_state stays "done" -- the excess delivered on an '
+            "ordered-quantity line is not billable until the order is increased",
         )
         self.assertTrue(
             self.sale_order.has_upsell_opportunity,
             "Sale: SO should have upselling opportunity when delivered qty exceeds ordered qty",
         )
 
-        self.sol_serv_deliver.write({"product_qty": 10})
+        self.sol_serv_order.write({"product_qty": 10})
 
         self.env.flush_all()
         self.env.invalidate_all()
@@ -1575,7 +1576,7 @@ class TestSaleToInvoice(TestSaleCommon):
             len(invoice3.invoice_line_ids), 1, "Sale: third invoice is missing lines"
         )
         self.assertEqual(
-            invoice3.amount_total, 1440.0, "Sale: third invoice total amount is wrong"
+            invoice3.amount_total, 720.0, "Sale: third invoice total amount is wrong"
         )
         invoice3.action_post()
         self.assertTrue(
@@ -1706,9 +1707,7 @@ class TestSaleToInvoice(TestSaleCommon):
                 "name": "Salesperson",
                 "login": "salesperson",
                 "email": "test@test.com",
-                "group_ids": [
-                    (6, 0, [self.env.ref("sales_team.group_sale_salesman").id])
-                ],
+                "group_ids": [(6, 0, [self.env.ref("sale.group_sale_salesman").id])],
             }
         )
 
@@ -2043,41 +2042,6 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertEqual(len(invoice.invoice_line_ids), 1)
         self.assertEqual(len(credit_note.invoice_line_ids), 2)
         self.assertFalse(credit_note.reversed_entry_id)
-
-    def test_refund_salesteam(self):
-        salesperson = self.user
-        team1, team2 = self.env["crm.team"].create(
-            [
-                {"name": "Team 1", "member_ids": [Command.link(salesperson.id)]},
-                {"name": "Team 2"},
-            ]
-        )
-        self.assertEqual(salesperson.sale_team_id, team1)
-        self.sale_order.write(
-            {
-                "user_id": salesperson,
-                "team_id": team2.id,
-                "line_ids": [
-                    Command.update(sol_id, {"price_unit": -10})
-                    for sol_id in self.sale_order.line_ids.ids
-                ],
-            }
-        )
-
-        self.sale_order.action_confirm()
-        invoice = self.sale_order._create_invoices(final=True)
-
-        self.assertEqual(invoice.move_type, "out_refund")
-        self.assertEqual(
-            invoice.invoice_user_id,
-            salesperson,
-            "Invoice salesperson should be the same as the order's salesperson",
-        )
-        self.assertEqual(
-            invoice.team_id,
-            team2,
-            "Invoice team should be the same as the order's team",
-        )
 
     def test_invoice_from_order_without_lines(self):
         sale_order = self.env["sale.order"].create(

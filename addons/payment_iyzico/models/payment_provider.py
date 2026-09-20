@@ -14,17 +14,24 @@ from odoo.addons.payment_iyzico import const
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "iyzico_key_secret": "iyzico_key_secret",
+    }
 
     code = fields.Selection(
-        selection_add=[("iyzico", "Iyzico")], ondelete={"iyzico": "set default"}
+        selection_add=[("iyzico", "Iyzico")],
+        ondelete={"iyzico": "set default"},
     )
     iyzico_key_id = fields.Char(
-        string="Iyzico API Key", required_if_provider="iyzico", copy=False
+        string="Iyzico API Key",
+        copy=False,
+        required_if_provider="iyzico",
     )
     iyzico_key_secret = fields.Char(
         string="Iyzico Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="iyzico",
-        copy=False,
         groups="base.group_system",
     )
 
@@ -74,7 +81,7 @@ class PaymentProvider(models.Model):
             random.SystemRandom().choice(string.ascii_letters + string.digits)
             for _i in range(8)
         )
-        signature = self._iyzico_calculate_signature(endpoint, payload, random_string)
+        signature = self._get_iyzico_signature(endpoint, payload, random_string)
         authorization_params = [
             f"apiKey:{self.iyzico_key_id}",
             f"randomKey:{random_string}",
@@ -86,7 +93,7 @@ class PaymentProvider(models.Model):
             "x-iyzi-rnd": random_string,
         }
 
-    def _iyzico_calculate_signature(self, endpoint, payload, random_string):
+    def _get_iyzico_signature(self, endpoint, payload, random_string):
         """Calculate the signature for the provided data.
 
         See https://docs.iyzico.com/en/getting-started/preliminaries/authentication/hmacsha256-auth.

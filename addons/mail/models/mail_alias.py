@@ -11,12 +11,15 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import is_html_empty, remove_accents
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import is_html_empty, ormcache, remove_accents
 
 if typing.TYPE_CHECKING:
     from .mail_alias_domain import MailAliasDomain
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.base.models.res_company import ResCompany
+
+_debug = DebugLog(__name__)
 
 atext = r"[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]"
 dot_atom_text = re.compile(r"^%s+(\.%s+)*$" % (atext, atext))
@@ -30,6 +33,12 @@ alias_document_fields = {
 }
 
 
+class AliasAddresses(typing.NamedTuple):
+    full_names: frozenset[str]
+    local_names: frozenset[str]
+    by_parent: dict[tuple[str, int], str]
+
+
 class MailAlias(models.Model):
     _name = "mail.alias"
     _description = "Email Aliases"
@@ -38,65 +47,66 @@ class MailAlias(models.Model):
     _rec_names_search = ["alias_full_name"]
 
     alias_name = fields.Char(
-        "Alias Name",
         copy=False,
         help="The name of the email alias, e.g. 'jobs' if you want to catch emails for <jobs@example.odoo.com>",
     )
     alias_full_name = fields.Char(
-        "Alias Email",
+        string="Alias Email",
         compute="_compute_alias_full_name",
         store=True,
         index="btree_not_null",
     )
     alias_domain_id: MailAliasDomain = fields.Many2one(
-        "mail.alias.domain",
-        string="Alias Domain",
-        ondelete="restrict",
+        comodel_name="mail.alias.domain",
         default=lambda self: self.env.company.alias_domain_id,
+        ondelete="restrict",
     )
-    alias_domain = fields.Char("Alias domain name", related="alias_domain_id.name")
+    alias_domain = fields.Char(
+        related="alias_domain_id.name",
+        string="Alias domain name",
+    )
     alias_model_id: IrModel = fields.Many2one(
-        "ir.model",
-        "Aliased Model",
+        comodel_name="ir.model",
+        string="Aliased Model",
         required=True,
+        domain="[('field_id.name', '=', 'message_ids'), ('abstract', '=', False), ('transient', '=', False)]",
         ondelete="cascade",
         help="The model (Odoo Document Kind) to which this alias "
         "corresponds. Any incoming email that does not reply to an "
         "existing record will cause the creation of a new record "
         "of this model (e.g. a Project Task)",
-        domain="[('field_id.name', '=', 'message_ids'), ('abstract', '=', False), ('transient', '=', False)]",
     )
     alias_defaults = fields.Text(
-        "Default Values",
-        required=True,
+        string="Default Values",
         default="{}",
+        required=True,
         help="A Python dictionary that will be evaluated to provide "
         "default values when creating new records for this alias.",
     )
     alias_force_thread_id = fields.Integer(
-        "Record Thread ID",
+        string="Record Thread ID",
         help="Optional ID of a thread (record) to which all incoming messages will be attached, even "
         "if they did not reply to it. If set, this will disable the creation of new records completely.",
     )
     alias_parent_model_id: IrModel = fields.Many2one(
-        "ir.model",
-        "Parent Model",
+        comodel_name="ir.model",
+        string="Parent Model",
         help="Parent model holding the alias. The model holding the alias reference "
         "is not necessarily the model given by alias_model_id "
         "(example: project (parent_model) and task (model))",
     )
     alias_parent_thread_id = fields.Integer(
-        "Parent Record Thread ID",
+        string="Parent Record Thread ID",
         help="ID of the parent record holding the alias (example: project holding the task creation alias)",
     )
     alias_contact = fields.Selection(
-        [
+        selection=[
             ("everyone", "Everyone"),
             ("partners", "Authenticated Partners"),
             ("followers", "Followers only"),
         ],
-        default="everyone",
         string="Alias Contact Security",
+        default="everyone",
         required=True,
         help="Policy to post a message on the document using the mailgateway.\n"
         "- everyone: everyone can post\n"
@@ -104,15 +114,16 @@ class MailAlias(models.Model):
         "- followers: only followers of the related document or members of following channels\n",
     )
     alias_incoming_local = fields.Boolean(
-        "Local-part based incoming detection", default=False
+        string="Local-part based incoming detection",
+        default=False,
     )
     alias_bounced_content = fields.Html(
-        "Custom Bounced Message",
+        string="Custom Bounced Message",
         translate=True,
         help="If set, this content will automatically be sent out to unauthorized users instead of the default message.",
     )
     alias_status = fields.Selection(
-        [
+        selection=[
             ("not_tested", "Not Tested"),
             ("valid", "Valid"),
             ("invalid", "Invalid"),
@@ -127,6 +138,15 @@ class MailAlias(models.Model):
             "alias_bounced_content",
             "alias_name",
             "alias_domain_id",
+        }
+    )
+    ALIAS_ADDRESS_FIELDS = frozenset(
+        {
+            "alias_name",
+            "alias_domain_id",
+            "alias_incoming_local",
+            "alias_parent_model_id",
+            "alias_parent_thread_id",
         }
     )
 
@@ -215,10 +235,10 @@ class MailAlias(models.Model):
 
     @api.model
     def _alias_name_is_valid(self, name: str) -> bool:
-        return bool(name) and self._sanitize_alias_name(name) == name
+        return bool(name) and self._normalize_alias_name(name) == name
 
     @api.constrains("alias_name")
-    def _check_alias_name_is_sanitized(self) -> None:
+    def _check_alias_name_is_normalized(self) -> None:
         for alias in self.filtered("alias_name"):
             if not self._alias_name_is_valid(alias.alias_name):
                 raise ValidationError(
@@ -251,7 +271,7 @@ class MailAlias(models.Model):
     def _check_alias_defaults(self) -> None:
         for alias in self:
             try:
-                defaults = alias._get_alias_defaults()
+                defaults = alias._prepare_alias_defaults()
             except Exception as e:
                 raise ValidationError(
                     _(
@@ -289,7 +309,7 @@ class MailAlias(models.Model):
                     )
                 )
 
-    def _get_alias_defaults(self) -> dict:
+    def _prepare_alias_defaults(self) -> dict:
         self.check_singleton()
         defaults = ast.literal_eval(self.alias_defaults or "{}")
         if not isinstance(defaults, dict):
@@ -364,13 +384,22 @@ class MailAlias(models.Model):
                 for vals in prepared
             ]
         )
-        return super().create(prepared)
+        _debug.lifecycle(
+            "create",
+            count=len(prepared),
+            named=sum(1 for vals in prepared if vals["alias_name"]),
+            defaulted=defaults is not None,
+        )
+        aliases = super().create(prepared)
+        self.env.registry.clear_cache("mail")
+        return aliases
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if "alias_status" not in vals and not self.ALIAS_STATUS_NEUTRAL.issuperset(
             vals
         ):
             vals = {**vals, "alias_status": "not_tested"}
+        _debug.lifecycle("write", aliases=self.ids, fields=list(vals))
 
         if "alias_name" in vals or "alias_domain_id" in vals:
             vals = dict(vals)
@@ -391,7 +420,49 @@ class MailAlias(models.Model):
             ):
                 self._check_alias_address_available(addresses)
 
-        return super().write(vals)
+        result = super().write(vals)
+        if not self.ALIAS_ADDRESS_FIELDS.isdisjoint(vals):
+            self.env.registry.clear_cache("mail")
+        return result
+
+    def unlink(self) -> Literal[True]:
+        result = super().unlink()
+        self.env.registry.clear_cache("mail")
+        return result
+
+    @api.model
+    @ormcache(cache="mail")
+    def _get_alias_addresses(self) -> AliasAddresses:
+        aliases = self.sudo().search_fetch(
+            [("alias_name", "!=", False)],
+            [
+                "alias_full_name",
+                "alias_name",
+                "alias_incoming_local",
+                "alias_domain_id",
+                "alias_parent_model_id",
+                "alias_parent_thread_id",
+            ],
+        )
+        _debug.perf.count("addresses_computed", aliases=len(aliases))
+        by_parent: dict[tuple[str, int], str] = {}
+        for alias in aliases:
+            if alias.alias_domain_id and alias.alias_parent_thread_id:
+                by_parent.setdefault(
+                    (alias.alias_parent_model_id.model, alias.alias_parent_thread_id),
+                    alias.alias_full_name,
+                )
+        return AliasAddresses(
+            frozenset(
+                alias.alias_full_name
+                for alias in aliases
+                if alias.alias_full_name and not alias.alias_incoming_local
+            ),
+            frozenset(
+                alias.alias_name for alias in aliases if alias.alias_incoming_local
+            ),
+            by_parent,
+        )
 
     @api.model
     def _update_alias_name_vals(self, vals_list: list[ValuesType]) -> None:
@@ -401,14 +472,14 @@ class MailAlias(models.Model):
                 continue
             raw = vals["alias_name"]
             domain_part = raw.partition("@")[2].strip() if isinstance(raw, str) else ""
-            vals["alias_name"] = self._sanitize_alias_name(raw)
+            vals["alias_name"] = self._normalize_alias_name(raw)
             if domain_part and vals["alias_name"]:
                 pending.append((vals, domain_part))
         if not pending:
             return
 
         sanitized = {
-            domain_part: self._sanitize_alias_domain_name(domain_part)
+            domain_part: self._normalize_alias_domain_name(domain_part)
             for _vals, domain_part in pending
         }
         wanted = {name for name in sanitized.values() if name}
@@ -422,6 +493,7 @@ class MailAlias(models.Model):
             if wanted
             else {}
         )
+        _debug.logic("alias_domain_from_name", pending=len(pending), found=len(found))
         for vals, domain_part in pending:
             domain_name = sanitized[domain_part]
             if not domain_name:
@@ -464,6 +536,12 @@ class MailAlias(models.Model):
         if self:
             domain &= Domain("id", "not in", self.ids)
         if existing := self.sudo().search(domain, limit=1):
+            _debug.logic(
+                "alias_address_taken",
+                aliases=self.ids,
+                existing=existing.id,
+                name=existing.alias_name,
+            )
             self._alias_raise_address_taken(existing)
 
     def _alias_raise_address_taken(self, existing: Self) -> typing.NoReturn:
@@ -494,7 +572,7 @@ class MailAlias(models.Model):
         )
 
     @api.model
-    def _sanitize_alias_name(
+    def _normalize_alias_name(
         self, name: str, is_email: bool = False
     ) -> str | Literal[False]:
         if not name:
@@ -509,11 +587,11 @@ class MailAlias(models.Model):
             return False
         if not is_email or not domain_part:
             return local_part
-        domain_part = self._sanitize_alias_domain_name(domain_part)
+        domain_part = self._normalize_alias_domain_name(domain_part)
         return f"{local_part}@{domain_part}" if domain_part else False
 
     @api.model
-    def _sanitize_alias_domain_name(self, domain_name: str) -> str | Literal[False]:
+    def _normalize_alias_domain_name(self, domain_name: str) -> str | Literal[False]:
         domain_name = domain_name.strip().lower()
         if not domain_name:
             return False
@@ -571,9 +649,11 @@ class MailAlias(models.Model):
     def _alias_mark_valid(self) -> None:
         for alias in self:
             if alias.alias_status != "valid":
+                _debug.lifecycle("alias_status", alias=alias.id, status="valid")
                 alias.sudo().alias_status = "valid"
 
     def _alias_mark_invalid(self) -> None:
+        _debug.lifecycle("alias_status", aliases=self.ids, status="invalid")
         self.sudo().alias_status = "invalid"
 
     def _alias_with_author_lang(self, message_dict: dict) -> Self:

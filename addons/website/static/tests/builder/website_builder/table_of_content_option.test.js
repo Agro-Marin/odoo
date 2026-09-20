@@ -101,7 +101,6 @@ test("hide title in content with table of content", async () => {
         "Design features",
     ]);
 
-    // Hide title
     await contains(":iframe .s_table_of_content_main h2").click();
     await waitFor(".options-container");
     const sectionOptionContainer = queryAll(".options-container").pop();

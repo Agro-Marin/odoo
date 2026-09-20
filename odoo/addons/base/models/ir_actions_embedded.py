@@ -4,6 +4,9 @@ from typing import Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrEmbeddedActions(models.Model):
@@ -14,10 +17,9 @@ class IrEmbeddedActions(models.Model):
     name = fields.Char(translate=True)
     sequence = fields.Integer()
     parent_action_id = fields.Many2one(
-        "ir.actions.act_window",
-        string="Parent Action",
-        required=True,
+        comodel_name="ir.actions.act_window",
         index=True,
+        required=True,
         ondelete="cascade",
     )
     parent_res_id = fields.Integer(string="Active Parent Id")
@@ -26,29 +28,23 @@ class IrEmbeddedActions(models.Model):
         required=True,
     )
     action_id = fields.Many2one(
-        "ir.actions.actions",
-        string="Action",
+        comodel_name="ir.actions.actions",
         ondelete="cascade",
     )
-    python_method = fields.Char(
-        help="Python method returning an action",
-    )
+    python_method = fields.Char(help="Python method returning an action")
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
+        comodel_name="res.users",
         ondelete="cascade",
         help="User specific embedded action. If empty, shared embedded action",
     )
-    is_deletable = fields.Boolean(
-        compute="_compute_is_deletable",
-    )
+    is_deletable = fields.Boolean(compute="_compute_is_deletable")
     default_view_mode = fields.Char(
         string="Default View",
         help="Default view (if none, default view of the action is taken)",
     )
     filter_ids = fields.One2many(
-        "ir.filters",
-        "embedded_action_id",
+        comodel_name="ir.filters",
+        inverse_name="embedded_action_id",
         help="Default filter of the embedded action (if none, no filters)",
     )
     is_visible = fields.Boolean(
@@ -65,7 +61,7 @@ class IrEmbeddedActions(models.Model):
         help="Context dictionary as Python expression, empty by default (Default: {})",
     )
     group_ids = fields.Many2many(
-        "res.groups",
+        comodel_name="res.groups",
         help="Groups that can execute the embedded action. Leave empty to allow everybody.",
     )
 
@@ -97,8 +93,13 @@ class IrEmbeddedActions(models.Model):
             if "name" not in vals:
                 vals["name"] = action_names.get(vals.get("action_id"), "")
             if "python_method" in vals and "action_id" in vals:
+                _debug.logic(
+                    "target_disambiguated",
+                    kept="python_method" if vals.get("python_method") else "action_id",
+                )
                 vals.pop("action_id" if vals.get("python_method") else "python_method")
             if not (vals.get("python_method") or vals.get("action_id")):
+                _debug.logic("create_refused", reason="no_target")
                 raise ValidationError(
                     self.env._(
                         "An embedded action needs either an action or a python "
@@ -106,29 +107,41 @@ class IrEmbeddedActions(models.Model):
                     )
                 )
             if not vals.get("parent_res_model"):
+                _debug.logic("create_refused", reason="no_parent_model")
                 raise ValidationError(
                     self.env._("An embedded action needs the model it is shown on.")
                 )
             return vals
 
+        _debug.lifecycle(
+            "create",
+            count=len(vals_list),
+            named_from_action=len(action_names),
+            python_methods=sum(1 for vals in vals_list if vals.get("python_method")),
+        )
         return super().create([normalised(vals) for vals in vals_list])
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_default_action(self) -> None:
         for record in self:
             if not record.is_deletable:
+                _debug.logic("unlink_refused_default", action=record.id)
                 raise UserError(
                     self.env._("You cannot delete a default embedded action")
                 )
 
     def _compute_is_deletable(self) -> None:
         external_ids = self._get_external_ids()
+        protected = 0
         for record in self:
             record_external_ids = external_ids[record.id]
             record.is_deletable = all(
                 ex_id.startswith(("__export__", "__custom__"))
                 for ex_id in record_external_ids
             )
+            if not record.is_deletable:
+                protected += 1
+        _debug.logic("deletable_computed", count=len(self), protected=protected)
 
     @api.depends(
         "domain",
@@ -142,6 +155,7 @@ class IrEmbeddedActions(models.Model):
     def _compute_is_visible(self) -> None:
         active_id = self.env.context.get("active_id", False)
         if not active_id:
+            _debug.logic("visibility_no_active_id", count=len(self))
             self.is_visible = False
             return
         active_model = self.env.context.get("active_model")
@@ -150,10 +164,23 @@ class IrEmbeddedActions(models.Model):
             if parent_res_model not in self.env or (
                 active_model and parent_res_model != active_model
             ):
+                _debug.logic(
+                    "visibility_model_mismatch",
+                    parent_model=parent_res_model,
+                    active_model=active_model,
+                    count=len(records),
+                )
                 records.is_visible = False
                 continue
             parent_model = self.env[parent_res_model]
             active_model_record = parent_model.search(domain_id, order="id")
+            _debug.pipeline(
+                "visibility_evaluated",
+                parent_model=parent_res_model,
+                active_id=active_id,
+                found=bool(active_model_record),
+                count=len(records),
+            )
             for record in records:
                 action_groups = record.group_ids
                 is_valid_method = not record.python_method or hasattr(
@@ -165,14 +192,20 @@ class IrEmbeddedActions(models.Model):
                     try:
                         domain_model = literal_eval(record.domain or "[]")
                     except ValueError, SyntaxError:
+                        _debug.logic("visibility_domain_unparsable", action=record.id)
                         record.is_visible = False
                         continue
                     record.is_visible = bool(
-                        record.parent_res_id in (False, active_id)
-                        and record.user_id.id in (False, self.env.uid)
+                        (not record.parent_res_id or record.parent_res_id == active_id)
+                        and (not record.user_id or record.user_id.id == self.env.uid)
                         and active_model_record.filtered_domain(domain_model)
                     )
                 else:
+                    _debug.logic(
+                        "visibility_denied",
+                        action=record.id,
+                        reason="method" if not is_valid_method else "groups",
+                    )
                     record.is_visible = False
 
     def _get_fields_readable(self) -> frozenset[str]:

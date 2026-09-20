@@ -6,41 +6,22 @@ import { renderToElement } from "@web/core/utils/render";
 import { Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 
-/**
- * "Join this course" behavior, shared between:
- * - the course page join links (attached to server-rendered DOM by the
- *   `CourseJoin` interaction below);
- * - the quiz and fullscreen player, which render the "slide.course.join"
- *   template themselves (see `attachCourseJoin`).
- *
- * It is a plain class driven by a host Interaction (listener registration
- * goes through the host so cleanup follows the host's lifecycle). Downstream
- * modules customize it with `patch(CourseJoinBehavior.prototype, ...)`
- * (e.g. website_sale_slides adds the "on payment" enroll flow).
- */
 export class CourseJoinBehavior {
     /**
      * @param {import("@web/public/interaction").Interaction} host
-     * @param {HTMLElement} el the element containing the join link
+     * @param {HTMLElement} el
      * @param {Object} options
-     * @param {Object} options.channel slide.channel information
-     * @param {boolean} options.isMember whether current user is enrolled
-     * @param {boolean} options.isMemberOrInvited whether current user is at least invited
-     * @param {string} options.inviteHash hash of the invited attendee. Needed to grant
-     *   access to a course preview / to identify.
-     * @param {integer} options.invitePartnerId id of partner of invited attendee if any.
-     *   Also needed to access course preview / to identify.
-     * @param {boolean} options.invitePreview whether the course is rendered as a preview.
-     *   This is true when an invited attendee is on the course while unlogged.
-     * @param {boolean} options.isPartnerWithoutUser whether invited partner has users. Used
-     *   to redirect properly to sign up / log in.
-     * @param {boolean} options.publicUser whether the current user is public (unlogged)
-     * @param {string} [options.joinMessage] the message to use for the simple join case
-     *   when the course is free and the user is logged in, defaults to "Join this Course".
-     * @param {Function} [options.beforeJoin] a promise-returning function to execute before
-     *   we redirect to another url within the join process (login / buy course / ...)
-     * @param {Function} [options.afterJoin] a callback function called after the user has
-     *   joined the course
+     * @param {Object} options.channel
+     * @param {boolean} options.isMember
+     * @param {boolean} options.isMemberOrInvited
+     * @param {string} options.inviteHash
+     * @param {integer} options.invitePartnerId
+     * @param {boolean} options.invitePreview
+     * @param {boolean} options.isPartnerWithoutUser
+     * @param {boolean} options.publicUser
+     * @param {string} [options.joinMessage]
+     * @param {Function} [options.beforeJoin]
+     * @param {Function} [options.afterJoin]
      */
     constructor(host, el, options) {
         this.host = host;
@@ -73,16 +54,9 @@ export class CourseJoinBehavior {
     }
 
     /**
-     * Extension hook for downstream modules (patched prototypes cannot wrap
-     * the constructor itself).
-     *
-     * @param {Object} options the constructor options, after assignment
+     * @param {Object} options
      */
     setup(options) {}
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     /**
      * @param {MouseEvent} ev
@@ -107,14 +81,6 @@ export class CourseJoinBehavior {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
-    /**
-     * Builds a login page that then redirects to this slide page, or the
-     * channel if the course is not configured as public enroll type.
-     */
     _redirectToLogin() {
         let url;
         if (this.channel.channelEnroll === "public") {
@@ -129,8 +95,6 @@ export class CourseJoinBehavior {
     }
 
     /**
-     * Shows a Bootstrap 5 popover alert on the given element.
-     *
      * @param {HTMLElement} el
      * @param {String|HTMLElement} message
      */
@@ -147,10 +111,6 @@ export class CourseJoinBehavior {
         });
         popover.show();
     }
-
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
 
     /**
      * @param {integer} channelId
@@ -178,17 +138,12 @@ export class CourseJoinBehavior {
 }
 
 /**
- * Renders the "slide.course.join" join button inside `targetEl` and attaches
- * the join behavior to it. Used by the quiz and the fullscreen player.
- *
  * @param {import("@web/public/interaction").Interaction} host
  * @param {HTMLElement} targetEl
- * @param {Object} options see {@link CourseJoinBehavior}
+ * @param {Object} options
  * @returns {CourseJoinBehavior}
  */
 export function attachCourseJoin(host, targetEl, options) {
-    // The template reads its values through the historical `widget` context
-    // key; it only uses these three fields.
     const [el] = host.renderAt(
         "slide.course.join",
         {
@@ -203,10 +158,6 @@ export function attachCourseJoin(host, targetEl, options) {
     return new CourseJoinBehavior(host, el, options);
 }
 
-/**
- * Attaches the join behavior to the server-rendered join areas of the course
- * page. Options are read from the join link's dataset, as before.
- */
 export class CourseJoin extends Interaction {
     static selector = ".o_wslides_js_course_join_link";
 
@@ -215,7 +166,6 @@ export class CourseJoin extends Interaction {
         const options = {
             channel: {
                 channelEnroll: data.channelEnroll,
-                // dataset values are strings; the join endpoint browses this id
                 channelId: parseInt(data.channelId),
             },
             inviteHash: data.inviteHash,
@@ -224,12 +174,6 @@ export class CourseJoin extends Interaction {
             isMemberOrInvited: data.isMemberOrInvited,
             isPartnerWithoutUser: data.isPartnerWithoutUser,
         };
-        // Scoped to this link's own wrapper: `.o_wslides_js_course_join_link`
-        // can appear several times on one lesson page (sidebar, comments,
-        // resources), and `CourseJoin` gets one instance per match, so
-        // querying the whole document here attached a fresh
-        // `CourseJoinBehavior` — and click listener — to every wrapper on
-        // the page, once per link found.
         const wrapperEl = this.el.closest(".o_wslides_js_course_join");
         if (wrapperEl) {
             new CourseJoinBehavior(this, wrapperEl, options);

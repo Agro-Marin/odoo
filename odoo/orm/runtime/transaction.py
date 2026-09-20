@@ -1,16 +1,12 @@
 import logging
 import typing
+from collections import deque
 from contextlib import suppress
 from weakref import WeakSet, WeakValueDictionary
 from weakref import ref as weakref_ref
 
-from odoo.libs.profiling import (
-    NplusOneTracker,
-    OrmProfiler,
-    _n1_enabled,
-    _orm_profiling_enabled,
-    _OrmProfile,
-)
+from odoo.libs.debug_log import DebugLog
+from odoo.libs.profiling import OrmObserver, _OrmProfile, enabled_observers
 from odoo.tools import OrderedSet, frozendict, reset_cached_properties
 
 from ..components.cache import FieldCache
@@ -18,7 +14,8 @@ from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
 from ..primitives import SUPERUSER_ID, NewId
-from .backend import POSTGRES_BACKEND, InMemoryBackend
+from ._backend_memory import InMemoryBackend
+from .backend import POSTGRES_BACKEND
 from .recordset_cache import Cache
 from .registry import Registry
 
@@ -30,8 +27,10 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 _orm_cache = logging.getLogger("odoo.orm.cache")
+_debug = DebugLog(__name__)
 
 MAX_FIXPOINT_ITERATIONS = 1000
+RECENT_ENVIRONMENTS = 8
 
 
 def _is_new_id(record_id: object) -> bool:
@@ -84,14 +83,15 @@ class Transaction:
         "_cache_store",
         "_compute_engine",
         "_last_env",
-        "_n1_tracker",
-        "_orm_profiler",
+        "_recent_envs",
         "_ref_cache",
         "backend",
         "cache",
         "core",
         "default_env",
         "envs",
+        "observers",
+        "prefetch_batch",
         "registry",
         "unit_of_work",
     )
@@ -104,6 +104,11 @@ class Transaction:
         self.envs: _EnvironmentSet = _EnvironmentSet()
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None
+        # the index and the last-env fast path hold environments weakly, so a
+        # transient one (record.sudo().field, in a loop) died with its
+        # recordset and was rebuilt on the next call; a short strong ring
+        # keeps the recent ones alive between those calls
+        self._recent_envs: deque[Environment] = deque(maxlen=RECENT_ENVIRONMENTS)
 
         self._cache_store: FieldCache[Field] = FieldCache(
             dirty_factory=OrderedSet, on_detach=self._drop_field_cache_memos
@@ -126,13 +131,14 @@ class Transaction:
 
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
+        self.prefetch_batch: tuple[str, tuple] | None = None
 
-        self._n1_tracker: NplusOneTracker | None = (
-            NplusOneTracker() if _n1_enabled else None
-        )
-
-        self._orm_profiler: OrmProfiler | None = (
-            OrmProfiler() if _orm_profiling_enabled else None
+        self.observers: tuple[OrmObserver, ...] = enabled_observers()
+        _debug.lifecycle(
+            "transaction.new",
+            db=registry.db_name,
+            backend=type(self.backend).__name__,
+            observers=len(self.observers),
         )
 
     def environment(
@@ -155,7 +161,24 @@ class Transaction:
             env = Environment._interned(self, cr, uid, frozen_context, su)
             envs.add(env)
             self._adopt_default_env(env)
+            _debug.lifecycle(
+                "transaction.environment_interned",
+                uid=uid,
+                su=su,
+                context_keys=len(frozen_context),
+                envs=len(envs),
+            )
+            if _debug.lifecycle.enabled and len(envs) % 100 == 0:
+                _debug.lifecycle(
+                    "transaction.environment_keys",
+                    envs=len(envs),
+                    keys=",".join(sorted(frozen_context)),
+                )
         self._last_env = weakref_ref(env)
+        recent = self._recent_envs
+        if env in recent:
+            recent.remove(env)
+        recent.append(env)
         return env
 
     def _adopt_default_env(self, env: Environment) -> None:
@@ -171,6 +194,11 @@ class Transaction:
         elif (env := next(iter(self.envs), None)) is not None:
             _logger.warning(
                 "Transaction.flush(): no default_env; flushing as SUPERUSER"
+            )
+            _debug.logic(
+                "transaction.flush.superuser_fallback",
+                db=self.registry.db_name,
+                envs=len(self.envs),
             )
             try:
                 self._flush_as(self.environment(env.cr, SUPERUSER_ID, {}))
@@ -190,9 +218,23 @@ class Transaction:
                     env[model_name].flush_model()
 
         result = self.unit_of_work.flush_until_converged(recompute_fn, flush_fn)
+        _debug.pipeline(
+            "transaction.flush",
+            uid=env.uid,
+            iterations=result.iterations,
+            converged=result.converged,
+            stalled=len(result.stalled_fields),
+        )
 
         if not result.converged:
             remaining = result.stalled_fields
+            _debug.logic(
+                "transaction.flush.not_converged",
+                uid=env.uid,
+                iterations=result.iterations,
+                stalled=remaining,
+                tolerant=bool(env.context.get("tolerant_recompute")),
+            )
             if env.context.get("tolerant_recompute"):
                 _logger.error(
                     "flush_all() did not converge after %d iterations. "
@@ -212,13 +254,26 @@ class Transaction:
         prof.stop()
         prof.report(_orm_cache, "flush_all: %d iterations", result.iterations)
 
+    def observe_operation(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        fields: frozenset[str],
+    ) -> None:
+        for observer in self.observers:
+            observer.on_operation(operation, model_name, record_count, fields)
+
+    def observe_timing(
+        self, operation: str, model_name: str, record_count: int, elapsed: float
+    ) -> None:
+        for observer in self.observers:
+            observer.on_operation_done(operation, model_name, record_count, elapsed)
+
     def _report_profilers(self) -> None:
-        if self._n1_tracker is not None:
-            self._n1_tracker.report()
-            self._n1_tracker.clear()
-        if self._orm_profiler is not None:
-            self._orm_profiler.report()
-            self._orm_profiler.clear()
+        for observer in self.observers:
+            observer.report()
+            observer.clear()
 
     def _drop_field_cache_memos(self) -> None:
         for env in self.envs:
@@ -226,10 +281,17 @@ class Transaction:
                 del env._field_cache_memo
 
     def clear(self):
+        _debug.lifecycle(
+            "transaction.clear",
+            db=self.registry.db_name,
+            envs=len(self.envs),
+            ref_cache=len(self._ref_cache),
+        )
         self._cache_store.clear()
         self._compute_engine.clear()
         self._ref_cache.clear()
         self._last_env = None
+        self._recent_envs.clear()
         if env := next(iter(self.envs), None):
             env.cr.cache.clear()
 
@@ -239,11 +301,23 @@ class Transaction:
         return registry.model_graph.recompute_order
 
     def reset(self) -> None:
+        _debug.lifecycle("transaction.reset", db=self.registry.db_name)
         self.registry = Registry(self.registry.db_name)
         for env in self.envs:
             reset_cached_properties(env)
         self.clear()
 
+    def forget_refs_of(self, model_names: typing.Iterable[str]) -> int:
+        ref_cache = self._ref_cache
+        if not ref_cache:
+            return 0
+        names = set(model_names)
+        keys = [key for key in ref_cache if key[0] in names]
+        for key in keys:
+            del ref_cache[key]
+        return len(keys)
+
     def invalidate_field_data(self, *, keep_new_records: bool = False) -> None:
+        _debug.lifecycle("transaction.invalidate_field_data", db=self.registry.db_name)
         self._cache_store.invalidate_all(keep=_is_new_id if keep_new_records else None)
         self._ref_cache.clear()

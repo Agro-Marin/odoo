@@ -1,7 +1,11 @@
 import threading
 from typing import NamedTuple
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = ["CircuitEntry", "EsbuildCircuit"]
+
+_debug = DebugLog(__name__)
 
 
 class CircuitEntry(NamedTuple):
@@ -31,7 +35,18 @@ class EsbuildCircuit:
         if entry is None:
             return True, ""
         if now < entry.expiry:
+            _debug.logic(
+                "esbuild_circuit.open",
+                db=key[0],
+                bundle=key[1],
+                reason=entry.reason,
+                failures=entry.failures,
+                remaining_s=entry.expiry - now,
+            )
             return False, entry.reason
+        _debug.logic(
+            "esbuild_circuit.expired", db=key[0], bundle=key[1], failures=entry.failures
+        )
         return True, ""
 
     def record_failure(
@@ -53,17 +68,35 @@ class EsbuildCircuit:
             self._entries[key] = entry
             if len(self._entries) > self.max_entries:
                 self._evict(now, keep=key)
+        _debug.lifecycle(
+            "esbuild_circuit.tripped",
+            db=key[0],
+            bundle=key[1],
+            reason=reason,
+            failures=failures,
+            cooldown_s=cooldown,
+            escalated=failures >= self.escalate_after,
+        )
         return entry
 
     def record_success(self, key: tuple[str, str]) -> bool:
         with self._lock:
-            return self._entries.pop(key, None) is not None
+            entry = self._entries.pop(key, None)
+        if _debug.lifecycle.enabled and entry is not None:
+            _debug.lifecycle(
+                "esbuild_circuit.reset",
+                db=key[0],
+                bundle=key[1],
+                failures=entry.failures,
+            )
+        return entry is not None
 
     def clear_database_entries(self, dbname: str) -> int:
         with self._lock:
             stale = [key for key in self._entries if key[0] == dbname]
             for key in stale:
                 del self._entries[key]
+        _debug.lifecycle("esbuild_circuit.db_cleared", db=dbname, entries=len(stale))
         return len(stale)
 
     def entry(self, key: tuple[str, str]) -> CircuitEntry | None:

@@ -5,7 +5,10 @@ from typing import Any
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import trans_export, trans_export_records
+
+_debug = DebugLog(__name__)
 
 NEW_LANG_KEY = "__new__"
 
@@ -24,43 +27,55 @@ class BaseLanguageExport(models.TransientModel):
             )
         ] + langs
 
-    name = fields.Char("File Name", readonly=True)
+    name = fields.Char(
+        string="File Name",
+        readonly=True,
+    )
     lang = fields.Selection(
-        _selection_installed_langs,
+        selection=_selection_installed_langs,
         string="Language",
-        required=True,
         default=NEW_LANG_KEY,
+        required=True,
     )
     format = fields.Selection(
-        [("csv", "CSV File"), ("po", "PO File"), ("tgz", "TGZ Archive")],
+        selection=[("csv", "CSV File"), ("po", "PO File"), ("tgz", "TGZ Archive")],
         string="File Format",
-        required=True,
         default="po",
+        required=True,
     )
     export_type = fields.Selection(
-        [("module", "Module"), ("model", "Model")],
-        string="Export Type",
-        required=True,
+        selection=[("module", "Module"), ("model", "Model")],
         default="module",
+        required=True,
     )
     modules = fields.Many2many(
-        "ir.module.module",
-        "rel_modules_langexport",
-        "wiz_id",
-        "module_id",
+        comodel_name="ir.module.module",
+        relation="rel_modules_langexport",
+        column1="wiz_id",
+        column2="module_id",
         string="Apps To Export",
         domain=[("state", "=", "installed")],
     )
     model_id = fields.Many2one(
-        "ir.model",
+        comodel_name="ir.model",
         string="Model to Export",
         domain=[("transient", "=", False)],
     )
-    model_name = fields.Char(string="Model Name", related="model_id.model")
-    domain = fields.Char(string="Model Domain", default="[]")
-    data = fields.Binary("File", readonly=True, attachment=False)
+    model_name = fields.Char(
+        related="model_id.model",
+        string="Model Name",
+    )
+    domain = fields.Char(
+        string="Model Domain",
+        default="[]",
+    )
+    data = fields.Binary(
+        string="File",
+        attachment=False,
+        readonly=True,
+    )
     state = fields.Selection(
-        [
+        selection=[
             ("choose", "choose"),
             ("get", "get"),
         ],
@@ -85,12 +100,25 @@ class BaseLanguageExport(models.TransientModel):
                 if not isinstance(domain, list):
                     raise UserError(_("Invalid domain filter: %s", self.domain))
                 ids = self.env[self.model_name].search(domain).ids
+                _debug.logic(
+                    "export_records_selected", model=self.model_name, records=len(ids)
+                )
                 is_exported = trans_export_records(
                     lang, self.model_name, ids, buf, self.format, self.env
                 )
             else:
                 mods = sorted(self.mapped("modules.name")) or ["all"]
                 is_exported = trans_export(lang, mods, buf, self.format, self.env)
+            _debug.pipeline(
+                "export_language",
+                lang=lang,
+                type=self.export_type,
+                format=self.format,
+                modules=mods,
+                model=self.model_name,
+                exported=bool(is_exported),
+                bytes=buf.tell(),
+            )
             out = base64.encodebytes(buf.getvalue()) if is_exported else False
 
         filename = "new"
@@ -105,6 +133,7 @@ class BaseLanguageExport(models.TransientModel):
             extension = "pot"
         name = f"{filename}.{extension}"
 
+        _debug.lifecycle("export_file_ready", name=name, exported=bool(out))
         self.write({"state": "get", "data": out, "name": name})
         return {
             "name": self.env.ref("base.action_wizard_lang_export").name,

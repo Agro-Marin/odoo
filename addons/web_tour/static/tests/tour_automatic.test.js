@@ -1,6 +1,6 @@
 /** @odoo-module native */
 
-import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
+import { after, afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame, queryFirst } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
 import {
@@ -18,6 +18,7 @@ import { useService } from "@web/core/utils/hooks";
 import { Macro } from "@web/core/utils/macro";
 import { Dialog } from "@web/ui/dialog";
 import { TourAutomatic } from "@web_tour/js/tour_automatic/tour_automatic";
+import { tourState } from "@web_tour/js/tour_state";
 
 describe.current.tags("desktop");
 
@@ -108,7 +109,7 @@ test("Step Tour validity", async () => {
 test("a step waits for an RPC the previous step left in flight", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -148,10 +149,154 @@ test("a step waits for an RPC the previous step left in flight", async () => {
     expect.verifySteps(["second step acted"]);
 });
 
+test("a step that only observes is neither delayed by in-flight requests nor by a blocked UI", async () => {
+    class Root extends Component {
+        static components = {};
+        static template = xml`
+            <t>
+                <div class="o_blockUI"/>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+
+    const pending = { data: { id: 779 }, url: "/website/theme_customize_data" };
+    rpcBus.trigger(RpcEvent.REQUEST, pending);
+    tourRegistry.add("tour_observe_while_busy", {
+        steps: () => [
+            {
+                trigger: ".button0",
+            },
+            {
+                trigger: ".button1",
+                run() {
+                    expect.step("action step acted");
+                },
+            },
+        ],
+    });
+
+    await odoo.startTour("tour_observe_while_busy", { mode: "auto" });
+    await animationFrame();
+    await animationFrame();
+    expect(tourState.getCurrentIndex()).toBe(1);
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect.verifySteps([]);
+
+    rpcBus.trigger(RpcEvent.RESPONSE, pending);
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect.verifySteps([]);
+
+    queryFirst(".o_blockUI").remove();
+    await waitForMacro();
+    expect.verifySteps(["action step acted"]);
+});
+
+test("a step that acts waits for the document to be ready; a step that observes does not", async () => {
+    class Root extends Component {
+        static components = {};
+        static template = xml`
+            <t>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+    document.body.setAttribute("is-ready", "false");
+    after(() => document.body.removeAttribute("is-ready"));
+
+    tourRegistry.add("tour_act_when_ready", {
+        steps: () => [
+            {
+                trigger: ".button0",
+            },
+            {
+                trigger: ".button1",
+                run() {
+                    expect.step("action step acted");
+                },
+            },
+        ],
+    });
+
+    await odoo.startTour("tour_act_when_ready", { mode: "auto" });
+    await animationFrame();
+    await animationFrame();
+    expect(tourState.getCurrentIndex()).toBe(1);
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect.verifySteps([]);
+
+    document.body.setAttribute("is-ready", "true");
+    await waitForMacro();
+    expect.verifySteps(["action step acted"]);
+});
+
+test("a tour succeeds only once the client is idle", async () => {
+    class Root extends Component {
+        static components = {};
+        static template = xml`
+            <t>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+    patchWithCleanup(browser.console, {
+        log: (message) => {
+            if (message === "tour succeeded") {
+                expect.step(message);
+            }
+        },
+    });
+
+    const pending = { data: { id: 778 }, url: "/web/dataset/call_kw/x/web_save" };
+    tourRegistry.add("tour_end_settles", {
+        steps: () => [
+            {
+                trigger: ".button0",
+                run() {
+                    rpcBus.trigger(RpcEvent.REQUEST, pending);
+                },
+            },
+            {
+                trigger: ".button1",
+            },
+        ],
+    });
+
+    await odoo.startTour("tour_end_settles", { mode: "auto" });
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect(tourState.getCurrentIndex()).toBe(2);
+    expect.verifySteps([]);
+
+    rpcBus.trigger(RpcEvent.RESPONSE, pending);
+    await waitForMacro();
+    expect.verifySteps(["tour succeeded"]);
+});
+
 test("a step that expects the page to unload does not wait for the client to settle", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -255,7 +400,7 @@ test("a failing tour logs the step that failed in run", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -302,7 +447,7 @@ test("a failing tour with disabled element", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1" disabled="">Button 1</button>
@@ -352,7 +497,7 @@ test("a failing tour logs the step that failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -436,7 +581,7 @@ TIMEOUT step failed to complete within 111 ms.`,
 test("a tour action can be contributed through the web_tour.helpers registry", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -456,7 +601,7 @@ test("a tour action can be contributed through the web_tour.helpers registry", a
 test("a built-in TourHelpers action wins over a registry entry of the same name", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -490,7 +635,7 @@ test("an unknown tour action names the registry in its error", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -506,7 +651,7 @@ test("an unknown tour action names the registry in its error", async () => {
 test("check tour with inactive steps", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -561,7 +706,7 @@ test("automatic tour with invisible element", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -613,7 +758,7 @@ test("automatic tour with invisible element but use :not(:visible))", async () =
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -686,7 +831,7 @@ test("automatic tour with alternative trigger", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -725,7 +870,7 @@ test("check not possible to click below modal", async () => {
     }
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0" t-on-click="openDialog">Button 0</button></div>
@@ -777,7 +922,7 @@ test("a tour where hoot trigger failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -809,4 +954,94 @@ test("a tour where hoot trigger failed", async () => {
 ERROR during find trigger:
 Failed to execute 'querySelectorAll' on 'Element': '.button1:brol(:machin)' is not a valid selector.`,
     ]);
+});
+
+test("the error silencing a finished tour installs is dropped when the next tour starts", async () => {
+    // `end()` silences `error`/`unhandledrejection` on purpose: the tour has
+    // reported its result and an error the page raises afterwards belongs to
+    // nobody. What was not on purpose is that the pair was installed as two
+    // inline arrows and never removed -- nothing held a reference to remove.
+    // Every finished tour left another capturing pair behind, each calling
+    // `stopImmediatePropagation()`, so the NEXT tour in the same page ran with
+    // its errors already eaten, and any handler registered after a finished
+    // tour could have its own detection eaten too. 15 of the tests in this
+    // very file run an auto tour, in one page, with no reload between them.
+    //
+    // Tracked by listener identity, not by counting: the page registers and
+    // drops `error` listeners of its own during a test, so a count says
+    // nothing about whose listener it was.
+    const calls = [];
+    const nativeAdd = window.addEventListener.bind(window);
+    const nativeRemove = window.removeEventListener.bind(window);
+    const isTracked = (type) => type === "error" || type === "unhandledrejection";
+    patchWithCleanup(window, {
+        addEventListener(type, listener, options) {
+            if (isTracked(type)) {
+                calls.push({ op: "add", type, listener });
+            }
+            return nativeAdd(type, listener, options);
+        },
+        removeEventListener(type, listener, options) {
+            if (isTracked(type)) {
+                calls.push({ op: "remove", type, listener });
+            }
+            return nativeRemove(type, listener, options);
+        },
+    });
+    const lastInstalledPair = () =>
+        calls.filter((call) => call.op === "add").slice(-2);
+    // Scoped to the calls made after `mark`: an earlier test in this page has
+    // already been through an install/remove cycle of the very same pair (the
+    // silencing is page-scoped, which is the point), so an unscoped search
+    // answers "removed" before this test has removed anything.
+    const removedSince = (mark, { type, listener }) =>
+        calls
+            .slice(mark)
+            .some(
+                (call) =>
+                    call.op === "remove" &&
+                    call.type === type &&
+                    call.listener === listener,
+            );
+
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+
+    const steps = () => [{ trigger: ".button0", run: "click" }];
+    tourRegistry.add("silencer_tour_1", { steps });
+    tourRegistry.add("silencer_tour_2", { steps });
+
+    await odoo.startTour("silencer_tour_1", { mode: "auto" });
+    await waitForMacro();
+    const firstPair = lastInstalledPair();
+    expect(firstPair.map(({ type }) => type)).toEqual([
+        "error",
+        "unhandledrejection",
+    ]);
+    const installed = calls.length;
+    expect(firstPair.map((entry) => removedSince(installed, entry))).toEqual([
+        false,
+        false,
+    ]);
+
+    await odoo.startTour("silencer_tour_2", { mode: "auto" });
+    // The assertion that bites: before the fix nothing was ever removed and
+    // the second tour ran behind the first one's listeners.
+    expect(firstPair.map((entry) => removedSince(installed, entry))).toEqual([
+        true,
+        true,
+    ]);
+
+    await waitForMacro();
+    // Silencing is back on now that this tour is over too -- with the SAME
+    // pair, which is what makes it removable. Two inline arrows would be two
+    // new references here, and the page would now carry two pairs.
+    const secondPair = lastInstalledPair();
+    expect(secondPair.map(({ listener }) => listener)).toEqual(
+        firstPair.map(({ listener }) => listener),
+    );
 });

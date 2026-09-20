@@ -13,8 +13,8 @@
                         name="action_view_linked_orders"
                         type="object"
                         icon="fa-shopping-basket"
-                        class="oe_stat_button"
-                        invisible="linked_order_count == 0">
+                        invisible="linked_order_count == 0"
+                        class="oe_stat_button">
                         <field
                             name="linked_order_count"
                             string="PoS Orders"
@@ -37,8 +37,8 @@
                 <header position="inside">
                     <button
                         name="action_view_consolidate_invoice_wizard"
-                        string="Consolidate Orders"
                         type="object"
+                        string="Consolidate Orders"
                         display="always"
                         class="btn-primary" />
                 </header>
@@ -58,14 +58,8 @@
             <field name="type">ir.actions.act_window</field>
             <field
                 name="view_ids"
-                eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('myinvois_document_pos_list_view')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('myinvois_document_pos_form_view')})             ]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('myinvois_document_pos_list_view')}), Command.create({'view_mode': 'form', 'view_id': ref('myinvois_document_pos_form_view')})]" />
         </record>
-        <menuitem
-            id="l10n_my_edi_pos.menu_consolidated_invoices"
-            name="Consolidated Invoice"
-            parent="point_of_sale.menu_point_of_sale"
-            action="l10n_my_edi_pos.action_consolidated_invoices"
-            sequence="50" />
     </data>
 
 </odoo>

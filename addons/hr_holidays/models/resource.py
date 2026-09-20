@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time
+from datetime import UTC
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
@@ -6,28 +6,42 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 
 
-class ResourceCalendarLeaves(models.Model):
-    _inherit = "resource.calendar.leaves"
+class ResourceScheduleException(models.Model):
+    _inherit = "resource.schedule.exception"
 
-    holiday_id = fields.Many2one("hr.leave", string="Time Off Request")
+    holiday_id = fields.Many2one(
+        comodel_name="hr.leave",
+        string="Time Off Request",
+    )
     eligible_for_accrual_rate = fields.Boolean(
         string="Eligible for Accrual Rate",
         default=False,
         help="If checked, this time off type will be taken into account for accruals computation.",
     )
 
+    @api.model
+    def _get_domain_projection(self, record):
+        if record._name == "hr.leave":
+            return Domain("holiday_id", "=", record.id)
+        return super()._get_domain_projection(record)
+
+    @api.model
+    def _prepare_projection_link_vals(self, record):
+        if record._name == "hr.leave":
+            return {"holiday_id": record.id}
+        return super()._prepare_projection_link_vals(record)
+
     @api.constrains("date_from", "date_to", "calendar_id")
     def _check_compare_dates(self):
         dated = self.filtered(lambda leave: leave.date_from and leave.date_to)
         if not dated:
             return
-        all_existing_leaves = self.env["resource.calendar.leaves"].search(
-            [
-                ("resource_id", "=", False),
-                ("company_id", "in", dated.company_id.ids),
-                ("date_from", "<=", max(dated.mapped("date_to"))),
-                ("date_to", ">=", min(dated.mapped("date_from"))),
-            ]
+        all_existing_leaves = self.search(
+            self._get_domain_public_holidays(
+                min(dated.mapped("date_from")),
+                max(dated.mapped("date_to")),
+                companies=dated.company_id,
+            )
         )
         for record in dated:
             if not record.resource_id:
@@ -35,8 +49,8 @@ class ResourceCalendarLeaves(models.Model):
                     lambda leave, record=record: (
                         record.id != leave.id
                         and record["company_id"] == leave["company_id"]
-                        and record["date_from"] <= leave["date_to"]
-                        and record["date_to"] >= leave["date_from"]
+                        and record["date_from"] < leave["date_to"]
+                        and record["date_to"] > leave["date_from"]
                     )
                 )
                 if record.calendar_id:
@@ -61,17 +75,6 @@ class ResourceCalendarLeaves(models.Model):
             ]
             for date in time_domain_dict
         ) & Domain("state", "not in", ["refuse", "cancel"])
-
-    def _get_time_domain_dict(self):
-        return [
-            {
-                "company_id": record.company_id.id,
-                "date_from": record.date_from,
-                "date_to": record.date_to,
-            }
-            for record in self
-            if not record.resource_id
-        ]
 
     def _reevaluate_leaves(self, time_domain_dict):
         if not time_domain_dict:
@@ -131,72 +134,20 @@ class ResourceCalendarLeaves(models.Model):
                 leave._notify_change(message)
         leaves_to_recreate.sudo()._create_resource_leave()
 
-    def _convert_timezone(self, utc_naive_datetime, tz_from, tz_to):
-        naive_datetime_from = utc_naive_datetime.astimezone(tz_from).replace(
-            tzinfo=None
+    @api.model
+    def _on_schedule_changed(self, scopes):
+        super()._on_schedule_changed(scopes)
+        self._reevaluate_leaves(
+            [
+                {
+                    "company_id": scope["company_id"],
+                    "date_from": scope["date_from"],
+                    "date_to": scope["date_to"],
+                }
+                for scope in scopes
+                if not scope["resource_id"]
+            ]
         )
-        aware_datetime_to = naive_datetime_from.replace(tzinfo=tz_to)
-        return aware_datetime_to.astimezone(UTC).replace(tzinfo=None)
-
-    def _resolve_datetime(self, datetime_representation, date_format=None):
-        if isinstance(datetime_representation, datetime):
-            return datetime_representation
-        elif isinstance(datetime_representation, str) and date_format:
-            return datetime.strptime(datetime_representation, date_format)
-        else:
-            return None
-
-    def _prepare_public_holidays_values(self, vals_list):
-        for vals in vals_list:
-            if (
-                not vals.get("calendar_id")
-                or vals.get("resource_id")
-                or not isinstance(vals.get("date_from"), (datetime, str))
-                or not isinstance(vals.get("date_to"), (datetime, str))
-            ):
-                continue
-            user_tz = timezone(self.env.user.tz) if self.env.user.tz else UTC
-            calendar_tz = timezone(
-                self.env["resource.calendar"].browse(vals["calendar_id"]).tz
-            )
-            if user_tz != calendar_tz:
-                datetime_from = self._resolve_datetime(
-                    vals["date_from"], "%Y-%m-%d %H:%M:%S"
-                )
-                datetime_to = self._resolve_datetime(
-                    vals["date_to"], "%Y-%m-%d %H:%M:%S"
-                )
-                if datetime_from and datetime_to:
-                    vals["date_from"] = self._convert_timezone(
-                        datetime_from, user_tz, calendar_tz
-                    )
-                    vals["date_to"] = self._convert_timezone(
-                        datetime_to, user_tz, calendar_tz
-                    )
-        return vals_list
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        vals_list = self._prepare_public_holidays_values(vals_list)
-        res = super().create(vals_list)
-        time_domain_dict = res._get_time_domain_dict()
-        self._reevaluate_leaves(time_domain_dict)
-        return res
-
-    def write(self, vals):
-        time_domain_dict = self._get_time_domain_dict()
-        res = super().write(vals)
-        time_domain_dict.extend(self._get_time_domain_dict())
-        self._reevaluate_leaves(time_domain_dict)
-
-        return res
-
-    def unlink(self):
-        time_domain_dict = self._get_time_domain_dict()
-        res = super().unlink()
-        self._reevaluate_leaves(time_domain_dict)
-
-        return res
 
     @api.depends("holiday_id.employee_id.company_id")
     def _compute_company_id(self):
@@ -210,12 +161,21 @@ class ResourceCalendar(models.Model):
     _inherit = "resource.calendar"
 
     associated_leaves_count = fields.Integer(
-        "Time Off Count", compute="_compute_associated_leaves_count"
+        string="Time Off Count",
+        compute="_compute_associated_leaves_count",
     )
 
+    def _handle_flexible_leave_interval(self, dt0, dt1, leave):
+        holiday = leave.sudo().holiday_id
+        if holiday.request_unit_half or holiday.request_unit_hours:
+            return dt0, dt1
+        return super()._handle_flexible_leave_interval(dt0, dt1, leave)
+
     def _compute_associated_leaves_count(self):
-        leaves_read_group = self.env["resource.calendar.leaves"]._read_group(
-            [("resource_id", "=", False), ("calendar_id", "in", self.ids)],
+        leaves_read_group = self.env["resource.schedule.exception"]._read_group(
+            self.env["resource.schedule.exception"]._get_domain_public_holidays(
+                calendars=self
+            ),
             ["calendar_id"],
             ["__count"],
         )
@@ -244,62 +204,22 @@ class ResourceResource(models.Model):
         start_day,
         end_day,
     ):
-        leave_start = leave[0]
-        leave_record = leave[2]
-        holiday_id = leave_record.holiday_id
-        tz = timezone(self.tz or self.env.user.tz)
-
-        if holiday_id.request_unit_half:
-            leave_day = leave_start.date()
-            half_start_datetime = datetime.combine(
-                leave_day,
-                datetime.min.time()
-                if holiday_id.request_date_from_period == "am"
-                else time(12),
-            ).replace(tzinfo=tz)
-            half_end_datetime = datetime.combine(
-                leave_day,
-                time(12)
-                if holiday_id.request_date_from_period == "am"
-                else datetime.max.time(),
-            ).replace(tzinfo=tz)
-            ranges_to_remove.append(
-                (
-                    half_start_datetime,
-                    half_end_datetime,
-                    self.env["resource.calendar.attendance"],
-                )
-            )
-
-            if not self._is_fully_flexible():
-                if leave_day >= start_day and leave_day <= end_day:
-                    resource_hours_per_day[self.id][leave_day] -= (
-                        holiday_id.number_of_hours
+        if len(leave[2]) > 1:
+            for record in leave[2]:
+                start = max(leave[0], record.date_from.replace(tzinfo=UTC))
+                stop = min(leave[1], record.date_to.replace(tzinfo=UTC))
+                if start < stop:
+                    self._format_leave(
+                        (start, stop, record),
+                        resource_hours_per_day,
+                        resource_hours_per_week,
+                        ranges_to_remove,
+                        start_day,
+                        end_day,
                     )
-                week = self._flexible_week_key(leave_day)
-                resource_hours_per_week[self.id][week] -= holiday_id.number_of_hours
-        elif holiday_id.request_unit_hours:
-            leave_day = leave_start.date()
-            range_start_datetime = leave_record.date_from.replace(
-                tzinfo=UTC
-            ).astimezone(tz)
-            range_end_datetime = leave_record.date_to.replace(tzinfo=UTC).astimezone(tz)
-            ranges_to_remove.append(
-                (
-                    range_start_datetime,
-                    range_end_datetime,
-                    self.env["resource.calendar.attendance"],
-                )
-            )
-
-            if not self._is_fully_flexible():
-                if leave_day >= start_day and leave_day <= end_day:
-                    resource_hours_per_day[self.id][leave_day] -= (
-                        holiday_id.number_of_hours
-                    )
-                week = self._flexible_week_key(leave_day)
-                resource_hours_per_week[self.id][week] -= holiday_id.number_of_hours
-        else:
+            return
+        holiday_id = leave[2].holiday_id
+        if not (holiday_id.request_unit_half or holiday_id.request_unit_hours):
             super()._format_leave(
                 leave,
                 resource_hours_per_day,
@@ -308,3 +228,14 @@ class ResourceResource(models.Model):
                 start_day,
                 end_day,
             )
+            return
+
+        attendances = self.env["resource.calendar.attendance"]
+        tz = timezone(self.tz or self.env.user.tz)
+        for day, window_start, window_stop, hours in holiday_id._daily_windows(tz):
+            ranges_to_remove.append((window_start, window_stop, attendances))
+            if self._is_fully_flexible():
+                continue
+            if start_day <= day <= end_day:
+                resource_hours_per_day[self.id][day] -= hours
+            resource_hours_per_week[self.id][self._flexible_week_key(day)] -= hours

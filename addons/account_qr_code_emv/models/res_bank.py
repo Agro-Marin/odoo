@@ -11,14 +11,13 @@ class ResPartnerBank(models.Model):
     _inherit = "res.partner.bank"
 
     display_qr_setting = fields.Boolean(compute="_compute_display_qr_setting")
-    include_reference = fields.Boolean(
-        string="Include Reference", help="Include the reference in the QR code."
-    )
+    include_reference = fields.Boolean(help="Include the reference in the QR code.")
     proxy_type = fields.Selection(
-        [("none", "None")], string="Proxy Type", default="none"
+        selection=[("none", "None")],
+        default="none",
     )
     country_proxy_keys = fields.Char(compute="_compute_country_proxy_keys")
-    proxy_value = fields.Char(string="Proxy Value")
+    proxy_value = fields.Char()
 
     @api.model
     def _serialize(self, header, value):
@@ -44,12 +43,12 @@ class ResPartnerBank(models.Model):
     def _get_crc16(self, data, poly=0x1021, init=0xFFFF):
         crc = init
         for byte in data:
-            crc = crc ^ (byte << 8)
+            crc ^= byte << 8
             for __ in range(8):
                 if crc & 0x8000:
                     crc = (crc << 1) ^ poly
                 else:
-                    crc = crc << 1
+                    crc <<= 1
         return crc & 0xFFFF
 
     def _get_merchant_account_info(self):
@@ -61,7 +60,7 @@ class ResPartnerBank(models.Model):
     def _get_merchant_category_code(self):
         return "0000"
 
-    def _get_qr_code_vals_list(
+    def _prepare_emv_qr_fields(
         self,
         qr_method,
         amount,
@@ -101,7 +100,7 @@ class ResPartnerBank(models.Model):
             (62, additional_data_field),  # Additional Data Field
         ]
 
-    def _get_qr_vals(
+    def _prepare_qr_payload(
         self,
         qr_method,
         amount,
@@ -111,7 +110,7 @@ class ResPartnerBank(models.Model):
         structured_communication,
     ):
         if qr_method == "emv_qr":
-            qr_code_vals = self._get_qr_code_vals_list(
+            qr_code_vals = self._prepare_emv_qr_fields(
                 qr_method,
                 amount,
                 currency,
@@ -125,7 +124,7 @@ class ResPartnerBank(models.Model):
             qr_code_str += format(crc, "04x").upper()
             return qr_code_str
 
-        return super()._get_qr_vals(
+        return super()._prepare_qr_payload(
             qr_method,
             amount,
             currency,
@@ -134,7 +133,7 @@ class ResPartnerBank(models.Model):
             structured_communication,
         )
 
-    def _get_qr_code_generation_params(
+    def _prepare_qr_rendering_params(
         self,
         qr_method,
         amount,
@@ -150,7 +149,7 @@ class ResPartnerBank(models.Model):
                 "width": 128,
                 "height": 128,
                 "humanreadable": 1,
-                "value": self._get_qr_vals(
+                "value": self._prepare_qr_payload(
                     qr_method,
                     amount,
                     currency,
@@ -159,7 +158,7 @@ class ResPartnerBank(models.Model):
                     structured_communication,
                 ),
             }
-        return super()._get_qr_code_generation_params(
+        return super()._prepare_qr_rendering_params(
             qr_method,
             amount,
             currency,

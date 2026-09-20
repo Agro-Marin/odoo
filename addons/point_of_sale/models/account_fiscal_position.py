@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountFiscalPosition(models.Model):
     _name = "account.fiscal.position"
@@ -28,6 +30,11 @@ class AccountFiscalPosition(models.Model):
     def action_archive(self):
         configs = self.env["pos.config"].search(
             [("default_fiscal_position_id", "in", self.ids)]
+        )
+        dbg.lifecycle.debug(
+            "fiscal position %s archived: cleared as default on %s",
+            dbg.rec(self),
+            dbg.rec(configs),
         )
         configs.default_fiscal_position_id = False
         return super().action_archive()

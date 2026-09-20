@@ -11,14 +11,6 @@ export class DisplayTimer extends Interaction {
         "span.o_timer_seconds": { "t-out": () => this.secondsText },
     };
 
-    /**
-     * This interaction allows to display a DOM element at the end of a certain time laps.
-     * There are 2 timers available:
-     *   - The main-timer: display the DOM element (using the displayClass) at the end of this timer.
-     *   - The pre-timer: additional timer to display the main-timer. This pre-timer can be invisible or visible,
-     *                    depending of the startCountdownDisplay option. Once the pre-timer is over,
-     *                    the main-timer is displayed.
-     */
     setup() {
         const options = this.el.dataset;
 
@@ -40,11 +32,6 @@ export class DisplayTimer extends Interaction {
         this.registerCleanup(() => clearInterval(this.interval));
     }
 
-    /**
-     * This method removes 1 second to the current timer (pre-timer or
-     * main-timer) and calls the method to update the DOM, unless main-timer is
-     * over. In that last case, the DOM element to show is displayed.
-     */
     checkTimer() {
         const now = new Date();
 
@@ -71,10 +58,6 @@ export class DisplayTimer extends Interaction {
     }
 
     /**
-     * This method update the DOM to display the remaining time.
-     * from seconds, the method extract the number of days, hours, minutes and seconds and
-     * override the different DOM elements values.
-     *
      * @param {number} remainingTime
      */
     updateCountdown(remainingTime) {
@@ -91,8 +74,6 @@ export class DisplayTimer extends Interaction {
     }
 
     /**
-     * Format the number to a 2 char strings
-     *
      * @param {number} num
      */
     formatTime(num) {

@@ -45,7 +45,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         cls.leave_remote_type = cls.env["hr.leave.type"].create(
             {
                 "name": "Legal Leaves",
-                "time_type": "other",
+                "time_type_id": cls.env.ref("resource.time_type_work").id,
                 "requires_allocation": False,
                 "allow_request_on_top": True,
                 "work_entry_type_id": cls.work_entry_type_remote.id,
@@ -55,7 +55,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         cls.half_day_leave_type = cls.env["hr.leave.type"].create(
             {
                 "name": "Half-Day Leaves",
-                "time_type": "leave",
                 "request_unit": "half_day",
                 "work_entry_type_id": cls.work_entry_type_leave.id,
                 "requires_allocation": False,
@@ -65,7 +64,6 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         cls.hours_leave_type = cls.env["hr.leave.type"].create(
             {
                 "name": "Hours Leaves",
-                "time_type": "leave",
                 "request_unit": "hour",
                 "work_entry_type_id": cls.work_entry_type_leave.id,
                 "requires_allocation": False,
@@ -171,7 +169,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
         work_entry_type_holiday = self.env["hr.work.entry.type"].create(
             {"name": "Public Holiday", "is_leave": True, "code": "LEAVETEST500"}
         )
-        self.env["resource.calendar.leaves"].create(
+        self.env["resource.schedule.exception"].create(
             {
                 "name": "Public Holiday",
                 "date_from": datetime(2023, 2, 6, 0, 0, 0),
@@ -284,12 +282,12 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
             leave_start_date, leave_end_date, employee_id=self.employee_external.id
         )
         leave.with_user(self.env.user).action_approve()
-        leave_resource_calendar_leave = self.env["resource.calendar.leaves"].search(
+        schedule_exception = self.env["resource.schedule.exception"].search(
             [("holiday_id", "=", leave.id)]
         )
 
         self.assertEqual(
-            self.employee_external.company_id, leave_resource_calendar_leave.company_id
+            self.employee_external.company_id, schedule_exception.company_id
         )
         leave_work_entry = self.env["hr.work.entry"].search(
             [

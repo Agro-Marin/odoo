@@ -1,30 +1,58 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ResPartner(models.Model):
     _name = "res.partner"
     _inherit = ["res.partner", "mixin.pos.load"]
 
+    _pos_data_incremental = True
+    _pos_data_incremental_fields = (
+        "write_date",
+        "country_id.write_date",
+        "state_id.write_date",
+        "state_id.country_id.write_date",
+    )
+
     pos_order_count = fields.Integer(
         compute="_compute_pos_order_count",
-        help="The number of point of sales orders related to this customer",
         groups="point_of_sale.group_pos_user",
+        help="The number of point of sales orders related to this customer",
     )
-    pos_order_ids = fields.One2many("pos.order", "partner_id", readonly=True)
+    pos_order_ids = fields.One2many(
+        comodel_name="pos.order",
+        inverse_name="partner_id",
+        readonly=True,
+    )
     pos_contact_address = fields.Char(
-        "PoS Address", compute="_compute_pos_contact_address"
+        string="PoS Address",
+        compute="_compute_pos_contact_address",
     )
-    invoice_emails = fields.Char(compute="_compute_invoice_emails", readonly=True)
+    invoice_emails = fields.Char(
+        compute="_compute_invoice_emails",
+        readonly=True,
+    )
     fiscal_position_id = fields.Many2one(
-        "account.fiscal.position",
+        comodel_name="account.fiscal.position",
         string="Automatic Fiscal Position",
         compute="_compute_fiscal_position_id",
         help="Fiscal positions are used to adapt taxes and accounts for particular "
         "customers or sales orders/invoices. The default value comes from the customer.",
     )
 
-    @api.depends(lambda self: self._display_address_depends())
+    @api.depends(
+        lambda self: [
+            *self._display_address_depends(),
+            "country_id.name",
+            "country_id.code",
+            "country_id.address_format",
+            "state_id.name",
+            "state_id.code",
+        ]
+    )
+    @api.depends_context("lang")
     def _compute_pos_contact_address(self):
         for partner in self:
             partner.pos_contact_address = partner._display_address(without_company=True)
@@ -44,8 +72,12 @@ class ResPartner(models.Model):
         return data_list
 
     @api.model
+    @dbg.timed
     def get_new_partner(self, config_id, domain, offset):
         config = self.env["pos.config"].browse(config_id)
+        config.check_access("read")
+        self = self._with_pos_company(config)
+        domain = list(domain)
         if len(domain) == 0:
             limited_partner_ids = {
                 partner[0] for partner in config.get_limited_partners_loading(offset)
@@ -55,8 +87,23 @@ class ResPartner(models.Model):
         else:
             new_partners = self.search(domain, offset=offset, limit=100)
         fiscal_positions = new_partners.fiscal_position_id
+        dbg.pipeline.debug(
+            "[load:res.partner] on demand config=%s offset=%s %s -> %s fpos=%s",
+            config_id,
+            offset,
+            "ranked" if not domain or domain[-1][0] == "id" else "searched",
+            dbg.rec(new_partners),
+            dbg.rec(fiscal_positions),
+        )
+        partner_data = {"res.partner": self._load_pos_data_read(new_partners, config)}
         return {
-            "res.partner": self._load_pos_data_read(new_partners, config),
+            **partner_data,
+            "res.country": self.env["res.country"]._load_pos_data_search_read(
+                partner_data, config
+            ),
+            "res.country.state": self.env[
+                "res.country.state"
+            ]._load_pos_data_search_read(partner_data, config),
             "phone.number": new_partners.phone_ids._load_pos_data_read(
                 new_partners.phone_ids, config
             ),
@@ -79,8 +126,16 @@ class ResPartner(models.Model):
 
         limited_partner_ids.add(self.env.user.partner_id.id)
         partner_ids = limited_partner_ids.union(loaded_order_partner_ids)
+        dbg.logic.debug(
+            "[load:res.partner] %d ranked + %d from open orders -> %d",
+            len(limited_partner_ids),
+            len(loaded_order_partner_ids),
+            len(partner_ids),
+        )
         return [("id", "in", list(partner_ids))]
 
+    @api.depends_context("company")
+    @api.depends("property_account_position_id", "country_id", "state_id", "zip", "vat")
     def _compute_fiscal_position_id(self):
         for partner in self:
             partner.fiscal_position_id = (
@@ -116,23 +171,9 @@ class ResPartner(models.Model):
         ]
 
     def _compute_pos_order_count(self):
-        all_partners = self.with_context(active_test=False).search_fetch(
-            [("id", "child_of", self.ids)],
-            ["parent_id"],
+        self._update_order_count(
+            "pos.order", "pos_order_count", "point_of_sale.group_pos_user"
         )
-        pos_order_data = self.env["pos.order"]._read_group(
-            domain=[("partner_id", "in", all_partners.ids)],
-            groupby=["partner_id"],
-            aggregates=["__count"],
-        )
-        self_ids = set(self._ids)
-
-        self.pos_order_count = 0
-        for partner, count in pos_order_data:
-            while partner:
-                if partner.id in self_ids:
-                    partner.pos_order_count += count
-                partner = partner.parent_id
 
     @api.depends("email", "child_ids.type", "child_ids.email")
     def _compute_invoice_emails(self):
@@ -166,6 +207,9 @@ class ResPartner(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_if_pos_no_orders(self):
         if self.sudo().pos_order_ids:
+            dbg.logic.debug(
+                "res.partner unlink refused: %s has pos orders", dbg.rec(self)
+            )
             raise ValidationError(
                 _(
                     "You cannot delete a customer that has point of sales orders. You can archive it instead."

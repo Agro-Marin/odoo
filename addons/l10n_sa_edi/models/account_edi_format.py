@@ -57,7 +57,7 @@ class AccountEdiFormat(models.Model):
             decoded_hash, formatting="base64"
         )
 
-    def _l10n_sa_calculate_signed_properties_hash(
+    def _l10n_sa_get_signed_properties_hash(
         self, issuer_name, serial_number, signing_time, public_key
     ):
         """
@@ -110,7 +110,7 @@ class AccountEdiFormat(models.Model):
         )
         public_key_hashing = b64encode(sha256(der_cert).hexdigest().encode()).decode()
 
-        signed_properties_hash = self._l10n_sa_calculate_signed_properties_hash(
+        signed_properties_hash = self._l10n_sa_get_signed_properties_hash(
             issuer_name, serial_number, signing_time, public_key_hashing
         )
 
@@ -501,7 +501,7 @@ class AccountEdiFormat(models.Model):
             for line in invoice.invoice_line_ids.filtered(
                 lambda line: (
                     line.display_type == "product"
-                    and line._check_edi_line_tax_required()
+                    and line._is_edi_line_tax_required()
                 )
             )
         ):

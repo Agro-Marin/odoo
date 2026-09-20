@@ -1,9 +1,6 @@
 import ast
-import importlib
-import importlib.machinery
-import importlib.util
+import os
 import re
-import sys
 from contextlib import suppress
 from pathlib import Path
 
@@ -14,32 +11,24 @@ import odoo.addons
 
 RE_FORBIDDEN_STATEMENTS = re.compile(r"test.*\.(only|debug)\(")
 
-MISC_VIEW_SUITES = (
-    "@web/views/graph",
-    "@web/views/pivot",
-    "@web/views/pivot_view",
-    "@web/views/field_arch",
-    "@web/views/view_arch_parser",
-    "@web/views/view_components",
-    "@web/views/view_compiler",
-    "@web/views/view_dialogs",
-    "@web/views/widgets",
-    "@web/views/layout",
-    "@web/views/control_panel_render_budget",
-    "@web/views/view_button",
-    "@web/views/view_buttons",
-    "@web/views/view_button_hook",
-    "@web/views/view_service",
-    "@web/views/view",
-    "@web/views/view_utils",
-    "@web/views/view_config",
-    "@web/views/view_props",
-    "@web/views/module_views",
-    "@web/views/multi_record_controller",
-    "@web/views/multi_record_group",
-    "@web/views/multi_record_selection",
-    "@web/views/settings",
-)
+_DEDICATED_VIEW_SUITES = frozenset({"calendar", "form", "kanban", "list"})
+
+
+def _misc_view_suites():
+    root = Path(file_path("web/static/tests/views"))
+    names = {
+        entry.name.removesuffix(".test.js")
+        for entry in root.iterdir()
+        if entry.is_dir() or entry.name.endswith(".test.js")
+    }
+    return tuple(
+        f"@web/views/{name}"
+        for name in sorted(names)
+        if name not in _DEDICATED_VIEW_SUITES
+    )
+
+
+MISC_VIEW_SUITES = _misc_view_suites()
 MISC_SUITES = (
     "@web/boot",
     "@web/env",
@@ -264,16 +253,35 @@ class HOOTCommon(odoo.tests.HttpCase):
         addon = addons.pop()
         return f"&module_scope={addon}" if addon else ""
 
+    def test_filtered_module_scope(self):
+        self._test_params = [("+", "@web/ui/dialog,@web/ui/popover")]
+        self.assertEqual(self._filtered_module_scope_param(), "&module_scope=web")
+        self._test_params = [("+", "@web/ui/dialog"), ("-", "@web/ui/dialog/x")]
+        self.assertEqual(self._filtered_module_scope_param(), "&module_scope=web")
+        self._test_params = [("+", "@web/ui,@mail/core")]
+        self.assertEqual(self._filtered_module_scope_param(), "")
+        self._test_params = [("-", "@web/ui/dialog")]
+        self.assertEqual(self._filtered_module_scope_param(), "")
+
+    def _filtered_module_scope_param(self):
+        # a filtered run narrows the bundle like the lane it filters would:
+        # on a database with point_of_sale installed an unscoped page loads
+        # the POS app's global patches over web's own suites
+        selected = [f for sign, f in _get_filters(self._test_params) if sign == "+"]
+        return self._get_module_scope_param(selected) if selected else ""
+
     def _run_hoot(self, *suite_names, preset, timeout=600, tag="", extra=""):
         if self.hoot_filters:
             id_filters = self.hoot_filters
-            scope_param = ""
+            scope_param = self._filtered_module_scope_param()
         else:
             id_filters = "".join(f"&id={self._generate_hash(n)}" for n in suite_names)
             scope_param = self._get_module_scope_param(suite_names)
         tag_param = f"&tag={tag}" if tag else ""
+        # the browser's makeLogger namespaces, relayed by --log-handler <this module>:DEBUG
+        log_param = f"&log={spec}" if (spec := os.environ.get("ODOO_HOOT_LOG")) else ""
         self.browser_js(
-            f"/web/tests?headless&loglevel=2&preset={preset}&timeout=15000{id_filters}{tag_param}{scope_param}{extra}",
+            f"/web/tests?headless&loglevel=2&preset={preset}&timeout=15000{id_filters}{tag_param}{scope_param}{log_param}{extra}",
             "",
             "",
             login="admin",
@@ -359,42 +367,6 @@ class WebSuite(HOOTCommon):
 
     def test_check_suite(self):
         self._check_forbidden_statements("web.assets_unit_tests")
-
-    def test_shard_runner_covers_ci(self):
-        hoot_lib, hoot_shard = self._load_shard_runner()
-        weights = hoot_shard.load_weights()
-        declared = hoot_shard.default_web_suites()
-        scheduled = hoot_shard.refine(declared, 4, weights)
-
-        def files(suites):
-            return {p for s in suites for p in hoot_lib.suite_test_files(s)}
-
-        expected = files(self._runner_suite_prefixes(Path(__file__)))
-        self.assertTrue(expected, "no test files resolved for the CI suites")
-        self.assertFalse(
-            expected - files(scheduled),
-            "hoot-shard's plan does not cover every test file WebSuite runs:"
-            "\n- " + "\n- ".join(sorted(str(p) for p in expected - files(scheduled))),
-        )
-
-    @staticmethod
-    def _load_shard_runner():
-        root = next(
-            p for p in Path(__file__).resolve().parents if (p / "odoo-bin").is_file()
-        )
-        scripts = root / "tooling" / "hoot"
-        sys.path.insert(0, str(scripts))
-        try:
-            hoot_lib = importlib.import_module("hoot_lib")
-            loader = importlib.machinery.SourceFileLoader(
-                "hoot_shard", str(scripts / "hoot-shard")
-            )
-            spec = importlib.util.spec_from_loader("hoot_shard", loader)
-            hoot_shard = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(hoot_shard)
-        finally:
-            sys.path.remove(str(scripts))
-        return hoot_lib, hoot_shard
 
     def test_suite_filters_cover_every_test_file(self):
         tests_root = Path(file_path("web/static/tests"))

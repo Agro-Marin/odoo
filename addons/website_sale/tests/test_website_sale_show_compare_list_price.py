@@ -59,7 +59,6 @@ class WebsiteSaleShopPriceListCompareListPriceDispayTests(
             }
         )
 
-        # Three pricelists
         Pricelist.search([]).write({"sequence": 1000})
         cls.pricelist_default = Pricelist.create(
             {

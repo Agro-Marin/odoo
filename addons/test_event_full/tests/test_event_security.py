@@ -113,7 +113,7 @@ class TestEventSecurity(TestEventFullCommon):
                             0,
                             {
                                 "interval_nbr": 1,
-                                "interval_unit": "days",
+                                "interval_unit": "day",
                                 "interval_type": "before_event",
                                 "template_ref": "mail.template,%i"
                                 % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -139,7 +139,7 @@ class TestEventSecurity(TestEventFullCommon):
                         0,
                         {
                             "interval_nbr": 1,
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "before_event",
                             "template_ref": "mail.template,%i"
                             % self.env["ir.model.data"]._xmlid_to_res_id(

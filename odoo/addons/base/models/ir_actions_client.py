@@ -2,7 +2,12 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.safe_eval import safe_eval
+
+from .ir_actions_actions import WINDOW_TARGETS
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsClient(models.Model):
@@ -10,10 +15,7 @@ class IrActionsClient(models.Model):
     _description = "Client Action"
     _inherit = ["ir.actions.actions"]
     _table = "ir_act_client"
-    _order = "name, id"
-    _allow_sudo_commands = False
 
-    type = fields.Char(default="ir.actions.client")
     tag = fields.Char(
         string="Client action tag",
         required=True,
@@ -22,14 +24,9 @@ class IrActionsClient(models.Model):
         "is no central tag repository across clients.",
     )
     target = fields.Selection(
-        [
-            ("current", "Current Window"),
-            ("new", "New Window"),
-            ("fullscreen", "Full Screen"),
-            ("main", "Main action of Current Window"),
-        ],
-        default="current",
+        selection=WINDOW_TARGETS,
         string="Target Window",
+        default="current",
     )
     res_model = fields.Char(
         string="Destination Model",
@@ -42,13 +39,15 @@ class IrActionsClient(models.Model):
         help="Context dictionary as Python expression, empty by default (Default: {})",
     )
     params = fields.Binary(
+        string="Supplementary arguments",
         compute="_compute_params",
         inverse="_inverse_params",
-        string="Supplementary arguments",
         help="Arguments sent to the client along with the view tag",
     )
     params_store = fields.Binary(
-        string="Params storage", readonly=True, attachment=False
+        string="Params storage",
+        attachment=False,
+        readonly=True,
     )
 
     @api.depends("params_store")
@@ -58,13 +57,15 @@ class IrActionsClient(models.Model):
         for record, record_bin in zip(self, self_bin, strict=True):
             stored = record_bin.params_store
             if not stored:
+                _debug.logic("params_empty", action=record.id)
                 record.params = stored
                 continue
-            if isinstance(stored, bytes):
-                stored = stored.decode()
-            try:
-                record.params = safe_eval(stored, {"uid": self.env.uid})
-            except Exception:
+            params = self._parse_params(stored)
+            if isinstance(params, dict):
+                _debug.logic("params_evaluated", action=record.id, keys=len(params))
+                record.params = params
+            else:
+                _debug.logic("params_unparsable", action=record.id)
                 record.params = False
 
     def _inverse_params(self) -> None:
@@ -76,7 +77,11 @@ class IrActionsClient(models.Model):
                 record.params_store = False
             elif isinstance(params, dict):
                 record.params_store = repr(params)
+                _debug.lifecycle("params_stored", action=record.id, keys=len(params))
             else:
+                _debug.logic(
+                    "params_rejected", action=record.id, type=type(params).__name__
+                )
                 raise ValidationError(
                     self.env._(
                         "The parameters of client action '%(name)s' must be a "
@@ -92,11 +97,15 @@ class IrActionsClient(models.Model):
             source = source.decode()
         try:
             return safe_eval(source, {"uid": self.env.uid})
-        except Exception:
+        except Exception as exc:
+            _debug.logic("params_kept_as_source", error=type(exc).__name__)
             return source
 
     def _get_field_target_model(self) -> str:
         return "res_model"
+
+    def _get_fields_binding_extra(self) -> tuple[str, ...]:
+        return ("res_model",)
 
     def _get_fields_readable(self) -> frozenset[str]:
         return super()._get_fields_readable() | {

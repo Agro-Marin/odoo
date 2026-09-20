@@ -18,7 +18,7 @@ export class DonationSnippet extends Interaction {
         },
         ".s_donation_donate_btn": {
             "t-on-click.withTarget": this.locked(this.onDonateClick, true),
-            "t-att-class": () => ({ o_ready_to_donate: true }), // See TEST_01_DONATION_FIX
+            "t-att-class": () => ({ o_ready_to_donate: true }),
         },
         "#s_donation_range_slider": { "t-on-input": this.onRangeSliderInput },
         "#s_donation_amount_input": {
@@ -42,14 +42,6 @@ export class DonationSnippet extends Interaction {
     }
 
     async willStart() {
-        // TODO this is not perfect compared to 18.0: there can be a delay where
-        // the donation button does nothing because the currency is being
-        // loaded (while before it waited for the currency inside the handler).
-        // See TEST_01_DONATION_FIX which was adapted to this new behavior, as
-        // it cannot be restored in stable versions in a stable way.
-        // TODO the "cached" parameters has no effect: the actual cache is not
-        // initialized on the frontend side at the moment.
-        // TODO Also it should be the third param of rpc, not the second one...
         this.currency = await rpc("/website/get_current_currency", { cache: true });
     }
 
@@ -58,7 +50,6 @@ export class DonationSnippet extends Interaction {
             ".s_donation_btn, .s_range_bubble",
         );
         for (const prefilledButtonEl of prefilledButtonEls) {
-            // Remove existing currency
             prefilledButtonEl.querySelector(".s_donation_currency")?.remove();
             const insertBefore = this.currency.position === "before";
             const currencyEl = document.createElement("span");
@@ -93,14 +84,13 @@ export class DonationSnippet extends Interaction {
         const min = this.rangeSliderEl.min || 0;
         const max = this.rangeSliderEl.max || 100;
         const newVal = Number(((val - min) * 100) / (max - min));
-        const tipOffsetLow = 8 - newVal * 0.16; // the range thumb size is 16px*16px. The '8' and the '0.16' are related to that 16px (50% and 1% of 16px)
+        const tipOffsetLow = 8 - newVal * 0.16;
 
         for (const child of bubbleEl.childNodes) {
             if (child.nodeType === 3) {
                 child.nodeValue = val;
             }
         }
-        // Sorta magic numbers based on size of the native UI thumb (source: https://css-tricks.com/value-bubbles-for-range-inputs/)
         bubbleEl.style.insetInlineStart = `calc(${newVal}% + (${tipOffsetLow}px))`;
     }
 

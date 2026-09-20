@@ -1,9 +1,10 @@
+import re
 from datetime import timedelta
 
 from odoo import fields
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, add_category_approver, add_rule_step, pool_step
 
 
 @tagged("post_install", "-at_install")
@@ -61,22 +62,8 @@ class TestApproverComputation(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            [
-                {
-                    "user_id": self.category_user.id,
-                    "category_id": category.id,
-                    "required": True,
-                    "sequence": 10,
-                },
-                {
-                    "user_id": self.group_user.id,
-                    "category_id": category.id,
-                    "required": False,
-                    "sequence": 20,
-                },
-            ]
-        )
+        add_category_approver(category, self.category_user, required=True, sequence=10)
+        add_category_approver(category, self.group_user, required=False, sequence=20)
 
         request = self.env["approval.request"].create(
             {
@@ -109,14 +96,7 @@ class TestApproverComputation(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.category_user.id,
-                "category_id": category.id,
-                "required": True,
-                "sequence": 10,
-            }
-        )
+        add_category_approver(category, self.category_user, required=True, sequence=10)
 
         request = self.env["approval.request"].create(
             {
@@ -130,7 +110,7 @@ class TestApproverComputation(common.TransactionCase):
             {
                 "user_id": self.manual_user.id,
                 "request_id": request.id,
-                "state": "new",
+                "flow_state": "new",
             }
         )
 
@@ -157,14 +137,7 @@ class TestApproverComputation(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.category_user.id,
-                "category_id": category.id,
-                "required": True,
-                "sequence": 10,
-            }
-        )
+        add_category_approver(category, self.category_user, required=True, sequence=10)
 
         request = self.env["approval.request"].create(
             {
@@ -178,7 +151,7 @@ class TestApproverComputation(common.TransactionCase):
             {
                 "user_id": self.manual_user.id,
                 "request_id": request.id,
-                "state": "new",
+                "flow_state": "new",
             }
         )
 
@@ -190,44 +163,6 @@ class TestApproverComputation(common.TransactionCase):
         self.assertEqual(
             approvers[-1].sequence, 10, "a manual row keeps its own sequence"
         )
-
-    def test_compute_approver_ids_exclusive_mode_only_group_members(self):
-        category = self.env["approval.category"].create(
-            {
-                "sequence_code": "SC0016",
-                "name": "Test Exclusive Computation",
-                "approval_minimum": 1,
-                "group_approval": "exclusive",
-                "approver_group_id": self.approval_group.id,
-            }
-        )
-
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.category_user.id,
-                "category_id": category.id,
-                "required": True,
-                "sequence": 10,
-            }
-        )
-
-        request = self.env["approval.request"].create(
-            {
-                "name": "Test Exclusive",
-                "request_owner_id": self.admin_user.id,
-                "category_id": category.id,
-            }
-        )
-
-        approver_users = request.approver_ids.mapped("user_id")
-        self.assertIn(self.group_user, approver_users)
-        self.assertIn(self.duplicate_user, approver_users)
-        self.assertNotIn(
-            self.category_user,
-            approver_users,
-            "Explicit approver must NOT be included in exclusive mode",
-        )
-        self.assertEqual(len(request.approver_ids), 2)
 
     def test_compute_approver_ids_category_change_updates_approvers(self):
         category1 = self.env["approval.category"].create(
@@ -245,20 +180,8 @@ class TestApproverComputation(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.category_user.id,
-                "category_id": category1.id,
-                "required": True,
-            }
-        )
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.group_user.id,
-                "category_id": category2.id,
-                "required": True,
-            }
-        )
+        add_category_approver(category1, self.category_user, required=True)
+        add_category_approver(category2, self.group_user, required=True)
 
         request = self.env["approval.request"].create(
             {
@@ -308,14 +231,7 @@ class TestApproverComputation(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.duplicate_user.id,
-                "category_id": category.id,
-                "required": True,
-                "sequence": 10,
-            }
-        )
+        add_category_approver(category, self.duplicate_user, required=True, sequence=10)
 
         request = self.env["approval.request"].create(
             {
@@ -359,13 +275,7 @@ class TestApproverComputation(common.TransactionCase):
 
         self.assertEqual(len(request.approver_ids), 0)
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.category_user.id,
-                "category_id": category.id,
-                "required": True,
-            }
-        )
+        category._add_approver(self.category_user, required=True)
 
         request.invalidate_recordset(["approver_ids"])
         request._sync_approvers()
@@ -373,7 +283,7 @@ class TestApproverComputation(common.TransactionCase):
         self.assertEqual(len(request.approver_ids), 1)
         self.assertEqual(request.approver_ids.user_id, self.category_user)
 
-    def test_compute_approver_ids_exclusive_many_group_members(self):
+    def test_compute_approver_ids_every_member_of_a_group_step(self):
         many_users = self.env["res.users"].create(
             [
                 {
@@ -398,8 +308,7 @@ class TestApproverComputation(common.TransactionCase):
                 "sequence_code": "SC0022",
                 "name": "Test Many Group Members",
                 "approval_minimum": 1,
-                "group_approval": "exclusive",
-                "approver_group_id": large_group.id,
+                "step_ids": pool_step([], minimum=1, group_id=large_group.id),
             }
         )
 
@@ -423,14 +332,13 @@ class TestApproverComputation(common.TransactionCase):
             "All approver user_ids should be unique",
         )
 
-    def test_compute_approver_ids_exclusive_single_pass(self):
+    def test_compute_approver_ids_group_step_single_pass(self):
         category = self.env["approval.category"].create(
             {
                 "sequence_code": "SC0023",
                 "name": "Test Single Pass",
                 "approval_minimum": 1,
-                "group_approval": "exclusive",
-                "approver_group_id": self.approval_group.id,
+                "step_ids": pool_step([], minimum=1, group_id=self.approval_group.id),
             }
         )
 
@@ -460,7 +368,7 @@ class TestApproverComputationAuditRegressions(ApprovalCommon):
 
         self.assertIn(self.approver_1, request.approver_ids.user_id)
 
-        category.approver_ids.unlink()
+        category.step_ids.member_ids.unlink()
         request.sudo()._sync_approvers()
         request.invalidate_recordset(["approver_ids"])
 
@@ -514,9 +422,7 @@ class TestManualApproverHeuristic(ApprovalCommon):
         category = self._make_category(name="M8 Own", approvers=[self.approver_2])
         request = self._prepare_request(category, confirm=False)
 
-        self.env["approval.category.approver"].create(
-            {"category_id": category.id, "user_id": self.approver_1.id},
-        )
+        category._add_approver(self.approver_1)
         request.sudo()._sync_approvers()
         request.invalidate_recordset(["approver_ids"])
         self.assertIn(
@@ -525,8 +431,8 @@ class TestManualApproverHeuristic(ApprovalCommon):
             "the category now lists approver_1, so a re-sync injects the row",
         )
 
-        category.approver_ids.filtered(
-            lambda a: a.user_id == self.approver_1,
+        category.step_ids.member_ids.filtered(
+            lambda member: member.user_id == self.approver_1,
         ).unlink()
         request.sudo()._sync_approvers()
         request.invalidate_recordset(["approver_ids"])
@@ -559,16 +465,13 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
             approvers=[(self.approver_1, False, 10)],
             **cat_vals,
         )
-        self.env["approval.rule"].create(
-            {
-                "name": f"Escalate on {condition_field}",
-                "category_id": category.id,
-                "condition_field": condition_field,
-                "operator": operator,
-                "threshold": threshold,
-                "action_type": "add_approver",
-                "approver_ids": [(6, 0, [self.director.id])],
-            },
+        add_rule_step(
+            category,
+            self.director,
+            name=f"Escalate on {condition_field}",
+            condition_field=condition_field,
+            operator=operator,
+            threshold=threshold,
         )
         return category
 
@@ -602,9 +505,7 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
         )
 
     def test_date_range_change_resyncs_approvers(self):
-        category = self._category_with_rule(
-            "date_range_days", "gt", 5, has_date_range="optional"
-        )
+        category = self._category_with_rule("date_range_days", "gt", 5)
         request = self._prepare_request(category, confirm=False)
 
         request.write(
@@ -616,7 +517,7 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
 
         self.assertIn(self.director, request.approver_ids.user_id)
 
-    def test_currency_change_resyncs_tier(self):
+    def test_currency_change_resyncs_the_steps(self):
         usd = self.env.ref("base.USD")
         mxn = self.env.ref("base.MXN")
         (usd | mxn).sudo().write({"active": True})
@@ -628,41 +529,21 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
                 "rate": 20.0,
             },
         )
-        category = self._make_category(
-            name="Trigger currency",
-            approvers=[(self.approver_1, False, 10)],
-            has_amount="optional",
-        )
-        common_tier = {
-            "category_id": category.id,
-            "currency_id": usd.id,
-            "condition_field": "amount",
-            "approval_minimum": 1,
-        }
-        self.env["approval.rule"].create(
-            {
-                "action_type": "set_approvers",
-                "condition_field": "amount",
-                "operator": "between",
-                **common_tier,
-                "name": "small",
-                "threshold": 0.0,
-                "threshold_max": 1000.0,
-                "approver_ids": [(6, 0, [self.approver_1.id])],
-            },
-        )
-        self.env["approval.rule"].create(
-            {
-                "action_type": "set_approvers",
-                "condition_field": "amount",
-                "operator": "between",
-                **common_tier,
-                "name": "big",
-                "threshold": 1000.0,
-                "threshold_max": 0.0,
-                "approver_ids": [(6, 0, [self.director.id])],
-            },
-        )
+        category = self._make_category(name="Trigger currency")
+        for name, user, low, high in (
+            ("small", self.approver_1, 0.0, 1000.0),
+            ("big", self.director, 1000.0, 0.0),
+        ):
+            add_rule_step(
+                category,
+                user,
+                name=name,
+                currency_id=usd.id,
+                condition_field="amount",
+                operator="between",
+                threshold=low,
+                threshold_max=high,
+            )
 
         request = self._prepare_request(
             category, confirm=False, currency_id=mxn.id, amount=10000.0
@@ -685,11 +566,11 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
         request.sudo().write({"applied_rule_ids": [(5, 0, 0)]})
         self.env.flush_all()
 
-        result = request._compute_desired_approvers(500)
+        result = request._get_desired_approvers()
 
         self.assertFalse(
             request.applied_rule_ids,
-            "_compute_desired_approvers must not write applied_rule_ids; "
+            "_get_desired_approvers must not write applied_rule_ids; "
             "the caller persists what it returns.",
         )
         self.assertEqual(
@@ -709,7 +590,7 @@ class TestApproverSyncBatchesRowWrites(ApprovalCommon):
 
         def counting(cr_self, query, params=None, log_exceptions=True):
             text = getattr(query, "code", None) or str(query)
-            if "INSERT INTO" in text and "approval_approver" in text:
+            if re.match(r'\s*INSERT INTO "?approval_approver"?\s*\(', text):
                 inserts.append(text)
             if params is not None:
                 return original(cr_self, query, params, log_exceptions)
@@ -826,7 +707,7 @@ class TestApproverSyncPlanLogging(ApprovalCommon):
         def execute(cr_self, query, params=None, log_exceptions=True):
             text = getattr(query, "code", None) or str(query)
             flat = " ".join(str(text).split()).upper()
-            if "APPROVAL_APPROVER" in flat:
+            if re.search(r'"?APPROVAL_APPROVER"?(?![_A-Z])', flat):
                 for verb in ("INSERT INTO", "DELETE FROM", "UPDATE"):
                     if verb in flat:
                         verbs.append(verb.split()[0].lower())
@@ -978,7 +859,7 @@ class TestApproverSyncPlanLogging(ApprovalCommon):
             ],
         )
         self.env.flush_all()
-        category.approver_ids.write({"required": True, "sequence": 42})
+        category.step_ids.member_ids.write({"required": True, "sequence": 42})
 
         steps = self._plan_steps(requests._sync_approvers)
 
@@ -1017,15 +898,8 @@ class TestApproverSyncOnConfirm(ApprovalCommon):
         request = self._prepare_request(category, confirm=False)
         self.assertEqual(request.approver_ids.user_id, self.approver_1)
 
-        category.approval_minimum = 2
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": True,
-                "sequence": 20,
-            },
-        )
+        category.step_ids.minimum = 2
+        category._add_approver(self.approver_2, required=True, sequence=20)
 
         request.action_confirm()
 
@@ -1057,10 +931,10 @@ class TestApproverSyncOnConfirm(ApprovalCommon):
         )
         request = self._prepare_request(category, confirm=False)
 
-        category.approver_ids.filtered(
-            lambda a: a.user_id == self.approver_2,
+        category.step_ids.member_ids.filtered(
+            lambda member: member.user_id == self.approver_2,
         ).unlink()
-        category.approval_minimum = 1
+        category.step_ids.minimum = 1
 
         request.action_confirm()
 
@@ -1080,14 +954,7 @@ class TestApproverSyncOnConfirm(ApprovalCommon):
             approvers=[(self.approver_1, True, 10)],
         )
         request = self._prepare_request(category, confirm=False)
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": False,
-                "sequence": 20,
-            },
-        )
+        category._add_approver(self.approver_2, sequence=20)
 
         request.action_confirm()
 

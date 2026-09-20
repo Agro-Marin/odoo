@@ -3,10 +3,14 @@ import os
 import threading
 import unittest
 from time import monotonic
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import psycopg
 from psycopg_pool import PoolTimeout
 
+from odoo.db import settings as pool_settings
+from odoo.db.dsn import _get_dsn_key
 from odoo.db.pool import (
     _DIRECT_CONNECTION,
     ConnectionBudget,
@@ -14,10 +18,24 @@ from odoo.db.pool import (
     PoolError,
     _get_base_connection_options,
     _get_seconds_remaining,
+    _prepare_connection_options,
     _SuppressKnownPoolWarnings,
 )
 from odoo.db.probe import PROBE_CONNECT_TIMEOUT, get_libpq_connect_timeout
 from odoo.db.reaper import _LAST_BORROW_ATTR, mark_active
+from odoo.db.settings import PoolSettings
+
+# As in test_probe: ConnectionPool() reads the settings slot, which nothing
+# provides when this module runs alone.
+_settings = pool_settings.installed(PoolSettings())
+
+
+def setUpModule():
+    _settings.__enter__()
+
+
+def tearDownModule():
+    _settings.__exit__(None, None, None)
 
 
 def _fake_pool_factory(*_a, **_k):
@@ -142,6 +160,7 @@ class TestSemaphoreAccounting(unittest.TestCase):
 
         class Conn:
             closed = False
+            info = SimpleNamespace(dsn="dbname=x")
 
             def close(self):
                 type(self).closed = True
@@ -159,6 +178,7 @@ class TestSemaphoreAccounting(unittest.TestCase):
 
         class Conn:
             closed = False
+            info = SimpleNamespace(dsn="dbname=x")
 
             def __init__(self):
                 self._odoo_pool = _DIRECT_CONNECTION
@@ -178,7 +198,7 @@ class TestSemaphoreAccounting(unittest.TestCase):
 
     def test_repr_counts_direct_connections(self):
         pool = ConnectionPool(maxconn=8)
-        pool._pools = {_key(database="db"): _FakePool(size=3, available=1)}
+        pool._pools = {_key(dbname="db"): _FakePool(size=3, available=1)}
         pool._direct_out = 2
         text = repr(pool)
         self.assertIn("used=2/total=3/limit=8", text)
@@ -191,7 +211,7 @@ class TestIdlePoolReaping(unittest.TestCase):
 
     def test_disabled_when_ttl_is_not_positive(self):
         pool = self._pool(ttl=0)
-        pool._pools = {_key(database="db"): _FakePool()}
+        pool._pools = {_key(dbname="db"): _FakePool()}
         setattr(next(iter(pool._pools.values())), _LAST_BORROW_ATTR, monotonic() - 1e6)
         self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
@@ -200,9 +220,9 @@ class TestIdlePoolReaping(unittest.TestCase):
         fresh, stale = _FakePool(), _FakePool()
         setattr(fresh, _LAST_BORROW_ATTR, monotonic())
         setattr(stale, _LAST_BORROW_ATTR, monotonic() - 60)
-        pool._pools = {_key(database="fresh"): fresh, _key(database="stale"): stale}
+        pool._pools = {_key(dbname="fresh"): fresh, _key(dbname="stale"): stale}
         self.assertEqual(
-            [dict(k)["database"] for k in pool._reaper.get_keys_reapable(pool._pools)],
+            [dict(k)["dbname"] for k in pool._reaper.get_keys_reapable(pool._pools)],
             ["stale"],
         )
 
@@ -210,12 +230,12 @@ class TestIdlePoolReaping(unittest.TestCase):
         pool = self._pool(ttl=10)
         held = _FakePool(size=2, available=1)
         setattr(held, _LAST_BORROW_ATTR, monotonic() - 60)
-        pool._pools = {_key(database="held"): held}
+        pool._pools = {_key(dbname="held"): held}
         self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
     def test_excluded_key_is_never_reaped(self):
         pool = self._pool(ttl=10)
-        k = _key(database="mine")
+        k = _key(dbname="mine")
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {k: p}
@@ -225,7 +245,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         pool = self._pool(ttl=10)
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
-        pool._pools = {_key(database="db"): p}
+        pool._pools = {_key(dbname="db"): p}
         mark_active(p)
         self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
@@ -249,9 +269,9 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         a, b, other = _FakePool(), _FakePool(), _FakePool()
         cp = self._pool_with()
         cp._pools = {
-            _key(database="db", host="h1"): a,
-            _key(database="db", host="h2", password_fp="ab"): b,
-            _key(database="elsewhere"): other,
+            _key(dbname="db", host="h1"): a,
+            _key(dbname="db", host="h2", password_fp="ab"): b,
+            _key(dbname="elsewhere"): other,
         }
         cp.close_database("db")
         self.assertEqual((a.close_calls, b.close_calls, other.close_calls), (1, 1, 0))
@@ -260,7 +280,7 @@ class TestCloseAndDrainMatching(unittest.TestCase):
     def test_close_all_empties_the_registry(self):
         a, b = _FakePool(), _FakePool()
         cp = self._pool_with()
-        cp._pools = {_key(database="a"): a, _key(database="b"): b}
+        cp._pools = {_key(dbname="a"): a, _key(dbname="b"): b}
         cp.close_all()
         self.assertEqual(cp._pools, {})
         self.assertTrue(a.close_calls and b.close_calls)
@@ -269,22 +289,22 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         live, dead = _FakePool(), _FakePool(closed=True)
         cp = self._pool_with()
         cp._pools = {
-            _key(database="db", host="a"): live,
-            _key(database="db", host="b"): dead,
+            _key(dbname="db", host="a"): live,
+            _key(dbname="db", host="b"): dead,
         }
         cp.drain_database("db")
         self.assertEqual((live.drain_calls, dead.drain_calls), (1, 0))
 
     def test_get_stats_is_keyed_by_database_name(self):
         cp = self._pool_with()
-        cp._pools = {_key(database="db"): _FakePool(size=4, available=2)}
+        cp._pools = {_key(dbname="db"): _FakePool(size=4, available=2)}
         self.assertEqual(cp.get_stats(), {"db": {"pool_size": 4, "pool_available": 2}})
 
     def test_health_reports_backends_summed_across_databases(self):
         cp = ConnectionPool(maxconn=2)
         cp._pools = {
-            _key(database="a"): _FakePool(size=3, available=3),
-            _key(database="b"): _FakePool(size=2, available=2),
+            _key(dbname="a"): _FakePool(size=3, available=3),
+            _key(dbname="b"): _FakePool(size=2, available=2),
         }
         health = cp.get_health()
         self.assertEqual(health["databases"], 2)
@@ -297,7 +317,7 @@ class TestCloseAndDrainMatching(unittest.TestCase):
 
     def test_health_backends_includes_direct_connections(self):
         cp = ConnectionPool(maxconn=4)
-        cp._pools = {_key(database="a"): _FakePool(size=1, available=1)}
+        cp._pools = {_key(dbname="a"): _FakePool(size=1, available=1)}
         cp._direct_out = 2
         self.assertEqual(cp.get_health()["backends"], 3)
 
@@ -331,7 +351,7 @@ class TestPoolErrorIsRaisedForCapacity(unittest.TestCase):
         pool._budget.acquire(1.0)
         seen = {}
 
-        def fake_get_or_create(key, connection_info, deadline=None):
+        def fake_get_or_create(key, connection_info, deadline=None, **kw):
             seen["deadline"] = deadline
             return _FakePool()
 
@@ -433,7 +453,7 @@ class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
                 raise exc
 
         pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
-        pool._probe.probe_connectable = lambda *a, **k: None  # type: ignore[method-assign]
+        pool._probe.probe_connectable = lambda *a, **k: True  # type: ignore[method-assign]
         info = {"dbname": "bugdb", "host": "h"}
         with patch("odoo.db.pool._PsycopgPool", lambda *a, **k: Broken()):
             with self.assertRaises(type(exc)) as caught:
@@ -462,7 +482,7 @@ class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
 
     def test_an_operational_failure_is_unaffected(self):
         pool = ConnectionPool(maxconn=4, borrow_timeout=1.0)
-        pool._probe.probe_connectable = lambda *a, **k: None  # type: ignore[method-assign]
+        pool._probe.probe_connectable = lambda *a, **k: True  # type: ignore[method-assign]
 
         class Timing(_FakePool):
             def getconn(self, timeout=None):
@@ -472,3 +492,113 @@ class TestABugIsNotLaunderedIntoAPoolError(unittest.TestCase):
             with self.assertRaises(PoolError):
                 pool.borrow({"dbname": "slowdb", "host": "h"})
         self.assertEqual(pool._budget.in_use, 0)
+
+
+class TestCancelQueriesOf(unittest.TestCase):
+    class _Conn:
+        def __init__(self, fails=False):
+            self.fails = fails
+            self.cancelled = 0
+
+        def cancel_safe(self, *, timeout=30.0):
+            if self.fails:
+                raise psycopg.OperationalError("connection gone")
+            self.cancelled += 1
+
+    def test_cancels_each_connection_the_thread_holds_and_counts_them(self):
+        pool = ConnectionPool(maxconn=4)
+        mine, also_mine, theirs, gone = (
+            self._Conn(),
+            self._Conn(),
+            self._Conn(),
+            self._Conn(fails=True),
+        )
+        for conn in (mine, also_mine, gone):
+            pool._checkouts.track(conn)
+        pool._checkouts.track(theirs)
+        pool._checkouts._out[theirs] = pool._checkouts._out[theirs]._replace(
+            thread="other-thread"
+        )
+        me = threading.current_thread().name
+        self.assertEqual(pool.cancel_queries_of(me), 2)
+        self.assertEqual(
+            (mine.cancelled, also_mine.cancelled, theirs.cancelled), (1, 1, 0)
+        )
+        self.assertEqual(pool.cancel_queries_of("nobody"), 0)
+
+    def test_a_connection_rehomed_while_the_list_aged_is_not_cancelled(self):
+        pool = ConnectionPool(maxconn=4)
+        slow, rehomed = self._Conn(), self._Conn()
+        pool._checkouts.track(slow)
+        pool._checkouts.track(rehomed)
+        me = threading.current_thread().name
+
+        def cancel_and_rehome(*, timeout):
+            slow.cancelled += 1
+            pool._checkouts.release(rehomed)
+            pool._checkouts.track(rehomed)
+            pool._checkouts._out[rehomed] = pool._checkouts._out[rehomed]._replace(
+                thread="another-request"
+            )
+
+        slow.cancel_safe = cancel_and_rehome  # type: ignore[assignment, method-assign]
+        self.assertEqual(pool.cancel_queries_of(me), 1)
+        self.assertEqual(
+            (slow.cancelled, rehomed.cancelled),
+            (1, 0),
+            "the cancel would have reached another request's statement",
+        )
+
+    def test_the_registry_fans_out_over_every_pool(self):
+        from odoo.db.endpoints import EndpointRegistry
+
+        reg = EndpointRegistry()
+        with pool_settings.installed(PoolSettings()):
+            rw = reg.get_pool_at_endpoint(("h", 5432), False)
+            ro = reg.get_pool_at_endpoint(("h", 5432), True)
+        a, b = self._Conn(), self._Conn()
+        rw._checkouts.track(a)
+        ro._checkouts.track(b)
+        self.assertEqual(reg.cancel_queries_of(threading.current_thread().name), 2)
+
+
+class TestIdleInTransactionTimeoutAtConnect(unittest.TestCase):
+    def test_a_configured_timeout_is_a_startup_guc_in_milliseconds(self):
+        options = _prepare_connection_options(
+            "", {}, 5, session_gucs=None, idle_in_transaction_ms=90000
+        )
+        self.assertIn("-c idle_in_transaction_session_timeout=90000", options)
+
+    def test_zero_leaves_the_server_setting_alone(self):
+        options = _prepare_connection_options(
+            "", {}, 5, session_gucs=None, idle_in_transaction_ms=0
+        )
+        self.assertNotIn("idle_in_transaction", options)
+
+    def test_the_pool_reads_it_from_its_settings(self):
+        with pool_settings.installed(PoolSettings(idle_in_transaction_timeout=90.0)):
+            pool = ConnectionPool(maxconn=2)
+        _conninfo, kwargs = pool._prepare_connect_args(
+            _get_dsn_key({"dbname": "d"}), {"dbname": "d"}
+        )
+        self.assertIn("-c idle_in_transaction_session_timeout=90000", kwargs["options"])
+
+
+class TestCancelDoesNotWaitOutAnUnreachableServer(unittest.TestCase):
+    def test_cancel_safe_is_given_a_short_timeout(self):
+        seen = {}
+
+        class _Conn:
+            def cancel_safe(self, *, timeout):
+                seen["timeout"] = timeout
+
+        pool = ConnectionPool(maxconn=2)
+        pool._checkouts.track(_Conn())
+        pool.cancel_queries_of(threading.current_thread().name)
+        self.assertEqual(seen["timeout"], ConnectionPool._CANCEL_TIMEOUT)
+        self.assertLess(
+            ConnectionPool._CANCEL_TIMEOUT,
+            30.0,
+            "psycopg's default is 30 s per connection, in the thread that "
+            "exists to enforce budgets",
+        )

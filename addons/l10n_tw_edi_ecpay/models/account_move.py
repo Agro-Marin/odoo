@@ -19,42 +19,47 @@ class AccountMove(models.Model):
 
     l10n_tw_edi_file_id = fields.Many2one(
         comodel_name="ir.attachment",
+        export_string_translation=False,
         compute=lambda self: self._compute_linked_attachment_id(
             "l10n_tw_edi_file_id", "l10n_tw_edi_file"
         ),
         depends=["l10n_tw_edi_file"],
         copy=False,
-        export_string_translation=False,
     )
     l10n_tw_edi_file = fields.Binary(
         string="Ecpay JSON File",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_tw_edi_ecpay_invoice_id = fields.Char(
-        string="Ecpay Invoice Number", readonly=True, copy=False
+        string="Ecpay Invoice Number",
+        copy=False,
+        readonly=True,
     )
     l10n_tw_edi_related_number = fields.Char(
         string="Related Number",
+        store=True,
         copy=False,
         readonly=True,
-        store=True,
     )
     # False => Not sent yet.
     l10n_tw_edi_state = fields.Selection(
-        string="Invoice Status",
         selection=[
             ("invoiced", "Invoiced"),
             ("valid", "Valid"),
             ("invalid", "Invalid"),
         ],
+        string="Invoice Status",
         copy=False,
         readonly=True,
         tracking=True,
     )
     l10n_tw_edi_love_code = fields.Char(
-        string="Love Code", compute="_compute_love_code", store=True, readonly=False
+        string="Love Code",
+        compute="_compute_love_code",
+        store=True,
+        readonly=False,
     )
     l10n_tw_edi_is_print = fields.Boolean(
         string="Get Printed Version",
@@ -63,7 +68,6 @@ class AccountMove(models.Model):
         readonly=False,
     )
     l10n_tw_edi_carrier_type = fields.Selection(
-        string="Carrier Type",
         selection=[
             ("1", "ECpay e-invoice carrier"),
             ("2", "Citizen Digital Certificate"),
@@ -71,10 +75,11 @@ class AccountMove(models.Model):
             ("4", "EasyCard"),
             ("5", "iPass"),
         ],
-        copy=False,
-        readonly=False,
+        string="Carrier Type",
         compute="_compute_carrier_info",
         store=True,
+        copy=False,
+        readonly=False,
         help="""
     - Citizen Digital Certificate: The carrier number format is 2 capital letters following 14 digits.
     - Mobile Barcode: The carrier number format is / following 7 alphanumeric or +-. string.
@@ -85,37 +90,36 @@ class AccountMove(models.Model):
         string="Carrier Number",
         compute="_compute_carrier_info",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     l10n_tw_edi_carrier_number_2 = fields.Char(
         string="Carrier Number 2",
         compute="_compute_carrier_info",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     l10n_tw_edi_invoice_type = fields.Selection(
-        string="Ecpay Invoice Type",
         selection=[
             ("07", "General Invoice"),
             ("08", "Special Invoice"),
         ],
+        string="Ecpay Invoice Type",
         compute="_compute_l10n_tw_edi_invoice_type",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     l10n_tw_edi_clearance_mark = fields.Selection(
-        string="Clearance Mark",
         selection=[
             ("1", "NOT via the customs"),
             ("2", "Via the customs"),
         ],
+        string="Clearance Mark",
         copy=False,
     )
     l10n_tw_edi_zero_tax_rate_reason = fields.Selection(
-        string="Zero Tax Rate Reason",
         selection=[
             ("71", "71: No.1 export goods"),
             (
@@ -156,6 +160,7 @@ class AccountMove(models.Model):
                 "bonded warehouse or logistics center managed by the free port area or customs administration for export",
             ),
         ],
+        string="Zero Tax Rate Reason",
         copy=False,
     )
     l10n_tw_edi_is_zero_tax_rate = fields.Boolean(
@@ -164,42 +169,49 @@ class AccountMove(models.Model):
         copy=False,
     )
     l10n_tw_edi_invoice_create_date = fields.Datetime(
-        string="Creation Date", readonly=True, copy=False
+        string="Creation Date",
+        copy=False,
+        readonly=True,
     )
     l10n_tw_edi_refund_state = fields.Selection(
-        string="Refund State",
         selection=[
             ("to_be_agreed", "To be agreed"),
             ("agreed", "Agreed"),
             ("disagreed", "Disagreed"),
         ],
-        readonly=True,
+        string="Refund State",
         copy=False,
+        readonly=True,
     )
     l10n_tw_edi_refund_agreement_type = fields.Selection(
-        string="Refund invoice Agreement Type",
         selection=[
             ("offline", "Offline Agreement"),
             ("online", "Online Agreement"),
         ],
+        string="Refund invoice Agreement Type",
         copy=False,
     )
     l10n_tw_edi_allowance_notify_way = fields.Selection(
-        string="Allowance Notify Way",
         selection=[
             ("email", "Email"),
             ("phone", "Phone"),
         ],
+        string="Allowance Notify Way",
         copy=False,
     )
     l10n_tw_edi_invalidate_reason = fields.Char(
-        string="Invalidate Reason", readonly=True, copy=False
+        string="Invalidate Reason",
+        copy=False,
+        readonly=True,
     )
     l10n_tw_edi_refund_invoice_number = fields.Char(
-        string="Refund Invoice Number", readonly=True, copy=False
+        string="Refund Invoice Number",
+        copy=False,
+        readonly=True,
     )
     l10n_tw_edi_is_b2b = fields.Boolean(
-        string="Is B2B", compute="_compute_l10n_tw_edi_is_b2b"
+        string="Is B2B",
+        compute="_compute_l10n_tw_edi_is_b2b",
     )
 
     @api.depends("l10n_tw_edi_state")
@@ -294,7 +306,7 @@ class AccountMove(models.Model):
     @api.depends("invoice_line_ids.tax_ids")
     def _compute_l10n_tw_edi_invoice_type(self):
         for move in self:
-            tax_type, special_tax_type, _ = move._l10n_tw_edi_determine_tax_types()
+            tax_type, special_tax_type, _ = move._l10n_tw_edi_get_tax_types()
             if tax_type == "3":
                 move.l10n_tw_edi_invoice_type = "07" if not special_tax_type else "08"
             else:
@@ -303,7 +315,7 @@ class AccountMove(models.Model):
     @api.depends("invoice_line_ids.tax_ids")
     def _compute_l10n_tw_edi_is_zero_tax_rate(self):
         for move in self:
-            _, _, is_zero_tax_rate = move._l10n_tw_edi_determine_tax_types()
+            _, _, is_zero_tax_rate = move._l10n_tw_edi_get_tax_types()
             move.l10n_tw_edi_is_zero_tax_rate = (
                 is_zero_tax_rate if move.invoice_line_ids.tax_ids else False
             )
@@ -421,7 +433,7 @@ class AccountMove(models.Model):
             )
         return errors
 
-    def _l10n_tw_edi_determine_tax_types(self):
+    def _l10n_tw_edi_get_tax_types(self):
         """
         Calculate and return the tax type, special tax type and is zero tax rate included based on
         the taxes on invoice lines
@@ -568,7 +580,7 @@ class AccountMove(models.Model):
 
         errors.extend(self._l10n_tw_edi_check_tax_type_on_invoice_lines())
 
-        tax_type, _, is_zero_tax_rate = self._l10n_tw_edi_determine_tax_types()
+        tax_type, _, is_zero_tax_rate = self._l10n_tw_edi_get_tax_types()
 
         if self.l10n_tw_edi_invoice_type == "07" and tax_type not in [
             "1",
@@ -613,7 +625,7 @@ class AccountMove(models.Model):
         sale_amount = 0
         tax_amount = 0
         AccountTax = self.env["account.tax"]
-        tax_type, _, _ = self._l10n_tw_edi_determine_tax_types()
+        tax_type, _, _ = self._l10n_tw_edi_get_tax_types()
         for index, line in enumerate(
             self.invoice_line_ids.filtered(lambda line: line.display_type == "product"),
             start=1,
@@ -783,7 +795,7 @@ class AccountMove(models.Model):
         self.check_singleton()
         self._l10n_tw_edi_check_before_generate_invoice_json()
         tax_type, special_tax_type, is_zero_tax_rate = (
-            self._l10n_tw_edi_determine_tax_types()
+            self._l10n_tw_edi_get_tax_types()
         )
         self.l10n_tw_edi_related_number = base64.urlsafe_b64encode(uuid.uuid4().bytes)[
             :20
@@ -895,7 +907,7 @@ class AccountMove(models.Model):
             if self.l10n_tw_edi_refund_agreement_type == "online":
                 json_data["ReturnURL"] = urljoin(
                     self.get_base_url(),
-                    f"/invoice/ecpay/agreed_invoice_allowance/{self.id}?access_token={self._portal_ensure_token()}",
+                    f"/invoice/ecpay/agreed_invoice_allowance/{self.id}?access_token={self._portal_get_or_create_token()}",
                 )
             if (
                 self.l10n_tw_edi_allowance_notify_way == "email"

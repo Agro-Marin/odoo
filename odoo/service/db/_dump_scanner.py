@@ -6,6 +6,8 @@ import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
+
 from .._env import get_env_int
 
 if TYPE_CHECKING:
@@ -13,6 +15,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 _META_ARG_NONE = r"[ \t]*(?:\r?\n|\Z)"
@@ -24,11 +27,8 @@ _ALLOWED_PSQL_META_COMMANDS: dict[str, re.Pattern[str]] = {
 }
 
 _COPY_WORD_MAX_LEN = 5
+_SQL_WORD_MAX_LEN = len("standard_conforming_strings")
 _DOLLAR_TAG_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
-
-_STANDARD_CONFORMING_STRINGS_OFF_RE = re.compile(
-    r"(?i)standard_conforming_strings\s*(?:=|\bto\b)\s*'?off'?\b"
-)
 
 _IDENT_START_ASCII = frozenset(string.ascii_letters + "_")
 _IDENT_CONT_ASCII = frozenset(string.ascii_letters + string.digits + "_$")
@@ -50,9 +50,13 @@ class _PsqlSqlScanner:
         "_ident_run_is_ident",
         "_ident_run_start",
         "_prev_word",
+        "_quoted_word",
+        "_setting_state",
+        "_setting_violation",
         "_stmt_is_copy",
         "_stmt_seen_token",
         "_word",
+        "_word_limit",
         "comment_depth",
         "copy_pending",
         "dollar_tag",
@@ -66,6 +70,10 @@ class _PsqlSqlScanner:
     def __init__(self) -> None:
         self.lineno = 1
         self._word = ""
+        self._word_limit = _COPY_WORD_MAX_LEN
+        self._setting_state = 0
+        self._setting_violation: tuple[int, str] | None = None
+        self._quoted_word = ""
         self._prev_word = ""
         self._stmt_seen_token = False
         self._stmt_is_copy = False
@@ -106,7 +114,7 @@ class _PsqlSqlScanner:
             self._ident_run_start = i
             self._ident_run_is_ident = True
             self._word = c
-        elif len(self._word) <= _COPY_WORD_MAX_LEN:
+        elif len(self._word) <= self._word_limit:
             self._word += c
 
     def _get_meta_command_violation(
@@ -128,23 +136,21 @@ class _PsqlSqlScanner:
 
         if self.in_copy_data:
             self._consume_copy_data(line)
-            return None
-
-        if (m := _STANDARD_CONFORMING_STRINGS_OFF_RE.search(line)) is not None:
-            return (self.lineno, m.group(0)[:80])
+            return self._setting_violation
 
         i = self._resume_carry_over(line, n)
 
         while i < n:
             c = line[i]
             if c == "\n":
+                self._reset_ident_run()
                 self.lineno += 1
-                return None
+                return self._setting_violation
 
             if c == "-" and i + 1 < n and line[i + 1] == "-":
                 i = line.find("\n", i)
                 if i == -1:
-                    return None
+                    return self._setting_violation
                 continue
             if c == "/" and i + 1 < n and line[i + 1] == "*":
                 self.comment_depth = 1
@@ -157,10 +163,12 @@ class _PsqlSqlScanner:
                     self.dollar_tag = m.group(0)
                     self._reset_ident_run()
                     self._mark_opaque_token_seen()
+                    self._setting_token("")
                     i = self._resume_dollar_body(line, m.end(), n)
                     continue
             if c == "'":
                 self.in_single_quote = True
+                self._quoted_word = ""
                 self.single_quote_escaped = (
                     i > 0 and line[i - 1] in "Ee" and self._ident_run_start == i - 1
                 )
@@ -170,6 +178,7 @@ class _PsqlSqlScanner:
                 continue
             if c == '"':
                 self.in_double_quote = True
+                self._quoted_word = ""
                 self._reset_ident_run()
                 self._mark_opaque_token_seen()
                 i = self._resume_double_quote(line, i + 1, n)
@@ -182,7 +191,7 @@ class _PsqlSqlScanner:
                 self._mark_opaque_token_seen()
                 i = line.find("\n", i)
                 if i == -1:
-                    return None
+                    return self._setting_violation
                 continue
 
             if _is_ident_cont(c):
@@ -190,13 +199,44 @@ class _PsqlSqlScanner:
             else:
                 self._reset_ident_run()
 
+            if c == "=":
+                self._setting_token(c)
             if c == ";":
                 if self.copy_pending:
                     self.copy_pending = False
                     self.in_copy_data = True
                 self._reset_statement()
             i += 1
-        return None
+        self._reset_ident_run()
+        return self._setting_violation
+
+    def _setting_token(self, token: str) -> None:
+        """Recognize SET's bounded prefix outside comments and quoted bodies.
+
+        Only explicit true values preserve the lexer's string-escape contract.
+        Token state survives physical lines without retaining SQL statements.
+        """
+        word = token.upper()
+        state = self._setting_state
+        if state == 0:
+            self._setting_state = 1 if word == "SET" else -1
+        elif state in (1, 2):
+            if state == 1 and word in ("LOCAL", "SESSION"):
+                self._setting_state = 2
+            else:
+                self._setting_state = 3 if word == "STANDARD_CONFORMING_STRINGS" else -1
+        elif state == 3:
+            self._setting_state = 4 if word in ("=", "TO") else -1
+        elif state == 4:
+            if word not in ("ON", "TRUE", "YES", "1"):
+                self._setting_violation = (
+                    self.lineno,
+                    "standard_conforming_strings = " + token[:32],
+                )
+            self._setting_state = -1
+        self._word_limit = (
+            _SQL_WORD_MAX_LEN if self._setting_state in (1, 2) else _COPY_WORD_MAX_LEN
+        )
 
     def _is_identifier_continued(self) -> bool:
         return self._ident_run_is_ident
@@ -211,6 +251,8 @@ class _PsqlSqlScanner:
         if not word:
             return
         self._word = ""
+        if self._setting_state >= 0:
+            self._setting_token(word)
         upper = word.upper()
         if not self._stmt_seen_token:
             self._stmt_seen_token = True
@@ -224,6 +266,8 @@ class _PsqlSqlScanner:
         self._prev_word = ""
 
     def _reset_statement(self) -> None:
+        self._setting_state = 0
+        self._word_limit = _COPY_WORD_MAX_LEN
         self._word = ""
         self._prev_word = ""
         self._stmt_seen_token = False
@@ -267,8 +311,15 @@ class _PsqlSqlScanner:
         return close + len(tag)
 
     def _resume_single_quote(self, line: str, i: int, n: int) -> int:
+        capture = (
+            self._setting_state in (1, 2, 4)
+            and len(self._quoted_word) <= _SQL_WORD_MAX_LEN
+        )
         while i < n:
             ch = line[i]
+            if capture and ch != "'":
+                self._quoted_word += ch
+                capture = len(self._quoted_word) <= _SQL_WORD_MAX_LEN
             if ch == "\n":
                 self.lineno += 1
                 i += 1
@@ -280,19 +331,28 @@ class _PsqlSqlScanner:
                 else:
                     i += 1
                     self.in_single_quote = False
+                    self._setting_token(self._quoted_word)
                     break
             else:
                 i += 1
         return i
 
     def _resume_double_quote(self, line: str, i: int, n: int) -> int:
+        capture = (
+            self._setting_state in (1, 2, 4)
+            and len(self._quoted_word) <= _SQL_WORD_MAX_LEN
+        )
         while i < n:
+            if capture and line[i] != '"':
+                self._quoted_word += line[i]
+                capture = len(self._quoted_word) <= _SQL_WORD_MAX_LEN
             if line[i] == '"':
                 if i + 1 < n and line[i + 1] == '"':
                     i += 2
                 else:
                     i += 1
                     self.in_double_quote = False
+                    self._setting_token(self._quoted_word)
                     break
             else:
                 if line[i] == "\n":
@@ -335,23 +395,42 @@ def _check_dump_sql_safe(sql_path: str) -> None:
     )
     scanner = _PsqlSqlScanner()
     hit = None
-    with Path(sql_path).open(encoding="latin-1") as fh:
-        while chunk := fh.readline(max_line + 1):
-            if len(chunk) > max_line and not chunk.endswith("\n"):
-                if scanner.in_copy_data:
-                    _drain_physical_line(fh, max_line + 1)
-                    scanner.lineno += 1
-                    continue
-                raise RuntimeError(
-                    f"Refusing to restore: the dump's SQL has a line longer than "
-                    f"{max_line} characters (at line {scanner.lineno}), which "
-                    f"cannot be scanned within a bounded amount of memory. A "
-                    f"backup produced by Odoo's own dump has no such line; raise "
-                    f"ODOO_DUMP_SCAN_MAX_LINE if this dump is genuinely legitimate."
-                )
-            hit = scanner.feed(chunk)
-            if hit is not None:
-                break
+    with _debug.perf("database.restore.dump_scan", path=sql_path) as span:
+        with Path(sql_path).open(encoding="latin-1") as fh:
+            while chunk := fh.readline(max_line + 1):
+                if len(chunk) > max_line and not chunk.endswith("\n"):
+                    if scanner.in_copy_data:
+                        _debug.logic(
+                            "database.restore.copy_line_drained",
+                            lineno=scanner.lineno,
+                            max_line=max_line,
+                        )
+                        _drain_physical_line(fh, max_line + 1)
+                        scanner.lineno += 1
+                        continue
+                    _debug.logic(
+                        "database.restore.dump_line_too_long",
+                        lineno=scanner.lineno,
+                        max_line=max_line,
+                    )
+                    raise RuntimeError(
+                        f"Refusing to restore: the dump's SQL has a line longer than "
+                        f"{max_line} characters (at line {scanner.lineno}), which "
+                        f"cannot be scanned within a bounded amount of memory. A "
+                        f"backup produced by Odoo's own dump has no such line; raise "
+                        f"ODOO_DUMP_SCAN_MAX_LINE if this dump is genuinely legitimate."
+                    )
+                hit = scanner.feed(chunk)
+                if hit is not None:
+                    break
+        span.set(lines=scanner.lineno, refused=hit is not None)
+    _debug.logic(
+        "database.restore.dump_scanned",
+        path=sql_path,
+        lines=scanner.lineno,
+        max_line=max_line,
+        refused=hit is not None,
+    )
     if hit is not None:
         lineno, command = hit
         if not command.startswith("\\"):

@@ -5,10 +5,20 @@ from .razorpay_pos_request import RazorpayPosRequest
 
 
 class PosPaymentMethod(models.Model):
-    _inherit = "pos.payment.method"
+    _inherit = ["pos.payment.method", "mixin.integration.connected"]
+
+    def _integration_connection_service(self):
+        if self.use_payment_terminal == "razorpay":
+            return "pos_razorpay", self.env._("Point of Sale: Razorpay"), "payment"
+        return super()._integration_connection_service()
+
+    _CREDENTIAL_FIELDS = {
+        "razorpay_api_key": "razorpay_api_key",
+    }
 
     razorpay_tid = fields.Char(
-        string="Razorpay Device Serial No", help="Device Serial No \n ex: 7000012300"
+        string="Razorpay Device Serial No",
+        help="Device Serial No \n ex: 7000012300",
     )
     razorpay_allowed_payment_modes = fields.Selection(
         selection=[
@@ -20,16 +30,18 @@ class PosPaymentMethod(models.Model):
         default="all",
         help="Choose allow payment mode: \n All/Card/UPI or QR",
     )
-    razorpay_username = fields.Char(
-        string="Razorpay Username", help="Username(Device Login) \n ex: 1234500121"
-    )
+    razorpay_username = fields.Char(help="Username(Device Login) \n ex: 1234500121")
     razorpay_api_key = fields.Char(
         string="Razorpay API Key",
-        help="Used when connecting to Razorpay: https://razorpay.com/docs/payments/dashboard/account-settings/api-keys/",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        copy=True,
         groups="point_of_sale.group_pos_manager",
+        help="Used when connecting to Razorpay: https://razorpay.com/docs/payments/dashboard/account-settings/api-keys/",
     )
     razorpay_test_mode = fields.Boolean(
-        string="Razorpay Test Mode", default=False, help="Turn it on when in Test Mode"
+        default=False,
+        help="Turn it on when in Test Mode",
     )
 
     def _selection_payment_terminals(self):

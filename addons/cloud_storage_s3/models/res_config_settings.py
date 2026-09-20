@@ -9,9 +9,7 @@ from ..tools import s3
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    cloud_storage_provider = fields.Selection(
-        selection_add=[("s3", "Amazon S3")],
-    )
+    cloud_storage_provider = fields.Selection(selection_add=[("s3", "Amazon S3")])
     cloud_storage_s3_bucket_name = fields.Char(
         string="S3 Bucket Name",
         config_parameter=s3.PARAM_BUCKET,
@@ -32,8 +30,8 @@ class ResConfigSettings(models.TransientModel):
     )
     cloud_storage_s3_enabled = fields.Boolean(
         string="Use S3 in this environment",
-        config_parameter="cloud_storage_s3_enabled",
         default=False,
+        config_parameter="cloud_storage_s3_enabled",
         help="Master switch for THIS environment. When off, attachments are "
         "served from the local filestore and S3 is never contacted, even if a "
         "provider and credentials are configured (e.g. on a database restored "
@@ -45,8 +43,8 @@ class ResConfigSettings(models.TransientModel):
             ("hybrid", "Hybrid (S3 + Local)"),
         ],
         string="S3 Storage Mode",
-        config_parameter="cloud_storage_s3_storage_mode",
         default="s3_only",
+        config_parameter="cloud_storage_s3_storage_mode",
         help="S3 Only: new attachments are uploaded straight to S3 from the "
         "browser and not kept locally. Hybrid: attachments are stored in the "
         "local filestore and mirrored to S3 by a scheduled job, keeping the "

@@ -32,22 +32,22 @@
                         name="action_put_in_queue"
                         type="object"
                         string="Send"
-                        class="oe_highlight"
-                        data-hotkey="v"
-                        invisible="mailing_type == 'mail' or state in ('in_queue', 'sending', 'processing', 'done') or sms_force_send"
                         confirm="Once you send these text messages, they'll be making a grand entrance in all pockets, creating quite the bzzzzz!"
+                        invisible="mailing_type == 'mail' or state in ('in_queue', 'sending', 'processing', 'done') or sms_force_send"
+                        class="oe_highlight"
+                        confirm-label="Send to all"
                         confirm-title="Ready to unleash your text messages?"
-                        confirm-label="Send to all" />
+                        data-hotkey="v" />
                     <button
                         name="action_send_mail"
                         type="object"
                         string="Send Now"
-                        class="oe_highlight"
-                        data-hotkey="g"
-                        invisible="mailing_type == 'mail' or state in ('in_queue', 'processing', 'done') or schedule_type == 'scheduled' or not sms_force_send"
                         confirm="Once you send these text messages, they'll be making a grand entrance in all pockets, creating quite the bzzzzz!"
+                        invisible="mailing_type == 'mail' or state in ('in_queue', 'processing', 'done') or schedule_type == 'scheduled' or not sms_force_send"
+                        class="oe_highlight"
+                        confirm-label="Send to all"
                         confirm-title="Ready to unleash your text messages?"
-                        confirm-label="Send to all" />
+                        data-hotkey="g" />
                 </xpath>
                 <!-- Headers / Warnings -->
                 <xpath expr="//header" position="after">
@@ -57,9 +57,9 @@
                         invisible="not sms_has_insufficient_credit"
                         role="alert">
                         <button
-                            class="btn-link py-0"
                             name="action_buy_sms_credits"
-                            type="object">
+                            type="object"
+                            class="btn-link py-0">
                             <strong>
                                 It appears you don't have enough IAP credits. Click here to buy credits.
                             </strong>
@@ -71,9 +71,9 @@
                         invisible="not sms_has_unregistered_account"
                         role="alert">
                         <button
-                            class="btn-link py-0"
                             name="action_buy_sms_credits"
-                            type="object">
+                            type="object"
+                            class="btn-link py-0">
                             <strong>
                                 It appears your SMS account is not registered. Click here to set up your account.
                             </strong>
@@ -141,29 +141,29 @@
                 </xpath>
                 <xpath expr="//field[@name='subject']" position="after">
                     <field
-                        class="text-break"
                         name="sms_subject"
                         string="Title"
                         placeholder="e.g. Black Friday SMS coupon"
                         invisible="mailing_type != 'sms'"
                         readonly="state in ('sending', 'done')"
-                        required="mailing_type == 'sms'" />
+                        required="mailing_type == 'sms'"
+                        class="text-break" />
                 </xpath>
                 <xpath
                     expr="//button[@name='action_set_favorite']"
                     position="attributes">
                     <attribute
                         name="invisible"
-                        separator=" or "
-                        add="mailing_type != 'mail'" />
+                        add="mailing_type != 'mail'"
+                        separator=" or " />
                 </xpath>
                 <xpath
                     expr="//button[@name='action_remove_favorite']"
                     position="attributes">
                     <attribute
                         name="invisible"
-                        separator=" or "
-                        add="mailing_type != 'mail'" />
+                        add="mailing_type != 'mail'"
+                        separator=" or " />
                 </xpath>
                 <xpath expr="//field[@name='preview']" position="attributes">
                     <attribute name="invisible">mailing_type != 'mail'</attribute>
@@ -174,15 +174,15 @@
                 </xpath>
                 <xpath expr="//page[@name='mail_body']" position="after">
                     <page
-                        string="SMS Content"
                         name="sms_body"
+                        string="SMS Content"
                         invisible="mailing_type != 'sms'">
                         <field
                             name="body_plaintext"
                             widget="sms_widget"
+                            options="{'dynamic_placeholder': true}"
                             readonly="state in ('sending', 'done')"
                             required="mailing_type == 'sms'"
-                            options="{'dynamic_placeholder': true}"
                             enable_emojis="true" />
                     </page>
                 </xpath>
@@ -340,8 +340,8 @@
                     <field
                         name="campaign_id"
                         string="Campaign"
-                        groups="mass_mailing.group_mass_mailing_campaign"
-                        optional="hide" />
+                        optional="hide"
+                        groups="mass_mailing.group_mass_mailing_campaign" />
                     <field
                         name="ab_testing_enabled"
                         string="A/B Test"
@@ -360,9 +360,9 @@
                         avg="Average of Bounced" />
                     <field
                         name="state"
+                        widget="badge"
                         decoration-info="state in ('draft', 'in_queue')"
-                        decoration-success="state in ('sending', 'done')"
-                        widget="badge" />
+                        decoration-success="state in ('sending', 'done')" />
                 </list>
             </field>
         </record>

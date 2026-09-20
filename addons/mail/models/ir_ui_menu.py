@@ -2,6 +2,9 @@ import contextlib
 
 from odoo import api, models
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrUiMenu(models.Model):
@@ -17,6 +20,9 @@ class IrUiMenu(models.Model):
                 None,
             )
             if menu_root_id:
+                _debug.logic(
+                    "root_menu", model=res_model, menu=menu_root_id, by="declared"
+                )
                 return menu_root_id
 
             menus_data = (
@@ -58,5 +64,13 @@ class IrUiMenu(models.Model):
                 ),
                 key=_menu_sort_key,
                 default=(None, None, None),
+            )
+            _debug.logic(
+                "root_menu",
+                model=res_model,
+                by="action_scan",
+                menus=len(menus_data),
+                actions=len(actions),
+                found=bool(parent_path),
             )
             return int(parent_path[: parent_path.index("/")]) if parent_path else None

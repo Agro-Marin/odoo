@@ -1,33 +1,53 @@
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _name = "account.move"
     _inherit = ["account.move", "mixin.pos.load"]
 
-    pos_order_ids = fields.One2many("pos.order", "account_move")
-    pos_payment_ids = fields.One2many("pos.payment", "account_move_id")
+    pos_order_ids = fields.One2many(
+        comodel_name="pos.order",
+        inverse_name="account_move",
+    )
+    pos_payment_ids = fields.One2many(
+        comodel_name="pos.payment",
+        inverse_name="account_move_id",
+    )
     pos_refunded_invoice_ids = fields.Many2many(
-        "account.move",
-        "refunded_invoices",
-        "refund_account_move",
-        "original_account_move",
+        comodel_name="account.move",
+        relation="refunded_invoices",
+        column1="refund_account_move",
+        column2="original_account_move",
     )
     reversed_pos_order_id = fields.Many2one(
-        "pos.order",
+        comodel_name="pos.order",
         string="Reversed POS Order",
         index="btree_not_null",
         help="The pos order that was reverted after closing the session to create an invoice for it.",
     )
     pos_diff_session_id = fields.Many2one(
-        "pos.session",
-        "POS Closing Difference",
+        comodel_name="pos.session",
+        string="POS Closing Difference",
         index="btree_not_null",
         help="Session whose closing produced this payment-method difference entry.",
     )
-    pos_session_ids = fields.One2many("pos.session", "move_id", "POS Sessions")
+    pos_diff_payment_method_id = fields.Many2one(
+        comodel_name="pos.payment.method",
+        string="POS Closing Difference Payment Method",
+        index="btree_not_null",
+        copy=False,
+        help="Payment method whose closing count produced this difference entry.",
+    )
+    pos_session_ids = fields.One2many(
+        comodel_name="pos.session",
+        inverse_name="move_id",
+        string="POS Sessions",
+    )
     pos_order_count = fields.Integer(
-        compute="_compute_pos_order_count", string="POS Order Count"
+        string="POS Order Count",
+        compute="_compute_pos_order_count",
     )
 
     @api.depends("pos_order_ids")
@@ -66,10 +86,10 @@ class AccountMove(models.Model):
             )
         return stock_moves
 
-    def _get_invoiced_lot_values(self):
+    def _prepare_invoice_lot_rows(self):
         self.check_singleton()
 
-        lot_values = super()._get_invoiced_lot_values()
+        lot_values = super()._prepare_invoice_lot_rows()
 
         if self.state == "draft":
             return lot_values
@@ -140,6 +160,10 @@ class AccountMove(models.Model):
 
     def action_draft(self):
         if self.sudo().pos_order_ids.filtered(lambda o: o.session_id.state != "closed"):
+            dbg.logic.debug(
+                "account.move %s reset to draft refused: pos session still open",
+                dbg.rec(self),
+            )
             self.env.user._bus_send(
                 "simple_notification",
                 {
@@ -175,6 +199,13 @@ class AccountMoveLine(models.Model):
         if sudo_order:
             pos_price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
                 self.product_id, self.quantity
+            )
+            dbg.logic.debug(
+                "[order:%s] cogs for %s: pos price %s vs account %s",
+                dbg.names(sudo_order, "uuid"),
+                dbg.rec(self.product_id),
+                pos_price_unit,
+                price_unit,
             )
             if not self.product_id.sudo().cost_currency_id.is_zero(pos_price_unit):
                 price_unit = pos_price_unit

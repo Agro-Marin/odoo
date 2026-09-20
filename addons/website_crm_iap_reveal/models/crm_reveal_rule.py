@@ -7,11 +7,13 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.crm.models import crm_stage
 from odoo.addons.iap.tools import iap_tools
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 DEFAULT_ENDPOINT = "https://iap-services.odoo.com"
 DEFAULT_REVEAL_BATCH_LIMIT = 25
@@ -23,19 +25,23 @@ class CrmRevealRule(models.Model):
     _description = "CRM Lead Generation Rules"
     _order = "sequence"
 
-    name = fields.Char(string="Rule Name", required=True)
+    name = fields.Char(
+        string="Rule Name",
+        required=True,
+    )
     active = fields.Boolean(default=True)
 
     country_ids = fields.Many2many(
-        "res.country",
+        comodel_name="res.country",
         string="Countries",
         help="Only visitors of following countries will be converted into leads/opportunities (using GeoIP).",
     )
     website_id = fields.Many2one(
-        "website", help="Restrict Lead generation to this website."
+        comodel_name="website",
+        help="Restrict Lead generation to this website.",
     )
     state_ids = fields.Many2many(
-        "res.country.state",
+        comodel_name="res.country.state",
         string="States",
         help="Only visitors of following states will be converted into leads/opportunities.",
     )
@@ -49,7 +55,7 @@ class CrmRevealRule(models.Model):
     )
 
     industry_tag_ids = fields.Many2many(
-        "crm.iap.lead.industry",
+        comodel_name="crm.iap.lead.industry",
         string="Industries",
         help="Leave empty to always match. Odoo will not create lead if no match",
     )
@@ -58,53 +64,76 @@ class CrmRevealRule(models.Model):
         default=True,
         help="Filter companies based on their size.",
     )
-    company_size_min = fields.Integer(string="Company Size", default=0)
+    company_size_min = fields.Integer(
+        string="Company Size",
+        default=0,
+    )
     company_size_max = fields.Integer(default=1000)
 
     contact_filter_type = fields.Selection(
-        [("role", "Role"), ("seniority", "Seniority")],
+        selection=[("role", "Role"), ("seniority", "Seniority")],
         string="Filter On",
-        required=True,
         default="role",
+        required=True,
     )
-    preferred_role_id = fields.Many2one("crm.iap.lead.role", string="Preferred Role")
-    other_role_ids = fields.Many2many("crm.iap.lead.role", string="Other Roles")
-    seniority_id = fields.Many2one("crm.iap.lead.seniority", string="Seniority")
+    preferred_role_id = fields.Many2one(comodel_name="crm.iap.lead.role")
+    other_role_ids = fields.Many2many(
+        comodel_name="crm.iap.lead.role",
+        string="Other Roles",
+    )
+    seniority_id = fields.Many2one(comodel_name="crm.iap.lead.seniority")
     extra_contacts = fields.Integer(
         string="Number of Contacts",
-        help="This is the number of contacts to track if their role/seniority match your criteria. Their details will show up in the history thread of generated leads/opportunities. One credit is consumed per tracked contact.",
         default=1,
+        help="This is the number of contacts to track if their role/seniority match your criteria. Their details will show up in the history thread of generated leads/opportunities. One credit is consumed per tracked contact.",
     )
 
     lead_for = fields.Selection(
-        [("companies", "Companies"), ("people", "Companies and their Contacts")],
+        selection=[
+            ("companies", "Companies"),
+            ("people", "Companies and their Contacts"),
+        ],
         string="Data Tracking",
-        required=True,
         default="companies",
+        required=True,
         help="Choose whether to track companies only or companies and their contacts",
     )
     lead_type = fields.Selection(
-        [("lead", "Lead"), ("opportunity", "Opportunity")],
+        selection=[("lead", "Lead"), ("opportunity", "Opportunity")],
         string="Type",
-        required=True,
         default="opportunity",
+        required=True,
     )
     suffix = fields.Char(
-        string="Suffix",
-        help="This will be appended in name of generated lead so you can identify lead/opportunity is generated with this rule",
+        help="This will be appended in name of generated lead so you can identify lead/opportunity is generated with this rule"
     )
-    team_id = fields.Many2one("crm.team", string="Sales Team", ondelete="set null")
-    tag_ids = fields.Many2many("crm.tag", string="Tags")
-    user_id = fields.Many2one("res.users", string="Salesperson")
-    priority = fields.Selection(crm_stage.AVAILABLE_PRIORITIES, string="Priority")
+    team_id = fields.Many2one(
+        comodel_name="team.team",
+        string="Sales Team",
+        domain=[("use_sale", "=", True)],
+        ondelete="set null",
+    )
+    tag_ids = fields.Many2many(
+        comodel_name="crm.tag",
+        string="Tags",
+    )
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Salesperson",
+    )
+    priority = fields.Selection(selection=crm_stage.AVAILABLE_PRIORITIES)
     lead_ids = fields.One2many(
-        "crm.lead", "reveal_rule_id", string="Generated Lead / Opportunity"
+        comodel_name="crm.lead",
+        inverse_name="reveal_rule_id",
+        string="Generated Lead / Opportunity",
     )
     lead_count = fields.Integer(
-        compute="_compute_lead_count", string="Number of Generated Leads"
+        string="Number of Generated Leads",
+        compute="_compute_lead_count",
     )
     opportunity_count = fields.Integer(
-        compute="_compute_lead_count", string="Number of Generated Opportunity"
+        string="Number of Generated Opportunity",
+        compute="_compute_lead_count",
     )
 
     _limit_extra_contacts = models.Constraint(
@@ -131,6 +160,7 @@ class CrmRevealRule(models.Model):
             if self.regex_url:
                 re.compile(self.regex_url)
         except Exception as error:
+            _debug.logic("reveal_rule_refused", reason="bad_regex", rule=self.id)
             raise ValidationError(_("Enter Valid Regex.")) from error
 
     @api.model_create_multi
@@ -341,17 +371,18 @@ class CrmRevealRule(models.Model):
             done_ips.append(res["ip"])
             if not res.get("not_found"):
                 self._create_lead_from_response(res)
-                self.env["crm.reveal.view"].search(
+                self.env["crm.reveal.view"].search(  # noqa: E8507 - one lookup per revealed ip of the response
                     [("reveal_ip", "=", res["ip"])]
                 ).unlink()
             else:
-                views = self.env["crm.reveal.view"].search(
+                views = self.env["crm.reveal.view"].search(  # noqa: E8507 - one lookup per revealed ip of the response
                     [("reveal_ip", "=", res["ip"])]
                 )
                 views.write({"reveal_state": "not_found"})
                 views.flush_recordset()
 
         if result.get("credit_error"):
+            _debug.logic("reveal_refused", reason="no_credit")
             self.env["crm.iap.lead.helpers"]._notify_no_more_credit(
                 "reveal", self._name, "reveal.already_notified"
             )
@@ -374,7 +405,9 @@ class CrmRevealRule(models.Model):
             .get_param("reveal.endpoint", DEFAULT_ENDPOINT)
             + "/iap/clearbit/1/reveal"
         )
-        return iap_tools.iap_jsonrpc(endpoint, params=params, timeout=timeout)
+        return iap_tools.iap_jsonrpc(
+            endpoint, params=params, timeout=timeout, env=self.env
+        )
 
     def _create_lead_from_response(self, result):
         if result["rule_id"]:

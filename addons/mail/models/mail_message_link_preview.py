@@ -1,6 +1,7 @@
 import typing
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
@@ -8,6 +9,8 @@ if typing.TYPE_CHECKING:
     from .mail_link_preview import MailLinkPreview
     from .mail_message import MailMessage
     from .res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MessageMailLinkPreview(models.Model):
@@ -17,12 +20,18 @@ class MessageMailLinkPreview(models.Model):
     _order = "sequence, id"
 
     message_id: MailMessage = fields.Many2one(
-        "mail.message", required=True, index=True, ondelete="cascade"
+        comodel_name="mail.message",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     link_preview_id: MailLinkPreview = fields.Many2one(
-        "mail.link.preview", index=True, required=True, ondelete="cascade"
+        comodel_name="mail.link.preview",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
-    sequence = fields.Integer("Sequence")
+    sequence = fields.Integer()
     is_hidden = fields.Boolean()
     author_id: ResPartner = fields.Many2one(related="message_id.author_id")
 
@@ -34,17 +43,19 @@ class MessageMailLinkPreview(models.Model):
     def _hide_and_notify(self) -> None:
         if not self:
             return
+        _debug.lifecycle("hidden", previews=self.ids)
         self.is_hidden = True
         for message_link_preview in self:
-            Store(bus_channel=message_link_preview._bus_channel()).delete(
+            Store(bus_channel=message_link_preview._bus_channel()).add_deletion(
                 message_link_preview
             ).bus_send()
 
     def _unlink_and_notify(self) -> None:
         if not self:
             return
+        _debug.lifecycle("unlinked", previews=self.ids)
         for message_link_preview in self:
-            Store(bus_channel=message_link_preview._bus_channel()).delete(
+            Store(bus_channel=message_link_preview._bus_channel()).add_deletion(
                 message_link_preview
             ).bus_send()
         self.unlink()

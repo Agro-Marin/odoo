@@ -100,7 +100,6 @@ class WebsiteLinks extends Interaction {
         this.registerCleanup(restoreLoadingBtn);
         event.stopPropagation();
 
-        // Get URL and UTMs
         const campaignInputEl = this.el.querySelector("input[name='campaign-select']");
         const mediumInputEl = this.el.querySelector("input[name='medium-select']");
         const sourceInputEl = this.el.querySelector("input[name='source-select']");
@@ -121,7 +120,6 @@ class WebsiteLinks extends Interaction {
         const result = await this.waitFor(rpc("/website_links/new", params));
         restoreLoadingBtn();
         if ("error" in result) {
-            // Handle errors
             if (result.error === "empty_url") {
                 this.addNotification(
                     this.formNotificationEl,
@@ -145,7 +143,6 @@ class WebsiteLinks extends Interaction {
                 );
             }
         } else {
-            // Link generated, clean the form and show the link
             const link = result[0];
 
             this.el.querySelector("#generated_tracked_link").classList.remove("d-none");
@@ -157,7 +154,6 @@ class WebsiteLinks extends Interaction {
 
             this.addLink(link);
 
-            // Clean notifications, URL and UTM selects
             this.removeNotification("form-submit");
             campaignInputEl.value = "";
             mediumInputEl.value = "";

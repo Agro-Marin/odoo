@@ -10,6 +10,7 @@ import {
 } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex, DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
@@ -17,6 +18,8 @@ import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { AnimateOption } from "./animate_option.js";
 import { AnimateText } from "./animate_text.js";
 import { EmphasizeAnimatedText } from "./emphasize_animated_text.js";
+
+const log = makeLogger("website.builder.plugin.animate_option");
 
 /**
  * @typedef { Object } AnimateOptionShared
@@ -83,6 +86,7 @@ export class AnimateOptionPlugin extends Plugin {
 
     setup() {
         this.scrollingElement = getScrollingElement(this.document);
+        log.lifecycle("AnimateOptionPlugin setup");
     }
 
     getEffectsItems(isActiveItem) {
@@ -158,37 +162,37 @@ export class AnimateOptionPlugin extends Plugin {
     async forceAnimation(editingElement) {
         editingElement.style.animationName = "dummy";
         if (editingElement.classList.contains("o_animate_on_scroll")) {
-            // Trigger a DOM reflow.
+            log.logic("AnimateOptionPlugin forceAnimation on scroll: dispatch resize");
             void editingElement.offsetWidth;
             editingElement.style.animationName = "";
             this.window.dispatchEvent(new Event("resize"));
         } else {
-            // Trigger a DOM reflow (Needed to prevent the animation from
-            // being launched twice when previewing the "Intensity" option).
             await new Promise((resolve) => setTimeout(resolve));
             if (!editingElement.isConnected) {
-                // Element was replaced/removed during the reflow wait.
+                log.logic(
+                    "AnimateOptionPlugin forceAnimation skipped: element detached",
+                );
                 return;
             }
+            log.lifecycle("AnimateOptionPlugin forceAnimation start", () => ({
+                className: editingElement.className,
+            }));
             editingElement.classList.add("o_animating");
             this.scrollingElement.classList.add("o_wanim_overflow_xy_hidden");
             editingElement.style.animationName = "";
             const clearOverflow = () => {
+                log.lifecycle("AnimateOptionPlugin forceAnimation clear overflow");
                 this.scrollingElement.classList.remove("o_wanim_overflow_xy_hidden");
                 editingElement.classList.remove("o_animating");
             };
             editingElement.addEventListener("animationend", clearOverflow, {
                 once: true,
             });
-            // Safety net: if the element is detached before animationend fires,
-            // the overflow-hidden class would otherwise stay stuck on the
-            // scrolling element indefinitely.
             setTimeout(clearOverflow, 3000);
         }
     }
 
     /**
-     *
      * @returns {{element: HTMLElement, onReset: Function}|{}}
      */
     getAnimatedTextOrCreateDefault() {
@@ -201,17 +205,22 @@ export class AnimateOptionPlugin extends Plugin {
 
         const existingAnimatedTextEl = this.getAnimatedText();
         if (existingAnimatedTextEl) {
+            log.logic("AnimateOptionPlugin reuse existing animated text");
             return { element: existingAnimatedTextEl, onReset: resetAnimatedText };
         }
         const savePoint = this.dependencies.history.makeSavePoint();
         const { element: createdAnimatedTextEl, didRemoveOtherTextAnimation } =
             this.createDefaultTextAnimation();
         if (createdAnimatedTextEl) {
+            log.logic("AnimateOptionPlugin created animated text", () => ({
+                didRemoveOtherTextAnimation,
+            }));
             return {
                 element: createdAnimatedTextEl,
                 onReset: didRemoveOtherTextAnimation ? resetAnimatedText : savePoint,
             };
         }
+        log.logic("AnimateOptionPlugin cannot animate selection: revert");
         savePoint();
         this.services.notification.add(
             _t(
@@ -222,8 +231,7 @@ export class AnimateOptionPlugin extends Plugin {
         return {};
     }
     /**
-     * @return {HTMLElement?} The `commonAncestorContainer` after the split
-     * (null if splits are prevented by an unsplittable node)
+     * @return {HTMLElement?}
      */
     splitForAnimatedText({ anchorNode, focusNode, commonAncestorContainer }) {
         let commonAncestor = commonAncestorContainer;
@@ -241,8 +249,6 @@ export class AnimateOptionPlugin extends Plugin {
                 ? undefined
                 : commonAncestor;
 
-            // Go up to the common ancestor of the selection, or to the
-            // containing animated text (whichever is the furthest)
             while (needToMeetCommonAncestor || needToMeetAnimatedTextAncestor) {
                 if (
                     needToMeetAnimatedTextAncestor &&
@@ -257,11 +263,13 @@ export class AnimateOptionPlugin extends Plugin {
                         ? splitIndex > 0
                         : splitIndex < node.parentNode.childNodes.length - 1
                 ) {
-                    // Split the node if needed, abort if unsplittable (unless it is animated text)
                     if (
                         this.dependencies.split.isUnsplittable(node.parentNode) &&
                         !node.parentNode.classList.contains("o_animated_text")
                     ) {
+                        log.logic(
+                            "AnimateOptionPlugin split stopped: unsplittable ancestor",
+                        );
                         return;
                     }
                     node = this.dependencies.split.splitElement(
@@ -283,32 +291,15 @@ export class AnimateOptionPlugin extends Plugin {
         return commonAncestor;
     }
     /**
-     * Create a span with the default animation, on the selection
-     *
      * @returns {{element: HTMLElement, didRemoveOtherTextAnimation: boolean}|{}}
      */
     createDefaultTextAnimation() {
-        /*
-        We need to create 1 element with the content of the selection to set the
-        text animation. This element must be the only animated text element for
-        the selected text
-
-        To be able to create 1 new element containing the selection, we need to
-        split the elements that are descendants of the common ancestor and that
-        contains one end of the selection.
-
-        To remove any other overlapping animation on text, we need to:
-        - remove the animation on the part of a splitted element that falls
-          inside the selection
-        - split ancestor animated text that fully contains the selection, to
-          remove the animation on the part containing the selection
-        - remove text animation inside of the created element
-
-        If these splits would split an unsplittable node, we abort
-        */
         const selection = this.dependencies.split.splitSelection();
         const commonAncestor = this.splitForAnimatedText(selection);
         if (!commonAncestor) {
+            log.logic(
+                "AnimateOptionPlugin createDefaultTextAnimation: no common ancestor",
+            );
             return {};
         }
         const { startContainer, endContainer, direction } = selection;
@@ -322,7 +313,6 @@ export class AnimateOptionPlugin extends Plugin {
         );
         const span = this.document.createElement("span");
         range.surroundContents(span);
-        // Remove animated text inside the span and containing the span (the ancestors have been split so it only contains the span)
         let didRemoveOtherTextAnimation = false;
         for (const node of [
             ...span.querySelectorAll(".o_animated_text"),
@@ -333,8 +323,11 @@ export class AnimateOptionPlugin extends Plugin {
             node.replaceWith(...node.childNodes);
             didRemoveOtherTextAnimation = true;
         }
+        log.pipeline("AnimateOptionPlugin wrap selection in animated text", () => ({
+            didRemoveOtherTextAnimation,
+        }));
         span.classList.add("o_animated_text", "o_animate_preview");
-        span.classList.add("o_animate", "o_anim_fade_in"); // default animation
+        span.classList.add("o_animate", "o_anim_fade_in");
         this.dependencies.selection.setSelection(
             direction === DIRECTIONS.RIGHT
                 ? {
@@ -355,9 +348,6 @@ export class AnimateOptionPlugin extends Plugin {
         return { element: span, didRemoveOtherTextAnimation };
     }
     /**
-     * Returns the element that is an animated text that corresponds to the
-     * current selection (if there is any)
-     *
      * @returns {HTMLElement?}
      */
     getAnimatedText() {
@@ -406,11 +396,19 @@ export class AnimateOptionPlugin extends Plugin {
             .map((el) => (el.tagName === "IMG" && el) || el.querySelectorAll("img"))
             .flat()
             .filter(Boolean);
+        log.pipeline("AnimateOptionPlugin normalize", () => ({
+            previews: previewEls.length,
+            animated: animateEls.length,
+            images: animateImg.length,
+        }));
         for (const img of animateImg) {
             img.loading = "eager";
         }
     }
     cleanForSave({ root }) {
+        log.pipeline("AnimateOptionPlugin cleanForSave", () => ({
+            previews: root.querySelectorAll(".o_animate_preview").length,
+        }));
         for (const el of root.querySelectorAll(".o_animate_preview")) {
             el.classList.remove("o_animate_preview");
         }
@@ -424,7 +422,6 @@ export class SetAnimationModeAction extends BuilderAction {
         this.animationWithFadein = ["onAppearance", "onScroll"];
         this.scrollingElement = getScrollingElement(this.document);
     }
-    // todo: to remove after having the commit of louis
     isApplied() {
         return true;
     }
@@ -447,15 +444,19 @@ export class SetAnimationModeAction extends BuilderAction {
             delete editingElement.dataset.scrollZoneEnd;
         }
         if (effectName === "onHover") {
-            // Use getResource instead of this.dependencies as imageHover is not
-            // included in translation. This implementation is a hack and could
-            // be improved.
+            const endHover = log.perf("SetAnimationModeAction remove hover effect");
             await this.getResource("remove_hover_effect_handlers")[0](editingElement);
+            endHover();
         }
 
         const isNextAnimationFadein = this.animationWithFadein.includes(
             nextAction.value,
         );
+        log.logic("SetAnimationModeAction clean", () => ({
+            effectName,
+            nextEffect: nextAction.value,
+            isNextAnimationFadein,
+        }));
         if (!isNextAnimationFadein) {
             this._removeEffectAndDirectionClasses(editingElement.classList);
             editingElement.style.setProperty("--wanim-intensity", "");
@@ -465,6 +466,10 @@ export class SetAnimationModeAction extends BuilderAction {
     }
 
     async apply({ editingElement, value: effectName, params: { forceAnimation } }) {
+        log.pipeline("SetAnimationModeAction apply", () => ({
+            effectName,
+            forceAnimation,
+        }));
         if (this.animationWithFadein.includes(effectName)) {
             editingElement.classList.add("o_anim_fade_in");
         }
@@ -473,21 +478,15 @@ export class SetAnimationModeAction extends BuilderAction {
             editingElement.dataset.scrollZoneEnd = 100;
         }
         if (effectName === "onHover") {
-            // Use getResource instead of this.dependencies as imageHover is not
-            // included in translation. This implementation is a hack and could
-            // be improved.
+            const endHover = log.perf("SetAnimationModeAction set hover effect");
             await this.getResource("set_hover_effect_handlers")[0](editingElement);
+            endHover();
         }
         if (forceAnimation) {
             this.dependencies.animateOption.forceAnimation(editingElement);
         }
     }
     /**
-     * Adds the lazy loading on images because animated images can appear before
-     * or after their parents and cause bugs in the animations. To put "lazy"
-     * back on the "loading" attribute, we simply remove the attribute as it is
-     * automatically added on page load.
-     *
      * @private
      */
     _setImagesLazyLoading(editingElement) {
@@ -495,7 +494,6 @@ export class SetAnimationModeAction extends BuilderAction {
             ? [editingElement]
             : editingElement.querySelectorAll("img");
         for (const imgEl of imgEls) {
-            // Let the automatic system add the loading attribute
             imgEl.removeAttribute("loading");
         }
     }
@@ -528,6 +526,7 @@ export class SetAnimateIntensityAction extends BuilderAction {
         return intensity;
     }
     apply({ editingElement, value }) {
+        log.pipeline("SetAnimateIntensityAction apply", () => ({ value }));
         editingElement.style.setProperty("--wanim-intensity", `${value}`);
         this.dependencies.animateOption.forceAnimation(editingElement);
     }
@@ -535,11 +534,11 @@ export class SetAnimateIntensityAction extends BuilderAction {
 export class ForceAnimationAction extends BuilderAction {
     static id = "forceAnimation";
     static dependencies = ["animateOption"];
-    // todo: to remove after having the commit of louis
     isActive() {
         return true;
     }
     apply({ editingElement }) {
+        log.pipeline("ForceAnimationAction apply");
         this.dependencies.animateOption.forceAnimation(editingElement);
     }
 }
@@ -569,6 +568,10 @@ export class SetAnimationEffectAction extends BuilderAction {
         params: { mainParam: directionClassName },
         value: effectClassName,
     }) {
+        log.pipeline("SetAnimationEffectAction apply", () => ({
+            effectClassName,
+            directionClassName,
+        }));
         if (directionClassName) {
             editingElement.classList.add(directionClassName);
         }

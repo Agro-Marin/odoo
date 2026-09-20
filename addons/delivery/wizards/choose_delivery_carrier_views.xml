@@ -41,48 +41,48 @@
                     role="alert"
                     class="alert alert-warning"
                     invisible="invoicing_message == ''">
-                    <field name="invoicing_message" nolabel="1" />
+                    <field name="invoicing_message" />
                 </div>
                 <div
                     role="alert"
                     class="alert alert-info"
                     invisible="context.get('no_rate') or not delivery_message">
-                    <field name="delivery_message" nolabel="1" />
+                    <field name="delivery_message" />
                 </div>
                 <div
                     role="alert"
                     class="alert alert-danger"
                     invisible="not context.get('no_rate') or not delivery_message">
-                    <field name="delivery_message" nolabel="1" />
+                    <field name="delivery_message" />
                 </div>
                 <footer>
                     <button
                         name="button_confirm"
-                        invisible="not context.get('carrier_recompute')"
                         type="object"
                         string="Update"
+                        invisible="not context.get('carrier_recompute')"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         name="button_confirm"
                         type="object"
+                        string="Add"
                         invisible="context.get('carrier_recompute') or not delivery_type in ('fixed', 'base_on_rule') and not display_price"
-                        string="Add"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         name="button_confirm"
                         type="object"
-                        invisible="context.get('carrier_recompute') or display_price or delivery_type in ('fixed', 'base_on_rule')"
-                        confirm="Are you sure you want the delivery to be free for this order? You might have forgotten to compute the rates."
                         string="Add"
+                        confirm="Are you sure you want the delivery to be free for this order? You might have forgotten to compute the rates."
+                        invisible="context.get('carrier_recompute') or display_price or delivery_type in ('fixed', 'base_on_rule')"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

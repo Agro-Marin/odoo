@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class CrmQuotationPartner(models.TransientModel):
@@ -12,6 +15,9 @@ class CrmQuotationPartner(models.TransientModel):
 
         active_model = self.env.context.get("active_model")
         if active_model != "crm.lead":
+            _debug.logic(
+                "quotation_partner_wizard_refused", model=active_model or "none"
+            )
             raise UserError(_("You can only apply this action from a lead."))
 
         lead = False
@@ -30,7 +36,7 @@ class CrmQuotationPartner(models.TransientModel):
         return result
 
     action = fields.Selection(
-        [
+        selection=[
             ("create", "Create a new customer"),
             ("exist", "Link to an existing customer"),
             ("nothing", "Do not link to a customer"),
@@ -38,11 +44,24 @@ class CrmQuotationPartner(models.TransientModel):
         string="Quotation Customer",
         required=True,
     )
-    lead_id = fields.Many2one("crm.lead", "Associated Lead", required=True)
-    partner_id = fields.Many2one("res.partner", "Customer")
+    lead_id = fields.Many2one(
+        comodel_name="crm.lead",
+        string="Associated Lead",
+        required=True,
+    )
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Customer",
+    )
 
     def action_apply(self):
         self.check_singleton()
+        _debug.lifecycle(
+            "quotation_partner_applied",
+            lead=self.lead_id,
+            action=self.action,
+            partner=self.partner_id,
+        )
         if self.action == "create":
             self.lead_id._handle_partner_assignment(create_missing=True)
         elif self.action == "exist":

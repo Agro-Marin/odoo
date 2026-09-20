@@ -15,8 +15,8 @@ patch(ThreadAction.prototype, {
             "meeting-chat",
         ];
         if (
-            thread?.channel_type === "livechat" &&
-            store.self_partner?.main_user_id?.share !== false &&
+            thread?.isLivechat &&
+            !store.selfIsInternalUser &&
             !visitorActions.includes(action.id)
         ) {
             return false;
@@ -27,7 +27,7 @@ patch(ThreadAction.prototype, {
 
 patch(threadActionsRegistry.get("invite-people"), {
     condition({ thread }) {
-        if (thread?.channel_type === "livechat") {
+        if (thread?.isLivechat) {
             return super.condition(...arguments) && !thread.livechat_end_dt;
         }
         return super.condition(...arguments);
@@ -36,7 +36,7 @@ patch(threadActionsRegistry.get("invite-people"), {
 
 patch(threadActionsRegistry.get("notification-settings"), {
     condition({ thread }) {
-        if (thread?.channel_type === "livechat") {
+        if (thread?.isLivechat) {
             return super.condition(...arguments) && !thread.livechat_end_dt;
         }
         return super.condition(...arguments);
@@ -45,7 +45,7 @@ patch(threadActionsRegistry.get("notification-settings"), {
 
 patch(threadActionsRegistry.get("camera-call"), {
     condition({ thread }) {
-        if (thread?.channel_type === "livechat") {
+        if (thread?.isLivechat) {
             return super.condition(...arguments) && !thread.livechat_end_dt;
         }
         return super.condition(...arguments);
@@ -54,7 +54,7 @@ patch(threadActionsRegistry.get("camera-call"), {
 
 patch(threadActionsRegistry.get("call"), {
     condition({ thread }) {
-        if (thread?.channel_type === "livechat") {
+        if (thread?.isLivechat) {
             return super.condition(...arguments) && !thread.livechat_end_dt;
         }
         return super.condition(...arguments);

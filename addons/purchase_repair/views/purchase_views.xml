@@ -8,12 +8,12 @@
         <field name="arch" type="xml">
             <xpath expr="//button[@name='action_view_invoice']" position="after">
                 <button
-                    class="oe_stat_button"
                     name="action_view_repair_orders"
                     type="object"
                     icon="fa-wrench"
                     groups="stock.group_stock_user"
-                    invisible="repair_count == 0">
+                    invisible="repair_count == 0"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <field
                             name="repair_count"

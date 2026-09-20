@@ -2,7 +2,10 @@ from collections import defaultdict
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, float_is_zero, float_round
+
+_debug = DebugLog(__name__)
 
 
 class MrpRoutingWorkcenter(models.Model):
@@ -13,97 +16,124 @@ class MrpRoutingWorkcenter(models.Model):
     _order = "bom_id, sequence, id"
     _check_company_auto = True
 
-    name = fields.Char("Operation", required=True)
+    name = fields.Char(
+        string="Operation",
+        required=True,
+    )
     active = fields.Boolean(default=True)
     workcenter_id = fields.Many2one(
-        "mrp.workcenter",
-        "Work Center",
+        comodel_name="mrp.workcenter",
+        string="Work Center",
+        index=True,
         required=True,
         check_company=True,
         tracking=True,
-        index=True,
     )
     sequence = fields.Integer(
-        "Sequence",
         default=100,
         help="Gives the sequence order when displaying a list of routing Work Centers.",
     )
-    bom_id = fields.Many2one("mrp.bom", "Bill of Material", check_company=True)
-    company_id = fields.Many2one("res.company", "Company", related="bom_id.company_id")
+    bom_id = fields.Many2one(
+        comodel_name="mrp.bom",
+        string="Bill of Material",
+        check_company=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        related="bom_id.company_id",
+        string="Company",
+    )
     archived_with_bom = fields.Boolean(
         help="Technical: this operation was archived because its BoM was, so "
         "unarchiving the BoM brings it back. An operation retired on its own "
-        "does not carry the flag and stays retired.",
+        "does not carry the flag and stays retired."
     )
     archived_bom_line_ids = fields.Many2many(
-        "mrp.bom.line",
+        comodel_name="mrp.bom.line",
         relation="mrp_routing_workcenter_archived_bom_line_rel",
         copy=False,
         help="Technical: bom lines that pointed to this operation before it "
         "was archived, so unarchiving can restore the link.",
     )
     archived_byproduct_ids = fields.Many2many(
-        "mrp.bom.byproduct",
+        comodel_name="mrp.bom.byproduct",
         relation="mrp_routing_workcenter_archived_byproduct_rel",
         copy=False,
         help="Technical: byproduct lines that pointed to this operation before "
         "it was archived, so unarchiving can restore the link.",
     )
     time_mode = fields.Selection(
-        [("manual", "Fixed"), ("auto", "Computed")],
+        selection=[("manual", "Fixed"), ("auto", "Computed")],
         string="Duration Computation",
         default="manual",
         tracking=True,
     )
-    time_mode_batch = fields.Integer("Based on", default=10)
+    time_mode_batch = fields.Integer(
+        string="Based on",
+        default=10,
+    )
     time_computed_on = fields.Char(
-        "Computed on last", compute="_compute_time_computed_on"
+        string="Computed on last",
+        compute="_compute_time_computed_on",
     )
     time_cycle_manual = fields.Float(
-        "Manual Duration",
+        string="Manual Duration",
         default=60,
         tracking=True,
         help="Time in minutes:"
         "- In fixed mode, time used"
         "- In computed mode, supposed first time when there aren't any work orders yet",
     )
-    time_cycle = fields.Float("Cycles", compute="_compute_operation_times")
+    time_cycle = fields.Float(
+        string="Cycles",
+        compute="_compute_operation_times",
+    )
     workorder_count = fields.Integer(
-        "# Work Orders", compute="_compute_workorder_count"
+        string="# Work Orders",
+        compute="_compute_workorder_count",
     )
     workorder_ids = fields.One2many(
-        "mrp.workorder", "operation_id", string="Work Orders"
+        comodel_name="mrp.workorder",
+        inverse_name="operation_id",
+        string="Work Orders",
     )
     allow_operation_dependencies = fields.Boolean(
         related="bom_id.allow_operation_dependencies"
     )
     blocked_by_operation_ids = fields.Many2many(
-        "mrp.routing.workcenter",
+        comodel_name="mrp.routing.workcenter",
         relation="mrp_routing_workcenter_dependencies_rel",
         column1="operation_id",
         column2="blocked_by_id",
         string="Blocked By",
-        help="Operations that need to be completed before this operation can start.",
-        domain="[('allow_operation_dependencies', '=', True), ('id', '!=', id), ('bom_id', '=', bom_id)]",
         copy=False,
+        domain="[('allow_operation_dependencies', '=', True), ('id', '!=', id), ('bom_id', '=', bom_id)]",
+        help="Operations that need to be completed before this operation can start.",
     )
     needed_by_operation_ids = fields.Many2many(
-        "mrp.routing.workcenter",
+        comodel_name="mrp.routing.workcenter",
         relation="mrp_routing_workcenter_dependencies_rel",
         column1="blocked_by_id",
         column2="operation_id",
         string="Blocks",
-        help="Operations that cannot start before this operation is completed.",
-        domain="[('allow_operation_dependencies', '=', True), ('id', '!=', id), ('bom_id', '=', bom_id)]",
         copy=False,
+        domain="[('allow_operation_dependencies', '=', True), ('id', '!=', id), ('bom_id', '=', bom_id)]",
+        help="Operations that cannot start before this operation is completed.",
     )
-    cycle_number = fields.Integer("Repetitions", compute="_compute_operation_times")
-    time_total = fields.Float("Total Duration", compute="_compute_operation_times")
+    cycle_number = fields.Integer(
+        string="Repetitions",
+        compute="_compute_operation_times",
+    )
+    time_total = fields.Float(
+        string="Total Duration",
+        compute="_compute_operation_times",
+    )
     show_time_total = fields.Boolean(
-        "Show Total Duration?", compute="_compute_operation_times"
+        string="Show Total Duration?",
+        compute="_compute_operation_times",
     )
     cost_mode = fields.Selection(
-        [("actual", "Actual time"), ("estimated", "Theorical time")],
+        selection=[("actual", "Actual time"), ("estimated", "Theorical time")],
         string="Cost based on",
         default="actual",
         tracking=True,
@@ -111,7 +141,7 @@ class MrpRoutingWorkcenter(models.Model):
         "- Based on Actual time: the cost will be calculated based on tracked time and real employee costs.\n"
         "- Based on Estimated time: the cost will be calculated based on estimated time and costs.",
     )
-    cost = fields.Float("Cost", compute="_compute_cost")
+    cost = fields.Float(compute="_compute_cost")
 
     @api.depends("time_mode", "time_mode_batch")
     def _compute_time_computed_on(self):
@@ -163,6 +193,12 @@ class MrpRoutingWorkcenter(models.Model):
                 ids_by_operation[operation_id].append(workorder_id)
             for operation_id, workorder_ids in ids_by_operation.items():
                 result[operation_id] = Workorder.browse(workorder_ids)
+            _debug.perf.count(
+                "operation_history_ranked",
+                batch_size=batch_size,
+                operations=len(operations),
+                rows=len(rows),
+            )
         return result
 
     @api.depends(
@@ -202,6 +238,13 @@ class MrpRoutingWorkcenter(models.Model):
                 operation.time_cycle = total_duration / cycle_number
             else:
                 operation.time_cycle = operation.time_cycle_manual
+            _debug.logic(
+                "operation_time_cycle",
+                operation=operation.id,
+                by="history" if cycle_number else "manual_fallback",
+                samples=len(history[operation.id]),
+                cycles=cycle_number,
+            )
 
         for operation in self:
             workcenter = self.env.context.get("workcenter", operation.workcenter_id)
@@ -279,6 +322,7 @@ class MrpRoutingWorkcenter(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
+        _debug.lifecycle("create", operations=res, boms=res.bom_id)
         res.bom_id.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
@@ -297,6 +341,7 @@ class MrpRoutingWorkcenter(models.Model):
     )
 
     def write(self, vals):
+        _debug.lifecycle("write", operations=self, fields=list(vals))
         if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
             self.bom_id.with_context(
                 skip_bom_outdated_unmark=True
@@ -324,6 +369,12 @@ class MrpRoutingWorkcenter(models.Model):
             op.archived_bom_line_ids = lines
         for op, lines in byproduct_lines.grouped("operation_id").items():
             op.archived_byproduct_ids = lines
+        _debug.lifecycle(
+            "operation_archived",
+            operations=self,
+            bom_lines=len(bom_lines),
+            byproducts=len(byproduct_lines),
+        )
         bom_lines.write({"operation_id": False})
         byproduct_lines.write({"operation_id": False})
         self.bom_id.with_context(
@@ -336,6 +387,7 @@ class MrpRoutingWorkcenter(models.Model):
         for op in self:
             op.archived_bom_line_ids.write({"operation_id": op.id})
             op.archived_byproduct_ids.write({"operation_id": op.id})
+        _debug.lifecycle("operation_unarchived", operations=self)
         self.archived_bom_line_ids = [Command.clear()]
         self.archived_byproduct_ids = [Command.clear()]
         self.bom_id.with_context(

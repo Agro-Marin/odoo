@@ -3,6 +3,8 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectPhase(models.Model):
     _name = "project.phase"
@@ -10,24 +12,31 @@ class ProjectPhase(models.Model):
     _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
-    active = fields.Boolean(default=True, export_string_translation=False)
-    sequence = fields.Integer(default=50, export_string_translation=False)
-    name = fields.Char(required=True, translate=True)
+    active = fields.Boolean(
+        export_string_translation=False,
+        default=True,
+    )
+    sequence = fields.Integer(
+        export_string_translation=False,
+        default=50,
+    )
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     mail_template_id = fields.Many2one(
-        "mail.template",
+        comodel_name="mail.template",
         string="Email Template",
         domain=[("model", "=", "project.project")],
         help="Email sent automatically when a project enters this phase.",
     )
     fold = fields.Boolean(
-        "Folded",
-        help=(
-            "Folded phases are shown collapsed in Kanban and List views. "
-            "Projects in a folded phase are considered closed."
-        ),
+        string="Folded",
+        help="Folded phases are shown collapsed in Kanban and List views. "
+        "Projects in a folded phase are considered closed.",
     )
-    company_id = fields.Many2one("res.company", string="Company")
-    color = fields.Integer(string="Color", export_string_translation=False)
+    company_id = fields.Many2one(comodel_name="res.company")
+    color = fields.Integer(export_string_translation=False)
 
     @api.constrains("mail_template_id")
     def _check_mail_template_model(self) -> None:
@@ -45,6 +54,11 @@ class ProjectPhase(models.Model):
                 )
 
     def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.phase.action_open_delete_wizard %s (stage_view=%s)",
+            dbg.rec(self),
+            stage_view,
+        )
         wizard = self.env["project.phase.delete.wizard"].create({"phase_ids": self.ids})
         context = dict(self.env.context, stage_view=stage_view)
         return {
@@ -63,7 +77,11 @@ class ProjectPhase(models.Model):
             "context": context,
         }
 
+    @dbg.timed
     def write(self, vals: dict) -> bool:
+        dbg.lifecycle.debug(
+            "project.phase.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if vals.get("company_id"):
             project = self.env["project.project"].search(
                 [
@@ -84,7 +102,13 @@ class ProjectPhase(models.Model):
                     )
                 )
         if "active" in vals and not vals["active"]:
-            self.env["project.project"].search([("phase_id", "in", self.ids)]).write(
-                {"active": False}
+            projects = self.env["project.project"].search(
+                [("phase_id", "in", self.ids)]
             )
+            dbg.pipeline.debug(
+                "[phase:%s] archive -> archiving projects %s",
+                dbg.rec(self),
+                dbg.rec(projects),
+            )
+            projects.write({"active": False})
         return super().write(vals)

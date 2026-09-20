@@ -36,5 +36,4 @@
             "website_sale_slides/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
 }

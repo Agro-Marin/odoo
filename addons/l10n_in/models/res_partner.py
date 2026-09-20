@@ -18,7 +18,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     l10n_in_gst_treatment = fields.Selection(
-        [
+        selection=[
             ("regular", "Registered Business - Regular"),
             ("composition", "Registered Business - Composition"),
             ("unregistered", "Unregistered Business"),
@@ -40,10 +40,11 @@ class ResPartner(models.Model):
         " specified transactions, correspondence, and so on.\n"
         "Thus, PAN acts as an identifier for the person with the tax department.",
     )
-    l10n_in_tan = fields.Char("TAN")
+    l10n_in_tan = fields.Char(string="TAN")
 
     display_pan_warning = fields.Boolean(
-        string="Display pan warning", compute="_compute_display_pan_warning"
+        string="Display pan warning",
+        compute="_compute_display_pan_warning",
     )
     l10n_in_gst_state_warning = fields.Char(
         compute="_compute_l10n_in_gst_state_warning"
@@ -53,9 +54,13 @@ class ResPartner(models.Model):
     )
 
     # gstin_status related field
-    l10n_in_gstin_verified_status = fields.Boolean(string="GST Status", tracking=True)
+    l10n_in_gstin_verified_status = fields.Boolean(
+        string="GST Status",
+        tracking=True,
+    )
     l10n_in_gstin_verified_date = fields.Date(
-        string="GSTIN Verified Date", tracking=True
+        string="GSTIN Verified Date",
+        tracking=True,
     )
     l10n_in_gstin_status_feature_enabled = fields.Boolean(
         compute="_compute_l10n_in_gst_registered_and_status"
@@ -63,18 +68,25 @@ class ResPartner(models.Model):
 
     @api.depends("vat", "state_id", "country_id", "fiscal_country_codes")
     def _compute_l10n_in_gst_state_warning(self):
+        gst_partners = self.filtered(
+            lambda partner: (
+                "IN" in partner.fiscal_country_codes
+                and partner.check_vat_in(partner.vat)
+            )
+        )
+        first_state_by_tin = {}
+        for state in self.env["res.country.state"].search(
+            [("l10n_in_tin", "in", [partner.vat[:2] for partner in gst_partners])]
+        ):
+            first_state_by_tin.setdefault(state.l10n_in_tin, state)
         for partner in self:
-            if "IN" in partner.fiscal_country_codes and partner.check_vat_in(
-                partner.vat
-            ):
+            if partner in gst_partners:
                 if partner.vat[:2] == "99":
                     partner.l10n_in_gst_state_warning = _(
                         "As per GSTN the country should be other than India, so it's recommended to"
                     )
                 else:
-                    state_id = self.env["res.country.state"].search(
-                        [("l10n_in_tin", "=", partner.vat[:2])], limit=1
-                    )
+                    state_id = first_state_by_tin.get(partner.vat[:2])
                     if state_id and state_id != partner.state_id:
                         partner.l10n_in_gst_state_warning = _(
                             "As per GSTN the state should be %s, so it's recommended to",

@@ -61,13 +61,10 @@ test("autocomplete should shown and able to edit the link", async () => {
     await waitFor(".o-we-linkpopover");
     await click(".o_we_edit_link");
     await animationFrame();
-    // the url input should be autocomplete
     await contains(".o-autocomplete--input").focus();
 
-    // autocomplete dropdown should be there
     await press(["ctrl", "a"]);
     await press("c");
-    // Should update preview with typed URL.
     expect(cleanLinkArtifacts(getContent(el))).toBe(
         '<p>this is a <a href="c">link</a></p>',
     );
@@ -78,12 +75,10 @@ test("autocomplete should shown and able to edit the link", async () => {
     expect(".o-autocomplete--dropdown-item img").toHaveCount(1);
 
     await click(".o-autocomplete--dropdown-item:first");
-    // Should update preview with selected item.
     expect(cleanLinkArtifacts(getContent(el))).toBe(
         '<p>this is a <a href="/contactus">link</a></p>',
     );
     await click(".o_we_apply_link");
-    // the url should be applied after selecting a dropdown item
     expect(cleanLinkArtifacts(getContent(el))).toBe(
         '<p>this is a <a href="/contactus">li[]nk</a></p>',
     );
@@ -96,7 +91,6 @@ test("autocomplete should shown and able to edit the link", async () => {
     await press(["ctrl", "a"]);
     await press("#");
     await waitFor(".o-autocomplete--dropdown-menu", { timeout: 3000 });
-    // check the default page anchors are in the autocomplete dropdown
     expect(".o-autocomplete--dropdown-item:first").toHaveText("#top");
     expect(".o-autocomplete--dropdown-item:last").toHaveText("#bottom");
 });
@@ -135,13 +129,10 @@ test("autocomplete suggestions for image links don’t update preview until appl
     await waitFor(".o-we-linkpopover");
     await click(".o_we_edit_link");
     await animationFrame();
-    // the url input should be autocomplete
     await contains(".o-autocomplete--input").focus();
 
-    // autocomplete dropdown should be there
     await press(["ctrl", "a"]);
     await press("c");
-    // typing URL shouldn’t change image link preview.
     expect(getContent(el)).toBe(
         `<p><a href="http://test.test/"><img src="${base64Img}"></a></p>`,
     );
@@ -152,12 +143,10 @@ test("autocomplete suggestions for image links don’t update preview until appl
     expect(".o-autocomplete--dropdown-item img").toHaveCount(1);
 
     await click(".o-autocomplete--dropdown-item:first");
-    // selecting suggestion shouldn’t change image link preview.
     expect(getContent(el)).toBe(
         `<p><a href="http://test.test/"><img src="${base64Img}"></a></p>`,
     );
     await click(".o_we_apply_link");
-    // the url should be applied after selecting a dropdown item
     expect(getContent(el)).toBe(
         `<p><a href="/contactus">[<img src="${base64Img}">]</a></p>`,
     );
@@ -209,7 +198,6 @@ test("link redirection should be prefixed for url of website pages only", async 
     onRpc("/odoo/project/1", () => ({}));
     onRpc("/web/project/1", () => ({}));
 
-    // website pages should be prefixed with /@
     const { el } = await setupEditor(
         '<p>this is a <a href="/contactus">li[]nk</a></p>',
     );
@@ -217,7 +205,6 @@ test("link redirection should be prefixed for url of website pages only", async 
     await click(".o-we-linkpopover a");
     expect.verifySteps(["website page url prefixed"]);
 
-    // other backend urls and external urls should not be prefixed
     setContent(el, `<p>this is a[] <a href="/odoo/project/1">link</a></p>`);
     await waitForNone(".o-we-linkpopover");
     setContent(el, `<p>this is a <a href="/odoo/project/1">li[]nk</a></p>`);
@@ -246,21 +233,14 @@ test("link redirection should not be prefixed when the current page is not a web
             expect.step("website page url prefixed");
             expect(url.pathname.startsWith("/@")).toBe(true);
         },
-        // Simulate being on a non-website page (eg. backend) with a /odoo/ URL.
-        // A real `URL` rather than a two-field literal: the click path also
-        // reads other members of `location` (pathname, protocol, ...) and the
-        // partial stub blew up with "Cannot read properties of undefined
-        // (reading 'startsWith')" before the assertion below was ever reached.
         location: new URL(browser.location.origin + "/odoo/contactus"),
     });
     onRpc("/html_editor/link_preview_internal", () => ({}));
     onRpc("/contactus", () => ({}));
 
-    // website pages should not be prefixed with /@
     await setupEditor('<p>this is a <a href="/contactus">li[]nk</a></p>');
     await waitFor(".o-we-linkpopover");
     await click(".o-we-linkpopover a");
-    // the open method should not be called from onClickForcePreviewMode
     expect.verifySteps([]);
 });
 

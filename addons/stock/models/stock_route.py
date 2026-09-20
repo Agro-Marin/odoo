@@ -1,5 +1,12 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import TransactionMemo
+
+from ..tools import debug_log as dbg
+
+ROUTE_RULE_ACTIONS = TransactionMemo(
+    "stock.route.rule_actions", invalidated_by=("stock.rule",)
+)
 
 
 class StockRoute(models.Model):
@@ -10,15 +17,14 @@ class StockRoute(models.Model):
 
     name = fields.Char(
         string="Route",
-        required=True,
         translate=True,
+        required=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If the active field is set to False, it will allow you to hide the route without removing it.",
     )
-    sequence = fields.Integer(string="Sequence", default=0)
+    sequence = fields.Integer(default=0)
     rule_ids = fields.One2many(
         comodel_name="stock.rule",
         inverse_name="route_id",
@@ -47,10 +53,12 @@ class StockRoute(models.Model):
         string="Supplied Warehouse",
         index="btree_not_null",
     )
-    supplier_wh_id = fields.Many2one("stock.warehouse", "Supplying Warehouse")
+    supplier_wh_id = fields.Many2one(
+        comodel_name="stock.warehouse",
+        string="Supplying Warehouse",
+    )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         default=lambda self: self.env.company,
         index=True,
         help="Leave this field empty if this route is shared between all companies",
@@ -86,7 +94,22 @@ class StockRoute(models.Model):
         domain="[('id', 'in', warehouse_domain_ids)]",
     )
 
-    @api.constrains("company_id")
+    def _has_rule_with_action(self, action):
+        memo = ROUTE_RULE_ACTIONS(self.env)
+        missing = [route_id for route_id in self.ids if route_id not in memo]
+        if missing:
+            memo.update(dict.fromkeys(missing, frozenset()))
+            for route, actions in (
+                self.env["stock.rule"]
+                .sudo()
+                ._read_group(
+                    [("route_id", "in", missing)], ["route_id"], ["action:array_agg"]
+                )
+            ):
+                memo[route.id] = frozenset(actions)
+        return any(action in memo[route_id] for route_id in self.ids)
+
+    @api.constrains("company_id", "rule_ids")
     def _check_company_consistency(self):
         for route in self:
             if not route.company_id:
@@ -103,9 +126,18 @@ class StockRoute(models.Model):
                         ),
                     )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.route.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if "active" in vals:
             all_rules = self.with_context(active_test=False).rule_ids.sudo()
+            dbg.lifecycle.debug(
+                "stock.route.write: active=%s cascades to rules %s",
+                vals["active"],
+                dbg.rec(all_rules),
+            )
             if vals["active"]:
                 all_rules.filtered(
                     lambda rule: rule.location_dest_id.active

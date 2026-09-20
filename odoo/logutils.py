@@ -12,8 +12,6 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Protocol, TextIO, cast
 
-import werkzeug.serving
-
 from . import db, release, tools
 from .db.replica import is_readonly_cursor_enabled
 from .db.schema import column_exists
@@ -294,6 +292,7 @@ class LogRecord(logging.LogRecord):
         self.dbname = getattr(worker, "dbname", "?")
         uid = getattr(worker, "uid", None)
         self.uid = uid if uid is not None else "-"
+        self.request_id = getattr(worker, "request_id", "-")
 
 
 class _ShowWarning(Protocol):
@@ -377,7 +376,7 @@ def _apply_log_config_file() -> dict | None:
 
 
 def _install_log_handler() -> None:
-    format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
+    format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s rid:%(request_id)s %(name)s: %(message)s %(perf_info)s"
     handler: logging.Handler = logging.StreamHandler()
 
     if tools.config["syslog"]:
@@ -418,10 +417,9 @@ def _install_log_handler() -> None:
     else:
         formatter = logging.Formatter(format)
         perf_filter = PerfFilter()
-        werkzeug.serving._log_add_style = False
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
-    logging.getLogger("werkzeug").addFilter(perf_filter)
+    logging.getLogger(ACCESS_LOGGER).addFilter(perf_filter)
 
     if tools.config["log_db"]:
         db_levels = {
@@ -448,6 +446,12 @@ def _apply_configured_levels() -> None:
     logconfig = tools.config["log_handler"]
 
     logging_configurations = DEFAULT_LOG_CONFIGURATION + pseudo_config + logconfig
+    if any(item.strip().startswith("werkzeug:") for item in logconfig):
+        _logger.warning(
+            "log_handler names werkzeug, which no longer carries the HTTP access log;"
+            " set %s instead",
+            ACCESS_LOGGER,
+        )
     for logconfig_item in logging_configurations:
         loggername, level = logconfig_item.strip().split(":")
         level = getattr(logging, level, logging.INFO)
@@ -481,7 +485,12 @@ def init_logger() -> None:
     _apply_configured_levels()
 
 
+ACCESS_LOGGER: Final[str] = "odoo.service.http.access"
+# The access logger sits under "odoo" but keeps werkzeug's standing: INFO unless a
+# preset or log_handler names it, so --log-level=debug does not print every static
+# request.
 DEFAULT_LOG_CONFIGURATION: Final[list[str]] = [
+    f"{ACCESS_LOGGER}:INFO",
     "odoo.http.rpc.request:INFO",
     "odoo.http.rpc.response:INFO",
     "fontTools:WARNING",
@@ -493,10 +502,10 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
     "debug": ["odoo:DEBUG", "odoo.db:INFO"],
     "debug_sql": ["odoo.db:DEBUG"],
     "info": [],
-    "runbot": ["odoo:RUNBOT", "werkzeug:WARNING"],
-    "warn": ["odoo:WARNING", "werkzeug:WARNING"],
-    "error": ["odoo:ERROR", "werkzeug:ERROR"],
-    "critical": ["odoo:CRITICAL", "werkzeug:CRITICAL"],
+    "runbot": ["odoo:RUNBOT", f"{ACCESS_LOGGER}:WARNING", "werkzeug:WARNING"],
+    "warn": ["odoo:WARNING", f"{ACCESS_LOGGER}:WARNING", "werkzeug:WARNING"],
+    "error": ["odoo:ERROR", f"{ACCESS_LOGGER}:ERROR", "werkzeug:ERROR"],
+    "critical": ["odoo:CRITICAL", f"{ACCESS_LOGGER}:CRITICAL", "werkzeug:CRITICAL"],
 }
 
 RUNBOT: Final[int] = 25

@@ -3,8 +3,6 @@ import logging
 import pprint
 from urllib.parse import parse_qs
 
-import requests
-
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.tools import hmac
@@ -15,7 +13,16 @@ UNPREDICTABLE_ADYEN_DATA = object()  # sentinel
 
 
 class PosPaymentMethod(models.Model):
-    _inherit = "pos.payment.method"
+    _inherit = ["pos.payment.method", "mixin.integration.connected"]
+
+    def _integration_connection_service(self):
+        if self.use_payment_terminal == "adyen":
+            return "pos_adyen", self.env._("Point of Sale: Adyen"), "payment"
+        return super()._integration_connection_service()
+
+    _CREDENTIAL_FIELDS = {
+        "adyen_api_key": "adyen_api_key",
+    }
 
     def _selection_payment_terminals(self):
         return super()._selection_payment_terminals() + [("adyen", "Adyen")]
@@ -23,28 +30,30 @@ class PosPaymentMethod(models.Model):
     # Adyen
     adyen_api_key = fields.Char(
         string="Adyen API key",
-        help="Used when connecting to Adyen: https://docs.adyen.com/user-management/how-to-get-the-api-key/#description",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_erp_manager",
+        help="Used when connecting to Adyen: https://docs.adyen.com/user-management/how-to-get-the-api-key/#description",
     )
     adyen_terminal_identifier = fields.Char(
-        help="[Terminal model]-[Serial number], for example: P400Plus-123456789",
         copy=False,
+        help="[Terminal model]-[Serial number], for example: P400Plus-123456789",
     )
     adyen_test_mode = fields.Boolean(
-        help="Run transactions in the test environment.",
         groups="base.group_erp_manager",
+        help="Run transactions in the test environment.",
     )
 
     adyen_latest_response = fields.Char(
-        copy=False, groups="base.group_erp_manager"
+        copy=False,
+        groups="base.group_erp_manager",
     )  # used to buffer the latest asynchronous notification from Adyen.
     adyen_event_url = fields.Char(
         string="Event URL",
-        help="This URL needs to be pasted on Adyen's portal terminal settings.",
-        readonly=True,
-        store=False,
         default=lambda self: f"{self.get_base_url()}/pos_adyen/notification",
+        store=False,
+        readonly=True,
+        help="This URL needs to be pasted on Adyen's portal terminal settings.",
     )
 
     @api.model
@@ -59,7 +68,7 @@ class PosPaymentMethod(models.Model):
             if not payment_method.adyen_terminal_identifier:
                 continue
             # sudo() to search all companies
-            existing_payment_method = self.sudo().search(
+            existing_payment_method = self.sudo().search(  # noqa: E8507 - one probe per method, on its own terminal identifier
                 [
                     ("id", "!=", payment_method.id),
                     (
@@ -200,7 +209,7 @@ class PosPaymentMethod(models.Model):
                     "SaleToAcquirerData"
                 ]
             )
-            valid_acquirer_data = self._get_valid_acquirer_data()
+            valid_acquirer_data = self._prepare_acquirer_data()
             is_payment_request_with_acquirer_data = len(
                 parsed_sale_to_acquirer_data.keys()
             ) <= len(valid_acquirer_data.keys())
@@ -315,7 +324,7 @@ class PosPaymentMethod(models.Model):
         return res
 
     @api.model
-    def _get_valid_acquirer_data(self):
+    def _prepare_acquirer_data(self):
         return {"tenderOption": "AskGratuity", "authorisationType": "PreAuth"}
 
     @api.model
@@ -339,7 +348,14 @@ class PosPaymentMethod(models.Model):
         headers = {
             "x-api-key": self.sudo().adyen_api_key,
         }
-        req = requests.post(endpoint, json=data, headers=headers, timeout=TIMEOUT)
+        req = self._get_integration_connection()._egress_request(
+            "POST",
+            endpoint,
+            purpose="pos_adyen",
+            json=data,
+            headers=headers,
+            timeout=TIMEOUT,
+        )
 
         # Authentication error doesn't return JSON
         if req.status_code == 401:

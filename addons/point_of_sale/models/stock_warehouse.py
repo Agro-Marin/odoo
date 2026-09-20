@@ -1,11 +1,15 @@
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
     pos_type_id = fields.Many2one(
-        "stock.picking.type", string="Point of Sale Operation Type", copy=False
+        comodel_name="stock.picking.type",
+        string="Point of Sale Operation Type",
+        copy=False,
     )
 
     def _prepare_picking_type_update_vals(self):
@@ -40,6 +44,9 @@ class StockWarehouse(models.Model):
     @api.model
     def _create_missing_pos_picking_types(self):
         warehouses = self.env["stock.warehouse"].search([("pos_type_id", "=", False)])
+        dbg.lifecycle.debug(
+            "warehouses missing a POS picking type: %s", dbg.rec(warehouses)
+        )
         for warehouse in warehouses:
             new_vals = warehouse._create_or_update_picking_types()
             warehouse.write(new_vals)

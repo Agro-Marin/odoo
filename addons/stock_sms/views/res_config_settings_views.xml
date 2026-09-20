@@ -15,14 +15,14 @@
                     invisible="stock_confirmation_type != 'sms' or not stock_text_confirmation">
                     <field
                         name="stock_sms_confirmation_template_id"
-                        class="oe_inline"
+                        context="{'default_model': 'stock.picking'}"
                         required="stock_text_confirmation and stock_confirmation_type == 'sms'"
-                        context="{'default_model': 'stock.picking'}" />
+                        class="oe_inline" />
                 </div>
                 <widget
                     name="iap_buy_more_credits"
-                    service_name="sms"
-                    invisible="stock_confirmation_type != 'sms' or not stock_text_confirmation" />
+                    invisible="stock_confirmation_type != 'sms' or not stock_text_confirmation"
+                    service_name="sms" />
             </xpath>
         </field>
     </record>

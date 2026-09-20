@@ -63,6 +63,23 @@ export; there is no `Reactive` alias, so
 with a native "no such export" error.  25 production class declarations fork-wide
 use ``extends SignalStore``.
 
+## Keyed asynchronous work
+
+`KeepLastByKey` in `static/src/core/utils/concurrency.js` retains guards only
+while their latest task is pending. Settlement releases the key; cancellation
+releases it immediately, even when the default superseded promise stays pending.
+Cleanup checks both guard identity and generation so an older task cannot remove
+a replacement. Cancellation detaches guards before invoking abort handlers, which
+may synchronously register new work. `forget(key)` is equivalent to `cancel(key)`.
+These contracts are exercised by `static/tests/core/utils/concurrency_keyed.test.js`.
+
+The kanban progress-bar hook owns its count, aggregate and per-group request
+guards. Destruction cancels all three alongside its timers and subscriptions.
+Pending filter and root-load continuations check destruction before changing
+bar state, notifying the model or initiating follow-up work. Checks after request
+settlement also cover results delivered just before teardown. Regression coverage
+lives in `static/tests/views/kanban/progress_bar_hook.test.js`.
+
 ## Decision Tree
 
 ```
@@ -443,9 +460,48 @@ follows this implicit state graph:
 **Serialization**: All transitions go through `model.mutex.exec()`, ensuring
 only one save/discard/load runs at a time.
 
+**Group identity**: `model/relational_model/group_key.js` supplies the keys for
+group configuration and datapoint reuse. Parsed values retain their types, so an
+unset selection and the literal string `"false"` have separate groups. Encoded
+keys stay client-side; opening information sent to the server uses group values.
+
+**Local list ordering**: `static_list_utils.js` gives unset selection values the
+same empty-string sort convention as local char values. Multi-column ties are
+resolved iteratively. This local ordering convention does not claim PostgreSQL
+NULL-placement or locale-collation parity.
+
+**Created-row reconciliation**: proposed virtual/server ID pairs must occur at
+matching positions when membership arrays are supplied. Validation scans client
+membership until every pair is witnessed and checks only the corresponding server
+positions. Empty batches skip the scan; absent rows are not identity evidence. Rank-order pairing without positional inputs is
+unchanged.
+
+**Field context identity**: `model/relational_model/field_context.js` evaluates
+context on every call and retains only the latest result per field, record, and
+consumer. Field widgets supply themselves as weak cache owners, so two widgets
+with different contexts remain independent and destroyed widgets are not retained.
+Equivalent results reuse that object even when their expression strings differ;
+changed evaluated values replace it. This bounds expression history, not evaluation
+time.
+
 **Urgent save**: On page unload (`beforeunload`), `urgentSave()` uses
 `navigator.sendBeacon()` to fire-and-forget unsaved changes. This bypasses
 the mutex and normal flow.
+
+`UrgentSaveCoordinator` restores its idle state if the bus's `trigger()` throws.
+Work registered before that throw is still observed. Owl's EventBus uses
+`EventTarget`: listener exceptions are reported globally and do not propagate
+through `trigger()`. The coordinator cleanup does not convert those exceptions
+into rejected saves, impose a deadline, or guarantee beacon delivery.
+
+**Preprocessing failure**: a normal record update waits for every started
+preprocessor promise to settle before restoring touched relation-list snapshots.
+This includes a synchronous preprocessor exception after asynchronous work has
+started. If parent notification rejects after values were applied, rollback also
+restores the earlier, pre-preprocessing list snapshots; the apply/undo snapshot
+alone already contains the edited membership. Urgent saves retain synchronous
+preprocessing and their existing skipped waits. Client rollback does not undo
+separately completed server-side calls.
 
 > **Optimistic-locking parity — field-scoped baseline values**: both paths
 > send `kwargs.known_values`, a `{field: originally-loaded value}` map built
@@ -542,6 +598,22 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `DropdownEvent.OPENED` | `DROPDOWN:OPENED` | `env.bus` | A dropdown opened (`components/dropdown/_behaviours/dropdown_nesting.js`). Every other nesting instance listens and closes itself through `handleChange(other)`, which is how sibling dropdowns stay mutually exclusive |
 
 ## Server-side `__version` stamp for cached endpoints
+
+`useSpecialData` exposes `{ data, isReady }`. It retains the previous data while
+loading replacement choices, but only the latest request may mark them ready.
+Choice widgets disable interaction while `isReady` is false, including their
+event handlers so an already-open menu cannot select an obsolete choice.
+Prop updates and reactive record dependencies trigger loads; rendering the
+result does not trigger another load. Identical ORM requests share the model's
+cache. Disk-cache refreshes notify only current subscribers, and changing inputs
+or destroying a widget removes its subscriptions. Debug namespace:
+`web.field.special_data` (`load`, `superseded`, `ready`, `failed`).
+
+Superseding a load releases its waiter without aborting shared RPC work. Initial
+mounting waits for current data, not an obsolete request; errors from current
+initial loads remain owned by Owl's error boundary. Replacing a load or destroying
+the widget disposes its record observations, including dependencies read after
+an obsolete asynchronous loader resumes.
 
 `update: "always"` consumers ask the cache to revalidate against the server on
 every read; the cache calls back with `(value, hasChanged)`.

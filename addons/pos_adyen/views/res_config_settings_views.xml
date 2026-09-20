@@ -10,9 +10,9 @@
                 <div invisible="not pos_iface_tipproduct">
                     <field name="pos_adyen_ask_customer_for_tip" class="oe_inline" />
                     <label
-                        class="fw-normal"
                         for="pos_adyen_ask_customer_for_tip"
-                        string="Add tip through payment terminal (Adyen)" />
+                        string="Add tip through payment terminal (Adyen)"
+                        class="fw-normal" />
                 </div>
             </xpath>
         </field>

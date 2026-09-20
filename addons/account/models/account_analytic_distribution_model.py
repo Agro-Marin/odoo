@@ -1,6 +1,9 @@
 import re
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountAnalyticDistributionModel(models.Model):
@@ -11,22 +14,21 @@ class AccountAnalyticDistributionModel(models.Model):
         help="This analytic distribution will apply to all financial accounts sharing the prefix specified.",
     )
     product_id = fields.Many2one(
-        "product.product",
-        string="Product",
+        comodel_name="product.product",
         ondelete="cascade",
         check_company=True,
         help="Select a product for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this product, it will automatically take this as an analytic account)",
     )
     product_categ_id = fields.Many2one(
-        "product.category",
+        comodel_name="product.category",
         string="Product Category",
         ondelete="cascade",
         help="Select a product category which will use analytic account specified in analytic default (e.g. create new customer invoice or Sales order if we select this product, it will automatically take this as an analytic account)",
     )
     prefix_placeholder = fields.Char(compute="_compute_prefix_placeholder")
 
-    def _get_default_search_domain_vals(self):
-        return super()._get_default_search_domain_vals() | {
+    def _prepare_default_search_params(self):
+        return super()._prepare_default_search_params() | {
             "product_id": False,
             "product_categ_id": False,
         }
@@ -48,12 +50,14 @@ class AccountAnalyticDistributionModel(models.Model):
             )
         )
 
+    @_debug.perf.timed
     def _create_domain(self, fname, value):
         if fname == "account_prefix":
             return []
         return super()._create_domain(fname, value)
 
     @api.depends("analytic_precision")
+    @_debug.perf.timed
     def _compute_prefix_placeholder(self):
         expense_account = self.env["account.account"].search(
             [
@@ -62,6 +66,7 @@ class AccountAnalyticDistributionModel(models.Model):
             ],
             limit=1,
         )
+        _debug.logic("expense_account_resolved", account=expense_account)
         for model in self:
             account_prefixes = "60, 61, 62"
             if expense_account:

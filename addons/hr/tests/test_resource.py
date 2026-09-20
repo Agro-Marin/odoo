@@ -10,6 +10,26 @@ from .common import TestHrCommon
 
 
 class TestResource(TestHrCommon):
+    def test_resource_avatar_without_employee_uses_contact(self):
+        partner = self.env["res.partner"].create({"name": "Resource contact"})
+        resource = self.env["resource.resource"].create(
+            {"name": "Independent resource", "partner_id": partner.id}
+        )
+        self.assertFalse(resource.employee_id)
+        self.assertTrue(partner.avatar_128)
+        self.assertEqual(resource.avatar_128, partner.avatar_128)
+
+    def test_resource_avatar_follows_employee_avatar_changes(self):
+        employee = self.env["hr.employee"].create({"name": "Avatar First"})
+        resource = employee.resource_id
+        initial = resource.avatar_128
+        self.assertTrue(initial)
+        self.assertEqual(initial, employee.avatar_128)
+        replacement = self.env["res.partner"].create({"name": "Different Second"})
+        employee.image_1920 = replacement._prepare_avatar_svg()
+        self.assertNotEqual(initial, employee.avatar_128)
+        self.assertEqual(resource.avatar_128, employee.avatar_128)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -407,6 +427,39 @@ class TestResource(TestHrCommon):
                     interval_40h - richard_entries[calendar],
                     "Calendar 40h validity should cover all interval 40h",
                 )
+
+    def test_calendars_validity_follows_each_version_inside_one_contract(self):
+        self.contract_cdd.contract_date_end = False
+        self.employee.create_version(
+            {
+                "date_version": Date.to_date("2021-10-01"),
+                "resource_calendar_id": self.calendar_richard.id,
+            }
+        )
+        tz = timezone(self.employee.tz)
+        start = datetime(2021, 9, 1).replace(tzinfo=tz)
+        end = datetime(2021, 11, 1).replace(tzinfo=tz)
+        no_attendance = self.env["resource.calendar.attendance"]
+        september = Intervals(
+            [
+                (
+                    start,
+                    datetime(2021, 9, 30, 23, 59, 59).replace(tzinfo=tz),
+                    no_attendance,
+                )
+            ]
+        )
+        october = Intervals(
+            [(datetime(2021, 10, 1).replace(tzinfo=tz), end, no_attendance)]
+        )
+
+        validity = self.employee.resource_id._get_calendars_validity_within_period(
+            start, end
+        )[self.employee.resource_id.id]
+
+        self.assertEqual(set(validity), {self.calendar_35h, self.calendar_richard})
+        self.assertFalse(validity[self.calendar_35h] & october)
+        self.assertFalse(validity[self.calendar_richard] & september)
 
     def test_queries(self):
         employees_test = self.env["hr.employee"].create(

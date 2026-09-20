@@ -12,7 +12,6 @@ E-invoice implementation for the Denmark
         "account_edi_ubl_cii",
         "l10n_dk",
     ],
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

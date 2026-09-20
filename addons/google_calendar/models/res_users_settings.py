@@ -21,39 +21,45 @@ class ResUsersSettings(models.Model):
     google_calendar_credential_id = fields.Many2one(
         comodel_name="credential.credential",
         string="Google Credential",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
         groups="base.group_system",
         help="Holds this user's Google OAuth tokens.",
     )
     google_calendar_rtoken = fields.Char(
-        "Refresh Token",
-        copy=False,
-        groups="base.group_system",
+        string="Refresh Token",
         compute="_compute_google_calendar_tokens",
         inverse="_inverse_google_calendar_rtoken",
-    )
-    google_calendar_token = fields.Char(
-        "User token",
         copy=False,
         groups="base.group_system",
+    )
+    google_calendar_token = fields.Char(
+        string="User token",
         compute="_compute_google_calendar_tokens",
         inverse="_inverse_google_calendar_token",
+        copy=False,
+        groups="base.group_system",
     )
     google_calendar_token_validity = fields.Datetime(
-        "Token Validity", copy=False, groups="base.group_system"
+        string="Token Validity",
+        copy=False,
+        groups="base.group_system",
     )
     google_calendar_sync_token = fields.Char(
-        "Next Sync Token", copy=False, groups="base.group_system"
+        string="Next Sync Token",
+        copy=False,
+        groups="base.group_system",
     )
     google_calendar_cal_id = fields.Char(
-        "Calendar ID",
+        string="Calendar ID",
         copy=False,
         groups="base.group_system",
         help="Last Calendar ID who has been synchronized. If it is changed, we remove all links between GoogleID and Odoo Google Internal ID",
     )
     google_synchronization_stopped = fields.Boolean(
-        "Google Synchronization stopped", copy=False, groups="base.group_system"
+        string="Google Synchronization stopped",
+        copy=False,
+        groups="base.group_system",
     )
 
     @api.model
@@ -73,8 +79,13 @@ class ResUsersSettings(models.Model):
     def _compute_google_calendar_tokens(self):
         for settings in self:
             credential = settings.google_calendar_credential_id.sudo()
-            settings.google_calendar_token = credential.oauth_access_token or False
-            settings.google_calendar_rtoken = credential.oauth_refresh_token or False
+            tokens = (
+                credential._use_secret_payload("google_calendar:tokens")
+                if credential
+                else {}
+            )
+            settings.google_calendar_token = tokens.get("oauth_access_token") or False
+            settings.google_calendar_rtoken = tokens.get("oauth_refresh_token") or False
 
     def _inverse_google_calendar_token(self):
         for settings in self:
@@ -157,15 +168,14 @@ class ResUsersSettings(models.Model):
         self.check_singleton()
 
         try:
-            access_token, ttl = self.env["google.service"]._refresh_google_token(
-                "calendar", self.sudo().google_calendar_rtoken
+            _access_token, ttl = self.env["google.service"]._refresh_google_token(
+                "calendar", self.sudo().google_calendar_credential_id
             )
-            self.sudo().write(
-                {
-                    "google_calendar_token": access_token,
-                    "google_calendar_token_validity": fields.Datetime.now()
-                    + timedelta(seconds=ttl),
-                }
+            self.sudo().google_calendar_token_validity = (
+                fields.Datetime.now() + timedelta(seconds=ttl)
+            )
+            self.invalidate_recordset(
+                ["google_calendar_token", "google_calendar_rtoken"]
             )
         except requests.HTTPError as error:
             if error.response.status_code in (

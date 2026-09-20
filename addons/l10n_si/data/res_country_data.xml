@@ -11,29 +11,29 @@
                     <field
                         name="street"
                         placeholder="Street"
-                        class="o_address_street"
-                        readonly="type == 'contact' and parent_id" />
+                        readonly="type == 'contact' and parent_id"
+                        class="o_address_street" />
                     <field
                         name="street2"
                         placeholder="Street2"
-                        class="o_address_street"
-                        readonly="type == 'contact' and parent_id" />
+                        readonly="type == 'contact' and parent_id"
+                        class="o_address_street" />
                     <field
                         name="zip"
                         placeholder="Zip"
-                        class="o_address_zip"
-                        readonly="type == 'contact' and parent_id" />
+                        readonly="type == 'contact' and parent_id"
+                        class="o_address_zip" />
                     <field
                         name="city"
                         placeholder="City"
-                        class="o_address_city"
-                        readonly="type == 'contact' and parent_id" />
+                        readonly="type == 'contact' and parent_id"
+                        class="o_address_city" />
                     <field
                         name="country_id"
                         placeholder="Country"
-                        class="o_address_country"
                         options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
-                        readonly="type == 'contact' and parent_id" />
+                        readonly="type == 'contact' and parent_id"
+                        class="o_address_country" />
                 </div>
             </form>
         </field>

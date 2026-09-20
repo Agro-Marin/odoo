@@ -12,8 +12,8 @@
                 <field
                     name="level_progress"
                     type="measure"
-                    widget="percentage"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </pivot>
         </field>
     </record>
@@ -28,8 +28,8 @@
                 <field
                     name="level_progress"
                     type="measure"
-                    widget="percentage"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </graph>
         </field>
     </record>
@@ -37,22 +37,12 @@
     <record id="hr_employee_skill_report_view_list" model="ir.ui.view">
         <field name="model">hr.employee.skill.report</field>
         <field name="arch" type="xml">
-            <list expand="0" edit="1" editable="bottom">
-                <field
-                    name="employee_id"
-                    widget="many2one_avatar_employee"
-                    options="{'no_create': True, 'no_open': True}" />
-                <field
-                    name="skill_type_id"
-                    options="{'no_create': True, 'no_open': True}" />
-                <field name="skill_id" options="{'no_create': True, 'no_open': True}" />
-                <field
-                    name="skill_level"
-                    options="{'no_create': True, 'no_open': True}" />
-                <field
-                    name="level_progress"
-                    widget="percentage"
-                    options="{'no_create': True, 'no_open': True}" />
+            <list create="0" expand="0">
+                <field name="employee_id" widget="many2one_avatar_employee" />
+                <field name="skill_type_id" />
+                <field name="skill_id" />
+                <field name="skill_level" />
+                <field name="level_progress" widget="percentage" />
             </list>
         </field>
     </record>
@@ -67,27 +57,27 @@
                 <field name="skill_type_id" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    string="Employee"
                     name="employee"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <filter
-                    string="Department"
                     name="department"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
-                <filter string="Jobs" name="jobs" context="{'group_by': 'job_id'}" />
+                <filter name="jobs" string="Jobs" context="{'group_by': 'job_id'}" />
                 <separator />
                 <filter
-                    string="Skill Type"
                     name="skill_type"
+                    string="Skill Type"
                     context="{'group_by': 'skill_type_id'}" />
                 <filter
-                    string="Skill"
                     name="skill"
+                    string="Skill"
                     context="{'group_by': 'skill_id'}" />
             </search>
         </field>
@@ -111,12 +101,5 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="hr_employee_skill_inventory_report_menu"
-        name="Skills Inventory"
-        parent="hr_skills.hr_employee_skill_report_menu"
-        action="hr_employee_skill_report_action"
-        sequence="15" />
 
 </odoo>

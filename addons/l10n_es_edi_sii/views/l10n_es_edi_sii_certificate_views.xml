@@ -11,10 +11,10 @@
         <field name="arch" type="xml">
             <filter name="scope_general" position="after">
                 <filter
-                    string="SII"
                     name="scope_sii"
-                    domain="[('scope','=','sii')]"
-                    help="SII certificates" />
+                    string="SII"
+                    help="SII certificates"
+                    domain="[('scope','=','sii')]" />
             </filter>
         </field>
     </record>
@@ -43,19 +43,5 @@
             </field>
         </field>
     </record>
-
-    <menuitem
-        id="menu_l10n_es_edi_sii_root"
-        name="Spain SII"
-        parent="account.menu_finance_configuration"
-        sequence="110"
-        groups="account.group_account_manager">
-        <menuitem
-            id="menu_l10n_es_edi_sii_certificates"
-            name="Certificates"
-            action="l10n_es_edi_sii_certificate_action"
-            sequence="100"
-            groups="account.group_account_manager" />
-    </menuitem>
 
 </odoo>

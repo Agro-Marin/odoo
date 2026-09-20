@@ -1,8 +1,11 @@
 /** @odoo-module native */
 /* global google */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_google_map");
 
 export class GoogleMap extends Interaction {
     static selector = ".s_google_map";
@@ -46,11 +49,15 @@ export class GoogleMap extends Interaction {
 
     async willStart() {
         if (typeof google !== "object" || typeof google.maps !== "object") {
-            // @TODO mysterious-egg: this would not be needed if we didn't
-            // duplicate the API loading:
             const refetch = window.top.refetchGoogleMaps;
             window.top.refetchGoogleMaps = false;
+            log.logic("willStart: google maps not loaded, loading API", () => ({
+                canSpecifyKey: this.canSpecifyKey,
+                refetch,
+            }));
+            const endLoadApi = log.perf("willStart loadGMapAPI");
             await this.services.website_map.loadGMapAPI(this.canSpecifyKey, refetch);
+            endLoadApi();
             return;
         }
         this.canStart = true;
@@ -58,13 +65,12 @@ export class GoogleMap extends Interaction {
 
     start() {
         if (!this.canStart) {
+            log.logic("start: cannot start, map API was not ready at willStart");
             return;
         }
-        // Define a default map's colors set
         const std = [];
         new google.maps.StyledMapType(std, { name: "Std Map" });
 
-        // Default options, will be overwritten by the user
         const myOptions = {
             zoom: 12,
             center: new google.maps.LatLng(50.854975, 4.3753899),
@@ -79,17 +85,17 @@ export class GoogleMap extends Interaction {
             },
         };
 
-        // Render Map
         const mapC = this.el.querySelector(".map_container");
         const map = new google.maps.Map(mapC, myOptions);
 
-        // Update GPS position
         const p = this.el.dataset.mapGps.substring(1).slice(0, -1).split(",");
+        if (p.length !== 2 || !Number.isFinite(Number(p[0])) || !Number.isFinite(Number(p[1]))) {
+            return;
+        }
 
         this.gps = new google.maps.LatLng(p[0], p[1]);
         map.setCenter(this.gps);
 
-        // Create Marker & Infowindow
         const markerOptions = {
             map: map,
             animation: google.maps.Animation.DROP,
@@ -101,10 +107,9 @@ export class GoogleMap extends Interaction {
         }
         new google.maps.Marker(markerOptions);
 
-        map.setMapTypeId(google.maps.MapTypeId[this.el.dataset.mapType]); // Update Map Type
-        map.setZoom(parseInt(this.el.dataset.mapZoom)); // Update Map Zoom
+        map.setMapTypeId(google.maps.MapTypeId[this.el.dataset.mapType]);
+        map.setZoom(parseInt(this.el.dataset.mapZoom));
 
-        // Update Map Color
         const mapColorAttr = this.el.dataset.mapColor;
         if (mapColorAttr) {
             const mapColor = this.mapColors[mapColorAttr];
@@ -115,6 +120,12 @@ export class GoogleMap extends Interaction {
             map.setMapTypeId("map_style");
         }
         this.map = map;
+        log.lifecycle("start: map created", () => ({
+            mapType: this.el.dataset.mapType,
+            zoom: this.el.dataset.mapZoom,
+            mapColor: mapColorAttr,
+            pinStyle: this.el.dataset.pinStyle,
+        }));
     }
 }
 

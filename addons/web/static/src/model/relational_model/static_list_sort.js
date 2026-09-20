@@ -77,24 +77,24 @@ export async function sortStaticList(
 }
 
 /**
- * @param {StaticList} list
+ * @param {StaticList} staticList
  * @param {number|string} movedId
  * @param {number|string|null} targetId
  */
-export async function resequenceStaticList(list, movedId, targetId) {
-    const handleField = /** @type {string} */ (list.handleField);
-    const order = list.orderBy.find((o) => o.name === handleField);
+export async function resequenceStaticList(staticList, movedId, targetId) {
+    const handleField = /** @type {string} */ (staticList.handleField);
+    const order = staticList.orderBy.find((o) => o.name === handleField);
     const asc = !order || order.asc;
 
-    const { toReorder, offset, fromIndex } = computeResequencePlan({
-        records: list.records,
+    const { toReorder, offset } = computeResequencePlan({
+        records: staticList.records,
         movedId,
         targetId,
         getSequence: (rec) => rec?.data[handleField],
         asc,
     });
 
-    if (fromIndex < 0) {
+    if (!toReorder.length) {
         return;
     }
 
@@ -109,8 +109,8 @@ export async function resequenceStaticList(list, movedId, targetId) {
     }
     await Promise.all(proms);
 
-    await sortStaticList(list);
-    await list.notifyParentUpdate();
+    await sortStaticList(staticList);
+    await staticList.notifyParentUpdate();
 }
 
 /**

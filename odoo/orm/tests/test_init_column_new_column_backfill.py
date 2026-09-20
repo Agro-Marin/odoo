@@ -1,23 +1,7 @@
 import typing
 
+from odoo import fields
 from odoo.orm.models.mixins.schema import SchemaMixin
-
-
-class _Field:
-    is_boolean = True
-    required = False
-
-    def __init__(self, default):
-        self._default = default
-
-    def default(self, model):
-        return self._default
-
-    def convert_to_write(self, value, model):
-        return value
-
-    def convert_to_column_insert(self, value, model):
-        return value
 
 
 class _Cursor:
@@ -34,9 +18,12 @@ class _Env:
 
 
 def _model(default):
+    field = fields.Boolean()
+    field.default = lambda model: default
+
     class _Model(SchemaMixin):
         _table = "res_company"
-        _fields = {"active": _Field(default)}
+        _fields = {"active": field}
         env = _Env()
 
     return typing.cast("typing.Any", object.__new__(_Model))

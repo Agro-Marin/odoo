@@ -1,3 +1,4 @@
+import contextlib
 import threading
 import unittest
 from decimal import Decimal
@@ -7,6 +8,7 @@ from psycopg.types.json import Jsonb
 
 from odoo.db.bulk import (
     _JSON_OIDS,
+    _MAX_BIND_PARAMS,
     _NUMERIC_OID,
     _TEXT_OID,
     _BulkAccessMixin,
@@ -110,16 +112,19 @@ class _FakeCursorForCopyMetrics(_BulkAccessMixin):
     def _statement_failed(self, *args, **kwargs):
         return False
 
+    def _record_sql_log(self, query_type, table, delay):
+        pass
+
 
 class TestCopyFromMetrics(unittest.TestCase):
     def test_reports_the_actual_row_count_not_a_fixed_one(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])
+        cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])  # type: ignore[misc]
         self.assertEqual(cursor.statement_done_calls, [5000])
 
     def test_an_empty_iterator_issues_no_statement_to_report(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], iter(()))
+        cursor.copy_from("t", ["a"], iter(()))  # type: ignore[misc]
         self.assertEqual(
             cursor.statement_done_calls,
             [],
@@ -130,8 +135,161 @@ class TestCopyFromMetrics(unittest.TestCase):
 
     def test_a_generator_keeps_the_row_that_was_peeled_to_test_it(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], iter([(1,), (2,), (3,)]))
+        cursor.copy_from("t", ["a"], iter([(1,), (2,), (3,)]))  # type: ignore[misc]
         self.assertEqual(cursor.statement_done_calls, [3])
+
+
+class _RejectingCopyBlock(_FakeCopyBlock):
+    def write_row(self, row):
+        raise TypeError("psycopg could not dump the row")
+
+
+class _FakeObjWithBlock(_FakeObj):
+    def __init__(self, block):
+        self.block = block
+
+    def copy(self, stmt):
+        return self.block
+
+
+class _FakeCursorForBinaryCopy(_FakeCursorForCopyMetrics):
+    def __init__(self, block):
+        super().__init__()
+        self._obj = _FakeObjWithBlock(block)
+        self._cnx = None
+
+    def _get_column_type_oids(self, table, columns):
+        return [23] * len(columns)
+
+    def _is_binary_copy_worthwhile(self, oids):
+        return True
+
+
+class TestTheBinaryTypeNoteNamesOnlyTheEncoder(unittest.TestCase):
+    def test_a_row_psycopg_refuses_to_encode_gets_the_note(self):
+        cursor = _FakeCursorForBinaryCopy(_RejectingCopyBlock())
+        with self.assertRaises(TypeError) as ctx:
+            cursor.copy_from("t", ["a"], [(1,)], binary=True)  # type: ignore[misc]
+        self.assertTrue(any("binary=True" in note for note in ctx.exception.__notes__))
+
+    def test_a_failure_in_the_callers_own_row_source_does_not(self):
+        cursor = _FakeCursorForBinaryCopy(_FakeCopyBlock())
+
+        def rows():
+            yield (1,)
+            raise KeyError("the caller's generator")
+
+        with self.assertRaises(KeyError) as ctx:
+            cursor.copy_from("t", ["a"], rows(), binary=True)  # type: ignore[misc]
+        self.assertIsNone(
+            getattr(ctx.exception, "__notes__", None),
+            "the note explains psycopg's client-side encoding; a KeyError "
+            "raised by the caller's own generator has nothing to do with it "
+            "and used to get the note anyway",
+        )
+
+
+class _FakeCursorForExecuteValues(_BulkAccessMixin):
+    def __init__(self, fail_on_statement=None):
+        self._obj = None
+        self.executed: list = []
+        self.marked: list = []
+        self.pipeline_blocks: list = []
+        self._fail_on_statement = fail_on_statement
+
+    def _before_statement(self):
+        pass
+
+    def execute(self, query, params=None, log_exceptions=True):
+        self.executed.append(query)
+        if len(self.executed) == self._fail_on_statement:
+            exc = RuntimeError("server rejected the statement")
+            self.marked.append(exc)
+            raise exc
+
+    def fetchall(self):
+        return [(len(self.executed),)]
+
+    @contextlib.contextmanager
+    def pipeline(self, log_exceptions=True, query=None):
+        self.pipeline_blocks.append((log_exceptions, query))
+        yield
+
+
+class TestExecuteValuesReachesTheSeamThroughItsEntryPoints(unittest.TestCase):
+    def test_every_page_is_a_plain_execute(self):
+        cursor = _FakeCursorForExecuteValues()
+        cursor.execute_values(  # type: ignore[misc]
+            "INSERT INTO t VALUES %s", [(i,) for i in range(250)], page_size=100
+        )
+        self.assertEqual(len(cursor.executed), 3)
+        self.assertEqual(
+            cursor.pipeline_blocks,
+            [(True, "INSERT INTO t VALUES %s")],
+            "a multi-page write opens one pipeline block that keeps the "
+            "caller's log flag and names the caller's template",
+        )
+
+    def test_a_failing_page_propagates_exactly_what_execute_raised(self):
+        cursor = _FakeCursorForExecuteValues(fail_on_statement=2)
+        with self.assertRaises(RuntimeError) as ctx:
+            cursor.execute_values(  # type: ignore[misc]
+                "INSERT INTO t VALUES %s", [(i,) for i in range(250)], page_size=100
+            )
+        self.assertIs(ctx.exception, cursor.marked[0])
+        self.assertEqual(len(cursor.executed), 2, "the remaining pages are not sent")
+
+    def test_a_page_never_carries_more_bind_parameters_than_the_wire_counts(self):
+        cursor = _FakeCursorForExecuteValues()
+        sent: list[int] = []
+        cursor.execute = lambda q, params=None, log_exceptions=True: sent.append(  # type: ignore[method-assign]
+            len(params)
+        )
+        rows = [(i, i, i) for i in range(30000)]
+        cursor.execute_values(  # type: ignore[misc]
+            "INSERT INTO t VALUES %s", rows, page_size=100000
+        )
+        self.assertEqual(sum(sent), 90000)
+        self.assertLessEqual(max(sent), _MAX_BIND_PARAMS)
+        self.assertEqual(
+            len(sent),
+            2,
+            "pages are packed to the ceiling, not to a page size derived from "
+            "the widest row and applied to every page",
+        )
+
+    def test_scalar_rows_are_clamped_by_the_same_ceiling(self):
+        cursor = _FakeCursorForExecuteValues()
+        sent: list[int] = []
+        cursor.execute = lambda q, params=None, log_exceptions=True: sent.append(  # type: ignore[method-assign]
+            len(params)
+        )
+        cursor.execute_values(  # type: ignore[misc]
+            "INSERT INTO t VALUES %s", list(range(70000)), page_size=100000
+        )
+        self.assertEqual((sum(sent), len(sent)), (70000, 2))
+        self.assertLessEqual(max(sent), _MAX_BIND_PARAMS)
+
+    def test_mixed_widths_pack_by_what_each_row_actually_binds(self):
+        cursor = _FakeCursorForExecuteValues()
+        sent: list[int] = []
+        cursor.execute = lambda q, params=None, log_exceptions=True: sent.append(  # type: ignore[method-assign]
+            len(params)
+        )
+        rows = [(1,) * 60000, (2,) * 6000, (3,)]
+        cursor.execute_values("INSERT INTO t VALUES %s", rows, page_size=10)  # type: ignore[misc]
+        self.assertEqual(sent, [60000, 6001])
+
+    def test_fetch_never_pipelines(self):
+        cursor = _FakeCursorForExecuteValues()
+        rows = cursor.execute_values(  # type: ignore[misc]
+            "INSERT INTO t VALUES %s RETURNING id",
+            [(i,) for i in range(250)],
+            page_size=100,
+            fetch=True,
+        )
+        self.assertEqual(rows, [(1,), (2,), (3,)])
+        self.assertEqual(cursor.pipeline_blocks, [])
 
 
 class TestExecuteValuesValidation(unittest.TestCase):

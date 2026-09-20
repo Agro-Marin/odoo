@@ -6,10 +6,17 @@ class ExpiryPickingConfirmation(models.TransientModel):
     _name = "expiry.picking.confirmation"
     _description = "Confirm Expiry"
 
-    lot_ids = fields.Many2many("stock.lot", readonly=True, required=True)
-    picking_ids = fields.Many2many("stock.picking", readonly=True)
-    description = fields.Char("Description", compute="_compute_description")
-    show_lots = fields.Boolean("Show Lots", compute="_compute_show_lots")
+    lot_ids = fields.Many2many(
+        comodel_name="stock.lot",
+        readonly=True,
+        required=True,
+    )
+    picking_ids = fields.Many2many(
+        comodel_name="stock.picking",
+        readonly=True,
+    )
+    description = fields.Char(compute="_compute_description")
+    show_lots = fields.Boolean(compute="_compute_show_lots")
 
     @api.depends("lot_ids")
     def _compute_show_lots(self):

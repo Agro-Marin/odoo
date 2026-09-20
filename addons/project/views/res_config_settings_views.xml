@@ -9,11 +9,11 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Project"
-                    string="Project"
                     name="project"
-                    groups="project.group_project_manager">
-                    <block title="Tasks Management" id="tasks_management">
+                    string="Project"
+                    groups="project.group_project_manager"
+                    data-string="Project">
+                    <block id="tasks_management" title="Tasks Management">
                         <setting
                             id="project_stages"
                             help="Track the progress of your projects">
@@ -24,15 +24,15 @@
                                 <div class="mt8">
                                     <button
                                         name="%(project.project_phase_configure)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Configure Stages"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                             </div>
                         </setting>
                     </block>
-                    <block title="Time Management" name="project_time">
+                    <block name="project_time" title="Time Management">
                         <setting
                             id="log_time_tasks_setting"
                             string="Timesheets"

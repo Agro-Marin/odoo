@@ -2,27 +2,31 @@ from datetime import date, timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountFinancialYearOp(models.TransientModel):
     _name = "account.financial.year.op"
     _description = "Opening Balance of Financial Year"
 
-    company_id = fields.Many2one(comodel_name="res.company", required=True)
-    opening_move_posted = fields.Boolean(
-        string="Opening Move Posted", compute="_compute_opening_move_posted"
-    )
-    opening_date = fields.Date(
-        string="Opening Date",
+    company_id = fields.Many2one(
+        comodel_name="res.company",
         required=True,
+    )
+    opening_move_posted = fields.Boolean(compute="_compute_opening_move_posted")
+    opening_date = fields.Date(
         related="company_id.account_opening_date",
-        help="Date from which the accounting is managed in Odoo. It is the date of the opening entry.",
+        string="Opening Date",
         readonly=False,
+        required=True,
+        help="Date from which the accounting is managed in Odoo. It is the date of the opening entry.",
     )
     fiscalyear_last_day = fields.Integer(
         related="company_id.fiscalyear_last_day",
-        required=True,
         readonly=False,
+        required=True,
         help="The last day of the month will be used if the chosen day doesn't exist.",
     )
     fiscalyear_last_month = fields.Selection(
@@ -38,6 +42,7 @@ class AccountFinancialYearOp(models.TransientModel):
             record.opening_move_posted = record.company_id.opening_move_posted()
 
     @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
+    @_debug.perf.timed
     def _check_fiscalyear(self):
         for wiz in self:
             try:
@@ -76,10 +81,19 @@ class AccountFinancialYearOp(models.TransientModel):
             )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         for vals in vals_list:
             if "company_id" in vals:
                 company = self.env["res.company"].browse(vals["company_id"])
+                _debug.logic("setup_company_fields_forwarded", company=company)
                 self._update_company(company, vals)
 
                 for key in self._company_fields_to_update():
@@ -87,7 +101,9 @@ class AccountFinancialYearOp(models.TransientModel):
 
         return super().create(vals_list)
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         for wiz in self:
             wiz._update_company(wiz.company_id, vals)
 
@@ -96,7 +112,9 @@ class AccountFinancialYearOp(models.TransientModel):
 
         return super().write(vals)
 
+    @_debug.perf.timed
     def action_save_onboarding_fiscal_year(self):
+        _debug.lifecycle("action_save_onboarding_fiscal_year", records=self)
         step_state = (
             self.env["onboarding.onboarding.step"]
             .with_company(self.company_id)
@@ -116,22 +134,28 @@ class AccountSetupBankManualConfig(models.TransientModel):
     _check_company_auto = True
 
     res_partner_bank_id = fields.Many2one(
-        comodel_name="res.partner.bank", ondelete="cascade", required=True
+        comodel_name="res.partner.bank",
+        required=True,
+        ondelete="cascade",
     )
     new_journal_name = fields.Char(
-        default=lambda self: self.linked_journal_id.name,
         inverse="_inverse_linked_journal",
+        default=lambda self: self.linked_journal_id.name,
         required=True,
         help="Will be used to name the Journal related to this bank account",
     )
     linked_journal_id = fields.Many2one(
-        string="Journal",
         comodel_name="account.journal",
-        inverse="_inverse_linked_journal",
+        string="Journal",
         compute="_compute_linked_journal_id",
+        inverse="_inverse_linked_journal",
         check_company=True,
     )
-    bank_bic = fields.Char(related="bank_id.bic", readonly=False, string="Bic")
+    bank_bic = fields.Char(
+        related="bank_id.bic",
+        string="Bic",
+        readonly=False,
+    )
     num_journals_without_account_bank = fields.Integer(
         default=lambda self: self._number_unlinked_journal("bank")
     )
@@ -139,7 +163,9 @@ class AccountSetupBankManualConfig(models.TransientModel):
         default=lambda self: self._number_unlinked_journal("credit")
     )
     company_id = fields.Many2one(
-        "res.company", required=True, compute="_compute_company_id"
+        comodel_name="res.company",
+        compute="_compute_company_id",
+        required=True,
     )
 
     def _number_unlinked_journal(self, journal_type):
@@ -163,7 +189,15 @@ class AccountSetupBankManualConfig(models.TransientModel):
             record.new_journal_name = record.acc_number
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         wanted_bics = {
             vals["bank_bic"]
             for vals in vals_list
@@ -173,6 +207,12 @@ class AccountSetupBankManualConfig(models.TransientModel):
             bank.bic: bank
             for bank in self.env["res.bank"].search([("bic", "in", list(wanted_bics))])
         }
+        _debug.pipeline(
+            "setup_banks_resolved",
+            wanted_bics=len(wanted_bics),
+            found=len(bank_by_bic),
+            to_create=len(wanted_bics) - len(bank_by_bic),
+        )
         for bic in wanted_bics - bank_by_bic.keys():
             bank_by_bic[bic] = self.env["res.bank"].create({"name": bic, "bic": bic})
 
@@ -215,6 +255,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
             (j.id for j in candidates if j.id not in journals_with_moves), False
         )
 
+    @_debug.perf.timed
     def _inverse_linked_journal(self):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
@@ -238,7 +279,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
                 selected_journal.bank_account_id = record.res_partner_bank_id.id
                 selected_journal.name = record.new_journal_name
 
-    def validate(self):
+    def action_finish_bank_setup(self):
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
     @api.depends_context("company")

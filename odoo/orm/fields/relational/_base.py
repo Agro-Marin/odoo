@@ -5,17 +5,20 @@ from collections.abc import (
     Collection,
     Iterable,
     Iterator,
+    Mapping,
+    MutableMapping,
     Reversible,
     Sequence,
 )
 from operator import attrgetter
 from typing import override
 
-from odoo.exceptions import AccessError, MissingError
+from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, partition, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
-from ..._recordset import is_recordset
+from ..._recordset import is_recordset, is_search_overridden
 from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
 from ...domain.ast import DomainCondition, OptimizationLevel
@@ -24,8 +27,13 @@ from ...domain.constants import (
     SUBDOMAIN_OPERATORS,
 )
 from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, IdType, NewId
+from .._field_cache_miss import missing_record_error
 from ..base import Field, _logger
 from ._commands import CommandDelta
+
+_debug = DebugLog(__name__)
+
+_COMODEL_WRITING_COMMANDS = frozenset({Command.CREATE, Command.UPDATE, Command.DELETE})
 
 
 def _strip_granularity_suffix(field_expr: str) -> str:
@@ -82,6 +90,13 @@ class _Relational(Field["BaseModel"]):
         positive_operator = NEGATIVE_CONDITION_OPERATORS.get(operator, operator)
         any_operator = "any" if positive_operator == operator else "not any"
         if operator.endswith("like"):
+            _debug.logic(
+                "field.relational.display_name_rewrite",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                kind="like",
+            )
             return DomainCondition(
                 condition.field_expr,
                 any_operator,
@@ -100,6 +115,15 @@ class _Relational(Field["BaseModel"]):
         if not any(isinstance(v, str) for v in value):
             return condition
         str_values, other_values = partition(lambda v: isinstance(v, str), value)
+        _debug.logic(
+            "field.relational.display_name_rewrite",
+            model=model._name,
+            field=condition.field_expr,
+            operator=operator,
+            kind="in",
+            names=len(str_values),
+            ids=len(other_values),
+        )
         domain: Domain = DomainCondition(
             condition.field_expr,
             any_operator,
@@ -120,7 +144,7 @@ class _Relational(Field["BaseModel"]):
             return super()._get_not_singleton(records, owner)
 
         env = records.env
-        if self.is_stored_computed and env._core.has_pending_field(self):
+        if self.is_stored_computed and env.core.has_pending_field(self):
             self.recompute(records)
 
         field_cache = self._get_cache(env)
@@ -146,21 +170,18 @@ class _Relational(Field["BaseModel"]):
                     continue
             if self.store and record_id and len(vals) < len(records) - PREFETCH_MAX:
                 remaining = records[len(vals) :]
+                _debug.logic(
+                    "field.relational.multi_get_fetch",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                    cached=len(vals),
+                    remaining=len(remaining),
+                )
                 remaining.fetch([self.name])
                 field_cache = self._get_cache(env)
                 if record_id not in field_cache:
-                    raise MissingError(
-                        "\n".join(
-                            [
-                                env._("Record does not exist or has been deleted."),
-                                env._(
-                                    "(Record: %(record)s, User: %(user)s)",
-                                    record=record_id,
-                                    user=env.uid,
-                                ),
-                            ]
-                        )
-                    ) from None
+                    raise missing_record_error(env, record_id) from None
             else:
                 remaining = object.__new__(records.__class__)
                 remaining.env = env
@@ -214,6 +235,13 @@ class _Relational(Field["BaseModel"]):
 
     _description_relation = property(attrgetter("comodel_name"))
     _description_context = property(attrgetter("context"))
+
+    @override
+    def _dynamic_description_attrs(self, env: Environment) -> frozenset[str]:
+        dynamic = super()._dynamic_description_attrs(env)
+        if callable(self.domain):
+            return dynamic | {"domain"}
+        return dynamic
 
     def _description_domain(self, env: Environment) -> str | list:
         domain = self._internal_description_domain_raw(env)
@@ -272,6 +300,15 @@ class _Relational(Field["BaseModel"]):
     ) -> Callable[[BaseModel], bool]:
         getter = self.get_expression_getter(field_expr)
 
+        _debug.logic(
+            "field.relational.filter_function",
+            model=self.model_name,
+            field_expr=field_expr,
+            operator=operator,
+            records=len(records),
+            sudo=(self.bypass_search_access or operator == "any!")
+            and not records.env.su,
+        )
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
             expr_getter = getter
             sudo_env = records.sudo().with_context(filter_function_reset_sudo=True).env
@@ -310,6 +347,64 @@ class _Relational(Field["BaseModel"]):
         return lambda rec: not ids.isdisjoint(getter(rec)._ids)
 
 
+PENDING_SCOPE_KEY = ("__pending__",)
+
+
+def _is_cache_order_stable(records: BaseModel, ids: tuple) -> bool:
+    # A new record cannot be read back from the database, so its id stays in the cache.
+    if not all(isinstance(id_, int) for id_ in ids):
+        return True
+    return records._order.replace(" ", "").lower() in ("id", "idasc") and list(
+        ids
+    ) == sorted(ids)
+
+
+class _ScopedSlot(MutableMapping):
+    __slots__ = ("pending", "scoped")
+
+    def __init__(self, scoped: dict, pending: dict) -> None:
+        self.scoped = scoped
+        self.pending = pending
+
+    def _pick(self, key: typing.Any) -> dict:
+        return self.scoped if isinstance(key, int) else self.pending
+
+    def __getitem__(self, key: typing.Any) -> typing.Any:
+        return self._pick(key)[key]
+
+    def __setitem__(self, key: typing.Any, value: typing.Any) -> None:
+        self._pick(key)[key] = value
+
+    def __delitem__(self, key: typing.Any) -> None:
+        del self._pick(key)[key]
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._pick(key)
+
+    def __iter__(self) -> Iterator:
+        yield from self.scoped
+        yield from self.pending
+
+    def __len__(self) -> int:
+        return len(self.scoped) + len(self.pending)
+
+    def __bool__(self) -> bool:
+        return bool(self.scoped) or bool(self.pending)
+
+    def get(self, key: typing.Any, default: typing.Any = None) -> typing.Any:
+        return self._pick(key).get(key, default)
+
+    def pop(self, key: typing.Any, *default: typing.Any) -> typing.Any:
+        return self._pick(key).pop(key, *default)
+
+    def setdefault(self, key: typing.Any, default: typing.Any = None) -> typing.Any:
+        return self._pick(key).setdefault(key, default)
+
+    def clear(self) -> None:
+        self.scoped.clear()
+        self.pending.clear()
+
+
 class _RelationalMulti(_Relational):
     write_sequence = 20
     is_x2many = True
@@ -346,16 +441,348 @@ class _RelationalMulti(_Relational):
             )
             cache_value = field_cache.get(record_id, SENTINEL)
             if cache_value is SENTINEL:
-                records.env._core.add_patch(self, record_id, new_id)
+                records.env.core.add_patch(self, record_id, new_id)
             else:
                 field_cache[record_id] = tuple(unique(cache_value + (new_id,)))
 
     @override
-    def _update_cache(
-        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
+    def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
+        core = env.core
+        return _ScopedSlot(
+            core.get_context_data(self, env.get_cache_key(self)),
+            core.get_context_data(self, PENDING_SCOPE_KEY),
+        )
+
+    @override
+    def _peek_cache(self, env: Environment) -> Mapping[IdType, typing.Any] | None:
+        core = env.core
+        scoped = core.get_context_data_or_none(self, env.get_cache_key(self))
+        pending = core.get_context_data_or_none(self, PENDING_SCOPE_KEY)
+        if scoped is None and pending is None:
+            return None
+        return _ScopedSlot(scoped if scoped is not None else {}, pending or {})
+
+    @override
+    def _value_after_delegated_fetch(
+        self, env: Environment, record_id: IdType
+    ) -> typing.Any:
+        if env.su or not isinstance(record_id, int):
+            return SENTINEL
+        sudo_slot = env.core.get_context_data_or_none(
+            self, self._superuser_scope_key(env)
+        )
+        if sudo_slot is None:
+            return SENTINEL
+        value = sudo_slot.get(record_id, SENTINEL)
+        if value is SENTINEL or value is PENDING:
+            return SENTINEL
+        self._get_cache(env)[record_id] = value
+        _debug.logic(
+            "field.x2many.delegated_fetch_served",
+            model=self.model_name,
+            field=self.name,
+            record=record_id,
+            uid=env.uid,
+        )
+        return value
+
+    def _is_superuser_scope(self, env: Environment, key: tuple) -> bool:
+        index = env._field_depends_context[self].index("access")
+        return key[index] is True or key[index] is None
+
+    def _reads_as_superuser(self, env: Environment) -> bool:
+        # a user's read equals the superuser's only when nothing narrows it:
+        # a static field domain, a comodel whose _search is not overridden,
+        # model access, and no read rule for the user on the comodel
+        comodel = env[self.comodel_name]
+        if callable(self.domain) or is_search_overridden(type(comodel)):
+            return False
+        policy = env.registry.access_policy
+        try:
+            return policy.model_allowed(env, self.comodel_name, "read") and (
+                not policy.record_domain(env, self.comodel_name, "read")
+            )
+        except NotImplementedError:
+            return False
+
+    def _scope_env(self, env: Environment, key: tuple) -> Environment:
+        index = env._field_depends_context[self].index("access")
+        uid, company_ids = key[index]
+        context = dict(env.context)
+        if company_ids:
+            context["allowed_company_ids"] = list(company_ids)
+        else:
+            context.pop("allowed_company_ids", None)
+        return env(user=uid, context=context, su=False)
+
+    def _scope_reads_through(
+        self, env: Environment, key: tuple, fnames: Collection[str]
+    ) -> bool:
+        # a user's search applies the user's read rules on the comodel; a
+        # write to a field a rule tests can move a record in or out of view.
+        # A comodel whose _search is overridden narrows by code: it declares
+        # the fields that code reads, or every write may have moved a record
+        comodel_cls = type(env[self.comodel_name])
+        if is_search_overridden(comodel_cls):
+            visibility = comodel_cls._search_visibility_fields
+            if visibility is None or not set(visibility).isdisjoint(fnames):
+                return True
+        try:
+            domain = env.registry.access_policy.record_domain(
+                self._scope_env(env, key), self.comodel_name, "read"
+            )
+        except NotImplementedError:
+            # an environment without an access policy declares no rule
+            return False
+        except AccessError:
+            # the scope names a company its user no longer holds: its rules can
+            # no longer be read, and forgetting what it held is always safe
+            _debug.logic(
+                "field.x2many.scope_unreadable_evicted",
+                model=self.model_name,
+                field=self.name,
+                uid=key[env._field_depends_context[self].index("access")][0],
+            )
+            return True
+        return any(
+            condition.field_expr.split(".", 1)[0] in fnames
+            for condition in domain.iter_conditions()
+        )
+
+    def _evict_user_scopes_reading_through(
+        self, env: Environment, fnames: Collection[str]
     ) -> None:
-        field_patches = records.env._core.get_patches(self)
+        # after a write of `fnames` on comodel rows: every user scope whose
+        # read rule tests one of them forgets what it held, and its next
+        # read searches; the superuser reads through no rule
+        verdicts: dict[tuple, bool] = {}
+        evicted = 0
+        for key, slot in list(env.core.iter_context_caches(self)):
+            if (
+                key == PENDING_SCOPE_KEY
+                or not slot
+                or self._is_superuser_scope(env, key)
+            ):
+                continue
+            if key not in verdicts:
+                verdicts[key] = self._scope_reads_through(env, key, fnames)
+            if verdicts[key]:
+                evicted += len(slot)
+                slot.clear()
+        if evicted and _debug.logic.enabled:
+            _debug.logic(
+                "field.x2many.scope_evict_rule_field_written",
+                model=self.model_name,
+                field=self.name,
+                comodel=self.comodel_name,
+                fields=sorted(fnames),
+                evicted=evicted,
+            )
+
+    def _superuser_scope_key(self, env: Environment) -> tuple:
+        own = env.get_cache_key(self)
+        index = env._field_depends_context[self].index("access")
+        return (*own[:index], True, *own[index + 1 :])
+
+    def _mirror_to_other_scopes(
+        self, env: Environment, ids: Collection[IdType], cache_value: typing.Any
+    ) -> None:
+        own = env.get_cache_key(self)
+        stored_ids = [id_ for id_ in ids if isinstance(id_, int)]
+        mirrored = 0
+        for key, slot in list(env.core.iter_context_caches(self)):
+            if key in (own, PENDING_SCOPE_KEY):
+                continue
+            for id_ in stored_ids:
+                if id_ in slot:
+                    slot[id_] = cache_value
+                    mirrored += 1
+        if _debug.logic.enabled and mirrored:
+            _debug.logic(
+                "field.x2many.scope_mirror_pending",
+                model=self.model_name,
+                field=self.name,
+                records=len(stored_ids),
+                mirrored=mirrored,
+                writer_su=env.su,
+            )
+
+    def _mirror_to_superuser_scope(
+        self, env: Environment, ids: Collection[IdType], cache_value: typing.Any
+    ) -> None:
+        if env.su:
+            return
+        slot = env.core.get_context_data(self, self._superuser_scope_key(env))
+        for id_ in ids:
+            if isinstance(id_, int):
+                slot[id_] = cache_value
+
+    def _sync_other_scopes(
+        self,
+        env: Environment,
+        record_id: IdType,
+        added: Collection[IdType] = (),
+        removed: Collection[IdType] = (),
+    ) -> None:
+        if not isinstance(record_id, int):
+            return
+        if added:
+            self._sync_added_to_other_scopes(env, {record_id: tuple(added)})
+        if not removed:
+            return
+        own = env.get_cache_key(self)
+        synced = 0
+        for key, slot in list(env.core.iter_context_caches(self)):
+            if key in (own, PENDING_SCOPE_KEY) or record_id not in slot:
+                continue
+            ids = slot[record_id]
+            if ids is PENDING:
+                continue
+            slot[record_id] = tuple(id_ for id_ in ids if id_ not in removed)
+            synced += 1
+        if synced and _debug.logic.enabled:
+            _debug.logic(
+                "field.x2many.scope_sync",
+                model=self.model_name,
+                field=self.name,
+                record=record_id,
+                added=0,
+                removed=len(removed),
+                synced=synced,
+                evicted=0,
+            )
+
+    def _sync_added_to_other_scopes(
+        self, env: Environment, additions: Mapping[IdType, tuple[IdType, ...]]
+    ) -> None:
+        # the superuser's slot takes every addition, it reads everything; a
+        # user's slot is evicted rather than judged: judging costs the
+        # comodel's read check now, evicting costs a search only if that user
+        # reads the record again, and a direct x2many write evicts the same way
+        additions = {
+            id_: added
+            for id_, added in additions.items()
+            if isinstance(id_, int) and added
+        }
+        if not additions:
+            return
+        own = env.get_cache_key(self)
+        comodel = env[self.comodel_name]
+        synced = evicted = 0
+        for key, slot in list(env.core.iter_context_caches(self)):
+            if key in (own, PENDING_SCOPE_KEY):
+                continue
+            held = [
+                id_ for id_ in additions if id_ in slot and slot[id_] is not PENDING
+            ]
+            if not held:
+                continue
+            if not self._is_superuser_scope(env, key):
+                for id_ in held:
+                    del slot[id_]
+                evicted += len(held)
+                continue
+            for id_ in held:
+                ids = tuple(unique(itertools.chain(slot[id_], additions[id_])))
+                if not _is_cache_order_stable(comodel, ids):
+                    sorted_ids = comodel.browse(ids)._sorted_by_ids(
+                        comodel._order, False
+                    )
+                    if sorted_ids is not None:
+                        ids = sorted_ids
+                slot[id_] = ids
+            synced += len(held)
+        if _debug.logic.enabled and (synced or evicted):
+            _debug.logic(
+                "field.x2many.scope_sync",
+                model=self.model_name,
+                field=self.name,
+                records=len(additions),
+                added=sum(len(added) for added in additions.values()),
+                synced=synced,
+                evicted=evicted,
+            )
+
+    def _evict_other_scopes(self, env: Environment, ids: Collection[IdType]) -> None:
+        stored_ids = [id_ for id_ in ids if isinstance(id_, int)]
+        if not stored_ids:
+            return
+        own = env.get_cache_key(self)
+        evicted = 0
+        for key, slot in list(env.core.iter_context_caches(self)):
+            if key in (own, PENDING_SCOPE_KEY):
+                continue
+            for id_ in stored_ids:
+                if slot.pop(id_, None) is not None:
+                    evicted += 1
+        if _debug.logic.enabled and evicted:
+            _debug.logic(
+                "field.x2many.scope_evict",
+                model=self.model_name,
+                field=self.name,
+                records=len(stored_ids),
+                evicted=evicted,
+                writer_su=env.su,
+            )
+
+    @override
+    def _insert_cache(self, records: ModelLike, values: Iterable) -> None:
+        # a read nothing narrows answers what the superuser's own search
+        # would: the value fills the reader's slot and the superuser's, so a
+        # compute_sudo compute that follows serves from the cache instead of
+        # fetching the relation once more for its scope
+        env = records.env
+        if env.su or not self._reads_as_superuser(env):
+            super()._insert_cache(records, values)
+            return
+        values = list(values)
+        super()._insert_cache(records, values)
+        slot = env.core.get_context_data(self, self._superuser_scope_key(env))
+        mirrored = 0
+        for id_, value in zip(records._ids, values, strict=True):
+            if isinstance(id_, int) and id_ not in slot:
+                slot[id_] = value
+                mirrored += 1
+        if mirrored and _debug.logic.enabled:
+            _debug.logic(
+                "field.x2many.read_mirrored_to_superuser",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                mirrored=mirrored,
+                uid=env.uid,
+            )
+
+    @override
+    def _update_cache(
+        self,
+        records: ModelLike,
+        cache_value: typing.Any,
+        dirty: bool = False,
+        *,
+        keep_other_scopes: bool = False,
+        created: bool = False,
+    ) -> None:
+        if not keep_other_scopes:
+            if cache_value and not all(isinstance(id_, int) for id_ in cache_value):
+                self._mirror_to_other_scopes(records.env, records._ids, cache_value)
+            else:
+                self._evict_other_scopes(records.env, records._ids)
+                if not records.env.su and self._reads_as_superuser(records.env):
+                    self._mirror_to_superuser_scope(
+                        records.env, records._ids, cache_value
+                    )
+        if created:
+            self._mirror_to_superuser_scope(records.env, records._ids, cache_value)
+        field_patches = records.env.core.get_patches(self)
         if field_patches and not field_patches.keys().isdisjoint(records._ids):
+            _debug.logic(
+                "field.x2many.patches_applied",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                patched=sum(1 for id_ in records._ids if id_ in field_patches),
+            )
             for record in records:
                 ids = field_patches.pop(record.id, ())
                 if ids:
@@ -391,6 +818,18 @@ class _RelationalMulti(_Relational):
             else:
                 current = ()
             delta = CommandDelta.fold(value, lambda it: browse(it).id)
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "field.x2many.commands_to_cache",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record.id,
+                    commands=len(value),
+                    current=len(current),
+                    created=len(delta.created),
+                    updated=len(delta.updated),
+                    replaced=delta.replaced,
+                )
             line_ids = [comodel.new(vals, ref=ref).id for ref, vals in delta.created]
             for line_id, vals in delta.updated:
                 line = comodel.browse((line_id,))
@@ -412,8 +851,22 @@ class _RelationalMulti(_Relational):
         # Reading the field drops inactive corecords under the field's own
         # active_test, which a caller's with_context(active_test=False) cannot
         # lift; a write deriving the new relation from the old must see all of it.
+        env = record.env
+        field_cache = self._get_cache(env)
+        record_id = record.id
+        if (
+            not self.store
+            and record_id not in field_cache
+            and env.is_protected(self, record)
+        ):
+            # the compute assigning this field is running: there is no earlier
+            # value to derive a delta from; the read would answer the empty value
+            # and cache it, and a write that finds nothing changed relies on it
+            self._update_cache(record, ())
+            return ()
         record[self.name]
-        return self._get_cache(record.env)[record.id]
+        # the read may have replaced the cache dict the memo hands out
+        return self._get_cache(env)[record_id]
 
     @override
     def _get_origin_value(self, origin: BaseModel) -> BaseModel:
@@ -526,17 +979,23 @@ class _RelationalMulti(_Relational):
     @override
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
         depends, depends_context = super().get_depends(model)
+        depends_context = unique(itertools.chain(depends_context, ("access",)))
         if not self.compute and isinstance(domain := self.domain, (list, Domain)):
             domain = Domain(domain)
+            domain_paths = list(_iter_domain_depend_paths(domain))
             depends = unique(
                 itertools.chain(
                     depends,
-                    (
-                        self.name + "." + path
-                        for path in _iter_domain_depend_paths(domain)
-                    ),
+                    (self.name + "." + path for path in domain_paths),
                 )
             )
+            if _debug.logic.enabled and domain_paths:
+                _debug.logic(
+                    "field.x2many.domain_depends",
+                    model=self.model_name,
+                    field=self.name,
+                    paths=domain_paths,
+                )
         return depends, depends_context
 
     @override
@@ -575,6 +1034,16 @@ class _RelationalMulti(_Relational):
             return
 
         record_ids = {rid for recs, cs in normalized for rid in recs._ids}
+        _debug.pipeline(
+            "field.x2many.write_batch",
+            model=self.model_name,
+            field=self.name,
+            records=len(record_ids),
+            commands=sum(len(cmds) for _recs, cmds in normalized),
+            real=all(record_ids),
+            store=self.store,
+            create=create,
+        )
         if all(record_ids):
             if self.store:
                 normalized = [(recs, cmds) for recs, cmds in normalized if cmds]
@@ -604,12 +1073,25 @@ class _RelationalMulti(_Relational):
     ) -> tuple[BaseModel, BaseModel]:
         model = records_commands_list[0][0].browse()
         comodel = model.env[self.comodel_name].with_context(**self.context)
+        if not self.store and not any(
+            command[0] in _COMODEL_WRITING_COMMANDS
+            for _recs, commands in records_commands_list
+            for command in commands
+        ):
+            return model, comodel
         return model, self._check_sudo_commands(comodel)
 
     def _check_sudo_commands(self, comodel: BaseModel) -> BaseModel:
         if comodel._allow_sudo_commands:
             return comodel
         default_env = comodel.env.transaction.default_env
+        _debug.logic(
+            "field.x2many.commands_demoted",
+            model=self.model_name,
+            field=self.name,
+            comodel=comodel._name,
+            uid=getattr(default_env, "uid", None),
+        )
         if default_env is None:
             raise AccessError(
                 comodel.env._(
@@ -697,12 +1179,26 @@ class _RelationalMulti(_Relational):
                 "any!",
                 "not any!",
             )
+            _debug.logic(
+                "field.x2many.subquery",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+                bypass_access=bypass_access,
+                field_domain=not field_domain.is_true(),
+            )
             query = comodel._search(domain, bypass_access=bypass_access)
             assert isinstance(query, Query)
             return query
         if isinstance(value, Query):
             domain = field_domain.optimize_full(comodel)
             if not domain.is_true():
+                _debug.logic(
+                    "field.x2many.subquery.field_domain_added",
+                    model=self.model_name,
+                    field=self.name,
+                    operator=operator,
+                )
                 value.add_where(domain._to_sql(comodel, value.table, value))
             return value
         raise NotImplementedError(f"Cannot build query for {value}")

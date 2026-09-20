@@ -62,7 +62,6 @@ class DynamicSnippetProductsOptionPlugin extends Plugin {
         return this.categories;
     }
     async _fetchCategories() {
-        // TODO put in an utility function
         const websiteDomain = [
             "|",
             ["website_id", "=", false],

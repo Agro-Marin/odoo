@@ -6,9 +6,11 @@ from typing import Any
 from lxml import etree
 from markupsafe import Markup
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _, frozendict
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class NameManager:
@@ -32,6 +34,12 @@ class NameManager:
         self.children = []
         if self.parent:
             self.parent.children.append(self)
+        _debug.lifecycle(
+            "name_manager.created",
+            model=model._name,
+            nested=parent is not None,
+            scoped_groups=model_groups is not None,
+        )
 
         if group_definitions is None:
             group_definitions = self.model.env["res.groups"]._get_group_definitions()
@@ -47,7 +55,9 @@ class NameManager:
 
     @functools.cached_property
     def field_info(self) -> dict[str, Any]:
-        return self.model.fields_get(attributes=())
+        info = self.model.fields_get(attributes=())
+        _debug.perf.count("field_info_loaded", model=self.model._name, fields=len(info))
+        return info
 
     def add_available_field(
         self,
@@ -85,6 +95,12 @@ class NameManager:
             if not name.startswith("parent."):
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
+                _debug.logic(
+                    "used_field.delegated_to_parent",
+                    model=self.model._name,
+                    field=name[7:],
+                    attribute=use[0],
+                )
                 self.parent.add_used_fields(node, {name[7:]}, node_info, use)
 
     def add_used_name(self, name: str, use: str) -> None:
@@ -108,6 +124,9 @@ class NameManager:
             and name not in self.available_names
             and name not in self.field_info
         ):
+            _debug.logic(
+                "field_groups.unknown_field", model=self.model._name, field=name
+            )
             access_groups = self.group_definitions.empty
         elif field and field.groups:
             access_groups &= self.group_definitions.parse(
@@ -118,6 +137,14 @@ class NameManager:
         return access_groups
 
     def check(self, view: Any) -> None:
+        _debug.pipeline(
+            "name_manager_check",
+            view=view.id,
+            model=self.model._name,
+            used_names=len(self.used_names),
+            available_fields=len(self.available_fields),
+            children=len(self.children),
+        )
         self._check_used_names(view)
         self._check_available_fields(view)
         self._check_required_actions(view)
@@ -138,6 +165,9 @@ class NameManager:
                     name_or_id=name,
                     use=use,
                 )
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="unknown"
+                )
                 raise view._prepare_view_error(msg)
             if name not in self.available_actions and name not in self.available_names:
                 msg = _(
@@ -145,15 +175,23 @@ class NameManager:
                     name_or_id=name,
                     use=use,
                 )
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="not_in_view"
+                )
                 raise view._prepare_view_error(msg)
 
     def _check_available_fields(self, view: Any) -> None:
         for name in self.available_fields:
             if name not in self.model._fields and name not in self.field_info:
                 message = _("Field `%(name)s` does not exist", name=name)
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="no_field"
+                )
                 raise view._prepare_view_error(message)
 
     def _check_required_actions(self, view: Any) -> None:
+        # resolve every reference first, then one existence query for all
+        resolved: dict[str, tuple[int, etree._Element]] = {}
         for name, node in self.required_actions.items():
             try:
                 action_id = int(name)
@@ -166,20 +204,51 @@ class NameManager:
                         "Invalid xmlid %(xmlid)s for button of type action.",
                         xmlid=name,
                     )
+                    _debug.logic(
+                        "action_check_failed",
+                        view=view.id,
+                        action=name,
+                        reason="bad_xmlid",
+                    )
                     raise view._prepare_view_error(msg, node) from None
                 if not issubclass(view.pool[model], view.pool["ir.actions.actions"]):
+                    _debug.logic(
+                        "action_check_failed",
+                        view=view.id,
+                        action=name,
+                        model=model,
+                        reason="not_an_action",
+                    )
                     msg = _(
                         "%(xmlid)s is of type %(xmlid_model)s, expected a subclass of ir.actions.actions",
                         xmlid=name,
                         xmlid_model=model,
                     )
                     raise view._prepare_view_error(msg, node) from None
-            action = view.env["ir.actions.actions"].browse(action_id).exists()
-            if not action:
+            resolved[name] = (action_id, node)
+        if not resolved:
+            return
+        existing = set(
+            view.env["ir.actions.actions"]
+            .browse(list({action_id for action_id, _node in resolved.values()}))
+            .exists()
+            .ids
+        )
+        _debug.perf.count(
+            "actions_checked",
+            view=view.id,
+            actions=len(resolved),
+            existing=len(existing),
+        )
+        for name, (action_id, node) in resolved.items():
+            if action_id not in existing:
                 msg = _(
                     "Action %(action_reference)s (id: %(action_id)s) does not exist for button of type action.",
                     action_reference=name,
                     action_id=action_id,
+                )
+                _debug.logic(
+                    "action_check_failed", view=view.id, action=name, reason="missing"
                 )
                 raise view._prepare_view_error(msg, node)
 
@@ -190,27 +259,32 @@ class NameManager:
                     "The group \u201c%(name)s\u201d defined in view does not exist!",
                     name=name,
                 )
+                _debug.logic("group_unknown", view=view.id, group=name)
                 view._log_view_warning(msg, node)
 
     def _check_used_fields(self, view: Any) -> None:
         for name, groups_uses in self.used_fields.items():
             use, node = next(iter(groups_uses.values()))
             if "." in name:
+                _debug.logic(
+                    "used_field_refused",
+                    view=view.id,
+                    field=name,
+                    reason="composed",
+                )
                 msg = _(
                     "Invalid composed field %(definition)s in %(use)s",
                     definition=name,
                     use=self._describe_use(use),
                 )
                 raise view._prepare_view_error(msg, node)
-            info = self.available_fields.get(name, {}).get("info")
-
-            if info is None:
-                if name in ["false", "true"]:
-                    _logger.warning(
-                        "Using Javascript syntax 'true, 'false' in expressions is deprecated, found %s",
-                        name,
-                    )
-                    continue
+            # a used name the view has no field for is _check_group_consistency's
+            if name in ("false", "true") and name not in self.available_fields:
+                _debug.logic("used_field.js_literal", view=view.id, name=name)
+                _logger.warning(
+                    "Using Javascript syntax 'true, 'false' in expressions is deprecated, found %s",
+                    name,
+                )
 
     def _check_group_consistency(self, view: Any) -> None:
         for name, (
@@ -220,10 +294,18 @@ class NameManager:
             message, error_type = self._error_message_group_inconsistency(
                 name, missing_groups, reasons
             )
+            if not error_type:
+                continue
+            _debug.logic(
+                "group_inconsistency",
+                view=view.id,
+                field=name,
+                error_type=error_type,
+                reasons=len(reasons),
+            )
             if error_type == "does_not_exist":
                 raise view._prepare_view_error(message)
-            if error_type:
-                view._log_view_warning(message, None)
+            view._log_view_warning(message, None)
 
     def _error_message_group_inconsistency(
         self, name: str, missing_groups: Any, reasons: list[tuple]
@@ -319,6 +401,11 @@ class NameManager:
     def update_available_fields(self) -> None:
         for name, info in self.available_fields.items():
             info.update(self.field_info.get(name, {}))
+        _debug.pipeline(
+            "available_fields_updated",
+            model=self.model._name,
+            fields=len(self.available_fields),
+        )
 
     def get_fields_missing(self) -> dict[str, tuple[Any, list[tuple]]]:
 
@@ -347,6 +434,12 @@ class NameManager:
                     used.append((used_groups, use, node))
 
             if errors:
+                _debug.logic(
+                    "field_missing.access_error",
+                    model=self.model._name,
+                    field=name,
+                    uses=len(errors),
+                )
                 missing_fields[name] = (False, errors)
                 continue
 
@@ -359,4 +452,10 @@ class NameManager:
 
             missing_fields[name] = (missing_groups, used)
 
+        _debug.perf.count(
+            "fields_missing_computed",
+            model=self.model._name,
+            used_fields=len(self.used_fields),
+            missing=len(missing_fields),
+        )
         return missing_fields

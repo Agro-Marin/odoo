@@ -6,17 +6,6 @@ from odoo.addons.website_slides.tests import common
 
 @tagged("post_install", "-at_install")
 class TestCompletionThreshold(common.SlidesCase):
-    """ "Finished" must be decided once, by counting contents.
-
-    It used to be decided twice from the same data: the karma / completion-mail
-    hook asked `completed_slides_count >= total_slides`, member_status asked
-    `round(completion) == 100`. `round(100 * (n-1) / n)` reaches 100 at n >= 200,
-    so on any course of 200 contents or more an attendee was flipped to
-    'completed' one content early -- and since `_recompute_completion` skips a
-    record that is already 'completed', finishing the last content could not
-    repair it. The karma and the mail were lost permanently.
-    """
-
     KARMA_FINISH = 50
 
     @classmethod
@@ -65,7 +54,6 @@ class TestCompletionThreshold(common.SlidesCase):
         )
 
     def test_completion_never_reads_100_before_the_end(self):
-        """The invariant, at the smallest size where rounding used to break it."""
         channel, slides = self._build_course(200)
         self.assertEqual(channel.total_slides, 200)
         slides[:199].with_user(self.learner)._action_mark_completed()
@@ -89,7 +77,6 @@ class TestCompletionThreshold(common.SlidesCase):
         self.assertEqual(self.learner.karma, self.KARMA_FINISH)
 
     def test_small_course_is_unaffected(self):
-        """Control: the size at which rounding never misbehaved."""
         channel, slides = self._build_course(100)
         slides[:99].with_user(self.learner)._action_mark_completed()
         membership = self._membership(channel)
@@ -110,7 +97,6 @@ class TestCompletionThreshold(common.SlidesCase):
         self.assertTrue(membership._is_finished())
 
     def test_channel_completion_matches_the_membership(self):
-        """slide.channel.completion is a second display of the same number."""
         channel, slides = self._build_course(200)
         slides[:199].with_user(self.learner)._action_mark_completed()
         channel.invalidate_recordset()

@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
+from ..tools import debug_log as dbg
+
 
 class ReportStockQuantity(models.Model):
     _name = "report.stock.quantity"
@@ -27,21 +29,35 @@ class ReportStockQuantity(models.Model):
         "uom.uom": ["factor"],
     }
 
-    date = fields.Date(string="Date", readonly=True)
-    product_tmpl_id = fields.Many2one("product.template", readonly=True)
-    product_id = fields.Many2one("product.product", string="Product", readonly=True)
+    date = fields.Date(readonly=True)
+    product_tmpl_id = fields.Many2one(
+        comodel_name="product.template",
+        readonly=True,
+    )
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        readonly=True,
+    )
     state = fields.Selection(
-        [
+        selection=[
             ("forecast", "Forecasted Stock"),
             ("in", "Forecasted Receipts"),
             ("out", "Forecasted Deliveries"),
         ],
-        string="State",
         readonly=True,
     )
-    product_qty = fields.Float(string="Quantity", readonly=True)
-    company_id = fields.Many2one("res.company", readonly=True)
-    warehouse_id = fields.Many2one("stock.warehouse", readonly=True)
+    product_qty = fields.Float(
+        string="Quantity",
+        readonly=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
+    warehouse_id = fields.Many2one(
+        comodel_name="stock.warehouse",
+        readonly=True,
+    )
 
     def _get_product_qty_col(self):
         return "q.quantity"
@@ -183,9 +199,15 @@ WITH
         try:
             return int(report_period)
         except ValueError:
+            dbg.logic.debug(
+                "report_stock_quantity_period %r is not an int, using 3", report_period
+            )
             return 3
 
     def init(self):
+        dbg.lifecycle.debug(
+            "report_stock_quantity view rebuilt (period %s)", self._get_report_period()
+        )
         drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
 CREATE or REPLACE VIEW report_stock_quantity AS (

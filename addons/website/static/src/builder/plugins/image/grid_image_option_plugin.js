@@ -2,10 +2,13 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { GRID_IMAGE } from "@website/builder/option_sequence";
 
 import { GridImageOption } from "./grid_image_option.js";
+
+const log = makeLogger("website.builder.plugin.grid_image_option");
 
 class GridImageOptionPlugin extends Plugin {
     static id = "gridImageOption";
@@ -23,6 +26,10 @@ export class SetGridImageModeAction extends BuilderAction {
     static id = "setGridImageMode";
     apply({ editingElement, value: mode }) {
         const imageGridItemEl = editingElement.closest(".o_grid_item_image");
+        log.logic("SetGridImageModeAction apply", () => ({
+            mode,
+            inGridItem: Boolean(imageGridItemEl),
+        }));
         if (imageGridItemEl) {
             imageGridItemEl.classList.toggle(
                 "o_grid_item_image_contain",

@@ -6,18 +6,6 @@
     </data>
 
     <data noupdate="1">
-        <record id="action_client_pos_menu" model="ir.actions.client">
-            <field name="name">Reload POS Menu</field>
-            <field name="tag">reload</field>
-            <field name="params" eval="{'menu_id': ref('menu_point_root')}" />
-        </record>
-        <record id="action_client_product_menu" model="ir.actions.client">
-            <field name="name">Load Product Menu</field>
-            <field name="tag">reload</field>
-            <field
-                name="params"
-                eval="{'menu_id': ref('point_of_sale.menu_pos_products')}" />
-        </record>
         <record id="product_category_food" model="product.category">
             <field name="name">Food</field>
         </record>
@@ -29,7 +17,7 @@
             <field name="default_code">TIPS</field>
             <field name="weight">0.01</field>
             <field name="available_in_pos">False</field>
-            <field name="taxes_id" eval="[(5,)]" />
+            <field name="taxes_id" eval="[Command.clear()]" />
         </record>
         <record id="uom.product_uom_unit" model="uom.uom">
             <field name="is_pos_groupable">True</field>

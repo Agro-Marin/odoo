@@ -5,7 +5,7 @@ class ProductSupplierinfo(models.Model):
     _inherit = "product.supplierinfo"
 
     is_subcontractor = fields.Boolean(
-        "Subcontracted",
+        string="Subcontracted",
         compute="_compute_is_subcontractor",
         help="Choose a vendor of type subcontractor if you want to subcontract the product",
     )

@@ -4,9 +4,6 @@ import { renderToElement } from "@web/core/utils/render";
 
 const oldChangeCombinationStock = VariantMixin._onChangeCombinationStock;
 /**
- * Displays additional info messages regarding the product's
- * stock and the wishlist.
- *
  * @override
  */
 VariantMixin._onChangeCombinationStock = function (ev, parent, combination) {

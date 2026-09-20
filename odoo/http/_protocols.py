@@ -12,16 +12,18 @@ if TYPE_CHECKING:
     import odoo.api
     from odoo.modules.registry import Registry
 
+    from ._cookies import FutureResponse
     from .dispatcher import Dispatcher
     from .geoip import GeoIP
     from .session import Session
-    from .wrappers import FutureResponse, HTTPRequest, Response
+    from .wrappers import HTTPRequest, Response
 
 
 if TYPE_CHECKING:
 
     class RequestState:
         app: Any
+        database_detached: bool
         db: str | None
         dispatcher: Dispatcher
         env: odoo.api.Environment | None
@@ -32,6 +34,14 @@ if TYPE_CHECKING:
         _params_source: Callable[[], dict[str, Any]] | None
         registry: Registry | None
         session: Session
+        _session_response: Response | None
+        _session_snapshot: Session | None
+        _session_transaction_cursor: Any
+        _session_written_in_transaction: bool
+        _session_max_age: int | None
+        _session_save_pending: bool
+
+        def get_default_lang(self) -> str: ...
 
         def _select_session_and_dbname(
             self, sid: str | None = None
@@ -42,6 +52,12 @@ if TYPE_CHECKING:
         def _reset_for_replay(self, cr: Any = None) -> None: ...
 
         def _save_session(self, env: odoo.api.Environment | None = None) -> None: ...
+
+        def _bind_session_transaction(self, cr: Any) -> None: ...
+
+        def _restore_session_snapshot(self) -> None: ...
+
+        def _flush_session(self) -> None: ...
 
         def get_http_params(self) -> dict[str, Any]: ...
 
@@ -71,10 +87,6 @@ if TYPE_CHECKING:
 
 else:
     RequestState = object
-
-
-class HasHttpStatus(Protocol):
-    http_status: int
 
 
 class HasRouting(Protocol):
@@ -108,6 +120,9 @@ class HttpExtension(Protocol):
     def _authenticate(self, endpoint: Callable) -> None:
         pass
 
+    def _authenticate_explicit(self, auth: str) -> None:
+        pass
+
     def _pre_dispatch(
         self,
         rule: werkzeug.routing.Rule,
@@ -130,16 +145,13 @@ class HttpExtension(Protocol):
     def _is_allowed_cookie(self, cookie_type: str) -> bool:
         pass
 
-    def _sanitize_cookies(
+    def _update_cookies(
         self,
         cookies: werkzeug.datastructures.MultiDict,
     ) -> None:
         pass
 
     def _post_logout(self) -> None:
-        pass
-
-    def _auth_method_public(self) -> None:
         pass
 
     def _apply_max_upload_size(self) -> None:

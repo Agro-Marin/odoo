@@ -690,7 +690,7 @@ class TestTransferredQtyPostingGuard(AccountTestInvoicingCommon):
             "_prepare_qty_transferred",
             lambda self: self.product_uom_id.with_context(
                 uom_reconcile_strict=True
-            )._compute_quantity_reconcile(1.0, hour),
+            )._get_quantity_reconcile(1.0, hour),
         ):
             with self.assertRaises(UserError):
                 line._assert_transferred_uom_convertible()
@@ -836,7 +836,8 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
 
     def test_rfq_and_confirmed_use_different_templates(self):
         order = self._make_po()
-        rfq_template = order.with_context(send_rfq=True)._get_mail_template()
+        rfq_template = order._get_mail_template()
+        order.action_confirm()
         done_template = order._get_mail_template()
         self.assertEqual(
             rfq_template,
@@ -850,7 +851,7 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
 
     def test_send_action_carries_the_template_id(self):
         order = self._make_po()
-        action = order.with_context(send_rfq=True).action_send_rfq()
+        action = order.action_send_rfq()
         self.assertEqual(action["res_model"], "mail.compose.message")
         self.assertEqual(
             action["context"]["default_template_id"],

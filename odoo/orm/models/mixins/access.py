@@ -6,6 +6,7 @@ from operator import itemgetter
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import unquote
 from odoo.tools.translate import LazyTranslate, _
 
@@ -24,6 +25,7 @@ if typing.TYPE_CHECKING:
 _lt = LazyTranslate("base")
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 class AccessMixin(_ModelStubs):
@@ -52,6 +54,13 @@ class AccessMixin(_ModelStubs):
         return self.env.user.has_groups(write_groups)
 
     @api.model
+    def _check_fields_write_access(self, field_names: typing.Iterable[str]) -> None:
+        for field_name in field_names:
+            field = self._fields.get(field_name)
+            if field is None:
+                raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
+            self._check_field_access(field, "write")
+
     def _check_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> None:
@@ -65,8 +74,19 @@ class AccessMixin(_ModelStubs):
             self._name,
             field.name,
         )
+        _debug.logic(
+            "access.field_denied",
+            model=self._name,
+            field=field.name,
+            operation=operation,
+            uid=self.env.uid,
+            groups=field.groups,
+            write_groups=bool(field.write_groups),
+        )
 
-        description = self.env["ir.model"]._get(self._name).name
+        description = self.env.registry.metaschema.model_description(
+            self.env, self._name
+        )
 
         error_msg = _(
             'You do not have enough rights to access the field "%(field)s"'
@@ -125,6 +145,13 @@ class AccessMixin(_ModelStubs):
             else:
                 missing_xmlids.append(xmlid.strip())
         groups = self.env["res.groups"].union(*groups_list).sorted("id")
+        if _debug.logic.enabled and missing_xmlids:
+            _debug.logic(
+                "access.group_spec_unresolved",
+                model=self._name,
+                spec=group_spec,
+                missing=missing_xmlids,
+            )
         return _(
             "allowed for groups %s",
             ", ".join([repr(g.display_name) for g in groups] + missing_xmlids),
@@ -153,27 +180,56 @@ class AccessMixin(_ModelStubs):
             return readable
         visible_ids = hidden._get_display_name_visible_ids() & set(hidden._ids)
         allowed_ids = set(readable._ids) | visible_ids
+        _debug.logic(
+            "access.display_name_filtered",
+            model=self._name,
+            uid=self.env.uid,
+            records=len(self),
+            hidden=len(hidden),
+            visible_by_name=len(visible_ids),
+        )
         return self.browse(id_ for id_ in self._ids if id_ in allowed_ids)
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
-        Access = self.env["ir.model.access"]
-        if not Access.check(self._name, operation, raise_exception=False):
+        policy = self.env.registry.access_policy
+        if not policy.model_allowed(self.env, self._name, operation):
+            _debug.logic(
+                "access.denied_by_acl",
+                model=self._name,
+                operation=operation,
+                uid=self.env.uid,
+                records=len(self),
+            )
             return self, functools.partial(
-                Access._prepare_access_error, self._name, operation
+                policy.model_denied_error, self.env, self._name, operation
             )
 
-        real_self = self.browse(id_ for id_ in self._ids if id_)
+        # keep the prefetch ids: the rules' Python evaluation on one record
+        # of a batch would otherwise fetch that record's row alone
+        real_ids = tuple(id_ for id_ in self._ids if id_)
+        real_self = (
+            self
+            if len(real_ids) == len(self._ids)
+            else self._spawn(self.env, real_ids, self._prefetch_ids)
+        )
         if real_self:
-            Rule = self.env["ir.rule"]
-            domain = Rule._get_domain_accessible_records(self._name, operation)
+            domain = policy.record_domain(self.env, self._name, operation)
             if domain and (
                 forbidden := real_self
                 - real_self.sudo()
                 .with_context(active_test=False)
                 .filtered_domain(domain)
             ):
+                _debug.logic(
+                    "access.denied_by_rule",
+                    model=self._name,
+                    operation=operation,
+                    uid=self.env.uid,
+                    records=len(real_self),
+                    forbidden=len(forbidden),
+                )
                 return forbidden, functools.partial(
-                    Rule._prepare_access_error, operation, forbidden
+                    policy.record_denied_error, self.env, operation, forbidden
                 )
 
         return None
@@ -219,6 +275,14 @@ class AccessMixin(_ModelStubs):
                             )
                         )
                 offset += len(names)
+        _debug.pipeline(
+            "access.company_candidates",
+            model=self._name,
+            records=len(self),
+            regular_fields=len(regular_fields),
+            property_fields=len(property_fields),
+            groups=len(groups),
+        )
         return groups
 
     def _get_company_violations(
@@ -267,6 +331,12 @@ class AccessMixin(_ModelStubs):
                 self._name,
                 regular_fields,
             )
+            _debug.logic(
+                "access.company_check_skipped",
+                model=self._name,
+                fields=regular_fields,
+                reason="no_company_field",
+            )
             return
 
         candidates = self._get_company_check_candidates(regular_fields, property_fields)
@@ -278,6 +348,13 @@ class AccessMixin(_ModelStubs):
         ]
 
         if inconsistencies:
+            _debug.logic(
+                "access.company_inconsistent",
+                model=self._name,
+                records=len(self),
+                violations=len(inconsistencies),
+                fields=sorted({name for _record, name, _co in inconsistencies}),
+            )
             lines = [_("Uh-oh! You've got some company inconsistencies here:")]
             company_msg = _lt(
                 "- Record is company \u201c%(company)s\u201d while \u201c%(field)s\u201d (%(fname)s: %(values)s) belongs to another company."
@@ -300,7 +377,9 @@ class AccessMixin(_ModelStubs):
                         if "company_id" in record
                         else record["company_ids"]
                     )
-                field = self.env["ir.model.fields"]._get(self._name, name)
+                field_string = self.env.registry.metaschema.field_strings(
+                    self.env, self._name
+                ).get(name, self._fields[name].string)
                 lines.append(
                     str(msg)
                     % {
@@ -308,8 +387,8 @@ class AccessMixin(_ModelStubs):
                         "company": ", ".join(
                             company.display_name or "" for company in companies
                         ),
-                        "field": field.field_description,
-                        "fname": field.name,
+                        "field": field_string,
+                        "fname": name,
                         "values": ", ".join(
                             repr(rec.display_name) for rec in corecords
                         ),

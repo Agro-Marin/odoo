@@ -705,6 +705,24 @@ class TestUsers2(UsersCommonCase):
 
 
 class TestEmptyPassword(TransactionCase):
+    def test_password_change_preserves_spaces_and_rejects_blank_passwords(self):
+        user = new_test_user(self.env, "password_spaces", password="Original!Pwd123")
+        password = "  New!Secret456  "
+
+        user._change_password(password)
+
+        self.assertEqual(
+            self._check_credentials(user, password)["auth_method"], "password"
+        )
+        with self.assertRaises(AccessDenied):
+            self._check_credentials(user, password.strip())
+        for blank in ("", " \t "):
+            with self.subTest(blank=repr(blank)), self.assertRaises(UserError):
+                user._change_password(blank)
+        self.assertEqual(
+            self._check_credentials(user, password)["auth_method"], "password"
+        )
+
     def _stored_password(self, user):
         self.env.cr.execute("SELECT password FROM res_users WHERE id=%s", (user.id,))
         return self.env.cr.fetchone()[0]
@@ -1024,7 +1042,7 @@ class TestResUsersInitPasswordMigration(TransactionCase):
         )
         for (stored,) in self.env.cr.fetchall():
             self.assertTrue(stored.startswith("$"), "stored hash must be MCF")
-            self.assertTrue(ctx.verify("plaintext-secret", stored))
+            self.assertTrue(ctx.is_password_valid("plaintext-secret", stored))
 
 
 @tagged("post_install", "-at_install")
@@ -2000,7 +2018,7 @@ class TestCryptContextConfiguration(TransactionCase):
         context = self.env["res.users"]._get_crypt_context()
         hashed = context.hash("Ru!Rounds9999")
         self.assertTrue(
-            context.verify("Ru!Rounds9999", hashed),
+            context.is_password_valid("Ru!Rounds9999", hashed),
             "a rounds value above the backend cap must not lock users out",
         )
 

@@ -16,22 +16,22 @@
                     <group>
                         <field
                             name="partner_id"
+                            context="{'res_partner_search_mode': 'customer'}"
                             invisible="action != 'exist'"
-                            required="action == 'exist'"
-                            context="{'res_partner_search_mode': 'customer'}" />
+                            required="action == 'exist'" />
                     </group>
                 </group>
                 <footer>
                     <button
                         name="action_apply"
-                        string="Confirm"
                         type="object"
+                        string="Confirm"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

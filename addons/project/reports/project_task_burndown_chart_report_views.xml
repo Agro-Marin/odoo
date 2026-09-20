@@ -17,49 +17,49 @@
                     filter_domain="[('partner_id', 'child_of', self)]" />
                 <separator />
                 <filter
-                    string="My Tasks"
                     name="my_tasks"
+                    string="My Tasks"
                     domain="[('user_ids', 'in', uid)]" />
                 <filter
-                    string="Unassigned"
                     name="unassigned"
+                    string="Unassigned"
                     domain="[('user_ids', '=', False)]" />
                 <separator />
                 <filter
                     name="filter_date"
-                    date="date"
                     string="Date"
+                    date="date"
                     default_period="year,year-1" />
                 <filter
                     name="filter_last_stage_update"
                     date="date_last_status_change" />
                 <filter name="filter_date_deadline" date="date_end" />
                 <filter
-                    string="Last Month"
-                    invisible="1"
                     name="last_month"
-                    domain="[('date','&gt;=', 'today -30d')]" />
+                    string="Last Month"
+                    domain="[('date','&gt;=', 'today -30d')]"
+                    invisible="1" />
                 <separator />
                 <filter
-                    string="Open Tasks"
                     name="open_tasks"
+                    string="Open Tasks"
                     domain="[('is_closed', '=', 'open')]" />
                 <filter
-                    string="Closed Tasks"
                     name="closed_tasks"
+                    string="Closed Tasks"
                     domain="[('is_closed', '=', 'closed')]" />
                 <group>
                     <filter
-                        string="Date"
                         name="date"
+                        string="Date"
                         context="{'group_by': 'date:week'}" />
                     <filter
-                        string="Stage (Burndown Chart)"
                         name="stage"
+                        string="Stage (Burndown Chart)"
                         context="{'group_by': 'step_id'}" />
                     <filter
-                        string="Is Closed (Burn-up Chart)"
                         name="is_closed"
+                        string="Is Closed (Burn-up Chart)"
                         context="{'group_by': 'is_closed'}" />
                 </group>
             </search>
@@ -71,8 +71,8 @@
         <field name="model">project.task.burndown.chart.report</field>
         <field name="arch" type="xml">
             <graph
-                string="Burndown Chart"
                 type="line"
+                string="Burndown Chart"
                 sample="1"
                 disable_linking="1"
                 js_class="burndown_chart">

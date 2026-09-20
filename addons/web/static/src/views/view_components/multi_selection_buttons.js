@@ -4,11 +4,11 @@
 import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { isX2ManyType } from "@web/core/field_types";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/translation";
-import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
@@ -65,7 +65,7 @@ export class MultiSelectionButtons extends Component {
                     })
                     .catch((error) => {
                         this._loadViewProm = null;
-                        console.error("Failed to load multi-create view:", error);
+                        reportUncaught(error);
                     });
             }
         });
@@ -132,12 +132,7 @@ export class MultiSelectionButtons extends Component {
         );
         const { fields, relatedModels, views } = /** @type {any} */ (result);
         const parser = new FormArchParser();
-        const arch = views.form.arch;
-        this.multiCreateArchInfo = parser.parse(
-            parseXML(arch),
-            relatedModels,
-            resModel,
-        );
+        this.multiCreateArchInfo = parser.parse(views.form.ir, relatedModels, resModel);
         const { activeFields } = extractFieldsFromArchInfo(
             this.multiCreateArchInfo,
             fields,

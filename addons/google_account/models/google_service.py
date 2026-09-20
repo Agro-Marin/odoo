@@ -26,10 +26,12 @@ def _get_client_secret(ICP_sudo, service):
 
     :param ICP_sudo: the model ir.config_parameter in sudo
     :param service: the service that we need the secret key
-    :return: The ICP value
+    :return: the secret, out of the credential vault
     :rtype: str
     """
-    return ICP_sudo.get_param("google_%s_client_secret" % service)
+    return ICP_sudo.env["credential.credential"]._get_system_secret(
+        "google_%s_client_secret" % service
+    )
 
 
 class GoogleService(models.AbstractModel):
@@ -106,26 +108,18 @@ class GoogleService(models.AbstractModel):
             error_msg = _(
                 "Something went wrong during your token generation. Maybe your Authorization Code is invalid or already expired"
             )
-            raise self.env["res.config.settings"].prepare_config_warning(error_msg) from e
+            raise self.env["res.config.settings"].prepare_config_warning(
+                error_msg
+            ) from e
 
-    def _refresh_google_token(self, service, rtoken):
-        ICP = self.env["ir.config_parameter"].sudo()
-
-        headers = {"content-type": "application/x-www-form-urlencoded"}
-        data = {
-            "refresh_token": rtoken,
-            "client_id": self._get_client_id(service),
-            "client_secret": _get_client_secret(ICP, service),
-            "grant_type": "refresh_token",
-        }
-        _status, response, _ask_time = self._do_request(
+    def _refresh_google_token(self, service, credential):
+        return credential._oauth2_refresh(
             GOOGLE_TOKEN_ENDPOINT,
-            params=data,
-            headers=headers,
-            method="POST",
-            preuri="",
+            self._get_client_id(service),
+            _get_client_secret(self.env["ir.config_parameter"].sudo(), service),
+            purpose="google_api",
+            timeout=TIMEOUT,
         )
-        return response.get("access_token"), response.get("expires_in")
 
     @api.model
     def _do_request(
@@ -175,23 +169,25 @@ class GoogleService(models.AbstractModel):
         ask_time = fields.Datetime.now()
         try:
             if method.upper() in ("GET", "DELETE"):
-                res = requests.request(
-                    method.lower(), preuri + uri, params=params, timeout=timeout
-                )
-            elif method.upper() in ("POST", "PATCH", "PUT"):
-                res = requests.request(
+                res = self.env["ir.egress"].request(
                     method.lower(),
                     preuri + uri,
+                    purpose="google_api",
+                    params=params,
+                    timeout=timeout,
+                )
+            elif method.upper() in ("POST", "PATCH", "PUT"):
+                res = self.env["ir.egress"].request(
+                    method.lower(),
+                    preuri + uri,
+                    purpose="google_api",
                     data=params,
                     headers=headers,
                     timeout=timeout,
                 )
             else:
                 raise ValueError(
-                    _(
-                        "Method not supported [%s] not in [GET, POST, PUT, PATCH or DELETE]!",
-                        method,
-                    )
+                    f"Method not supported [{method}] not in [GET, POST, PUT, PATCH or DELETE]!"
                 )
             res.raise_for_status()
             status = res.status_code

@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from . import approval_trace as trace
+
 
 class MailActivityType(models.Model):
     _inherit = "mail.activity.type"
@@ -11,4 +13,5 @@ class MailActivityType(models.Model):
             "res_model": "approval.request",
             "unlink": False,
         }
+        trace.REGISTRY.event("activity_model_info", entries=len(info))
         return info

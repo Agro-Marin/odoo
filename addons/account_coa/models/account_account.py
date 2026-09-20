@@ -25,28 +25,27 @@ class AccountAccount(models.Model):
 
     name = fields.Char(
         string="Account Name",
-        required=True,
-        index="trigram",
         translate=True,
+        index="trigram",
+        required=True,
     )
     description = fields.Text(translate=True)
     currency_id = fields.Many2one(
-        "res.currency",
+        comodel_name="res.currency",
         string="Account Currency",
         help="Forces all journal items in this account to have a specific "
         "currency (i.e. bank journals). If no currency is set, entries "
         "can use any currency.",
     )
     company_currency_id = fields.Many2one(
-        "res.currency",
+        comodel_name="res.currency",
         compute="_compute_company_currency_id",
     )
     code = fields.Char(
-        string="Code",
         size=64,
         compute="_compute_code",
-        search="_search_code",
         inverse="_inverse_code",
+        search="_search_code",
     )
     code_store = fields.Char(company_dependent=True)
     placeholder_code = fields.Char(
@@ -78,25 +77,25 @@ class AccountAccount(models.Model):
             ("off_balance", "Off-Balance Sheet"),
         ],
         string="Type",
-        required=True,
         compute="_compute_account_type_and_tags",
-        store=True,
-        readonly=False,
         precompute=True,
+        store=True,
         index=True,
+        readonly=False,
+        required=True,
         help="Account Type is used for information purpose, to generate "
         "country-specific legal reports, and set the rules to close a "
         "fiscal year and generate opening entries.",
     )
     include_initial_balance = fields.Boolean(
         string="Bring Accounts Balance Forward",
+        compute="_compute_include_initial_balance",
+        search="_search_include_initial_balance",
         help="Used in reports to know if we should consider journal items "
         "from the beginning of time instead of from the fiscal year "
         "only. Account types that should be reset to zero at each new "
         "fiscal year (like expenses, revenue..) should not have this "
         "option set.",
-        compute="_compute_include_initial_balance",
-        search="_search_include_initial_balance",
     )
     internal_group = fields.Selection(
         selection=[
@@ -107,27 +106,26 @@ class AccountAccount(models.Model):
             ("expense", "Expense"),
             ("off", "Off Balance"),
         ],
-        string="Internal Group",
         compute="_compute_internal_group",
         search="_search_internal_group",
     )
     reconcile = fields.Boolean(
         string="Allow Reconciliation",
         compute="_compute_reconcile",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Check this box if this account allows invoices & payments "
         "matching of journal items.",
     )
-    note = fields.Text("Internal Notes")
+    note = fields.Text(string="Internal Notes")
     company_ids = fields.Many2many(
-        "res.company",
+        comodel_name="res.company",
         string="Companies",
-        required=True,
-        readonly=False,
         depends_context=("uid",),
         default=lambda self: self.env.company,
+        readonly=False,
+        required=True,
     )
     code_mapping_ids = fields.One2many(
         comodel_name="account.code.mapping",
@@ -139,16 +137,16 @@ class AccountAccount(models.Model):
     tag_ids = fields.Many2many(
         comodel_name="account.account.tag",
         relation="account_account_account_tag",
-        compute="_compute_account_type_and_tags",
-        readonly=False,
-        store=True,
-        precompute=True,
         string="Tags",
-        help="Optional tags you may want to assign for custom reporting",
+        compute="_compute_account_type_and_tags",
+        precompute=True,
+        store=True,
+        readonly=False,
         ondelete="restrict",
+        help="Optional tags you may want to assign for custom reporting",
     )
     root_id = fields.Many2one(
-        "account.root",
+        comodel_name="account.root",
         compute="_compute_account_root",
         search="_search_account_root",
     )

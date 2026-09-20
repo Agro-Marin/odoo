@@ -6,13 +6,13 @@ class IrActionsAct_Url(models.Model):
     _description = "Action URL"
     _table = "ir_act_url"
     _inherit = ["ir.actions.actions"]
-    _order = "name, id"
-    _allow_sudo_commands = False
 
-    type = fields.Char(default="ir.actions.act_url")
-    url = fields.Text(string="Action URL", required=True)
+    url = fields.Text(
+        string="Action URL",
+        required=True,
+    )
     target = fields.Selection(
-        [
+        selection=[
             ("new", "New Window"),
             ("self", "This Window"),
             ("download", "Download"),
@@ -23,10 +23,7 @@ class IrActionsAct_Url(models.Model):
     )
 
     def _get_fields_readable(self) -> frozenset[str]:
-        return super()._get_fields_readable() | {
-            "target",
-            "url",
-        }
+        return super()._get_fields_readable() | {"target", "url"}
 
     def _get_keys_client_only(self) -> frozenset[str]:
         return super()._get_keys_client_only() | {"close"}

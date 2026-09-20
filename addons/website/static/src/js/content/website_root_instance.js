@@ -1,14 +1,14 @@
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import publicBootPromise from "@web/public/public_boot_instance";
 
-/**
- * When the page runs inside the website builder preview iframe, hand the
- * page's public env over to the builder (it needs the iframe's services,
- * e.g. `website_edit`). Historical event name kept from the PublicRoot era.
- */
+const log = makeLogger("website.content.website_root");
+
 const prom = publicBootPromise.then(async (env) => {
+    log.lifecycle("public root booted", () => ({ inIframe: !!window.frameElement }));
     if (window.frameElement) {
+        log.lifecycle("PUBLIC-ROOT-READY dispatched to parent frame");
         window.dispatchEvent(new CustomEvent("PUBLIC-ROOT-READY", { detail: { env } }));
     }
     return env;

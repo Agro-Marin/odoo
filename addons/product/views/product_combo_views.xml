@@ -38,8 +38,8 @@
                     <field
                         name="company_id"
                         placeholder="Visible to all"
-                        groups="base.group_multi_company"
                         options="{'no_create': True}"
+                        groups="base.group_multi_company"
                         class="oe_inline" />
                 </group>
                 <field name="combo_item_ids">
@@ -49,8 +49,8 @@
                         <field
                             name="lst_price"
                             widget="monetary"
-                            readonly="1"
-                            options="{'field_digits': True}" />
+                            options="{'field_digits': True}"
+                            readonly="1" />
                         <field
                             name="extra_price"
                             widget="monetary"

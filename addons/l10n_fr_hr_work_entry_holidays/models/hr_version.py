@@ -3,16 +3,19 @@ from datetime import UTC
 
 from odoo import models
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrVersion(models.Model):
     _inherit = "hr.version"
 
-    def _get_version_work_entries_values(self, date_start, date_stop):
+    def _prepare_version_work_entries_values(self, date_start, date_stop):
         # Add the work entries difference for french payroll
         # Work entries by default are not generated on days the employee does not work
         # So we have to fill the gaps with work entries for those periods
-        result = super()._get_version_work_entries_values(date_start, date_stop)
+        result = super()._prepare_version_work_entries_values(date_start, date_stop)
         fr_contracts = self.filtered(
             lambda c: (
                 c.company_id.country_id.code == "FR"
@@ -20,6 +23,11 @@ class HrVersion(models.Model):
             )
         )
         if not fr_contracts:
+            _debug.logic(
+                "fr_work_entry_gap_skipped",
+                reason="no_french_part_time_version",
+                versions=self,
+            )
             return result
         start_dt = (
             date_start.replace(tzinfo=UTC) if not date_start.tzinfo else date_start
@@ -38,13 +46,20 @@ class HrVersion(models.Model):
         leaves_per_employee = defaultdict(lambda: self.env["hr.leave"])
         for leave in all_leaves:
             leaves_per_employee[leave.employee_id] |= leave
+        _debug.pipeline(
+            "fr_work_entry_gap_start",
+            versions=self,
+            french=fr_contracts,
+            adjusted_leaves=all_leaves,
+            employees=len(leaves_per_employee),
+            entries_so_far=len(result),
+        )
         for contract in fr_contracts:
             employee = contract.employee_id
-            employee_calendar = contract.resource_calendar_id
             company = contract.company_id
             company_calendar = company.resource_calendar_id
             resource = employee.resource_id
-            tz = timezone(employee_calendar.tz)
+            tz = timezone(resource.tz)
 
             for leave in leaves_per_employee[employee]:
                 leave_start_dt = max(start_dt, leave.date_from.astimezone(tz))
@@ -85,5 +100,14 @@ class HrVersion(models.Model):
                     for interval in company_attendances
                     if interval[0].date() not in employee_dates
                 ]
+                _debug.perf.count(
+                    "fr_work_entry_gap_filled",
+                    leave=leave,
+                    employee=employee,
+                    company_intervals=len(company_attendances),
+                    already_covered_dates=len(employee_dates),
+                    entries_total=len(result),
+                )
 
+        _debug.pipeline("fr_work_entry_gap_done", versions=self, entries=len(result))
         return result

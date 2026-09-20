@@ -6,11 +6,13 @@ from hashlib import sha256
 
 from markupsafe import escape as markup_escape
 
-from odoo.tools import SQL
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import SENTINEL, OrderedSet
 
 from ..primitives import NewId
 from .base import Field
+
+_debug = DebugLog(__name__)
 
 _EN_US_KEY = ("en_US",)
 
@@ -56,7 +58,7 @@ def get_scalar_fallback(
     cur_val = field._get_cache(env).get(record_id, SENTINEL)
     if cur_val is not SENTINEL:
         return cur_val
-    fb_cache = env._core.get_context_data_or_none(
+    fb_cache = env.core.get_context_data_or_none(
         field, get_fallback_cache_key(field, env)
     )
     if fb_cache is not None:
@@ -106,6 +108,14 @@ def get_translation_dictionary(
     for lang, to_lang_value in to_lang_values.items():
         to_lang_terms = field.get_trans_terms(to_lang_value)
         if len(from_lang_terms) != len(to_lang_terms):
+            _debug.logic(
+                "field.translation.terms_mismatch",
+                model=field.model_name,
+                field=field.name,
+                lang=lang,
+                from_terms=len(from_lang_terms),
+                to_terms=len(to_lang_terms),
+            )
             for from_lang_term in from_lang_terms:
                 dictionary[from_lang_term][lang] = from_lang_term
         else:
@@ -116,21 +126,28 @@ def get_translation_dictionary(
     return dictionary
 
 
+def _as_translations(value: typing.Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    return {"en_US": value}
+
+
 def get_stored_translations(
     field: BaseString, record: ModelLike
 ) -> dict[str, str] | None:
     record.flush_recordset([field.name])
-    cr = record.env.cr
-    cr.execute(
-        SQL(
-            "SELECT %s FROM %s WHERE id = %s",
-            SQL.identifier(field.name),
-            SQL.identifier(record._table),
-            record.id,
-        )
+    stored = record.env.backend.columns.read(record, field.name, [record.id])
+    res = _as_translations(stored.get(record.id))
+    _debug.perf.count(
+        "field.translate.stored_translations_read",
+        model=field.model_name,
+        field=field.name,
+        record=record.id,
+        langs=len(res) if res else 0,
     )
-    res = cr.fetchone()
-    return res[0] if res else None
+    return res
 
 
 def get_stored_translations_multi(
@@ -139,16 +156,15 @@ def get_stored_translations_multi(
     pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
     if pending:
         pending.flush_recordset([field.name])
-    cr = records.env.cr
-    cr.execute(
-        SQL(
-            "SELECT id, %s FROM %s WHERE id IN %s",
-            SQL.identifier(field.name),
-            SQL.identifier(records._table),
-            tuple(records._ids),
-        )
+    stored = records.env.backend.columns.read(records, field.name, records._ids)
+    _debug.perf.count(
+        "field.translate.stored_translations_read_multi",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        flushed=len(pending),
     )
-    return dict(cr.fetchall())
+    return {id_: _as_translations(value) for id_, value in stored.items()}
 
 
 def edit_translations_value(
@@ -176,6 +192,13 @@ def edit_translations_value(
             field.get_trans_terms(value) if value != base_value else base_terms
         )
         if len(base_terms) != len(translated_terms):
+            _debug.logic(
+                "field.translation.edit.terms_mismatch_reset",
+                model=field.model_name,
+                field=field.name,
+                lang=lang,
+                base_lang=base_lang,
+            )
             value = base_value
             translated_terms = base_terms
         get_base = dict(zip(translated_terms, base_terms, strict=True)).__getitem__
@@ -212,7 +235,7 @@ def insert_cache(
     env = records.env
     if field.translate is True:
         if env.context.get("prefetch_langs"):
-            core = env._core
+            core = env.core
             sub_caches: dict[str, dict] = {}
 
             def sub_cache(lang: str) -> dict:
@@ -223,8 +246,15 @@ def insert_cache(
                     )
                 return sub
 
-            installed = [lang for lang, _ in env["res.lang"].get_installed()]
+            installed = env.registry.locale.installed_langs(env)
             langs = OrderedSet[str](installed + ["en_US"])
+            _debug.pipeline(
+                "field.translation.prefetch_langs_inserted",
+                model=field.model_name,
+                field=field.name,
+                records=len(records._ids),
+                langs=len(langs),
+            )
             for id_, val in zip(records._ids, values, strict=True):
                 if val is None:
                     for lang in langs:
@@ -241,9 +271,9 @@ def insert_cache(
             Field._insert_cache(field, records, values)
         return
 
-    field_cache = env._core.get_field_data(field)
+    field_cache = env.core.get_field_data(field)
     if env.context.get("prefetch_langs"):
-        installed = [lang for lang, _ in env["res.lang"].get_installed()]
+        installed = env.registry.locale.installed_langs(env)
         langs = OrderedSet[str](installed + ["en_US"])
         u_langs: list[str] = (
             [f"_{lang}" for lang in langs] if env._lang.startswith("_") else []
@@ -281,7 +311,7 @@ def update_cache(
 ) -> bool:
     if field.translate is True and isinstance(cache_value, dict):
         env = records.env
-        core = env._core
+        core = env.core
         ids = records._ids
         for lang, scalar in cache_value.items():
             if lang.startswith("_"):
@@ -300,7 +330,7 @@ def update_cache(
         if not field.compute and not any(
             id_ or getattr(id_, "origin", None) for id_ in records._ids
         ):
-            en_cache = records.env._core.get_context_data(
+            en_cache = records.env.core.get_context_data(
                 field, get_fallback_cache_key(field, records.env)
             )
             for id_ in records._ids:
@@ -321,16 +351,27 @@ def mark_dirty(field: BaseString, records: BaseModel, value: typing.Any) -> None
     records, cache_value = field._mark_dirty_prologue(records, value)
     if not records:
         return
-    dirty_ids = records.env._core.get_dirty(field) or ()
+    dirty_ids = records.env.core.get_dirty(field) or ()
     _flush_pending_none(field, records, dirty_ids)
 
     lang = get_translation_lang(field, records.env)
     if not (field.store and any(records._ids)):
+        strategy = "unstored"  # debuglog
         _mark_dirty_unstored(field, records, cache_value, lang)
     elif not callable(field.translate):
+        strategy = "model"  # debuglog
         _mark_dirty_model_translation(field, records, cache_value, lang, dirty_ids)
     else:
+        strategy = "terms"  # debuglog
         mark_dirty_model_term_translation(field, records, cache_value, lang)
+    _debug.logic(
+        "field.translation.mark_dirty",
+        model=field.model_name,
+        field=field.name,
+        lang=lang,
+        records=len(records),
+        strategy=strategy,
+    )
 
 
 def _flush_pending_none(
@@ -342,7 +383,7 @@ def _flush_pending_none(
     if field.translate is True:
         has_dirty_none = any(
             sub.get(rid, SENTINEL) is None
-            for _key, sub in records.env._core.iter_context_caches(field)
+            for _key, sub in records.env.core.iter_context_caches(field)
             for rid in dirty_records._ids
         )
     else:
@@ -352,6 +393,12 @@ def _flush_pending_none(
             for record_id in dirty_records._ids
         )
     if has_dirty_none:
+        _debug.logic(
+            "field.translation.pending_none_flushed",
+            model=field.model_name,
+            field=field.name,
+            records=len(dirty_records),
+        )
         dirty_records.flush_recordset([field.name])
         if field.translate is True:
             field._invalidate_cache(records.env, dirty_records._ids)
@@ -360,7 +407,16 @@ def _flush_pending_none(
 def _mark_dirty_unstored(
     field: BaseString, records: BaseModel, cache_value: typing.Any, lang: str
 ) -> None:
-    if field.compute and field.inverse and any(records._ids):
+    inverse_path = bool(field.compute and field.inverse and any(records._ids))
+    _debug.logic(
+        "field.translate.mark_dirty_unstored",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        lang=lang,
+        strategy="single_lang_for_inverse" if inverse_path else "plain",
+    )
+    if inverse_path:
         if field.translate is True:
             field._invalidate_cache(records.env, records._ids)
         field._update_cache(
@@ -383,8 +439,20 @@ def _mark_dirty_model_translation(
     clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
     clean_records.invalidate_recordset([field.name])
     field._update_cache(records, cache_value, dirty=True)
-    if lang != "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
+    en_us_mirrored = lang != "en_US" and not (
+        records.env.registry.locale.is_lang_installed(records.env, "en_US")
+    )
+    if en_us_mirrored:
         field._update_cache(records.with_context(lang="en_US"), cache_value, dirty=True)
+    if _debug.logic.enabled and (mirrored_ids or en_us_mirrored):
+        _debug.logic(
+            "field.translation.mirrored",
+            model=field.model_name,
+            field=field.name,
+            lang=lang,
+            langs=sorted(mirrored_ids),
+            en_us=en_us_mirrored,
+        )
     for other_lang, ids in mirrored_ids.items():
         field._update_cache(
             records.browse(ids).with_context(lang=other_lang),
@@ -400,9 +468,11 @@ def get_mirrored_ids_by_language(
     dirty_ids: typing.Any,
 ) -> dict[str, list]:
     ids = [id_ for id_ in records._ids if id_]
-    if not ids or not records.env.backend.supports_translation_terms:
+    if not ids:
         return {}
-    if lang == "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
+    if lang == "en_US" and not records.env.registry.locale.is_lang_installed(
+        records.env, "en_US"
+    ):
         return {}
     stored = get_stored_translations_multi(field, records.browse(ids), dirty_ids)
     followers = defaultdict(list)
@@ -432,7 +502,7 @@ def mark_dirty_model_term_translation(
         real_records = records.filtered("id")
         if real_records:
             stored_by_id = get_stored_translations_multi(
-                field, real_records, records.env._core.get_dirty(field)
+                field, real_records, records.env.core.get_dirty(field)
             )
     for record in records:
         if not new_terms:
@@ -467,10 +537,20 @@ def mark_dirty_model_term_translation(
             new_store_translations = new_translations
         new_store_translations[lang] = cache_value
 
-        if not records.env["res.lang"]._get_data(code="en_US"):
+        if not records.env.registry.locale.is_lang_installed(records.env, "en_US"):
             new_store_translations["en_US"] = cache_value
             new_store_translations.pop("_en_US", None)
         new_translations_list.append(new_store_translations)
+    _debug.pipeline(
+        "field.translation.terms_marked",
+        model=field.model_name,
+        field=field.name,
+        lang=lang,
+        records=len(records),
+        terms=len(new_terms),
+        stored=sum(1 for stored in stored_by_id.values() if stored),
+        delayed=bool(delay_translations),
+    )
     for record, new_translation in zip(
         records.with_context(prefetch_langs=True),
         new_translations_list,
@@ -524,6 +604,13 @@ def reconcile_obsolete_terms(
             get_translation_dictionary[closest_term] = get_translation_dictionary.pop(
                 old_term
             )
+        _debug.logic(
+            "field.translation.term_reconciled",
+            model=field.model_name,
+            field=field.name,
+            lang=lang,
+            adapted=not closest_is_text,
+        )
 
 
 _PROXY_MISSING = object()

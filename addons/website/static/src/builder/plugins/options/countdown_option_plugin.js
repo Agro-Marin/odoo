@@ -5,13 +5,17 @@ import { before, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequenc
 import { getElementsWithOption } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("website.builder.plugin.countdown_option");
 
 export class CountdownOption extends BaseOptionComponent {
     static template = "website.CountdownOption";
     static selector = ".s_countdown";
     static cleanForSave = (editingEl) => {
+        log.pipeline("CountdownOption cleanForSave");
         editingEl.classList.remove("s_countdown_enable_preview");
     };
 }
@@ -23,8 +27,6 @@ class CountdownOptionPlugin extends Plugin {
         builder_options: [withSequence(before(SNIPPET_SPECIFIC_END), CountdownOption)],
         so_content_addition_selector: [".s_countdown"],
         builder_actions: {
-            // TODO AGAU: update after merging generalized restart interactions
-            //  remove this and xml BuilderContext
             ReloadCountdownAction,
             SetEndActionAction,
             PreviewEndMessageAction,
@@ -32,6 +34,9 @@ class CountdownOptionPlugin extends Plugin {
         },
         on_cloned_handlers: ({ cloneEl }) => {
             const countdownEls = getElementsWithOption(cloneEl, ".s_countdown");
+            log.pipeline("CountdownOptionPlugin onCloned", () => ({
+                countdowns: countdownEls.length,
+            }));
             for (const countdownEl of countdownEls) {
                 countdownEl.classList.remove("s_countdown_enable_preview");
             }
@@ -42,10 +47,6 @@ class CountdownOptionPlugin extends Plugin {
 export class BaseCountdownAction extends BuilderAction {
     static id = "baseCountdown";
     /**
-     * Used to preserve modified end messages through end action changes. This
-     * allows the user to test options without losing their progress while in
-     * between saves.
-     *
      * @type {WeakMap<Element, Element>}
      */
     editingElEndMessages = new WeakMap();
@@ -55,16 +56,15 @@ export class BaseCountdownAction extends BuilderAction {
     }
 
     setEndAction({ editingElement, value }) {
+        log.pipeline("BaseCountdownAction setEndAction", () => ({ value }));
         editingElement.dataset.endAction = value;
         const endMessageEl = editingElement.querySelector(".s_countdown_end_message");
 
-        // Only hide countdown in one case
         editingElement.classList.toggle(
             "hide-countdown",
             value === "message_no_countdown",
         );
 
-        // Only have redirect url attribute in one case
         if (value === "redirect") {
             editingElement.dataset.redirectUrl = "";
         } else {
@@ -75,15 +75,20 @@ export class BaseCountdownAction extends BuilderAction {
             if (!endMessageEl) {
                 const existingEndMessage =
                     this.editingElEndMessages.get(editingElement);
+                log.logic("BaseCountdownAction add end message", () => ({
+                    reuseSaved: !!existingEndMessage,
+                }));
                 editingElement.appendChild(
                     existingEndMessage ||
                         renderToElement("website.s_countdown.end_message"),
                 );
             }
         } else {
+            log.logic("BaseCountdownAction remove end message", () => ({
+                hadEndMessage: !!endMessageEl,
+            }));
             endMessageEl?.remove();
             this.editingElEndMessages.set(editingElement, endMessageEl);
-            // Reset end message preview to avoid countdown staying hidden
             this.toggleEndMessagePreview(editingElement, false);
         }
     }
@@ -93,6 +98,7 @@ export class BaseCountdownAction extends BuilderAction {
     }
 
     setLayout({ editingElement, value }) {
+        log.pipeline("BaseCountdownAction setLayout", () => ({ value }));
         switch (value) {
             case "circle":
                 editingElement.dataset.progressBarStyle = "disappear";
@@ -128,11 +134,10 @@ export class BaseCountdownAction extends BuilderAction {
     }
 }
 
-// TODO AGAU: update after merging generalized restart interactions
-//  remove this and xml BuilderContext
 export class ReloadCountdownAction extends BaseCountdownAction {
     static id = "reloadCountdown";
     apply({ editingElement }) {
+        log.pipeline("ReloadCountdownAction apply: update interactions");
         return this.dispatchTo("update_interactions", editingElement);
     }
 }
@@ -151,12 +156,12 @@ export class PreviewEndMessageAction extends BaseCountdownAction {
     static id = "previewEndMessage";
     static dependencies = ["builderOptions"];
     apply({ editingElement }) {
+        log.pipeline("PreviewEndMessageAction apply");
         this.toggleEndMessagePreview(editingElement, true);
     }
     clean({ editingElement }) {
+        log.pipeline("PreviewEndMessageAction clean");
         this.toggleEndMessagePreview(editingElement, false);
-        // Activate the countdown options, to not stay on the message preview
-        // ones if they were active.
         this.dependencies.builderOptions.setNextTarget(editingElement);
     }
     isApplied(context) {

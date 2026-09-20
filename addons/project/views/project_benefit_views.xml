@@ -11,34 +11,34 @@
                 <field name="accountable_id" />
                 <separator />
                 <filter
-                    string="Expected"
                     name="expected"
+                    string="Expected"
                     domain="[('state', '=', 'expected')]" />
                 <filter
-                    string="Tracking"
                     name="tracking"
+                    string="Tracking"
                     domain="[('state', '=', 'tracking')]" />
                 <filter
-                    string="Achieved"
                     name="achieved"
+                    string="Achieved"
                     domain="[('state', '=', 'achieved')]" />
                 <separator />
                 <filter
-                    string="Review Due"
                     name="review_due"
+                    string="Review Due"
                     domain="[('date_review', '&lt;=', context_today().strftime('%Y-%m-%d'))]" />
                 <group>
                     <filter
-                        string="Project"
                         name="group_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Owner"
                         name="group_owner"
+                        string="Owner"
                         context="{'group_by': 'accountable_id'}" />
                 </group>
             </search>
@@ -76,17 +76,17 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="description"
                                 placeholder="How will this benefit be realized?" />
                         </page>
-                        <page string="Measurement" name="measurement">
+                        <page name="measurement" string="Measurement">
                             <field
                                 name="measurement_method"
                                 placeholder="How exactly will this benefit be measured? Be specific." />
                         </page>
-                        <page string="Review Notes" name="notes">
+                        <page name="notes" string="Review Notes">
                             <field name="notes" />
                         </page>
                     </notebook>
@@ -117,9 +117,9 @@
                     name="state"
                     widget="badge"
                     decoration-info="state == 'expected'"
-                    decoration-warning="state == 'tracking'"
+                    decoration-muted="state == 'not_achieved'"
                     decoration-success="state == 'achieved'"
-                    decoration-muted="state == 'not_achieved'" />
+                    decoration-warning="state == 'tracking'" />
             </list>
         </field>
     </record>

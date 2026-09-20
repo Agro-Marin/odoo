@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_action_product_margin"
+        name="Product Margins…"
+        parent="account.menu_account_reports_management"
+        action="product_margin_act_window"
+        sequence="20" />
+
+</odoo>

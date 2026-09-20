@@ -5,25 +5,27 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     street_name = fields.Char(
-        "Street Name",
         compute="_compute_street_data",
         inverse="_inverse_street_data",
         store=True,
     )
     street_number = fields.Char(
-        "House",
+        string="House",
         compute="_compute_street_data",
         inverse="_inverse_street_data",
         store=True,
     )
     street_number2 = fields.Char(
-        "Door",
+        string="Door",
         compute="_compute_street_data",
         inverse="_inverse_street_data",
         store=True,
     )
 
-    city_id = fields.Many2one(comodel_name="res.city", string="City ID")
+    city_id = fields.Many2one(
+        comodel_name="res.city",
+        string="City ID",
+    )
     country_enforce_cities = fields.Boolean(related="country_id.enforce_cities")
 
     @api.model

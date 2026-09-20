@@ -46,7 +46,7 @@ class WebsiteSale(main.WebsiteSale):
     def activate_coupon(self, code, r="/shop", **kw):
         url_parts = urlsplit(r)
         url_query = dict(parse_qsl(url_parts.query))
-        url_query.pop("coupon_error", False)  # trust only Odoo error message
+        url_query.pop("coupon_error", False)
         url_query.pop("coupon_error_type", False)
         code = code.strip()
 
@@ -108,11 +108,6 @@ class WebsiteSale(main.WebsiteSale):
         return request.redirect(redirect)
 
     def _apply_reward(self, order, reward, coupon):
-        """Try to apply the given program reward
-
-        :returns: whether the reward was successfully applied
-        :rtype: bool
-        """
         product_id = request.env.context.get("product_id")
         product = product_id and request.env["product.product"].sudo().browse(
             product_id
@@ -127,8 +122,6 @@ class WebsiteSale(main.WebsiteSale):
             return False
         order._update_programs_and_rewards()
         if order.carrier_id.free_over and not reward.program_id.is_payment_program:
-            # update shiping cost if it's `free_over` and reward isn't eWallet or gift card
-            # will call `_update_programs_and_rewards` again, updating applied eWallet/gift cards
             res = order.carrier_id.rate_shipment(order)
             if res.get("success"):
                 order.set_delivery_line(order.carrier_id, res["price"])

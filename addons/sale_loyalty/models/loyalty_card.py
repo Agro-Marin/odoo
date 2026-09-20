@@ -1,19 +1,22 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class LoyaltyCard(models.Model):
     _inherit = "loyalty.card"
 
     order_id = fields.Many2one(
-        string="Order Reference",
-        help="The sales order from which coupon is generated",
         comodel_name="sale.order",
+        string="Order Reference",
         readonly=True,
+        help="The sales order from which coupon is generated",
     )
     order_id_partner_id = fields.Many2one(
-        string="Sale Order Customer",
         comodel_name="res.partner",
         related="order_id.partner_id",
+        string="Sale Order Customer",
     )
 
     def _get_default_template(self):
@@ -47,6 +50,9 @@ class LoyaltyCard(models.Model):
             [("coupon_id", "in", self.ids)], ["coupon_id"], ["__count"]
         )
         count_per_coupon = {coupon.id: count for coupon, count in read_group_res}
+        _debug.perf.count(
+            "coupon_use_count", cards=len(self), rows=len(count_per_coupon)
+        )
         for card in self:
             card.use_count += count_per_coupon.get(card.id, 0)
 
@@ -54,6 +60,7 @@ class LoyaltyCard(models.Model):
         return super()._has_source_order() or bool(self.order_id)
 
     def action_archive(self):
+        _debug.lifecycle("loyalty_cards_archived", cards=self)
         self.env["sale.order.coupon.points"].search(
             [
                 ("coupon_id", "in", self.ids),

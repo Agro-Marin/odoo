@@ -27,7 +27,7 @@ class TestResourceAssignment(TransactionCase):
             {
                 "resource_id": self.truck.id,
                 "assignee_id": (assignee or self.driver).id,
-                "role": "driver",
+                "custody_role": "operator",
                 "date_start": self.now - timedelta(days=1),
                 **vals,
             }
@@ -35,7 +35,7 @@ class TestResourceAssignment(TransactionCase):
 
     def test_name_and_state(self):
         assignment = self._assign()
-        self.assertEqual(assignment.name, "Ana, Driver of Truck 12")
+        self.assertEqual(assignment.name, "Ana, Operator of Truck 12")
         self.assertEqual(assignment.state, "active")
         assignment.date_end = self.now - timedelta(hours=1)
         self.assertEqual(assignment.state, "ended")
@@ -127,11 +127,11 @@ class TestResourceAssignment(TransactionCase):
 
     def test_holder_search_agrees_with_the_compute(self):
         self._assign(
-            role="manager",
+            custody_role="manager",
             assignee=self.other_driver,
             date_start=self.now - timedelta(days=10),
         )
-        self._assign(role="driver", date_start=self.now - timedelta(days=1))
+        self._assign(custody_role="operator", date_start=self.now - timedelta(days=1))
         self.truck.invalidate_recordset(["holder_id"])
         self.assertEqual(self.truck.holder_id, self.driver)
         Resource = self.env["resource.resource"]
@@ -149,17 +149,94 @@ class TestResourceAssignment(TransactionCase):
         )
 
     def test_holder_by_role_and_moment(self):
-        self._assign(role="manager", assignee=self.other_driver)
-        self._assign(role="driver")
+        self._assign(custody_role="manager", assignee=self.other_driver)
+        self._assign(custody_role="operator")
         self.assertEqual(
-            self.Assignment._get_holder(self.truck, role="manager"), self.other_driver
+            self.Assignment._get_holder(self.truck, custody_role="manager"),
+            self.other_driver,
         )
         self.assertEqual(
-            self.Assignment._get_holder(self.truck, role="driver"), self.driver
+            self.Assignment._get_holder(self.truck, custody_role="operator"),
+            self.driver,
         )
         self.assertFalse(
             self.Assignment._get_holder(self.truck, at=self.now - timedelta(days=5))
         )
+
+    def test_the_operator_and_manager_are_fields_of_the_resource(self):
+        self.truck.operator_id = self.driver
+        self.truck.manager_id = self.other_driver
+        live = self.Assignment._search_custody(self.truck)
+        self.assertEqual(len(live), 2)
+        self.assertEqual(
+            {(a.custody_role, a.assignee_id) for a in live},
+            {("operator", self.driver), ("manager", self.other_driver)},
+        )
+        self.truck.invalidate_recordset()
+        self.assertEqual(self.truck.operator_id, self.driver)
+        self.assertEqual(self.truck.manager_id, self.other_driver)
+        self.assertIn(
+            self.truck,
+            self.truck.search([("operator_id", "=", self.driver.id)]),
+        )
+        self.assertIn(self.truck, self.truck.search([("manager_id", "ilike", "Bo")]))
+
+    def test_a_new_operator_supersedes_the_live_one(self):
+        first = self._assign()
+        second = self._assign(assignee=self.other_driver, date_start=self.now)
+        self.assertEqual(first.state, "ended")
+        self.assertEqual(second.state, "active")
+        self.truck.invalidate_recordset()
+        self.assertEqual(self.truck.operator_id, self.other_driver)
+
+    def test_a_technician_does_not_supersede_another(self):
+        first = self._assign(custody_role="technician")
+        self._assign(
+            custody_role="technician", assignee=self.other_driver, date_start=self.now
+        )
+        self.assertEqual(first.state, "active")
+
+    def test_clearing_the_operator_ends_custody_without_a_successor(self):
+        assignment = self._assign()
+        self.truck.operator_id = False
+        self.assertEqual(assignment.state, "ended")
+        self.assertFalse(self.Assignment._search_custody(self.truck))
+
+    def test_a_future_operator_is_a_planned_assignment(self):
+        self.truck.write(
+            {
+                "future_operator_id": self.other_driver.id,
+                "date_future_operator": self.now + timedelta(days=3),
+            }
+        )
+        planned = self.Assignment._search_custody(self.truck, when="planned")
+        self.assertEqual(planned.assignee_id, self.other_driver)
+        self.assertEqual(planned.state, "planned")
+        self.truck.invalidate_recordset()
+        self.assertEqual(self.truck.future_operator_id, self.other_driver)
+        self.assertEqual(self.truck.date_future_operator, self.now + timedelta(days=3))
+        self.assertIn(
+            self.truck,
+            self.truck.search([("future_operator_id", "=", self.other_driver.id)]),
+        )
+        with self.assertRaises(UserError):
+            self.truck.write(
+                {
+                    "future_operator_id": self.driver.id,
+                    "date_future_operator": self.now - timedelta(days=1),
+                }
+            )
+
+    def test_ending_custody_ends_the_live_and_voids_the_planned(self):
+        live = self._assign()
+        planned = self._assign(
+            assignee=self.other_driver, date_start=self.now + timedelta(days=3)
+        )
+        self.truck._end_custody(self.now)
+        self.assertEqual(live.date_end, self.now)
+        self.assertEqual(planned.date_end, planned.date_start)
+        self.assertFalse(self.Assignment._search_custody(self.truck))
+        self.assertFalse(self.Assignment._search_custody(self.truck, when="planned"))
 
     def test_open_ended_custody_books_nothing(self):
         assignment = self._assign()
@@ -201,7 +278,7 @@ class TestResourceAssignment(TransactionCase):
                 {
                     "resource_id": room.id,
                     "assignee_id": assignee.id,
-                    "role": "custodian",
+                    "custody_role": "custodian",
                     "date_start": self.now - timedelta(days=1),
                     "date_end": self.now + timedelta(days=3),
                 }
@@ -290,7 +367,59 @@ class TestResourceAssignment(TransactionCase):
 
     def test_deleting_the_assignment_releases_the_booking(self):
         assignment = self._assign(date_end=self.now + timedelta(days=3))
+        assignment_id = assignment.id
         assignment.unlink()
         self.assertFalse(
-            self.Reservation.search([("res_model", "=", "resource.assignment")])
+            self.Reservation.search(
+                [
+                    ("res_model", "=", "resource.assignment"),
+                    ("res_id", "=", assignment_id),
+                ]
+            )
         )
+
+    def test_anyone_can_hold_by_their_contact(self):
+        contractor = self.env["res.partner"].create({"name": "Outside Mechanic"})
+        assignment = self.Assignment.create(
+            {
+                "resource_id": self.truck.id,
+                "assignee_partner_id": contractor.id,
+                "custody_role": "technician",
+            }
+        )
+        self.assertEqual(assignment.assignee_partner_id, contractor)
+        self.assertEqual(assignment.assignee_id.partner_id, contractor)
+        self.assertEqual(assignment.assignee_id.resource_type, "user")
+        self.assertEqual(assignment.assignee_id.company_id, self.truck.company_id)
+        self.assertEqual(self.truck.holder_id, assignment.assignee_id)
+
+    def test_a_contact_who_is_a_resource_holds_with_that_resource(self):
+        assignment = self.Assignment.create(
+            {
+                "resource_id": self.truck.id,
+                "assignee_partner_id": self.driver.partner_id.id,
+            }
+        )
+        self.assertEqual(assignment.assignee_id, self.driver)
+
+    def test_one_person_twice_in_a_batch_is_one_resource(self):
+        renter = self.env["res.partner"].create({"name": "Weekend Renter"})
+        van = self.env["resource.resource"].create(
+            {"name": "Van 3", "resource_type": "material", "tz": "UTC"}
+        )
+        first, second = self.Assignment.create(
+            [
+                {"resource_id": self.truck.id, "assignee_partner_id": renter.id},
+                {"resource_id": van.id, "assignee_partner_id": renter.id},
+            ]
+        )
+        self.assertEqual(first.assignee_id, second.assignee_id)
+        self.assertEqual(renter.resource_ids, first.assignee_id)
+
+    def test_changing_the_holder_by_contact(self):
+        assignment = self._assign()
+        assignment.assignee_partner_id = self.other_driver.partner_id
+        self.assertEqual(assignment.assignee_id, self.other_driver)
+        newcomer = self.env["res.partner"].create({"name": "Newcomer"})
+        assignment.assignee_partner_id = newcomer
+        self.assertEqual(assignment.assignee_id.partner_id, newcomer)

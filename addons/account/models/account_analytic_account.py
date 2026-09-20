@@ -1,17 +1,14 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
 
-    invoice_count = fields.Integer(
-        "Invoice Count",
-        compute="_compute_invoice_count",
-    )
-    vendor_bill_count = fields.Integer(
-        "Vendor Bill Count",
-        compute="_compute_vendor_bill_count",
-    )
+    invoice_count = fields.Integer(compute="_compute_invoice_count")
+    vendor_bill_count = fields.Integer(compute="_compute_vendor_bill_count")
 
     @api.depends("line_ids")
     def _compute_invoice_count(self):
@@ -30,6 +27,7 @@ class AccountAnalyticAccount(models.Model):
             account.invoice_count = data.get(account.id, 0)
 
     @api.depends("line_ids")
+    @_debug.perf.timed
     def _compute_vendor_bill_count(self):
         purchase_types = self.env["account.move"].get_purchase_types(
             include_receipts=True
@@ -47,7 +45,9 @@ class AccountAnalyticAccount(models.Model):
         for account in self:
             account.vendor_bill_count = data.get(account.id, 0)
 
+    @_debug.perf.timed
     def action_view_invoice(self):
+        _debug.lifecycle("action_view_invoice", records=self)
         self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [
@@ -65,7 +65,9 @@ class AccountAnalyticAccount(models.Model):
             "view_mode": "list,form",
         }
 
+    @_debug.perf.timed
     def action_view_vendor_bill(self):
+        _debug.lifecycle("action_view_vendor_bill", records=self)
         self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [

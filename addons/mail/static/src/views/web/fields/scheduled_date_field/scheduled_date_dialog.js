@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { today } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { Dialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.scheduled_message");
 export class ScheduledDateDialog extends Component {
     static template = "mail.ScheduledDateDialog";
     static props = {
@@ -80,11 +83,13 @@ export class ScheduledDateDialog extends Component {
     }
 
     clear() {
+        log.logic("clear");
         this.props.save(false);
         this.props.close();
     }
 
     save() {
+        log.logic("save", () => ({ scheduledDate: String(this.scheduledDate) }));
         this.props.save(this.scheduledDate);
         this.props.close();
     }

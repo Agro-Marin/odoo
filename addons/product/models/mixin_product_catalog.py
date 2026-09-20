@@ -11,7 +11,7 @@ class MixinProductCatalog(models.AbstractModel):
         self.check_singleton()
         kanban_view_id = self.env.ref("product.view_product_product_kanban_catalog").id
         search_view_id = self.env.ref("product.view_product_product_search_catalog").id
-        additional_context = self._get_action_add_from_catalog_extra_context()
+        additional_context = self._prepare_catalog_extra_context()
         return {
             "type": "ir.actions.act_window",
             "name": _("Products"),
@@ -19,17 +19,17 @@ class MixinProductCatalog(models.AbstractModel):
             "views": [(kanban_view_id, "kanban"), (False, "form")],
             "search_view_id": [search_view_id, "search"],
             "domain": self._get_domain_product_catalog(),
-            "context": {**self._get_catalog_action_context(), **additional_context},
+            "context": {**self._prepare_catalog_action_context(), **additional_context},
         }
 
-    def _get_catalog_action_context(self):
+    def _prepare_catalog_action_context(self):
         return {
             key: value
             for key, value in self.env.context.items()
             if not key.startswith("default_")
         }
 
-    def _default_order_line_values(self, child_field=False):
+    def _get_order_line_values(self, child_field=False):
         return {
             "quantity": 0,
             "readOnly": self._is_readonly() if self else False,
@@ -74,7 +74,7 @@ class MixinProductCatalog(models.AbstractModel):
                     product.uom_id.display_name
                 )
 
-        default_data = self._default_order_line_values(child_field)
+        default_data = self._get_order_line_values(child_field)
         products = self.env["product.product"].browse(product_ids)
         product_data = self._get_product_catalog_order_data(products, **kwargs)
 
@@ -85,7 +85,7 @@ class MixinProductCatalog(models.AbstractModel):
 
         return order_line_info
 
-    def _get_action_add_from_catalog_extra_context(self):
+    def _prepare_catalog_extra_context(self):
         return {
             "display_uom": self.env.user.has_group("uom.group_uom"),
             "order_id": self.id,

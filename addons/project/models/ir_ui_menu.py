@@ -1,5 +1,7 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
@@ -19,4 +21,11 @@ class IrUiMenu(models.Model):
             ]:
                 if menu := self.env.ref(xmlid, raise_if_not_found=False):
                     res.append(menu.id)
+        dbg.logic.debug(
+            "ir.ui.menu._get_blacklisted_menu_ids: user %s manager=%s stages=%s -> %s",
+            self.env.uid,
+            self.env.user.has_group("project.group_project_manager"),
+            self.env.user.has_group("project.group_project_stages"),
+            res,
+        )
         return res

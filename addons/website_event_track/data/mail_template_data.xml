@@ -4,13 +4,14 @@
     <data noupdate="1">
         <record id="mail_template_data_track_confirmation" model="mail.template">
             <field name="name">Event: Track Confirmation</field>
+            <field
+                name="description">Sent to speakers whose track proposal is accepted (set the template on the right stage)</field>
             <field name="model_id" ref="website_event_track.model_event_track" />
             <field name="subject">Confirmation of {{ object.name }}</field>
             <field
                 name="email_from">{{ (object.event_id.organizer_id.email_formatted or object.event_id.company_id.email_formatted or user.email_formatted or '') }}</field>
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent to speakers whose track proposal is accepted (set the template on the right stage)</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div>
                     Dear <t t-out="object.partner_id.name or object.partner_name or ''">Brandon Freeman</t><br />
@@ -32,15 +33,14 @@
                     </t>
                 </div>
             </field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="mail_template_data_track_reminder" model="mail.template">
             <field name="name">Add reminder via email</field>
+            <field name="description">Add talk reminder</field>
             <field name="model_id" ref="website_event_track.model_event_track" />
             <field name="subject">Add talk reminder: {{ object.name }}</field>
             <field
                 name="email_from">{{ (object.event_id.organizer_id.email_formatted or object.event_id.company_id.email_formatted or user.email_formatted or '') }}</field>
-            <field name="description">Add talk reminder</field>
             <field
                 name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
             <field name="body_html" type="html">
@@ -60,7 +60,6 @@
                     width="590"
                     style="padding: 16px; background-color: white; color: #454748; border-collapse:separate;">
                 <tbody>
-                    <!-- HEADER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -90,7 +89,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- TALK DESCRIPTION -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -171,7 +169,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- DETAILS -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -286,7 +283,6 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- CONTACT ORGANIZER -->
                                     <t
                                         t-if="object.event_id.organizer_id.name or object.event_id.company_id.name">
                                         <div>
@@ -307,7 +303,6 @@
                                 </td></tr>
 
                                 <tr><td style="text-align:center;">
-                                    <!-- CONTACT ORGANIZER SEPARATION -->
                                     <hr
                                         t-if="is_online or event_address"
                                         width="100%"
@@ -315,14 +310,12 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- PWA MARKGETING -->
                                     <div t-if="is_online">
                                         <strong>Get the best mobile experience.</strong>
                                         <a href="/event">Install our mobile app</a>
                                     </div>
                                 </td></tr>
                                 <tr><td style="text-align:center;">
-                                    <!-- PWA MARKGETING SEPARATION-->
                                     <hr
                                         t-if="is_online and event_address"
                                         width="100%"
@@ -330,7 +323,6 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- GOOGLE MAPS LINK -->
                                     <table t-if="event_address and location" style="width:100%;"><tr><td>
                                         <div>
                                             <img
@@ -356,7 +348,6 @@
                 </tbody>
                 </table>
                 </td></tr>
-                <!-- FOOTER BY -->
                 <tr><td align="center" style="min-width: 590px;">
                     <table
                         t-if="object.company_id"

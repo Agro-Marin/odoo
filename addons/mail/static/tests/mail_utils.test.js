@@ -1,6 +1,6 @@
 // @ts-check
 import { addLink, parseAndTransform } from "@mail/utils/common/format";
-import { makeSequential } from "@mail/utils/common/misc";
+import { makeSequential, navigateIndex } from "@mail/utils/common/misc";
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { markup } from "@odoo/owl";
@@ -236,4 +236,16 @@ test("isSequential doesn't execute intermediate call.", async () => {
     ]);
     expect(result).toEqual([1, undefined, undefined, undefined, 5]);
     expect.verifySteps(["1", "5"]);
+});
+
+test("navigateIndex wraps at both ends and starts from the first item", () => {
+    expect(navigateIndex("next", null, 0)).toBe(undefined);
+    expect(navigateIndex("first", null, 3)).toBe(0);
+    expect(navigateIndex("last", null, 3)).toBe(2);
+    expect(navigateIndex("next", null, 3)).toBe(1);
+    expect(navigateIndex("previous", null, 3)).toBe(2);
+    expect(navigateIndex("next", 2, 3)).toBe(0);
+    expect(navigateIndex("previous", 0, 3)).toBe(2);
+    expect(navigateIndex("next", 1, 3)).toBe(2);
+    expect(navigateIndex(/** @type {any} */ ("elsewhere"), 1, 3)).toBe(undefined);
 });

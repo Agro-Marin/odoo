@@ -1,5 +1,6 @@
 import inspect
 import logging
+import weakref
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from odoo import fields, models
 from odoo.orm.components.unit_of_work import UnitOfWork
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.runtime.environment import Environment
-from odoo.orm.runtime.transaction import Transaction
+from odoo.orm.runtime.transaction import RECENT_ENVIRONMENTS, Transaction
 
 _MOD = "test_orm_transaction_environment"
 
@@ -55,6 +56,36 @@ def test_the_last_environment_is_the_fast_path():
         other = tx.environment(cr, 7, {"k": 2})
         assert other is not first
         assert tx._last_env() is other
+
+
+def test_a_transient_environment_survives_between_calls():
+    with model_test_env(Gadget) as env:
+        cr, tx = env.cr, env.transaction
+        first = weakref.ref(tx.environment(cr, 7, {"k": "transient"}))
+        assert first() is not None
+        assert tx.environment(cr, 7, {"k": "transient"}) is first()
+        for n in range(RECENT_ENVIRONMENTS):
+            tx.environment(cr, 7, {"k": n})
+        assert first() is None
+
+
+def test_clear_forgets_the_recent_environments():
+    with model_test_env(Gadget) as env:
+        cr, tx = env.cr, env.transaction
+        tx.environment(cr, 7, {"k": "gone"})
+        assert tx._recent_envs
+        tx.clear()
+        assert not tx._recent_envs
+        assert tx._last_env is None
+
+
+def test_sudo_without_default_keys_keeps_the_context_object():
+    with model_test_env(Gadget) as env:
+        user_env = env(user=7, context={"lang": "fr_FR"})
+        assert user_env(su=True).context is user_env.context
+        with_default = env(user=7, context={"lang": "fr_FR", "default_name": "x"})
+        assert with_default(su=True).context == {"lang": "fr_FR"}
+        assert with_default(su=True).context is not with_default.context
 
 
 def test_superuser_is_normalised_to_su_by_the_transaction():
@@ -107,23 +138,25 @@ def test_flush_through_an_env_binds_that_env_and_skips_the_profiler_report():
         with patch.object(
             UnitOfWork, "flush_until_converged", side_effect=record_bindings
         ):
-            tx._n1_tracker = MagicMock()
+            observer = MagicMock()
+            tx.observers = (observer,)
             tx.flush(user_env)
         assert seen, "the unit of work was not driven"
         bound = {c.cell_contents for cells in seen[0] for c in cells}
         assert user_env in bound, "the callbacks are not bound to the env given"
-        tx._n1_tracker.report.assert_not_called()
+        observer.report.assert_not_called()
 
 
 def test_the_cursor_form_flushes_through_default_env_and_reports():
     with model_test_env(Gadget) as env:
         tx = env.transaction
-        tx._n1_tracker = MagicMock()
+        observer = MagicMock()
+        tx.observers = (observer,)
         with patch.object(Transaction, "_flush_as") as flush_as:
             tx.flush()
         flush_as.assert_called_once_with(tx.default_env)
-        tx._n1_tracker.report.assert_called_once_with()
-        tx._n1_tracker.clear.assert_called_once_with()
+        observer.report.assert_called_once_with()
+        observer.clear.assert_called_once_with()
 
 
 def test_non_convergence_is_the_transactions_error(caplog):
@@ -145,11 +178,12 @@ def test_non_convergence_is_the_transactions_error(caplog):
 
 
 def test_a_savepoint_rollback_leaves_default_env_to_its_writer():
-    from odoo.db.savepoint import _FlushingSavepoint
     from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
 
-    assert _OrmFlushingSavepoint._save_orm_state is _FlushingSavepoint._save_orm_state
-    assert _OrmFlushingSavepoint.__slots__ == ()
+    assert _OrmFlushingSavepoint.__slots__ == ("_generation_before",), (
+        "the savepoint snapshots the registry's cache-invalidation generations "
+        "and nothing else"
+    )
     assert "default_env" not in inspect.getsource(_OrmFlushingSavepoint), (
         "the savepoint snapshots default_env again; whoever changes it inside a "
         "savepoint restores it, as http_routing._borrowed_public_env does"

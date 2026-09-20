@@ -11,8 +11,6 @@ export const TableOfContentEdit = (I) =>
                 !isTrackedSnapshot(snapshot) ||
                 !this.el.classList.contains("s_table_of_content_horizontal_navbar")
             ) {
-                // `snapshot || "{}"` used to swallow the untracked sentinel,
-                // converting "always restart" into a stable value. Forward it.
                 return snapshot;
             }
             const parsed = JSON.parse(snapshot);

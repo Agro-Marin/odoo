@@ -35,7 +35,7 @@ def test_real_value_outranks_pending_in_another_context():
         record_b = _create_in_a_write_in_b(env)
         field = record_b._fields["per_branch"]
 
-        raw = dict(env._core.iter_context_caches(field))
+        raw = dict(env.core.iter_context_caches(field))
         assert any(PENDING in sub.values() for sub in raw.values()), (
             "test premise lost: no context holds PENDING"
         )
@@ -55,10 +55,10 @@ def test_all_pending_hands_the_dirty_flag_back():
         record = env["gcup.thing"].create({"name": "a"})
         field = record._fields["per_branch"]
 
-        for _key, sub_cache in env._core.iter_context_caches(field):
+        for _key, sub_cache in env.core.iter_context_caches(field):
             sub_cache[record.id] = PENDING
-        env._core.mark_dirty(field, (record.id,))
+        env.core.mark_dirty(field, (record.id,))
 
         assert field.get_column_update(record) is PENDING
         env["gcup.thing"]._flush()
-        assert env._core.get_dirty(field) == {record.id}
+        assert env.core.get_dirty(field) == {record.id}

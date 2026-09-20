@@ -2,6 +2,8 @@ from collections import defaultdict
 
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class LotLabelLayout(models.TransientModel):
     _name = "lot.label.layout"
@@ -11,15 +13,15 @@ class LotLabelLayout(models.TransientModel):
     label_quantity = fields.Selection(
         selection=[("lots", "One per lot/SN"), ("units", "One per unit")],
         string="Quantity to print",
-        required=True,
         default="lots",
+        required=True,
         help="If the UoM of a lot is not 'units', the lot will be considered as a unit and only one label will be printed for this lot.",
     )
     print_format = fields.Selection(
         selection=[("4x12", "4 x 12"), ("zpl", "ZPL Labels")],
         string="Format",
-        required=True,
         default="4x12",
+        required=True,
     )
 
     def process(self):
@@ -42,6 +44,12 @@ class LotLabelLayout(models.TransientModel):
             docids = []
             for lot_id, qty in quantity_by_lot.items():
                 docids.extend([lot_id] * qty)
+        dbg.logic.debug(
+            "lot labels: format %s quantity %s -> %d docids",
+            self.print_format,
+            self.label_quantity,
+            len(docids),
+        )
         report_action = self.env.ref(xml_id).report_action(docids, config=False)
         report_action.update({"close_on_report_download": True})
         return report_action

@@ -20,34 +20,85 @@ class IapAccount(models.Model):
     _description = "IAP Account"
 
     name = fields.Char()
-    service_id = fields.Many2one("iap.service", required=True)
+    service_id = fields.Many2one(
+        comodel_name="iap.service",
+        required=True,
+    )
     service_name = fields.Char(related="service_id.technical_name")
     service_locked = fields.Boolean(
         default=False
     )  # If True, the service can't be edited anymore
     description = fields.Char(related="service_id.description")
+    credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Token Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds this account's token.",
+    )
     account_token = fields.Char(
+        compute="_compute_account_token",
+        inverse="_inverse_account_token",
         default=lambda s: uuid.uuid4().hex,
-        help="Account token is your authentication key for this service. Do not share it.",
-        size=43,
         copy=False,
         groups="base.group_system",
+        help="Account token is your authentication key for this service. Do not share it.",
     )
-    company_ids = fields.Many2many("res.company")
+    company_ids = fields.Many2many(comodel_name="res.company")
 
     # Set from the IAP server when the view loads, except warning_user_ids, which
     # is local; both warning fields are pushed to IAP on write
     balance = fields.Char(readonly=True)
-    warning_threshold = fields.Float("Email Alert Threshold")
-    warning_user_ids = fields.Many2many("res.users", string="Email Alert Recipients")
+    warning_threshold = fields.Float(string="Email Alert Threshold")
+    warning_user_ids = fields.Many2many(
+        comodel_name="res.users",
+        string="Email Alert Recipients",
+    )
     state = fields.Selection(
-        [
+        selection=[
             ("banned", "Banned"),
             ("registered", "Registered"),
             ("unregistered", "Unregistered"),
         ],
         readonly=True,
     )
+
+    @api.depends("credential_id")
+    def _compute_account_token(self):
+        for account in self:
+            credential = account.sudo().credential_id
+            account.account_token = (
+                credential._use_secret("iap:account_token") if credential else False
+            ) or False
+
+    def _inverse_account_token(self):
+        for account in self.sudo():
+            token = account.account_token
+            credential = account.credential_id
+            if not token:
+                account.credential_id = False
+                credential.unlink()
+            elif credential:
+                credential.credential_value = token
+            else:
+                account.credential_id = (
+                    self.env["credential.credential"]
+                    .sudo()
+                    .create(
+                        {
+                            "name": self.env._(
+                                "IAP: %(service)s (account %(account)s)",
+                                service=account.service_id.name or account.name,
+                                account=account.id,
+                            ),
+                            "category_id": self.env.ref(
+                                "credential.credential_category_custom"
+                            ).id,
+                            "credential_value": token,
+                        }
+                    )
+                )
 
     @api.constrains("warning_threshold", "warning_user_ids")
     def check_warning_alerts(self):
@@ -113,7 +164,7 @@ class IapAccount(models.Model):
                     ],
                 }
                 try:
-                    iap_tools.iap_jsonrpc(url=url, params=data)
+                    iap_tools.iap_jsonrpc(url=url, params=data, env=self.env)
                 except AccessError as e:
                     _logger.warning(
                         "Update of the warning email configuration has failed: %s", e
@@ -139,7 +190,9 @@ class IapAccount(models.Model):
             "dbuuid": self.env["ir.config_parameter"].sudo().get_param("database.uuid"),
         }
         try:
-            accounts_information = iap_tools.iap_jsonrpc(url=url, params=params)
+            accounts_information = iap_tools.iap_jsonrpc(
+                url=url, params=params, env=self.env
+            )
         except AccessError as e:
             _logger.warning("Fetch of the IAP accounts information has failed: %s", e)
             return
@@ -211,7 +264,7 @@ class IapAccount(models.Model):
                 IapAccount = self.with_env(self.env(cr=cr))
                 # Need to use sudo because regular users do not have delete right
                 IapAccount.search(
-                    domain + [("account_token", "=", False)]
+                    domain + [("credential_id", "=", False)]
                 ).sudo().unlink()
                 accounts -= accounts_without_token
         if not accounts:
@@ -320,7 +373,7 @@ class IapAccount(models.Model):
                 "service_name": service_name,
             }
             try:
-                credit = iap_tools.iap_jsonrpc(url=url, params=params)
+                credit = iap_tools.iap_jsonrpc(url=url, params=params, env=self.env)
             except AccessError as e:
                 _logger.info("Get credit error : %s", e)
                 credit = -1

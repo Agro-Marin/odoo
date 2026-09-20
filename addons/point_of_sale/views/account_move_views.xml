@@ -8,14 +8,14 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-                    class="oe_stat_button"
                     name="action_view_source_pos_orders"
                     type="object"
                     icon="fa-regular fa-pen-to-square"
-                    invisible="pos_order_count == 0 or move_type not in ('out_invoice', 'out_refund')">
+                    invisible="pos_order_count == 0 or move_type not in ('out_invoice', 'out_refund')"
+                    class="oe_stat_button">
                     <field
-                        string="POS Orders"
                         name="pos_order_count"
+                        string="POS Orders"
                         widget="statinfo" />
                 </button>
             </xpath>
@@ -24,8 +24,8 @@
                 position="before">
                 <field
                     name="reversed_pos_order_id"
-                    readonly="True"
-                    invisible="not reversed_pos_order_id" />
+                    invisible="not reversed_pos_order_id"
+                    readonly="True" />
             </xpath>
         </field>
     </record>

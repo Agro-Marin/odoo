@@ -26,7 +26,6 @@ test("zoomed_background_shape is not needed without zoom", async () => {
     expect(shapeEl).toHaveStyle({ right: "0px" });
 });
 
-// TODO: @mysterious-egg check if it s ok in mobile
 test.tags("desktop");
 test("zoomed_background_shape applies correction on zoom", async () => {
     const { core } = await startInteractions(`
@@ -39,7 +38,6 @@ test("zoomed_background_shape applies correction on zoom", async () => {
     `);
     expect(core.interactions).toHaveLength(1);
     const shapeEl = queryOne(".o_we_shape");
-    // Adjustment depends on window size during test.
     expect(shapeEl).toHaveAttribute("style", /left:/);
     expect(shapeEl).not.toHaveStyle({ left: "0px" });
     expect(shapeEl).toHaveAttribute("style", /right:/);

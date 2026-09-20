@@ -6,26 +6,38 @@ import traceback
 from typing import Any
 
 from odoo.libs.datetime import real_time
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import which
 
 from .config import config
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_executable_path(name: str) -> str:
     path = os.environ.get("PATH", os.defpath).split(os.pathsep)
     if config["bin_path"]:
         path.append(config["bin_path"])
-    return which(name, path=os.pathsep.join(path))
+    executable = which(name, path=os.pathsep.join(path))
+    _debug.logic(
+        "subprocess.executable_resolved",
+        name=name,
+        path=executable,
+        bin_path=config["bin_path"] or None,
+    )
+    return executable
 
 
 def get_pg_tool_path(name: str) -> str:
     path = config["pg_path"] or None
     try:
-        return which(name, path=path)
+        executable = which(name, path=path)
     except OSError:
+        _debug.logic("subprocess.pg_tool_missing", name=name, pg_path=path)
         raise FileNotFoundError(f"Command `{name}` not found.") from None
+    _debug.logic("subprocess.pg_tool_resolved", name=name, path=executable)
+    return executable
 
 
 def exec_pg_environ() -> dict[str, str]:
@@ -44,6 +56,11 @@ def exec_pg_environ() -> dict[str, str]:
         ]
     if config["db_sslmode"]:
         env["PGSSLMODE"] = config["db_sslmode"]
+    _debug.logic(
+        "subprocess.pg_environ",
+        keys=sorted(key for key in env if key.startswith("PG") and key != "PGPASSWORD"),
+        password=bool(config["db_password"]),
+    )
     return env
 
 
@@ -84,7 +101,14 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
             or (i >= 1 and (args[i - 1] in stripped) and takes_value[args[i - 1]])
         )
 
-    return [x for i, x in enumerate(args) if not strip(args, i)]
+    kept = [x for i, x in enumerate(args) if not strip(args, i)]
+    _debug.logic(
+        "subprocess.argv_stripped",
+        stripped=list(stripped),
+        before=len(args),
+        after=len(kept),
+    )
+    return kept
 
 
 def dumpstacks(
@@ -136,3 +160,10 @@ def dumpstacks(
             code.extend(extract_stack(stack))
 
     _logger.log(log_level, "\n".join(code))
+    _debug.lifecycle(
+        "subprocess.stacks_dumped",
+        signal=sig,
+        threads=len(threads_info),
+        selected=None if not thread_idents else len(thread_idents),
+        lines=len(code),
+    )

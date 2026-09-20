@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { drag, queryOne, queryRect, resize } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, reactive, useState, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
 
 describe.current.tags("desktop");
@@ -270,4 +270,92 @@ test("the available width wins when it is below minWidth", async () => {
 
     await mountWithCleanup(Parent);
     expect(queryOne(".o_resizable_panel").offsetWidth).toBe(198);
+});
+
+test("a replaced onResize prop is the one notified", async () => {
+    const state = reactive({ target: "first" });
+    /** @type {string[]} */
+    const calls = [];
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="300" onResize="onResize">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+        }
+        get onResize() {
+            const target = this.state.target;
+            return () => calls.push(target);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    state.target = "second";
+    await animationFrame();
+    calls.length = 0;
+
+    await (
+        await drag(".o_resizable_panel_handle")
+    ).drop(".o_resizable_panel_handle", { position: { x: 40 } });
+    await animationFrame();
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((target) => target === "second")).toBe(true);
+});
+
+test("a drag measures the panel once, at pointerdown, and only writes on each move", async () => {
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="300">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    const panel = queryOne(".o_resizable_panel");
+    let rectReads = 0;
+    const { getBoundingClientRect } = panel;
+    patchWithCleanup(panel, {
+        getBoundingClientRect() {
+            rectReads++;
+            return getBoundingClientRect.call(this);
+        },
+    });
+    const dragHelper = await drag(".o_resizable_panel_handle");
+    const readsAtStart = rectReads;
+    expect(readsAtStart).toBeGreaterThan(0);
+    for (const x of [320, 340, 360, 380, 400]) {
+        await dragHelper.moveTo(".o_resizable_panel_handle", { position: { x } });
+    }
+    expect(rectReads).toBe(readsAtStart);
+    await dragHelper.drop();
+    expect(panel.style.width).not.toBe("300px");
+});
+
+test("resizing ignores secondary buttons and unrelated pointers", async () => {
+    await mountWithCleanup(ResizablePanel, {
+        props: { minWidth: 20, initialWidth: 100, slots: {} },
+    });
+    const panel = queryOne(".o_resizable_panel");
+    const handle = queryOne(".o_resizable_panel_handle");
+    handle.dispatchEvent(new PointerEvent("pointerdown", { button: 2, pointerId: 7 }));
+    expect(document.body).not.toHaveClass("pe-none");
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 7 }));
+    handle.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7 }));
+    document.dispatchEvent(
+        new PointerEvent("pointermove", { pointerId: 8, clientX: 250 }),
+    );
+    expect(panel.style.width).toBe("100px");
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId: 8 }));
+    expect(document.body).toHaveClass("pe-none");
+    document.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 7 }));
+    expect(document.body).not.toHaveClass("pe-none");
 });

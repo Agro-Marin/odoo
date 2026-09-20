@@ -7,6 +7,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form
 
 from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.stock.models.stock_quant_reservation import LOCKED_QUANTS_CACHE_KEY
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
@@ -309,9 +310,19 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.quantity, 18.0)
 
     def test_increase_available_quantity_4(self):
+        """A stock user, not a superuser, can add to available quantity."""
         self.env = self.env(user=self.demo_user)
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
+        )
+        self.env.flush_all()
+
+        self.assertEqual(
+            self.env["stock.quant"]._get_available_quantity(
+                self.productA, self.stock_location
+            ),
+            1.0,
+            "the update ran without raising but moved nothing",
         )
 
     def test_increase_available_quantity_5(self):
@@ -437,6 +448,9 @@ class TestStockQuant(TestStockCommon):
             "UPDATE stock_quant SET reserved_quantity = reserved_quantity + 3 WHERE id = %s",
             (quant.id,),
         )
+        # the raw write stands in for another transaction's: the row must
+        # not count as already locked by this one
+        self.env.cr.cache.pop(LOCKED_QUANTS_CACHE_KEY, None)
         Quant._update_reserved_quantity(self.productA, self.stock_location, -2.0)
         quant.invalidate_recordset(["reserved_quantity"])
         self.assertEqual(quant.reserved_quantity, 5.0)

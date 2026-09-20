@@ -32,5 +32,4 @@
             "spreadsheet_dashboard/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

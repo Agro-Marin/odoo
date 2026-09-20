@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
     click,
+    freezeTime,
     hover,
     leave,
     manuallyDispatchProgrammaticEvent,
@@ -23,11 +24,8 @@ setupInteractionWhiteList("website.popup");
 
 describe.current.tags("interaction_dev");
 
-/**
- * Remove the CSS transitions because Bootstrap transitions don't work with Hoot.
- */
 function removeTransitions() {
-    defineStyle(/* css */ `
+    defineStyle(`
         * {
             transition: none !important;
         }
@@ -36,13 +34,13 @@ function removeTransitions() {
 
 /**
  * @param {Object} [options]
- * @param {number} [options.showAfter] - delay
- * @param {string} [options.display] - one of "afterDelay", "onClick", "mouseExit"
+ * @param {number} [options.showAfter]
+ * @param {string} [options.display]
  * @param {boolean} [options.backdrop]
  * @param {string} [options.extraPrimaryBtnClasses]
  * @param {string} [options.modalId]
  * @param {boolean} [options.focusableElements]
- * @returns {string} - popup template
+ * @returns {string}
  */
 function getPopupTemplate(options = {}) {
     const {
@@ -115,7 +113,6 @@ describe("close popup", () => {
         await animationFrame();
         await advanceTime(100);
         expect(modal).toBeVisible();
-        // Focus the modal so that the escape is dispatched on the right element.
         await pointerDown(modal);
         await tick();
         await press("Escape");
@@ -144,6 +141,17 @@ describe("close popup", () => {
         expect(modal).toBeVisible();
         await click(".btn-primary.o_website_form_send");
         expect(modal).toBeVisible();
+    });
+
+    test("destroying the popup while it is still showing does not throw later", async () => {
+        freezeTime();
+        const { core } = await startInteractions(getPopupTemplate({ showAfter: 1000 }));
+        expect(core.interactions).toHaveLength(1);
+        await advanceTime(1000);
+        expect(modal).toBeVisible();
+        core.stopInteractions();
+        await advanceTime(100);
+        expect(modal).not.toBeVisible();
     });
 
     test("close popup by clicking outside the modal", async () => {
@@ -230,7 +238,7 @@ describe("trap focus", () => {
         `);
         expect(core.interactions).toHaveLength(1);
         await pointerDown(document.body);
-        expect(document.body).toBeFocused(); // Just making sure.
+        expect(document.body).toBeFocused();
         await press("Tab");
         expect("#showLink").toBeFocused();
         await tick();
@@ -252,7 +260,7 @@ describe("trap focus", () => {
         const modal = "#sPopup #modal[data-display='onClick']";
         expect(core.interactions).toHaveLength(1);
         await pointerDown(document.body);
-        expect(document.body).toBeFocused(); // Just making sure.
+        expect(document.body).toBeFocused();
         await press("Tab");
         expect("[href='#modal']").toBeFocused();
         await press("Enter");
@@ -282,7 +290,7 @@ describe("trap focus", () => {
         `);
         expect(core.interactions).toHaveLength(1);
         await pointerDown(document.body);
-        expect(document.body).toBeFocused(); // Just making sure.
+        expect(document.body).toBeFocused();
         await press("Tab");
         expect("#link1").toBeFocused();
         await tick();

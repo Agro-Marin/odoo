@@ -1,7 +1,11 @@
 from collections import defaultdict
 
+from odoo.libs.debug_log import DebugLog
+
 from ..domain.ast import Domain, DomainCondition, DomainCustom, DomainNary, DomainNot
 from ..parsing import parse_field_expr, regex_order
+
+_debug = DebugLog(__name__)
 
 
 class _DependencyCollector:
@@ -19,6 +23,9 @@ class _DependencyCollector:
         self.seen.add(key)
         if field.store:
             self.fields_by_model[records._name].add(name)
+            if records._table_inheritance_root:
+                # every table of the tree reads rows another model of it writes
+                self._collect_inheritance_tree(records, name)
         elif field.related:
             target = records
             for part in field.related.split("."):
@@ -30,6 +37,12 @@ class _DependencyCollector:
         if prop and field.relational:
             self.collect_field(records.env[field.comodel_name], prop)
         return field
+
+    def _collect_inheritance_tree(self, records, name):
+        env = records.env
+        for model_name in env._table_inheritance_tree(records._name):
+            if name in env[model_name]._fields:
+                self.fields_by_model[model_name].add(name)
 
     def collect_domain(self, records, node):
         if isinstance(node, DomainCustom):
@@ -73,6 +86,13 @@ def flush_search_dependencies(model, domain, order):
     collector.collect_domain(model, domain)
     if order:
         collector.collect_order(model, order)
+    _debug.logic(
+        "search.flush_dependencies",
+        model=model._name,
+        opaque=collector.opaque,
+        models=len(collector.fields_by_model),
+        fields=sum(len(f) for f in collector.fields_by_model.values()),
+    )
     if collector.opaque:
         model.env.flush_all()
     else:

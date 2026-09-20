@@ -12,7 +12,6 @@ registry.category("web_tour.tours").add("website_sale_stock_combo_configurator",
             expectUnloadPage: true,
         }),
         configuratorTourUtils.assertQuantity(1),
-        // Assert that it's impossible to add less than 1 product.
         configuratorTourUtils.setQuantity(0),
         configuratorTourUtils.assertQuantity(1),
         {
@@ -22,14 +21,11 @@ registry.category("web_tour.tours").add("website_sale_stock_combo_configurator",
                     button[name=sale_quantity_button_minus]:disabled
                 `,
         },
-        // Assert that an error is shown if the requested quantity isn't available.
         configuratorTourUtils.setQuantity(3),
         stockConfiguratorTourUtils.assertQuantityNotAvailable("Test product"),
-        // Assert that a warning is shown if all available quantity is selected.
         configuratorTourUtils.setQuantity(2),
         configuratorTourUtils.selectComboItem("Test product"),
         stockConfiguratorTourUtils.assertAllQuantitySelected("Test product"),
-        // Assert that it's impossible to add more products than available.
         configuratorTourUtils.setQuantity(3),
         configuratorTourUtils.assertQuantity(2),
         {

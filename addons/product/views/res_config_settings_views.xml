@@ -7,15 +7,15 @@
         <field name="inherit_id" ref="web.res_config_settings_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@id='companies']" position="after">
-                <block title="Units of Measure" id="product_general_settings">
+                <block id="product_general_settings" title="Units of Measure">
                     <setting
                         id="weight_uom_setting"
                         string="Weight"
                         help="Define your weight unit of measure">
                         <field
                             name="product_weight_in_lbs"
-                            class="o_light_label"
-                            widget="radio" />
+                            widget="radio"
+                            class="o_light_label" />
                     </setting>
                     <setting
                         id="manage_volume_uom_setting"
@@ -23,8 +23,8 @@
                         help="Define your volume unit of measure">
                         <field
                             name="product_volume_volume_in_cubic_feet"
-                            class="o_light_label"
-                            widget="radio" />
+                            widget="radio"
+                            class="o_light_label" />
                     </setting>
                     <setting
                         id="product_odometer_in_mi"
@@ -32,9 +32,9 @@
                         help="Define your odometer unit of measure">
                         <field
                             name="product_odometer_in_mi"
-                            class="o_light_label"
                             widget="radio"
-                            options="{'horizontal': true}" />
+                            options="{'horizontal': true}"
+                            class="o_light_label" />
                     </setting>
                     <setting
                         id="product_area_in_square_ft"
@@ -42,9 +42,9 @@
                         help="Define your area unit of measure">
                         <field
                             name="product_area_in_square_ft"
-                            class="o_light_label"
                             widget="radio"
-                            options="{'horizontal': true}" />
+                            options="{'horizontal': true}"
+                            class="o_light_label" />
                     </setting>
                     <setting
                         id="product_power_in_hp"
@@ -52,9 +52,9 @@
                         help="Define your power unit of measure">
                         <field
                             name="product_power_in_hp"
-                            class="o_light_label"
                             widget="radio"
-                            options="{'horizontal': true}" />
+                            options="{'horizontal': true}"
+                            class="o_light_label" />
                     </setting>
                     <setting
                         id="product_fuel_efficiency_in_mpg"
@@ -62,9 +62,9 @@
                         help="Define your fuel efficiency unit of measure">
                         <field
                             name="product_fuel_efficiency_in_mpg"
-                            class="o_light_label"
                             widget="radio"
-                            options="{'horizontal': true}" />
+                            options="{'horizontal': true}"
+                            class="o_light_label" />
                     </setting>
                 </block>
             </xpath>

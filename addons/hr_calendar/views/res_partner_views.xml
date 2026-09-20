@@ -9,8 +9,8 @@
         <field name="arch" type="xml">
             <filter name="type_company" position="after">
                 <filter
-                    string="My Team"
                     name="type_team"
+                    string="My Team"
                     domain="[('employee_ids.department_id.manager_id.user_id', '=', uid)]" />
             </filter>
         </field>

@@ -1,6 +1,6 @@
 {
     "name": "Employees",
-    "version": "1.20",
+    "version": "1.24",
     "category": "Human Resources/Employees",
     "sequence": 95,
     "summary": "Centralize employee information",
@@ -11,6 +11,7 @@
     ],
     "license": "LGPL-3",
     "depends": [
+        "approval",
         "digest",
         "phone_validation",
         "resource_mail",
@@ -18,6 +19,7 @@
     "data": [
         "security/hr_security.xml",
         "security/ir.model.access.csv",
+        "data/approval_category_data.xml",
         "data/digest_data.xml",
         "data/res_partner_identifier_type_data.xml",
         "data/report_paperformat.xml",
@@ -37,9 +39,10 @@
         "views/hr_employee_views.xml",
         "views/hr_employee_change_request_views.xml",
         "views/hr_department_views.xml",
+        "views/resource_assignment_views.xml",
         "views/hr_work_location_views.xml",
-        "views/hr_menus.xml",
         "views/res_config_settings_views.xml",
+        "views/hr_menus.xml",
         "views/res_partner_views.xml",
         "views/res_partner_bank_views.xml",
         "views/discuss_channel_views.xml",
@@ -71,6 +74,5 @@
             "hr/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

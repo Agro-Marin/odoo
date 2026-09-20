@@ -3,6 +3,8 @@ from typing import Any
 
 from odoo import Command, _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectShareWizard(models.TransientModel):
     _name = "project.share.wizard"
@@ -10,39 +12,38 @@ class ProjectShareWizard(models.TransientModel):
     _description = "Project Sharing"
 
     @api.model
-    def default_get(self, fields: list[str]) -> dict[str, Any]:
+    def default_get(self, fields_list: list[str]) -> dict[str, Any]:
         active_model = self.env.context.get("active_model", "")
         active_id = self.env.context.get("active_id", False)
         if active_model == "project.collaborator":
             active_model = "project.project"
             active_id = self.env.context.get("default_project_id", False)
+        default_fields = fields_list
+        if "collaborator_ids" in fields_list:
+            default_fields = list(dict.fromkeys([*fields_list, "res_model", "res_id"]))
         result = super(
             ProjectShareWizard,
             self.with_context(active_model=active_model, active_id=active_id),
-        ).default_get(fields)
-        if result["res_model"] and result["res_id"]:
-            project = self.env[result["res_model"]].browse(result["res_id"])
-            collaborator_vals_list = []
-            collaborator_ids = []
-            for collaborator in project.collaborator_ids:
-                collaborator_ids.append(collaborator.partner_id.id)
-                collaborator_vals_list.append(
-                    {
-                        "partner_id": collaborator.partner_id.id,
-                        "partner_name": collaborator.partner_id.display_name,
-                        "access_mode": (
-                            "edit_limited" if collaborator.limited_access else "edit"
-                        ),
-                    }
-                )
-            collaborator_vals_list.extend(
+        ).default_get(default_fields)
+        if (
+            "collaborator_ids" in fields_list
+            and "collaborator_ids" not in result
+            and result.get("res_model") == "project.project"
+            and result.get("res_id")
+        ):
+            project = self.env["project.project"].browse(result["res_id"]).exists()
+            collaborator_vals_list = [
                 {
-                    "partner_id": follower.id,
-                    "partner_name": follower.display_name,
-                    "access_mode": "read",
+                    "partner_id": collaborator.partner_id.id,
+                    "partner_name": collaborator.partner_id.display_name,
+                    "access_mode": collaborator.access_mode,
                 }
-                for follower in project.message_partner_ids
-                if follower.partner_share and follower.id not in collaborator_ids
+                for collaborator in project.collaborator_ids
+            ]
+            dbg.logic.debug(
+                "project.share.wizard.default_get [project:%s]: %d prefilled rows",
+                project.id,
+                len(collaborator_vals_list),
             )
             if collaborator_vals_list:
                 collaborator_vals_list.sort(key=operator.itemgetter("partner_name"))
@@ -56,7 +57,7 @@ class ProjectShareWizard(models.TransientModel):
                     )
                     for collaborator in collaborator_vals_list
                 ]
-        return result
+        return {name: value for name, value in result.items() if name in fields_list}
 
     @api.model
     def _selection_target_model(self) -> list[tuple[str, str]]:
@@ -64,18 +65,18 @@ class ProjectShareWizard(models.TransientModel):
         return [(project_model.model, project_model.name)]
 
     share_link = fields.Char(
-        "Public Link",
+        string="Public Link",
         help="Anyone with this link can access the project in read mode.",
     )
     collaborator_ids = fields.One2many(
-        "project.share.collaborator.wizard",
-        "parent_wizard_id",
+        comodel_name="project.share.collaborator.wizard",
+        inverse_name="parent_wizard_id",
         string="Collaborators",
     )
     existing_partner_ids = fields.Many2many(
-        "res.partner",
-        compute="_compute_existing_partner_ids",
+        comodel_name="res.partner",
         export_string_translation=False,
+        compute="_compute_existing_partner_ids",
     )
 
     @api.depends("res_model", "res_id")
@@ -94,88 +95,39 @@ class ProjectShareWizard(models.TransientModel):
         for wizard in self:
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
+    @dbg.timed
     def _sync_collaborators(self) -> None:
         for wizard in self:
-            collaborator_ids_to_add = []
-            collaborator_ids_to_add_with_limited_access = []
-            collaborator_ids_vals_list = []
             project = wizard.resource_ref
-            project_collaborator_ids_to_remove = [
-                c.id
-                for c in project.collaborator_ids
-                if c.partner_id not in wizard.collaborator_ids.partner_id
+            existing = {c.partner_id: c for c in project.collaborator_ids}
+            requested = {c.partner_id: c.access_mode for c in wizard.collaborator_ids}
+            commands = [
+                Command.delete(collaborator.id)
+                for partner, collaborator in existing.items()
+                if partner not in requested
             ]
-            project_followers = project.message_partner_ids
-            project_followers_to_add = []
-            project_followers_to_remove = [
-                partner.id
-                for partner in project_followers
-                if partner not in wizard.collaborator_ids.partner_id
-                and partner.partner_share
-            ]
-            project_collaborator_per_partner_id = {
-                c.partner_id.id: c for c in project.collaborator_ids
-            }
-            for collaborator in wizard.collaborator_ids:
-                partner_id = collaborator.partner_id.id
-                project_collaborator = project_collaborator_per_partner_id.get(
-                    partner_id, self.env["project.collaborator"]
+            commands.extend(
+                Command.update(existing[partner].id, {"access_mode": access_mode})
+                for partner, access_mode in requested.items()
+                if partner in existing and existing[partner].access_mode != access_mode
+            )
+            new_partners = project._get_new_collaborators(
+                self.env["res.partner"].union(*requested)
+            )
+            commands.extend(
+                Command.create(
+                    {"partner_id": partner.id, "access_mode": requested[partner]}
                 )
-                if collaborator.access_mode in ("edit", "edit_limited"):
-                    limited_access = collaborator.access_mode == "edit_limited"
-                    if not project_collaborator:
-                        if limited_access:
-                            collaborator_ids_to_add_with_limited_access.append(
-                                partner_id
-                            )
-                        else:
-                            collaborator_ids_to_add.append(partner_id)
-                    elif project_collaborator.limited_access != limited_access:
-                        collaborator_ids_vals_list.append(
-                            Command.update(
-                                project_collaborator.id,
-                                {"limited_access": limited_access},
-                            )
-                        )
-                elif project_collaborator:
-                    project_collaborator_ids_to_remove.append(project_collaborator.id)
-                if partner_id not in project_followers.ids:
-                    project_followers_to_add.append(partner_id)
-            if collaborator_ids_to_add:
-                partners = project._get_new_collaborators(
-                    self.env["res.partner"].browse(collaborator_ids_to_add)
-                )
-                collaborator_ids_vals_list.extend(
-                    Command.create({"partner_id": partner_id})
-                    for partner_id in partners.ids
-                )
-                project.task_ids.message_subscribe(partner_ids=partners.ids)
-            if collaborator_ids_to_add_with_limited_access:
-                partners = project._get_new_collaborators(
-                    self.env["res.partner"].browse(
-                        collaborator_ids_to_add_with_limited_access
-                    )
-                )
-                collaborator_ids_vals_list.extend(
-                    Command.create({"partner_id": partner_id, "limited_access": True})
-                    for partner_id in partners.ids
-                )
-            if project_collaborator_ids_to_remove:
-                collaborator_ids_vals_list.extend(
-                    Command.delete(collaborator_id)
-                    for collaborator_id in project_collaborator_ids_to_remove
-                )
-            project_vals = {}
-            if collaborator_ids_vals_list:
-                project_vals["collaborator_ids"] = collaborator_ids_vals_list
-            if project_vals:
-                project.write(project_vals)
-            if project_followers_to_add:
-                project._add_followers(
-                    self.env["res.partner"].browse(project_followers_to_add)
-                )
-            if project_followers_to_remove:
-                project.message_unsubscribe(project_followers_to_remove)
+                for partner in new_partners
+            )
+            dbg.pipeline.debug(
+                "[project:%s] share wizard sync: add=%s commands=%d",
+                project.id,
+                dbg.rec(new_partners),
+                len(commands),
+            )
+            if commands:
+                project.write({"collaborator_ids": commands})
 
     def action_share_record(self) -> dict[str, Any] | None:
         self.check_singleton()
@@ -185,6 +137,12 @@ class ProjectShareWizard(models.TransientModel):
                 lambda c: c.send_invitation and not c.partner_id.user_ids
             )
             and on_invite
+        )
+        dbg.logic.debug(
+            "project.share.wizard.action_share_record %s: b2b=%s new_portal_user=%s",
+            dbg.rec(self),
+            on_invite,
+            bool(new_portal_user),
         )
         if not new_portal_user:
             return self.action_send_mail()
@@ -204,7 +162,11 @@ class ProjectShareWizard(models.TransientModel):
             "context": self.env.context,
         }
 
+    @dbg.timed
     def action_send_mail(self) -> dict[str, Any]:
+        dbg.pipeline.debug(
+            "[share:%s] action_send_mail -> sync collaborators", dbg.rec(self)
+        )
         self._sync_collaborators()
         result = {
             "type": "ir.actions.client",
@@ -215,26 +177,18 @@ class ProjectShareWizard(models.TransientModel):
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }
-        partner_ids_in_readonly_mode = []
-        partner_ids_in_edit_mode = []
-        for collaborator in self.collaborator_ids:
-            if not collaborator.send_invitation:
-                continue
-            if collaborator.access_mode == "read":
-                partner_ids_in_readonly_mode.append(collaborator.partner_id.id)
-            else:
-                partner_ids_in_edit_mode.append(collaborator.partner_id.id)
-        if partner_ids_in_edit_mode:
-            new_collaborators = self.env["res.partner"].browse(partner_ids_in_edit_mode)
-            portal_partners = new_collaborators.filtered("user_ids")
-            self._send_public_link(portal_partners)
-            self._send_signup_link(
-                partners=new_collaborators.with_context({"signup_valid": True})
-                - portal_partners
-            )
-        if partner_ids_in_readonly_mode:
-            self.partner_ids = self.env["res.partner"].browse(
-                partner_ids_in_readonly_mode
-            )
-            super().action_send_mail()
+        new_collaborators = self.collaborator_ids.filtered("send_invitation").partner_id
+        portal_partners = new_collaborators.filtered("user_ids")
+        dbg.pipeline.debug(
+            "[share:%s] public link -> %s, signup link -> %s",
+            dbg.rec(self),
+            dbg.rec(portal_partners),
+            dbg.rec(new_collaborators - portal_partners),
+        )
+        invited = self._send_public_link(portal_partners) | self._send_signup_link(
+            partners=new_collaborators.with_context({"signup_valid": True})
+            - portal_partners
+        )
+        if invited:
+            self._log_share_invitations(invited, record=self._get_shared_record())
         return result

@@ -7,16 +7,16 @@
         <field name="arch" type="xml">
             <search string="Purchase Orders">
                 <filter
-                    string="Requests for Quotation"
                     name="quotes"
+                    string="Requests for Quotation"
                     domain="[('state', '=', 'draft')]" />
                 <filter
-                    string="Purchase Orders"
                     name="orders"
+                    string="Purchase Orders"
                     domain="[('state', '!=', 'draft'), ('state', '!=', 'cancel')]" />
                 <filter
-                    string="Confirmation Date Last Year"
                     name="later_than_a_year_ago"
+                    string="Confirmation Date Last Year"
                     domain="[('date_confirmed', '&gt;=', 'today -1y')]" />
                 <filter name="filter_date_order" date="date_order" />
                 <filter
@@ -36,42 +36,42 @@
                 </group>
                 <group>
                     <filter
-                        string="Vendor"
                         name="group_partner_id"
+                        string="Vendor"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Vendor Country"
                         name="country_id"
+                        string="Vendor Country"
                         context="{'group_by': 'country_id'}" />
                     <filter
-                        string="Buyer"
                         name="user_id"
+                        string="Buyer"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Product"
                         name="group_product_id"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Product Category"
                         name="group_product_category_id"
+                        string="Product Category"
                         context="{'group_by': 'product_category_id'}" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                     <separator />
                     <filter
-                        string="Order Date"
                         name="order_month"
+                        string="Order Date"
                         context="{'group_by': 'date_order:month'}" />
                     <filter
-                        string="Confirmation Date"
                         name="group_date_confirmed_month"
+                        string="Confirmation Date"
                         context="{'group_by': 'date_confirmed:month'}" />
                 </group>
             </search>
@@ -82,7 +82,7 @@
         <field name="name">product.month.pivot</field>
         <field name="model">purchase.report</field>
         <field name="arch" type="xml">
-            <pivot string="Purchase Analysis" display_quantity="1" sample="1">
+            <pivot string="Purchase Analysis" sample="1" display_quantity="1">
                 <field name="product_category_id" type="row" />
                 <field name="price_subtotal" type="measure" />
                 <field name="price_total" type="measure" />
@@ -94,7 +94,7 @@
         <field name="name">product.month.graph</field>
         <field name="model">purchase.report</field>
         <field name="arch" type="xml">
-            <graph string="Purchase Analysis" type="line" sample="1">
+            <graph type="line" string="Purchase Analysis" sample="1">
                 <field name="date_confirmed" interval="day" />
                 <field name="price_subtotal" type="measure" />
             </graph>
@@ -110,7 +110,7 @@
                 <field name="partner_id" optional="show" />
                 <field name="product_id" optional="show" />
                 <field name="product_category_id" optional="show" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field
                     name="company_id"
                     optional="show"
@@ -127,13 +127,13 @@
                 <field name="currency_id" optional="show" column_invisible="True" />
                 <field
                     name="price_subtotal"
-                    optional="hide"
                     widget="monetary"
+                    optional="hide"
                     sum="Sum of Untaxed Total" />
                 <field
                     name="price_total"
-                    optional="show"
                     widget="monetary"
+                    optional="show"
                     sum="Sum of Total" />
                 <field name="state" optional="show" />
             </list>

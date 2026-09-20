@@ -1,11 +1,15 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
     landed_costs_ids = fields.One2many(
-        "stock.landed.cost", "vendor_bill_id", string="Landed Costs"
+        comodel_name="stock.landed.cost",
+        inverse_name="vendor_bill_id",
     )
     landed_costs_visible = fields.Boolean(compute="_compute_landed_costs_visible")
 
@@ -20,7 +24,10 @@ class AccountMove(models.Model):
                 )
 
     def button_create_landed_costs(self):
+        _debug.pipeline("landed_cost_from_bill", entries=self)
         self.check_singleton()
+        if self.landed_costs_ids:
+            return self.action_view_landed_costs()
         landed_costs_lines = self.line_ids.filtered(
             lambda line: line.is_landed_costs_line
         )
@@ -39,9 +46,11 @@ class AccountMove(models.Model):
                             {
                                 "product_id": l.product_id.id,
                                 "name": l.product_id.name,
-                                "account_id": l.product_id.product_tmpl_id._get_product_accounts()[
-                                    "stock_valuation"
-                                ].id,
+                                "account_id": l.product_id.product_tmpl_id.with_company(
+                                    self.company_id
+                                )
+                                ._get_product_accounts()["stock_valuation"]
+                                .id,
                                 "price_unit": sign
                                 * l.currency_id._convert(
                                     l.price_subtotal,
@@ -97,7 +106,10 @@ class AccountMove(models.Model):
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    product_type = fields.Selection(related="product_id.type", readonly=True)
+    product_type = fields.Selection(
+        related="product_id.type",
+        readonly=True,
+    )
     is_landed_costs_line = fields.Boolean()
 
     @api.onchange("product_id")
@@ -117,6 +129,7 @@ class AccountMoveLine(models.Model):
             self.is_landed_costs_line = False
 
     def _is_eligible_for_stock_account(self):
+        _debug.logic("landed_cost_aml_eligible", lines=self)
         return super()._is_eligible_for_stock_account() or (
             self.product_id.type == "service"
             and self.product_id.landed_cost_ok

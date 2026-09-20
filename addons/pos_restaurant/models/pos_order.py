@@ -5,19 +5,20 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     table_id = fields.Many2one(
-        "restaurant.table",
-        string="Table",
-        help="The table where this order was served",
+        comodel_name="restaurant.table",
         index="btree_not_null",
         readonly=True,
+        help="The table where this order was served",
     )
     customer_count = fields.Integer(
         string="Guests",
-        help="The amount of customers that have been served by this order.",
         readonly=True,
+        help="The amount of customers that have been served by this order.",
     )
     course_ids = fields.One2many(
-        "restaurant.order.course", "order_id", string="Courses"
+        comodel_name="restaurant.order.course",
+        inverse_name="order_id",
+        string="Courses",
     )
 
     @api.model

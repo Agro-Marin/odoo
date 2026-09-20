@@ -8,17 +8,17 @@
         <!-- Load after account_payment for the invisible attr. of the payment_followup group. -->
         <field name="priority">32</field>
         <field name="arch" type="xml">
-            <field name="code" invisible="1" position="after">
+            <field name="code" position="after" invisible="1">
                 <field name="custom_mode" invisible="1" />
             </field>
             <page name="credentials" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </page>
             <field name="payment_method_ids" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </field>
             <a name="action_view_payment_methods" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </a>
             <field name="capture_manually" position="after">
                 <field name="qr_code" invisible="code != 'custom'" />
@@ -27,7 +27,7 @@
                 <attribute name="invisible">code == 'custom'</attribute>
             </group>
             <field name="pre_msg" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </field>
             <field name="pending_msg" position="after">
                 <div
@@ -35,18 +35,18 @@
                     colspan="2"
                     invisible="custom_mode != 'wire_transfer'">
                     <button
-                        string=" Reload Pending Message"
-                        type="object"
                         name="action_recompute_pending_msg"
-                        class="oe_link ms-0 ps-0"
-                        icon="fa-refresh" />
+                        type="object"
+                        string=" Reload Pending Message"
+                        icon="fa-refresh"
+                        class="oe_link ms-0 ps-0" />
                 </div>
             </field>
             <field name="done_msg" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </field>
             <field name="cancel_msg" position="attributes">
-                <attribute name="invisible" separator="or" add="code == 'custom'" />
+                <attribute name="invisible" add="code == 'custom'" separator="or" />
             </field>
         </field>
     </record>

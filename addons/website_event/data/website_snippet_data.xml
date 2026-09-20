@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Dynamic Event Snippet: Upcoming Events Filter -->
         <record id="ir_filters_event_list_snippet" model="ir.filters">
             <field name="name">Upcoming Events</field>
             <field name="model_id">event.event</field>
@@ -20,7 +19,6 @@
             <field name="limit" eval="16" />
             <field name="name">Upcoming Events</field>
         </record>
-        <!-- Dynamic Event Snippet : Upcoming and Ongoing Events Filter -->
         <record id="ir_filters_event_list_snippet_unfinished" model="ir.filters">
             <field name="name">Upcoming and Ongoing Events</field>
             <field name="model_id">event.event</field>

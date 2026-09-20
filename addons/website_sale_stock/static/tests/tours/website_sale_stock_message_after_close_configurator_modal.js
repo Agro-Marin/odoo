@@ -5,7 +5,6 @@ registry
     .add(
         "website_sale_stock_message_after_close_onfigurator_modal_with_optional_products",
         {
-            // This tour relies on a data created from the python test.
             url: "/shop?search=Product With Optional (TEST)",
             steps: () => [
                 {
@@ -47,7 +46,6 @@ registry
     .add(
         "website_sale_stock_message_after_close_onfigurator_modal_without_optional_products",
         {
-            // This tour relies on a data created from the python test.
             url: "/shop?search=Product Without Optional (TEST)",
             steps: () => [
                 {

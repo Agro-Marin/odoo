@@ -1,16 +1,19 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
+
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    order_cycle_interval_number = fields.Integer(
-        related="company_id.order_cycle_interval_number",
+    order_cycle_count = fields.Integer(
+        related="company_id.order_cycle_count",
         readonly=False,
     )
-    order_cycle_interval_type = fields.Selection(
-        related="company_id.order_cycle_interval_type",
+    order_cycle_unit = fields.Selection(
+        related="company_id.order_cycle_unit",
         readonly=False,
     )
 
@@ -19,6 +22,7 @@ class ResConfigSettings(models.TransientModel):
         if self[field_name] >= 0:
             return None
         self[field_name] = self.env["res.company"].default_get([field_name])[field_name]
+        _debug.logic("validity_days_clamped", field=field_name, value=self[field_name])
         return {
             "warning": {
                 "title": _("Warning"),
@@ -33,4 +37,5 @@ class ResConfigSettings(models.TransientModel):
         self.check_singleton()
         lock = "lock" if self[checkbox_field] else "edit"
         if self[lock_field] != lock:
+            _debug.lifecycle("order_lock_synced", field=lock_field, value=lock)
             self[lock_field] = lock

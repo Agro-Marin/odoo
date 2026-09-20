@@ -4,7 +4,6 @@
 <t t-name="website.CardImageOption">
     <BuilderRow label.translate="Cover Image">
         <t t-if="state.hasCoverImage">
-        <!-- Image position -->
             <BuilderButtonGroup action="'setCoverImagePosition'">
                 <BuilderButton
                     id="'card_img_top_opt'"
@@ -30,7 +29,6 @@
                     title.translate="Bottom"/>
             </BuilderButtonGroup>
 
-        <!-- Remove image -->
             <BuilderButton 
                 action="'removeCoverImage'"
                 preview="false"
@@ -39,7 +37,6 @@
                 title.translate="Remove Cover"/>
         </t>
         <t t-else="">
-            <!-- Add cover image -->
             <BuilderButton
                 action="'addCoverImage'"
                 preview="false"
@@ -50,7 +47,6 @@
     </BuilderRow>
 
     <t t-if="state.hasCoverImage">
-        <!-- Ratio  -->
         <BuilderRow label.translate="Ratio" level="1">
             <BuilderSelect applyTo="':scope > .o_card_img_wrapper'">
                 <BuilderSelectItem id="'card_img_default_ratio_option'" classAction="''">Image default</BuilderSelectItem>
@@ -68,7 +64,6 @@
             </BuilderSelect>
         </BuilderRow>
 
-        <!-- Custom ratio control -->
         <BuilderRow t-if="isActiveItem('image_ratio_custom_opt')" label.translate="Custom Ratio" level="2">
             <BuilderRange
                 styleAction="'--card-img-aspect-ratio'"
@@ -79,9 +74,7 @@
                 unit="'%'"/>
         </BuilderRow>
 
-        <!-- Width -->
         <BuilderRow t-if="!isActiveItem('card_img_top_opt') and !isActiveItem('card_img_bottom_opt')" label.translate="Width" level="1">
-            <!-- Bootstrap default column size -->
             <t t-set="colSize" t-value="8.33333333"/>
             <BuilderRange
                 styleAction="'--card-img-size-h'"
@@ -91,7 +84,6 @@
                 unit="'%'"/>
         </BuilderRow>
 
-        <!-- Alignment -->
         <CardImageAlignmentOption label.translate="Alignment" level="1"/>
     </t>
 </t>

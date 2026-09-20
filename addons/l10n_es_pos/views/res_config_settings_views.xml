@@ -9,8 +9,8 @@
             <xpath expr="//setting[@id='pos_default_journals']" position="inside">
                 <div class="row" invisible="country_code != 'ES'">
                     <label
-                        string="Simplified Invoice"
                         for="pos_l10n_es_simplified_invoice_journal_id"
+                        string="Simplified Invoice"
                         class="col-lg-3 o_light_label" />
                     <field
                         name="pos_l10n_es_simplified_invoice_journal_id"

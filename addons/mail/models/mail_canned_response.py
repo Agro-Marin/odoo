@@ -3,12 +3,15 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_groups import ResGroups
+
+_debug = DebugLog(__name__)
 
 
 class MailCannedResponse(models.Model):
@@ -18,22 +21,19 @@ class MailCannedResponse(models.Model):
     _rec_name = "source"
 
     source = fields.Char(
-        "Shortcut",
-        required=True,
+        string="Shortcut",
         index="trigram",
+        required=True,
         help="Canned response that will automatically be substituted with longer content in your messages."
         " Type '::' followed by the name of your shortcut (e.g. ::hello) to use in your messages.",
     )
     substitution = fields.Text(
-        "Substitution",
         required=True,
         help="Content that will automatically replace the shortcut of your choosing. This content can still be adapted before sending your message.",
     )
-    last_used = fields.Datetime(
-        "Last Used", help="Last time this canned_response was used"
-    )
+    last_used = fields.Datetime(help="Last time this canned_response was used")
     group_ids: ResGroups = fields.Many2many(
-        "res.groups",
+        comodel_name="res.groups",
         string="Authorized Groups",
         domain=lambda self: [("id", "in", self.env.user.all_group_ids.ids)],
     )
@@ -75,10 +75,10 @@ class MailCannedResponse(models.Model):
         return res
 
     def unlink(self) -> Literal[True]:
-        self._broadcast(delete=True)
+        self._broadcast(add_deletion=True)
         return super().unlink()
 
-    def _broadcast(self, /, *, delete: bool = False) -> None:
+    def _broadcast(self, /, *, add_deletion: bool = False) -> None:
         for canned_response in self:
             stores = [Store(bus_channel=group) for group in canned_response.group_ids]
             stores.extend(
@@ -86,9 +86,15 @@ class MailCannedResponse(models.Model):
                 for user in self.env.user | canned_response.create_uid
                 if not user.all_group_ids & canned_response.group_ids
             )
+            _debug.lifecycle(
+                "broadcast",
+                canned_response=canned_response.id,
+                add_deletion=add_deletion,
+                targets=len(stores),
+            )
             for store in stores:
-                if delete:
-                    store.delete(canned_response)
+                if add_deletion:
+                    store.add_deletion(canned_response)
                 else:
                     store.add(canned_response)
             for store in stores:
@@ -109,6 +115,7 @@ class MailCannedResponse(models.Model):
         ids = self.browse(ids)._filtered_access("read").ids
         if not ids:
             return
+        _debug.lifecycle("usage_registered", canned_responses=ids)
         self.env.cr.execute(
             SQL(
                 """

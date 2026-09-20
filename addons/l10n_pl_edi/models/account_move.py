@@ -4,9 +4,9 @@ import logging
 import re
 from decimal import Decimal
 from hashlib import sha256
-from xml.dom.minidom import parseString
 
 from dateutil.relativedelta import relativedelta
+from defusedxml.minidom import parseString
 from lxml import etree
 from stdnum.pl.nip import compact
 
@@ -23,7 +23,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     l10n_pl_edi_status = fields.Selection(
-        [
+        selection=[
             ("sent", "Sent (In Progress)"),
             ("accepted", "Accepted"),
             ("rejected", "Rejected"),
@@ -32,25 +32,35 @@ class AccountMove(models.Model):
             ("fetch_failed", "Fetch Failed"),
         ],
         string="KSeF Status",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
     l10n_pl_edi_ref = fields.Char(
-        string="KSeF Reference Number", readonly=True, copy=False
+        string="KSeF Reference Number",
+        copy=False,
+        readonly=True,
     )
     l10n_pl_edi_register = fields.Boolean(related="company_id.l10n_pl_edi_register")
     l10n_pl_edi_header = fields.Html(
-        help="User description of the current state, with hints to make the flow progress",
-        readonly=True,
         copy=False,
+        readonly=True,
+        help="User description of the current state, with hints to make the flow progress",
     )
     l10n_pl_edi_number = fields.Char(
-        string="KSeF Number", readonly=True, index=True, copy=False
+        string="KSeF Number",
+        index=True,
+        copy=False,
+        readonly=True,
     )
     l10n_pl_edi_session_id = fields.Char(
-        string="KSeF Session Number used for sending", copy=False, readonly=True
+        string="KSeF Session Number used for sending",
+        copy=False,
+        readonly=True,
     )
-    l10n_pl_edi_attachment_file = fields.Binary(copy=False, attachment=True)
+    l10n_pl_edi_attachment_file = fields.Binary(
+        attachment=True,
+        copy=False,
+    )
     l10n_pl_edi_attachment_id = fields.Many2one(
         comodel_name="ir.attachment",
         string="KSeF Attachment",
@@ -59,7 +69,10 @@ class AccountMove(models.Model):
         ),
         depends=["l10n_pl_edi_attachment_file"],
     )
-    l10n_pl_edi_upo_file = fields.Binary(copy=False, attachment=True)
+    l10n_pl_edi_upo_file = fields.Binary(
+        attachment=True,
+        copy=False,
+    )
     l10n_pl_edi_upo_id = fields.Many2one(
         comodel_name="ir.attachment",
         string="UPO Attachment",
@@ -69,8 +82,9 @@ class AccountMove(models.Model):
         depends=["l10n_pl_edi_upo_file"],
     )
 
-    _l10n_pl_edi_number_company_id_move_type_uniq = models.Constraint(
-        "UNIQUE(l10n_pl_edi_number, company_id, move_type)",
+    _l10n_pl_edi_number_company_id_move_type_uniq = models.UniqueIndex(
+        "(l10n_pl_edi_number, company_id, move_type) "
+        "WHERE l10n_pl_edi_number IS NOT NULL AND company_id IS NOT NULL",
         "The KSeF number must be unique per company per move_type",
     )
 
@@ -712,6 +726,7 @@ class AccountMove(models.Model):
                         tax_name,
                     )
                 )
+            return None
 
         def parse_fa3_bill_xml(xml_content):
             root = etree.fromstring(xml_content)
@@ -779,13 +794,12 @@ class AccountMove(models.Model):
                 "lines": lines,
             }
 
-        def get_ksef_bill_vals(data):
+        def get_or_create_vendor(data):
             nip = data["vendor_nip"]
             vat = f"PL{nip}"
-            partner_vat_domain_vals = (nip, vat)
             partner = self.env["res.partner"].search(
                 [
-                    ("vat", "in", partner_vat_domain_vals),
+                    ("vat", "in", (nip, vat)),
                     *self.env["res.partner"]._check_company_domain(self.env.company),
                     "|",
                     ("country_id.code", "=", data["vendor_country"]),
@@ -793,17 +807,17 @@ class AccountMove(models.Model):
                 ],
                 limit=1,
             )
-            if not partner:
-                partner = self.env["res.partner"].create(
-                    {
-                        "name": data["vendor_name"],
-                        "vat": vat,
-                        "country_id": self.env["res.country"]
-                        .search([("code", "=", data["vendor_country"])])
-                        .id,
-                    },
-                )
+            return partner or self.env["res.partner"].create(
+                {
+                    "name": data["vendor_name"],
+                    "vat": vat,
+                    "country_id": self.env["res.country"]
+                    .search([("code", "=", data["vendor_country"])])
+                    .id,
+                },
+            )
 
+        def get_active_currency(data):
             currency = (
                 self.env["res.currency"]
                 .with_context(active_test=False)
@@ -821,7 +835,9 @@ class AccountMove(models.Model):
                 )
             if not currency.active:
                 currency.sudo().active = True
+            return currency
 
+        def prepare_ksef_bill_vals(data, partner, currency):
             fiscal_position = self.env["account.fiscal.position"]._get_fiscal_position(
                 partner
             )
@@ -862,12 +878,17 @@ class AccountMove(models.Model):
 
             return move_vals
 
-        return get_ksef_bill_vals(parse_fa3_bill_xml(xml_content))
+        data = parse_fa3_bill_xml(xml_content)
+        partner = get_or_create_vendor(data)
+        currency = get_active_currency(data)
+        return prepare_ksef_bill_vals(data, partner, currency)
 
     @api.model
     def _cron_l10n_pl_edi_download_bills(self):
-        for company in self.env["res.company"].search(
-            [("l10n_pl_edi_access_token", "!=", False)]
+        for company in (
+            self.env["res.company"]
+            .search([("company_credential_id", "!=", False)])
+            .filtered("l10n_pl_edi_access_token")
         ):
             blocking_error = self.with_company(
                 company
@@ -887,8 +908,7 @@ class AccountMove(models.Model):
                 *self._check_company_domain(self.env.company),
             ]
         )
-        blocking_error = blocking_error or self._get_bills_data(service, to_process)
-        return blocking_error
+        return blocking_error or self._get_bills_data(service, to_process)
 
     def _handle_download_bills_from_ksef_error(self, error):
         if not (delay := error.get("retry_after")):
@@ -1036,6 +1056,7 @@ class AccountMove(models.Model):
                             "res_model": bill._name,
                         }
                     )
+        return None
 
     def _decode_fa3_ksef(self, invoice, file_data, new):
         xml_content = file_data.get("content")

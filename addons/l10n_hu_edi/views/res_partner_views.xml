@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="account.view_partner_property_form" />
         <field name="arch" type="xml">
             <xpath expr="//group[@name='credit_limits']" position="after">
-                <group string="Hungary" name="hungary" invisible="country_code != 'HU'">
+                <group name="hungary" string="Hungary" invisible="country_code != 'HU'">
                     <field name="l10n_hu_group_vat" />
                 </group>
             </xpath>

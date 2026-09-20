@@ -23,5 +23,4 @@ The `pdfminer.six` Python library has to be installed in order to index PDF file
             "defusedxml": "python3-defusedxml",
         },
     },
-    "installable": True,
 }

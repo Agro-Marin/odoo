@@ -3,11 +3,14 @@ import { Component, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { MoneyDetailsPopup } from "@point_of_sale/app/components/popups/money_details_popup/money_details_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { RPCError } from "@web/core/network";
 import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.opening");
 class CustomDialog extends Dialog {
     onEscape() {}
 }
@@ -20,9 +23,17 @@ export class OpeningControlPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.moneyDetails = null;
         this.pos = usePos();
         this.dialog = useService("dialog");
+        log.lifecycle("[session:open] opened", () => ({
+            session: this.pos.session.id,
+            state: this.pos.session.state,
+            balanceStart: this.pos.session.cash_register_balance_start,
+            cashMethods: this.cashMethodCount,
+            draftOrders: this.orderCount,
+        }));
         this.state = useState({
             notes: "",
             openingCash: this.env.utils.formatCurrency(
@@ -39,6 +50,12 @@ export class OpeningControlPopup extends Component {
         ).length;
     }
     async confirm() {
+        const endOpen = log.perf("[session:open] set_opening_control");
+        log.pipeline("[session:open] confirm", () => ({
+            session: this.pos.session.id,
+            openingCash: this.state.openingCash,
+            notes: Boolean(this.state.notes),
+        }));
         try {
             await this.pos.data.call(
                 "pos.session",
@@ -52,15 +69,23 @@ export class OpeningControlPopup extends Component {
                 true,
             );
         } catch (error) {
+            endOpen({ session: this.pos.session.id, error: error?.message });
             if (
                 error instanceof RPCError &&
                 error.data.name === "odoo.exceptions.MissingError" &&
                 (await this.pos.isSessionDeleted())
             ) {
+                log.logic("[session:open] session deleted, reloading", () => ({
+                    session: this.pos.session.id,
+                }));
                 return window.location.reload();
             }
             throw error;
         }
+        endOpen({ session: this.pos.session.id });
+        log.lifecycle("[session:open] state -> opened", () => ({
+            session: this.pos.session.id,
+        }));
         this.pos.session.state = "opened";
         this.props.close();
     }

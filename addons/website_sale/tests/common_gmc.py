@@ -21,7 +21,6 @@ class WebsiteSaleGMCCommon(ProductVariantsCommon, WebsiteSaleCommon):
             }
         )
 
-        # Prepare products
         cls.product_template_sofa.list_price = 1000.0
         (cls.red_sofa, cls.blue_sofa) = cls.product_template_sofa.product_variant_ids[
             :2
@@ -57,7 +56,6 @@ class WebsiteSaleGMCCommon(ProductVariantsCommon, WebsiteSaleCommon):
         cls.products = cls.red_sofa + cls.blue_sofa + cls.blanket + cls.sofa_bundle
         cls.products.website_published = True
 
-        # Prepare pricelists
         cls.eur_currency = cls.env.ref("base.EUR")
         cls.eur_currency.write(
             {

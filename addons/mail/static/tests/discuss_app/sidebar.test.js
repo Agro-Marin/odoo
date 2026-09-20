@@ -155,25 +155,25 @@ test("Opening a category sends the updated user setting to the server.", async (
     ]);
 });
 
-test("receiving a category broadcast does NOT re-issue the settings RPC", async () => {
+test("a category's local open state follows another tab without a settings RPC", async () => {
     let settingsRpcCount = 0;
     onRpc("res.users.settings", "set_res_users_settings", () => {
         settingsRpcCount++;
     });
     await start();
     await openDiscuss();
-    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
     const store = getService("mail.store");
-    const service = getService("discuss.core.public.web");
-    const category = store.DiscussAppCategory.get("channels");
-    const wasOpen = category.open;
-    const before = settingsRpcCount;
-    service.sidebarCategoriesBroadcast.dispatchEvent(
-        new MessageEvent("message", { data: { id: "channels", open: !wasOpen } }),
+    const category = store.DiscussAppCategory.insert({ id: "local", name: "Local" });
+    expect(Boolean(category.saveStateToServer)).toBe(false);
+    expect(category.open).toBe(true);
+    category.open = false;
+    expect(browser.localStorage.getItem(category.localStateKey)).toBe("false");
+    expect(category.open).toBe(false);
+    window.dispatchEvent(
+        new StorageEvent("storage", { key: category.localStateKey, newValue: "true" }),
     );
-    await animationFrame();
-    expect(category.open).toBe(!wasOpen);
-    expect(settingsRpcCount).toBe(before);
+    expect(category.open).toBe(true);
+    expect(settingsRpcCount).toBe(0);
 });
 
 test("channel - command: should have view command when category is unfolded", async () => {
@@ -350,6 +350,25 @@ test("sidebar: open channel and leave it", async () => {
     await contains(".o-mail-DiscussSidebarChannel", { count: 0, text: "General" });
     await contains(".o-mail-DiscussContent-threadName", { value: "Inbox" });
     await waitForSteps(["action_unfollow"]);
+});
+
+test("sidebar: cancelling the leave confirmation keeps the channel and settles the call", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    onRpc("discuss.channel", "action_unfollow", () => asyncStep("action_unfollow"));
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-DiscussContent-threadName", { value: "General" });
+    const thread = getService("mail.store").Thread.get({
+        model: "discuss.channel",
+        id: channelId,
+    });
+    const leaving = thread.leaveChannel().then((left) => asyncStep(`left:${left}`));
+    await click("button", { text: "Cancel" });
+    await leaving;
+    await waitForSteps(["left:false"]);
+    await contains(".o-mail-DiscussSidebarChannel", { text: "General" });
+    await contains(".o-mail-DiscussContent-threadName", { value: "General" });
 });
 
 test("sidebar: unpin chat from bus", async () => {

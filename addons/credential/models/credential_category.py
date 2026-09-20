@@ -8,14 +8,14 @@ class CredentialCategory(models.Model):
 
     name = fields.Char(
         string="Category Name",
-        required=True,
         translate=True,
+        required=True,
         help="Display name for this credential category",
     )
     code = fields.Char(
         string="Technical Code",
-        required=True,
         index=True,
+        required=True,
         help="Technical identifier (e.g., 'api_key', 'oauth2'). Used for programmatic access.",
     )
     description = fields.Text(

@@ -26,7 +26,7 @@ class ResPartner(models.Model):
         string="Manufactured Products",
     )
     count_manufactured_products = fields.Count(
-        "manufactured_product_ids",
+        count_of="manufactured_product_ids",
         string="Product Count",
         readonly=True,
     )

@@ -1,8 +1,12 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, float_compare, float_is_zero
 
 SPLITTABLE_STATES = ("waiting", "confirmed", "partially_available", "assigned")
+
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderLineStockMatch(models.AbstractModel):
@@ -29,8 +33,8 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         readonly=True,
     )
     product_uom_id = fields.Many2one(
-        related="product_id.uom_id",
         comodel_name="uom.uom",
+        related="product_id.uom_id",
     )
 
     order_line_id = fields.Many2one(
@@ -50,55 +54,43 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         readonly=True,
     )
 
-    state = fields.Char(
-        readonly=True,
-    )
-    transfer_state = fields.Char(
-        readonly=True,
-    )
-    reference = fields.Char(
-        compute="_compute_reference",
-    )
+    state = fields.Char(readonly=True)
+    transfer_state = fields.Char(readonly=True)
+    reference = fields.Char(compute="_compute_reference")
 
     line_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         readonly=True,
     )
-    line_qty = fields.Float(
-        readonly=True,
-    )
-    qty_transferred = fields.Float(
-        readonly=True,
-    )
+    line_qty = fields.Float(readonly=True)
+    qty_transferred = fields.Float(readonly=True)
     qty_to_transfer = fields.Float(
         string="Qty to transfer",
         readonly=True,
     )
     product_uom_qty = fields.Float(
         compute="_compute_product_uom_qty",
-        readonly=False,
         inverse="_inverse_product_uom_qty",
+        readonly=False,
     )
 
-    date_expected = fields.Datetime(
-        readonly=True,
-    )
+    date_expected = fields.Datetime(readonly=True)
     lot_ids = fields.Many2many(
         comodel_name="stock.lot",
         compute="_compute_lot_ids",
     )
-    transferred_qty = fields.Float(
-        compute="_compute_side_quantities",
-    )
-    ordered_qty = fields.Float(
-        compute="_compute_side_quantities",
-    )
+    transferred_qty = fields.Float(compute="_compute_side_quantities")
+    ordered_qty = fields.Float(compute="_compute_side_quantities")
 
+    @api.depends("line_qty", "move_id", "order_id")
     def _compute_side_quantities(self):
         for line in self:
             line.transferred_qty = line.line_qty if line.move_id else False
             line.ordered_qty = line.line_qty if line.order_id else False
 
+    @api.depends(
+        "order_id.display_name", "picking_id.display_name", "move_id.display_name"
+    )
     def _compute_reference(self):
         for line in self:
             line.reference = (
@@ -107,6 +99,9 @@ class MixinOrderLineStockMatch(models.AbstractModel):
                 or line.move_id.display_name
             )
 
+    @api.depends(
+        "product_id.display_name", "move_id.description_picking", "order_line_id.name"
+    )
     def _compute_display_name(self):
         for line in self:
             line.display_name = (
@@ -115,14 +110,16 @@ class MixinOrderLineStockMatch(models.AbstractModel):
                 or line.order_line_id.name
             )
 
+    @api.depends("move_id.move_line_ids.lot_id")
     def _compute_lot_ids(self):
         for line in self:
             line.lot_ids = line.move_id.move_line_ids.lot_id
 
+    @api.depends("product_id", "line_uom_id", "line_qty", "product_uom_id")
     def _compute_product_uom_qty(self):
         for line in self:
             if line.product_id:
-                line.product_uom_qty = line.line_uom_id._compute_quantity(
+                line.product_uom_qty = line.line_uom_id._get_quantity_in_unit(
                     line.line_qty, line.product_uom_id
                 )
             else:
@@ -132,7 +129,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
     def _inverse_product_uom_qty(self):
         for line in self:
             if line.product_id:
-                qty = line.product_uom_id._compute_quantity(
+                qty = line.product_uom_id._get_quantity_in_unit(
                     line.product_uom_qty, line.line_uom_id
                 )
             else:
@@ -167,14 +164,16 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         return _("You must select at least one stock move to match.")
 
     def _action_create_moves_from_order_lines(self, order_lines):
+        _debug.pipeline("moves_from_order_lines", lines=order_lines)
         raise NotImplementedError(
             f"{self._name} must implement _action_create_moves_from_order_lines()",
         )
 
     def _rank_move_for_line(self, order_line, move):
+        _debug.logic("move_rank_for_line", line=order_line.id, move=move.id)
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         residual = order_line.qty_to_transfer
-        move_qty = move.product_uom_id._compute_quantity(
+        move_qty = move.product_uom_id._get_quantity_in_unit(
             move.quantity if move.state == "done" else move.product_uom_qty,
             order_line.product_uom_id,
             rounding_method="HALF-UP",
@@ -211,9 +210,15 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         return order_line[self._date_expected_field]
 
     def _link_move_to_line(self, move, order_line, over_transferred):
+        _debug.pipeline(
+            "move_linked_to_line",
+            move=move.id,
+            line=order_line.id,
+            over=over_transferred,
+        )
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         residual = order_line.qty_to_transfer
-        move_qty = move.product_uom_id._compute_quantity(
+        move_qty = move.product_uom_id._get_quantity_in_unit(
             move.quantity if move.state == "done" else move.product_uom_qty,
             order_line.product_uom_id,
             rounding_method="HALF-UP",
@@ -230,7 +235,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
             return move.browse()
 
         if move.state in SPLITTABLE_STATES:
-            residual_ref = order_line.product_uom_id._compute_quantity(
+            residual_ref = order_line.product_uom_id._get_quantity_in_unit(
                 residual, move.product_id.uom_id, rounding_method="HALF-UP"
             )
             split_vals = move._split(move.product_qty - residual_ref)
@@ -246,6 +251,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         return move.browse()
 
     def action_match_lines(self):
+        _debug.pipeline("order_line_match_enter", records=self)
         if not self.order_line_id:
             raise UserError(self._get_no_order_line_message())
         if not self.move_id:
@@ -274,6 +280,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         return None
 
     def _warn_over_transferred(self, over_transferred):
+        _debug.logic("over_transferred_warning", records=self)
         details = "\n".join(
             _(
                 "%(product)s: %(move)s exceeds %(line)s by %(excess)s",

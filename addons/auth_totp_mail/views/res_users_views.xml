@@ -10,11 +10,11 @@
                 expr="//div[@name='div_action_totp_enable_wizard']"
                 position="inside">
                 <button
+                    name="action_totp_invite"
+                    type="object"
+                    string="Invite to use 2FA"
                     groups="base.group_erp_manager"
                     invisible="id == uid or totp_enabled"
-                    name="action_totp_invite"
-                    string="Invite to use 2FA"
-                    type="object"
                     class="btn btn-secondary h-100" />
             </xpath>
             <xpath
@@ -54,19 +54,19 @@
                     </div>
                     <field name="totp_enabled" invisible="1"/> <!-- Required for the visibility of the 2FA buttons. -->
                     <button
-                        invisible="totp_enabled"
                         name="action_totp_enable_wizard"
                         type="object"
-                        class="btn btn-secondary h-100"
                         string="Enable 2FA"
-                        help="Click to enable 2FA." />
+                        help="Click to enable 2FA."
+                        invisible="totp_enabled"
+                        class="btn btn-secondary h-100" />
                     <button
-                        invisible="not totp_enabled"
                         name="action_totp_enable_wizard"
                         type="object"
-                        disabled="1"
+                        string="Enable 2FA"
+                        invisible="not totp_enabled"
                         class="btn btn-secondary h-100 disabled"
-                        string="Enable 2FA" />
+                        disabled="1" />
                 </div>
             </notebook>
         </field>

@@ -1,20 +1,22 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 from .exception_activity import group_by_order, notify_orders_of_exception
+
+_debug = DebugLog(__name__)
 
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
     sale_order_count = fields.Integer(
-        "Number of Source Sale",
+        string="Number of Source Sale",
         compute="_compute_sale_orders",
-        groups="sales_team.group_sale_salesman",
+        groups="sale.group_sale_salesman",
     )
     has_sale_order = fields.Boolean(
-        "Has Source Sale",
-        compute="_compute_sale_orders",
-        groups="sales_team.group_sale_salesman",
+        string="Has Source Sale",
+        compute="_compute_has_sale_order",
         help="Technical field: whether the purchase order has associated sale orders.",
     )
 
@@ -22,7 +24,11 @@ class PurchaseOrder(models.Model):
     def _compute_sale_orders(self):
         for purchase in self:
             purchase.sale_order_count = len(purchase._get_sale_orders())
-            purchase.has_sale_order = bool(purchase.sale_order_count)
+
+    @api.depends("line_ids.sale_order_id")
+    def _compute_has_sale_order(self):
+        for purchase in self:
+            purchase.has_sale_order = bool(purchase.sudo()._get_sale_orders())
 
     def action_view_sale_orders(self):
         self.check_singleton()
@@ -36,6 +42,7 @@ class PurchaseOrder(models.Model):
 
     def action_cancel(self):
         result = super().action_cancel()
+        _debug.pipeline("sale_notified_of_purchase_cancel", purchase_orders=self)
         self.sudo()._activity_cancel_on_sale()
         return result
 
@@ -58,8 +65,12 @@ class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
     sale_order_id = fields.Many2one(
-        related="sale_line_id.order_id", string="Sale Order"
+        related="sale_line_id.order_id",
+        string="Sale Order",
     )
     sale_line_id = fields.Many2one(
-        "sale.order.line", string="Origin Sale Item", index="btree_not_null", copy=False
+        comodel_name="sale.order.line",
+        string="Origin Sale Item",
+        index="btree_not_null",
+        copy=False,
     )

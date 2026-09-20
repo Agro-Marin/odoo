@@ -22,28 +22,26 @@ class ExchangeTransmission(models.Model):
     # Subject block
     subject_id = fields.Reference(
         selection="_selection_subject_models",
-        required=True,
         index=True,
+        required=True,
         help="The business record this transmission is about.",
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
         default=lambda self: self.env.company,
         index=True,
+        required=True,
     )
 
     # Channel block
     channel_id = fields.Many2one(
         comodel_name="exchange.channel",
+        index=True,
         required=True,
         ondelete="restrict",
-        index=True,
     )
     protocol = fields.Selection(
         related="channel_id.protocol",
-        store=True,
-        index=True,
     )
 
     # Lifecycle block
@@ -54,9 +52,9 @@ class ExchangeTransmission(models.Model):
             ("amend", "Amend"),
             ("query", "Query"),
         ],
-        required=True,
         default="issue",
         index=True,
+        required=True,
         help="What we are asking the counterparty for. Separate from state "
         "because an annulment that failed is intent=annul, state=rejected -- "
         "not a value in the issuing field.",
@@ -78,9 +76,9 @@ class ExchangeTransmission(models.Model):
             ("rejected", "Rejected"),
             ("expired", "Expired"),
         ],
-        required=True,
         default="draft",
         index=True,
+        required=True,
         help="Where the ask has got to, as the counterparty sees it. Whether "
         "the call itself completed is on the event log, not here.",
     )
@@ -92,10 +90,10 @@ class ExchangeTransmission(models.Model):
 
     # Timing block
     date_created = fields.Datetime(
-        required=True,
         default=fields.Datetime.now,
-        readonly=True,
         index=True,
+        readonly=True,
+        required=True,
     )
     date_sent = fields.Datetime(readonly=True)
     date_settled = fields.Datetime(readonly=True)
@@ -124,28 +122,34 @@ class ExchangeTransmission(models.Model):
     # Relation block
     parent_id = fields.Many2one(
         comodel_name="exchange.transmission",
-        ondelete="cascade",
         index=True,
+        ondelete="cascade",
         help="The transmission this one acts upon: an annulment's issue, an "
         "amendment's original.",
     )
     chain_previous_id = fields.Many2one(
         comodel_name="exchange.transmission",
-        ondelete="restrict",
         index=True,
+        ondelete="restrict",
         help="The previous link, for a counterparty that requires each "
         "document to reference the one before it.",
     )
 
     # Retry block
-    retry_count = fields.Integer(default=0, readonly=True)
-    date_next_retry = fields.Datetime(readonly=True, index=True)
+    retry_count = fields.Integer(
+        default=0,
+        readonly=True,
+    )
+    date_next_retry = fields.Datetime(
+        index=True,
+        readonly=True,
+    )
 
     # Transport block
     event_log_id = fields.Many2one(
-        comodel_name="api.event.log",
-        ondelete="set null",
+        comodel_name="integration.exchange",
         index=True,
+        ondelete="set null",
         help="The transport record: whether the call completed. A settled "
         "transmission whose call failed is a contradiction, and the "
         "constraint below says so.",
@@ -330,7 +334,7 @@ class ExchangeTransmission(models.Model):
                         name=transmission.display_name,
                     ),
                 )
-            errors = transmission._get_protocol()._check_message(transmission)
+            errors = transmission._get_protocol()._get_message_errors(transmission)
             if errors:
                 transmission._settle(
                     Verdict(state="rejected", message="\n".join(errors)),

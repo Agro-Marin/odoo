@@ -26,6 +26,7 @@ project.
         "data/transifex_data.xml",
         "views/code_translation_views.xml",
         "security/ir.model.access.csv",
+        "views/transifex_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectRisk(models.Model):
     _name = "project.risk"
@@ -8,109 +10,106 @@ class ProjectRisk(models.Model):
     _order = "risk_score desc, id desc"
     _inherit = ["mixin.mail.thread"]
 
-    name = fields.Char("Risk", required=True, tracking=True)
-    description = fields.Html("Description")
+    name = fields.Char(
+        string="Risk",
+        required=True,
+        tracking=True,
+    )
+    description = fields.Html()
     project_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     task_id = fields.Many2one(
-        "project.task",
+        comodel_name="project.task",
         string="Related Task",
         index="btree_not_null",
         help="Optional link to a specific task affected by this risk.",
     )
     category = fields.Selection(
-        [
+        selection=[
             ("technical", "Technical"),
             ("organizational", "Organizational"),
             ("external", "External"),
             ("financial", "Financial"),
             ("schedule", "Schedule"),
         ],
-        string="Category",
         default="technical",
         required=True,
         tracking=True,
     )
     probability = fields.Selection(
-        [
+        selection=[
             ("1", "Rare"),
             ("2", "Unlikely"),
             ("3", "Possible"),
             ("4", "Likely"),
             ("5", "Almost Certain"),
         ],
-        string="Probability",
         default="3",
         required=True,
         tracking=True,
     )
     impact = fields.Selection(
-        [
+        selection=[
             ("1", "Negligible"),
             ("2", "Minor"),
             ("3", "Moderate"),
             ("4", "Major"),
             ("5", "Catastrophic"),
         ],
-        string="Impact",
         default="3",
         required=True,
         tracking=True,
     )
     risk_score = fields.Integer(
-        "Risk Score",
         compute="_compute_risk_score_and_level",
         store=True,
         help="Probability × Impact (1–25).",
     )
     risk_level = fields.Selection(
-        [
+        selection=[
             ("low", "Low"),
             ("medium", "Medium"),
             ("high", "High"),
             ("critical", "Critical"),
         ],
-        string="Risk Level",
         compute="_compute_risk_score_and_level",
         store=True,
     )
     response_strategy = fields.Selection(
-        [
+        selection=[
             ("mitigate", "Mitigate"),
             ("transfer", "Transfer"),
             ("accept", "Accept"),
             ("avoid", "Avoid"),
             ("exploit", "Exploit"),
         ],
-        string="Response Strategy",
         tracking=True,
     )
-    response_plan = fields.Html("Response Plan")
+    response_plan = fields.Html()
     owner_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Risk Owner",
         tracking=True,
         help="Person responsible for monitoring and responding to this risk.",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("identified", "Identified"),
             ("assessed", "Assessed"),
             ("mitigated", "Mitigated"),
             ("resolved", "Resolved"),
             ("accepted", "Accepted"),
         ],
-        string="State",
         default="identified",
         required=True,
         tracking=True,
     )
-    date_identified = fields.Date("Date Identified", default=fields.Date.today)
-    date_resolved = fields.Date("Date Resolved")
+    date_identified = fields.Date(default=fields.Date.today)
+    date_resolved = fields.Date()
     active = fields.Boolean(default=True)
 
     @api.constrains("state", "date_resolved")
@@ -134,3 +133,11 @@ class ProjectRisk(models.Model):
                 risk.risk_level = "medium"
             else:
                 risk.risk_level = "low"
+            dbg.logic.debug(
+                "project.risk score %s: p=%s x i=%s = %d -> %s",
+                dbg.rec(risk),
+                risk.probability,
+                risk.impact,
+                score,
+                risk.risk_level,
+            )

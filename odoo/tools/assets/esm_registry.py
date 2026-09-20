@@ -6,6 +6,7 @@ from types import MappingProxyType
 from typing import NamedTuple
 
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 
 __all__ = [
     "EsmRegistry",
@@ -18,11 +19,13 @@ __all__ = [
 ]
 
 _registry_log = get_asset_logger("bundle")
+_debug = DebugLog(__name__)
 
 _ESM_MANIFEST_KEYS = frozenset(
     {
         "bundles",
         "dynamic_children",
+        "dynamic_children_from",
         "exports",
         "external_libs",
         "import_map_includes",
@@ -46,6 +49,13 @@ class EsmRegistry(NamedTuple):
     external_libs: Mapping = MappingProxyType({})
     runtime_bundle_names: frozenset = frozenset()
     exports: frozenset = frozenset()
+    bundle_owners: Mapping = MappingProxyType({})
+
+    # a bundle is named after the module that declared it, except when that
+    # module was folded into another and the bundle kept its name
+    # (`pos_preparation_display.assets`, declared by `pos_enterprise`)
+    def bundle_addon(self, bundle: str) -> str:
+        return self.bundle_owners.get(bundle) or bundle.partition(".")[0]
 
 
 _lock = threading.Lock()
@@ -56,7 +66,8 @@ def esm_registry() -> EsmRegistry:
     if _cache[0] is None:
         with _lock:
             if _cache[0] is None:
-                _cache[0] = _prepare_esm_registry()
+                with _debug.perf("esm_registry.built"):
+                    _cache[0] = _prepare_esm_registry()
     return _cache[0]
 
 
@@ -64,6 +75,7 @@ def invalidate_esm_registry() -> None:
     from .esm_libs import invalidate_served_libs
 
     with _lock:
+        _debug.lifecycle("esm_registry.invalidated", cached=_cache[0] is not None)
         _cache[0] = None
     invalidate_served_libs()
 
@@ -84,6 +96,7 @@ def external_lib_aliases() -> Mapping[str, str]:
         try:
             aliases[spec] = url_to_module_path(url)
         except ValueError:
+            _debug.logic("esm_registry.external_lib_unaliased", spec=spec, url=url)
             continue
     return MappingProxyType(aliases)
 
@@ -101,6 +114,58 @@ def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) ->
                 f"list of bundle names"
             )
         target.setdefault(parent, []).extend(children)
+
+
+def _merge_children_from(target: dict, declared: Mapping, *, module: str) -> None:
+    if not isinstance(declared, Mapping):
+        raise TypeError(
+            f"Module {module!r}: manifest 'esm.dynamic_children_from' must be a "
+            f"dict (page bundle -> page whose dynamic children it takes), "
+            f"got {type(declared).__name__}"
+        )
+    for page, base in declared.items():
+        if not isinstance(base, str):
+            raise TypeError(
+                f"Module {module!r}: 'esm.dynamic_children_from[{page!r}]' must "
+                f"be one bundle name"
+            )
+        known = target.setdefault(page, base)
+        if known != base:
+            raise ValueError(
+                f"esm.dynamic_children_from[{page!r}] names both {known!r} and {base!r}"
+            )
+
+
+def _inherit_dynamic_children(
+    bundles: set, dynamic_children: dict, children_from: Mapping
+) -> None:
+    for page, base in children_from.items():
+        for name in (page, base):
+            if name not in bundles:
+                raise ValueError(
+                    f"esm.dynamic_children_from names {name!r}, which is not a "
+                    f"registered ESM bundle"
+                )
+        if base in children_from:
+            raise ValueError(
+                f"esm.dynamic_children_from[{page!r}] names {base!r}, which "
+                f"takes its own dynamic children from {children_from[base]!r}"
+            )
+        inherited = dynamic_children.get(base, ())
+        own = dynamic_children.setdefault(page, [])
+        restated = sorted(set(own) & set(inherited))
+        if restated:
+            raise ValueError(
+                f"esm.dynamic_children[{page!r}] restates {restated}, which "
+                f"{page!r} already takes from {base!r}"
+            )
+        own.extend(inherited)
+        _debug.pipeline(
+            "esm_registry.children_inherited",
+            page=page,
+            base=base,
+            children=len(inherited),
+        )
 
 
 def _merge_external_libs(
@@ -164,6 +229,7 @@ def _freeze_registry(
     runtime_bundles: set,
     external_libs: dict,
     exports: set | None = None,
+    bundle_owners: dict | None = None,
 ) -> EsmRegistry:
     return EsmRegistry(
         bundles=frozenset(bundles),
@@ -204,6 +270,7 @@ def _freeze_registry(
             child for children in dynamic_children.values() for child in children
         ),
         exports=frozenset(exports or ()),
+        bundle_owners=MappingProxyType(dict(bundle_owners or {})),
     )
 
 
@@ -222,12 +289,23 @@ def _prepare_esm_registry() -> EsmRegistry:
     # sources can discover. Declared by the module that owns them.
     exports: set = set()
     external_lib_owner: dict = {}
+    bundle_owners: dict = {}
+    children_from: dict = {}
     declaring_modules = 0
     for manifest in Manifest.get_all_addon_manifests():
         esm = _validated_esm_section(manifest)
         if esm is None:
             continue
         declaring_modules += 1
+        _debug.pipeline(
+            "esm_registry.manifest_read",
+            module=manifest.name,
+            keys=sorted(esm),
+        )
+        for key in ("bundles", "standalone_bundles", "runtime_bundles"):
+            for name in _bundle_name_list(esm, key, manifest.name):
+                if name.partition(".")[0] != manifest.name:
+                    bundle_owners.setdefault(name, manifest.name)
         bundles.update(_bundle_name_list(esm, "bundles", manifest.name))
         standalone_bundles.update(
             _bundle_name_list(esm, "standalone_bundles", manifest.name)
@@ -254,7 +332,12 @@ def _prepare_esm_registry() -> EsmRegistry:
         ):
             if key in esm:
                 _merge_mapping(target, esm[key], module=manifest.name, key=key)
+        if "dynamic_children_from" in esm:
+            _merge_children_from(
+                children_from, esm["dynamic_children_from"], module=manifest.name
+            )
 
+    _inherit_dynamic_children(bundles, dynamic_children, children_from)
     check_esm_config(
         bundles,
         dynamic_children,
@@ -272,6 +355,7 @@ def _prepare_esm_registry() -> EsmRegistry:
         runtime_bundles,
         external_libs,
         exports,
+        bundle_owners,
     )
     log_event(
         _registry_log,

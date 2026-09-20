@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
 
@@ -9,6 +10,8 @@ import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
  * @property { ImageHoverPlugin['setHoverEffect'] } setHoverEffect
  * @property { ImageHoverPlugin['removeHoverEffect'] } removeHoverEffect
  */
+
+const log = makeLogger("website.builder.plugin.image_hover");
 
 export class ImageHoverPlugin extends Plugin {
     static id = "imageHover";
@@ -30,8 +33,10 @@ export class ImageHoverPlugin extends Plugin {
             let rgba;
             let rbg = null;
             let opacity = null;
-            // Add the required parts for the hover effects to the SVG.
             const hoverEffectName = params.hoverEffect;
+            const endHoverSvg = log.perf("post_compute_shape hover effect", {
+                hoverEffectName,
+            });
             const hoverEffectsSvg = await this.getSvgHoverEffects();
             const hoverEffectEls = hoverEffectsSvg.querySelectorAll(
                 `#${hoverEffectName} > *`,
@@ -39,10 +44,14 @@ export class ImageHoverPlugin extends Plugin {
             hoverEffectEls.forEach((hoverEffectEl) => {
                 svg.appendChild(hoverEffectEl.cloneNode(true));
             });
-            // Modifies the svg according to the chosen hover effect and the value
-            // of the options.
             const animateEl = svg.querySelector("animate");
             const animateTransformEls = svg.querySelectorAll("animateTransform");
+            log.pipeline("hover effect elements appended", () => ({
+                hoverEffectName,
+                elements: hoverEffectEls.length,
+                animateTransforms: animateTransformEls.length,
+                hasColor: Boolean(params.hoverEffectColor),
+            }));
             const animateElValues = animateEl?.getAttribute("values");
             let animateTransformElValues =
                 animateTransformEls[0]?.getAttribute("values");
@@ -70,8 +79,6 @@ export class ImageHoverPlugin extends Plugin {
                     svg.querySelector(
                         '[stroke-opacity="hover_effect_opacity"]',
                     ).setAttribute("stroke-opacity", opacity);
-                    // The stroke width needs to be multiplied by two because half
-                    // of the stroke is invisible since it is centered on the path.
                     const strokeWidth = parseInt(params.hoverEffectStrokeWidth) * 2;
                     animateEl.setAttribute(
                         "values",
@@ -88,8 +95,6 @@ export class ImageHoverPlugin extends Plugin {
                     const imageEl = svg.querySelector("image");
                     const clipPathEl = svg.querySelector("#clip-path");
                     imageEl.setAttribute("id", "shapeImage");
-                    // Modify the SVG so that the clip-path is not zoomed when the
-                    // image is zoomed.
                     imageEl.setAttribute(
                         "style",
                         "transform-origin: center; width: 100%; height: 100%",
@@ -116,7 +121,6 @@ export class ImageHoverPlugin extends Plugin {
                         ),
                     );
                     if (hoverEffectName === "image_zoom_out") {
-                        // Set zoom intensity for the image.
                         const styleAttr = svg.querySelector("style");
                         styleAttr.textContent = styleAttr.textContent.replace(
                             "hover_effect_zoom",
@@ -125,7 +129,6 @@ export class ImageHoverPlugin extends Plugin {
                     }
                     if (hoverEffectName === "dolly_zoom") {
                         clipPathEl.setAttribute("style", "transform-origin: center;");
-                        // Set zoom intensity for clip-path and overlay.
                         zoomValue = 0.99 - parseInt(params.hoverEffectIntensity) / 2000;
                         animateTransformEls.forEach((animateTransformEl, index) => {
                             if (index > 0) {
@@ -163,6 +166,7 @@ export class ImageHoverPlugin extends Plugin {
                     break;
                 }
             }
+            endHoverSvg();
         },
         remove_hover_effect_handlers: this.removeHoverEffect.bind(this),
         set_hover_effect_handlers: this.setHoverEffect.bind(this),
@@ -171,14 +175,17 @@ export class ImageHoverPlugin extends Plugin {
     defaultHoverEffectIntensity = 20;
 
     async setHoverEffect(imgEl, hoverEffectId = "overlay") {
+        const endProcess = log.perf("setHoverEffect processImage", { hoverEffectId });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: imgEl,
             newDataset: this.getDefaultValue(hoverEffectId),
         });
+        endProcess();
         updateAttributes();
     }
 
     async removeHoverEffect(imgEl) {
+        const endProcess = log.perf("removeHoverEffect processImage");
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: imgEl,
             newDataset: {
@@ -188,20 +195,22 @@ export class ImageHoverPlugin extends Plugin {
                 hoverEffectIntensity: undefined,
             },
         });
+        endProcess();
         updateAttributes();
     }
     /**
-     * Gets the hover effects list.
-     *
      * @private
      * @returns {Promise<SVGElement>}
      */
     async getSvgHoverEffects() {
         if (this.hoverEffectsSvg) {
+            log.logic("getSvgHoverEffects: cached");
             return this.hoverEffectsSvg;
         }
         const hoverEffectsURL = "/website/static/src/svg/hover_effects.svg";
+        const endFetch = log.perf("getSvgHoverEffects fetch", { hoverEffectsURL });
         const text = await fetch(hoverEffectsURL).then((r) => r.text());
+        endFetch(() => ({ bytes: text.length }));
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(text, "text/xml");
         this.hoverEffectsSvg = xmlDoc.getElementsByTagName("svg")[0];
@@ -239,14 +248,17 @@ export class SetHoverEffectAction extends BuilderAction {
         return editingElement.dataset.hoverEffect === hoverEffectId;
     }
     async apply({ editingElement, value: hoverEffectId, isPreviewing }) {
+        const endApply = log.perf("SetHoverEffectAction apply", () => ({
+            hoverEffectId,
+            isPreviewing,
+        }));
         await this.dependencies.imageHover.setHoverEffect(
             editingElement,
             hoverEffectId,
         );
+        endApply();
         if (isPreviewing) {
-            // Wait a tick to ensure the interactions are restarted.
-            // Simulate a mouseenter event to trigger the hover effect. (See
-            // `ImageShapeHoverEffect`).
+            log.logic("SetHoverEffectAction apply: dispatch mouseenter for preview");
             setTimeout(() => {
                 editingElement.dispatchEvent(new Event("mouseenter"));
             });
@@ -265,12 +277,14 @@ export class SetHoverEffectIntensityAction extends BuilderAction {
         );
     }
     async apply({ editingElement, value: intensity }) {
+        const endApply = log.perf("SetHoverEffectIntensityAction apply", { intensity });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectIntensity: String(intensity),
             },
         });
+        endApply();
         updateAttributes();
     }
 }
@@ -282,12 +296,14 @@ export class SetHoverEffectColorAction extends BuilderAction {
         return editingElement.dataset.hoverEffectColor;
     }
     async apply({ editingElement, value: color }) {
+        const endApply = log.perf("SetHoverEffectColorAction apply", { color });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectColor: color,
             },
         });
+        endApply();
         updateAttributes();
     }
 }
@@ -301,12 +317,16 @@ export class SetHoverEffectStrokeWidthAction extends BuilderAction {
             : undefined;
     }
     async apply({ editingElement, value: strokeWidth }) {
+        const endApply = log.perf("SetHoverEffectStrokeWidthAction apply", {
+            strokeWidth,
+        });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectStrokeWidth: String(strokeWidth),
             },
         });
+        endApply();
         updateAttributes();
     }
 }

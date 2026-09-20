@@ -1,4 +1,7 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
@@ -41,23 +44,36 @@ class ResConfigSettings(models.TransientModel):
         string="Sale Order Warnings",
         implied_group="sale.group_warning_sale",
     )
+    group_sale_order_template = fields.Boolean(
+        string="Quotation Templates",
+        implied_group="sale.group_sale_order_template",
+    )
+    group_sale_app_menu = fields.Boolean(
+        string="Sales App",
+        implied_group="sale.group_sale_app_menu",
+    )
+    company_so_template_id = fields.Many2one(
+        related="company_id.sale_order_template_id",
+        string="Default Template",
+        readonly=False,
+        domain="[('company_id', 'in', [False, company_id])]",
+    )
 
     automatic_invoice = fields.Boolean(
-        string="Automatic Invoice",
+        config_parameter="sale.automatic_invoice",
         help="The invoice is generated automatically and available in the customer portal when the "
         "transaction is confirmed by the payment provider.\nThe invoice is marked as paid and "
         "the payment is registered in the payment journal defined in the configuration of the "
         "payment provider.\nThis mode is advised if you issue the final invoice at the order "
         "and not after the delivery.",
-        config_parameter="sale.automatic_invoice",
     )
 
     invoice_mail_template_id = fields.Many2one(
         comodel_name="mail.template",
         string="Email Template",
+        config_parameter="sale.default_invoice_email_template",
         domain=[("model", "=", "account.move")],
         help="Email sent to the customer once the invoice is available.",
-        config_parameter="sale.default_invoice_email_template",
     )
     quotation_validity_days = fields.Integer(
         related="company_id.quotation_validity_days",
@@ -72,7 +88,8 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
     prepayment_percent = fields.Float(
-        related="company_id.prepayment_percent", readonly=False
+        related="company_id.prepayment_percent",
+        readonly=False,
     )
     downpayment_account_id = fields.Many2one(
         related="company_id.downpayment_account_id",
@@ -110,6 +127,9 @@ class ResConfigSettings(models.TransientModel):
     def _onchange_group_product_variant(self):
         if self.module_sale_product_matrix and not self.group_product_variant:
             self.module_sale_product_matrix = False
+            _debug.logic(
+                "module_disabled", module="sale_product_matrix", by="no_product_variant"
+            )
 
     @api.onchange("portal_confirmation_pay")
     def _onchange_portal_confirmation_pay(self):
@@ -128,8 +148,32 @@ class ResConfigSettings(models.TransientModel):
         )
 
     def set_values(self):
+        if not self.group_sale_order_template:
+            if self.company_so_template_id:
+                self.company_so_template_id = False
+            companies = (
+                self.env["res.company"]
+                .sudo()
+                .search([("sale_order_template_id", "!=", False)])
+            )
+            if companies:
+                _debug.lifecycle(
+                    "company_templates_cleared",
+                    companies=companies,
+                    reason="templates_feature_off",
+                )
+                companies.sale_order_template_id = False
         super().set_values()
+        _debug.lifecycle(
+            "sale_settings_saved",
+            invoice_policy=self.default_invoice_policy,
+            lock_confirmed=self.lock_confirmed_so,
+            automatic_invoice=self.automatic_invoice,
+        )
         if self.default_invoice_policy != "ordered":
+            _debug.logic(
+                "automatic_invoice_forced_off", reason="invoice_policy_not_ordered"
+            )
             self.env["ir.config_parameter"].set_param(
                 key="sale.automatic_invoice", value=False
             )

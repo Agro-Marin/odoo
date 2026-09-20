@@ -3,14 +3,16 @@ import logging
 import threading
 from typing import Any, Literal, Self
 
-from odoo import _, api, fields, models, tools
+from odoo import _, _lt, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.locale import format_number
-from odoo.tools import OrderedSet
+from odoo.tools import OrderedSet, reset_cached_properties
 from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _LOCALE_LOCK = threading.Lock()
 
@@ -76,31 +78,31 @@ class ResLang(models.Model):
         help="This ISO code is the name of po files to use for translations",
     )
     url_code = fields.Char(
-        "URL Code", required=True, help="The Lang Code displayed in the URL"
+        string="URL Code",
+        required=True,
+        help="The Lang Code displayed in the URL",
     )
     active = fields.Boolean()
     direction = fields.Selection(
-        [("ltr", "Left-to-Right"), ("rtl", "Right-to-Left")],
-        required=True,
+        selection=[("ltr", "Left-to-Right"), ("rtl", "Right-to-Left")],
         default="ltr",
+        required=True,
     )
     date_format = fields.Selection(
         selection=_selection_date_formats,
-        string="Date Format",
-        required=True,
         default="%m/%d/%Y",
+        required=True,
     )
     time_format = fields.Selection(
-        [
+        selection=[
             ("%H:%M:%S", "13:00:00"),
             ("%I:%M:%S %p", " 1:00:00 PM"),
         ],
-        string="Time Format",
-        required=True,
         default="%H:%M:%S",
+        required=True,
     )
     week_start = fields.Selection(
-        [
+        selection=[
             ("1", "Monday"),
             ("2", "Tuesday"),
             ("3", "Wednesday"),
@@ -110,24 +112,31 @@ class ResLang(models.Model):
             ("7", "Sunday"),
         ],
         string="First Day of Week",
-        required=True,
         default="7",
+        required=True,
     )
     grouping = fields.Selection(
-        [
+        selection=[
             ("[3,0]", "International Grouping"),
             ("[3,2,0]", "Indian Grouping"),
         ],
         string="Separator Format",
-        required=True,
         default="[3,0]",
+        required=True,
         help="The International Grouping will represent 123456789 to be 123,456,789.00; "
         "The Indian Grouping will represent 123456789 to be 12,34,56,789.00",
     )
     decimal_point = fields.Char(
-        string="Decimal Separator", required=True, default=".", trim=False
+        string="Decimal Separator",
+        trim=False,
+        default=".",
+        required=True,
     )
-    thousands_sep = fields.Char(string="Thousands Separator", default=",", trim=False)
+    thousands_sep = fields.Char(
+        string="Thousands Separator",
+        trim=False,
+        default=",",
+    )
 
     @api.depends("code", "flag_image")
     def _compute_flag_image_url(self) -> None:
@@ -145,7 +154,7 @@ class ResLang(models.Model):
                     f"/base/static/img/country_flags/{country_code}.png"
                 )
 
-    flag_image = fields.Image("Image")
+    flag_image = fields.Image(string="Image")
     flag_image_url = fields.Char(compute=_compute_flag_image_url)
 
     _name_uniq = models.Constraint(
@@ -166,6 +175,7 @@ class ResLang(models.Model):
         if self.env.registry.ready and not self.search_count(
             [("active", "=", True)], limit=1
         ):
+            _debug.logic("active_check_refused", langs=self.mapped("code"))
             raise ValidationError(_("At least one language must be active."))
 
     @api.constrains("time_format", "date_format")
@@ -175,6 +185,7 @@ class ResLang(models.Model):
                 if (lang.time_format and pattern in lang.time_format) or (
                     lang.date_format and pattern in lang.date_format
                 ):
+                    _debug.logic("format_rejected", lang=lang.code, pattern=pattern)
                     raise ValidationError(
                         _(
                             "Invalid date/time format directive specified. "
@@ -199,6 +210,7 @@ class ResLang(models.Model):
                 and "%p" in lang.date_format
             ):
                 lang.date_format = lang.date_format.replace("%H", "%I")
+                _debug.logic("clock_format_fixed", lang=lang.code, field="date_format")
                 return warning
             if (
                 lang.time_format
@@ -206,6 +218,7 @@ class ResLang(models.Model):
                 and "%p" in lang.time_format
             ):
                 lang.time_format = lang.time_format.replace("%H", "%I")
+                _debug.logic("clock_format_fixed", lang=lang.code, field="time_format")
                 return warning
         return None
 
@@ -219,12 +232,14 @@ class ResLang(models.Model):
     def _activate_lang(self, code: str) -> Self:
         lang = self._get_lang_by_code(code)
         if lang and not lang.active:
+            _debug.lifecycle("lang_activated", code=code, install=False)
             lang.active = True
         return lang
 
     def _activate_and_install_lang(self, code: str) -> Self:
         lang = self._get_lang_by_code(code)
         if lang and not lang.active:
+            _debug.lifecycle("lang_activated", code=code, install=True)
             lang.action_unarchive()
         return lang
 
@@ -257,6 +272,13 @@ class ResLang(models.Model):
                 conv = locale.localeconv()
                 grouping = str(conv.get("grouping") or "[3,0]").replace(" ", "")
                 grouping_options = {v for v, _ in self._fields["grouping"].selection}
+                _debug.logic(
+                    "locale_resolved",
+                    code=lang,
+                    locale_found=not fail,
+                    grouping=grouping,
+                    grouping_known=grouping in grouping_options,
+                )
                 lang_info = {
                     "code": lang,
                     "iso_code": iso_lang,
@@ -274,14 +296,22 @@ class ResLang(models.Model):
                 }
             finally:
                 tools.translate.resetlocale()
+        _debug.lifecycle("lang_created_from_locale", code=lang, iso=iso_lang)
         return self.create(lang_info)
 
     @api.model
     def install_lang(self) -> bool:
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
+        _debug.lifecycle("install_lang", code=lang_code)
         self._activate_lang(lang_code) or self._create_lang(lang_code)
         IrDefault = self.env["ir.default"]
         default_value = IrDefault._get("res.partner", "lang")
+        _debug.logic(
+            "partner_lang_default",
+            code=lang_code,
+            existing=default_value,
+            set_default=default_value is None,
+        )
         if default_value is None:
             IrDefault.set("res.partner", "lang", lang_code)
             partner = self.env.company.partner_id
@@ -333,6 +363,7 @@ class ResLang(models.Model):
     @tools.ormcache("field", cache="stable")
     def _get_active_by_field(self, field: str) -> LangDataDict:
         if field not in self.CACHED_FIELDS:
+            _debug.logic("active_by_field_refused", field=field)
             raise UserError(_('Field "%s" is not cached', field))
         if field == "code":
             langs = (
@@ -340,78 +371,59 @@ class ResLang(models.Model):
                 .with_context(active_test=True)
                 .search_fetch([], self.CACHED_FIELDS, order="name")
             )
+            _debug.perf.count("active_langs_computed", langs=langs.mapped("code"))
             return LangDataDict(
                 {
                     lang.code: LangData({f: lang[f] for f in self.CACHED_FIELDS})
                     for lang in langs
                 }
             )
+        _debug.perf.count("active_langs_reindexed", field=field)
         return LangDataDict(
             {data[field]: data for data in self._get_active_by_field("code").values()}
         )
 
     def action_unarchive(self) -> bool:
         activated = self.filtered(lambda rec: not rec.active)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "unarchive", langs=self.mapped("code"), activated=len(activated)
+            )
         res = super(ResLang, activated).action_unarchive()
         if activated:
             active_lang = activated.mapped("code")
             mods = self.env["ir.module.module"].search([("state", "=", "installed")])
-            mods._update_translations(active_lang)
+            with _debug.perf(
+                "lang_translations_loaded",
+                cr=self.env.cr,
+                langs=active_lang,
+                modules=len(mods),
+            ):
+                mods._update_translations(active_lang)
         return res
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle("create", codes=[vals.get("code") for vals in vals_list])
         self.env.registry.clear_cache("stable")
-        for vals in vals_list:
-            if not vals.get("url_code"):
-                vals["url_code"] = vals.get("iso_code") or vals["code"]
-        return super().create(vals_list)
+        return super().create(
+            [
+                vals
+                if vals.get("url_code")
+                else {**vals, "url_code": vals.get("iso_code") or vals["code"]}
+                for vals in vals_list
+            ]
+        )
 
     def write(self, vals: dict[str, Any]) -> bool:
         lang_codes = self.mapped("code")
+        _debug.lifecycle("write", codes=lang_codes, fields=list(vals))
         if "code" in vals and any(code != vals["code"] for code in lang_codes):
+            _debug.logic("write_refused", codes=lang_codes, reason="code_change")
             raise UserError(_("Language code cannot be modified."))
         if "active" in vals and not vals["active"]:
-            if (
-                self.env["res.users"]
-                .with_context(active_test=True)
-                .search_count([("lang", "in", lang_codes)], limit=1)
-            ):
-                raise UserError(
-                    _("Cannot deactivate a language that is currently used by users.")
-                )
-            if (
-                self.env["res.partner"]
-                .with_context(active_test=True)
-                .search_count([("lang", "in", lang_codes)], limit=1)
-            ):
-                raise UserError(
-                    _(
-                        "Cannot deactivate a language that is currently used by contacts."
-                    )
-                )
-            if (
-                self.env["res.users"]
-                .with_context(active_test=False)
-                .search_count([("lang", "in", lang_codes)], limit=1)
-            ):
-                raise UserError(
-                    _(
-                        "Cannot deactivate a language that is used by archived users, "
-                        "such as the ones automated processes run as."
-                    )
-                )
-            if (
-                self.env["res.partner"]
-                .with_context(active_test=False)
-                .search_count([("lang", "in", lang_codes)], limit=1)
-            ):
-                raise UserError(
-                    _(
-                        "Cannot deactivate a language that is used by archived contacts. "
-                        "Reactivating those contacts would leave them with an inactive language."
-                    )
-                )
+            self._check_deactivation_allowed(lang_codes)
+            _debug.lifecycle("partner_lang_defaults_discarded", codes=lang_codes)
             self.env["ir.default"].discard_values("res.partner", "lang", lang_codes)
 
         res = super().write(vals)
@@ -419,6 +431,12 @@ class ResLang(models.Model):
         if vals.get("active"):
             long_langs = self.filtered(lambda lang: "_" in lang.url_code)
             short_codes = {lang.code.split("_")[0] for lang in long_langs}
+            _debug.logic(
+                "url_code_shortening",
+                codes=lang_codes,
+                long_langs=len(long_langs),
+                short_codes=len(short_codes),
+            )
             by_url_code = {}
             if short_codes:
                 for candidate in self.with_context(active_test=False).search(
@@ -436,24 +454,89 @@ class ResLang(models.Model):
                 ):
                     short_lang.url_code = short_lang.code
                     long_lang.url_code = short_code
+                    _debug.logic(
+                        "url_code_swapped", long=long_lang.code, short=short_lang.code
+                    )
 
         self.env.flush_all()
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("stable_cache_cleared", by="write", codes=lang_codes)
+        if "active" in vals:
+            self._reset_environment_languages()
         return res
+
+    _DEACTIVATION_REFUSALS = {
+        ("res.users", True): _lt(
+            "Cannot deactivate a language that is currently used by users."
+        ),
+        ("res.users", False): _lt(
+            "Cannot deactivate a language that is used by archived users, "
+            "such as the ones automated processes run as."
+        ),
+        ("res.partner", True): _lt(
+            "Cannot deactivate a language that is currently used by contacts."
+        ),
+        ("res.partner", False): _lt(
+            "Cannot deactivate a language that is used by archived contacts. "
+            "Reactivating those contacts would leave them with an inactive language."
+        ),
+    }
+
+    def _check_deactivation_allowed(self, lang_codes: list[str]) -> None:
+        # one query per model, the first row by `active desc` telling whether
+        # an active holder exists; the message ranks users over contacts and
+        # active over archived
+        holders = {
+            model_name: self.env[model_name]
+            .with_context(active_test=False)
+            .search_fetch(
+                [("lang", "in", lang_codes)],
+                ["active"],
+                order="active desc, id",
+                limit=1,
+            )
+            for model_name in ("res.users", "res.partner")
+        }
+        for active in (True, False):
+            for model_name, holder in holders.items():
+                if holder and holder.active == active:
+                    _debug.logic(
+                        "deactivate_refused",
+                        codes=lang_codes,
+                        model=model_name,
+                        active=active,
+                    )
+                    raise UserError(
+                        str(self._DEACTIVATION_REFUSALS[model_name, active])
+                    )
+
+    def _reset_environment_languages(self) -> None:
+        # Environment.lang caches whether its context language is installed;
+        # the transaction keeps recent environments alive, so a toggled
+        # language must not be answered from that cache
+        envs = list(self.env.transaction.envs)
+        _debug.lifecycle("environment_languages_reset", envs=len(envs))
+        for env in envs:
+            reset_cached_properties(env)
 
     @api.ondelete(at_uninstall=True)
     def _unlink_except_default_lang(self) -> None:
         for language in self:
             if language.code == "en_US":
+                _debug.logic("unlink_refused", lang=language.code, reason="base")
                 raise UserError(_("Base Language 'en_US' can not be deleted."))
             ctx_lang = self.env.context.get("lang")
             if ctx_lang and (language.code == ctx_lang):
+                _debug.logic(
+                    "unlink_refused", lang=language.code, reason="user_preferred"
+                )
                 raise UserError(
                     _(
                         "You cannot delete the language which is the user's preferred language."
                     )
                 )
             if language.active:
+                _debug.logic("unlink_refused", lang=language.code, reason="active")
                 raise UserError(
                     _(
                         "You cannot delete the language which is Active!\nPlease de-activate the language first."
@@ -461,7 +544,9 @@ class ResLang(models.Model):
                 )
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", codes=self.mapped("code"))
         self.env.registry.clear_cache("stable")
+        self._reset_environment_languages()
         return super().unlink()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
@@ -485,12 +570,16 @@ class ResLang(models.Model):
         while Lang.search_count([(fname, "=", candidate)], limit=1):
             candidate = f"{value}_copy{counter}"
             counter += 1
+        _debug.perf.count(
+            "unique_copy_value", field=fname, probes=counter - 1, candidate=candidate
+        )
         return candidate
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
         self.check_singleton()
         data = self._get_data(id=self.id)
         if not data:
+            _debug.logic("format_refused", lang=self.code, reason="not_installed")
             raise UserError(_("The language %s is not installed.", self.name))
         return format_number(percent, value, data, grouping=grouping)
 

@@ -1,6 +1,6 @@
 {
     "name": "Customer Rating",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Productivity",
     "description": """
 This module allows a customer to give rating.
@@ -15,6 +15,7 @@ This module allows a customer to give rating.
         "views/rating_templates.xml",
         "views/mail_message_views.xml",
         "security/ir.model.access.csv",
+        "views/rating_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [
@@ -35,5 +36,4 @@ This module allows a customer to give rating.
             "rating/static/src/core/common/**/*",
         ],
     },
-    "installable": True,
 }

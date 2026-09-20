@@ -8,19 +8,12 @@ class SaleOrderLine(models.Model):
     name_short = fields.Char(compute="_compute_name_short")
     shop_warning = fields.Char(string="Warning")
 
-    # === COMPUTE METHODS ===#
-
     @api.depends("product_id.display_name")
     def _compute_name_short(self):
-        """Compute a short name for this sale order line, to be used on the website where we don't have much space.
-        To keep it short, instead of using the first line of the description, we take the product name without the internal reference.
-        """
         for record in self:
             record.name_short = record.product_id.with_context(
                 display_default_code=False
             ).display_name
-
-    # === BUSINESS METHODS ===#
 
     def get_description_following_lines(self):
         return reversed(self.name.splitlines()[1:])
@@ -33,14 +26,11 @@ class SaleOrderLine(models.Model):
     def _get_line_header(self):
         if not self.product_template_attribute_value_ids:
             return self.name_short
-        # not display_name because we don't want the combination name or the code.
         return self.product_id.name
 
     def _get_date_order(self):
         self.check_singleton()
         if self.order_id.website_id and self.state == "draft":
-            # cart prices must always be computed based on the current time, not on the order
-            # creation date.
             return fields.Datetime.now()
         return super()._get_date_order()
 
@@ -99,7 +89,6 @@ class SaleOrderLine(models.Model):
 
     def _show_in_cart(self):
         self.check_singleton()
-        # Exclude delivery & section/note lines from showing up in the cart
         return (
             not self.is_delivery
             and not bool(self.display_type)
@@ -139,24 +128,9 @@ class SaleOrderLine(models.Model):
             )
 
     def _is_strikethrough_price_shown(self):
-        """Compute whether the strikethrough price should be shown.
-
-        The strikethrough price should be shown if there is a discount on a sellable line for
-        which a price unit is non-zero.
-
-        :return: Whether the strikethrough price should be shown.
-        :rtype: bool
-        """
         return (
             self.discount and self._is_sellable() and self._get_displayed_unit_price()
         )
 
     def _is_sellable(self):
-        """Check if a line is sellable or not, i.e the link is clickable in the cart or not.
-
-        A line is sellable if the product is published and not a delivery line.
-
-        :return: Whether the line is sellable or not.
-        :rtype: bool
-        """
         return self.product_id.is_published and not self.is_delivery

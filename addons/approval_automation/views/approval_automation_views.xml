@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="approval_category_view_form_automation" model="ir.ui.view">
+        <field name="name">approval.category.form.automation</field>
+        <field name="model">approval.category</field>
+        <field name="inherit_id" ref="approval.view_approval_category_form" />
+        <field name="arch" type="xml">
+            <group name="settings_group" position="inside">
+                <group name="automation" string="Automation">
+                    <field
+                        name="has_automation"
+                        string="Automation"
+                        widget="radio"
+                        options="{'horizontal': true}" />
+                    <field name="automation_id" invisible="has_automation == 'no'" />
+                </group>
+            </group>
+        </field>
+    </record>
+
+    <record id="approval_request_view_form_automation" model="ir.ui.view">
+        <field name="name">approval.request.form.automation</field>
+        <field name="model">approval.request</field>
+        <field name="inherit_id" ref="approval.view_approval_request_form" />
+        <field name="arch" type="xml">
+            <page name="decision_history" position="before">
+                <page
+                    name="automation_details"
+                    string="Automation Details"
+                    invisible="has_automation == 'no'">
+                    <group>
+                        <group string="Operation Generation">
+                            <field
+                                name="automation_id"
+                                invisible="has_automation == 'no'"
+                                readonly="state != 'new' and state != 'pending'"
+                                required="has_automation == 'required'" />
+                            <field name="automation_runtime_id" readonly="1" />
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="approval_binding_view_form_automation" model="ir.ui.view">
+        <field name="name">approval.binding.form.automation</field>
+        <field name="model">approval.binding</field>
+        <field name="inherit_id" ref="approval.approval_binding_view_form" />
+        <field name="arch" type="xml">
+            <field name="subject_domain" position="after">
+                <field
+                    name="reset_domain"
+                    placeholder="e.g. [('state', '=', 'draft')]" />
+                <field name="reset_automation_id" invisible="not reset_automation_id" />
+            </field>
+        </field>
+    </record>
+
+</odoo>

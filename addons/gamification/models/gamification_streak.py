@@ -30,24 +30,32 @@ class GamificationStreakType(models.Model):
     _description = "Gamification Streak Type"
     _order = "sequence, name"
 
-    name = fields.Char("Streak Name", required=True, translate=True)
-    description = fields.Text("Description", translate=True)
+    name = fields.Char(
+        string="Streak Name",
+        translate=True,
+        required=True,
+    )
+    description = fields.Text(translate=True)
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
-    icon = fields.Image("Icon", max_width=128, max_height=128)
+    icon = fields.Image(
+        max_width=128,
+        max_height=128,
+    )
 
     # What counts as "activity" for this streak
     model_id = fields.Many2one(
-        "ir.model",
+        comodel_name="ir.model",
         string="Target Model",
         required=True,
         ondelete="cascade",
         help="The model where activity is tracked (e.g. crm.lead, account.move).",
     )
+    model_name = fields.Char(related="model_id.model")
     domain = fields.Char(
-        "Activity Domain",
-        required=True,
+        string="Activity Domain",
         default="[]",
+        required=True,
         help="Domain to filter records.  May reference 'user' (current user) "
         "and 'date_from' / 'date_to' (the day being checked).\n"
         "Every candidate user whose domain evaluates to the same text shares "
@@ -60,8 +68,7 @@ class GamificationStreakType(models.Model):
         "streak was intended.",
     )
     date_field_id = fields.Many2one(
-        "ir.model.fields",
-        string="Date Field",
+        comodel_name="ir.model.fields",
         required=True,
         ondelete="cascade",
         help="The date/datetime field used to check daily activity.",
@@ -69,21 +76,26 @@ class GamificationStreakType(models.Model):
 
     # Rewards
     karma_bonus = fields.Integer(
-        "Daily Karma Bonus",
+        string="Daily Karma Bonus",
         default=0,
         help="Karma granted each day the streak is maintained.  "
         "Milestone days (7, 30, 100, 365) multiply this value.",
     )
     freeze_allowance = fields.Integer(
-        "Freeze Days per Month",
+        string="Freeze Days per Month",
         default=2,
         help="Number of days per month a user can skip without breaking the streak.",
     )
 
     streak_ids = fields.One2many(
-        "gamification.streak", "streak_type_id", string="User Streaks"
+        comodel_name="gamification.streak",
+        inverse_name="streak_type_id",
+        string="User Streaks",
     )
-    user_count = fields.Integer("# Active Streaks", compute="_compute_user_count")
+    user_count = fields.Integer(
+        string="# Active Streaks",
+        compute="_compute_user_count",
+    )
 
     @api.depends("streak_ids.state")
     def _compute_user_count(self) -> None:
@@ -143,7 +155,7 @@ class GamificationStreakType(models.Model):
         # is built in the *user's* timezone and only then converted to UTC for
         # the query.  Storage stays UTC throughout -- this mirrors
         # ``lunch.supplier._compute_available_today`` and
-        # ``hr.employee._get_tz``, which resolve the relevant record's tz in
+        # ``hr.employee._get_schedule_tz``, which resolve the relevant record's tz in
         # backend/cron code for exactly this reason.
         #
         # Note ``fields.Date.context_today`` is deliberately *not* used: it
@@ -170,14 +182,14 @@ class GamificationStreakType(models.Model):
 
         active_ids: set[int] = set()
         for domain, user_ids in buckets.values():
-            if Obj.search_count(domain, limit=1):
+            if Obj.search_count(domain, limit=1):  # noqa: E8507 - one query per distinct domain; users sharing one were merged above
                 active_ids.update(user_ids)
         return active_ids
 
     def _get_streak_tz_name(self, user) -> str:
         """Return the timezone whose calendar day defines this user's streak.
 
-        Falls back the same way ``hr.employee._get_tz`` does, ending in UTC so
+        Falls back the same way ``hr.employee._get_schedule_tz`` does, ending in UTC so
         the behaviour is unchanged for users with no timezone set.
         """
         return user.tz or user.company_id.partner_id.tz or "UTC"
@@ -204,43 +216,55 @@ class GamificationStreak(models.Model):
     _rec_name = "streak_type_id"
 
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
-        required=True,
-        index=True,
-        ondelete="cascade",
+        comodel_name="res.users",
         default=lambda self: self.env.uid,
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     streak_type_id = fields.Many2one(
-        "gamification.streak.type",
-        string="Streak Type",
-        required=True,
+        comodel_name="gamification.streak.type",
         index=True,
+        required=True,
         ondelete="cascade",
     )
-    current_count = fields.Integer("Current Streak", default=0, readonly=True)
-    longest_count = fields.Integer("Longest Streak", default=0, readonly=True)
-    last_activity_date = fields.Date("Last Activity", readonly=True)
-    last_checked_date = fields.Date(
-        "Last Checked",
+    current_count = fields.Integer(
+        string="Current Streak",
+        default=0,
         readonly=True,
+    )
+    longest_count = fields.Integer(
+        string="Longest Streak",
+        default=0,
+        readonly=True,
+    )
+    last_activity_date = fields.Date(
+        string="Last Activity",
+        readonly=True,
+    )
+    last_checked_date = fields.Date(
+        string="Last Checked",
         index=True,
+        readonly=True,
         help="Day the streak cron last evaluated this streak, whatever the "
         "outcome. Used to make the cron idempotent.",
     )
     freeze_remaining = fields.Integer(
-        "Freeze Days Left",
+        string="Freeze Days Left",
         default=0,
         help="Days remaining this month where the streak won't break.",
     )
     state = fields.Selection(
-        [("active", "Active"), ("broken", "Broken")],
+        selection=[("active", "Active"), ("broken", "Broken")],
         default="active",
-        required=True,
-        readonly=True,
         index=True,
+        readonly=True,
+        required=True,
     )
-    total_karma_earned = fields.Integer("Total Karma Earned", default=0, readonly=True)
+    total_karma_earned = fields.Integer(
+        default=0,
+        readonly=True,
+    )
 
     _user_streak_type_uniq = models.UniqueIndex(
         "(user_id, streak_type_id)",

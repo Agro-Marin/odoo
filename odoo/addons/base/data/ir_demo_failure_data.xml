@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="demo_failure_action" model="ir.actions.server">
@@ -38,10 +39,10 @@ action = {
                 </field>
                 <footer>
                     <button
+                        name="done"
+                        type="object"
                         string="Ok"
                         class="oe_highlight"
-                        type="object"
-                        name="done"
                         data-hotkey="q" />
                 </footer>
             </form>
@@ -70,9 +71,9 @@ action = {
 
     <record id="demo_failure_todo" model="ir.actions.todo">
         <field name="name">Demo Failure Notification</field>
+        <field name="action_id" ref="base.demo_failure_action" />
         <field name="sequence">1</field>
         <field name="state">done</field>
-        <field name="action_id" ref="base.demo_failure_action" />
     </record>
 
 </odoo>

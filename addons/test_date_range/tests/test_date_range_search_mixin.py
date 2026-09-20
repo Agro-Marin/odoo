@@ -1,5 +1,3 @@
-from dateutil.rrule import MONTHLY
-
 from odoo.tests.common import TransactionCase
 
 
@@ -17,7 +15,7 @@ class TestDateRangeSearchMixin(TransactionCase):
                 "name_prefix": "1943-",
                 "type_id": rtype.id,
                 "duration_count": 3,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "count": 4,
             },
         ).action_apply()

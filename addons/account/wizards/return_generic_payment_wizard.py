@@ -1,11 +1,14 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountReturnGenericPaymentWizard(models.TransientModel):
     _name = "account.return.payment.wizard"
     _description = "Returns Generic Payment Wizard"
 
-    company_id = fields.Many2one(comodel_name="res.company", string="Company")
+    company_id = fields.Many2one(comodel_name="res.company")
     # compute_sudo=False on both: a related field is privileged by default
     # (coding_guidelines.rst 10.5), and partner_bank_id is a plain many2one the user
     # sets, so the default would hand back the IBAN of any bank account in the
@@ -16,7 +19,9 @@ class AccountReturnGenericPaymentWizard(models.TransientModel):
         compute_sudo=False,
     )
     acc_number = fields.Char(
-        string="IBAN", related="partner_bank_id.acc_number", compute_sudo=False
+        related="partner_bank_id.acc_number",
+        string="IBAN",
+        compute_sudo=False,
     )
     # No check_company= here on purpose: this model does not set _check_company_auto,
     # so the flag would enforce nothing while reading as though it did. The reader's
@@ -25,14 +30,24 @@ class AccountReturnGenericPaymentWizard(models.TransientModel):
     communication = fields.Char(compute="_compute_communication")
 
     amount_to_pay = fields.Monetary(
-        compute="_compute_amount_to_pay", store=True, readonly=False
+        compute="_compute_amount_to_pay",
+        store=True,
+        readonly=False,
     )
-    is_recoverable = fields.Boolean(compute="_compute_is_recoverable", readonly=False)
+    is_recoverable = fields.Boolean(
+        compute="_compute_is_recoverable",
+        readonly=False,
+    )
     currency_id = fields.Many2one(
-        comodel_name="res.currency", related="return_id.amount_to_pay_currency_id"
+        comodel_name="res.currency",
+        related="return_id.amount_to_pay_currency_id",
     )
-    return_id = fields.Many2one(comodel_name="account.return", required=True)
+    return_id = fields.Many2one(
+        comodel_name="account.return",
+        required=True,
+    )
 
+    @_debug.perf.timed
     def _generate_communication(self):
         return False
 
@@ -52,11 +67,15 @@ class AccountReturnGenericPaymentWizard(models.TransientModel):
         for wizard in self:
             wizard.communication = wizard._generate_communication()
 
+    @_debug.perf.timed
     def action_mark_as_paid(self):
+        _debug.lifecycle("action_mark_as_paid", records=self)
         self.check_singleton()
         return self.return_id._action_finalize_payment()
 
+    @_debug.perf.timed
     def action_send_email_instructions(self):
+        _debug.lifecycle("action_send_email_instructions", records=self)
         self.check_singleton()
         template = self.env.ref(
             "account.email_template_generic_tax_instructions",

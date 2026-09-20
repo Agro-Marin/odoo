@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { InputConfirmationDialog } from "@html_builder/snippets/input_confirmation_dialog";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.translation.translate_announcement_scroll");
 
 export class TranslateAnnouncementScrollPlugin extends Plugin {
     static id = "translateAnnouncementScroll";
@@ -12,13 +15,13 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
         mark_translatable_nodes: this.listenToAnnouncementScrollClick.bind(this),
     };
 
-    /**
-     * On click, opens a dialog to translate the interaction's text.
-     */
     listenToAnnouncementScrollClick() {
         const announcementScrollEls = this.document.querySelectorAll(
             ".s_announcement_scroll",
         );
+        log.pipeline("listenToAnnouncementScrollClick", () => ({
+            count: announcementScrollEls.length,
+        }));
 
         for (const announcementScrollEl of announcementScrollEls) {
             this.addDomListener(announcementScrollEl, "click", () => {
@@ -28,6 +31,7 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
                     ".s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]",
                 );
 
+                log.lifecycle("translate dialog open");
                 this.services.dialog.add(InputConfirmationDialog, {
                     defaultValue: translatableEl.textContent,
                     title: _t("Translate Text"),
@@ -35,7 +39,6 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
                     cancelLabel: _t("Apply"),
                     inputLabel: _t("Translation"),
                     confirm: this.updateText.bind(this, translatableEl),
-                    // Override "cancel" to have an "apply" button.
                     cancel: (inputValue) => {
                         this.updateText.apply(this, [translatableEl, inputValue]);
                         return false;
@@ -46,12 +49,13 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
         }
     }
     /**
-     * Update the translated text.
-     *
      * @param {HTMLElement} translatableEl
      * @param {String} inputValue
      */
     updateText(translatableEl, inputValue) {
+        log.logic("updateText", () => ({
+            changed: inputValue !== translatableEl.textContent,
+        }));
         if (inputValue !== translatableEl.textContent) {
             translatableEl.textContent = inputValue;
             translatableEl.dataset.oeTranslationState = "translated";

@@ -21,23 +21,25 @@ class ProductPublicCategory(models.Model):
             return cat.sequence + 5
         return 10000
 
-    name = fields.Char(required=True, translate=True)
-    cover_image = fields.Image(
-        string="Cover Image",
-        help="Displayed only in the Category List Snippet.",
+    name = fields.Char(
+        translate=True,
+        required=True,
     )
-    sequence = fields.Integer(default=_default_sequence, index=True)
-
-    parent_id = fields.Many2one(
-        string="Parent",
-        comodel_name="product.public.category",
-        ondelete="cascade",
+    cover_image = fields.Image(help="Displayed only in the Category List Snippet.")
+    sequence = fields.Integer(
+        default=_default_sequence,
         index=True,
     )
+
+    parent_id = fields.Many2one(
+        comodel_name="product.public.category",
+        index=True,
+        ondelete="cascade",
+    )
     child_id = fields.One2many(
-        string="Children Categories",
         comodel_name="product.public.category",
         inverse_name="parent_id",
+        string="Children Categories",
     )
     parents_and_self = fields.Many2many(
         comodel_name="product.public.category",
@@ -57,38 +59,33 @@ class ProductPublicCategory(models.Model):
 
     website_description = fields.Html(
         string="Description",
+        translate=html_translate,
+        sanitize_overridable=True,
         sanitize_attributes=False,
         sanitize_form=False,
-        sanitize_overridable=True,
-        translate=html_translate,
     )
 
     website_footer = fields.Html(
         string="Category Footer",
+        translate=html_translate,
         sanitize_attributes=False,
         sanitize_form=False,
-        translate=html_translate,
     )
 
     show_category_title = fields.Boolean(
-        string="Show Category Title",
         default=False,
         help="Display the category title on the shop page. Corresponds to the 'Show Title' editor option.",
     )
 
     show_category_description = fields.Boolean(
-        string="Show Category Description",
         default=True,
         help="Display the category description on the shop page. Corresponds to the 'Show Description' editor option.",
     )
 
     align_category_content = fields.Boolean(
-        string="Align Category Content",
         default=False,
         help="Align the category content on the shop page. Corresponds to the 'Center Content' editor option.",
     )
-
-    # === COMPUTE METHODS === #
 
     @api.depends("parent_path")
     def _compute_parents_and_self(self):
@@ -123,11 +120,7 @@ class ProductPublicCategory(models.Model):
                 c.has_published_products for c in category.child_id
             )
 
-    # === CONSTRAINT METHODS === #
-
     _hierarchy_cycle_message = _lt("Error! You cannot create recursive categories.")
-
-    # === SEARCH METHODS === #
 
     @api.model
     def _search_has_published_products(self, operator, value):
@@ -142,14 +135,11 @@ class ProductPublicCategory(models.Model):
                 )
             ]
         ).get_result_ids()
-        # If the `value` is False, the ORM will invert the domain below
         return [
             "|",
             ("id", "in", published_categ_ids),
             ("id", "parent_of", published_categ_ids),
         ]
-
-    # === BUSINESS METHODS === #
 
     @api.model
     def _search_get_detail(self, website, order, options):
@@ -191,12 +181,6 @@ class ProductPublicCategory(models.Model):
 
     @api.model
     def get_available_snippet_categories(self, website_id):
-        """Return parent categories available for selection in the dynamic category snippet.
-
-        :param int website_id: ID of the current website
-        :return: Available parent categories
-        :rtype: list[dict]
-        """
         child_count_by_parent = self._read_group(
             domain=self._get_domain_available_category(website_id),
             aggregates=["id:count"],
@@ -213,14 +197,7 @@ class ProductPublicCategory(models.Model):
 
     @api.model
     def _get_domain_available_category(self, website_id):
-        """Build a search domain for product categories to be used in dynamic snippets.
-
-        :param int website_id: ID of the current website
-        :return: A domain to filter product categories for the given website
-        :rtype: Domain
-        """
         domain = Domain("website_id", "in", [False, website_id])
-        # Public and portal users should only see categories with published products.
         if not self.env.user.has_group("website.group_website_designer"):
             domain &= Domain("has_published_products", "=", True)
         return domain

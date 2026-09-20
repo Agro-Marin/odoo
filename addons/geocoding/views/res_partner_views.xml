@@ -23,20 +23,20 @@
                     </span>
                     <div name="geo_localize_button">
                         <button
-                            invisible="partner_latitude != 0 or partner_longitude != 0"
-                            icon="fa-gear"
+                            name="geo_localize"
+                            type="object"
                             string="Compute based on address"
                             title="Compute Localization"
-                            name="geo_localize"
-                            type="object"
+                            icon="fa-gear"
+                            invisible="partner_latitude != 0 or partner_longitude != 0"
                             class="btn btn-link p-0" />
                         <button
-                            invisible="partner_latitude == 0 and partner_longitude == 0"
-                            icon="fa-refresh"
-                            string="Refresh"
-                            title="Refresh Localization"
                             name="geo_localize"
                             type="object"
+                            string="Refresh"
+                            title="Refresh Localization"
+                            icon="fa-refresh"
+                            invisible="partner_latitude == 0 and partner_longitude == 0"
                             class="btn btn-link p-0" />
                     </div>
                 </div>

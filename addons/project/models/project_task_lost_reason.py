@@ -1,19 +1,20 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTaskLostReason(models.Model):
     _name = "project.task.lost.reason"
     _description = "Project Task Lost Reason"
     _inherit = ["mixin.catalog"]
 
-    name = fields.Char(
-        string="Description",
-    )
+    name = fields.Char(string="Description")
     task_count = fields.Integer(
         string="Tasks count",
         compute="_compute_task_count",
     )
 
+    @dbg.timed
     def _compute_task_count(self) -> None:
         task_data = (
             self.env["project.task"]

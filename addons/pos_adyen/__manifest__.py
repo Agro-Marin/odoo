@@ -1,6 +1,6 @@
 {
     "name": "POS Adyen",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Integrate your POS with an Adyen payment terminal",
@@ -8,6 +8,7 @@
     "license": "LGPL-3",
     "depends": [
         "point_of_sale",
+        "integration",
     ],
     "data": [
         "views/res_config_settings_views.xml",
@@ -24,5 +25,4 @@
             "pos_adyen/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

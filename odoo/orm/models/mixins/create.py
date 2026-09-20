@@ -1,11 +1,13 @@
 import typing
 from collections import defaultdict
-from itertools import batched
+from itertools import batched, chain
 from operator import attrgetter
 from typing import Self
 
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
-from odoo.tools import SQL, OrderedSet, clean_context
+from odoo.libs.debug_log import DebugLog
+from odoo.libs.profiling import _OrmProfile
+from odoo.tools import OrderedSet, clean_context
+from odoo.tools.cache import TransactionMemo
 from odoo.tools.misc import PENDING
 
 from ... import decorators as api
@@ -25,6 +27,9 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from ..._typing import BaseModel
     from ...fields.base import Field
+    from ...fields.relational._base import _RelationalMulti
+
+_debug = DebugLog(__name__)
 
 
 class CreateMixin(_ModelStubs):
@@ -36,7 +41,7 @@ class CreateMixin(_ModelStubs):
         _fields = self._fields
         defaults = {}
         parent_fields = defaultdict(list)
-        ir_defaults = env["ir.default"]._get_model_defaults(self._name)
+        ir_defaults = env.registry.metaschema.model_defaults(env, self._name)
         context_defaults = env._context_defaults
 
         for name in fields:
@@ -80,6 +85,15 @@ class CreateMixin(_ModelStubs):
         for model, names in parent_fields.items():
             defaults.update(env[model].default_get(names))
 
+        _debug.logic(
+            "create.default_get",
+            model=self._name,
+            requested=len(fields),
+            resolved=len(defaults),
+            from_context=sum(1 for name in fields if name in context_defaults),
+            from_ir_default=sum(1 for name in fields if name in ir_defaults),
+            parent_models=len(parent_fields),
+        )
         return defaults
 
     @api.model
@@ -117,6 +131,14 @@ class CreateMixin(_ModelStubs):
                 if name not in values
                 if not avoid(field)
             ]
+            _debug.logic(
+                "create.missing_defaults_computed",
+                model=self._name,
+                given=len(values),
+                missing=len(missing_defaults),
+                avoided_parents=len(avoid_models),
+                cached=_missing_defaults_cache is not None,
+            )
             if _missing_defaults_cache is not None:
                 _missing_defaults_cache[vals_keys] = missing_defaults
 
@@ -161,11 +183,13 @@ class CreateMixin(_ModelStubs):
             and (field_name := context_key.removeprefix("default_"))
             and field_name in self._fields
         )
-        for field_name in field_names:
-            field = self._fields.get(field_name)
-            if field is None:
-                raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
-            self._check_field_access(field, "write")
+        self._check_fields_write_access(field_names)
+        _debug.pipeline(
+            "create.field_access_checked",
+            model=self._name,
+            records=len(vals_list),
+            fields=len(field_names),
+        )
         return field_names
 
     def _create_partition_values(
@@ -208,6 +232,13 @@ class CreateMixin(_ModelStubs):
 
             data_list.append(data)
 
+        _debug.pipeline(
+            "create.partitioned",
+            model=self._name,
+            records=len(data_list),
+            inverse_hooks=len(inverses_by_hook),
+            bypass_access_fields=len(bypass_access_ids),
+        )
         for field, co_ids in bypass_access_ids.items():
             self.env[field.comodel_name].browse(co_ids).check_access("read")
         return data_list, inverses_by_hook
@@ -223,6 +254,12 @@ class CreateMixin(_ModelStubs):
                     parent.write(data["inherited"][model_name])
 
             if parent_data_list:
+                _debug.pipeline(
+                    "create.parent_records",
+                    model=self._name,
+                    parent=model_name,
+                    records=len(parent_data_list),
+                )
                 parents = self.env[model_name].create(
                     [data["inherited"][model_name] for data in parent_data_list]
                 )
@@ -252,6 +289,13 @@ class CreateMixin(_ModelStubs):
                     inv_rec_ids.append(record.id)
 
                 inv_records = self.browse(inv_rec_ids)
+                _debug.pipeline(
+                    "create.inverse_hook",
+                    model=self._name,
+                    field=next(iter(fields)).name,
+                    fields=len(fields),
+                    records=len(inv_rec_ids),
+                )
                 next(iter(fields)).apply_inverse(inv_records)
                 inv_relational_fnames = [
                     field.name
@@ -269,11 +313,14 @@ class CreateMixin(_ModelStubs):
         if not vals_list:
             return self.browse()
 
+        TransactionMemo.discard_for_model(self.env, self._name)
         prof = _OrmProfile(_orm_crud)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+        if self.env.transaction.observers:
             fnames = frozenset(fname for vals in vals_list for fname in vals)
-            tracker.record("create", self._name, len(vals_list), fnames)
+            self.env.transaction.observe_operation(
+                "create", self._name, len(vals_list), fnames
+            )
 
         self = self.browse()
         self.check_access("create")
@@ -307,9 +354,19 @@ class CreateMixin(_ModelStubs):
             len(records),
             len(field_names),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("create", self._name, len(records), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "create", self._name, len(records), prof.elapsed
+            )
 
+        _debug.lifecycle(
+            "create.records",
+            model=self._name,
+            records=len(records),
+            fields=len(field_names),
+            uid=self.env.uid,
+            company_checked=self._check_company_auto,
+        )
         self._create_update_xmlids(records, vals_list)
         return records
 
@@ -356,6 +413,14 @@ class CreateMixin(_ModelStubs):
 
             result_vals_list.append(vals)
 
+        _debug.pipeline(
+            "create.values_prepared",
+            model=self._name,
+            records=len(result_vals_list),
+            forbidden=len(bad_names),
+            precompute_readonly=len(precompute_readonly),
+            default_sets=len(missing_defaults_cache),
+        )
         self._add_precomputed_values(result_vals_list)
 
         return result_vals_list
@@ -376,6 +441,12 @@ class CreateMixin(_ModelStubs):
             return
 
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
+        _debug.pipeline(
+            "create.precompute",
+            model=self._name,
+            records=len(vals_list_todo),
+            fields=len(precomputable),
+        )
 
         givens = [
             {
@@ -386,28 +457,37 @@ class CreateMixin(_ModelStubs):
             for vals in vals_list_todo
         ]
 
-        try:
-            for vals in vals_list_todo:
-                vals["__precomputed__"] = set()
+        with _debug.perf(
+            "create.precompute_values",
+            cr=self.env.cr,
+            model=self._name,
+            records=len(vals_list_todo),
+            fields=len(precomputable),
+        ):
+            try:
+                for vals in vals_list_todo:
+                    vals["__precomputed__"] = set()
 
-            for fname, field in precomputable.items():
-                todo = [
-                    (record, vals, given)
-                    for record, vals, given in zip(
-                        records, vals_list_todo, givens, strict=True
-                    )
-                    if fname not in vals
-                ]
-                if not todo:
-                    continue
-                for record, _vals, given in todo:
-                    if given:
-                        record._update_cache(given, validate=False)
-                for record, vals, _given in todo:
-                    vals[fname] = field.convert_to_write(record[fname], self)
-                    vals["__precomputed__"].add(field)
-        finally:
-            self._discard_precompute_scratch(records)
+                for fname, field in precomputable.items():
+                    todo = [
+                        (record, vals, given)
+                        for record, vals, given in zip(
+                            records, vals_list_todo, givens, strict=True
+                        )
+                        if fname not in vals
+                    ]
+                    if not todo:
+                        continue
+                    for record, _vals, given in todo:
+                        if given:
+                            record._update_cache(given, validate=False)
+                    reads_as_su = bool(field.groups) and field.compute_sudo
+                    for record, vals, _given in todo:
+                        source = record.sudo() if reads_as_su else record
+                        vals[fname] = field.convert_to_write(source[fname], self)
+                        vals["__precomputed__"].add(field)
+            finally:
+                self._discard_precompute_scratch(records)
 
     def _discard_precompute_scratch(self, records: Self) -> None:
         ids = records._ids
@@ -425,8 +505,10 @@ class CreateMixin(_ModelStubs):
 
         ids: list[int] = []
         other_fields: OrderedSet[Field] = OrderedSet()
+        batches = 0  # debuglog
 
         for data_sublist in batched(data_list, INSERT_BATCH_SIZE, strict=False):
+            batches += 1  # debuglog
             stored_list = [data["stored"] for data in data_sublist]
             fnames = sorted({name for stored in stored_list for name in stored})
 
@@ -443,17 +525,30 @@ class CreateMixin(_ModelStubs):
                 if field.is_properties:
                     other_fields.add(field)
 
+            self._update_html_columns(stored_list, col_fields)
             ids.extend(
                 self.env.backend.create_rows(self, stored_list, columns, col_fields)
             )
 
+        _debug.pipeline(
+            "create.rows_inserted",
+            model=self._name,
+            records=len(ids),
+            batches=batches,
+            other_fields=len(other_fields),
+        )
         prof.mark("sql")
 
         records, inverses_update = self._update_create_cache(ids, data_list)
         prof.mark("cache")
 
-        for (field, value), record_ids in inverses_update.items():
-            field._update_inverses(self.browse(record_ids), value)
+        for field, updates in inverses_update.items():
+            field._update_inverses(
+                [
+                    (self.browse(record_ids), value)
+                    for value, record_ids in updates.items()
+                ]
+            )
         prof.mark("inverses")
 
         records._update_parent_path_on_create()
@@ -478,8 +573,20 @@ class CreateMixin(_ModelStubs):
 
                 records.modified([field.name for field in other_fields], create=True)
 
+        if self._constrained_projection_names:
+            _debug.logic(
+                "create.projection_constraints",
+                model=self._name,
+                records=len(records),
+                fields=sorted(self._constrained_projection_names),
+            )
         records._check_fields(
-            (name for data in data_list for name in data["stored"]),
+            chain(
+                (name for data in data_list for name in data["stored"]),
+                # a related field without a column is in no `stored` list, and a
+                # new record has a value for it as soon as its path is written
+                self._constrained_projection_names,
+            ),
             {name for data in data_list for name in data["inversed"]},
         )
         records.check_access("create")
@@ -488,21 +595,34 @@ class CreateMixin(_ModelStubs):
         prof.report(_orm_crud, "_create %s: %d records", self._name, len(records))
         return records
 
+    def _update_html_columns(
+        self, stored_list: list[dict], col_fields: list[Field]
+    ) -> None:
+        html_fields = [field for field in col_fields if field.is_html]
+        for stored in stored_list:
+            for field in html_fields:
+                if field.name in stored:
+                    stored[field.name] = field.convert_to_column(
+                        stored[field.name], self, stored
+                    )
+
     def _update_create_cache(
         self, ids: list[int], data_list: list[dict]
     ) -> tuple[Self, dict]:
         records = self.browse(ids)
-        inverses_update = defaultdict(list)
+        inverses_update: defaultdict[Field, defaultdict[typing.Any, list[int]]] = (
+            defaultdict(lambda: defaultdict(list))
+        )
         common_set_vals = _BAD_NAMES_LOG
 
         env = self.env
-        _stored_x2m_caches = []
+        _stored_x2m_fields: list[_RelationalMulti] = []
         _stored_scalar_caches = []
         for field in self._fields.values():
             if not field.store:
                 continue
             if field.is_x2many:
-                _stored_x2m_caches.append((field, field._get_cache(env)))
+                _stored_x2m_fields.append(typing.cast("_RelationalMulti", field))
             else:
                 default = PENDING if field.is_stored_computed else None
                 _stored_scalar_caches.append(
@@ -523,13 +643,16 @@ class CreateMixin(_ModelStubs):
                 {k: v for d in data["inherited"].values() for k, v in d.items()},
                 **data["stored"],
             )
-            vals_list.append((vals, record))
+            vals_list.append((vals, record, data["stored"]))
             set_vals_list.append(common_set_vals.union(vals))
             record_ids.append(record._ids[0])
 
         supplied = set().union(*set_vals_list) if set_vals_list else set()
-        for _field, cache in _stored_x2m_caches:
-            cache.update(dict.fromkeys(record_ids, ()))
+        # a new row has no relation rows: the empty value is primed in the
+        # creating scope and mirrored to the superuser one, where a compute_sudo
+        # compute reads it -- unmirrored, that read fetched the relation
+        for field in _stored_x2m_fields:
+            field._update_cache(records, (), created=True)
         for _field, fname, cache, default in _stored_scalar_caches:
             if fname not in supplied:
                 cache.update(dict.fromkeys(record_ids, default))
@@ -540,17 +663,32 @@ class CreateMixin(_ModelStubs):
                     if fname not in set_vals
                 )
 
-        for vals, record in vals_list:
+        for vals, record, stored in vals_list:
             for fname, value in vals.items():
                 field = _fields[fname]
-                if not (field.is_x2many or field.is_html):
+                if field.is_x2many:
+                    continue
+                if field.is_html:
+                    if fname not in stored:
+                        continue
+                    cache_value = field.convert_to_cache(value, record, validate=False)
+                else:
                     cache_value = field.convert_to_cache(value, record)
-                    field._update_cache(record, cache_value)
-                    if (
-                        field.is_many2one or field.is_many2one_reference
-                    ) and _field_inverses[field]:
-                        inverses_update[(field, cache_value)].append(record.id)
+                field._update_cache(record, cache_value)
+                if (
+                    field.is_many2one or field.is_many2one_reference
+                ) and _field_inverses[field]:
+                    inverses_update[field][cache_value].append(record.id)
 
+        _debug.perf.count(
+            "create.cache_primed",
+            model=self._name,
+            records=len(record_ids),
+            x2many_fields=len(_stored_x2m_fields),
+            scalar_fields=len(_stored_scalar_caches),
+            supplied=len(supplied),
+            inverse_updates=sum(len(updates) for updates in inverses_update.values()),
+        )
         return records, inverses_update
 
     @api.model
@@ -561,38 +699,35 @@ class CreateMixin(_ModelStubs):
 
         noupdate = self.env.context.get("noupdate", False)
         xids = (v.get("id") for v in vals_list)
-        self.env["ir.model.data"]._update_xmlids(
-            [
-                {
-                    "xml_id": (xid if "." in xid else f"{import_module}.{xid}"),
-                    "record": rec,
-                    "noupdate": noupdate,
-                }
-                for rec, xid in zip(records, xids, strict=False)
-                if xid and isinstance(xid, str)
-            ]
+        entries = [
+            {
+                "xml_id": (xid if "." in xid else f"{import_module}.{xid}"),
+                "record": rec,
+                "noupdate": noupdate,
+            }
+            for rec, xid in zip(records, xids, strict=True)
+            if xid and isinstance(xid, str)
+        ]
+        _debug.lifecycle(
+            "create.xmlids_updated",
+            model=self._name,
+            module=import_module,
+            records=len(records),
+            xmlids=len(entries),
+            noupdate=noupdate,
         )
+        self.env.registry.xmlids.update(self.env, entries)
 
     def _update_parent_path_on_create(self) -> None:
         if not self._parent_store:
             return
-        if not self.env.backend.supports_parent_store:
-            return
 
-        updated = self.env.execute_query(
-            SQL(
-                """ UPDATE %(table)s node
-                SET parent_path=concat((
-                        SELECT parent.parent_path
-                        FROM %(table)s parent
-                        WHERE parent.id=node.%(parent)s
-                    ), node.id, '/')
-                WHERE node.id IN %(ids)s
-                RETURNING node.id, node.parent_path """,
-                table=SQL.identifier(self._table),
-                parent=SQL.identifier(self._parent_name),
-                ids=tuple(self.ids),
-            )
+        updated = self.env.backend.set_parent_paths(self, self.ids)
+
+        _debug.perf.count(
+            "create.parent_path_updated",
+            model=self._name,
+            records=len(self),
+            rows=len(updated),
         )
-
         self._fields["parent_path"]._update_cache_items(self.env, updated)

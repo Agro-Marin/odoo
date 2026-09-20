@@ -1,12 +1,15 @@
 import itertools
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL, normalize_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
     from odoo.api import Environment
+
+_debug = DebugLog(__name__)
 
 
 def _prepare_table_sql(alias: str, table: SQL) -> SQL:
@@ -283,11 +286,19 @@ class Query:
                 self._ids = tuple(
                     id_ for (id_,) in self._env.execute_query(self.select())
                 )
+                _debug.perf.count(
+                    "query.result_ids",
+                    table=self.table,
+                    joins=len(self._joins),
+                    rows=len(self._ids),
+                    limit=self.limit,
+                )
             return self._ids
 
         # Another transaction: the result is neither read from nor written to
         # the memo, which belongs to the cursor that built this query and would
         # otherwise hand back rows read in a transaction that already ended.
+        _debug.logic("query.result_ids.foreign_transaction", table=self.table)
         return tuple(id_ for (id_,) in env.execute_query(self.select()))
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
@@ -296,6 +307,9 @@ class Query:
                 "Method set_result_ids() can only be called on a virgin Query"
             )
         ids = tuple(ids)
+        _debug.logic(
+            "query.result_ids_pinned", table=self.table, ids=len(ids), ordered=ordered
+        )
         if not ids:
             self.add_where(SQL("FALSE"))
             self._empty_by_construction = True
@@ -327,7 +341,15 @@ class Query:
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
             else:
                 sql = self.select("COUNT(*)")
-            return self._env.execute_query(sql)[0][0]
+            count = self._env.execute_query(sql)[0][0]
+            _debug.perf.count(
+                "query.len_counted",
+                table=self.table,
+                joins=len(self._joins),
+                count=count,
+                wrapped=self.limit is not None or bool(self.offset),
+            )
+            return count
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
@@ -342,6 +364,13 @@ class Query:
         ):
             return len(self._ids) if limit is None else min(len(self._ids), limit)
 
+        _debug.perf.count(
+            "query.count_matching",
+            table=self.table,
+            joins=len(self._joins),
+            limit=limit,
+            subquery=bool(self.groupby or self.having or limit is not None),
+        )
         if self.groupby or self.having or limit is not None:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:

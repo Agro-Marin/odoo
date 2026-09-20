@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResCompany(models.Model):
@@ -14,7 +17,7 @@ class ResCompany(models.Model):
         return self.env.ref("uom.product_uom_hour", raise_if_not_found=False)
 
     project_time_mode_id = fields.Many2one(
-        "uom.uom",
+        comodel_name="uom.uom",
         string="Project Time Unit",
         default=_default_project_time_mode_id,
         help="This will set the unit of measure used in projects and tasks.\n"
@@ -22,13 +25,12 @@ class ResCompany(models.Model):
         "forget to setup the right unit of measure in your employees.",
     )
     timesheet_encode_uom_id = fields.Many2one(
-        "uom.uom",
+        comodel_name="uom.uom",
         string="Timesheet Encoding Unit",
         default=_default_timesheet_encode_uom_id,
     )
     internal_project_id = fields.Many2one(
-        "project.project",
-        string="Internal Project",
+        comodel_name="project.project",
         domain=[("is_template", "=", False)],
         help="Default project value for timesheet generated from time off type.",
     )
@@ -41,6 +43,7 @@ class ResCompany(models.Model):
                 and company.internal_project_id.sudo().company_id != company
             )
         ):
+            _debug.logic("internal_project_company_mismatch", companies=self)
             raise ValidationError(
                 _("The Internal Project of a company should be in that company.")
             )
@@ -79,6 +82,9 @@ class ResCompany(models.Model):
                 }
             ]
         project_ids = self.env["project.project"].create(results)
+        _debug.lifecycle(
+            "internal_projects_created", companies=self, projects=project_ids
+        )
         projects_by_company = {
             project.company_id.id: project for project in project_ids
         }

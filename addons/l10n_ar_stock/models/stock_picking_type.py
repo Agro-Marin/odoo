@@ -35,9 +35,9 @@ class StockPickingType(models.Model):
     )
     l10n_ar_delivery_sequence_prefix = fields.Char(
         string="Delivery Guide Prefix",
-        default="00001",
         compute="_compute_l10n_ar_stock_sequence_fields",
         inverse="_inverse_l10n_ar_delivery_sequence_prefix",
+        default="00001",
         help="Argentina: Prefix for the delivery guide sequence number. It is used to generate the delivery guide number.",
     )
     l10n_ar_next_delivery_number = fields.Integer(
@@ -48,8 +48,8 @@ class StockPickingType(models.Model):
     )
     l10n_ar_sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
-        copy=False,
         string="Delivery Guide Number Sequence",
+        copy=False,
         help="Argentina: Hold the sequence to generate a delivery guide number.",
     )
 

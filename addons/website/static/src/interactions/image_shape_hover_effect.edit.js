@@ -1,73 +1,40 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { ImageShapeHoverEffect } from "@website/interactions/image_shape_hover_effect";
 
+const log = makeLogger("website.interaction.image_shape_hover_effect.edit");
+
 const ImageShapeHoverEffectEdit = (I) =>
     class extends I {
-        destroy() {
-            // The originalImgSrc might not yet be updated by sourceObserver
-            // if the interaction stops in the same tick as the mutation
-            // happens. Only restore the src if it still matches the last
-            // hovering src.
-            if (this.el.src === this.hoveringImgSrc) {
-                this.el.src = this.originalImgSrc;
-            }
-            this.disconnectSourceObserver();
+        afterMouseLeave(svg, version) {
+            return new Promise((resolve) => {
+                const cancel = () => {
+                    clearTimeout(timer);
+                    forgetCleanup();
+                    if (this.cancelPendingHover === cancel) {
+                        this.cancelPendingHover = null;
+                    }
+                    resolve();
+                };
+                const timer = setTimeout(() => {
+                    this.flushSourceChanges();
+                    forgetCleanup();
+                    if (this.cancelPendingHover === cancel) {
+                        this.cancelPendingHover = null;
+                    }
+                    if (this.isDestroyed || version !== this.sourceVersion) {
+                        resolve();
+                        return;
+                    }
+                    log.lifecycle("ImageShapeHoverEffectEdit restore original source");
+                    this.setImageSource(this.originalImgSrc, resolve);
+                }, this.getAnimationMaxDuration(svg));
+                const forgetCleanup = this.registerCleanup(cancel);
+                this.cancelPendingHover = cancel;
+            });
         }
 
-        // Copy of the mouseLeave of the original interaction. The only
-        // difference is that it restores the original image source after the
-        // animation is over, since in edit mode the image source might change
-        // before the end of the animation (for example while previewing shapes
-        // image filters or something else).
-        mouseLeave() {
-            this.lastMouseEvent = this.lastMouseEvent.then(
-                () =>
-                    new Promise((resolve) => {
-                        if (
-                            !this.originalImgSrc ||
-                            !this.svgInEl ||
-                            !this.el.dataset.hoverEffect
-                        ) {
-                            resolve();
-                            return;
-                        }
-                        if (!this.svgOutEl) {
-                            // Reverse animations.
-                            this.svgOutEl = this.svgInEl.cloneNode(true);
-                            const animateTransformEls = this.svgOutEl.querySelectorAll(
-                                "#hoverEffects animateTransform, #hoverEffects animate",
-                            );
-                            animateTransformEls.forEach((animateTransformEl) => {
-                                let valuesValue =
-                                    animateTransformEl.getAttribute("values");
-                                valuesValue = valuesValue
-                                    .split(";")
-                                    .reverse()
-                                    .join(";");
-                                animateTransformEl.setAttribute("values", valuesValue);
-                            });
-                        }
-                        this.setImgSrc(this.svgOutEl, () => {
-                            // After the animation, restore original src
-                            setTimeout(() => {
-                                if (this.isDestroyed) {
-                                    resolve();
-                                    return;
-                                }
-                                this.disconnectSourceObserver();
-                                this.el.src = this.originalImgSrc;
-                                this.connectSourceObserver();
-                                this.el.onload = () => {
-                                    resolve();
-                                };
-                            }, this.getAnimationMaxDuration(this.svgOutEl));
-                        });
-                    }),
-            );
-        }
-
-        // returns the time after which the animation should be over
         getAnimationMaxDuration(svg) {
             let maxDuration = 0;
             const animateEls = svg.querySelectorAll(
@@ -77,7 +44,9 @@ const ImageShapeHoverEffectEdit = (I) =>
                 const dur = animateEl.getAttribute("dur");
                 if (dur) {
                     const duration = parseFloat(dur) * (dur.endsWith("ms") ? 1 : 1000);
-                    maxDuration = Math.max(maxDuration, duration);
+                    if (Number.isFinite(duration)) {
+                        maxDuration = Math.max(maxDuration, duration);
+                    }
                 }
             });
             return maxDuration;

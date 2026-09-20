@@ -3,6 +3,7 @@
 
 import { browser } from "@web/core/browser/browser";
 import { isBrowserChrome, isBrowserFirefox } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { completeUncaughtError } from "@web/core/errors/error_utils";
 import {
@@ -53,6 +54,8 @@ function assumeBrowserLogging(ev, uncaughtError) {
     } catch {}
 }
 
+const log = makeLogger("web.error");
+
 class ErrorService {
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
@@ -84,11 +87,20 @@ class ErrorService {
             seen.add(originalError);
             originalError = originalError.cause;
         }
+        log.logic("handleError", () => ({
+            name: originalError?.name,
+            message: originalError?.message,
+            kind: uncaughtError.event?.type,
+        }));
         for (const [name, handler] of registry
             .category("error_handlers")
             .getEntries()) {
             try {
                 if (handler(this.env, uncaughtError, originalError)) {
+                    log.logic("handled", () => ({
+                        handler: name,
+                        message: originalError?.message,
+                    }));
                     break;
                 }
             } catch (e) {

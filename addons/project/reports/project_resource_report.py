@@ -1,6 +1,7 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
+from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import CLOSED_STATES
 
 
@@ -10,36 +11,44 @@ class ProjectResourceReport(models.Model):
     _auto = False
     _order = "allocated_hours desc"
 
-    user_id = fields.Many2one("res.users", string="User", readonly=True)
-    project_id = fields.Many2one("project.project", string="Project", readonly=True)
-    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        readonly=True,
+    )
+    project_id = fields.Many2one(
+        comodel_name="project.project",
+        readonly=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
     allocated_hours = fields.Float(
-        "Allocated Hours",
         readonly=True,
         aggregator="sum",
     )
     task_count = fields.Integer(
-        "Open Tasks",
+        string="Open Tasks",
         readonly=True,
         aggregator="sum",
     )
     project_count = fields.Integer(
-        "Projects",
+        string="Projects",
         readonly=True,
         aggregator="max",
     )
     is_overallocated = fields.Boolean(
-        "Overallocated",
+        string="Overallocated",
         readonly=True,
-        help=(
-            "True when the user's busiest single week exceeds their working "
-            "calendar's weekly capacity across all active projects "
-            "(reservations are bucketed by ISO week on their start date). "
-            "Falls back to 40h for a resource with no calendar."
-        ),
+        help="True when the user's busiest single week exceeds their working "
+        "calendar's weekly capacity across all active projects "
+        "(reservations are bucketed by ISO week on their start date). "
+        "Falls back to 40h for a resource with no calendar.",
     )
 
+    @dbg.timed
     def init(self) -> None:
+        dbg.lifecycle.debug("project.resource.report: rebuilding view %s", self._table)
         drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             f"""

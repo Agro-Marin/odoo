@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import math
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import quote_plus, urlencode
 
 import requests.exceptions
@@ -36,9 +36,11 @@ def _sha256(string):
 def _get_zeep_operation(company, operation):
     """The creation of the zeep client may raise (in case of networking issues)."""
     if operation not in ("registration", "registration_xml"):
-        raise NotImplementedError(_("Unsupported `operation` '%s'", operation))
+        raise NotImplementedError(f"Unsupported `operation` {operation!r}")
 
-    session = requests.Session()
+    session = company.env["ir.egress"].session(
+        purpose="l10n_es_verifactu", max_bytes=None
+    )
 
     info = {}
 
@@ -55,7 +57,7 @@ def _get_zeep_operation(company, operation):
     client = zeep.Client(
         wsdl["url"],
         settings=settings,
-        transport=zeep.Transport(session=session, timeout=20, operation_timeout=20),
+        transport=zeep.Transport(session=session, timeout=20, operation_timeout=20),  # noqa: E8518 - zeep sends through the ir.egress session it is given
     )
 
     if operation == "registration":
@@ -104,24 +106,21 @@ class L10nEsEdiVerifactuDocument(models.Model):
     _order = "create_date DESC, id DESC"
 
     company_id = fields.Many2one(
-        string="Company",
         comodel_name="res.company",
-        required=True,
         readonly=True,
+        required=True,
     )
     move_id = fields.Many2one(
-        string="Journal Entry",
         comodel_name="account.move",
+        string="Journal Entry",
         readonly=True,
     )
     chain_index = fields.Integer(
-        string="Chain Index",
         copy=False,
         readonly=True,
         help="Index in the chain of Veri*Factu Documents. It is only set if the generation was succesful.",
     )
     document_type = fields.Selection(
-        string="Document Type",
         selection=[
             ("submission", "Submission"),
             ("cancellation", "Cancellation"),
@@ -131,22 +130,21 @@ class L10nEsEdiVerifactuDocument(models.Model):
     )
     # Note: Noone has write access of any kind to the model 'verifactu.document' (see ir.model.access.csv)
     json_attachment_id = fields.Many2one(
-        string="JSON Attachment",
         comodel_name="ir.attachment",
-        readonly=True,
+        string="JSON Attachment",
         copy=False,
+        readonly=True,
     )
     # To use the binary widget in the form view to download the attachment
     json_attachment_base64 = fields.Binary(
-        string="JSON",
         related="json_attachment_id.datas",
+        string="JSON",
     )
     json_attachment_filename = fields.Char(
         string="JSON Filename",
         compute="_compute_json_attachment_filename",
     )
     errors = fields.Html(
-        string="Errors",
         copy=False,
         readonly=True,
     )
@@ -157,12 +155,12 @@ class L10nEsEdiVerifactuDocument(models.Model):
         help="The CSV of the response from the tax agency. There may not be one in case all documents of the batch were rejected.",
     )
     state = fields.Selection(
-        string="Status",
         selection=[
             ("rejected", "Rejected"),
             ("registered_with_errors", "Registered with Errors"),
             ("accepted", "Accepted"),
         ],
+        string="Status",
         copy=False,
         readonly=True,
         help="""- Rejected: Successfully sent to the AEAT, but it was rejected during validation
@@ -323,7 +321,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
             },
         }
 
-    def _filter_waiting(self):
+    def _filtered_waiting(self):
         return self.filtered(lambda doc: not doc.state and doc.json_attachment_id)
 
     def _get_last(self, document_type):
@@ -392,7 +390,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
                 )
             )
 
-        if vals["documents"] and vals["documents"]._filter_waiting():
+        if vals["documents"] and vals["documents"]._filtered_waiting():
             errors.append(
                 _("We are waiting to send a Veri*Factu record to the AEAT already.")
             )
@@ -753,14 +751,13 @@ class L10nEsEdiVerifactuDocument(models.Model):
         invoice_date = self._format_date_type(vals["invoice_date"])
 
         if vals["cancellation"]:
-            render_vals = {
+            return {
                 "IDFactura": {
                     "IDEmisorFacturaAnulada": company_values["NIF"],
                     "NumSerieFacturaAnulada": vals["name"],
                     "FechaExpedicionFacturaAnulada": invoice_date,
                 }
             }
-            return render_vals
 
         render_vals = {
             "NombreRazonEmisor": company_values["NombreRazon"],
@@ -1011,14 +1008,12 @@ class L10nEsEdiVerifactuDocument(models.Model):
         )
         tax_amount = sign * (vals["tax_details"]["tax_amount"])
 
-        render_vals = {
+        return {
             "Macrodato": "S" if abs(total_amount) >= 100000000 else None,
             "Desglose": {"DetalleDesglose": detalles},
             "CuotaTotal": self._round_format_number_2(tax_amount),
             "ImporteTotal": self._round_format_number_2(total_amount),
         }
-
-        return render_vals
 
     @api.model
     def _get_db_identifier(self):
@@ -1043,7 +1038,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
         # Note: We have to declare (self-certify) that we meet the Veri*Factu spec.
         # (DECLARACIÓN RESPONSABLE DE SISTEMAS INFORMÁTICOS DE FACTURACIÓN)
         # The values should match the values given in the declaration.
-        render_vals = {
+        return {
             "SistemaInformatico": {
                 "NombreRazon": "Odoo SA",
                 "IDOtro": {
@@ -1062,8 +1057,6 @@ class L10nEsEdiVerifactuDocument(models.Model):
                 else "N",
             },
         }
-
-        return render_vals
 
     @api.model
     def _update_render_vals_with_chaining_info(self, render_vals):
@@ -1178,8 +1171,10 @@ class L10nEsEdiVerifactuDocument(models.Model):
             else:
                 # Since we have a `next_batch_time` the `next_trigger_time` will be set to a datetime
                 # We set it to the minimum of all the already encountered `next_batch_time`
-                next_trigger_time = min(
-                    next_trigger_time or datetime.max, next_batch_time
+                next_trigger_time = (
+                    min(next_trigger_time, next_batch_time)
+                    if next_trigger_time
+                    else next_batch_time
                 )
 
         # In case any of the documents were not successfully sent we trigger the cron again in 60s
@@ -1190,12 +1185,16 @@ class L10nEsEdiVerifactuDocument(models.Model):
             if unsent_documents:
                 # Trigger in 60s or at the next batch time (except if there is an earlier trigger already)
                 in_60_seconds = fields.Datetime.now() + timedelta(seconds=60)
-                company_next_trigger_time = max(
-                    in_60_seconds, next_batch_time or datetime.min
+                company_next_trigger_time = (
+                    max(in_60_seconds, next_batch_time)
+                    if next_batch_time
+                    else in_60_seconds
                 )
                 # Set `next_trigger_time` to the minimum of all the already encountered trigger times
-                next_trigger_time = min(
-                    next_trigger_time or datetime.max, company_next_trigger_time
+                next_trigger_time = (
+                    min(next_trigger_time, company_next_trigger_time)
+                    if next_trigger_time
+                    else company_next_trigger_time
                 )
 
         if next_trigger_time:
@@ -1365,7 +1364,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
             }
 
         # Store the information from the response split over the individual documents
-        for document, document_dict in zip(self, document_dict_list):
+        for document, document_dict in zip(self, document_dict_list, strict=False):
             response_info = (
                 batch_failure_info
                 or info["record_info"].get(
@@ -1475,7 +1474,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
                 _("There is no certificate configured for Veri*Factu on the company.")
             )
 
-        if len(self) != len(self._filter_waiting()):
+        if len(self) != len(self._filtered_waiting()):
             errors.append(
                 _(
                     "Some of the documents can not be sent. They were sent already or could not be generated correctly."
@@ -1489,7 +1488,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
         company = self.env.company
         company_values = company.partner_id._l10n_es_edi_verifactu_get_values()
 
-        batch_dict = {
+        return {
             "Cabecera": {
                 "ObligadoEmision": {
                     "NombreRazon": company_values["NombreRazon"],
@@ -1501,8 +1500,6 @@ class L10nEsEdiVerifactuDocument(models.Model):
             },
             "RegistroFactura": document_dict_list,
         }
-
-        return batch_dict
 
     @api.model
     def _extract_record_key(self, document_dict):

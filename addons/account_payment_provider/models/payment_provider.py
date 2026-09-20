@@ -6,14 +6,14 @@ class PaymentProvider(models.Model):
     _inherit = "payment.provider"
 
     journal_id = fields.Many2one(
-        string="Payment Journal",
-        help="The journal in which the successful transactions are posted.",
         comodel_name="account.journal",
+        string="Payment Journal",
         compute="_compute_journal_id",
         inverse="_inverse_journal_id",
-        check_company=True,
-        domain='[("type", "=", "bank")]',
         copy=False,
+        domain='[("type", "=", "bank")]',
+        check_company=True,
+        help="The journal in which the successful transactions are posted.",
     )
 
     # === COMPUTE METHODS ===#
@@ -104,24 +104,28 @@ class PaymentProvider(models.Model):
 
     @api.depends("code", "state", "company_id")
     def _compute_journal_id(self):
+        first_channel_by_provider = {}
+        for channel in self.env["account.payment.channel"].search(
+            [
+                ("payment_provider_id", "in", self._origin.ids),
+                ("journal_id", "!=", False),
+            ]
+        ):
+            first_channel_by_provider.setdefault(channel.payment_provider_id, channel)
+        first_bank_journal_by_company = {}
+        for journal in self.env["account.journal"].search(
+            [("company_id", "in", self.company_id.ids), ("type", "=", "bank")]
+        ):
+            first_bank_journal_by_company.setdefault(journal.company_id, journal)
+
         for provider in self:
-            pay_method_line = self.env["account.payment.channel"].search(
-                [
-                    ("payment_provider_id", "=", provider._origin.id),
-                    ("journal_id", "!=", False),
-                ],
-                limit=1,
-            )
+            pay_method_line = first_channel_by_provider.get(provider._origin)
 
             if pay_method_line:
                 provider.journal_id = pay_method_line.journal_id
             elif provider.state in ("enabled", "test"):
-                provider.journal_id = self.env["account.journal"].search(
-                    [
-                        ("company_id", "=", provider.company_id.id),
-                        ("type", "=", "bank"),
-                    ],
-                    limit=1,
+                provider.journal_id = first_bank_journal_by_company.get(
+                    provider.company_id, self.env["account.journal"]
                 )
                 if provider.id:
                     provider._sync_payment_channel()
@@ -158,7 +162,7 @@ class PaymentProvider(models.Model):
                 }
             )
 
-    def _check_existing_payment(self, payment_method):
+    def _has_existing_payment(self, payment_method):
         existing_payment_count = self.env["account.payment"].search_count(
             [("payment_method_id", "=", payment_method.id)], limit=1
         )
@@ -169,7 +173,7 @@ class PaymentProvider(models.Model):
         """Override of `payment` to delete the payment method of the provider."""
         payment_method = self._get_provider_payment_method(code)
         # If the payment method is used by any payments, we block the uninstallation of the module.
-        if self._check_existing_payment(payment_method):
+        if self._has_existing_payment(payment_method):
             raise UserError(
                 _(
                     "You cannot uninstall this module as payments using this payment method already exist."

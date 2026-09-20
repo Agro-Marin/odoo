@@ -8,9 +8,11 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ROTTING_WINDOW_PARAM = "mail.rotting.max.months"
 ROTTING_WINDOW_LEGACY_PARAM = "crm.lead.rot.max.months"
@@ -31,12 +33,12 @@ class MixinMailTrackingDuration(models.AbstractModel):
         help="JSON that maps ids from a many2one field to seconds spent",
     )
     rotting_days = fields.Integer(
-        "Days Rotting",
+        string="Days Rotting",
         compute="_compute_rotting",
         help="Days since the last update, counted only while the record is rotting",
     )
     is_rotting = fields.Boolean(
-        "Rotting",
+        string="Rotting",
         compute="_compute_rotting",
         search="_search_is_rotting",
     )
@@ -52,10 +54,11 @@ class MixinMailTrackingDuration(models.AbstractModel):
 
     def _get_rotting_depends_fields(self) -> list[str]:
         if not self._is_rotting_feature_enabled():
-            return []
+            return ["create_date"]
         return [
             self._track_duration_last_update_field,
             f"{self._track_duration_field}.rotting_threshold_days",
+            "create_date",
         ]
 
     def _get_domain_rotting_records(self) -> Domain:
@@ -128,6 +131,12 @@ class MixinMailTrackingDuration(models.AbstractModel):
             )
             for tracking in trackings:
                 trackings_by_res[tracking["res_id"]].append(tracking)
+            _debug.perf.count(
+                "duration_trackings_loaded",
+                model=self._name,
+                records=len(self),
+                trackings=len(trackings),
+            )
 
         for record in self:
             record.duration_tracking = record._get_duration_from_tracking(
@@ -145,6 +154,13 @@ class MixinMailTrackingDuration(models.AbstractModel):
         window_start = self._get_rotting_window_start(now)
         last_update_field = self._track_duration_last_update_field
         candidates = self.filtered_domain(self._get_domain_rotting_records())
+        _debug.logic(
+            "rotting_computed",
+            model=self._name,
+            records=len(self),
+            candidates=len(candidates),
+            window_start=window_start,
+        )
         for stage, records in candidates.grouped(self._track_duration_field).items():
             threshold = timedelta(days=stage.rotting_threshold_days)
             for record in records:

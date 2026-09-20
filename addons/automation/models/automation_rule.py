@@ -2,17 +2,15 @@ import contextlib
 import datetime
 import logging
 import re
-import traceback
 from collections import defaultdict
-from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, exceptions, fields, models, tools
 from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
-from odoo.http import request
 from odoo.tools import safe_eval
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 from ._canvas import (
     NODE_HEADER_HEIGHT,
@@ -70,30 +68,13 @@ def _domain_fields_differences(automation, domain1, domain2):
     return in_d1_only_fields, in_d2_only_fields
 
 
-DATE_RANGE = {
-    "minutes": relativedelta(minutes=1),
-    "hour": relativedelta(hours=1),
-    "day": relativedelta(days=1),
-    "month": relativedelta(months=1),
-    False: relativedelta(0),
-}
-
-DATE_RANGE_FACTOR = {
-    "minutes": 1,
+# Minutes per delay unit, only to size the scheduler's polling interval: a month
+# is approximated because the interval is a fixed number of minutes.
+MINUTES_PER_DELAY_UNIT = {
+    "minute": 1,
     "hour": 60,
     "day": 24 * 60,
     "month": MONTH_APPROXIMATION_DAYS * 24 * 60,
-    False: 0,
-}
-
-TIMEDELTA_TYPES = {
-    "minutes": lambda interval: datetime.timedelta(minutes=interval),
-    "hours": lambda interval: datetime.timedelta(hours=interval),
-    "days": lambda interval: datetime.timedelta(days=interval),
-    "weeks": lambda interval: datetime.timedelta(weeks=interval),
-    "months": lambda interval: datetime.timedelta(
-        days=MONTH_APPROXIMATION_DAYS * interval
-    ),
 }
 
 CREATE_TRIGGERS = [
@@ -129,16 +110,6 @@ TIME_TRIGGERS = [
 ]
 
 
-def get_webhook_request_payload():
-    if not request:
-        return None
-    try:
-        payload = request.get_json_data()
-    except ValueError:
-        payload = {**request.httprequest.args}
-    return payload
-
-
 LIVE_RUNTIME_STATES = ("in_progress", "waiting_resume")
 RUNTIME_HISTORY_LIMIT = 10
 
@@ -148,7 +119,6 @@ class AutomationRule(models.Model):
     _inherit = [
         "mixin.mail.thread",
         "mixin.mail.activity",
-        "mixin.inbound.gate",
         "mixin.bus.listener",
     ]
     _description = "Automation Rule"
@@ -163,32 +133,29 @@ class AutomationRule(models.Model):
     )
     name = fields.Char(
         string="Automation Rule Name",
-        required=True,
         translate=True,
+        required=True,
         tracking=True,
     )
     active = fields.Boolean(
         default=True,
         help="When unchecked, the rule is hidden and will not be executed.",
     )
-    description = fields.Html(string="Description")
+    description = fields.Html()
     model_id = fields.Many2one(
         comodel_name="ir.model",
-        string="Model",
-        domain=[("abstract", "=", False)],
         required=True,
+        domain=[("abstract", "=", False)],
         ondelete="cascade",
         tracking=True,
     )
     model_name = fields.Char(
         related="model_id.model",
         string="Model Name",
-        readonly=True,
         inverse="_inverse_model_name",
+        readonly=True,
     )
-    model_is_mail_thread = fields.Boolean(
-        related="model_id.is_mail_thread",
-    )
+    model_is_mail_thread = fields.Boolean(related="model_id.is_mail_thread")
     last_run = fields.Datetime(
         string="Process Records From",
         copy=False,
@@ -215,8 +182,8 @@ class AutomationRule(models.Model):
         help="If present, this condition must be satisfied before executing the automation rule.",
     )
     previous_domain = fields.Char(
-        store=False,
         default=lambda self: self.filter_domain,
+        store=False,
     )
     action_server_ids = fields.One2many(
         comodel_name="ir.actions.server",
@@ -232,22 +199,47 @@ class AutomationRule(models.Model):
         help="Typed dependencies between this automation's steps",
     )
     step_count = fields.Count(
-        "action_server_ids",
+        count_of="action_server_ids",
         string="Steps",
         store=True,
         help="How many steps this automation runs",
     )
     edge_count = fields.Count(
-        "edge_ids",
+        count_of="edge_ids",
+        string="Connections",
         # An edge is cascade-deleted with either endpoint, and the ORM sees that
         # as a change to `action_server_ids` rather than to `edge_ids`, so
         # counting only what Count counts leaves the stored value one high after
         # a step is removed. `test_the_counts_follow_the_graph` reads exactly
         # that sequence.
         depends=["edge_ids", "action_server_ids"],
-        string="Connections",
         store=True,
         help="How many typed dependencies order this automation's steps",
+    )
+    run_mode = fields.Selection(
+        selection=[
+            ("immediate", "Immediately"),
+            ("queued", "In Batches"),
+        ],
+        default="immediate",
+        required=True,
+        help="Immediately: a run executes its steps as soon as it starts, or as soon "
+        "as a step becomes ready.\n"
+        "In Batches: steps wait for the background dispatcher, which executes the "
+        "ready steps of all runs together, one batch per step.",
+    )
+    step_error_policy = fields.Selection(
+        selection=[
+            ("fail_run", "Fail the run"),
+            ("close_branch", "Close only its branch"),
+        ],
+        default="fail_run",
+        required=True,
+        help="What an unhandled failure of a step does.\n"
+        "Fail the run: the whole run stops, and its unfinished steps are marked "
+        "failed.\n"
+        "Close only its branch: what depended on the failed step is skipped, and "
+        "the run's other branches carry on.",
     )
     create_runtime_instance = fields.Boolean(
         string="Record Every Run",
@@ -257,46 +249,6 @@ class AutomationRule(models.Model):
         "Off by default: an automation on a high-volume trigger would write one "
         "runtime per event. Leave it off for a lightweight rule; turn it on for "
         "anything that branches, or whose history you need.",
-    )
-
-    url = fields.Char(
-        compute="_compute_url",
-        help="Use this URL in the third-party app to call this webhook.",
-    )
-    webhook_uuid = fields.Char(
-        string="Webhook UUID",
-        default=lambda self: str(uuid4()),
-        readonly=True,
-        copy=False,
-    )
-    record_getter = fields.Char(
-        help="This code will be run to find on which record the automation rule "
-        "should be run. Leave empty to run the rule record-less (e.g. a "
-        "create-from-payload webhook receiver) — a non-empty default here "
-        "would assume a payload shape (a '_model'/'_id' pair) the sender may "
-        "not actually use, silently breaking the record-less path unless "
-        "cleared by hand.",
-    )
-    log_webhook_calls = fields.Boolean(
-        string="Log Calls",
-        default=False,
-    )
-
-    auth_type = fields.Selection(
-        default="none",
-        string="Webhook Authentication",
-        help="How incoming webhook calls are authenticated. HMAC/bearer read "
-        "their secret from the linked credential.",
-    )
-    credential_id = fields.Many2one(
-        string="Webhook Secret",
-        help="Credential holding the shared secret / token used to verify calls.",
-    )
-    rate_limit_enabled = fields.Boolean(string="Rate Limit", default=False)
-    rate_limit_requests = fields.Integer(
-        string="Requests / Window",
-        default=100,
-        help="Token-bucket capacity (read by the rate-limit bucket).",
     )
 
     trigger = fields.Selection(
@@ -318,14 +270,12 @@ class AutomationRule(models.Model):
             ("on_unarchive", "On unarchived"),
             ("on_unlink", "On deletion"),
             ("on_user_set", "User is set"),
-            ("on_webhook", "On webhook"),
             ("on_write", "On update"),
         ],
-        string="Trigger",
-        required=True,
         compute="_compute_trigger",
         store=True,
         readonly=False,
+        required=True,
         tracking=True,
     )
     trg_selection_field_id = fields.Many2one(
@@ -342,8 +292,8 @@ class AutomationRule(models.Model):
         compute="_compute_trg_field_ref_model_name",
     )
     trg_field_ref = fields.Many2oneReference(
-        string="Trigger Reference",
         model_field="trg_field_ref_model_name",
+        string="Trigger Reference",
         compute="_compute_trg_field_ref",
         store=True,
         readonly=False,
@@ -376,12 +326,7 @@ class AutomationRule(models.Model):
         tracking=True,
     )
     trg_date_range_type = fields.Selection(
-        selection=[
-            ("minutes", "Minutes"),
-            ("hour", "Hours"),
-            ("day", "Days"),
-            ("month", "Months"),
-        ],
+        selection=time_unit_selection("minute", "hour", "day", "month"),
         string="Delay unit",
         compute="_compute_trg_date_range_data",
         store=True,
@@ -537,20 +482,23 @@ class AutomationRule(models.Model):
         automation_rules = super().create(vals_list)
         self.env.registry.clear_cache()
         self._update_cron()
-        self._update_registry()
+        if automation_rules._patches_models():
+            self._update_registry()
         if automation_rules._has_trigger_onchange():
             self.env.registry.clear_cache("templates")
         return automation_rules
 
     def write(self, vals: dict):
         clear_templates = self._has_trigger_onchange()
+        patched_before = self._patches_models()
         res = super().write(vals)
         self.env.registry.clear_cache()
         if set(vals).intersection(self.CRITICAL_FIELDS):
             if "model_id" in vals:
                 self._clean_action_server_ids()
             self._update_cron()
-            self._update_registry()
+            if patched_before or self._patches_models():
+                self._update_registry()
             if clear_templates or self._has_trigger_onchange():
                 self.env.registry.clear_cache("templates")
         elif set(vals).intersection(self.RANGE_FIELDS):
@@ -560,10 +508,12 @@ class AutomationRule(models.Model):
 
     def unlink(self):
         clear_templates = self._has_trigger_onchange()
+        patched = self._patches_models()
         res = super().unlink()
         self.env.registry.clear_cache()
         self._update_cron()
-        self._update_registry()
+        if patched:
+            self._update_registry()
         if clear_templates:
             self.env.registry.clear_cache("templates")
         return res
@@ -654,6 +604,7 @@ class AutomationRule(models.Model):
         runtime = self._pick_runtime(runtime_id)
         state_per_action = {line.action_id.id: line.state for line in runtime.line_ids}
         recorded_ids = self._recorded_step_ids(nodes)
+        event_labels = self._workflow_event_labels()
         return {
             "automation_id": self.id,
             "runtime_id": runtime.id or None,
@@ -687,6 +638,7 @@ class AutomationRule(models.Model):
                         node.approval_user_ids.mapped("display_name")
                     ),
                     "subflow_name": node.subflow_automation_id.display_name or "",
+                    "detail": node._workflow_step_detail(),
                 }
                 for node in nodes
             ],
@@ -695,13 +647,18 @@ class AutomationRule(models.Model):
                     "id": edge.id,
                     "source": edge.source_node_id.id,
                     "target": edge.target_node_id.id,
-                    "condition": edge.condition,
-                    "condition_expr": edge.condition_expr,
+                    **edge._runtime_copy_vals(),
                     "label": edge.label,
+                    "event_label": event_labels.get(
+                        (edge.condition, edge.event_code), ""
+                    ),
                 }
                 for edge in self.edge_ids
             ],
         }
+
+    def _workflow_event_labels(self):
+        return {}
 
     def set_workflow_viewport(self, x, y, scale):
         """Remember where this reader left the canvas of this automation.
@@ -727,8 +684,7 @@ class AutomationRule(models.Model):
                 {
                     "source_node_id": new_by_old[edge.source_node_id.id].id,
                     "target_node_id": new_by_old[edge.target_node_id.id].id,
-                    "condition": edge.condition,
-                    "condition_expr": edge.condition_expr,
+                    **edge._runtime_copy_vals(),
                     "label": edge.label,
                 }
                 for edge in self.edge_ids
@@ -736,16 +692,6 @@ class AutomationRule(models.Model):
                 and edge.target_node_id.id in new_by_old
             ]
         )
-
-    @api.depends("trigger", "webhook_uuid")
-    def _compute_url(self):
-        for automation in self:
-            if automation.trigger != "on_webhook":
-                automation.url = ""
-            else:
-                automation.url = (
-                    f"{automation.get_base_url()}/web/hook/{automation.webhook_uuid}"
-                )
 
     def _inverse_model_name(self):
         for rec in self:
@@ -997,20 +943,6 @@ class AutomationRule(models.Model):
             "res_id": cron.id,
         }
 
-    def action_rotate_webhook_uuid(self):
-        for automation in self:
-            automation.webhook_uuid = str(uuid4())
-
-    def action_view_webhook_logs(self):
-        self.check_singleton()
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Webhook Logs"),
-            "res_model": "ir.logging",
-            "view_mode": "list,form",
-            "domain": [("path", "=", f"automation({self.id})")],
-        }
-
     def action_manual_trigger(self):
         self.check_singleton()
 
@@ -1173,94 +1105,6 @@ class AutomationRule(models.Model):
         if final_exception is not None:
             raise final_exception
 
-    def _check_webhook_request(self, headers, body, remote_addr):
-        self.check_singleton()
-        return self._check_inbound_request(headers, body=body, remote_addr=remote_addr)
-
-    def _webhook_ip_allowed(self, remote_addr):
-        return self.is_ip_allowed(remote_addr)
-
-    def _webhook_rate_ok(self):
-        return self.check_rate_limit()
-
-    def _execute_webhook(self, payload):
-        self.check_singleton()
-
-        if self.trigger != "on_webhook":
-            _logger.warning(
-                "Webhook #%s refused: rule trigger is %r, not 'on_webhook'.",
-                self.id,
-                self.trigger,
-            )
-            raise exceptions.ValidationError(
-                _("This automation rule is not a webhook."),
-            )
-
-        ir_logging_sudo = self.env["ir.logging"].sudo()
-
-        msg = "Webhook #%s triggered with payload %s"
-        msg_args = (self.id, payload)
-        _logger.debug(msg, *msg_args)
-        if self.log_webhook_calls:
-            ir_logging_sudo.create(self._prepare_logging_values(message=msg % msg_args))
-
-        record = self.env[self.model_name]
-        if self.record_getter:
-            try:
-                record = safe_eval.safe_eval(
-                    self.record_getter,
-                    self._prepare_eval_context(payload=payload),
-                )
-            except Exception:
-                msg = "Webhook #%s could not be triggered because the record_getter failed:\n%s"
-                msg_args = (self.id, traceback.format_exc())
-                _logger.warning(msg, *msg_args)
-                if self.log_webhook_calls:
-                    ir_logging_sudo.create(
-                        self._prepare_logging_values(
-                            message=msg % msg_args,
-                            level="ERROR",
-                        ),
-                    )
-                raise
-
-        if not record.exists() and self.record_getter:
-            msg = "Webhook #%s could not be triggered because no record to run it on was found."
-            msg_args = (self.id,)
-            _logger.warning(msg, *msg_args)
-            if self.log_webhook_calls:
-                ir_logging_sudo.create(
-                    self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
-                )
-            raise exceptions.ValidationError(
-                _("No record to run the automation on was found."),
-            )
-
-        try:
-            if record:
-                return self.with_context(webhook_payload=payload)._process(record)
-            return self._run_webhook_recordless(payload)
-        except Exception:
-            msg = "Webhook #%s failed with error:\n%s"
-            msg_args = (self.id, traceback.format_exc())
-            _logger.warning(msg, *msg_args)
-            if self.log_webhook_calls:
-                ir_logging_sudo.create(
-                    self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
-                )
-            raise
-
-    def _run_webhook_recordless(self, payload):
-        self.check_singleton()
-        for action in self.sudo().action_server_ids._sorted_by_dependency():
-            action.with_context(
-                active_model=self.model_name,
-                active_ids=[],
-                active_id=False,
-                webhook_payload=payload,
-            ).run()
-        return True
-
     def _filter_pre(self, records, feedback=False):
         self_sudo = self.sudo()
         if self_sudo.filter_pre_domain and records:
@@ -1323,7 +1167,9 @@ class AutomationRule(models.Model):
 
     def _get_cron_interval(self, automations=None):
         def get_delay(rec):
-            return abs(rec.trg_date_range) * DATE_RANGE_FACTOR[rec.trg_date_range_type]
+            return abs(rec.trg_date_range) * MINUTES_PER_DELAY_UNIT.get(
+                rec.trg_date_range_type, 0
+            )
 
         if automations is None:
             automations = self.with_context(active_test=True).search(
@@ -1340,16 +1186,16 @@ class AutomationRule(models.Model):
         else:
             interval = DEFAULT_CRON_INTERVAL_MINUTES
 
-        interval_type = "minutes"
+        unit = "minute"
         if interval % 60 == 0:
             interval //= 60
-            interval_type = "hours"
-        return interval, interval_type
+            unit = "hour"
+        return interval, unit
 
-    def _prepare_eval_context(self, payload=None):
+    def _prepare_eval_context(self):
         self.check_singleton()
         model = self.env[self.model_name]
-        eval_context = {
+        return {
             "datetime": safe_eval.datetime,
             "dateutil": safe_eval.dateutil,
             "time": safe_eval.time,
@@ -1357,9 +1203,6 @@ class AutomationRule(models.Model):
             "user": self.env.user,
             "model": model,
         }
-        if payload is not None:
-            eval_context["payload"] = payload
-        return eval_context
 
     def _get_trigger_specific_field(self):
         self.check_singleton()
@@ -1444,8 +1287,7 @@ class AutomationRule(models.Model):
                     "res_id": record.id,
                 }
             )
-            runtime.action_start()
-            runtime.action_run_all()
+            runtime._launch()
             runtimes |= runtime
         return runtimes
 
@@ -1827,7 +1669,11 @@ class AutomationRule(models.Model):
 
             return records.filtered(calendar_filter)
 
-        relative_offset = DATE_RANGE[automation.trg_date_range_type] * date_range
+        relative_offset = (
+            get_timedelta(date_range, automation.trg_date_range_type)
+            if automation.trg_date_range_type
+            else relativedelta()
+        )
         relative_until = until + relative_offset
         relative_last_run = last_run + relative_offset
         if date_field.type == "date":
@@ -1887,21 +1733,28 @@ class AutomationRule(models.Model):
             automations = self.with_context(active_test=True).search(
                 [("trigger", "in", TIME_TRIGGERS)],
             )
-            interval_number, interval_type = self._get_cron_interval(automations)
+            repeat_interval, repeat_unit = self._get_cron_interval(automations)
             vals = {"active": bool(automations)}
 
-            actual_cron_timedelta = TIMEDELTA_TYPES[cron.interval_type](
-                cron.interval_number,
-            )
-            new_cron_timedelta = TIMEDELTA_TYPES[interval_type](interval_number)
-            if new_cron_timedelta < actual_cron_timedelta:
+            # Compared by where each cadence lands from one instant, not by a
+            # length: a month has none, and the old table priced it at 30 days.
+            reference = fields.Datetime.now()
+            if (
+                reference + get_timedelta(repeat_interval, repeat_unit)
+                < reference + cron._get_recurrence_delta()
+            ):
                 vals.update(
-                    {
-                        "interval_type": interval_type,
-                        "interval_number": interval_number,
-                    },
+                    {"repeat_unit": repeat_unit, "repeat_interval": repeat_interval},
                 )
             cron.write(vals)
+
+    def _patches_models(self):
+        return any(
+            rule.trigger in CREATE_WRITE_SET
+            or rule.trigger in ("on_unlink", "on_change")
+            or rule.trigger in MAIL_TRIGGERS
+            for rule in self
+        )
 
     def _update_registry(self):
         if self.env.registry.ready and not self.env.context.get("import_file"):

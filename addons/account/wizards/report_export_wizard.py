@@ -5,6 +5,9 @@ from urllib.parse import parse_qs, urlparse
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class Account_ReportsExportWizard(models.TransientModel):
@@ -14,19 +17,30 @@ class Account_ReportsExportWizard(models.TransientModel):
     _description = "Export wizard for accounting's reports"
 
     export_format_ids = fields.Many2many(
-        string="Export to",
         comodel_name="account_reports.export.wizard.format",
         relation="dms_acc_rep_export_wizard_format_rel",
+        string="Export to",
     )
     report_id = fields.Many2one(
-        string="Parent Report Id", comodel_name="account.report", required=True
+        comodel_name="account.report",
+        string="Parent Report Id",
+        required=True,
     )
     doc_name = fields.Char(
-        string="Documents Name", help="Name to give to the generated documents."
+        string="Documents Name",
+        help="Name to give to the generated documents.",
     )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         wizards = super().create(vals_list)
         for wizard in wizards:
             wizard.doc_name = wizard.report_id.name
@@ -46,6 +60,18 @@ class Account_ReportsExportWizard(models.TransientModel):
                             "export_wizard_id": wizard.id,
                         }
                     )
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "export_formats_created",
+                wizards=wizards,
+                formats_per_wizard=sum(
+                    1
+                    for button_dict in self.env.context.get(
+                        "account_report_generation_options", {}
+                    ).get("buttons", [])
+                    if button_dict.get("file_export_type")
+                ),
+            )
         return wizards
 
     def export_report(self):
@@ -81,19 +107,28 @@ class Account_ReportsExportWizardFormat(models.TransientModel):
     _name = "account_reports.export.wizard.format"
     _description = "Export format for accounting's reports"
 
-    name = fields.Char(string="Name", required=True)
-    fun_to_call = fields.Char(string="Function to Call", required=True)
+    name = fields.Char(required=True)
+    fun_to_call = fields.Char(
+        string="Function to Call",
+        required=True,
+    )
     fun_param = fields.Char(string="Function Parameter")
     export_wizard_id = fields.Many2one(
-        string="Parent Wizard",
         comodel_name="account_reports.export.wizard",
+        string="Parent Wizard",
         required=True,
         ondelete="cascade",
     )
 
+    @_debug.perf.timed
     def apply_export(self, report_action):
         self.check_singleton()
 
+        _debug.logic(
+            "export_action_kind",
+            format=self,
+            action_type=report_action.get("type"),
+        )
         if report_action["type"] == "ir_actions_account_report_download":
             # file_generator functions are always public for ir_actions_account_report_download
             report_options = json.loads(report_action["data"]["options"])
@@ -118,6 +153,13 @@ class Account_ReportsExportWizardFormat(models.TransientModel):
             mimetype = self.export_wizard_id.report_id.get_export_mime_type(
                 export_result["file_type"]
             )
+            _debug.pipeline(
+                "export_file_generated",
+                report=report,
+                file_generator=file_generator,
+                file_type=export_result.get("file_type"),
+                mimetype=mimetype,
+            )
 
         elif report_action["type"] == "ir.actions.act_url":
             query_params = parse_qs(urlparse(report_action["url"]).query)
@@ -135,11 +177,13 @@ class Account_ReportsExportWizardFormat(models.TransientModel):
                 _("One of the formats chosen can not be exported in the DMS")
             )
 
-        return self.get_attachment_vals(
+        return self._prepare_attachment_vals(
             file_name, file_content, mimetype, report_options
         )
 
-    def get_attachment_vals(self, file_name, file_content, mimetype, log_options_dict):
+    def _prepare_attachment_vals(
+        self, file_name, file_content, mimetype, log_options_dict
+    ):
         self.check_singleton()
         return {
             "name": file_name,

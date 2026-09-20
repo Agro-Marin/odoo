@@ -2,9 +2,11 @@ import logging
 from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class DocumentsAccessTracking(models.Model):
@@ -12,11 +14,16 @@ class DocumentsAccessTracking(models.Model):
     _description = "Document Access Tracking"
     _log_access = False
 
-    changes = fields.Json(string="Changes need to be tracked", required=True)
-    documents = fields.Json(string="Impacted Document Ids", required=True)
+    changes = fields.Json(
+        string="Changes need to be tracked",
+        required=True,
+    )
+    documents = fields.Json(
+        string="Impacted Document Ids",
+        required=True,
+    )
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
+        comodel_name="res.users",
         default=lambda self: self.env.user,
     )
 
@@ -31,6 +38,7 @@ class DocumentsAccessTracking(models.Model):
         # an empty queue. `_trigger` does not de-duplicate, so a bulk sharing
         # pass queued one such row per call.
         if not changes_by_document_dict:
+            _debug.logic("tracking_skipped", reason="no_changes")
             return
         documents_by_changes = defaultdict(list)
         for document_id, changes in changes_by_document_dict.items():
@@ -53,6 +61,12 @@ class DocumentsAccessTracking(models.Model):
                 ]
             )
 
+        _debug.pipeline(
+            "tracking_queued",
+            documents=len(changes_by_document_dict),
+            shapes=len(documents_by_changes),
+            batch_size=batch_size,
+        )
         cron = self.env.ref(
             "document.ir_cron_documents_access_tracking", raise_if_not_found=False
         )
@@ -63,26 +77,37 @@ class DocumentsAccessTracking(models.Model):
     def _cron_generate_tracking(self) -> None:
         Cron = self.env["ir.cron"]
         remaining = self.search_count([])
-        while tracking := self.search([], limit=1):
-            try:
-                with self.env.cr.savepoint():
-                    tracking._create_message_track()
-            except Exception:
-                _logger.warning(
-                    "Documents: dropping unrenderable access tracking %s",
-                    tracking.id,
-                    exc_info=True,
-                )
-            tracking.unlink()
-            remaining = max(remaining - 1, 0)
-            if Cron._commit_progress(processed=1, remaining=remaining) <= 0:
-                return
+        _debug.pipeline("tracking_cron_start", queued=remaining)
+        # Fetch the queue a page at a time. The previous shape ran one
+        # `search` per row, so draining a queue of N cost N extra queries on
+        # top of the N it had to do anyway.
+        while batch := self.search([], limit=self._cron_batch_size()):
+            for tracking in batch:
+                try:
+                    with self.env.cr.savepoint():
+                        tracking._create_message_track()
+                except Exception:
+                    _debug.logic("tracking_dropped", tracking=tracking.id)
+                    _logger.warning(
+                        "Documents: dropping unrenderable access tracking %s",
+                        tracking.id,
+                        exc_info=True,
+                    )
+                tracking.unlink()
+                remaining = max(remaining - 1, 0)
+                if Cron._commit_progress(processed=1, remaining=remaining) <= 0:
+                    return
         Cron._commit_progress(remaining=0)
+
+    @api.model
+    def _cron_batch_size(self) -> int:
+        return 100
 
     def _create_message_track(self) -> None:
         self.check_singleton()
         document_ids = self.env["document.document"].browse(self.documents)
         if initial_values := self._get_initial_values():
+            _debug.logic("tracking_rendered", by="field_track", documents=document_ids)
             if "members" in self.changes:
                 self._add_pre_commit_members_data()
             document_ids.with_user(self.user_id)._message_track(
@@ -94,6 +119,7 @@ class DocumentsAccessTracking(models.Model):
                 initial_values,
             )
         else:
+            _debug.logic("tracking_rendered", by="members_body", documents=document_ids)
             body = self._get_members_change_template_body()
             document_ids.with_user(self.user_id)._message_log_batch(
                 bodies=dict.fromkeys(document_ids.ids, body)

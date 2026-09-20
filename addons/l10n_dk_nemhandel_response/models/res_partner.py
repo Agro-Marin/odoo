@@ -8,9 +8,10 @@ APPLICATION_RESPONSE_CUSTOMISATION_ID = "busdox-docid-qns::urn:oasis:names:speci
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    nemhandel_supported_documents = fields.Json("Supported Nemhandel Documents")
+    nemhandel_supported_documents = fields.Json(string="Supported Nemhandel Documents")
     nemhandel_response_support = fields.Boolean(
-        "Nemhandel Response Service", compute="_compute_nemhandel_response_support"
+        string="Nemhandel Response Service",
+        compute="_compute_nemhandel_response_support",
     )
 
     @api.depends("nemhandel_supported_documents", "nemhandel_verification_state")
@@ -23,10 +24,10 @@ class ResPartner(models.Model):
                 in partner.nemhandel_supported_documents
             )
 
-    def _nemhandel_fill_participant_supported_documents(self):
+    def _nemhandel_update_participant_supported_documents(self):
         self.check_singleton()
         edi_identification = f"{self.nemhandel_identifier_type}:{self.nemhandel_identifier_value}".lower()
-        participant_info = self._nemhandel_lookup_participant(edi_identification)
+        participant_info = self._nemhandel_get_participant(edi_identification)
         if not participant_info:
             return
         self.nemhandel_supported_documents = [
@@ -45,5 +46,5 @@ class ResPartner(models.Model):
             company = self.env.company
         self_partner = self.with_company(company)
         if self_partner.nemhandel_verification_state == "valid":
-            self_partner._nemhandel_fill_participant_supported_documents()
+            self_partner._nemhandel_update_participant_supported_documents()
         return False

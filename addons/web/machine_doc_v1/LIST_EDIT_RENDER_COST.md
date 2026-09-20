@@ -87,8 +87,8 @@ Measured, so it need not be re-derived:
 ## Technique
 
 The questions here are about what a component *subscribed to*, which no
-import-graph or export-surface gate can reach (`tooling/architecture/js_forced_render.py`
-says as much about its own limits). What answers them:
+import-graph or export-surface gate can reach (the forced-render gate said as much about
+its own limits, before the tooling tree was deleted in `7b0f58cb517f`). What answers them:
 
 - `node.__owl__.subscriptions` — OWL's own registry of what that component is
   actually subscribed to, per target and key.

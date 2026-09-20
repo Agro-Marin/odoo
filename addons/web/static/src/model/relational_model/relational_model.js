@@ -3,6 +3,7 @@
 
 import { markRaw, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { ModelEvent } from "@web/core/events";
 import { modelLog } from "@web/core/utils/asset_log";
@@ -154,6 +155,8 @@ const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
 
 const ASK_CHANGES_MAX_ROUNDS = 100;
 
+const log = makeLogger("web.model");
+
 export class RelationalModel extends Model {
     static services = ["orm"];
     static Record = RelationalRecord;
@@ -284,6 +287,12 @@ export class RelationalModel extends Model {
      */
     async load(params = {}) {
         modelLog("load", this.config.resModel, params);
+        log.pipeline("load", () => ({
+            resModel: this.config.resModel,
+            params,
+            isReady: this.isReady,
+        }));
+        const endLoad = log.perf(`load ${this.config.resModel}`);
         if (this.orm.isSample && this.initialSampleGroups?.length) {
             this.orm.setGroups(this.initialSampleGroups);
         }
@@ -311,15 +320,22 @@ export class RelationalModel extends Model {
             );
         } catch (error) {
             if (error instanceof SupersededError) {
+                endLoad({ superseded: true });
                 return;
             }
             this._retireRootLoadDef();
+            endLoad({ failed: true });
             throw error;
         }
         if (profiling) {
             performance.measure("model:loadData", "model:loadData:start");
         }
-        this.root = this._createRoot(config, data);
+        this.root = this._createRoot(config, data, { previousRoot: this.root });
+        endLoad({
+            loadId: config.loadId,
+            records: data?.records?.length ?? data?.groups?.length ?? (data ? 1 : 0),
+            grouped: Boolean(config.groupBy?.length),
+        });
         rootLoadDef.resolve({ root: this.root, loadId: config.loadId });
         if (this._rootLoadDef === rootLoadDef) {
             this._rootLoadDef = null;
@@ -481,16 +497,27 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Record<string, unknown>} data
+     * @param {{ previousRoot?: any }} [options]
      * @returns {any}
      */
-    _createRoot(config, data) {
+    _createRoot(config, data, { previousRoot } = {}) {
         if (config.isMonoRecord) {
             return new this.Class.Record(this, config, data);
         }
-        if (config.groupBy.length) {
-            return new this.Class.DynamicGroupList(this, config, data);
-        }
-        return new this.Class.DynamicRecordList(this, config, data);
+        // sample rows carry made-up ids that a real load's ids collide with,
+        // so a root built on either side of the sample ORM donates nothing
+        const isSample = Boolean(this.orm.isSample);
+        const donor =
+            isSample || previousRoot?._loadedFromSample ? undefined : previousRoot;
+        const root = config.groupBy.length
+            ? new this.Class.DynamicGroupList(this, config, data, {
+                  previousRoot: donor,
+              })
+            : new this.Class.DynamicRecordList(this, config, data, {
+                  previousRoot: donor,
+              });
+        root._loadedFromSample = isSample;
+        return root;
     }
 
     _retireRootLoadDef() {
@@ -610,6 +637,16 @@ export class RelationalModel extends Model {
      */
     async _loadData(config, cache, signal) {
         config.loadId = getId("load");
+        log.pipeline("_loadData", () => ({
+            loadId: config.loadId,
+            resModel: config.resModel,
+            resId: config.resId,
+            resIds: config.resIds?.length,
+            groupBy: config.groupBy,
+            offset: config.offset,
+            limit: config.limit,
+            domain: config.domain,
+        }));
         if (config.isMonoRecord) {
             const evalContext = getSpecEvalContext(config);
             if (!config.resId) {
@@ -720,7 +757,13 @@ export class RelationalModel extends Model {
                 specification: fieldSpec,
             };
             const orm = this._scopedOrm(cache, signal);
+            const endRead = log.perf(`webRead ${resModel}`);
             const records = await orm.webRead(resModel, resIds, kwargs);
+            endRead({
+                ids: resIds.length,
+                fields: Object.keys(fieldSpec).length,
+                records: records.length,
+            });
             if (!records.length) {
                 throw new FetchRecordError(resIds);
             }
@@ -792,10 +835,18 @@ export class RelationalModel extends Model {
         });
         const args = [resId ? [resId] : [], changes, fieldNames, spec];
         let response;
+        const endOnchange = log.perf(`onchange ${resModel}`);
         try {
             const orm = this._scopedOrm(cache, signal);
             response = await orm.call(resModel, "onchange", args, { context });
+            endOnchange({
+                fieldNames,
+                resId,
+                changed: Object.keys(response.value || {}).length,
+                warning: Boolean(response.warning),
+            });
         } catch (e) {
+            endOnchange({ failed: true });
             if (onError) {
                 return void onError(e);
             }
@@ -832,6 +883,11 @@ export class RelationalModel extends Model {
      * }} [options]
      */
     async reloadWithConfig(config, patch, { commit } = {}) {
+        log.pipeline("reloadWithConfig", () => ({
+            resModel: config.resModel,
+            isRoot: config.isRoot,
+            patch: Object.keys(patch),
+        }));
         const tmpConfig = { ...config, ...patch };
         if (tmpConfig.groups) {
             tmpConfig.groups = cloneGroupTree(tmpConfig.groups);
@@ -908,6 +964,7 @@ export class RelationalModel extends Model {
             initialLimit: this.initialLimit,
         });
         const orm = this._scopedOrm(cache, signal);
+        const endGroup = log.perf(`webReadGroup ${config.resModel}`);
         const result = await orm.webReadGroup(
             config.resModel,
             config.domain,
@@ -915,6 +972,11 @@ export class RelationalModel extends Model {
             aggregates,
             params,
         );
+        endGroup({
+            groupBy: config.groupBy,
+            groups: result.groups.length,
+            length: result.length,
+        });
         if (this.canUseSampleModel && !this.initialSampleGroups) {
             this.initialSampleGroups = deepCopy(
                 result.groups.map((group) =>

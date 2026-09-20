@@ -2,7 +2,6 @@ import logging
 import random
 import typing
 from collections import defaultdict
-from itertools import batched
 from operator import itemgetter
 from typing import Any, Self
 
@@ -11,13 +10,16 @@ import psycopg
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError
+from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.models import add_field
-from odoo.tools import SQL, OrderedSet, groupby, reset_cached_properties, unique
+from odoo.tools import SQL, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
 
 from .ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrModelData(models.Model):
@@ -32,20 +34,31 @@ class IrModelData(models.Model):
         required=True,
         help="External Key/Identifier that can be used for data integration with third-party systems",
     )
-    complete_name = fields.Char(compute="_compute_complete_name", string="Complete ID")
-    model = fields.Char(string="Model Name", required=True)
-    module = fields.Char(default="", required=True)
+    complete_name = fields.Char(
+        string="Complete ID",
+        compute="_compute_complete_name",
+    )
+    model = fields.Char(
+        string="Model Name",
+        required=True,
+    )
+    module = fields.Char(
+        default="",
+        required=True,
+    )
     res_id = fields.Many2oneReference(
+        model_field="model",
         string="Record ID",
         help="ID of the target record in the database",
-        model_field="model",
     )
-    noupdate = fields.Boolean(string="Non Updatable", default=False)
+    noupdate = fields.Boolean(
+        string="Non Updatable",
+        default=False,
+    )
     reference = fields.Char(
-        string="Reference",
         compute="_compute_reference",
-        readonly=True,
         store=False,
+        readonly=True,
     )
 
     _name_nospaces = models.Constraint(
@@ -79,20 +92,31 @@ class IrModelData(models.Model):
                 try:
                     xid.display_name = target_record.display_name or xid.complete_name
                 except AccessError, MissingError:
+                    _debug.logic("display_name.fallback", xmlid=xid.id, model=model)
                     xid.display_name = xid.complete_name
 
     @api.model
-    @tools.ormcache("xmlid")
-    def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
+    @tools.ormcache("xmlid", cache="xmlid")
+    def _xmlid_target(self, xmlid: str) -> tuple[str, int] | None:
         if "." not in xmlid:
-            raise ValueError(f"External ID not found in the system: {xmlid}")
+            _debug.logic("xmlid_miss", xmlid=xmlid, reason="no_module_prefix")
+            return None
         module, name = xmlid.split(".", 1)
-        query = "SELECT model, res_id FROM ir_model_data WHERE module=%s AND name=%s"
-        self.env.cr.execute(query, [module, name])
-        result = self.env.cr.fetchone()
-        if not (result and result[1]):
+        data = self.sudo().search_fetch(
+            [("module", "=", module), ("name", "=", name)], ["model", "res_id"], limit=1
+        )
+        if not (data and data.res_id):
+            _debug.logic("xmlid_miss", xmlid=xmlid)
+            return None
+        _debug.perf.count("xmlid.cache_miss", xmlid=xmlid, model=data.model)
+        return data.model, data.res_id
+
+    @api.model
+    def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
+        target = self._xmlid_target(xmlid)
+        if target is None:
             raise ValueError(f"External ID not found in the system: {xmlid}")
-        return result
+        return target
 
     @api.model
     def _xmlid_to_res_model_res_id(
@@ -116,12 +140,16 @@ class IrModelData(models.Model):
         for model, vals in zip(self, vals_list, strict=True):
             rand = f"{random.getrandbits(16):04x}"
             vals["name"] = f"{model.name}_{rand}"
+        _debug.lifecycle("copy_data", count=len(vals_list))
         return vals_list
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle("create", count=len(res))
+        self.env.registry.clear_cache("xmlid")
         if any(vals.get("model") == "res.groups" for vals in vals_list):
+            _debug.logic("groups_cache_cleared", reason="create")
             self.env.registry.clear_cache("groups")
         return res
 
@@ -132,10 +160,17 @@ class IrModelData(models.Model):
         touch_groups = vals.get("model") == "res.groups" or any(
             data.model == "res.groups" for data in self
         )
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            bust_xmlid=bust_xmlid,
+            touch_groups=touch_groups,
+        )
         res = super().write(vals)
         if bust_xmlid:
             self.flush_recordset()
-            self.env.registry.clear_cache()
+            self.env.registry.clear_cache("xmlid")
         if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
@@ -144,6 +179,7 @@ class IrModelData(models.Model):
         if not self:
             return True
         touch_groups = any(data.model == "res.groups" for data in self.exists())
+        _debug.lifecycle("unlink", count=len(self), touch_groups=touch_groups)
         res = super().unlink()
         self.env.registry.clear_cache()
         if touch_groups:
@@ -152,6 +188,7 @@ class IrModelData(models.Model):
 
     def _get_xmlids(self, xml_ids: list[str], model: Any) -> list[tuple]:
         if not xml_ids:
+            _debug.logic("get_xmlids.skipped", model=model._name, reason="empty")
             return []
 
         bymodule = defaultdict(set)
@@ -159,25 +196,37 @@ class IrModelData(models.Model):
             prefix, suffix = xml_id.split(".", 1)
             bymodule[prefix].add(suffix)
 
-        result = []
-        cr = self.env.cr
-        table_sql = SQL.identifier(model._table)
-        for prefix, suffixes in bymodule.items():
-            for subsuffixes in batched(suffixes, cr.BATCH_SIZE, strict=False):
-                cr.execute(
-                    SQL(
-                        """
-                        SELECT d.id, d.module, d.name, d.model, d.res_id, d.noupdate, r.id
-                        FROM ir_model_data d LEFT JOIN %s r ON d.res_id = r.id
-                        WHERE d.module = %s AND d.name = ANY(%s)
-                        """,
-                        table_sql,
-                        prefix,
-                        list(subsuffixes),
-                    )
-                )
-                result.extend(cr.fetchall())
-
+        domain = Domain.OR(
+            Domain("module", "=", prefix) & Domain("name", "in", list(suffixes))
+            for prefix, suffixes in bymodule.items()
+        )
+        rows = self.sudo().search_fetch(
+            domain, ["module", "name", "model", "res_id", "noupdate"]
+        )
+        target_ids = set(
+            model.browse(row.res_id for row in rows if row.model == model._name)
+            .exists()
+            .ids
+        )
+        result = [
+            (
+                row.id,
+                row.module,
+                row.name,
+                row.model,
+                row.res_id,
+                row.noupdate,
+                row.res_id if row.res_id in target_ids else None,
+            )
+            for row in rows
+        ]
+        _debug.perf.count(
+            "get_xmlids",
+            model=model._name,
+            requested=len(xml_ids),
+            modules=len(bymodule),
+            found=len(result),
+        )
         return result
 
     @api.model
@@ -185,82 +234,91 @@ class IrModelData(models.Model):
         self, data_list: list[dict[str, Any]], update: bool = False
     ) -> None:
         if not data_list:
+            _debug.logic("update_xmlids.skipped", reason="empty")
             return
 
-        rows = OrderedSet()
+        rows: dict[tuple[str, str], tuple[str, int, bool]] = {}
         for data in data_list:
             prefix, suffix = data["xml_id"].split(".", 1)
             record = data["record"]
-            noupdate = bool(data.get("noupdate"))
-            rows.add((prefix, suffix, record._name, record.id, noupdate))
+            rows[prefix, suffix] = (record._name, record.id, bool(data.get("noupdate")))
 
-        repointed = False
-        for sub_rows in batched(rows, self.env.cr.BATCH_SIZE, strict=False):
-            query = self._prepare_update_xmlids_query(sub_rows, update)
-            try:
-                self.env.cr.execute(query)
-                repointed = repointed or any(
-                    not inserted for (inserted,) in self.env.cr.fetchall()
-                )
-            except Exception:
-                _logger.error(
-                    "Failed to insert ir_model_data\n%s",
-                    "\n".join(str(row) for row in sub_rows),
-                )
-                raise
-        if repointed:
-            self.env.registry.clear_cache()
-
-        xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
-        self.pool.loaded_xmlids.update(xml_ids)
-        recorder = getattr(self.pool, "_xmlid_recorder", None)
-        if recorder is not None:
-            recorder.update(xml_ids)
-
-        if any(row[2] == "res.groups" for row in rows):
-            self.env.registry.clear_cache("groups")
-
-    def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
-        return {}
-
-    def _prepare_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
-        extra = self._insert_xmlids_extra_columns()
-        columns = ["module", "name", "model", "res_id", "noupdate", *extra]
-        values = SQL(", ").join(
-            SQL(
-                "(%s)",
-                SQL(", ").join([*(SQL("%s", value) for value in row), *extra.values()]),
+        bymodule = defaultdict(list)
+        for prefix, suffix in rows:
+            bymodule[prefix].append(suffix)
+        existing = {
+            (data.module, data.name): data
+            for data in self.sudo().search_fetch(
+                Domain.OR(
+                    Domain("module", "=", prefix) & Domain("name", "in", names)
+                    for prefix, names in bymodule.items()
+                ),
+                ["module", "name", "model", "res_id", "noupdate"],
             )
-            for row in sub_rows
+        }
+
+        extra_vals = self._xmlid_extra_vals()
+        to_create = []
+        repointed = False
+        for (prefix, suffix), (model_name, res_id, noupdate) in rows.items():
+            data = existing.get((prefix, suffix))
+            if data is None:
+                to_create.append(
+                    {
+                        "module": prefix,
+                        "name": suffix,
+                        "model": model_name,
+                        "res_id": res_id,
+                        "noupdate": noupdate,
+                        **extra_vals,
+                    }
+                )
+            elif (data.model, data.res_id) != (model_name, res_id) and not (
+                update and data.noupdate
+            ):
+                _debug.logic(
+                    "update_xmlids.repointed",
+                    xmlid=data.id,
+                    old_model=data.model,
+                    old_res_id=data.res_id,
+                    model=model_name,
+                    res_id=res_id,
+                )
+                data.write({"model": model_name, "res_id": res_id})
+                repointed = True
+        if to_create:
+            self.sudo().create(to_create)
+        _debug.pipeline(
+            "update_xmlids",
+            rows=len(rows),
+            update=update,
+            created=len(to_create),
+            repointed=repointed,
         )
-        return SQL(
-            """
-            INSERT INTO ir_model_data (%(columns)s)
-            VALUES %(values)s
-            ON CONFLICT (module, name)
-            DO UPDATE SET (model, res_id, write_date) =
-                (EXCLUDED.model, EXCLUDED.res_id, now() at time zone 'UTC')
-                WHERE (ir_model_data.res_id != EXCLUDED.res_id OR ir_model_data.model != EXCLUDED.model) %(and_where)s
-            RETURNING (xmax = 0)
-            """,
-            columns=SQL(", ").join(SQL.identifier(column) for column in columns),
-            values=values,
-            and_where=SQL("AND NOT ir_model_data.noupdate") if update else SQL(),
-        )
+        # create() and write() above own the cache invalidation the raw upsert had to do here
+
+        xml_ids = {f"{prefix}.{suffix}" for prefix, suffix in rows}
+        self.pool.loaded_xmlids.update(xml_ids)
+        self.pool.record_xmlids_written(xml_ids)
+
+    def _xmlid_extra_vals(self) -> dict[str, Any]:
+        return {}
 
     @api.model
     def _load_xmlid(self, xml_id: str) -> Any:
         record = self.env.ref(xml_id, raise_if_not_found=False)
+        _debug.logic("load_xmlid", xmlid=xml_id, found=bool(record))
         if record:
             self.pool.loaded_xmlids.add(xml_id)
-            recorder = getattr(self.pool, "_xmlid_recorder", None)
-            if recorder is not None:
-                recorder.add(xml_id)
+            self.pool.record_xmlids_written((xml_id,))
         return record
 
     @api.model
     def _uninstall_module_data(self, modules_to_remove: list[str]) -> None:
         if not self.env.is_system():
+            _debug.logic(
+                "uninstall_module_data.rejected", uid=self.env.uid, reason="not_system"
+            )
             raise AccessError(
                 _("Administrator access is required to uninstall a module")
             )
@@ -275,6 +333,16 @@ class IrModelData(models.Model):
         records_items, model_ids, field_ids, selection_ids, constraint_ids = (
             self._partition_module_data(module_data)
         )
+        _debug.pipeline(
+            "uninstall_module_data",
+            modules=modules_to_remove,
+            xmlids=len(module_data),
+            records=len(records_items),
+            models=len(model_ids),
+            fields=len(field_ids),
+            selections=len(selection_ids),
+            constraints=len(constraint_ids),
+        )
 
         self._unshare_prefetched_fields(field_ids)
 
@@ -287,6 +355,9 @@ class IrModelData(models.Model):
                     self.env[model].browse(ids), module_data, undeletable_ids
                 )
             else:
+                _debug.logic(
+                    "uninstall_module_data.orphans", model=model, count=len(ids)
+                )
                 _logger.info(
                     "Orphan ir.model.data records %s refer to unavailable model '%s'",
                     ids,
@@ -318,6 +389,7 @@ class IrModelData(models.Model):
         relations = self.env["ir.model.relation"].search(
             [("module", "in", modules.ids)]
         )
+        _debug.pipeline("uninstall_module_data.relations", count=len(relations))
         relations._uninstall_module_data()
 
         self._remove_uninstalled(
@@ -327,6 +399,7 @@ class IrModelData(models.Model):
         )
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
+        _debug.pipeline("uninstall_module_data_done", undeletable=len(undeletable_ids))
         self._remove_uninstalled_xmlids(module_data, undeletable_ids)
 
     @staticmethod
@@ -362,14 +435,21 @@ class IrModelData(models.Model):
             if field is None or not field.prefetch:
                 continue
             if field._toplevel:
+                _debug.logic(
+                    "unshare_prefetch.toplevel", model=ir_field.model, field=field.name
+                )
                 field.prefetch = False
             else:
+                _debug.logic(
+                    "unshare_prefetch.shared", model=ir_field.model, field=field.name
+                )
                 Field = type(field)
                 field_ = Field(_base_fields__=(field, Field(prefetch=False)))
                 add_field(self.env.registry[ir_field.model], ir_field.name, field_)
                 field_.setup(model)
                 has_shared_field = True
         if has_shared_field:
+            _debug.lifecycle("unshare_prefetch.registry_reset", fields=len(field_ids))
             reset_cached_properties(self.env.registry)
 
     def _remove_uninstalled(
@@ -389,6 +469,12 @@ class IrModelData(models.Model):
         )
         ref_data -= cloc_exclude_data
         records -= records.browse((ref_data - module_data).mapped("res_id"))
+        _debug.logic(
+            "remove_uninstalled",
+            model=records._name,
+            candidates=len(ref_data),
+            deletable=len(records),
+        )
         if not records:
             return
 
@@ -399,11 +485,28 @@ class IrModelData(models.Model):
         try:
             with self.env.cr.savepoint():
                 cloc_exclude_data.unlink()
-                records.unlink()
+                with _debug.perf(
+                    "remove_uninstalled.unlink",
+                    cr=self.env.cr,
+                    model=records._name,
+                    count=len(records),
+                ):
+                    records.unlink()
         except Exception:
+            _debug.logic(
+                "remove_uninstalled_failed", model=records._name, count=len(records)
+            )
             if len(records) <= 1:
+                _debug.logic(
+                    "remove_uninstalled.undeletable",
+                    model=records._name,
+                    xmlids=len(ref_data),
+                )
                 undeletable_ids.extend(ref_data._ids)
             else:
+                _debug.logic(
+                    "remove_uninstalled.bisect", model=records._name, count=len(records)
+                )
                 half_size = len(records) // 2
                 self._remove_uninstalled(
                     records[:half_size], module_data, undeletable_ids
@@ -418,6 +521,9 @@ class IrModelData(models.Model):
         missing = records - records.exists()
         if missing:
             orphans = ref_data.filtered(lambda r: r.res_id in missing._ids)
+            _debug.lifecycle(
+                "undeletable_fields.orphans", missing=len(missing), orphans=len(orphans)
+            )
             _logger.info("Deleting orphan ir_model_data %s", orphans)
             orphans.unlink()
             records -= missing
@@ -436,6 +542,8 @@ class IrModelData(models.Model):
     def _remove_uninstalled_xmlids(
         self, module_data: models.BaseModel, undeletable_ids: list[int]
     ) -> None:
+        kept = 0  # debuglog
+        unprobed = 0  # debuglog
         for data in self.browse(undeletable_ids).exists():
             if data.model not in self.env.registry:
                 continue
@@ -443,10 +551,21 @@ class IrModelData(models.Model):
             try:
                 with self.env.cr.savepoint():
                     if record.exists():
+                        kept += 1  # debuglog
                         module_data -= data
                         continue
             except psycopg.ProgrammingError:
-                pass
+                unprobed += 1  # debuglog
+                _debug.logic(
+                    "remove_xmlids.exists_failed", model=data.model, res_id=data.res_id
+                )
+        _debug.lifecycle(
+            "remove_xmlids",
+            undeletable=len(undeletable_ids),
+            kept=kept,
+            unprobed=unprobed,
+            removed=len(module_data),
+        )
         module_data.unlink()
 
     def _count_xmlids_per_record(
@@ -478,6 +597,10 @@ class IrModelData(models.Model):
     @api.model
     def _process_end(self, modules: list[str]) -> None:
         if not modules or tools.config.get("import_partial"):
+            _debug.logic(
+                "process_end.skipped",
+                reason="no_modules" if not modules else "import_partial",
+            )
             return
 
         bad_imd_ids = []
@@ -491,6 +614,12 @@ class IrModelData(models.Model):
         candidates = self.env.cr.fetchall()
         xmlids_per_record = self._count_xmlids_per_record(
             [(model, res_id) for _id, _xmlid, model, res_id in candidates]
+        )
+        _debug.pipeline(
+            "process_end",
+            modules=len(modules),
+            candidates=len(candidates),
+            loaded_xmlids=len(loaded_xmlids),
         )
 
         for id, xmlid, model, res_id in candidates:
@@ -519,9 +648,15 @@ class IrModelData(models.Model):
                     keep = True
                     break
             if keep:
+                _debug.logic(
+                    "process_end.kept", xmlid=xmlid, reason="inheriting_child_loaded"
+                )
                 continue
 
             if xmlids_per_record.get((model, res_id), 1) > 1:
+                _debug.logic(
+                    "process_end.stale_xmlid", xmlid=xmlid, reason="other_xmlid_remains"
+                )
                 xmlids_per_record[(model, res_id)] -= 1
                 bad_imd_ids.append(id)
                 continue
@@ -530,6 +665,9 @@ class IrModelData(models.Model):
                 cons = Model.browse(res_id)
                 target = self.env.get(cons.model.model) if cons.exists() else None
                 if target is not None and cons.name in target._table_objects:
+                    _debug.logic(
+                        "process_end.kept", xmlid=xmlid, reason="constraint_declared"
+                    )
                     continue
 
             _logger.info("Deleting %s@%s (%s)", res_id, model, xmlid)
@@ -537,23 +675,34 @@ class IrModelData(models.Model):
             if record.exists():
                 module = xmlid.split(".", 1)[0]
                 record = record.with_context(module=module)
+                _debug.lifecycle("process_end.record_deleted", xmlid=xmlid, model=model)
                 self._process_end_unlink_record(record)
             else:
+                _debug.logic(
+                    "process_end.stale_xmlid", xmlid=xmlid, reason="record_missing"
+                )
                 xmlids_per_record[(model, res_id)] = (
                     xmlids_per_record.get((model, res_id), 1) - 1
                 )
                 bad_imd_ids.append(id)
+        _debug.pipeline("process_end_stale_xmlids", count=len(bad_imd_ids))
         if bad_imd_ids:
             self.browse(bad_imd_ids).unlink()
 
         self.env["ir.ui.view"]._create_all_specific_views(modules)
 
         loaded_xmlids.clear()
-        self.pool._xmlids_written.clear()
 
     @api.model
     def toggle_noupdate(self, model: str, res_id: int) -> None:
         self.env[model].browse(res_id).check_access("write")
         xids = self.search([("model", "=", model), ("res_id", "=", res_id)])
         for noupdate, group in xids.grouped("noupdate").items():
+            _debug.lifecycle(
+                "toggle_noupdate",
+                model=model,
+                res_id=res_id,
+                count=len(group),
+                noupdate=not noupdate,
+            )
             group.write({"noupdate": not noupdate})

@@ -10,10 +10,10 @@
                 <sheet string="Analytic Account">
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="%(account_analytic_line_action)d"
-                            icon="fa-usd">
+                            type="action"
+                            icon="fa-usd"
+                            class="oe_stat_button">
                             <div class="o_form_field o_stat_info">
                                 <span class="o_stat_text">Gross Margin</span>
                                 <span class="o_stat_value">
@@ -25,15 +25,15 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" />
                         <h1>
                             <field
                                 name="name"
-                                class="oe_inline"
-                                placeholder="e.g. Project XYZ" />
+                                placeholder="e.g. Project XYZ"
+                                class="oe_inline" />
                         </h1>
                     </div>
                     <div name="project" />
@@ -47,9 +47,9 @@
                             <field name="plan_id" options="{'no_quick_create': True}" />
                             <field
                                 name="company_id"
+                                placeholder="Visible to all"
                                 options="{'no_create': True}"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                groups="base.group_multi_company" />
                             <field
                                 name="currency_id"
                                 options="{'no_create': True}"
@@ -106,7 +106,7 @@
                 <templates>
                     <t t-name="card">
                         <div t-attf-class="#{!selection_mode ? 'text-center' : ''}">
-                            <field class="fw-bold fs-5" name="display_name" />
+                            <field name="display_name" class="fw-bold fs-5" />
                         </div>
                         <hr class="mt-2 mb-2" />
                         <div t-attf-class="#{!selection_mode ? 'text-center' : ''}">
@@ -125,18 +125,18 @@
             <search string="Analytic Account">
                 <field
                     name="name"
-                    filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"
-                    string="Analytic Account" />
+                    string="Analytic Account"
+                    filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]" />
                 <field name="partner_id" />
                 <separator />
                 <filter
+                    name="inactive"
                     string="Archived"
-                    domain="[('active', '=', False)]"
-                    name="inactive" />
+                    domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Associated Partner"
                         name="associatedpartner"
+                        string="Associated Partner"
                         context="{'group_by': 'partner_id'}" />
                 </group>
             </search>

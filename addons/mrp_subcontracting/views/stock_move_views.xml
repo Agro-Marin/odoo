@@ -18,19 +18,19 @@
                 <field name="id" column_invisible="True" />
                 <field
                     name="product_id"
-                    required="1"
-                    domain="[('id', 'in', context.get('bom_product_ids'))] if context.get('is_subcontracting_portal') else []" />
+                    domain="[('id', 'in', context.get('bom_product_ids'))] if context.get('is_subcontracting_portal') else []"
+                    required="1" />
                 <field
                     name="lot_id"
+                    context="{'default_product_id': product_id}"
                     groups="stock.group_production_lot"
                     invisible="tracking not in ('serial', 'lot')"
-                    required="tracking in ('serial', 'lot')"
-                    context="{'default_product_id': product_id}" />
+                    required="tracking in ('serial', 'lot')" />
                 <field name="quantity" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    widget="many2one_uom"
+                    groups="uom.group_uom" />
             </list>
         </field>
     </record>
@@ -105,14 +105,14 @@
                         <field name="order_finished_lot_ids" />
                         <field
                             name="product_uom_id"
-                            groups="uom.group_uom"
-                            widget="many2one_uom" />
+                            widget="many2one_uom"
+                            groups="uom.group_uom" />
                         <field name="quantity" string="Total Consumed" readonly="1" />
                     </group>
                     <field
                         name="move_line_ids"
-                        readonly="state in ['done', 'cancel']"
-                        context="{'default_product_uom_id': product_uom_id, 'default_picking_id': picking_id, 'default_move_id': id, 'default_product_id': product_id, 'default_location_id': location_id, 'default_location_dest_id': location_dest_id, 'default_company_id': company_id}">
+                        context="{'default_product_uom_id': product_uom_id, 'default_picking_id': picking_id, 'default_move_id': id, 'default_product_id': product_id, 'default_location_id': location_id, 'default_location_dest_id': location_dest_id, 'default_company_id': company_id}"
+                        readonly="state in ['done', 'cancel']">
                         <list
                             editable="bottom"
                             decoration-muted="state in ('done', 'cancel')">
@@ -124,14 +124,14 @@
                             <field name="move_id" column_invisible="True" />
                             <field name="location_id" column_invisible="True" />
                             <field name="location_dest_id" column_invisible="True" />
-                            <field name="product_id" readonly="1" force_save="1" />
+                            <field name="product_id" force_save="1" readonly="1" />
                             <field name="quantity" />
                             <field
                                 name="lot_id"
-                                column_invisible="parent.has_tracking not in ('serial', 'lot')"
-                                required="tracking in ('serial', 'lot')"
                                 context="{'default_product_id': product_id}"
-                                groups="stock.group_production_lot" />
+                                groups="stock.group_production_lot"
+                                column_invisible="parent.has_tracking not in ('serial', 'lot')"
+                                required="tracking in ('serial', 'lot')" />
                         </list>
                     </field>
                 </sheet>
@@ -164,11 +164,11 @@
         <field name="priority">1000</field>
         <field name="arch" type="xml">
             <list
-                delete="0"
                 create="0"
+                delete="0"
                 decoration-muted="state in ['done', 'cancel']"
-                decoration-warning="quantity - product_uom_qty &gt; 0.0001"
                 decoration-success="state not in ['done', 'cancel'] and quantity - product_uom_qty &lt; 0.0001"
+                decoration-warning="quantity - product_uom_qty &gt; 0.0001"
                 js_class="subcontracting_portal_move_list_view">
                 <field name="company_id" column_invisible="True" />
                 <field name="sequence" column_invisible="True" />
@@ -185,15 +185,15 @@
                     column_invisible="True"
                     readonly="state == 'done'" />
                 <field name="location_dest_id" column_invisible="True" />
-                <field name="state" column_invisible="True" force_save="1" />
+                <field name="state" force_save="1" column_invisible="True" />
                 <field name="raw_material_production_id" column_invisible="True" />
-                <field name="product_id" required="1" readonly="state == 'done'" />
+                <field name="product_id" readonly="state == 'done'" required="1" />
                 <field name="order_finished_lot_ids" />
                 <field name="quantity" string="Consumed" readonly="1" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    widget="many2one_uom"
+                    groups="uom.group_uom" />
             </list>
         </field>
     </record>

@@ -17,8 +17,8 @@
                             name="report_layout_id"
                             string="Layout"
                             widget="selection_badge"
-                            required="1"
-                            options="{'horizontal': true, 'size': 'sm'}" />
+                            options="{'horizontal': true, 'size': 'sm'}"
+                            required="1" />
                         <field
                             name="report_theme_id"
                             string="Theme"
@@ -57,7 +57,7 @@
                                 role="button"
                                 title="Reset to logo colors"
                                 invisible="not custom_colors">
-                                <i class="fa-solid fa-arrow-rotate-right" /> Reset <field name="custom_colors" class="position-absolute top-0 start-0 w-100 h-100 opacity-0" nolabel="1" />
+                                <i class="fa-solid fa-arrow-rotate-right" /> Reset <field name="custom_colors" nolabel="1" class="position-absolute top-0 start-0 w-100 h-100 opacity-0" />
                             </a>
                         </div>
 
@@ -72,8 +72,8 @@
                             options="{'resizable': false}" />
                         <field
                             name="report_footer"
-                            placeholder="Write your phone, email, bank account, tax ID, ..."
                             string="Footer"
+                            placeholder="Write your phone, email, bank account, tax ID, ..."
                             options="{'resizable': false}" />
                         <field name="paperformat_id" widget="selection" required="1" />
                     </group>
@@ -86,12 +86,12 @@
                 </group>
                 <footer>
                     <button
+                        name="action_save_layout"
+                        type="object"
                         string="Continue"
                         class="btn-primary"
-                        type="object"
-                        name="action_save_layout"
                         data-hotkey="q" />
-                    <button special="cancel" data-hotkey="x" string="Discard" />
+                    <button special="cancel" string="Discard" data-hotkey="x" />
                 </footer>
             </form>
         </field>

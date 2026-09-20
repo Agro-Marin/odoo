@@ -22,36 +22,48 @@ class UomUom(models.Model):
     # `parent_path` groups a family in one indexed column, with no join.
     _order = "sequence, parent_path, id"
 
-    name = fields.Char("Unit Name", required=True, translate=True)
+    name = fields.Char(
+        string="Unit Name",
+        translate=True,
+        required=True,
+    )
     sequence = fields.Integer(
-        compute="_compute_sequence", store=True, readonly=False, precompute=True
+        compute="_compute_sequence",
+        precompute=True,
+        store=True,
+        readonly=False,
     )
     relative_factor = fields.Float(
-        "Contains",
-        default=1.0,
+        string="Contains",
         digits=0,  # falsy digits force NUMERIC with unlimited precision
+        default=1.0,
         required=True,
         help="How much bigger or smaller this unit is compared to the reference UoM for this unit",
     )
-    rounding = fields.Float("Rounding Precision", compute="_compute_rounding")
+    rounding = fields.Float(
+        string="Rounding Precision",
+        compute="_compute_rounding",
+    )
     active = fields.Boolean(
-        "Active",
         default=True,
         help="Uncheck the active field to disable a unit of measure without deleting it.",
     )
     relative_uom_id = fields.Many2one(
-        "uom.uom", "Reference Unit", ondelete="cascade", index="btree_not_null"
+        comodel_name="uom.uom",
+        string="Reference Unit",
+        index="btree_not_null",
+        ondelete="cascade",
     )
     factor = fields.Float(
-        "Absolute Quantity",
+        string="Absolute Quantity",
         digits=0,
         compute="_compute_factor",
         recursive=True,
         store=True,
     )
     reference_uom_id = fields.Many2one(
-        "uom.uom",
-        "Dimension",
+        comodel_name="uom.uom",
+        string="Dimension",
         compute="_compute_reference_uom_id",
         recursive=True,
         store=True,
@@ -301,7 +313,7 @@ class UomUom(models.Model):
                     f"{uom.name}\t--{factor or '0'} {uom.relative_uom_id.name}--"
                 )
 
-    def _compute_quantity(
+    def _get_quantity_in_unit(
         self,
         qty: float,
         to_unit: Self,
@@ -319,8 +331,8 @@ class UomUom(models.Model):
             - otherwise, return the initial quantity unconverted
 
         Call-sites that must degrade instead of raising use the named
-        wrappers below (`_compute_quantity_report` / `_compute_quantity_estimate`
-        / `_compute_quantity_reconcile`) — see the comment block above them
+        wrappers below (`_get_quantity_report` / `_get_quantity_estimate`
+        / `_get_quantity_reconcile`) — see the comment block above them
         for the decision rule.
         """
         if not self or not qty:
@@ -359,14 +371,14 @@ class UomUom(models.Model):
         return amount
 
     # --- Degrade-on-failure wrappers ------------------------------------
-    # `_compute_quantity` raises when the units share no common reference.
+    # `_get_quantity_in_unit` raises when the units share no common reference.
     # Call-sites that must degrade instead (return the quantity unconverted,
     # visibly wrong but non-blocking) use one of the named wrappers below so
     # the intent stays greppable per bucket. Pick by what the value feeds:
-    # - _compute_quantity_report: a screen, PDF or aggregate display.
-    # - _compute_quantity_estimate: a forecast/planning/pricing estimate
+    # - _get_quantity_report: a screen, PDF or aggregate display.
+    # - _get_quantity_estimate: a forecast/planning/pricing estimate
     #   that guides but does not size a record.
-    # - _compute_quantity_reconcile: a stored reconciliation compute
+    # - _get_quantity_reconcile: a stored reconciliation compute
     #   (qty_transferred/qty_invoiced family) matching moves or invoice
     #   lines back to order lines. These are stored, so the ORM replays them
     #   over every row when a column is created or a dependency changes:
@@ -380,20 +392,22 @@ class UomUom(models.Model):
     # valuation/COGS) stays on the strict base method. The opt-out is forced:
     # a caller-passed `raise_if_failure` is discarded.
 
-    def _compute_quantity_lenient(self, qty: float, to_unit: Self, **kwargs) -> float:
+    def _get_quantity_lenient(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Shared body of the degrade wrappers; call those, not this."""
         kwargs.pop("raise_if_failure", None)
-        return self._compute_quantity(qty, to_unit, raise_if_failure=False, **kwargs)
+        return self._get_quantity_in_unit(
+            qty, to_unit, raise_if_failure=False, **kwargs
+        )
 
-    def _compute_quantity_report(self, qty: float, to_unit: Self, **kwargs) -> float:
+    def _get_quantity_report(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Convert for a display/report value; degrades on incompatible units."""
-        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
+        return self._get_quantity_lenient(qty, to_unit, **kwargs)
 
-    def _compute_quantity_estimate(self, qty: float, to_unit: Self, **kwargs) -> float:
+    def _get_quantity_estimate(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Convert for a planning/pricing estimate; degrades on incompatible units."""
-        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
+        return self._get_quantity_lenient(qty, to_unit, **kwargs)
 
-    def _compute_quantity_reconcile(self, qty: float, to_unit: Self, **kwargs) -> float:
+    def _get_quantity_reconcile(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Convert for a stored reconciliation compute; degrades on incompatible units.
 
         Escalates to strict (raises) when the environment flags a posting
@@ -407,8 +421,10 @@ class UomUom(models.Model):
         """
         if self.env.context.get("uom_reconcile_strict"):
             kwargs.pop("raise_if_failure", None)
-            return self._compute_quantity(qty, to_unit, raise_if_failure=True, **kwargs)
-        return self._compute_quantity_lenient(qty, to_unit, **kwargs)
+            return self._get_quantity_in_unit(
+                qty, to_unit, raise_if_failure=True, **kwargs
+            )
+        return self._get_quantity_lenient(qty, to_unit, **kwargs)
 
     def _conversion_rounding(self, to_unit: Self) -> float:
         """The rounding step that preserves this unit's resolution in `to_unit`."""
@@ -423,14 +439,16 @@ class UomUom(models.Model):
             return to_unit.rounding if to_unit else self.rounding
         return to_unit.rounding * min(1.0, self.factor / to_unit.factor)
 
-    def _compute_quantity_stored(
+    def _get_quantity_stored(
         self, qty: float, to_unit: Self, rounding_method: RoundingMethod = "HALF-UP"
     ) -> float:
         """Convert for a value stored or consumed as the authoritative quantity."""
         if not self or not qty or not to_unit or self == to_unit:
-            return self._compute_quantity(qty, to_unit, rounding_method=rounding_method)
+            return self._get_quantity_in_unit(
+                qty, to_unit, rounding_method=rounding_method
+            )
         self.check_singleton()
-        amount = self._compute_quantity(qty, to_unit, round=False)
+        amount = self._get_quantity_in_unit(qty, to_unit, round=False)
         return float_round(
             amount,
             precision_rounding=self._conversion_rounding(to_unit),
@@ -486,7 +504,7 @@ class UomUom(models.Model):
             return product_qty
         # One package expressed in `uom`, unrounded: rounding it first would
         # distort the multiples (e.g. a Unit is 1/12 Dozen, not 0.08).
-        packaging_qty = self._compute_quantity(1, uom, round=False)
+        packaging_qty = self._get_quantity_in_unit(1, uom, round=False)
         # We do not use the modulo operator to check if qty is a multiple of q. Indeed the quantity
         # per package might be a float, leading to incorrect results. For example:
         # 8 % 1.6 = 1.5999999999999996
@@ -507,22 +525,22 @@ class UomUom(models.Model):
             )
         return product_qty
 
-    def _compute_price(
+    def _get_price_in_unit(
         self, price: float, to_unit: Self, raise_if_failure: bool = True
     ) -> float:
         """Convert a price per unit of `self` into a price per unit of `to_unit`.
 
-        Strict by default, exactly like `_compute_quantity`: scaling by the
+        Strict by default, exactly like `_get_quantity_in_unit`: scaling by the
         ratio of two factors is only meaningful when both units measure the
         same thing. Without the check a price of 100 per kg asked for "in
         Units" came back as 0.1 -- a plausible-looking number that is off by
         the raw factor ratio, with nothing to distinguish it from a real one.
 
         Call-sites that must degrade instead of raising use the named wrappers
-        below (`_compute_price_report` / `_compute_price_estimate`) -- see the
+        below (`_get_price_report` / `_get_price_estimate`) -- see the
         comment block above them for the decision rule.
 
-        Degenerate recordsets are handled exactly as in `_compute_quantity`: an
+        Degenerate recordsets are handled exactly as in `_get_quantity_in_unit`: an
         unset unit on either side returns the price untouched instead of
         raising. The two were asymmetric -- `_compute_price` `check_singleton()`d
         first, so a price read off a record whose unit is not resolved yet blew
@@ -549,8 +567,8 @@ class UomUom(models.Model):
     # Same rule as the quantity family above: anything that prices a real
     # record (an order line, a valuation, a bill) stays on the strict base
     # method. Pick a wrapper only when the value feeds:
-    # - _compute_price_report: a screen, PDF or aggregate display.
-    # - _compute_price_estimate: a forecast/planning estimate that guides but
+    # - _get_price_report: a screen, PDF or aggregate display.
+    # - _get_price_estimate: a forecast/planning estimate that guides but
     #   does not size a record.
     # The vendor unit on `product.supplierinfo` is deliberately allowed to be
     # cross-category, so the seller-price call-sites are the ones that
@@ -564,18 +582,18 @@ class UomUom(models.Model):
     # the vendor bill with a UserError.
     # The opt-out is forced: a caller-passed `raise_if_failure` is discarded.
 
-    def _compute_price_lenient(self, price: float, to_unit: Self, **kwargs) -> float:
+    def _get_price_lenient(self, price: float, to_unit: Self, **kwargs) -> float:
         """Shared body of the degrade wrappers; call those, not this."""
         kwargs.pop("raise_if_failure", None)
-        return self._compute_price(price, to_unit, raise_if_failure=False, **kwargs)
+        return self._get_price_in_unit(price, to_unit, raise_if_failure=False, **kwargs)
 
-    def _compute_price_report(self, price: float, to_unit: Self, **kwargs) -> float:
+    def _get_price_report(self, price: float, to_unit: Self, **kwargs) -> float:
         """Convert a price for a display/report value; degrades on incompatible units."""
-        return self._compute_price_lenient(price, to_unit, **kwargs)
+        return self._get_price_lenient(price, to_unit, **kwargs)
 
-    def _compute_price_estimate(self, price: float, to_unit: Self, **kwargs) -> float:
+    def _get_price_estimate(self, price: float, to_unit: Self, **kwargs) -> float:
         """Convert a price for a planning estimate; degrades on incompatible units."""
-        return self._compute_price_lenient(price, to_unit, **kwargs)
+        return self._get_price_lenient(price, to_unit, **kwargs)
 
     def _unprotected_uom_xml_ids(self):
         """Return a list of UoM XML IDs that are not protected by default.

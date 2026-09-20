@@ -4,7 +4,6 @@ import * as wsTourUtils from "@website_sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add("shop_sale_ewallet", {
     url: "/shop",
     steps: () => [
-        // Add a $50 gift card to the order
         ...wsTourUtils.addToCart({
             productName: "TEST - Gift Card",
             expectUnloadPage: true,

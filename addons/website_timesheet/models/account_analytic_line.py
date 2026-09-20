@@ -1,4 +1,7 @@
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountAnalyticLine(models.Model):
@@ -6,10 +9,8 @@ class AccountAnalyticLine(models.Model):
 
     @api.model
     def _show_portal_timesheets(self):
-        """
-        Determine if we show timesheet information in the portal.
-        """
         domain = [("key", "=", "hr_timesheet.portal_my_home_timesheet")]
+        _debug.logic("portal_timesheets_visibility_checked")
         return (
             self.env["ir.ui.view"]
             .sudo()

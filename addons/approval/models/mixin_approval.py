@@ -6,8 +6,10 @@ from markupsafe import Markup, escape
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
 from odoo.tools import SQL
+
+from . import approval_trace as trace
 
 if TYPE_CHECKING:
     from odoo.addons.approval.models.approval_category import ApprovalCategory
@@ -20,16 +22,15 @@ class MixinApproval(models.AbstractModel):
 
     approval_request_id = fields.Many2one(
         comodel_name="approval.request",
+        index=True,
         copy=False,
         readonly=True,
-        index=True,
         tracking=True,
         help="Link to the approval request for this document. Automatically created when approval is requested.",
     )
     approval_state = fields.Selection(
         related="approval_request_id.state",
         string="Approval Status",
-        store=True,
         help="""Current approval status:
         • new: Approval created but not submitted
         • pending: Waiting for approvers
@@ -40,9 +41,8 @@ class MixinApproval(models.AbstractModel):
     date_approval_granted = fields.Datetime(
         related="approval_request_id.date_approval_granted",
         string="Approval Granted Date",
-        store=True,
-        readonly=True,
         copy=False,
+        readonly=True,
         tracking=True,
         help="Date and time when final approval was granted",
     )
@@ -58,9 +58,8 @@ class MixinApproval(models.AbstractModel):
     date_approval_requested = fields.Datetime(
         related="approval_request_id.date_confirmed",
         string="Approval Requested Date",
-        store=True,
-        readonly=True,
         copy=False,
+        readonly=True,
         tracking=True,
         help="Date and time when approval was requested for this document",
     )
@@ -82,14 +81,27 @@ class MixinApproval(models.AbstractModel):
     @api.depends_context("uid", "company")
     def _compute_approval_required(self) -> None:
         cache: dict[tuple, bool] = {}
+        hits = 0
+        required = 0
         for record in self:
             company_id = False
             if "company_id" in record._fields:
                 company_id = record.company_id.id if record.company_id else False
             key = (repr(record._get_domain_approval_category()), company_id)
-            if key not in cache:
+            if key in cache:
+                hits += 1
+            else:
                 cache[key] = bool(record._find_approval_category())
             record.approval_required = cache[key]
+            required += bool(cache[key])
+        trace.MIXIN.event(
+            "approval_required",
+            record=self,
+            n=len(self),
+            searches=len(cache),
+            hits=hits,
+            required=required,
+        )
 
     @api.depends("approval_request_id", "approval_required")
     def _compute_can_request_approval(self) -> None:
@@ -102,10 +114,21 @@ class MixinApproval(models.AbstractModel):
                 f for f in record._get_fields_approval_required() if not record[f]
             ]
             record.can_request_approval = not missing_fields
+            if missing_fields:
+                trace.MIXIN.event(
+                    "cannot_request_approval",
+                    record=record,
+                    missing=missing_fields,
+                )
 
     def _check_can_request_approval(self) -> None:
         self.check_singleton()
         if self.approval_request_id:
+            trace.REFUSAL.event(
+                "request_already_exists",
+                record=self,
+                request=self.approval_request_id.id,
+            )
             raise UserError(
                 self.env._("An approval request already exists for this document."),
             )
@@ -117,6 +140,9 @@ class MixinApproval(models.AbstractModel):
             field_names = ", ".join(
                 [self._fields[f].string for f in missing_fields if f in self._fields],
             )
+            trace.REFUSAL.event(
+                "required_fields_empty", record=self, fields=missing_fields
+            )
             raise UserError(
                 self.env._(
                     "Please fill in the following required fields before requesting approval: %s",
@@ -125,6 +151,7 @@ class MixinApproval(models.AbstractModel):
             )
 
         if not self._get_approval_category():
+            trace.REFUSAL.event("no_category_for_document", record=self)
             raise UserError(
                 self.env._(
                     "No approval category found for this document type. "
@@ -134,6 +161,11 @@ class MixinApproval(models.AbstractModel):
             )
 
         if not self.can_request_approval:
+            trace.REFUSAL.event(
+                "cannot_request_approval",
+                record=self,
+                required=self._get_fields_approval_required(),
+            )
             raise UserError(
                 self.env._(
                     "Approval cannot be requested for this document right now.",
@@ -165,6 +197,7 @@ class MixinApproval(models.AbstractModel):
 
         category = self._get_approval_category()
         if not category:
+            trace.REFUSAL.event("no_category_at_submit", record=self)
             raise UserError(
                 self.env._(
                     "No approval category found for this document type. "
@@ -175,6 +208,12 @@ class MixinApproval(models.AbstractModel):
 
         vals = self._prepare_approval_request_values(category)
         approval = self.env["approval.request"].create(vals)
+        trace.MIXIN.note(
+            "request_raised",
+            record=self,
+            category=category.id,
+            request=approval.id,
+        )
         self.write({"approval_request_id": approval.id})
 
         self._before_approval_request_submit(approval)
@@ -276,23 +315,151 @@ class MixinApproval(models.AbstractModel):
                 )
 
         if count >= max_count:
+            trace.MIXIN.note(
+                "rate_limit_count",
+                record=self,
+                user=policed_user.id,
+                hours=hours,
+                count=count,
+                max_count=max_count,
+            )
             return True
 
         own_amount = self.currency_id._convert(
             self.amount_total, company_currency, company, rate_date
         )
-        return cumulative + own_amount >= max_amount
+        exceeded = cumulative + own_amount >= max_amount
+        trace.MIXIN.event(
+            "rate_limit_amount",
+            record=self,
+            user=policed_user.id,
+            hours=hours,
+            count=count,
+            cumulative=cumulative,
+            own=own_amount,
+            max_amount=max_amount,
+            exceeded=exceeded,
+        )
+        return exceeded
 
     def _get_fields_approval_protected(self) -> list[str]:
         return []
 
+    _APPROVAL_OUTPUT_FIELDS = frozenset(
+        {"approval_state", "date_approval_granted", "date_approval_requested"}
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list: list[dict[str, Any]]):
+        for vals in vals_list:
+            self._check_no_forged_approval_outputs(vals)
+        records = super().create(vals_list)
+        for record, vals in zip(records, vals_list, strict=True):
+            if vals.get("approval_request_id"):
+                record._check_approval_request_link(vals["approval_request_id"])
+        return records
+
+    def _check_no_forged_approval_outputs(self, vals: dict[str, Any]) -> None:
+        """What a document says about its approval is read from its request.
+
+        These columns are stored copies of the request, kept for search and
+        domains. Writing one does not reach the request: it makes the document
+        claim a decision nobody took, and every gate that reads the document
+        believes it. Nothing legitimate writes them -- the ORM updates a stored
+        related field without calling `write` -- so the refusal holds for the
+        superuser too.
+        """
+        forged = self._APPROVAL_OUTPUT_FIELDS & vals.keys()
+        if forged:
+            trace.REFUSAL.event(
+                "approval_output_written", records=self, fields=sorted(forged)
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(fields)s cannot be written: a document's approval status "
+                    "is its approval request's, and changes only through a "
+                    "decision on that request.",
+                    fields=", ".join(sorted(forged)),
+                )
+            )
+
+    def _check_approval_request_link(self, request_id: int | Any) -> None:
+        """A document may point only at an approval request it answers to.
+
+        Three relations are real. The request is about this record: the
+        engine's own link. The request produced this record: its category's
+        `target_model` is this model, and the link is written inside the
+        request's `_link_produced_documents` (or `_producing_documents`) window,
+        which only server code opens. A bill or an order created from an
+        approved request is covered by it; one a user points at that request is
+        not. Or the request has no subject and nobody has decided it yet: it is
+        bound to the record here, so it cannot be adopted twice. Anything else
+        would lend the record a decision taken about something else.
+        """
+        request = (
+            self.env["approval.request"]
+            .sudo()
+            .browse(request_id.id if hasattr(request_id, "id") else request_id)
+        )
+        for record in self:
+            if request.res_model == record._name and request.res_id == record.id:
+                continue
+            if (
+                request.target_model
+                and request.target_model == record._name
+                and request._is_producing_documents()
+            ):
+                continue
+            if not request.res_model and not request.res_id and request.state == "new":
+                request.write({"res_model": record._name, "res_id": record.id})
+                continue
+            trace.REFUSAL.event(
+                "approval_request_link_foreign",
+                record=record,
+                request=request.id,
+                request_subject=f"{request.res_model},{request.res_id}",
+                request_state=request.state,
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(document)s cannot be linked to approval request "
+                    "%(request)s: that request is about another record, or was "
+                    "already decided without one.",
+                    document=record.display_name,
+                    request=request.display_name,
+                )
+            )
+
     def write(self, vals: dict[str, Any]) -> bool:
+        self._check_no_forged_approval_outputs(vals)
+        if vals.get("approval_request_id"):
+            if len(self) > 1:
+                trace.REFUSAL.event(
+                    "approval_request_link_many", records=self, count=len(self)
+                )
+                raise ValidationError(
+                    self.env._(
+                        "One approval request is about one record; it cannot be "
+                        "linked to %(count)s at once.",
+                        count=len(self),
+                    )
+                )
+            request_id = vals["approval_request_id"]
+            request_id = request_id.id if hasattr(request_id, "id") else request_id
+            self.filtered(
+                lambda record: record.approval_request_id.id != request_id
+            )._check_approval_request_link(request_id)
         if not self.env.su:
             protected = set(self._get_fields_approval_protected())
             touched = protected & vals.keys()
             if touched:
                 blocked = self.filtered(lambda r: r.approval_state == "pending")
                 if blocked:
+                    trace.REFUSAL.event(
+                        "protected_while_pending",
+                        records=blocked,
+                        fields=sorted(touched),
+                    )
                     raise UserError(
                         self.env._(
                             "Cannot modify %(fields)s while approval is "
@@ -303,12 +470,112 @@ class MixinApproval(models.AbstractModel):
                             name=blocked[:1].display_name,
                         ),
                     )
-        return super().write(vals)
+        invalidated = self._get_records_approval_invalidated_by(vals)
+        for record, _fields_changed in invalidated:
+            # Refuse the edit rather than leave an approval standing that no
+            # longer describes the document, where the request cannot be reset.
+            record.approval_request_id.sudo()._check_reset_allowed()
+        result = super().write(vals)
+        for record, fields_changed in invalidated:
+            record._reset_approval_for_subject_change(fields_changed)
+        return result
+
+    def _is_approval_invalidated_by_changes(self, fields_changed: list[str]) -> bool:
+        """Whether changing these protected fields after approval takes the
+        approval away. A document that re-checks some of them against what was
+        approved at its own gate -- an amount compared at posting -- may keep
+        the approval for those, and only those."""
+        return True
+
+    def _get_records_approval_invalidated_by(self, vals: dict[str, Any]):
+        """The approved records this write would change in what was approved.
+
+        Compared value by value, not by key: a form saves the fields it shows,
+        and an unchanged partner written back must not take an approval away.
+        """
+        protected = set(self._get_fields_approval_protected()) & vals.keys()
+        if not protected or self.env.context.get("approval_keep_on_subject_change"):
+            return []
+        invalidated = []
+        for record in self:
+            if record.approval_state != "approved":
+                continue
+            changed = sorted(
+                name
+                for name in protected
+                if record._approval_value_changes(name, vals[name])
+            )
+            if changed and record._is_approval_invalidated_by_changes(changed):
+                invalidated.append((record, changed))
+        trace.MIXIN.event(
+            "subject_change_check",
+            records=self,
+            fields=sorted(protected),
+            invalidated=[record.id for record, _changed in invalidated],
+        )
+        return invalidated
+
+    def _approval_value_changes(self, name: str, value: Any) -> bool:
+        self.check_singleton()
+        field = self._fields[name]
+        current = self[name]
+        if field.type in ("one2many", "many2many"):
+            ids = set(current.ids)
+            for command in value or ():
+                if not isinstance(command, (list, tuple)):
+                    return True
+                code = command[0]
+                if code in (Command.CREATE, Command.UPDATE):
+                    return True
+                if code in (Command.DELETE, Command.UNLINK) and command[1] in ids:
+                    return True
+                if code == Command.LINK and command[1] not in ids:
+                    return True
+                if code == Command.CLEAR and ids:
+                    return True
+                if code == Command.SET and set(command[2]) != ids:
+                    return True
+            return False
+        if field.type == "many2one":
+            new_id = (
+                value.id if isinstance(value, models.BaseModel) else (value or False)
+            )
+            return new_id != current.id
+        return (
+            field.convert_to_record(field.convert_to_cache(value, self), self)
+            != current
+        )
+
+    def _reset_approval_for_subject_change(self, fields_changed: list[str]) -> None:
+        """What was approved is not what the document says any more: the approval
+        goes back to draft, recorded as a reset with the fields that moved, and
+        the document hears it as it would from a manager's reset."""
+        self.check_singleton()
+        labels = ", ".join(self._fields[name].string for name in fields_changed)
+        trace.MIXIN.note(
+            "approval_reset_by_subject_change",
+            record=self,
+            request=self.approval_request_id.id,
+            fields=fields_changed,
+        )
+        self.approval_request_id.sudo()._force_draft(
+            note=self.env._(
+                "The approved document changed (%(fields)s) by %(user)s, so the "
+                "approval no longer covers it.",
+                fields=labels,
+                user=self.env.user.name,
+            )
+        )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_pending_approval(self) -> None:
         for record in self:
             if record.approval_state == "pending":
+                trace.REFUSAL.event(
+                    "unlink_with_pending_approval",
+                    record=record,
+                    request=record.approval_request_id.id,
+                )
                 raise UserError(
                     self.env._(
                         "Cannot delete %(name)s: it has a pending approval "
@@ -340,6 +607,12 @@ class MixinApproval(models.AbstractModel):
                 "cancelled",
             ):
                 approval_name = record.approval_request_id.name
+                trace.MIXIN.note(
+                    "link_cleared",
+                    record=record,
+                    request=record.approval_request_id.id,
+                    state=record.approval_state,
+                )
                 record.approval_request_id = False
                 record.message_post(
                     body=record.env._(
@@ -372,32 +645,65 @@ class MixinApproval(models.AbstractModel):
         categories = self._get_candidate_approval_categories()
         for category in categories:
             if category._is_applicable_for(self):
+                trace.MIXIN.event(
+                    "category_matched",
+                    record=self,
+                    category=category.id,
+                    candidates=categories.ids,
+                )
                 return category
+        trace.MIXIN.event(
+            "category_unmatched",
+            record=self,
+            candidates=categories.ids,
+        )
         return self._get_approval_category_fallback(categories)
 
     def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — see _get_candidate_approval_categories.
         self.check_singleton()
         if not self._get_domain_approval_category():
+            trace.MIXIN.event("approval_category", record=self, outcome="no_domain")
             return False
         categories = self._get_candidate_approval_categories()
         if not categories:
+            trace.MIXIN.event(
+                "approval_category", record=self, outcome="none_configured"
+            )
             self._raise_approval_category_not_configured()
             return False
         category = self._find_approval_category()
         if category:
+            trace.MIXIN.event(
+                "approval_category",
+                record=self,
+                outcome="matched",
+                category=category.id,
+                candidates=len(categories),
+            )
             return category
+        trace.MIXIN.event(
+            "approval_category",
+            record=self,
+            outcome="no_match",
+            candidates=categories.ids,
+        )
         self._raise_approval_category_not_matched(categories)
         return False
 
     def _get_approval_category_fallback(self, categories):
         self.check_singleton()
+        trace.DEGRADED.event(
+            "no_category_fallback", record=self, candidates=len(categories)
+        )
         return self.env["approval.category"].browse()
 
     def _raise_approval_category_not_configured(self) -> None:
-        pass
+        trace.DEGRADED.event("category_not_configured_unraised", record=self)
 
     def _raise_approval_category_not_matched(self, categories) -> None:
-        pass
+        trace.DEGRADED.event(
+            "category_not_matched_unraised", record=self, candidates=categories.ids
+        )
 
     def _get_approval_reason_html(self) -> str:
         self.check_singleton()
@@ -455,9 +761,22 @@ class MixinApproval(models.AbstractModel):
         if binding_for and tuple(binding_for[:2]) == (self._name, self.id):
             vals["binding_id"] = binding_for[2]
 
+        trace.MIXIN.event(
+            "request_values",
+            record=self,
+            category=category.id,
+            fields=sorted(vals),
+            binding=vals.get("binding_id"),
+        )
         return vals
 
     def _on_approval_state_changed(self, new_state: str) -> None:
+        trace.MIXIN.note(
+            "told_state",
+            record=self,
+            state=new_state,
+            request=self.approval_request_id.id,
+        )
         if new_state == "approved":
             self._on_approval_approved()
         elif new_state == "refused":
@@ -474,6 +793,13 @@ class MixinApproval(models.AbstractModel):
         deciders = self.approval_request_id.approver_ids.filtered(
             lambda approver: approver.state == state and approver.decision_date,
         )
+        trace.MIXIN.event(
+            "decider_names",
+            record=self,
+            state=state,
+            rows=self.approval_request_id.approver_ids.ids,
+            deciders=deciders.ids,
+        )
         return ", ".join(
             (approver.decided_by_user_id or approver.user_id).name
             for approver in deciders
@@ -486,6 +812,11 @@ class MixinApproval(models.AbstractModel):
             with self.env.cr.savepoint():
                 yield
         except (UserError, ValidationError) as error:
+            trace.MIXIN.note(
+                "side_effect_failed",
+                record=self,
+                error=type(error).__name__,
+            )
             self.message_post(
                 body=failure_note % {"error": str(error)},
                 message_type="notification",
@@ -530,6 +861,12 @@ class MixinApproval(models.AbstractModel):
         )
         if "activity_ids" in self._fields:
             responsible = getattr(self, "user_id", None) or self.create_uid
+            trace.MIXIN.note(
+                "withdrawal_todo",
+                record=self,
+                responsible=responsible.id,
+                request=self.approval_request_id.id,
+            )
             self.activity_schedule(
                 "mail.mail_activity_data_todo",
                 user_id=responsible.id,
@@ -543,6 +880,11 @@ class MixinApproval(models.AbstractModel):
 
     def _on_approval_reset(self) -> None:
         self.check_singleton()
+        trace.MIXIN.event(
+            "reset_notice",
+            record=self,
+            reset_from=self.env.context.get("approval_reset_from"),
+        )
         if self.env.context.get("approval_reset_from") == "approved":
             body = self.env._(
                 "The approval linked to this document was reset to draft — "

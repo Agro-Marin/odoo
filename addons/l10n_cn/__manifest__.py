@@ -27,6 +27,7 @@ print the amount in words (special Chinese characters for numbers)
 correctly when the cn2an library is installed. (e.g. with pip3 install cn2an)
     """,
     "author": "openerp-china",
+    "maintainer": "jeff@osbzr.com",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
@@ -49,5 +50,4 @@ correctly when the cn2an library is installed. (e.g. with pip3 install cn2an)
     "auto_install": [
         "account",
     ],
-    "maintainer": "jeff@osbzr.com",
 }

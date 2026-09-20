@@ -68,8 +68,8 @@
             </p>
             <page name="pricing" position="before">
                 <page
-                    string="Stores"
                     name="warehouses"
+                    string="Stores"
                     invisible="delivery_type != 'in_store'">
                     <field name="warehouse_ids">
                         <list create="False">

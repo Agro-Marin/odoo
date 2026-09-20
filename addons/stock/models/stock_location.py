@@ -18,6 +18,7 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -58,15 +59,17 @@ class StockLocation(models.Model):
     _rec_names_search = ["complete_name", "barcode"]
     _check_company_auto = True
 
-    name = fields.Char(string="Location Name", required=True)
+    name = fields.Char(
+        string="Location Name",
+        required=True,
+    )
     complete_name = fields.Char(
         string="Full Location Name",
         compute="_compute_complete_name",
-        store=True,
         recursive=True,
+        store=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="By unchecking the active field, you may hide a location without deleting it.",
     )
@@ -81,9 +84,9 @@ class StockLocation(models.Model):
             ("transit", "Transit"),
         ],
         string="Location Type",
-        required=True,
         default="internal",
         index=True,
+        required=True,
         help="* Vendor: Virtual location representing the source location for products coming from your vendors"
         "\n* Virtual: Virtual location used to create a hierarchical structure for your warehouse by aggregating its child locations. Can't directly contain products"
         "\n* Internal: Physical locations inside your warehouses,"
@@ -95,8 +98,8 @@ class StockLocation(models.Model):
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Parent Location",
-        check_company=True,
         index=True,
+        check_company=True,
         help="The parent location that includes this location. Example : The 'Dispatch Zone' is the 'Gate 1' parent location.",
     )
     child_ids = fields.One2many(
@@ -113,7 +116,6 @@ class StockLocation(models.Model):
     parent_path = fields.Char(index=True)
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         default=lambda self: self.env.company,
         index=True,
         help="Let this field empty if this location is shared between companies",
@@ -122,13 +124,12 @@ class StockLocation(models.Model):
         string="Replenishments",
         compute="_compute_replenish_location",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
         help="Trigger replenishment suggestions for this location when required",
     )
     removal_strategy_id = fields.Many2one(
         comodel_name="product.removal",
-        string="Removal Strategy",
         help="Defines the default method used for suggesting the exact location (shelf) "
         "where to take the products from, which lot etc. for this location. "
         "This method can be enforced at the product category level, "
@@ -145,7 +146,7 @@ class StockLocation(models.Model):
         inverse_name="location_in_id",
         string="Putaway Rules",
     )
-    barcode = fields.Char(string="Barcode", copy=False)
+    barcode = fields.Char(copy=False)
     quant_ids = fields.One2many(
         comodel_name="stock.quant",
         inverse_name="location_id",
@@ -174,14 +175,13 @@ class StockLocation(models.Model):
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
         compute="_compute_warehouse_id",
-        store=True,
         recursive=True,
+        store=True,
     )
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
-        string="Storage Category",
-        check_company=True,
         index="btree_not_null",
+        check_company=True,
     )
     outgoing_move_line_ids = fields.One2many(
         comodel_name="stock.move.line",
@@ -191,23 +191,19 @@ class StockLocation(models.Model):
         comodel_name="stock.move.line",
         inverse_name="location_dest_id",
     )
-    net_weight = fields.Float(
-        string="Net Weight",
-        compute="_compute_weight",
-    )
+    net_weight = fields.Float(compute="_compute_weight")
     forecast_weight = fields.Float(
         string="Forecasted Weight",
         compute="_compute_weight",
     )
     is_empty = fields.Boolean(
-        string="Is Empty",
         compute="_compute_is_empty",
         search="_search_is_empty",
     )
     block_type = fields.Selection(
         selection=BLOCK_TYPE_SELECTION,
-        required=True,
         default="none",
+        required=True,
         tracking=True,
         help="Blocking Mode:\n\n"
         "\u2022 No Blocking: Normal warehouse operations\n\n"
@@ -231,11 +227,11 @@ class StockLocation(models.Model):
     )
     effective_block_type = fields.Selection(
         selection=BLOCK_TYPE_SELECTION,
-        compute="_compute_effective_block_type",
-        store=True,
-        recursive=True,
-        readonly=True,
         string="Effective Blocking",
+        compute="_compute_effective_block_type",
+        recursive=True,
+        store=True,
+        readonly=True,
         help="The blocking actually in force here: this location's own mode merged "
         "with every ancestor's. Stored so the reservation and visibility filters "
         "are a single indexed join instead of a subtree walk per query.",
@@ -247,21 +243,21 @@ class StockLocation(models.Model):
     )
     blocked_date = fields.Datetime(
         string="Blocked Since",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Date and time when blocking was applied",
     )
     blocked_by_user_id = fields.Many2one(
         comodel_name="res.users",
         string="Blocked By",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="User who applied the block",
     )
     reserved_qty_when_blocked = fields.Float(
         digits="Product Unit",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Reserved quantity in this location and its children at the time "
         "blocking was applied, summed across products.\n"
         "Comparable only where the location holds a single unit of measure; the "
@@ -366,7 +362,16 @@ class StockLocation(models.Model):
             return
         domain = Domain("location_id", "in", modified_locations.ids)
         if usage != "view":
-            domain &= Domain("quantity", ">", 0)
+            # A bare `> 0` would false-positive on dust left by a raw SQL
+            # writer bypassing the ORM's rounding (see the analogous epsilon
+            # window in `_unlink_zero_quants`).
+            precision_digits = max(
+                6, self.env.ref("uom.decimal_product_uom").sudo().digits * 2
+            )
+            epsilon = 5 * 10 ** -(precision_digits + 1)
+            domain &= Domain("quantity", ">", epsilon) | Domain(
+                "quantity", "<", -epsilon
+            )
         blocking = self.env["stock.quant"].search(domain, limit=1).location_id
         if not blocking:
             return
@@ -385,20 +390,31 @@ class StockLocation(models.Model):
             ),
         )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.location.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             self._check_cyclic_inventory_frequency(
                 vals.get("cyclic_inventory_frequency")
             )
         locations = super().create(vals_list)
+        dbg.lifecycle.debug("stock.location.create: created %s", dbg.rec(locations))
         locations._invalidate_location_tree()
         locations.filtered(
             lambda location: location.block_type != "none",
         )._update_block_metadata()
         return locations
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.location.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         self._check_block_governance_before_write(vals)
         transitioning = self._filtered_block_type_transitioning(vals)
 
@@ -413,8 +429,14 @@ class StockLocation(models.Model):
 
         res = super().write(vals)
         if not TREE_FIELDS.isdisjoint(vals):
+            dbg.logic.debug("write: tree fields touched, invalidating location tree")
             self._invalidate_location_tree()
         if transitioning:
+            dbg.lifecycle.debug(
+                "write: block_type -> %s on %s",
+                vals["block_type"],
+                dbg.rec(transitioning),
+            )
             if vals["block_type"] == "none":
                 transitioning._remove_block_metadata()
             else:
@@ -429,9 +451,13 @@ class StockLocation(models.Model):
                 vals["name"] = _("%s (copy)", location.name)
         return vals_list
 
+    @dbg.timed
     def unlink(self):
         subtree = self.with_context(active_test=False).search(
             [("id", "child_of", self.ids)],
+        )
+        dbg.lifecycle.debug(
+            "stock.location.unlink %s (subtree %s)", dbg.rec(self), dbg.rec(subtree)
         )
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             subtree._check_block_governance_before_unlink()
@@ -549,6 +575,7 @@ class StockLocation(models.Model):
     @api.depends(
         "warehouse_view_ids", "warehouse_view_ids.active", "location_id.warehouse_id"
     )
+    @dbg.timed
     def _compute_warehouse_id(self):
         chains = {
             location.id: list(location._get_ancestor_ids(include_self=True))
@@ -581,10 +608,16 @@ class StockLocation(models.Model):
                 False,
             )
 
+    @dbg.timed
     def _compute_child_internal_location_ids(self):
         internal_locations = self.search_fetch(
             [("id", "child_of", self.ids), ("usage", "=", "internal")],
             ["parent_path"],
+        )
+        dbg.performance.debug(
+            "_compute_child_internal_location_ids: %d roots, %d internal descendants",
+            len(self),
+            len(internal_locations),
         )
         descendant_ids = defaultdict(list)
         for location in internal_locations:
@@ -641,8 +674,14 @@ class StockLocation(models.Model):
         return bool(self.location_id) and self.usage != "view"
 
     def _is_outgoing(self):
+        return self._is_partner_end("customer")
+
+    def _is_incoming(self):
+        return self._is_partner_end("supplier")
+
+    def _is_partner_end(self, usage):
         self.check_singleton()
-        if self.usage == "customer":
+        if self.usage == usage:
             return True
         inter_company_location = (
             self.env.ref("stock.stock_location_inter_company", raise_if_not_found=False)
@@ -664,6 +703,12 @@ class StockLocation(models.Model):
             self.env["stock.location"]
             .with_context(active_test=False)
             .search([("id", "child_of", changing.ids)])
+        )
+        dbg.lifecycle.debug(
+            "_propagate_active(%s): %s cascade to %s",
+            active,
+            dbg.rec(changing),
+            dbg.rec(descendant_locations - changing),
         )
         if not active:
             changing._check_archivable(descendant_locations)

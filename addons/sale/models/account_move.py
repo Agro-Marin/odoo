@@ -1,7 +1,10 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import OrderedSet, groupby
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import OrderedSet
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
@@ -12,18 +15,7 @@ class AccountMove(models.Model):
     medium_id = fields.Many2one(ondelete="set null")
     source_id = fields.Many2one(ondelete="set null")
 
-    team_id = fields.Many2one(
-        comodel_name="crm.team",
-        string="Sales Team",
-        compute="_compute_team_id",
-        store=True,
-        readonly=False,
-        domain="[('company_id', 'in', [False, company_id])]",
-        ondelete="set null",
-        tracking=True,
-    )
     sale_order_count = fields.Integer(
-        string="Sale Order Count",
         compute="_compute_sale_order_count",
         compute_sudo=True,
     )
@@ -47,9 +39,7 @@ class AccountMove(models.Model):
         readonly=False,
         help="Auto-complete from a past sales order.",
     )
-    sale_order_name = fields.Char(
-        compute="_compute_sale_order_name",
-    )
+    sale_order_name = fields.Char(compute="_compute_sale_order_name")
     is_sale_matched = fields.Boolean(
         compute="_compute_is_sale_matched",
         help="0: SO not required or partially linked. 1: All lines linked",
@@ -62,6 +52,7 @@ class AccountMove(models.Model):
         )
         res = super().unlink()
         if downpayment_lines:
+            _debug.lifecycle("downpayment_lines_unlinked", lines=downpayment_lines)
             downpayment_lines.unlink()
         return res
 
@@ -76,25 +67,6 @@ class AccountMove(models.Model):
                         or move.partner_id.commercial_partner_id.user_id
                         or self.env.user
                     )
-
-    @api.depends("invoice_user_id", "company_id")
-    def _compute_team_id(self):
-        sale_moves = self.filtered(
-            lambda move: move.is_sale_document(include_receipts=True),
-        )
-        for (user_id, company_id), moves in groupby(
-            sale_moves,
-            key=lambda m: (m.invoice_user_id.id, m.company_id.id),
-        ):
-            self.env["account.move"].concat(*moves).team_id = (
-                self.env["crm.team"]
-                .with_context(
-                    allowed_company_ids=[company_id],
-                )
-                ._get_default_team_id(
-                    user_id=user_id,
-                )
-            )
 
     @api.depends("line_ids.sale_line_ids")
     def _compute_sale_order_count(self):
@@ -132,6 +104,7 @@ class AccountMove(models.Model):
         self.sale_customer_invoice_id = False
 
         if not self.sale_id:
+            _debug.logic("sale_auto_complete_skipped", reason="no_order")
             return
 
         invoice_vals = self.sale_id.with_company(
@@ -156,6 +129,13 @@ class AccountMove(models.Model):
 
         order_lines = self.sale_id.line_ids - self.invoice_line_ids.mapped(
             "sale_line_ids",
+        )
+        _debug.pipeline(
+            "sale_auto_complete",
+            move=self._origin,
+            order=self.sale_id,
+            added_lines=order_lines,
+            had_lines=has_invoice_lines,
         )
         self._add_order_lines(order_lines)
 
@@ -199,6 +179,7 @@ class AccountMove(models.Model):
     def _compute_sale_warning_text(self):
         if not self.env.user.has_group("sale.group_warning_sale"):
             self.sale_warning_text = ""
+            _debug.logic("sale_warnings_skipped", reason="no_warning_group")
             return
         for move in self:
             if move.move_type != "out_invoice":
@@ -245,6 +226,7 @@ class AccountMove(models.Model):
             raise_if_not_found=False,
         )
         if send_invoice_cron:
+            _debug.lifecycle("invoice_send_cron_triggered", moves=self)
             send_invoice_cron._trigger()
 
         return res
@@ -259,6 +241,12 @@ class AccountMove(models.Model):
         downpayment_lines = dp_lines.filtered(lambda line: not line.order_id.locked)
         other_so_lines = downpayment_lines.order_id.line_ids - downpayment_lines
         real_invoices = set(other_so_lines.invoice_line_ids.move_id)
+        _debug.pipeline(
+            "downpayment_lines_repriced",
+            moves=self,
+            lines=downpayment_lines,
+            real_invoices=len(real_invoices),
+        )
         for so_dpl in downpayment_lines:
             so_dpl.price_unit = so_dpl._get_downpayment_price_unit(real_invoices)
             so_dpl.tax_ids = so_dpl.invoice_line_ids.tax_ids
@@ -283,6 +271,9 @@ class AccountMove(models.Model):
     def create_sale_order(self):
         self.check_singleton()
         if any(not line.product_id for line in self.invoice_line_ids):
+            _debug.logic(
+                "create_sale_order_refused", move=self, reason="line_no_product"
+            )
             raise UserError(
                 self.env._(
                     "Some move lines does not have a product set. Please review",
@@ -297,6 +288,12 @@ class AccountMove(models.Model):
             ],
         )
         if len(sale_exist) > 1:
+            _debug.logic(
+                "create_sale_order_refused",
+                move=self,
+                reason="ambiguous_origin",
+                orders=sale_exist,
+            )
             raise UserError(
                 self.env._(
                     "More than one Sale Orders with the same origin have been found."
@@ -305,9 +302,11 @@ class AccountMove(models.Model):
             )
 
         if sale_exist:
+            _debug.logic("create_sale_order_reused", move=self, order=sale_exist)
             return sale_exist
 
         sale = self.env["sale.order"].create(self._prepare_sale_order_vals())
+        _debug.lifecycle("sale_order_created_from_move", move=self, order=sale)
         for move_line_id, vals in self._prepare_sale_line_vals(sale).items():
             move_line = self.env["account.move.line"].browse(move_line_id)
             move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
@@ -326,6 +325,7 @@ class AccountMove(models.Model):
                     and not line.reconciled
                 ),
             )
+            _debug.pipeline("outstanding_lines_added", move=invoice, lines=move_lines)
             for line in move_lines:
                 invoice.js_add_outstanding_line(line.id)
         return posted
@@ -356,6 +356,7 @@ class AccountMove(models.Model):
                     (sale_line.order_id, invoice.name)
                     for sale_line in line.sale_line_ids
                 )
+        _debug.pipeline("invoice_paid_hook", moves=self, orders_notified=len(todo))
         for order, name in todo:
             order.message_post(body=_("Invoice %s paid", name))
         return res
@@ -394,6 +395,12 @@ class AccountMove(models.Model):
                 fields.Date.context_today(self),
             )
             exclude_amount += order_amount_company
+            _debug.logic(
+                "credit_warning_excluded",
+                move=self,
+                order=order,
+                amount=order_amount_company,
+            )
         return exclude_amount
 
     def _is_downpayment(self):

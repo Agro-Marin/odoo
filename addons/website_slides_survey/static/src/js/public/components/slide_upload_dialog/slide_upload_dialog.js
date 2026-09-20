@@ -4,9 +4,6 @@ import { SlideUploadDialog } from "@website_slides/js/public/components/slide_up
 import { patch } from "@web/core/utils/patch";
 
 patch(SlideUploadDialog.prototype, {
-    /**
-     * Overridden to add the "certification" slide category
-     */
     setup() {
         super.setup();
         this.pagesTemplates["certification"] =
@@ -17,12 +14,7 @@ patch(SlideUploadDialog.prototype, {
         };
     },
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * Overridden to add certifications management
      * @param {String} slideCategory
      */
     onClickSlideCategoryIcon(slideCategory) {

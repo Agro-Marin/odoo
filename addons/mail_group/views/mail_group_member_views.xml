@@ -12,8 +12,8 @@
                         type="action"
                         string="Email" />
                 </header>
-                <field name="email" force_save="1" required="1" readonly="partner_id" />
-                <field name="email_normalized" column_invisible="True" force_save="1" />
+                <field name="email" force_save="1" readonly="partner_id" required="1" />
+                <field name="email_normalized" force_save="1" column_invisible="True" />
                 <field name="partner_id" />
                 <field name="mail_group_id" />
             </list>

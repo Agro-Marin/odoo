@@ -2,12 +2,15 @@ import typing
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from ..models.mail_template import MailTemplate
     from ..models.res_partner import ResPartner
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.bus.models.ir_attachment import IrAttachment
+
+_debug = DebugLog(__name__)
 
 
 class MailTemplatePreview(models.TransientModel):
@@ -37,56 +40,75 @@ class MailTemplatePreview(models.TransientModel):
         return self.env["res.lang"].get_installed()
 
     mail_template_id: MailTemplate = fields.Many2one(
-        "mail.template", string="Related Mail Template", required=True
+        comodel_name="mail.template",
+        string="Related Mail Template",
+        required=True,
     )
     model_id: IrModel = fields.Many2one(
-        "ir.model", string="Targeted model", related="mail_template_id.model_id"
+        comodel_name="ir.model",
+        related="mail_template_id.model_id",
+        string="Targeted model",
     )
     resource_ref = fields.Reference(
+        selection="_selection_target_model",
         string="Record",
         compute="_compute_resource_ref",
         compute_sudo=False,
-        readonly=False,
-        selection="_selection_target_model",
         store=True,
+        readonly=False,
     )
-    lang = fields.Selection(_selection_languages, string="Template Preview Language")
-    no_record = fields.Boolean("No Record", compute="_compute_no_record")
-    error_msg = fields.Char("Error Message", compute="_compute_mail_template_fields")
-    subject = fields.Char("Subject", compute="_compute_mail_template_fields")
+    lang = fields.Selection(
+        selection=_selection_languages,
+        string="Template Preview Language",
+    )
+    no_record = fields.Boolean(compute="_compute_no_record")
+    error_msg = fields.Char(
+        string="Error Message",
+        compute="_compute_mail_template_fields",
+    )
+    subject = fields.Char(compute="_compute_mail_template_fields")
     email_from = fields.Char(
-        "From", compute="_compute_mail_template_fields", help="Sender address"
+        string="From",
+        compute="_compute_mail_template_fields",
+        help="Sender address",
     )
     email_to = fields.Char(
-        "To",
+        string="To",
         compute="_compute_mail_template_fields",
         help="Comma-separated recipient addresses",
     )
     email_cc = fields.Char(
-        "Cc", compute="_compute_mail_template_fields", help="Carbon copy recipients"
+        string="Cc",
+        compute="_compute_mail_template_fields",
+        help="Carbon copy recipients",
     )
     reply_to = fields.Char(
-        "Reply-To",
+        string="Reply-To",
         compute="_compute_mail_template_fields",
         help="Preferred response address",
     )
     scheduled_date = fields.Char(
-        "Scheduled Date",
         compute="_compute_mail_template_fields",
         help="The queue manager will send the email after the date",
     )
     body_html = fields.Html(
-        "Body", compute="_compute_mail_template_fields", sanitize=False
+        string="Body",
+        sanitize=False,
+        compute="_compute_mail_template_fields",
     )
     attachment_ids: IrAttachment = fields.Many2many(
-        "ir.attachment", string="Attachments", compute="_compute_mail_template_fields"
+        comodel_name="ir.attachment",
+        string="Attachments",
+        compute="_compute_mail_template_fields",
     )
     has_attachments = fields.Boolean(compute="_compute_has_attachments")
     has_several_languages_installed = fields.Boolean(
         compute="_compute_has_several_languages_installed"
     )
     partner_ids: ResPartner = fields.Many2many(
-        "res.partner", string="Recipients", compute="_compute_mail_template_fields"
+        comodel_name="res.partner",
+        string="Recipients",
+        compute="_compute_mail_template_fields",
     )
 
     @api.depends("model_id")
@@ -141,6 +163,12 @@ class MailTemplatePreview(models.TransientModel):
             preview.resource_ref = f"{model},{res.id}" if res else False
 
     def _update_mail_attributes(self, values: dict | None = None) -> None:
+        _debug.logic(
+            "preview_attributes",
+            template=self.mail_template_id.id,
+            rendered=values is not None,
+            fields=sorted(values) if values else [],
+        )
         for field in self._MAIL_TEMPLATE_FIELDS:
             if field == "partner_to":
                 continue

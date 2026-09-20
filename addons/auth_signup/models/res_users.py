@@ -9,7 +9,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 
 from odoo.addons.auth_signup.models.res_partner import SignupError
-from odoo.addons.base.models.ir_mail_server import MailDeliveryError
+from odoo.addons.mail.models.ir_mail_server import MailDeliveryError
 
 _logger = logging.getLogger(__name__)
 
@@ -18,10 +18,10 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     state = fields.Selection(
+        selection=[("new", "Invited"), ("active", "Confirmed")],
+        string="Status",
         compute="_compute_state",
         search="_search_state",
-        string="Status",
-        selection=[("new", "Invited"), ("active", "Confirmed")],
     )
 
     def _search_state(self, operator, value):
@@ -32,6 +32,7 @@ class ResUsers(models.Model):
         in_log = "active" in value
         return Domain("log_ids", "!=" if in_log else "=", False)
 
+    @api.depends("login_date")
     def _compute_state(self):
         for user in self:
             user.state = "active" if user.login_date else "new"
@@ -48,7 +49,7 @@ class ResUsers(models.Model):
         """
         if token:
             # signup with a token: find the corresponding partner id
-            partner = self.env["res.partner"]._signup_retrieve_partner(
+            partner = self.env["res.partner"]._get_signup_partner(
                 token, check_validity=True, raise_exception=True
             )
             # invalidate signup token
@@ -130,12 +131,12 @@ class ResUsers(models.Model):
         )
         template_user = self.browse(template_user_id)
         if not template_user.exists():
-            raise ValueError(_("Signup: invalid template user"))
+            raise SignupError(_("Signup: invalid template user"))
 
         if not values.get("login"):
-            raise ValueError(_("Signup: no login given for new user"))
+            raise SignupError(_("Signup: no login given for new user"))
         if not values.get("partner_id") and not values.get("name"):
-            raise ValueError(_("Signup: no name or partner given for new user"))
+            raise SignupError(_("Signup: no name or partner given for new user"))
 
         # create a copy of the template user (attached to a specific partner_id if given)
         values["active"] = True

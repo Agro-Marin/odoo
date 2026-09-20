@@ -59,7 +59,6 @@
                     <span t-if="state.selectedType" class="me-2 o_configurator_show"> for my</span>
                 </div>
                 <div t-if="state.selectedType" class="o_configurator_typing_text d-inline d-md-flex align-items-center o_configurator_industry mb-md-2 mb-lg-4 o_configurator_show">
-                    <!-- Use t-set in order to be able to translate, if put in the attribute directly then export POT file will not exist this text-->
                     <label class="o_configurator_industry_wrapper me-2" t-ref="industrySelection">
                         <AutoComplete
                             placeholder.translate="Restaurant, Hair Salon, Clothing Store,..."
@@ -227,7 +226,6 @@
                             <t t-if="state.getThemeName(1)">
                                 <div class="theme_preview border rounded position-relative w-100 small o_configurator_show_fast">
                                     <h6 class="theme_preview_tip text-center text-muted">Click to select</h6>
-                                    <!-- Force LTR to prevent SVG issues in RTL languages -->
                                     <div class="theme_svg_container rounded overflow-hidden" t-ref="ThemePreview2" dir="ltr"/>
                                     <button class="o_btn_reset button_area" t-on-click="() => this.chooseTheme(state.getThemeName(1))"/>
                                 </div>
@@ -237,7 +235,6 @@
                             <t t-if="state.getThemeName(0)">
                                 <div class="theme_preview border rounded position-relative w-100 o_configurator_show">
                                     <h6 class="theme_preview_tip text-center text-muted">Click to select</h6>
-                                    <!-- Force LTR to prevent SVG issues in RTL languages -->
                                     <div class="theme_svg_container rounded overflow-hidden" t-ref="ThemePreview1" dir="ltr"/>
                                     <button class="o_btn_reset button_area" t-on-click="() => this.chooseTheme(state.getThemeName(0))"/>
                                 </div>
@@ -247,7 +244,6 @@
                             <t t-if="state.getThemeName(2)">
                                 <div class="theme_preview border rounded position-relative w-100 small o_configurator_show_fast">
                                     <h6 class="theme_preview_tip text-center text-muted">Click to select</h6>
-                                    <!-- Force LTR to prevent SVG issues in RTL languages -->
                                     <div class="theme_svg_container rounded overflow-hidden" t-ref="ThemePreview3" dir="ltr"/>
                                     <button class="o_btn_reset button_area" t-on-click="() => this.chooseTheme(state.getThemeName(2))"/>
                                 </div>
@@ -268,7 +264,6 @@
                                     <t t-if="extraThemeName">
                                         <div class="theme_preview border rounded position-relative w-100 small o_configurator_show_fast">
                                             <h6 class="theme_preview_tip text-center text-muted">Click to select</h6>
-                                            <!-- Force LTR to prevent SVG issues in RTL languages -->
                                             <div class="theme_svg_container rounded overflow-hidden" t-ref="ExtraThemePreview{{extraThemeId}}" dir="ltr"/>
                                             <button class="o_btn_reset button_area" t-on-click="() => this.chooseTheme(extraThemeName)"/>
                                         </div>

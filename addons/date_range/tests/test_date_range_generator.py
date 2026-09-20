@@ -1,7 +1,5 @@
 import datetime
 
-from dateutil.rrule import MONTHLY
-
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
@@ -34,7 +32,7 @@ class DateRangeGeneratorTest(TransactionCase):
                 "name_prefix": "1943-",
                 "type_id": self.type.id,
                 "duration_count": 3,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "count": 4,
             }
         )
@@ -60,7 +58,7 @@ class DateRangeGeneratorTest(TransactionCase):
                 "name_prefix": "2024-",
                 "type_id": self.type.id,
                 "duration_count": 1,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
             }
         )
         generator.action_apply()
@@ -79,7 +77,7 @@ class DateRangeGeneratorTest(TransactionCase):
                     "name_prefix": "1943-",
                     "type_id": self.type_b.id,
                     "duration_count": 3,
-                    "unit_of_time": str(MONTHLY),
+                    "duration_unit": "month",
                     "count": 4,
                     "company_id": self.company_2.id,
                 }
@@ -98,13 +96,13 @@ class DateRangeGeneratorTest(TransactionCase):
                 "allow_overlap": True,
                 "name_prefix": "Q",
                 "duration_count": 3,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
             }
         )
         wizard = self.generator.create({"type_id": dr_type.id, "count": 2})
         self.env.flush_all()
         self.assertEqual(wizard.duration_count, 3)
-        self.assertEqual(wizard.unit_of_time, str(MONTHLY))
+        self.assertEqual(wizard.duration_unit, "month")
         self.assertEqual(wizard.name_prefix, "Q")
         self.assertTrue(wizard.date_start)
         wizard.action_apply()
@@ -125,14 +123,14 @@ class DateRangeGeneratorTest(TransactionCase):
                     "allow_overlap": True,
                     "name_prefix": "AAA",
                     "duration_count": 1,
-                    "unit_of_time": str(MONTHLY),
+                    "duration_unit": "month",
                 },
                 {
                     "name": "B",
                     "allow_overlap": True,
                     "name_prefix": "BBB",
                     "duration_count": 7,
-                    "unit_of_time": str(MONTHLY),
+                    "duration_unit": "month",
                 },
             ]
         )
@@ -148,6 +146,30 @@ class DateRangeGeneratorTest(TransactionCase):
         with self.assertRaisesRegex(UserError, "date range type"):
             wizard.action_apply()
 
+    def test_a_month_end_start_does_not_skip_short_months(self):
+        generator = self.generator.create(
+            {
+                "date_start": "2025-01-31",
+                "name_prefix": "M",
+                "type_id": self.type.id,
+                "duration_count": 1,
+                "duration_unit": "month",
+                "count": 3,
+            }
+        )
+        generator.action_apply()
+        ranges = self.env["date.range"].search(
+            [("type_id", "=", self.type.id)], order="date_start"
+        )
+        self.assertEqual(
+            [(r.date_start, r.date_end) for r in ranges],
+            [
+                (datetime.date(2025, 1, 31), datetime.date(2025, 2, 27)),
+                (datetime.date(2025, 2, 28), datetime.date(2025, 3, 30)),
+                (datetime.date(2025, 3, 31), datetime.date(2025, 4, 29)),
+            ],
+        )
+
     def test_negative_duration_reports_clean_error(self):
         """A negative duration is refused up front, not as a raw ValueError.
 
@@ -160,7 +182,7 @@ class DateRangeGeneratorTest(TransactionCase):
             {
                 "date_start": "2024-01-01",
                 "duration_count": -1,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "count": 3,
                 "name_prefix": "F05-",
                 "type_id": self.type.id,
@@ -182,10 +204,10 @@ class DateRangeGeneratorTest(TransactionCase):
                 "allow_overlap": True,
                 "name_prefix": "Q",
                 "duration_count": 1,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "autogeneration_date_start": "2052-01-01",
                 "autogeneration_count": 1,
-                "autogeneration_unit": str(MONTHLY),
+                "autogeneration_unit": "month",
             }
         )
         wizard = self.generator.create(
@@ -214,7 +236,7 @@ class DateRangeGeneratorTest(TransactionCase):
                 "allow_overlap": True,
                 "name_prefix": "Q",
                 "duration_count": 1,
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
             }
         )
         self.assertFalse(dr_type.range_name_preview)
@@ -223,7 +245,7 @@ class DateRangeGeneratorTest(TransactionCase):
         """Test validation and onchange functionality"""
         form = Form(self.env["date.range.generator"])
         form.type_id = self.type
-        form.unit_of_time = str(MONTHLY)
+        form.duration_unit = "month"
         form.duration_count = 10
         form.date_end = "2021-01-01"
         # Setting count clears date_end

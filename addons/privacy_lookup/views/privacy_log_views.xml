@@ -59,17 +59,4 @@
         <field name="context">{'create': False}</field>
     </record>
 
-    <menuitem
-        id="privacy_menu"
-        name="Privacy"
-        parent="base.menu_custom"
-        sequence="26" />
-
-    <menuitem
-        id="pricacy_log_menu"
-        name="Privacy Logs"
-        parent="privacy_menu"
-        action="privacy_log_action"
-        sequence="1" />
-
 </odoo>

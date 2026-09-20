@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { FloatingBlocks } from "@website/snippets/s_floating_blocks/floating_blocks";
+
+const log = makeLogger("website.snippet.s_floating_blocks.edit");
 
 const FloatingBlocksEdit = (I) =>
     class extends I {
@@ -17,20 +20,12 @@ const FloatingBlocksEdit = (I) =>
             );
         }
         shouldStop() {
-            // The interaction is restarted every time that the content of
-            // s_floating_blocks changes. This is needed to provide the correct
-            // visual effect when a block is added, removed or moved. This
-            // approach is simple, but has the drawback of restarting the
-            // interaction also when the content of a block is changed (which is
-            // not needed). A more complex approach would be to assign unique
-            // IDs to the blocks and check if their order has changed.
             return true;
         }
         start() {
-            // The "No card" message must be injected *before* the removal of
-            // the last block, otherwise the snippet could be automatically
-            // removed by the editor during edition:
-            // see remove_plugin.isEmptyAndRemovable()
+            log.lifecycle("start: rendering empty-alert template", () => ({
+                blocks: this.el.querySelectorAll(".s_floating_blocks_block").length,
+            }));
             this.renderAt(
                 "website.s_floating_blocks.alert.empty",
                 {},
@@ -40,6 +35,7 @@ const FloatingBlocksEdit = (I) =>
         }
         onAddCard() {
             const applySpec = { editingElement: this.el };
+            log.pipeline("onAddCard: applying addFloatingBlockCard");
             this.services["website_edit"].applyAction(
                 "addFloatingBlockCard",
                 applySpec,

@@ -7,8 +7,11 @@ import {
 } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
+
+const log = makeLogger("website.builder.plugin.popup_option");
 
 export const POPUP = SNIPPET_SPECIFIC;
 export const COOKIES_BAR = SNIPPET_SPECIFIC_END;
@@ -42,9 +45,6 @@ class PopupOptionPlugin extends Plugin {
             dropIn: ":not(p).oe_structure:not(.oe_structure_solo):not([data-snippet] *), :not(.o_mega_menu):not(p)[data-oe-type=html]:not([data-snippet] *)",
         },
         builder_actions: {
-            // Moves the snippet in #o_shared_blocks to be common to all pages
-            // or inside the first editable oe_structure in the main to be on
-            // current page only.
             MoveBlockAction,
             SetBackdropAction,
             CopyAnchorAction,
@@ -69,12 +69,14 @@ class PopupOptionPlugin extends Plugin {
 
     onCloned({ cloneEl }) {
         if (cloneEl.matches(".s_popup")) {
+            log.logic("PopupOptionPlugin onCloned: assign new id");
             this.assignUniqueID(cloneEl);
         }
     }
 
     onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(".s_popup")) {
+            log.logic("PopupOptionPlugin onSnippetDropped: assign id and show popup");
             this.assignUniqueID(snippetEl);
             this.dependencies.history.addCustomMutation({
                 apply: () => {
@@ -94,6 +96,10 @@ class PopupOptionPlugin extends Plugin {
     }
 
     onWillRemove(el) {
+        log.pipeline("PopupOptionPlugin onWillRemove: hide target", () => ({
+            id: el.id,
+            className: el.className,
+        }));
         this.dependencies.visibility.toggleTargetVisibility(el, false);
         this.dependencies.history.addCustomMutation({
             apply: () => {
@@ -110,9 +116,6 @@ class PopupOptionPlugin extends Plugin {
     }
 }
 
-// Moves the snippet in #o_shared_blocks to be common to all pages
-// or inside the first editable oe_structure in the main to be on
-// current page only.
 export class MoveBlockAction extends BuilderAction {
     static id = "moveBlock";
     isApplied({ editingElement, value }) {
@@ -125,6 +128,11 @@ export class MoveBlockAction extends BuilderAction {
             value === "allPages" ? "#o_shared_blocks" : "main .oe_structure.o_editable";
         const whereEl = this.editable.querySelector(selector);
         const popupEl = editingElement.closest(".s_popup");
+        log.logic("MoveBlockAction apply", () => ({
+            value,
+            selector,
+            found: !!whereEl,
+        }));
         whereEl.insertAdjacentElement("afterbegin", popupEl);
     }
 }
@@ -139,6 +147,7 @@ export class SetBackdropAction extends BuilderAction {
         return hasBackdropColor && !hasNoBackdropClass;
     }
     apply({ editingElement }) {
+        log.pipeline("SetBackdropAction apply");
         editingElement.classList.remove("s_popup_no_backdrop");
         editingElement.style.setProperty(
             "background-color",
@@ -147,6 +156,7 @@ export class SetBackdropAction extends BuilderAction {
         );
     }
     clean({ editingElement }) {
+        log.pipeline("SetBackdropAction clean");
         editingElement.classList.add("s_popup_no_backdrop");
         editingElement.style.removeProperty("background-color");
     }
@@ -155,12 +165,14 @@ export class CopyAnchorAction extends BuilderAction {
     static id = "copyAnchor";
     static dependencies = ["anchor"];
     apply({ editingElement }) {
+        log.pipeline("CopyAnchorAction apply");
         this.dependencies.anchor.createOrEditAnchorLink(editingElement);
     }
 }
 export class SetPopupDelayAction extends BuilderAction {
     static id = "setPopupDelay";
     apply({ editingElement, value }) {
+        log.pipeline("SetPopupDelayAction apply", () => ({ seconds: value }));
         editingElement.dataset.showAfter = value * 1000;
     }
     getValue({ editingElement }) {

@@ -1976,7 +1976,7 @@
         <field name="code">GCC</field>
         <field
             name="country_ids"
-            eval="[(6,0, [ref('base.sa'), ref('base.ae'), ref('base.bh'), ref('base.om'), ref('base.qa'), ref('base.kw')])]" />
+            eval="[Command.set([ref('base.sa'), ref('base.ae'), ref('base.bh'), ref('base.om'), ref('base.qa'), ref('base.kw')])]" />
     </record>
 
     <record id="eurasian_economic_union" model="res.country.group">
@@ -1984,7 +1984,7 @@
         <field name="code">EEU</field>
         <field
             name="country_ids"
-            eval="[(6, 0, [ref('ru'),ref('by'),ref('am'),ref('kg'),ref('kz')])]" />
+            eval="[Command.set([ref('ru'), ref('by'), ref('am'), ref('kg'), ref('kz')])]" />
     </record>
 
     <record id="ch_and_li" model="res.country.group">

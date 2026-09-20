@@ -6,6 +6,7 @@ _build/
 !.gitignore
 !.gitkeep
 !.github
+!.githooks
 !.mailmap
 !.weblate.json
 !.pre-commit-config.yaml
@@ -68,4 +69,3 @@ crates/*/target/
 # the moment odoo_lint was split out, and a `git add -A` then staged 1100 build
 # artifacts including two multi-megabyte .so files.
 /crates/target/
-tooling/.venv-gates/

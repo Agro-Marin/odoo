@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Chart as ChartJS, loadChartJS, Tooltip } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_chart");
 export class Chart extends Interaction {
     static selector = ".s_chart";
 
@@ -13,16 +16,30 @@ export class Chart extends Interaction {
     }
 
     async willStart() {
+        const endLoadChartJs = log.perf("willStart loadChartJS");
         await loadChartJS();
+        endLoadChartJs();
     }
 
     start() {
-        const data = JSON.parse(this.el.dataset.data);
+        const endParse = log.perf("start parse data and convert colors");
+        let data;
+        try {
+            data = JSON.parse(this.el.dataset.data);
+        } catch {
+            endParse();
+            return;
+        }
         data.datasets.forEach((el) => {
             el.backgroundColor = this.convertToCSS(el.backgroundColor);
             el.borderColor = this.convertToCSS(el.borderColor);
             el.borderWidth = this.el.dataset.borderWidth;
         });
+
+        endParse(() => ({
+            datasets: data.datasets.length,
+            labels: data.labels?.length,
+        }));
 
         const radialAxis = {
             beginAtZero: true,
@@ -95,17 +112,23 @@ export class Chart extends Interaction {
             };
         }
 
+        log.logic("start: chart type resolved", () => ({
+            type: this.el.dataset.type,
+            resolvedType: chartData.type,
+            scales: Object.keys(chartData.options.scales),
+            noAnimation: this.noAnimation,
+        }));
         if (this.noAnimation) {
             chartData.options.animation = { duration: 0 };
         }
 
         const canvasEl = this.el.querySelector("canvas");
-        // `ChartJS.Tooltip` was a Chart.js v3 static; v4 exports the plugin
-        // separately (see `@web/core/lib/chartjs`), so reading it off the
-        // constructor yielded undefined and threw here.
         Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
+        const endCreate = log.perf("start new ChartJS");
         this.chart = new ChartJS(canvasEl, chartData);
+        endCreate();
         this.registerCleanup(() => {
+            log.lifecycle("cleanup: chart destroyed");
             this.chart.destroy();
             this.el
                 .querySelectorAll(".chartjs-size-monitor")

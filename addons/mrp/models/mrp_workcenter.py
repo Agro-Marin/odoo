@@ -8,11 +8,13 @@ from dateutil import relativedelta
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools.date_utils import end_of, localized, start_of, to_timezone
 from odoo.tools.misc import get_lang
+
+_debug = DebugLog(__name__)
 
 
 class MrpWorkcenter(models.Model):
@@ -23,129 +25,147 @@ class MrpWorkcenter(models.Model):
     _check_company_auto = True
 
     name = fields.Char(
-        "Work Center", related="resource_id.name", store=True, readonly=False
+        related="resource_id.name",
+        string="Work Center",
+        readonly=False,
     )
     time_efficiency = fields.Float(
-        "Time Efficiency",
         related="resource_id.time_efficiency",
+        string="Time Efficiency",
         default=100,
-        store=True,
         readonly=False,
     )
     active = fields.Boolean(
-        "Active", related="resource_id.active", default=True, store=True, readonly=False
+        related="resource_id.active",
+        string="Active",
+        default=True,
+        readonly=False,
     )
 
-    code = fields.Char("Code", copy=False)
-    note = fields.Html("Description")
+    code = fields.Char(copy=False)
+    note = fields.Html(string="Description")
     sequence = fields.Integer(
-        "Sequence",
         default=1,
         required=True,
         help="Gives the sequence order when displaying a list of work centers.",
     )
-    color = fields.Integer("Color")
+    color = fields.Integer()
     currency_id = fields.Many2one(
-        "res.currency",
-        "Currency",
+        comodel_name="res.currency",
         related="company_id.currency_id",
+        string="Currency",
         readonly=True,
         required=True,
     )
     costs_hour = fields.Float(
         string="Cost per hour",
-        help="Hourly processing cost.",
         default=0.0,
         tracking=True,
+        help="Hourly processing cost.",
     )
-    time_start = fields.Float("Setup Time")
-    time_stop = fields.Float("Cleanup Time")
+    time_start = fields.Float(string="Setup Time")
+    time_stop = fields.Float(string="Cleanup Time")
     routing_line_ids = fields.One2many(
-        "mrp.routing.workcenter", "workcenter_id", "Routing Lines"
+        comodel_name="mrp.routing.workcenter",
+        inverse_name="workcenter_id",
+        string="Routing Lines",
     )
     has_routing_lines = fields.Boolean(
         compute="_compute_has_routing_lines",
         help="Technical field for workcenter views",
     )
-    order_ids = fields.One2many("mrp.workorder", "workcenter_id", "Orders")
+    order_ids = fields.One2many(
+        comodel_name="mrp.workorder",
+        inverse_name="workcenter_id",
+        string="Orders",
+    )
     workorder_count = fields.Integer(
-        "# Work Orders", compute="_compute_workorder_counts_and_load"
+        string="# Work Orders",
+        compute="_compute_workorder_counts_and_load",
     )
     workorder_ready_count = fields.Integer(
-        "# To Do Work Orders", compute="_compute_workorder_counts_and_load"
+        string="# To Do Work Orders",
+        compute="_compute_workorder_counts_and_load",
     )
     workorder_progress_count = fields.Integer(
-        "Total Running Orders", compute="_compute_workorder_counts_and_load"
+        string="Total Running Orders",
+        compute="_compute_workorder_counts_and_load",
     )
     workorder_blocked_count = fields.Integer(
-        "Total Pending Orders", compute="_compute_workorder_counts_and_load"
+        string="Total Pending Orders",
+        compute="_compute_workorder_counts_and_load",
     )
     workorder_late_count = fields.Integer(
-        "Total Late Orders", compute="_compute_workorder_counts_and_load"
+        string="Total Late Orders",
+        compute="_compute_workorder_counts_and_load",
     )
 
     time_ids = fields.One2many(
-        "mrp.workcenter.productivity", "workcenter_id", "Time Logs"
+        comodel_name="mrp.workcenter.productivity",
+        inverse_name="workcenter_id",
+        string="Time Logs",
     )
     working_state = fields.Selection(
-        [("normal", "Normal"), ("blocked", "Blocked"), ("done", "In Progress")],
-        "Workcenter Status",
+        selection=[
+            ("normal", "Normal"),
+            ("blocked", "Blocked"),
+            ("done", "In Progress"),
+        ],
+        string="Workcenter Status",
         compute="_compute_working_state",
         store=True,
     )
     blocked_time = fields.Float(
-        "Blocked Time",
+        digits=(16, 2),
         compute="_compute_effectiveness_times",
         help="Blocked hours over the last month",
-        digits=(16, 2),
     )
     productive_time = fields.Float(
-        "Productive Time",
+        digits=(16, 2),
         compute="_compute_effectiveness_times",
         help="Productive hours over the last month",
-        digits=(16, 2),
     )
     oee = fields.Float(
-        "OEE",
-        compute="_compute_effectiveness_times",
+        string="OEE",
         digits=(16, 2),
+        compute="_compute_effectiveness_times",
         help="Overall Equipment Effectiveness, based on the last month",
     )
     oee_target = fields.Float(
         string="OEE Target",
-        help="Overall Effective Efficiency Target in percentage",
         default=90,
+        help="Overall Effective Efficiency Target in percentage",
     )
     performance = fields.Integer(
-        "Performance",
         compute="_compute_performance",
         help="Performance over the last month",
     )
     workcenter_load = fields.Float(
-        "Work Center Load", compute="_compute_workorder_counts_and_load"
+        string="Work Center Load",
+        compute="_compute_workorder_counts_and_load",
     )
     alternative_workcenter_ids = fields.Many2many(
-        "mrp.workcenter",
-        "mrp_workcenter_alternative_rel",
-        "workcenter_id",
-        "alternative_workcenter_id",
-        domain="[('id', '!=', id), '|', ('company_id', '=', company_id), ('company_id', '=', False)]",
+        comodel_name="mrp.workcenter",
+        relation="mrp_workcenter_alternative_rel",
+        column1="workcenter_id",
+        column2="alternative_workcenter_id",
         string="Alternative Workcenters",
+        domain="[('id', '!=', id), '|', ('company_id', '=', company_id), ('company_id', '=', False)]",
         check_company=True,
         help="Alternative workcenters that can be substituted to this one in order to dispatch production",
     )
-    tag_ids = fields.Many2many("mrp.workcenter.tag")
+    tag_ids = fields.Many2many(comodel_name="mrp.workcenter.tag")
     capacity_ids = fields.One2many(
-        "mrp.workcenter.capacity",
-        "workcenter_id",
+        comodel_name="mrp.workcenter.capacity",
+        inverse_name="workcenter_id",
         string="Product Capacities",
-        help="Specific number of pieces that can be produced in parallel per product.",
         copy=True,
+        help="Specific number of pieces that can be produced in parallel per product.",
     )
     kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
     resource_calendar_id = fields.Many2one(
-        check_company=True,
         default=lambda self: self.env.company.resource_calendar_id,
+        check_company=True,
     )
 
     @api.depends("working_state")
@@ -410,6 +430,7 @@ class MrpWorkcenter(models.Model):
     def action_unblock(self):
         self.check_singleton()
         if self.working_state != "blocked":
+            _debug.logic("workcenter_refused", reason="not_blocked", workcenter=self.id)
             raise UserError(_("It has already been unblocked."))
         blocking = self.env["mrp.workcenter.productivity"].search(
             [
@@ -425,6 +446,9 @@ class MrpWorkcenter(models.Model):
                     ),
                 ),
             ]
+        )
+        _debug.lifecycle(
+            "workcenter_unblocked", workcenter=self.id, entries=len(blocking)
         )
         blocking.write({"date_end": fields.Datetime.now()})
         return True
@@ -467,6 +491,9 @@ class MrpWorkcenter(models.Model):
         if not spans:
             return []
         resource = self.resource_id
+        _debug.perf.count(
+            "workcenter_working_minutes", workcenter=self.id, spans=len(spans)
+        )
         work_intervals = self.resource_calendar_id._work_intervals_batch(
             localized(min(start for start, _stop in spans)),
             localized(max(stop for _start, stop in spans)),
@@ -541,7 +568,22 @@ class MrpWorkcenter(models.Model):
         slot = walk(
             start_datetime, duration, iterations, step, blocked, reservations_to_ignore
         )
+        _debug.logic(
+            "workcenter_slot_walked",
+            workcenter=self.id,
+            duration=duration,
+            forward=forward,
+            iterations=iterations,
+            blocked=len(blocked),
+            found=slot is not None,
+        )
         if slot is None:
+            _debug.logic(
+                "workcenter_no_slot",
+                workcenter=self.id,
+                duration=duration,
+                horizon_days=iterations * step.days,
+            )
             return False, _(
                 "No available slot within %(days)s days of the planned start",
                 days=iterations * step.days,
@@ -560,21 +602,38 @@ class MrpWorkcenter(models.Model):
         extra_leaves_by_workcenter = extra_leaves_by_workcenter or {}
         for workcenter in self:
             if not workcenter.resource_calendar_id:
+                _debug.logic(
+                    "workcenter_refused",
+                    reason="no_calendar",
+                    workcenter=workcenter.id,
+                )
                 raise UserError(
                     _("There is no defined calendar on workcenter %s.", workcenter.name)
                 )
             duration = duration_by_workcenter[workcenter]
-            from_date, to_date = workcenter._get_first_available_slot(
-                date_start,
-                duration,
-                reservations_to_ignore=reservations_to_ignore,
-                extra_leaves_slots=extra_leaves_by_workcenter.get(workcenter),
-            )
+            with _debug.perf(
+                "workcenter_slot_search",
+                cr=self.env.cr,
+                workcenter=workcenter.id,
+                duration=duration,
+            ):
+                from_date, to_date = workcenter._get_first_available_slot(
+                    date_start,
+                    duration,
+                    reservations_to_ignore=reservations_to_ignore,
+                    extra_leaves_slots=extra_leaves_by_workcenter.get(workcenter),
+                )
             if not from_date:
                 reasons.append((workcenter, to_date))
                 continue
             if to_date and (best is None or to_date < best[2]):
                 best = (workcenter, from_date, to_date, duration)
+        _debug.logic(
+            "workcenter_earliest_slot",
+            candidates=self,
+            chosen=best[0].id if best else False,
+            refused=len(reasons),
+        )
         return best, reasons
 
     @api.model
@@ -600,7 +659,6 @@ class MrpWorkcenter(models.Model):
             date_start,
             date_stop,
             resources=resource,
-            tz=timezone(self.resource_calendar_id.tz),
         )[resource.id]
         occupied = (
             self.env["resource.reservation"]
@@ -752,7 +810,9 @@ class MrpWorkcenter(models.Model):
             (self.env["product.product"], product.uom_id),
             (product, unit),
         ]
+        rank = -1  # debuglog
         for wanted_product, wanted_unit in ranked:
+            rank += 1  # debuglog
             capacity = self.capacity_ids.filtered(
                 lambda c, p=wanted_product, u=wanted_unit: (
                     c.product_id == p and c.product_uom_id == u
@@ -763,12 +823,22 @@ class MrpWorkcenter(models.Model):
             if float_is_zero(
                 capacity.capacity, precision_rounding=capacity.product_uom_id.rounding
             ):
+                _debug.logic(
+                    "workcenter_capacity",
+                    workcenter=self.id,
+                    by="zero_capacity_default",
+                    rank=rank,
+                )
                 return (default_capacity, capacity.time_start, capacity.time_stop)
+            _debug.logic(
+                "workcenter_capacity", workcenter=self.id, by="matched", rank=rank
+            )
             return (
-                capacity.product_uom_id._compute_quantity(capacity.capacity, unit),
+                capacity.product_uom_id._get_quantity_in_unit(capacity.capacity, unit),
                 capacity.time_start,
                 capacity.time_stop,
             )
+        _debug.logic("workcenter_capacity", workcenter=self.id, by="default", rank=-1)
         return (default_capacity, self.time_start, self.time_stop)
 
 
@@ -791,7 +861,7 @@ class MrpWorkcenterProductivityLossType(models.Model):
             rec.display_name = labels.get(rec.loss_type, "")
 
     loss_type = fields.Selection(
-        [
+        selection=[
             ("availability", "Availability"),
             ("performance", "Performance"),
             ("quality", "Quality"),
@@ -808,16 +878,25 @@ class MrpWorkcenterProductivityLoss(models.Model):
     _description = "Workcenter Productivity Losses"
     _order = "sequence, id"
 
-    name = fields.Char("Blocking Reason", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=1)
-    manual = fields.Boolean("Is a Blocking Reason", default=True)
+    name = fields.Char(
+        string="Blocking Reason",
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=1)
+    manual = fields.Boolean(
+        string="Is a Blocking Reason",
+        default=True,
+    )
     loss_id = fields.Many2one(
-        "mrp.workcenter.productivity.loss.type",
-        domain=[("loss_type", "in", ["quality", "availability"])],
+        comodel_name="mrp.workcenter.productivity.loss.type",
         string="Category",
+        domain=[("loss_type", "in", ["quality", "availability"])],
     )
     loss_type = fields.Selection(
-        string="Effectiveness Category", related="loss_id.loss_type", readonly=False
+        related="loss_id.loss_type",
+        string="Effectiveness Category",
+        readonly=False,
     )
 
     WALL_CLOCK_LOSS_TYPES = ("productive", "performance")
@@ -910,39 +989,56 @@ class MrpWorkcenterProductivity(models.Model):
         return self.env.company
 
     production_id = fields.Many2one(
-        "mrp.production",
-        string="Manufacturing Order",
+        comodel_name="mrp.production",
         related="workorder_id.production_id",
+        string="Manufacturing Order",
         readonly=True,
     )
     workcenter_id = fields.Many2one(
-        "mrp.workcenter", "Work Center", required=True, check_company=True, index=True
+        comodel_name="mrp.workcenter",
+        string="Work Center",
+        index=True,
+        required=True,
+        check_company=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        required=True,
-        index=True,
+        comodel_name="res.company",
         default=lambda self: self._default_company_id(),
+        index=True,
+        required=True,
     )
     workorder_id = fields.Many2one(
-        "mrp.workorder", "Work Order", check_company=True, index=True
+        comodel_name="mrp.workorder",
+        string="Work Order",
+        index=True,
+        check_company=True,
     )
-    user_id = fields.Many2one("res.users", "User", default=lambda self: self.env.uid)
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        default=lambda self: self.env.uid,
+    )
     loss_id = fields.Many2one(
-        "mrp.workcenter.productivity.loss",
-        "Loss Reason",
-        ondelete="restrict",
+        comodel_name="mrp.workcenter.productivity.loss",
+        string="Loss Reason",
         required=True,
+        ondelete="restrict",
     )
     loss_type = fields.Selection(
-        string="Effectiveness", related="loss_id.loss_type", readonly=False
+        related="loss_id.loss_type",
+        string="Effectiveness",
+        readonly=False,
     )
-    description = fields.Text("Description")
+    description = fields.Text()
     date_start = fields.Datetime(
-        "Start Date", default=fields.Datetime.now, required=True
+        string="Start Date",
+        default=fields.Datetime.now,
+        required=True,
     )
-    date_end = fields.Datetime("End Date")
-    duration = fields.Float("Duration", compute="_compute_duration", store=True)
+    date_end = fields.Datetime(string="End Date")
+    duration = fields.Float(
+        compute="_compute_duration",
+        store=True,
+    )
 
     @api.depends(
         "date_end",
@@ -1002,9 +1098,12 @@ class MrpWorkcenterProductivity(models.Model):
         now = fields.Datetime.now()
         underperformance_timers = self.browse()
         split_off = []
+        # Every timer closes at the same instant, so it is one write, not one
+        # per timer -- and the loop below reads `date_end` back, which is why it
+        # is set before rather than inside.
+        self.date_end = now
         for timer in self:
             wo = timer.workorder_id
-            timer.date_end = now
             if wo.duration <= wo.duration_expected:
                 continue
             productive_date_end = timer.date_end - timedelta(
@@ -1036,11 +1135,14 @@ class MrpWorkcenterCapacity(models.Model):
     _check_company_auto = True
 
     workcenter_id = fields.Many2one(
-        "mrp.workcenter", string="Work Center", required=True, index=True
+        comodel_name="mrp.workcenter",
+        string="Work Center",
+        index=True,
+        required=True,
     )
-    product_id = fields.Many2one("product.product", string="Product")
+    product_id = fields.Many2one(comodel_name="product.product")
     product_uom_id = fields.Many2one(
-        "uom.uom",
+        comodel_name="uom.uom",
         string="Unit",
         compute="_compute_product_uom_id",
         precompute=True,
@@ -1049,11 +1151,10 @@ class MrpWorkcenterCapacity(models.Model):
         required=True,
     )
     capacity = fields.Float(
-        "Capacity",
-        help="Number of pieces that can be produced in parallel for this product or for all, depending on the unit.",
+        help="Number of pieces that can be produced in parallel for this product or for all, depending on the unit."
     )
     time_start = fields.Float(
-        "Setup Time (minutes)",
+        string="Setup Time (minutes)",
         compute="_compute_times",
         precompute=True,
         store=True,
@@ -1061,7 +1162,7 @@ class MrpWorkcenterCapacity(models.Model):
         help="Time in minutes for the setup.",
     )
     time_stop = fields.Float(
-        "Cleanup Time (minutes)",
+        string="Cleanup Time (minutes)",
         compute="_compute_times",
         precompute=True,
         store=True,

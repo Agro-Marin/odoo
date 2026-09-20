@@ -1,24 +1,27 @@
 /** @odoo-module native */
 import { urlFunctions } from "@html_editor/utils/url";
 import { App, Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { getTemplate } from "@web/core/templates";
 import { _t, appTranslateFn } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
 
+const log = makeLogger("website.utils.wutils");
+
 /**
- * Allows to load anchors from a page.
- *
  * @param {string} url
- * @param {Node} body the editable for which to recover anchors
+ * @param {Node} body
  * @returns {Deferred<string[]>}
  */
-function loadAnchors(url, body) {
+export function loadAnchors(url, body) {
+    const endAnchors = log.perf("loadAnchors", () => ({ url }));
     return new Promise(function (resolve, reject) {
         if (url === window.location.pathname || url[0] === "#") {
+            log.logic("loadAnchors: current page", () => ({ url, hasBody: !!body }));
             resolve(body ? body.outerHTML : document.body.outerHTML);
         } else if (url.length && !url.startsWith("http")) {
-            // TODO: Might be broken with ReplaceMedia (NBY) and LinkTools
+            log.logic("loadAnchors: fetching internal page", () => ({ url }));
             fetch(window.location.origin + url)
                 .then((response) => response.text())
                 .then((text) => {
@@ -28,7 +31,9 @@ function loadAnchors(url, body) {
                 })
                 .then(resolve, reject);
         } else {
-            // avoid useless query
+            log.logic("loadAnchors: external or empty url, no anchors fetched", () => ({
+                url,
+            }));
             resolve();
         }
     })
@@ -39,19 +44,20 @@ function loadAnchors(url, body) {
             );
             const anchors = Array.from(anchorEls).map((el) => "#" + el.id);
 
-            // Always suggest the top and the bottom of the page as internal link
-            // anchor even if the header and the footer are not in the DOM. Indeed,
-            // the "scrollTo" function handles the scroll towards those elements
-            // even when they are not in the DOM.
             if (!anchors.includes("#top")) {
                 anchors.unshift("#top");
             }
             if (!anchors.includes("#bottom")) {
                 anchors.push("#bottom");
             }
+            endAnchors({ anchors: anchors.length });
             return anchors;
         })
         .catch((error) => {
+            log.logic("loadAnchors: failed, fall back to []", () => ({
+                url,
+                error: error?.message,
+            }));
             // eslint-disable-next-line no-console -- non-fatal fetch error, quiet debug diagnostic (falls back to [])
             console.debug(error);
             return [];
@@ -59,11 +65,9 @@ function loadAnchors(url, body) {
 }
 
 /**
- * Allows the given input to propose existing website URLs.
- *
  * @param {HTMLInputElement} input
  */
-function autocompleteWithPages(input, options = {}, env = undefined) {
+export function autocompleteWithPages(input, options = {}, env = undefined) {
     const owlApp = new App(UrlAutoComplete, {
         env: env || Component.env,
         dev: env ? env.debug : Component.env.debug,
@@ -86,55 +90,16 @@ function autocompleteWithPages(input, options = {}, env = undefined) {
     );
     document.body.appendChild(container);
     owlApp.mount(container);
+    log.lifecycle("autocompleteWithPages mounted", () => ({
+        input: input?.name || input?.id,
+    }));
     return () => {
+        log.lifecycle("autocompleteWithPages destroyed", () => ({
+            input: input?.name || input?.id,
+        }));
         owlApp.destroy();
         container.remove();
     };
-}
-
-/**
- * @param {HTMLElement} element
- * @param {HTMLElement} [excluded]
- */
-function onceAllImagesLoaded(element, excluded) {
-    // Collect all <img> descendants, plus the element itself if it's an <img>
-    const imgs = [...element.querySelectorAll("img")];
-    if (element.tagName === "IMG") {
-        imgs.push(element);
-    }
-    const defs = imgs.map((img) => {
-        if (
-            img.complete ||
-            (excluded && (excluded === img || excluded.contains(img)))
-        ) {
-            return; // Already loaded
-        }
-        return new Promise(function (resolve) {
-            img.addEventListener("load", resolve, { once: true });
-        });
-    });
-    return Promise.all(defs);
-}
-
-/**
- * Checks if the 2 given URLs are the same, to prevent redirecting uselessly
- * from one to another.
- * It will consider naked URL and `www` URL as the same URL.
- * It will consider `https` URL `http` URL as the same URL.
- *
- * @param {string} url1
- * @param {string} url2
- * @returns {Boolean}
- */
-function isHTTPSorNakedDomainRedirection(url1, url2) {
-    try {
-        url1 = new URL(url1).host;
-        url2 = new URL(url2).host;
-    } catch {
-        // Incorrect URL, `false` URL..
-        return false;
-    }
-    return url1 === url2 || url1.replace(/^www\./, "") === url2.replace(/^www\./, "");
 }
 
 export function sendRequest(route, params) {
@@ -149,8 +114,6 @@ export function sendRequest(route, params) {
     const form = document.createElement("form");
     form.setAttribute("action", route);
     form.setAttribute("method", params.method || "POST");
-    // This is an exception for the 404 page create page button, in backend we
-    // want to open the response in the top window not in the iframe.
     if (params.forceTopWindow) {
         form.setAttribute("target", "_top");
     }
@@ -170,48 +133,40 @@ export function sendRequest(route, params) {
         }
     }
 
+    log.pipeline("sendRequest: submitting form", () => ({
+        route,
+        method: form.getAttribute("method"),
+        forceTopWindow: !!params.forceTopWindow,
+        inputs: form.elements.length,
+    }));
     document.body.appendChild(form);
     form.submit();
 }
 
 /**
- * Converts a base64 SVG into a base64 PNG.
- *
- * @param {string|HTMLImageElement} src - an URL to a SVG or a *loaded* image
- *      with such an URL. This allows the call to potentially be a bit more
- *      efficient in that second case.
- * @returns {Promise<string>} a base64 PNG (as result of a Promise)
+ * @param {string|HTMLImageElement} src
+ * @returns {Promise<string>}
  */
 export async function svgToPNG(src) {
     return _exportToPNG(src, "svg+xml");
 }
 
 /**
- * Converts a base64 WEBP into a base64 PNG.
- *
- * @param {string|HTMLImageElement} src - an URL to a WEBP or a *loaded* image
- *     with such an URL. This allows the call to potentially be a bit more
- *     efficient in that second case.
- * @returns {Promise<string>} a base64 PNG (as result of a Promise)
+ * @param {string|HTMLImageElement} src
+ * @returns {Promise<string>}
  */
 export async function webpToPNG(src) {
     return _exportToPNG(src, "webp");
 }
 
 /**
- * Converts a formatted base64 image into a base64 PNG.
- *
  * @private
- * @param {string|HTMLImageElement} src - an URL to a image or a *loaded* image
- *     with such an URL. This allows the call to potentially be a bit more
- *     efficient in that second case.
- * @param {string} format - the format of the image
- * @returns {Promise<string>} a base64 PNG (as result of a Promise)
+ * @param {string|HTMLImageElement} src
+ * @param {string} format
+ * @returns {Promise<string>}
  */
 async function _exportToPNG(src, format) {
     function checkImg(imgEl) {
-        // Firefox does not support drawing SVG to canvas unless it has width
-        // and height attributes set on the root <svg>.
         return imgEl.naturalHeight !== 0;
     }
     function toPNGViaCanvas(imgEl) {
@@ -222,18 +177,21 @@ async function _exportToPNG(src, format) {
         return canvas.toDataURL("image/png");
     }
 
-    // In case we receive a loaded image and that this image is not problematic,
-    // we can convert it to PNG directly.
     if (src instanceof HTMLImageElement) {
         const loadedImgEl = src;
         if (checkImg(loadedImgEl)) {
+            log.logic(
+                "_exportToPNG: image already loaded, direct canvas export",
+                () => ({
+                    format,
+                }),
+            );
             return toPNGViaCanvas(loadedImgEl);
         }
         src = loadedImgEl.src;
     }
 
-    // At this point, we either did not receive a loaded image or the received
-    // loaded image is problematic => we have to do some asynchronous code.
+    const endExport = log.perf("_exportToPNG load image", () => ({ format }));
     return new Promise((resolve) => {
         const imgEl = new Image();
         imgEl.onload = () => {
@@ -241,9 +199,13 @@ async function _exportToPNG(src, format) {
                 resolve(imgEl);
                 return;
             }
+            log.logic(
+                "_exportToPNG: svg without intrinsic size, refetch and resize",
+                () => ({
+                    src: imgEl.src.slice(0, 120),
+                }),
+            );
 
-            // Set arbitrary height on image and attach it to the DOM to force
-            // width computation.
             imgEl.height = 1000;
             imgEl.style.opacity = 0;
             document.body.appendChild(imgEl);
@@ -251,18 +213,14 @@ async function _exportToPNG(src, format) {
             const request = new XMLHttpRequest();
             request.open("GET", imgEl.src, true);
             request.onload = () => {
-                // Convert the data URI to a SVG element
                 const parser = new DOMParser();
                 const result = parser.parseFromString(request.responseText, "text/xml");
                 const svgEl = result.getElementsByTagName("svg")[0];
 
-                // Add the attributes Firefox needs and remove the image from
-                // the DOM.
                 svgEl.setAttribute("width", imgEl.width);
                 svgEl.setAttribute("height", imgEl.height);
                 imgEl.remove();
 
-                // Convert the SVG element to a data URI
                 const svg64 = btoa(new XMLSerializer().serializeToString(svgEl));
                 const finalImg = new Image();
                 finalImg.onload = () => {
@@ -273,12 +231,16 @@ async function _exportToPNG(src, format) {
             request.send();
         };
         imgEl.src = src;
-    }).then((loadedImgEl) => toPNGViaCanvas(loadedImgEl));
+    }).then((loadedImgEl) => {
+        endExport(() => ({
+            width: loadedImgEl.width,
+            height: loadedImgEl.height,
+        }));
+        return toPNGViaCanvas(loadedImgEl);
+    });
 }
 
 /**
- * Bootstraps an "empty" Google Maps iframe.
- *
  * @returns {HTMLIframeElement}
  */
 export function generateGMapIframe() {
@@ -296,10 +258,8 @@ export function generateGMapIframe() {
 }
 
 /**
- * Generates a Google Maps URL based on the given parameter.
- *
  * @param {DOMStringMap} dataset
- * @returns {string} a Google Maps URL
+ * @returns {string}
  */
 export function generateGMapLink(dataset) {
     return (
@@ -314,12 +274,10 @@ export function generateGMapLink(dataset) {
 }
 
 /**
- * Checks if the edited content is currently previewed as in a mobile device.
- *
- * @param {Object} self - context object ("this")
+ * @param {Object} self
  * @returns {boolean}
  */
-function isMobile(self) {
+export function isMobile(self) {
     let isMobile;
     self.trigger_up("service_context_get", {
         callback: (ctx) => {
@@ -331,36 +289,28 @@ function isMobile(self) {
 }
 
 /**
- * Returns the parsed data coming from the data-for element for the given form.
- *
  * @param {string} formId
  * @param {HTMLElement} parentEl
- * @returns {Object|undefined} the parsed data
+ * @returns {Object|undefined}
  */
-function getParsedDataFor(formId, parentEl) {
+export function getParsedDataFor(formId, parentEl) {
     const dataForEl = parentEl.querySelector(`[data-for='${formId}']`);
     if (!dataForEl) {
+        log.logic("getParsedDataFor: no data-for element", () => ({ formId }));
         return;
     }
     return JSON.parse(
         dataForEl.dataset.values
-            // replaces `True` by `true` if they are after `,` or `:` or `[`
             .replace(/([,:[]\s*)True/g, "$1true")
-            // replaces `False` and `None` by `""` if they are after `,` or `:` or `[`
             .replace(/([,:[]\s*)(False|None)/g, '$1""')
-            // replaces the `'` by `"` if they are before `,` or `:` or `]` or `}`
             .replace(/'(\s*[,:\]}])/g, '"$1')
-            // replaces the `'` by `"` if they are after `{` or `[` or `,` or `:`
             .replace(/([{[:,]\s*)'/g, '$1"'),
     );
 }
 
 /**
- * Deep clones children or parses a string into elements, with or without
- * <script> elements.
- *
  * @param {DocumentFragment|HTMLElement|String} content
- * @param {Boolean} [keepScripts=false] - whether to keep script tags or not.
+ * @param {Boolean} [keepScripts=false]
  * @returns {DocumentFragment}
  */
 export function cloneContentEls(content, keepScripts = false) {
@@ -372,6 +322,12 @@ export function cloneContentEls(content, keepScripts = false) {
         const els = [...content.children].map((el) => el.cloneNode(true));
         copyFragment.append(...els);
     }
+    log.pipeline("cloneContentEls", () => ({
+        fromString: typeof content === "string",
+        children: copyFragment.childElementCount,
+        scripts: copyFragment.querySelectorAll("script").length,
+        keepScripts,
+    }));
     if (!keepScripts) {
         copyFragment
             .querySelectorAll("script")
@@ -381,13 +337,9 @@ export function cloneContentEls(content, keepScripts = false) {
 }
 
 /**
- * Checks SEO data and notifies if either the page title or description is not
- * set.
- *
- * @param {Object} seo_data - The SEO data to check.
- * @param {Component} OptimizeSEODialog - Dialog to be displayed
- * @param {Object} services - Services object which will be used to display
- * notifications and dialog.
+ * @param {Object} seo_data
+ * @param {Component} OptimizeSEODialog
+ * @param {Object} services
  */
 export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
     if (seo_data) {
@@ -397,6 +349,11 @@ export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
         } else if (!seo_data.website_meta_description) {
             message = _t("Page description not set.");
         }
+        log.logic("checkAndNotifySEO", () => ({
+            hasTitle: !!seo_data.website_meta_title,
+            hasDescription: !!seo_data.website_meta_description,
+            notify: !!message,
+        }));
         if (message) {
             const closeNotification = services.notification.add(message, {
                 type: "warning",
@@ -405,6 +362,7 @@ export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
                     {
                         name: _t("Optimize SEO"),
                         onClick: () => {
+                            log.lifecycle("checkAndNotifySEO: open OptimizeSEODialog");
                             services.dialog.add(OptimizeSEODialog);
                             closeNotification();
                         },
@@ -416,23 +374,20 @@ export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
 }
 
 /**
- * Converts a string into a URL-friendly slug.
- *
- * @param {string} value - The string to slugify.
- * @returns {string} The slugified string.
+ * @param {string} value
+ * @returns {string}
  */
 export function slugify(value) {
-    // `NFKD` as in `http_routing` python `slugify()`
     return !value
         ? ""
         : value
               .trim()
               .normalize("NFKD")
               .toLowerCase()
-              .replace(/['’]/g, "-") // Replace apostrophes with hyphens
-              .replace(/\s+/g, "-") // Replace spaces with -
-              .replace(/[^\w-]+/g, "") // Remove all non-word chars
-              .replace(/--+/g, "-"); // Replace multiple - with single -
+              .replace(/['’]/g, "-")
+              .replace(/\s+/g, "-")
+              .replace(/[^\w-]+/g, "")
+              .replace(/--+/g, "-");
 }
 
 patch(urlFunctions, {
@@ -447,14 +402,8 @@ patch(urlFunctions, {
             return false;
         }
 
-        // Make sure that while being on abc.odoo.com, if you edit a link and
-        // enter an absolute URL using your real domain, it is still considered
-        // to be added as relative, preferably.
-        // In the past, you could not edit your website from abc.odoo.com if you
-        // properly configured your real domain already.
         let origin;
         try {
-            // Needed: "http:" would crash
             origin = new URL(url, window.location.origin).origin;
         } catch {
             return false;
@@ -462,20 +411,3 @@ patch(urlFunctions, {
         return `${origin}/`.startsWith(w.domain);
     },
 });
-
-export default {
-    loadAnchors: loadAnchors,
-    autocompleteWithPages: autocompleteWithPages,
-    onceAllImagesLoaded: onceAllImagesLoaded,
-    sendRequest: sendRequest,
-    isHTTPSorNakedDomainRedirection: isHTTPSorNakedDomainRedirection,
-    svgToPNG: svgToPNG,
-    webpToPNG: webpToPNG,
-    generateGMapIframe: generateGMapIframe,
-    generateGMapLink: generateGMapLink,
-    isMobile: isMobile,
-    getParsedDataFor: getParsedDataFor,
-    cloneContentEls: cloneContentEls,
-    checkAndNotifySEO: checkAndNotifySEO,
-    slugify: slugify,
-};

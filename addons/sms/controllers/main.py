@@ -31,7 +31,7 @@ class SmsController(Controller):
         ):
             self._check_status_values(uuids, iap_status, message_statuses)
             if (
-                sms_trackers_sudo := request.env["sms.tracker"]
+                sms_trackers_sudo := request.env["sms.tracker"]  # noqa: E8507 - one query per status batch of the webhook payload
                 .sudo()
                 .search([("sms_uuid", "in", uuids)])
             ):
@@ -60,4 +60,4 @@ class SmsController(Controller):
                 "Received ill-formatted SMS delivery report event: \n%s",
                 message_statuses,
             )
-            raise UserError(_("Bad parameters"), status=400)
+            raise UserError(_("Bad parameters"))

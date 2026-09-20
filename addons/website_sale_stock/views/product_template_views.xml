@@ -14,8 +14,8 @@
             <field name="website_ribbon_id" position="after">
                 <label
                     for="show_availability"
-                    invisible="not is_storable"
-                    string="Show Available Qty" />
+                    string="Show Available Qty"
+                    invisible="not is_storable" />
                 <div invisible="not is_storable">
                     <field name="show_availability" class="oe_inline" />
                     <span invisible="not show_availability">
@@ -25,14 +25,14 @@
                             class="o_light_label me-1" />
                         <field
                             name="available_threshold"
-                            class="oe_inline col-1"
-                            digits="[42, 0]" />
+                            digits="[42, 0]"
+                            class="oe_inline col-1" />
                     </span>
                 </div>
                 <field
                     name="out_of_stock_message"
-                    invisible="not is_storable"
-                    placeholder="e.g. 'Will be back soon'" />
+                    placeholder="e.g. 'Will be back soon'"
+                    invisible="not is_storable" />
             </field>
         </field>
     </record>

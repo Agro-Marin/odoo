@@ -12,7 +12,6 @@ registry
                 expectUnloadPage: true,
             }),
             wsTourUtils.goToCart(),
-            // Assert that the combo configurator wasn't shown.
             ...wsTourUtils.assertCartContains({ productName: "Combo product" }),
             ...wsTourUtils.assertCartContains({ productName: "1 x Test product" }),
         ],

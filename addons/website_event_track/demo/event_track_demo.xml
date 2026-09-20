@@ -123,7 +123,6 @@
         <field name="name">How to improve your quality processes</field>
         <field name="is_published" eval="True" />
         <field name="event_id" ref="event.event_0" />
-        <field name="user_id" ref="base.user_admin" />
         <field
             name="date"
             eval="(DateTime.now() + timedelta(days=1, hours=3, minutes=5)).strftime('%Y-%m-%d %H:%M:%S')" />
@@ -421,8 +420,6 @@
         <field name="user_id" ref="base.user_admin" />
     </record>
 
-    <!-- Tracks of: "OpenWood: Furniture Collection Online Reveal" -->
-    <!-- DAY 1 -->
     <record id="event_7_track_1" model="event.track">
         <field name="name">What This Event Is All About</field>
         <field name="color">1</field>
@@ -434,7 +431,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 06:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">2</field>
         <field name="user_id" ref="base.user_admin" />
@@ -456,14 +453,13 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 16:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_28" />
     </record>
 
-    <!-- Location 1 -->
     <record id="event_7_track_3" model="event.track">
         <field name="name">Easy Way To Build a Wooden House</field>
         <field name="color">2</field>
@@ -477,7 +473,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 08:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">2.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -497,7 +493,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 12:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="False" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
@@ -521,14 +517,13 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 14:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_3" />
     </record>
 
-    <!-- Location 2 -->
     <record id="event_7_track_6" model="event.track">
         <field name="name">Securing your Lumber during transport</field>
         <field name="color">0</field>
@@ -542,7 +537,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 08:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -562,7 +557,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 10:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag2')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -582,7 +577,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 12:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="False" />
         <field name="duration">2</field>
         <field name="user_id" ref="base.user_admin" />
@@ -602,14 +597,13 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 14:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="False" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_4" />
     </record>
 
-    <!-- Location 3 -->
     <record id="event_7_track_l3_1" model="event.track">
         <field name="name">Voice from Customer</field>
         <field name="color">5</field>
@@ -623,7 +617,7 @@
             eval="(DateTime.now() - timedelta(days=1)).strftime('%Y-%m-%d 08:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="False" />
         <field name="duration">2</field>
         <field name="user_id" ref="base.user_admin" />
@@ -644,13 +638,12 @@
         <field name="duration">1.5</field>
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_18" />
     </record>
 
-    <!-- DAY 2 -->
     <record id="event_7_track_10" model="event.track">
         <field name="name">Welcome to Day 2</field>
         <field name="color">1</field>
@@ -660,7 +653,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 06:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -675,14 +668,13 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 16:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_16" />
     </record>
 
-    <!-- Location 1 -->
     <record id="event_7_track_12" model="event.track">
         <field name="name">Climate positive</field>
         <field name="color">3</field>
@@ -694,7 +686,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 08:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">3</field>
         <field name="user_id" ref="base.user_admin" />
@@ -713,7 +705,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 12:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -731,14 +723,13 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 13:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_3" />
     </record>
 
-    <!-- Location 2 -->
     <record id="event_7_track_15" model="event.track">
         <field name="name">Logs to lumber</field>
         <field name="color">0</field>
@@ -750,7 +741,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 08:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
@@ -768,7 +759,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 09:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag2')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">2</field>
         <field name="user_id" ref="base.user_admin" />
@@ -787,7 +778,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 12:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
@@ -805,7 +796,7 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 13:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
@@ -823,14 +814,13 @@
         <field name="date" eval="DateTime.now().strftime('%Y-%m-%d 14:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_3" />
     </record>
 
-    <!-- Location 3 -->
     <record id="event_7_track_l3_10" model="event.track">
         <field name="name">Live Testimonial</field>
         <field name="color">5</field>
@@ -843,7 +833,7 @@
         <field name="duration">0.75</field>
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_31" />
@@ -861,13 +851,12 @@
         <field name="duration">0.75</field>
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_3" />
     </record>
 
-    <!-- DAY 3 -->
     <record id="event_7_track_20" model="event.track">
         <field name="name">Our Last Day Together!</field>
         <field name="color">1</field>
@@ -878,7 +867,7 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 06:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
@@ -895,14 +884,13 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 15:00:00')" />
         <field
             name="tag_ids"
-            eval="[             (4, ref('website_event_track.event_track_tag1')),             (4, ref('website_event_track.event_track_tag2')),             (4, ref('website_event_track.event_track_tag3')),             (4, ref('website_event_track.event_track_tag13'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag13'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_3" />
     </record>
 
-    <!-- Location 1 -->
     <record id="event_7_track_22" model="event.track">
         <field name="name">Tools for the Woodworking Beginner</field>
         <field name="color">0</field>
@@ -916,7 +904,7 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 08:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag11'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag11'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">2</field>
         <field name="user_id" ref="base.user_admin" />
@@ -936,14 +924,13 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 12:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag3')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag3')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1.5</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_4" />
     </record>
 
-    <!-- Location 2 -->
     <record id="event_7_track_24" model="event.track">
         <field name="name">Old is New</field>
         <field name="color">4</field>
@@ -957,14 +944,13 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 09:00:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag2'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag2'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">1</field>
         <field name="user_id" ref="base.user_admin" />
         <field name="partner_id" ref="base.res_partner_address_17" />
     </record>
 
-    <!-- Location 3 -->
     <record id="event_7_track_25" model="event.track">
         <field name="name">Live Testimonials</field>
         <field name="color">0</field>
@@ -978,7 +964,7 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 07:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1')), (4, ref('website_event_track.event_track_tag2')), (4, ref('website_event_track.event_track_tag12'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1')), Command.link(ref('website_event_track.event_track_tag2')), Command.link(ref('website_event_track.event_track_tag12'))]" />
         <field name="is_published" eval="True" />
         <field name="duration">3</field>
         <field name="user_id" ref="base.user_admin" />
@@ -998,7 +984,7 @@
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 12:30:00')" />
         <field
             name="tag_ids"
-            eval="[(4, ref('website_event_track.event_track_tag1'))]" />
+            eval="[Command.link(ref('website_event_track.event_track_tag1'))]" />
         <field name="is_published" eval="False" />
         <field name="duration">0.75</field>
         <field name="user_id" ref="base.user_admin" />

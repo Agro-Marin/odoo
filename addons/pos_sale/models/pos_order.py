@@ -5,14 +5,21 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     currency_rate = fields.Float(
-        compute="_compute_currency_rate", store=True, digits=0, readonly=True
+        digits=0,
+        compute="_compute_currency_rate",
+        store=True,
+        readonly=True,
     )
-    crm_team_id = fields.Many2one("crm.team", string="Sales Team", ondelete="set null")
+    team_id = fields.Many2one(
+        comodel_name="team.team",
+        string="Sales Team",
+        domain=[("use_sale", "=", True)],
+        ondelete="set null",
+    )
     sale_order_count = fields.Integer(
-        string="Sale Order Count",
         compute="_compute_sale_order_count",
         readonly=True,
-        groups="sales_team.group_sale_salesman",
+        groups="sale.group_sale_salesman",
     )
 
     @api.depends("lines.sale_order_origin_id")
@@ -23,10 +30,8 @@ class PosOrder(models.Model):
     @api.model
     def _update_values_from_session(self, session, values):
         values = super()._update_values_from_session(session, values)
-        values["crm_team_id"] = (
-            values["crm_team_id"]
-            if values.get("crm_team_id")
-            else session.config_id.crm_team_id.id
+        values["team_id"] = (
+            values["team_id"] if values.get("team_id") else session.config_id.team_id.id
         )
         return values
 
@@ -43,7 +48,7 @@ class PosOrder(models.Model):
 
     def _prepare_invoice_vals(self):
         invoice_vals = super()._prepare_invoice_vals()
-        invoice_vals["team_id"] = self.crm_team_id.id
+        invoice_vals["team_id"] = self.team_id.id
         # `sale_orders` can hold more than one sale order when this POS order's
         # lines settle several distinct sale orders (e.g. a downpayment
         # settlement from one order mixed with a direct sale of another's
@@ -228,11 +233,9 @@ class PosOrder(models.Model):
         return inv_line_vals
 
     def write(self, vals):
-        if "crm_team_id" in vals:
-            vals["crm_team_id"] = (
-                vals["crm_team_id"]
-                if vals.get("crm_team_id")
-                else self.session_id.crm_team_id.id
+        if "team_id" in vals:
+            vals["team_id"] = (
+                vals["team_id"] if vals.get("team_id") else self.session_id.team_id.id
             )
         return super().write(vals)
 
@@ -245,23 +248,47 @@ class PosOrderLine(models.Model):
     _inherit = "pos.order.line"
 
     sale_order_origin_id = fields.Many2one(
-        "sale.order", string="Linked Sale Order", index="btree_not_null"
+        comodel_name="sale.order",
+        string="Linked Sale Order",
+        index="btree_not_null",
     )
     sale_order_line_id = fields.Many2one(
-        "sale.order.line", string="Source Sale Order Line", index="btree_not_null"
+        comodel_name="sale.order.line",
+        string="Source Sale Order Line",
+        index="btree_not_null",
     )
     # JSON-encoded breakdown of the sale order lines a down-payment line
     # settles. Written here (and by pos_store.js's addDownPaymentProduct-
     # OrderlineToOrder) and read only by this module's own JS `saleDetails`
     # getter (pos_order_line.js) — no consumer outside pos_sale.
-    down_payment_details = fields.Text(string="Down Payment Details")
+    down_payment_details = fields.Text()
     qty_transferred = fields.Float(
         string="Delivery Quantity",
         compute="_compute_qty_transferred",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        refunded_ids = {
+            vals["refunded_orderline_id"]
+            for vals in vals_list
+            if vals.get("refunded_orderline_id") and not vals.get("sale_order_line_id")
+        }
+        if refunded_ids:
+            refunded_lines = self.browse(list(refunded_ids)).sudo()
+            origin_by_refunded = {line.id: line for line in refunded_lines}
+            for vals in vals_list:
+                refunded = origin_by_refunded.get(vals.get("refunded_orderline_id"))
+                if not refunded or vals.get("sale_order_line_id"):
+                    continue
+                vals["sale_order_line_id"] = refunded.sale_order_line_id.id
+                vals.setdefault(
+                    "sale_order_origin_id", refunded.sale_order_origin_id.id
+                )
+        return super().create(vals_list)
 
     @api.depends(
         "order_id.state",

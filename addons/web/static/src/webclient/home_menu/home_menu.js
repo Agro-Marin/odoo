@@ -14,6 +14,8 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
@@ -35,13 +37,14 @@ function homeMenuAppsKey(apps) {
     );
 }
 
+const log = makeLogger("web.home_menu.grid");
+
 const APPS_PER_ROW = 6;
 const BADGE_DELAY = 200;
 const DIRECT_JUMP_HOTKEYS = 9;
 
 /** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
-/** @extends {Component<any, import("@web/env").OdooEnv>} */
 const APPS_CONFIG_SHAPE = { order: Array, pinned: Array, hidden: Array };
 
 const APP_PROP = {
@@ -80,6 +83,7 @@ const APP_PROP = {
     },
 };
 
+/** @extends {Component<any, import("@web/env").OdooEnv>} */
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
     static appTemplate = "web.HomeMenu.App";
@@ -105,7 +109,6 @@ export class HomeMenu extends Component {
     /** @type {HomeMenuLayout} */
     layout;
     /** @type {boolean} */
-    focusSelectedTile = false;
     /** @type {ReturnType<typeof useHomeMenuSearch>} */
     search;
 
@@ -118,6 +121,7 @@ export class HomeMenu extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
     setup() {
+        useLifecycleLog(log);
         this.menus = useService("menu");
         this.homeMenuService = useService("home_menu");
         this.subscription = useService("enterprise_subscription");
@@ -175,7 +179,7 @@ export class HomeMenu extends Component {
         });
         this.layout.state = useState(this.layout.state);
         useSetupAction({
-            beforeLeave: () => this.layout.flush(),
+            beforeLeave: () => this.layout.flushBeforeLeave(),
             beforeUnload: (/** @type {BeforeUnloadEvent} */ event) => {
                 if (this.layout.unsaved) {
                     event.preventDefault();
@@ -409,9 +413,10 @@ export class HomeMenu extends Component {
      * @param {number} delta
      */
     canMoveApp(app, delta) {
-        const order = this.appOrder(app);
-        const index = order.indexOf(app.xmlid ?? "");
-        return index >= 0 && index + delta >= 0 && index + delta < order.length;
+        const bounds = this.grid.moveBounds.get(app.xmlid ?? "");
+        return Boolean(
+            bounds && bounds.index + delta >= 0 && bounds.index + delta < bounds.length,
+        );
     }
 
     /**
@@ -419,6 +424,7 @@ export class HomeMenu extends Component {
      * @param {number} delta
      */
     moveApp(app, delta) {
+        this.grid.clear();
         if (!this.canMoveApp(app, delta)) {
             return;
         }

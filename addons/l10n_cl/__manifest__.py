@@ -6,7 +6,7 @@
 Chilean accounting chart and tax localization.
 Plan contable chileno e impuestos de acuerdo a disposiciones vigentes.
     """,
-    "author": "Blanco Mart\u00edn & Asociados",
+    "author": "Blanco Martín & Asociados",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/chile.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
@@ -42,6 +42,7 @@ Plan contable chileno e impuestos de acuerdo a disposiciones vigentes.
         "data/res.bank.csv",
         "data/res.country.csv",
         "data/res_partner.xml",
+        "views/l10n_cl_menus.xml",
     ],
     "demo": [
         "demo/partner_demo.xml",

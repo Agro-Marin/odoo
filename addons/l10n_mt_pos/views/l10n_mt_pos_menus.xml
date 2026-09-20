@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="pos_mt_statements_menu"
+        name="Malta EXO"
+        parent="point_of_sale.menu_point_rep"
+        sequence="6" />
+
+    <menuitem
+        id="menu_compliance_letter"
+        name="Compliance Letter"
+        parent="l10n_mt_pos.pos_mt_statements_menu"
+        action="l10n_mt_pos.action_generate_compliance_letter"
+        sequence="10" />
+
+</odoo>

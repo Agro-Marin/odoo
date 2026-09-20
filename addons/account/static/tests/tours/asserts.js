@@ -32,6 +32,7 @@ export class Asserts {
     }
     static isEqual(actual, expected) {
         Asserts.check(
+            // eslint-disable-next-line eqeqeq -- isStrictEqual below is the === form; this one is deliberately loose
             actual == expected,
             `${actual} is equal to expected ${expected}`,
             `${actual} is not equal to expected ${expected}`,

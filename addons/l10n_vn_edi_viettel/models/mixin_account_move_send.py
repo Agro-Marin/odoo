@@ -42,11 +42,11 @@ class MixinAccountMoveSend(models.AbstractModel):
             + move.l10n_vn_edi_sinvoice_pdf_file_id
         )
 
-    def _get_placeholder_mail_attachments_data(
+    def _prepare_mail_attachment_placeholders(
         self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None
     ):
         # EXTENDS 'account'
-        results = super()._get_placeholder_mail_attachments_data(
+        results = super()._prepare_mail_attachment_placeholders(
             move,
             invoice_edi_format=invoice_edi_format,
             extra_edis=extra_edis,
@@ -181,10 +181,10 @@ class MixinAccountMoveSend(models.AbstractModel):
             # Download SInvoice documents in order to attach them to the email we sent to the customer.
             # If the email is not being sent, we will still get the files and attach them to the invoice.
             xml_data, xml_error_message = (
-                invoice._l10n_vn_edi_fetch_invoice_xml_file_data()
+                invoice._l10n_vn_edi_download_invoice_xml_file_data()
             )
             pdf_data, pdf_error_message = (
-                invoice._l10n_vn_edi_fetch_invoice_pdf_file_data()
+                invoice._l10n_vn_edi_download_invoice_pdf_file_data()
             )
             if xml_error_message or pdf_error_message:
                 invoice_data["error"] = {

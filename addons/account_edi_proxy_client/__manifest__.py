@@ -1,6 +1,6 @@
 {
     "name": "Proxy features for account_edi",
-    "version": "1.0",
+    "version": "1.2",
     "category": "Accounting/Accounting",
     "description": """
 This module adds generic features to register an Odoo DB on the proxy responsible for receiving data (via requests from web-services).
@@ -15,12 +15,13 @@ Odoo database.
     "depends": [
         "account",
         "certificate",
+        "integration",
     ],
     "data": [
         "security/ir.model.access.csv",
         "security/account_edi_proxy_client_security.xml",
         "views/account_edi_proxy_user_views.xml",
+        "views/account_edi_proxy_client_menus.xml",
     ],
-    "installable": True,
     "post_init_hook": "_create_demo_config_param",
 }

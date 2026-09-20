@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
@@ -9,6 +10,8 @@ import { usePager } from "@web/search/pager_hook";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewChassis, ViewLayout } from "@web/views/view_components";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
+
+const log = makeLogger("mail.activity.view");
 export class ActivityController extends Component {
     static components = { ViewLayout };
     static props = {
@@ -106,6 +109,7 @@ export class ActivityController extends Component {
     }
 
     scheduleActivity() {
+        log.logic("scheduleActivity", () => ({ resModel: this.props.resModel }));
         this.dialog.add(SelectCreateDialog, this.getSelectCreateDialogProps, {
             onClose: () => this.model.load(this.getSearchProps()),
         });
@@ -116,6 +120,11 @@ export class ActivityController extends Component {
      * @param {number} activityTypeId
      */
     openActivityFormView(resId, activityTypeId) {
+        log.logic("openActivityFormView", () => ({
+            resModel: this.props.resModel,
+            resId,
+            activityTypeId,
+        }));
         this.action.doAction(
             {
                 type: "ir.actions.act_window",
@@ -152,6 +161,12 @@ export class ActivityController extends Component {
                 resIds.push(parseInt(resId));
             }
         }
+        log.logic("sendMailTemplate", () => ({
+            resModel: this.props.resModel,
+            templateID,
+            activityTypeID,
+            resIds: resIds.length,
+        }));
         this.model.orm.call(
             this.props.resModel,
             "activity_send_mail",

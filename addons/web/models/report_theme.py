@@ -10,7 +10,10 @@ class ReportTheme(models.Model):
     _description = "Report Theme"
     _order = "sequence, id"
 
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     sequence = fields.Integer(default=50)
 
     font_body = fields.Char(

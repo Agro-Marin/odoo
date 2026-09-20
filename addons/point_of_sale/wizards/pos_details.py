@@ -1,6 +1,9 @@
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
+
+from ..tools import debug_log as dbg
 
 
 class PosDetailsWizard(models.TransientModel):
@@ -16,14 +19,21 @@ class PosDetailsWizard(models.TransientModel):
             groupby=["config_id"],
             aggregates=["start_at:max"],
         )
-        mapping = dict(values)
-        return (mapping and min(mapping.values())) or self.env.cr.now()
+        return min(
+            (start_at for _config, start_at in values), default=self.env.cr.now()
+        )
 
-    start_date = fields.Datetime(required=True, default=_default_start_date)
-    end_date = fields.Datetime(required=True, default=fields.Datetime.now)
+    start_date = fields.Datetime(
+        default=_default_start_date,
+        required=True,
+    )
+    end_date = fields.Datetime(
+        default=fields.Datetime.now,
+        required=True,
+    )
     pos_config_ids = fields.Many2many(
-        "pos.config",
-        "pos_detail_configs",
+        comodel_name="pos.config",
+        relation="pos_detail_configs",
         default=lambda s: s.env["pos.config"].search([]),
     )
 
@@ -38,11 +48,15 @@ class PosDetailsWizard(models.TransientModel):
             self.start_date = self.end_date
 
     def action_print_report(self):
+        self.check_singleton()
+        if self.end_date < self.start_date:
+            raise UserError(self.env._("The end date must not precede the start date."))
         data = {
             "date_start": self.start_date,
             "date_stop": self.end_date,
             "config_ids": self.pos_config_ids.ids,
         }
+        dbg.lifecycle.debug("[wizard:details] print %s", data)
         return self.env.ref("point_of_sale.sale_details_report").report_action(
             [], data=data
         )

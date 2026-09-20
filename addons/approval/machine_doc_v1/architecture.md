@@ -7,7 +7,7 @@
 |                        approval.category                             |
 |  Blueprint: field visibility, approval minimums, escalation, SLA,    |
 |  privacy visibility (read audience)                                  |
-|  approver_ids  rule_ids  document_requirement_ids                    |
+|  approver_ids  rule_ids  step_ids                                    |
 +----+----------------+-----------+------------------------------------+
      |                |           |
      v                v           v
@@ -96,9 +96,9 @@
    |       it is what stops an old draft confirming with a stale set
    +-- _check_confirm()
    |   +-- _check_enough_approvers()
-   |   +-- _check_has_document_has_attachment()  (each required doc type
-   |   |       must match a DISTINCT attachment)
-   |   +-- _check_category_required_fields()
+   |   +-- approval_app: _check_has_document_has_attachment()  (each
+   |   |       required doc type must match a DISTINCT attachment)
+   |   +-- approval_app: _check_category_required_fields()
    +-- name = category sequence consecutive (deferred numbering; a
    |       reset-then-reconfirmed request keeps its original number)
    +-- _build_category_snapshot() -> category_snapshot (JSON audit,
@@ -129,16 +129,17 @@
    +-- _apply_decision(decision, approver) — the single funnel:
        +-- _lock_for_approval_action() -> SELECT FOR UPDATE
        +-- invalidate_recordset(["state"]) (guard vs stale ORM cache)
-       +-- _check_approve_sequentially_can_approve() (approve only)
        +-- _get_current_pending_approver() (delegation-aware) unless a
        |       resolved approver was passed (re-filtered to still-pending)
-       +-- approver.state = approved/refused, stamping decision_date and
-       |       decided_by_user_id (the EFFECTIVE approver) in the same write
+       +-- stamp decision_date, decided_by_user_id (the EFFECTIVE approver)
+       |       and decided_step_ids, then _append_decision_log(approved/
+       |       refused): approver.state projects from that fact
        +-- Chatter audit entry attributed to the acting (effective) user
-       +-- approve: _update_next_approvers_state(next -> pending)
-       |   refuse:  _update_next_approvers_state(rest -> refused, cancel
-       |            activities); on a PARALLEL category every remaining
-       |            non-terminal row is flipped to refused as well
+       +-- refuse (unless every deciding row is advisory only):
+       |       _flip_unsettled_approvers("refused") -- every remaining
+       |       non-terminal row is refused
+       +-- approve, request still pending: _refresh_turn_states() hands an
+       |       in-order step's turn on, then asks whoever it reaches
        +-- action_feedback() on acting user's activity
        +-- _cancel_activities() if request reached terminal state
        +-- request reached 'approved': leftover pending rows are parked
@@ -173,7 +174,7 @@ State is a **stored computed field** (`_compute_state`). It is never written dir
 It recomputes whenever `approver_ids.state`, `approver_ids.required`, or `approval_minimum` change.
 
 Request states: `new`, `pending`, `approved`, `refused`, `cancelled`.
-Approver states: `new`, `pending`, `waiting`, `approved`, `refused`, `cancelled`.
+Approver states: `new`, `pending`, `waiting`, `approved`, `refused`, `cancelled`. On a request its steps route, `waiting` is a row whose every undecided step decides in order and is not at its turn (`approval.request._refresh_turn_states`, run when a round opens, after an approval or a withdrawal, and after a reroute or an adoption); a waiting row reaches the decision funnel only to be refused as out of turn. A row written straight to `approved` decides every step it is on.
 Each row stamps `pending_since` when it ENTERS `pending` and
 `decision_date` when a genuine approve/refuse takes it out again (both
 cleared by reset-to-draft, both in `_WORKFLOW_MANAGED_FIELDS`). The pair
@@ -288,56 +289,22 @@ re-sync, never preserved as a phantom "manual" approver.
 
 ---
 
-## Sequential Approval Flow
+## Ordered Approval
 
-When `category.approve_sequentially = True`:
-
-```
-action_confirm():
-    Sort "new" approvers by (sequence, id)
-    First approver -> state = "pending", create activity
-    Remaining approvers -> state = "waiting"
-
-_apply_decision("approve") (approver N):
-    _update_next_approvers_state(approver_N, "pending", only_next_approver=True)
-        -> Next approver (by sequence,id) -> state = "pending", create activity
-
-_apply_decision("refuse") (approver N):
-    _update_next_approvers_state(approver_N, "refused", only_next_approver=False,
-                                 cancel_activities=True)
-        -> ALL remaining non-terminal approvers -> state = "refused"
-
-action_withdraw() (approver N):
-    _update_next_approvers_state(approver_N, "waiting", only_next_approver=False,
-                                 cancel_activities=True)
-        -> ALL following non-terminal approvers -> state = "waiting"
-    Approver N -> state = "pending", create activity
-        ... unless the request is STILL approved without that approval
-            (surplus approvals: a chain reaches 'approved' the moment
-            its last condition is met, so optional rows decided earlier
-            can be above the minimum). Then approver N -> "waiting" and
-            no activity: a 'pending' row on a decided request is a To-Do
-            whose Approve button raises.
-```
-
-`_update_next_approvers_state` anchors the "who comes next" comparison on
-the **min (sequence, id)** of the acting recordset — the acting set can
-hold several rows of one request when a delegate is the effective
-approver for multiple principals (delegation fan-in). Rows already in a
-terminal state are never re-promoted back into the workflow.
+Every request routes by its category's steps, so order is a step's: `in_order`
+asks a step's members one at a time by `(sequence, id)`, and
+`_refresh_turn_states()` moves the turn after each decision or withdrawal.
 
 **Sequence values by source:**
 
-Three `ir.config_parameter` keys, seeded in `data/ir_config_parameter_data.xml`
+One `ir.config_parameter` key, seeded in `data/ir_config_parameter_data.xml`
 and read through `_get_sequence_param(kind, default)` (which logs and falls
 back to the default on an unparseable value):
 
 | Source | Default Sequence | Where it comes from |
 |--------|-----------------|---------------------|
-| HR manager (extension hook) | 9 | `approval.sequence.manager` → `_get_sequence_manager()` |
-| Category approvers | As defined (field default 10) | `approval.category.approver.sequence`, set per row on the category form. **No config parameter** — there is no `approval.sequence.category` |
-| Replacing-rule approvers | 10 | `approval.sequence.tier` → `_get_sequence_replacement()` (the parameter keeps its old name so a tuned deployment is not silently reset) |
-| Security group members | 500 | `approval.sequence.group` → `_get_sequence_group()` |
+| HR manager (approval_hr's step source) | 9 | `approval.sequence.manager` → `_get_sequence_manager()` |
+| Step members | As defined | `approval.category.step.member.sequence`; a member a path names takes the step's `subject_user_sequence` in order, the step's `sequence` otherwise |
 | Manual approvers | As given | The row's own `sequence`; a re-sync classifies a manual row but never rewrites it |
 
 ---
@@ -351,9 +318,9 @@ configuration, before the snapshot freezes it) and
 related `approval.approver` records.
 
 **Re-sync triggers (19.0.1.0.17).** `write()` no longer tests a
-hardcoded field set. `_get_approver_sync_trigger_fields()` unions
+hardcoded field set. `_get_fields_approver_sync_trigger()` unions
 `category_id`/`request_owner_id` with what `approval.rule` and
-reports from `_get_request_trigger_fields()` — the
+reports from `_get_fields_request_trigger()` — the
 flattened values of their `_CONDITION_FIELD_DEPENDS` /
 `_THRESHOLD_FIELD_DEPENDS` maps, today `amount`, `quantity`,
 `currency_id`, `date`, `date_start`, `date_end`, `priority`. The previous literal
@@ -366,52 +333,45 @@ at `date`). `action_confirm` then froze the stale set in and snapshotted
 it as intended. A satellite adding a `condition_field` extends its own
 model's mapping and is picked up here automatically.
 
-**Purity (19.0.1.0.17).** `_compute_desired_approvers()` is now
-genuinely write-free: the `applied_rule_ids` write that hid inside
-`_get_additional_approvers()` moved up to `_sync_approvers`, which
-persists the `matched_rules` the decision step returns on its
-`DesiredApprovers` result. The matching `add_approver` rules are evaluated
-once per request by `_matched_add_approver_rules()` and that one set feeds
-the staging merge, the provenance mapping and `applied_rule_ids`;
-`_get_additional_approvers()` is an extension hook only.
+**Purity (19.0.1.0.17).** `_get_desired_approvers()` is write-free:
+`_sync_approvers` persists the `matched_rules` it returns on its
+`DesiredApprovers` result, which are the applicable steps' `when_rule_ids`.
+
+**Steps only (19.0.2.8.0).** A category has no approver list any more: no
+`approval.category.approver`, no `approve_sequentially`, `group_approval` or
+`approver_group_id`, and no rule that adds or replaces approvers. Migration 2.8's
+end script converts what a database still holds (a list into one pool step,
+sequential into `in_order`, a security group into a group step asking its members
+when `notify_pool_members` did) and hands the pending list-routed requests to those
+steps, refusing the upgrade on a rule that added or replaced approvers on a
+category with no step. approval_hr's 19.0.1.1.4 re-syncs the requester-manager
+steps after it, and telegram_bot_approval_request's 19.0.1.0.4 carries the
+Telegram opt-in onto the members.
 
 ```
 _sync_approvers()   [batch-level]
     |
-    +-- Prefetch category one2manys for the whole batch in one query each:
-    |       category_id.fetch(["rule_ids", "approver_ids"])
+    +-- Prefetch the batch's categories' steps in one query:
+    |       category_id.fetch(["step_ids"])
     |
-    +-- Per request: _compute_desired_approvers()  [PURE — no writes]
+    +-- Per request: _get_desired_approvers()  [PURE — no writes]
     |   |
     |   +-- Map existing approvers {user_id: row}, mark duplicates
     |   +-- Rows always stage as 'new' — the sync is DRAFT-ONLY
     |   |       (state == 'new' filter; every trigger is a draft write
     |   |       or reset-to-draft; mid-flight staging removed, SM-5)
-    |   +-- _matched_add_approver_rules() -> add_approver rules, evaluated once
-    |   +-- _get_additional_approvers() -> extension hook (base: [])
-    |   |       (returns tuples only — the applied_rule_ids write lives
-    |   |        in _sync_approvers since 19.0.1.0.17; see Purity above)
-    |   +-- If group_approval != "exclusive":
-    |   |   +-- _find_matching_replacement() -> its approvers REPLACE the category's
-    |   |   +-- OR standard category approvers (category.approver_ids)
-    |   +-- If group_approval != "no" AND approver_group_id set:
-    |   |   +-- Add group members as optional approvers
-    |   +-- Preserve truly manual approvers -> keep at sequence 1000,
-    |           keep state; orphaned injections are left out (deleted by
-    |           the caller). A row is an ORPHAN when source_synced is set
-    |           (exact provenance since 19.0.1.0.13), or it still carries
-    |           a rule stamp, or its user is in the managed set —
-    |           _get_managed_approver_user_ids(), the legacy backstop for
-    |           rows predating source_synced. That set covers the rule and
-    |           rules that ACTUALLY MATCHED, not every one configured:
-    |           unioning all of them deleted a manually-added approver who
-    |           merely appeared in a non-matching band, on any draft
-    |           re-sync (2026-08-11 audit). The category leg was narrowed
-    |           the same way in 19.0.1.0.22: it read every category
-    |           approver in the COMPANY, so a hand-added approver who
-    |           happened to be configured on an unrelated category was
-    |           deleted too. It is now this request's own
-    |           category_id.approver_ids, already prefetched for the batch
+    |   +-- _get_applicable_steps() -> the steps whose condition holds
+    |   +-- Each step's pool, members first in member order: a row per
+    |   |       user, required when its member is (or when the step
+    |   |       requires the user its path names), step_ids the steps
+    |   |       that name it
+    |   +-- Preserve truly manual approvers -> keep their sequence and
+    |           flow_state, counted toward the steps that count added
+    |           approvers; orphaned injections are left out (deleted by
+    |           the caller). A row is an ORPHAN when source_synced is set,
+    |           or it still carries a rule stamp from a list-routed past,
+    |           or its user is a candidate of an applicable step
+    |           (_get_managed_approver_user_ids(steps))
     |
     |   +-- Accumulate row ops for the WHOLE batch (not per request):
     |       rows_to_delete (duplicates + orphans), rows_to_create,
@@ -440,8 +400,9 @@ _sync_approvers()   [batch-level]
     |       combination with env.su.
     |       (Previously one update({"approver_ids": commands}) PER
     |        request, i.e. one INSERT per approver row on a bulk create.)
-    +-- Collect effective approval_minimum (replacing-rule override or category
-    |       default) — flushed as batched UPDATEs grouped by value
+    +-- Collect effective approval_minimum (the applicable steps' minimums
+    |       summed, or the category default when none applies) — flushed as
+    |       batched UPDATEs grouped by value
     +-- Log-only timing: warn when the batch exceeds ~100ms/request
             (the old per-request approver_compute_ms column is gone)
 ```
@@ -576,43 +537,7 @@ holds the registry, `mixin.approval` and two-way-link checks and returns it unde
 
 ---
 
-## Banded and Conditional Routing
-
-### Approver-replacing rules (`action_type = "set_approvers"`)
-
-A band that supplies its own approvers INSTEAD of the category's, and its own
-`approval_minimum`. This was a separate model until 19.0.1.0.24: the
-former `approval.tier`, whose `threshold_min`/`threshold_max` a rule now writes as
-`operator = "between"` + `threshold`/`threshold_max`.
-
-```
-    Band 1: amount 0-5000      -> Approver: Department Lead (required)
-    Band 2: amount 5000-25000  -> Approvers: Lead + Finance Manager (both required)
-    Band 3: amount 25000+      -> Approvers: Lead + Finance + Director (all required)
-```
-
-**Evaluation** (`_find_matching_replacement`):
-- reads the category's active `set_approvers` rules through the prefetched
-  one2many, filtered by `_rule_applies_to_company`
-- takes the comparison value from `rule._get_field_value(request)` — the same
-  accessor every other rule uses, so a band can key on `date_range_days` or
-  `priority`, which a tier could not
-- **first match by `(sequence, id)` wins.** Tiers sorted
-  `(threshold_field != "amount", threshold_min)`, so an amount band always beat
-  a quantity band and nothing could express the opposite; the order is now
-  written down
-- **skipped entirely when `group_approval == "exclusive"`** — the security
-  group IS the approver list there. Adding rules are NOT skipped, and that
-  asymmetry is deliberate: an adding rule composes with the group, a replacing
-  one would contradict it
-
-**When a band matches:** its approvers replace the category's, its
-`approval_minimum` overrides the category's, and its `approver_required` flag
-applies to all of them.
-
-**Constraint:** `_check_replacement_overlap` — two replacing rules on the same
-category and condition field may not both match one value, or which one applied
-would depend on sequence alone. Adding rules may overlap freely; they compose.
+## Conditional Routing
 
 ### Conditional Rules (`approval.rule`)
 
@@ -620,16 +545,16 @@ Rules evaluate conditions and take actions:
 
 | `action_type` | Effect |
 |--------------|--------|
-| `add_approver` | Injects additional approvers (during `_sync_approvers`) |
 | `auto_approve` | Bypasses normal workflow, sets all approvers to approved |
 | `auto_refuse` | Bypasses normal workflow, sets all approvers to refused AND stamps `refusal_reason_auto_rule` + note on the request |
+| `condition` | Nothing by itself: a step applies when it matches (`when_rule_ids`) or unless it does (`unless_rule_ids`) |
 
 **Rule evaluation** (`_evaluate`):
 - Gets field value from request (amount, quantity, date_range_days, priority);
   `amount` is converted into the rule's `currency_id` first
 - Applies operator (gt, gte, lt, lte, eq, neq) against threshold
   (float equality uses `_FLOAT_EQ_ABS_TOL` / `_FLOAT_EQ_REL_TOL`)
-- `add_approver` rules evaluated once per sync in `_matched_add_approver_rules()` and merged by `_compute_desired_approvers()`
+- `condition` rules a step reads evaluated once per request per sync (`_get_step_rule_matches`)
 - `auto_approve`/`auto_refuse` rules evaluated in `_check_auto_action_rules()` (during `action_confirm`)
 
 ### Escalation Pipeline
@@ -683,7 +608,7 @@ by `_get_escalation_rules()`:
 
 ## Cron Jobs
 
-3 scheduled actions (`data/ir_cron_data.xml`), all batched via
+4 scheduled actions (`data/ir_cron_data.xml`). The three on requests are batched via
 `CRON_BATCH_LIMIT = 500`. The cap is per TICK for auto-expire and
 consent — both build one OR-of-per-category-windows domain through
 `_eligible_by_category_domain()` and issue a single capped, globally
@@ -699,6 +624,7 @@ carries its own thresholds:
 | `ir_cron_smart_escalation` | `cron_smart_escalation()` | Every 4 hours | Yes | Priority-based reminders and manager escalation |
 | `ir_cron_auto_expire` | `cron_auto_expire()` | Daily | Yes | **Cancel** (terminal `cancelled`, via `_force_terminal`) requests past `category.auto_expire_hours` |
 | `ir_cron_consent_approval` | `cron_consent_approval()` | Every 4 hours | Yes | Auto-approve if no refusal within `consent_approval_hours`; skips sequential categories, requests with `pending_change_field`, and `_can_consent_approve()` vetoes |
+| `ir_cron_hand_delegated_activities_over` | `approval.approver.cron_hand_delegated_activities_over()` | Daily | Yes | `is_delegated` is computed from today, so who may decide a delegated row changes when its window opens or closes. The approval activity is moved to that person (`_hand_activities_to_effective_approver`, also run by every write of the delegation fields). Unbatched: it reads only pending rows that carry a delegate |
 
 Removed: the weekly `ir_cron_performance_report` (and its
 `approver_compute_ms` column) — unlinked/dropped by the 19.0.1.0.7
@@ -813,8 +739,8 @@ The three declared in `__manifest__.py`:
 | Module | Integration |
 |--------|------------|
 | `mail` | Activities, chatter, message_post, message_subscribe |
-| `automation` | Automation templates linked to categories (`approval.category.automation_id`, `approval.request.automation_runtime_id`) |
-| `mixin_report_sql` | `mixin.sql.report`, the `_auto = False` / `_table_query` base of `approval.metrics` and `approver.performance` |
+| `automation` | **Not a dependency since 19.0.2.0.0.** `approval_automation` carries `approval.category.automation_id`, `approval.request.automation_runtime_id` and a binding's Reset When |
+| `mixin_report_sql` | **Not a dependency since 19.0.2.0.0.** `approval_analytics` carries `approval.metrics`, `approver.performance` and `approval.dashboard` |
 
 **Not a dependency: `product`.** Product lines left this module in
 19.0.1.0.12 — `approval.request.line`, `approval.category.product_ids`
@@ -825,7 +751,6 @@ and `has_product` now live in `approval_product`, which depends on
 
 | Hook | Purpose | Used By |
 |------|---------|---------|
-| `_get_additional_approvers()` | Add custom approvers (returns list of (user_id, required, sequence)) | approval_hr (manager) |
 | `_get_escalation_manager(approver)` | Supply the manager for cron escalation | approval_hr |
 | `_check_withdraw_allowed()` + `_raise_withdraw_blocked()` | Block withdrawal when linked documents exist | approval_account / sale / purchase / stock |
 | `_check_reset_allowed()` | Veto reset-to-draft | Base only today (it blocks a request whose source-document link was released); no satellite overrides it |
@@ -840,13 +765,13 @@ and `has_product` now live in `approval_product`, which depends on
 | `_get_approval_category_fallback(categories)` | Generic category for approval triggered by a flag outside the category criteria | account / stock |
 | `_raise_approval_category_not_configured()` / `_raise_approval_category_not_matched(categories)` | Turn "no category" into a named configuration error instead of "no approval needed" | sale / purchase / maintenance / rma / credit_management_approval |
 | `_get_approval_reason_html()` | Justification stored on the request; base returns the document display name | account / sale / purchase / stock / rma / credit_management_approval |
-| `_get_category_required_field_mapping()` | Add required field validation | Extensions adding custom fields (must also add the field — base no longer maps `payment_method_id`) |
-| `_get_locked_fields()` | Extend the post-submit frozen field set | Extensions adding value fields |
+| `_get_category_required_field_mapping()` | Add required field validation, on `approval_app`, which owns the form fields it maps | Extensions adding custom fields (must also add the field — base no longer maps `payment_method_id`) |
+| `_get_fields_locked()` | Extend the post-submit frozen field set | Extensions adding value fields |
 | `_approval_rate_limit_exceeded(...)` | Submission throttle: too many, or too much in value, from this creator within a window. Multi-currency — thresholds are given in company currency and converted per counterparty currency before comparison | approval_purchase / approval_sale |
 | `_approval_rate_limit_rate_date()` | Pin the conversion date used by the throttle | any consumer |
-| `_get_approval_protected_fields()` | Fields on the SOURCE document frozen by the mixin's `write()` while an approval is in flight | any consumer |
+| `_get_fields_approval_protected()` | Fields on the SOURCE document frozen by the mixin's `write()` while an approval is in flight | any consumer |
 | `_before_approval_request_submit(approval)` | Act between request creation and auto-confirm | any consumer |
-| `_get_managed_approver_user_ids(replacement, matched_rules)` | Declare the user ids a satellite ACTUALLY injected, so a stale injection is not kept as a phantom manual approver (legacy backstop; `source_synced` covers rows since 19.0.1.0.13). Scoped to THIS request's category since 19.0.1.0.22 — it used to be seeded with every category approver in the company, which deleted a hand-added approver who merely appeared on an unrelated category | none today |
+| `_get_managed_approver_user_ids(steps)` | The user ids the applicable steps may stage, so a row whose step stopped applying is not kept as a phantom manual approver (legacy backstop; `source_synced` covers rows since 19.0.1.0.13) | none today |
 | `approval_type` selection | Extend with new types (e.g., 'purchase', 'expense') | Domain-specific modules |
 | `target_model` selection | Extend with new target models | Domain-specific modules |
 
@@ -854,17 +779,15 @@ and `has_product` now live in `approval_product`, which depends on
 
 ## Category Snapshot (Audit Trail)
 
-At `action_confirm()`, `_build_category_snapshot()` captures the category
+At `action_confirm()`, `_prepare_category_snapshot()` captures the category
 configuration into a JSON field (`category_snapshot`). This preserves:
 
-- Category name, approval_minimum, approval_type
-- Sequential/group approval settings, `approval_deadline_hours`
-- Raw category approvers (user_id, name, required, sequence)
+- Category name, approval_minimum, approval_type, `approval_deadline_hours`
 - Active rules (name, condition_field, operator, threshold, action_type)
-- **Effective resolved workflow**: `effective_approval_minimum`,
-  `effective_approvers` (what was actually used after any replacement and
-  rule injection), and the matched `replacement_rule` (id, name, condition,
-  bounds, minimum)
+- The applicable steps: name, sequence, minimum, exclusivity, group, members,
+  condition and source path
+- **Effective resolved workflow**: `effective_approval_minimum` and
+  `effective_approvers` (the rows actually staged)
 
 Consumers read frozen values through `_get_snapshot_config(key)` (live
 category fallback for legacy rows): `approval_deadline` is computed from

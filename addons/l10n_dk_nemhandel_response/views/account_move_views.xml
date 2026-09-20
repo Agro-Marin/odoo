@@ -10,10 +10,10 @@
         <field name="arch" type="xml">
             <xpath expr="//page[@name='other_info']" position="inside">
                 <group
-                    string="Nemhandel info"
                     name="accounting_info_group"
-                    invisible="not nemhandel_message_uuid"
-                    groups="base.group_no_one">
+                    string="Nemhandel info"
+                    groups="base.group_no_one"
+                    invisible="not nemhandel_message_uuid">
                     <label for="nemhandel_move_state" />
                     <div>
                         <a

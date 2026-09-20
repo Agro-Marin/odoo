@@ -10,18 +10,18 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <group>
                     <filter
-                        string="Authorization"
                         name="group_auth"
+                        string="Authorization"
                         context="{'group_by': 'rule_auth'}" />
                     <filter
-                        string="Level"
                         name="group_level"
+                        string="Level"
                         context="{'group_by': 'level'}" />
                 </group>
             </search>
@@ -66,24 +66,24 @@
             <form string="Badge">
                 <header>
                     <button
-                        string="Grant this Badge"
-                        type="action"
                         name="%(action_grant_wizard)d"
-                        class="oe_highlight"
-                        invisible="remaining_sending == 0" />
+                        type="action"
+                        string="Grant this Badge"
+                        invisible="remaining_sending == 0"
+                        class="oe_highlight" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box" />
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="bg-danger" />
                     <field
                         name="image_1920"
                         widget="image"
-                        class="oe_avatar"
-                        options="{'preview_image': 'image_128'}" />
+                        options="{'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" />
                         <h1>
@@ -93,9 +93,9 @@
                     <group>
                         <field
                             name="description"
-                            nolabel="1"
                             placeholder="Badge Description"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                     <group string="Granting">
                         <div class="opacity-50" colspan="2">
@@ -106,12 +106,12 @@
                             <field name="rule_auth" widget="radio" />
                             <field
                                 name="rule_auth_user_ids"
-                                invisible="rule_auth != 'users'"
-                                widget="many2many_tags" />
+                                widget="many2many_tags"
+                                invisible="rule_auth != 'users'" />
                             <field
                                 name="rule_auth_badge_ids"
-                                invisible="rule_auth != 'having'"
-                                widget="many2many_tags" />
+                                widget="many2many_tags"
+                                invisible="rule_auth != 'having'" />
                             <field name="rule_max" invisible="rule_auth == 'nobody'" />
                             <field
                                 name="rule_max_number"
@@ -137,11 +137,11 @@
                     <group string="Rewards for challenges">
                         <field
                             name="challenge_ids"
-                            mode="kanban"
                             widget="many2many"
+                            mode="kanban"
+                            colspan="2"
                             nolabel="1"
-                            context="{'default_reward_id': id}"
-                            colspan="2" />
+                            context="{'default_reward_id': id}" />
                         <field name="level" colspan="2" />
                     </group>
                     <group id="badge_statistics" string="Statistics">
@@ -176,7 +176,7 @@
                         </aside>
                         <main class="col ps-2">
                             <span>
-                                <field class="fw-bold fs-5 me-1" name="name" />
+                                <field name="name" class="fw-bold fs-5 me-1" />
                                 <t t-if="record.remaining_sending.value != -1">
                                     <field name="stat_my_monthly_sending" />/<field name="rule_max_number" />
                                 </t>
@@ -186,18 +186,18 @@
                             </span>
                             <div t-if="record.remaining_sending.value == 0">Can not grant</div>
                             <div>
-                                <field class="fw-bold" name="granted_count" /> granted,
-                                <field class="fw-bold" name="stat_this_month" /> this month
+                                <field name="granted_count" class="fw-bold" /> granted,
+                                <field name="stat_this_month" class="fw-bold" /> this month
                             </div>
                             <div>
-                                <field class="fst-italic" name="description" />
+                                <field name="description" class="fst-italic" />
                                 <field
                                     name="unique_owner_ids"
                                     widget="many2many_avatar_user" />
                             </div>
                             <footer
                                 t-if="record.remaining_sending.value != 0 and !selection_mode">
-                                <button type="action" name="%(action_grant_wizard)d" class="btn btn-primary ms-auto">Grant</button>
+                                <button name="%(action_grant_wizard)d" type="action" class="btn btn-primary ms-auto">Grant</button>
                             </footer>
                         </main>
                     </t>

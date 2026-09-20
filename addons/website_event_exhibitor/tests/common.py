@@ -8,7 +8,6 @@ class TestEventExhibitorCommon(TestEventOnlineCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Sponsorship data
         cls.sponsor_type_0 = cls.env["event.sponsor.type"].create(
             {
                 "name": "GigaTop",

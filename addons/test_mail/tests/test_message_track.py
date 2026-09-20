@@ -1430,7 +1430,7 @@ class TestTrackingInternals(MailCommon):
                 ),
             ],
         )
-        trackings = main_track.message_ids.sudo().tracking_value_ids
+        trackings = main_track.message_ids.sudo().tracking_value_ids.sorted("id")
         self.assertEqual(len(trackings), 3)
 
         # check groups, as it depends on model

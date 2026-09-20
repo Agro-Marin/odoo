@@ -1,8 +1,11 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.misc import unquote
+
+_debug = DebugLog(__name__)
 
 
 class ProjectTask(models.Model):
@@ -27,37 +30,39 @@ class ProjectTask(models.Model):
         )
 
     sale_order_id = fields.Many2one(
-        "sale.order",
-        "Sales Order",
+        comodel_name="sale.order",
+        string="Sales Order",
         compute="_compute_sale_order_id",
         store=True,
-        help="Sales order to which the task is linked.",
         group_expand="_group_expand_sales_order",
+        help="Sales order to which the task is linked.",
     )
     sale_line_id = fields.Many2one(
-        "sale.order.line",
-        "Sales Order Item",
-        copy=True,
-        tracking=True,
-        index="btree_not_null",
-        recursive=True,
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
         compute="_compute_sale_line_id",
+        recursive=True,
         store=True,
+        index="btree_not_null",
+        copy=True,
         readonly=False,
         domain=lambda self: str(self._domain_sale_line_id()),
+        tracking=True,
         help="Sales Order Item to which the time spent on this task will be added in order to be invoiced to your customer.\n"
         "By default the sales order item set on the project will be selected. In the absence of one, the last prepaid sales order item that has time remaining will be used.\n"
         "Remove the sales order item in order to make this task non billable. You can also change or remove the sales order item of each timesheet entry individually.",
     )
     project_sale_order_id = fields.Many2one(
-        "sale.order", string="Project's sale order", related="project_id.sale_order_id"
+        comodel_name="sale.order",
+        related="project_id.sale_order_id",
+        string="Project's sale order",
     )
     sale_order_state = fields.Selection(related="sale_order_id.state")
     task_to_invoice = fields.Boolean(
-        "To invoice",
+        string="To invoice",
         compute="_compute_task_to_invoice",
         search="_search_task_to_invoice",
-        groups="sales_team.group_sale_salesman_all_leads",
+        groups="sale.group_sale_salesman_all_leads",
         help="True when the task's sale order still has something left to invoice "
         "(fork invoice_state 'to do' or 'partial'); false when there is nothing to "
         "invoice ('no'), it is fully invoiced ('done'), or over-invoiced ('over done').",
@@ -66,7 +71,8 @@ class ProjectTask(models.Model):
     partner_id = fields.Many2one(inverse="_inverse_partner_id")
 
     display_sale_order_button = fields.Boolean(
-        string="Display Sales Order", compute="_compute_display_sale_order_button"
+        string="Display Sales Order",
+        compute="_compute_display_sale_order_button",
     )
 
     @property
@@ -132,18 +138,12 @@ class ProjectTask(models.Model):
             ).commercial_partner_id
             if task.partner_id.commercial_partner_id in consistent_partners:
                 task.sale_order_id = sale_order
+                _debug.logic("task_sale_order", task=task, order=sale_order)
             else:
                 task.sale_order_id = False
-
-    @api.depends("allow_billable")
-    def _compute_partner_id(self):
-        billable_task = self.filtered(
-            lambda t: (
-                t.allow_billable or (not self._origin and t.parent_id.allow_billable)
-            )
-        )
-        (self - billable_task).partner_id = False
-        super(ProjectTask, billable_task)._compute_partner_id()
+                _debug.logic(
+                    "task_sale_order_cleared", task=task, reason="partner_mismatch"
+                )
 
     def _inverse_partner_id(self):
         for task in self:
@@ -156,6 +156,9 @@ class ProjectTask(models.Model):
                 task.sale_order_id
                 and task.partner_id.commercial_partner_id not in consistent_partners
             ):
+                _debug.logic(
+                    "task_sale_links_cleared", task=task, reason="partner_changed"
+                )
                 task.sale_order_id = task.sale_line_id = False
 
     @api.depends(
@@ -187,6 +190,7 @@ class ProjectTask(models.Model):
                 ):
                     sale_line = task.project_id.sale_line_id
                 task.sale_line_id = sale_line
+                _debug.logic("task_sale_line_inherited", task=task, line=sale_line)
 
     @api.depends("sale_order_id")
     def _compute_display_sale_order_button(self):
@@ -200,6 +204,7 @@ class ProjectTask(models.Model):
             for task in self:
                 task.display_sale_order_button = task.sale_order_id in sale_orders
         except AccessError:
+            _debug.logic("sale_order_button_hidden", tasks=self, reason="no_access")
             self.display_sale_order_button = False
 
     @api.constrains("sale_line_id")
@@ -207,6 +212,12 @@ class ProjectTask(models.Model):
         for task in self.sudo():
             if task.sale_line_id:
                 if not task.sale_line_id.is_service or task.sale_line_id.is_expense:
+                    _debug.logic(
+                        "task_sale_line_rejected",
+                        task=task,
+                        line=task.sale_line_id,
+                        reason="not_a_service_or_reinvoiced_expense",
+                    )
                     raise ValidationError(
                         _(
                             "You cannot link the order item %(order_id)s - %(product_id)s to this task because it is a re-invoiced expense.",
@@ -225,6 +236,9 @@ class ProjectTask(models.Model):
             )[0][0]
         )
         if quotations:
+            _debug.pipeline(
+                "linked_quotations_confirmed", tasks=self, orders=quotations
+            )
             quotations.action_confirm()
 
     @api.model_create_multi
@@ -233,12 +247,16 @@ class ProjectTask(models.Model):
         sol_ids = {
             vals["sale_line_id"] for vals in vals_list if vals.get("sale_line_id")
         }
+        _debug.lifecycle(
+            "create", tasks=tasks, rows=len(vals_list), linked_lines=len(sol_ids)
+        )
         if sol_ids:
             tasks._confirm_linked_sale_orders(list(sol_ids))
         return tasks
 
     def write(self, vals):
         task = super().write(vals)
+        _debug.lifecycle("write", tasks=self, fields=list(vals))
         if sol_id := vals.get("sale_line_id"):
             self._confirm_linked_sale_orders([sol_id])
         return task

@@ -46,9 +46,9 @@ test("keep last spam input search", async () => {
     onRpc("forum.post", "search_read", async () => await def);
     await click("#spamSearch");
     await fill("coucou");
-    await advanceTime(201); // debounced
+    await advanceTime(201);
     await edit("hello");
-    await advanceTime(201); // debounced
+    await advanceTime(201);
     expect.verifySteps([]);
     def.resolve([{ content: "<div>hello</div>" }]);
     await tick();

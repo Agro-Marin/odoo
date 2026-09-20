@@ -1,5 +1,8 @@
 // @ts-check
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.counters");
 
 /**
  * @param {Object} target
@@ -11,8 +14,21 @@
 export function applyCounterAbsolute(target, field, value, busId) {
     const busField = `${field}_bus_id`;
     if (busId <= target[busField]) {
+        log.logic("counter absolute stale", () => ({
+            target: target.localId,
+            field,
+            busId,
+            lastSeen: target[busField],
+        }));
         return false;
     }
+    log.pipeline("counter absolute", () => ({
+        target: target.localId,
+        field,
+        from: target[field],
+        to: value,
+        busId,
+    }));
     target[field] = value;
     target[busField] = busId;
     return true;
@@ -29,10 +45,24 @@ export function applyCounterAbsolute(target, field, value, busId) {
  */
 export function applyCounterDelta(target, field, delta, { floor = 0, busId } = {}) {
     if (busId !== undefined && busId <= target[`${field}_bus_id`]) {
+        log.logic("counter delta stale", () => ({
+            target: target.localId,
+            field,
+            delta,
+            busId,
+            lastSeen: target[`${field}_bus_id`],
+        }));
         return 0;
     }
     const value = Math.max(target[field] + delta, floor);
     const applied = value - target[field];
+    log.pipeline("counter delta", () => ({
+        target: target.localId,
+        field,
+        delta,
+        applied,
+        value,
+    }));
     if (applied) {
         target[field] = value;
     }
@@ -50,6 +80,12 @@ export function snapshotCounter(target, field) {
     const busId = target[busField];
     return {
         restore() {
+            log.logic("counter restore", () => ({
+                target: target.localId,
+                field,
+                value,
+                applies: target[busField] === busId,
+            }));
             if (target[busField] === busId) {
                 target[field] = value;
             }

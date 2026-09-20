@@ -11,7 +11,7 @@ import {
     queryValue,
 } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, onRendered, onWillRender, useState, xml } from "@odoo/owl";
 import {
     contains,
     editSelectMenu,
@@ -19,8 +19,45 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { DropdownPopover } from "@web/components/dropdown/_behaviours/dropdown_popover";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
+
+test("an open menu follows sorting and section changes", async () => {
+    class Host extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu t-props="state"/>`;
+        setup() {
+            this.state = useState({
+                autoSort: true,
+                groups: [
+                    {
+                        section: "a",
+                        choices: [
+                            { value: 2, label: "Zulu" },
+                            { value: 1, label: "Alpha" },
+                        ],
+                    },
+                    { section: "b", choices: [{ value: 3, label: "Beta" }] },
+                ],
+                sections: [
+                    { name: "a", label: "First" },
+                    { name: "b", label: "Second" },
+                ],
+            });
+        }
+    }
+    const host = await mountWithCleanup(Host);
+    await open();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Zulu", "Beta"]);
+    host.state.autoSort = false;
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Zulu", "Alpha", "Beta"]);
+    host.state.sections.reverse();
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Beta", "Zulu", "Alpha"]);
+});
 
 async function mountSingleApp(
     /** @type {any} */ ComponentClass,
@@ -1469,7 +1506,7 @@ test("a group header is never reported as the selected option", async () => {
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    const header = instance.state.choices.find(
+    const header = instance.filtered.choices.find(
         (/** @type {any} */ choice) => choice.isGroup,
     );
     expect(Boolean(header)).toBe(true);
@@ -1662,12 +1699,12 @@ test("a closed menu holds no rendered options", async () => {
     }));
     const menu = await mountSingleApp(SelectMenu, { choices, onSelect: () => {} });
     await contains(".o_select_menu_toggler").click();
-    expect(menu.state.displayedOptions.length).toBe(80);
+    expect(menu.filtered.displayed.length).toBe(80);
 
     menu.dropdownState.close();
     await animationFrame();
-    expect(menu.state.choices).toEqual([]);
-    expect(menu.state.displayedOptions).toEqual([]);
+    expect(menu.filtered.choices).toEqual([]);
+    expect(menu.filtered.displayed).toEqual([]);
 });
 
 test("selected-value lookup does not scan the selection per choice", async () => {
@@ -1707,7 +1744,7 @@ test("selected-value lookup does not scan the selection per choice", async () =>
 
     scanned = 0;
     menu.filterOptions("");
-    for (const choice of menu.state.displayedOptions) {
+    for (const choice of menu.filtered.choices) {
         menu.getItemClass(choice);
     }
     expect(scanned).toBe(0);
@@ -2228,4 +2265,100 @@ test("a cleared value does not inherit a label the list has stopped offering", a
     expect(queryValue(".o_select_menu_input")).toBe("", {
         message: "false is the empty scalar, not a remembered selection",
     });
+});
+
+test("new choices arriving while the menu is open are filtered in the render they trigger", async () => {
+    let renders = 0;
+    patchWithCleanup(SelectMenu.prototype, {
+        setup() {
+            super.setup();
+            onWillRender(() => renders++);
+        },
+    });
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="state.choices" value="'a'"/>`;
+        setup() {
+            this.state = useState({ choices: [{ label: "A", value: "a" }] });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    await open();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["A"]);
+
+    const opened = renders;
+    parent.state.choices = [
+        { label: "A", value: "a" },
+        { label: "B", value: "b" },
+    ];
+    await animationFrame();
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["A", "B"]);
+    expect(renders - opened).toBe(1, {
+        message:
+            "the props update is the render that filters; deriving the list costs none",
+    });
+});
+
+test("typing into an open menu renders neither the menu nor its options until the debounced search", async () => {
+    let menuRenders = 0;
+    let popoverRenders = 0;
+    patchWithCleanup(SelectMenu.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => menuRenders++);
+        },
+    });
+    patchWithCleanup(DropdownPopover.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => popoverRenders++);
+        },
+    });
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="choices" value="'v1'"/>`;
+        choices = [...Array(30)].map((_, i) => ({
+            label: `Option ${i}`,
+            value: `v${i}`,
+        }));
+    }
+    await mountSingleApp(MyParent);
+    await open();
+    expect(".o_select_menu_item").toHaveCount(30);
+    menuRenders = 0;
+    popoverRenders = 0;
+
+    await edit("Option 2", { confirm: false });
+    await animationFrame();
+    expect(menuRenders).toBe(0);
+    expect(popoverRenders).toBe(0);
+    expect("input.o_select_menu_input").toHaveValue("Option 2");
+    expect(".o_select_menu_item").toHaveCount(30);
+
+    await runAllTimers();
+    await animationFrame();
+    expect(menuRenders).toBe(1);
+    expect(".o_select_menu_item").toHaveCount(12);
+});
+
+test("a disabled select menu cannot be opened through its caret", async () => {
+    await mountWithCleanup(SelectMenu, {
+        props: { choices: [{ value: 1, label: "One" }], disabled: true },
+    });
+    queryOne(".o_select_menu_caret").click();
+    await animationFrame();
+    expect(".o_select_menu_menu").toHaveCount(0);
+});
+
+test("a zero-valued selection displays its custom toggler instead of the placeholder", async () => {
+    class Parent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`<SelectMenu choices="[{value: 0, label: 'Zero'}]" value="0" placeholder="'Choose'">Selected zero</SelectMenu>`;
+    }
+    await mountWithCleanup(Parent);
+    expect(".o_select_menu_toggler_slot").toHaveText("Selected zero");
 });

@@ -119,7 +119,7 @@ class TestIndexPlan(MaterializedCase):
 
     def test_ensure_indexes_is_idempotent(self):
         before = self._indexes()
-        self.report._relation_ensure_indexes()
+        self.report._relation_create_indexes()
         self.assertEqual(self._indexes(), before)
 
     def test_ensure_indexes_drops_a_legacy_index_left_by_an_older_version(self):
@@ -131,7 +131,7 @@ class TestIndexPlan(MaterializedCase):
             )
         )
         self.assertIn(f"id_{self.table}", self._indexes())
-        self.report._relation_ensure_indexes()
+        self.report._relation_create_indexes()
         self.assertNotIn(f"id_{self.table}", self._indexes())
         self.assertIn(f"{self.table}__grain_uidx", self._indexes())
 
@@ -388,30 +388,34 @@ class TestRebuildSkipAndDeferral(MaterializedCase):
 
     def test_init_defers_to_register_hook_while_loading(self):
         registry = self.env.registry
-        self.addCleanup(
-            lambda: getattr(registry, "_pending_materialized_views", {}).pop(
-                self.report._name, None
-            )
-        )
         oid = self._oid()
         changed = patch.object(
             type(self.report), "_get_where_conditions", lambda self: ["s.value > 0"]
         )
-        with changed, patch.object(registry, "loaded", False):
-            self.report.init()
-            self.assertEqual(self._oid(), oid, "nothing rebuilt during load")
-            self.assertIn(self.report._name, registry._pending_materialized_views)
-        with changed:
-            self.report._register_hook()
-            self.assertNotEqual(self._oid(), oid)
-            self.assertNotIn(
-                self.report._name,
-                getattr(registry, "_pending_materialized_views", {}),
-            )
-            # the hook is idempotent once consumed
-            oid = self._oid()
-            self.report._register_hook()
-            self.assertEqual(self._oid(), oid)
+        with (
+            registry.loading_window() as phase,
+            patch.object(registry, "ready", False),
+        ):
+            pending = phase.state(mixin_materialized_view._PENDING_REBUILDS, dict)
+            with changed, patch.object(registry, "loaded", False):
+                self.report.init()
+                self.assertEqual(self._oid(), oid, "nothing rebuilt during load")
+                self.assertIn(self.report._name, pending)
+            with changed:
+                self.report._register_hook()
+                self.assertNotEqual(self._oid(), oid)
+                self.assertNotIn(self.report._name, pending)
+                # the hook is idempotent once consumed
+                oid = self._oid()
+                self.report._register_hook()
+                self.assertEqual(self._oid(), oid)
+
+    def test_a_ready_registry_setup_runs_the_hook_outside_any_load(self):
+        registry = self.env.registry
+        self.assertTrue(registry.ready)
+        oid = self._oid()
+        registry.setup_models(self.env.cr)
+        self.assertEqual(self._oid(), oid)
 
     def test_init_reconciles_indexes_without_rebuilding(self):
         """An index plan that changed between versions must still land."""

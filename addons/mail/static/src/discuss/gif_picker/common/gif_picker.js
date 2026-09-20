@@ -5,10 +5,13 @@ import { useOnBottomScrolled } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
 import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.gif_picker");
 /**
  * @param {Parameters<typeof usePicker> extends [unknown, ...infer Args] ? Args : never} args
  * @returns {ReturnType<typeof usePicker>}
@@ -157,6 +160,7 @@ export class GifPicker extends Component {
             if (!region && language === "sr") {
                 region = "RS";
             }
+            const endLoad = log.perf("loadCategories");
             const { tags } = await rpc(
                 "/discuss/gif/categories",
                 {
@@ -165,10 +169,12 @@ export class GifPicker extends Component {
                 },
                 { silent: true },
             );
+            endLoad({ locale: `${language}_${region}`, tags: tags?.length });
             if (tags) {
                 this.state.categories = tags;
             }
         } catch {
+            log.logic("loadCategories failed");
             this.state.loadingError = true;
         }
     }
@@ -214,13 +220,24 @@ export class GifPicker extends Component {
             });
             if (res && term === this.searchTerm) {
                 const { next, results } = res;
+                log.pipeline("search results", () => ({
+                    term,
+                    results: results.length,
+                    hasNext: Boolean(next),
+                }));
                 this.next = next;
                 for (const gif of results) {
                     this.pushGif(gif);
                 }
                 this.state.loadingError = false;
+            } else if (res) {
+                log.logic("search results dropped: term changed", () => ({
+                    term,
+                    current: this.searchTerm,
+                }));
             }
         } catch {
+            log.logic("search failed", () => ({ term: this.searchTerm }));
             this.state.loadingError = true;
         }
     }
@@ -238,6 +255,7 @@ export class GifPicker extends Component {
 
     /** @param {TenorGif} gif */
     onClickGif(gif) {
+        log.logic("onClickGif", () => ({ gifId: gif.id }));
         this.props.onSelect(gif, true);
         this.props.close?.();
     }
@@ -260,6 +278,10 @@ export class GifPicker extends Component {
 
     /** @param {TenorGif} gif */
     async onClickFavorite(gif) {
+        log.logic("onClickFavorite", () => ({
+            gifId: gif.id,
+            add: !this.isFavorite(gif),
+        }));
         if (!this.isFavorite(gif)) {
             this.state.favorites.gifs.push(gif);
             await rpc(
@@ -299,11 +321,13 @@ export class GifPicker extends Component {
         this._loadingFavorites = true;
         this.state.loadingGif = true;
         try {
+            const endLoad = log.perf("loadFavorites");
             const [results, hasMore] = await rpc(
                 "/discuss/gif/favorites",
                 { offset: this.offset },
                 { silent: true },
             );
+            endLoad({ offset: this.offset, results: results.length, hasMore });
             this.offset += results.length;
             this.state.favorites.gifs.push(...results);
             if (this.showFavorite) {

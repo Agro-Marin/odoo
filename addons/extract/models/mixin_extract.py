@@ -14,6 +14,12 @@ _logger = logging.getLogger(__name__)
 
 JOB_CHANNEL = "extract"
 
+#: Returned by ``_extract_compare_value`` when a written value cannot be reduced
+#: to something comparable with what was read. Distinct from ``None``, which is a
+#: value a caller can legitimately write and which must still count as a
+#: correction.
+NOT_COMPARABLE = object()
+
 WAIT_SECONDS = 30
 WAIT_ATTEMPTS = 40
 
@@ -36,35 +42,38 @@ class MixinExtract(models.AbstractModel):
     _extract_target: dict[str, str] = {}
 
     extract_state = fields.Selection(
-        STATES,
+        selection=STATES,
         default="none",
-        readonly=True,
-        copy=False,
         index=True,
+        copy=False,
+        readonly=True,
     )
     extract_result = fields.Json(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Every value that was read, with which strategy proposed it and "
         "how confident it was.",
     )
     extract_missing = fields.Json(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Required fields no strategy could read, and rules that do not "
         "hold. What a person has to supply.",
     )
-    extract_error = fields.Text(readonly=True, copy=False)
-    extract_pending = fields.Json(
-        readonly=True,
+    extract_error = fields.Text(
         copy=False,
+        readonly=True,
+    )
+    extract_pending = fields.Json(
+        copy=False,
+        readonly=True,
         help="The service this document is waiting on, and its handle. Kept so "
         "the next attempt asks again rather than submitting the document a "
         "second time.",
     )
     extract_corrections = fields.Json(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Fields a person changed after extraction, with what was read and "
         "what it should have been.",
     )
@@ -128,9 +137,30 @@ class MixinExtract(models.AbstractModel):
                 continue
             value = result.flat().get(schema_field)
             if value is not None and not self[model_field]:
-                values[model_field] = value
+                values[model_field] = self._extract_write_value(model_field, value)
         if values:
             self.write(values)
+
+    def _extract_write_value(self, model_field: str, value: Any) -> Any:
+        """What to write for ``model_field`` given the scalar extraction read.
+
+        Extraction yields scalars; a target that is not one (a relation the
+        scalar has to be resolved against) overrides this. Returning the value
+        unchanged is right for every plain column.
+        """
+        return value
+
+    def _extract_compare_value(self, model_field: str, value: Any) -> Any:
+        """The scalar to compare against what was read, for correction tracking.
+
+        The inverse of ``_extract_write_value``: ``vals`` carries whatever the
+        writer passed -- for a relation, command lists -- and comparing that to
+        an extracted string would record every write as a correction. Return
+        ``NOT_COMPARABLE`` to say the write cannot be reduced to a comparable
+        value, which records nothing; ``None`` is a value like any other and
+        still counts as a correction.
+        """
+        return value
 
     def action_extract(self):
         for record in self:
@@ -232,12 +262,17 @@ class MixinExtract(models.AbstractModel):
             if model_field not in vals:
                 continue
             read = (self.extract_result or {}).get(schema_field)
-            if not read or read.get("value") in (None, vals[model_field]):
+            written = self._extract_compare_value(model_field, vals[model_field])
+            if (
+                not read
+                or written is NOT_COMPARABLE
+                or read.get("value") in (None, written)
+            ):
                 continue
             found[schema_field] = {
                 "read": read.get("value"),
                 "read_by": read.get("source"),
-                "corrected_to": vals[model_field],
+                "corrected_to": written,
             }
         return found
 

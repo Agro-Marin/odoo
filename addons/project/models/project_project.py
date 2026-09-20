@@ -14,6 +14,7 @@ from odoo.tools.date_utils import localized
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 from .project_update import STATUS_COLOR
 from odoo.addons.mail.tools.discuss import Store
@@ -38,6 +39,7 @@ class ProjectProject(models.Model):
     _rating_satisfaction_days = 30
     _track_duration_field = "phase_id"
 
+    @dbg.timed
     def _compute_task_counts(self) -> None:
         closed_states = set(CLOSED_STATES)
         counts: dict[int, list[int]] = {}
@@ -49,7 +51,7 @@ class ProjectProject(models.Model):
             if not subset:
                 continue
             ProjectTask = self.env["project.task"].with_context(active_test=active_test)
-            for project, state, count in ProjectTask._read_group(
+            for project, state, count in ProjectTask._read_group(  # noqa: E8507 - two queries: active and archived tasks
                 Domain("project_id", "in", subset.ids)
                 & Domain("is_template", "=", False),
                 ["project_id", "state"],
@@ -67,49 +69,45 @@ class ProjectProject(models.Model):
         return self.env["project.phase"].search([], limit=1)
 
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         compute="_compute_company_id",
         inverse="_inverse_company_id",
         store=True,
         readonly=False,
     )
     currency_id = fields.Many2one(
-        "res.currency",
-        compute="_compute_currency_id",
-        string="Currency",
-        readonly=True,
+        comodel_name="res.currency",
         export_string_translation=False,
+        compute="_compute_currency_id",
+        readonly=True,
     )
     account_id = fields.Many2one(
-        "account.analytic.account",
+        comodel_name="account.analytic.account",
         copy=False,
         domain="['|', ('company_id', '=', False), ('company_id', '=?', company_id)]",
         ondelete="set null",
     )
-    amount_analytic_balance = fields.Monetary(
-        related="account_id.balance",
-    )
+    amount_analytic_balance = fields.Monetary(related="account_id.balance")
     partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Customer",
+        index="btree_not_null",
+        domain="['|', ('company_id', '=?', company_id), ('company_id', '=', False)]",
         bypass_search_access=True,
         tracking=True,
-        domain="['|', ('company_id', '=?', company_id), ('company_id', '=', False)]",
-        index="btree_not_null",
     )
     resource_calendar_id = fields.Many2one(
-        "resource.calendar",
+        comodel_name="resource.calendar",
         string="Working Time",
-        compute="_compute_resource_calendar_id",
         export_string_translation=False,
+        compute="_compute_resource_calendar_id",
     )
     user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Project Manager",
         default=lambda self: self.env.user,
-        tracking=True,
         falsy_value_label=_lt("👤 Unassigned"),
+        tracking=True,
     )
     alias_id = fields.Many2one(
         help="Internal email associated with this project. Incoming emails are automatically synchronized "
@@ -117,55 +115,59 @@ class ProjectProject(models.Model):
     )
 
     phase_id = fields.Many2one(
-        "project.phase",
-        string="Phase",
-        ondelete="restrict",
-        groups="project.group_project_stages",
-        tracking=True,
+        comodel_name="project.phase",
+        default=_default_phase_id,
         index=True,
         copy=False,
-        default=_default_phase_id,
         group_expand="_read_group_expand_full",
+        ondelete="restrict",
+        tracking=True,
+        groups="project.group_project_stages",
     )
     phase_color = fields.Integer(
-        string="Phase Color",
         related="phase_id.color",
+        string="Phase Color",
         export_string_translation=False,
     )
 
     name = fields.Char(
-        "Name",
+        translate=True,
         index="trigram",
         required=True,
         tracking=True,
-        translate=True,
         default_export_compatible=True,
     )
     active = fields.Boolean(
+        export_string_translation=False,
         default=True,
         copy=False,
-        export_string_translation=False,
     )
     sequence = fields.Integer(
-        default=10,
         export_string_translation=False,
+        default=10,
     )
     description = fields.Html(
         help="Description to provide more information and context about this project"
     )
     label_tasks = fields.Char(
         string="Use Tasks as",
-        default=lambda s: s.env._("Tasks"),
         translate=True,
+        default=lambda s: s.env._("Tasks"),
         help="Name used to refer to the tasks of your project e.g. tasks, tickets, sprints, etc...",
     )
-    color = fields.Integer(string="Color Index", export_string_translation=False)
+    color = fields.Integer(
+        string="Color Index",
+        export_string_translation=False,
+    )
     duration_tracking = fields.Json(groups="project.group_project_stages")
-    date_start = fields.Date(string="Start Date", copy=False)
+    date_start = fields.Date(
+        string="Start Date",
+        copy=False,
+    )
     date_end = fields.Date(
         string="End Date",
-        copy=False,
         index=True,
+        copy=False,
         tracking=True,
         help="Date on which this project ends. The timeframe defined on the "
         "project is taken into account when viewing its planning.",
@@ -177,142 +179,141 @@ class ProjectProject(models.Model):
     )
 
     privacy_visibility = fields.Selection(
-        [
-            ("followers", "Invited internal users"),
-            ("invited_users", "Invited internal and portal users"),
+        selection=[
+            ("followers", "Team members only"),
+            ("invited_users", "Team members and invited portal users"),
             ("employees", "All internal users"),
-            ("portal", " All internal users and invited portal users"),
+            ("portal", "All internal users and invited portal users"),
         ],
         string="Visibility",
-        required=True,
         default="portal",
+        required=True,
         tracking=True,
-        help="Project and Task Visibility:\n"
-        "- Invited internal users: Can access only the project or tasks they follow. Assignees automatically get access.\n"
-        "- Invited internal and portal users: Same as above, extended to portal users.\n"
-        "- All internal users: Full access to the project and all its tasks.\n"
-        "- All internal and invited portal users: Internal users get full access. Portal users can access only the project or tasks they follow.\n\n"
-        "Portal Access Levels:\n"
-        "- Read-only: Portal users see tasks via their portal but can’t edit them.\n"
-        "- Edit (limited): Portal users access kanban/list views and can edit limited fields on followed tasks.\n"
-        "- Edit: Same as above, with access to all tasks.\n\n"
-        "Other Rules:\n"
-        "- Internal users can open a task from a direct link, even without project access.\n"
-        "- Project admins have access to private projects, even if not followers.\n",
+        help="Who can access the project and its tasks:\n"
+        "- Team members only: the project manager and the team members.\n"
+        "- Team members and invited portal users: the same, plus the portal users invited as collaborators.\n"
+        "- All internal users: every internal user.\n"
+        "- All internal users and invited portal users: every internal user, plus the portal users invited as collaborators.\n\n"
+        "Collaborator access modes:\n"
+        "- View: read the tasks and write in their chatter.\n"
+        "- Edit: also create and update tasks.\n"
+        "- Advanced Edit: also move tasks between steps and change their priority.\n\n"
+        "Following a project or a task only subscribes to its notifications. An internal user "
+        "or portal contact following a task can still read that task.",
     )
-    privacy_visibility_warning = fields.Char(
-        "Privacy Visibility Warning",
-        compute="_compute_privacy_visibility_warning",
+    member_user_ids = fields.Many2many(
+        comodel_name="res.users",
+        relation="project_project_member_user_rel",
+        column1="project_id",
+        column2="user_id",
+        string="Team Members",
+        domain=[("share", "=", False)],
+        help="Internal users who can access the project when its visibility is limited to team members.",
+    )
+    user_has_access = fields.Boolean(
         export_string_translation=False,
+        compute="_compute_user_has_access",
+        search="_search_user_has_access",
     )
     access_instruction_message = fields.Char(
-        "Access Instruction Message",
-        compute="_compute_access_instruction_message",
         export_string_translation=False,
+        compute="_compute_access_instruction_message",
     )
     allow_dependencies = fields.Boolean(
-        "Task Dependencies",
+        string="Task Dependencies",
         inverse="_inverse_allow_dependencies",
     )
     allow_milestones = fields.Boolean(
-        "Milestones",
+        string="Milestones",
         inverse="_inverse_allow_milestones",
     )
     allow_recurring_tasks = fields.Boolean(
-        "Recurring Tasks",
+        string="Recurring Tasks",
         inverse="_inverse_allow_recurring_tasks",
     )
-    use_sprints = fields.Boolean(
-        "Use Sprints",
-        help="Enable time-boxed iterations for this project.",
-    )
+    use_sprints = fields.Boolean(help="Enable time-boxed iterations for this project.")
 
     sprint_ids = fields.One2many(
-        "project.sprint",
-        "project_id",
+        comodel_name="project.sprint",
+        inverse_name="project_id",
         string="Sprints",
         export_string_translation=False,
     )
     active_sprint_id = fields.Many2one(
-        "project.sprint",
-        string="Active Sprint",
-        compute="_compute_active_sprint_id",
+        comodel_name="project.sprint",
         export_string_translation=False,
+        compute="_compute_active_sprint_id",
     )
     sprint_count = fields.Count(
-        "sprint_ids",
-        "Sprint Count",
+        count_of="sprint_ids",
         export_string_translation=False,
     )
 
     tag_ids = fields.Many2many(
-        "project.tags",
+        comodel_name="project.tags",
         relation="project_project_project_tags_rel",
         string="Tags",
     )
     favorite_user_ids = fields.Many2many(string="Members")
     is_user_favorite = fields.Boolean(string="Show Project on Dashboard")
     workflow_step_ids = fields.Many2many(
-        "project.workflow.step",
-        "project_workflow_step_project_rel",
-        "project_id",
-        "step_id",
+        comodel_name="project.workflow.step",
+        relation="project_workflow_step_project_rel",
+        column1="project_id",
+        column2="step_id",
         string="Workflow Steps",
         export_string_translation=False,
     )
     task_ids = fields.One2many(
-        "project.task",
-        "project_id",
+        comodel_name="project.task",
+        inverse_name="project_id",
         string="Tasks",
     )
-    task_properties_definition = fields.PropertiesDefinition("Task Properties")
+    task_properties_definition = fields.PropertiesDefinition(string="Task Properties")
     task_count = fields.Integer(
-        compute="_compute_task_counts",
-        string="Task Count",
         export_string_translation=False,
+        compute="_compute_task_counts",
     )
     open_task_count = fields.Integer(
-        compute="_compute_task_counts",
-        string="Open Task Count",
         export_string_translation=False,
+        compute="_compute_task_counts",
     )
     closed_task_count = fields.Integer(
-        compute="_compute_task_counts",
         export_string_translation=False,
+        compute="_compute_task_counts",
     )
     task_completion_percentage = fields.Float(
-        compute="_compute_task_completion_percentage",
         export_string_translation=False,
+        compute="_compute_task_completion_percentage",
     )
 
     collaborator_ids = fields.One2many(
-        "project.collaborator",
-        "project_id",
+        comodel_name="project.collaborator",
+        inverse_name="project_id",
         string="Collaborators",
-        copy=False,
         export_string_translation=False,
+        copy=False,
     )
     collaborator_count = fields.Integer(
-        "# Collaborators",
+        string="# Collaborators",
+        export_string_translation=False,
         compute="_compute_collaborator_count",
         compute_sudo=True,
-        export_string_translation=False,
     )
 
     update_ids = fields.One2many(
-        "project.update",
-        "project_id",
+        comodel_name="project.update",
+        inverse_name="project_id",
         export_string_translation=False,
     )
     update_count = fields.Integer(
-        compute="_compute_update_count",
         export_string_translation=False,
+        compute="_compute_update_count",
     )
     last_update_id = fields.Many2one(
-        "project.update",
-        string="Last Update",
-        copy=False,
+        comodel_name="project.update",
         export_string_translation=False,
+        copy=False,
     )
     last_update_status = fields.Selection(
         selection=[
@@ -323,218 +324,217 @@ class ProjectProject(models.Model):
             ("to_define", "Set Status"),
             ("done", "Complete"),
         ],
-        default="to_define",
+        export_string_translation=False,
         compute="_compute_last_update_status",
+        default="to_define",
         store=True,
         readonly=False,
         required=True,
-        export_string_translation=False,
     )
     last_update_color = fields.Integer(
-        compute="_compute_last_update_color",
         export_string_translation=False,
+        compute="_compute_last_update_color",
     )
 
     milestone_ids = fields.One2many(
-        "project.milestone",
-        "project_id",
-        copy=True,
+        comodel_name="project.milestone",
+        inverse_name="project_id",
         export_string_translation=False,
+        copy=True,
     )
     milestone_count = fields.Integer(
+        export_string_translation=False,
         compute="_compute_milestone_count",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
     milestone_count_reached = fields.Integer(
+        export_string_translation=False,
         compute="_compute_milestone_reached_count",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
     is_milestone_exceeded = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_is_milestone_exceeded",
         search="_search_is_milestone_exceeded",
-        export_string_translation=False,
     )
     milestone_progress = fields.Integer(
-        "Milestones Reached",
+        string="Milestones Reached",
+        export_string_translation=False,
         compute="_compute_milestone_reached_count",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
     next_milestone_id = fields.Many2one(
-        "project.milestone",
+        comodel_name="project.milestone",
+        export_string_translation=False,
         compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
     can_mark_milestone_as_done = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
     is_milestone_deadline_exceeded = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_next_milestone_indicators",
         groups="project.group_project_milestone",
-        export_string_translation=False,
     )
 
     benefit_ids = fields.One2many(
-        "project.benefit",
-        "project_id",
+        comodel_name="project.benefit",
+        inverse_name="project_id",
         string="Benefits",
         export_string_translation=False,
     )
     benefit_count = fields.Count(
-        "benefit_ids",
-        "Benefit Count",
+        count_of="benefit_ids",
         export_string_translation=False,
     )
 
     baseline_ids = fields.One2many(
-        "project.baseline",
-        "project_id",
+        comodel_name="project.baseline",
+        inverse_name="project_id",
         string="Baselines",
         export_string_translation=False,
     )
     current_baseline_id = fields.Many2one(
-        "project.baseline",
-        string="Current Baseline",
-        compute="_compute_current_baseline_id",
+        comodel_name="project.baseline",
         export_string_translation=False,
+        compute="_compute_current_baseline_id",
     )
 
     gate_ids = fields.One2many(
-        "project.gate",
-        "project_id",
+        comodel_name="project.gate",
+        inverse_name="project_id",
         string="Gate Reviews",
         export_string_translation=False,
     )
-    gate_count = fields.Count("gate_ids", "Gates", export_string_translation=False)
+    gate_count = fields.Count(
+        count_of="gate_ids",
+        string="Gates",
+        export_string_translation=False,
+    )
 
     history_ids = fields.One2many(
-        "project.history",
-        "project_id",
+        comodel_name="project.history",
+        inverse_name="project_id",
         string="History Records",
         export_string_translation=False,
     )
 
     premortem_done = fields.Boolean(
-        "Pre-Mortem Conducted",
+        string="Pre-Mortem Conducted",
         help="Was a pre-mortem exercise conducted at project kickoff?",
     )
-    date_premortem = fields.Date("Pre-Mortem Date")
+    date_premortem = fields.Date(string="Pre-Mortem Date")
     premortem_participant_ids = fields.Many2many(
-        "res.users",
-        "project_premortem_participants_rel",
-        "project_id",
-        "user_id",
+        comodel_name="res.users",
+        relation="project_premortem_participants_rel",
+        column1="project_id",
+        column2="user_id",
         string="Pre-Mortem Participants",
     )
     premortem_notes = fields.Html(
-        "Pre-Mortem Notes",
+        string="Pre-Mortem Notes",
         help="'Imagine this project has failed. Why?' — capture all identified failure modes.",
     )
 
     retrospective_ids = fields.One2many(
-        "project.retrospective",
-        "project_id",
+        comodel_name="project.retrospective",
+        inverse_name="project_id",
         string="Retrospectives",
         export_string_translation=False,
     )
     retrospective_count = fields.Integer(
-        "Retrospective Count",
-        compute="_compute_retrospective_count",
         export_string_translation=False,
+        compute="_compute_retrospective_count",
     )
 
     health_score = fields.Integer(
-        "Health Score",
+        export_string_translation=False,
         compute="_compute_health_indicators",
         store=True,
         help="Composite 0-100 score based on deadlines, milestones, risk, and staleness.",
-        export_string_translation=False,
     )
     health_status = fields.Selection(
-        [
+        selection=[
             ("healthy", "Healthy"),
             ("attention", "Needs Attention"),
             ("warning", "Warning"),
             ("critical", "Critical"),
         ],
         string="Health",
+        export_string_translation=False,
         compute="_compute_health_indicators",
         store=True,
         help="Derived from health_score: healthy (80-100), attention (60-79), warning (40-59), critical (0-39).",
-        export_string_translation=False,
     )
 
     risk_ids = fields.One2many(
-        "project.risk",
-        "project_id",
+        comodel_name="project.risk",
+        inverse_name="project_id",
         string="Risks",
         export_string_translation=False,
     )
     risk_count = fields.Integer(
-        "Risk Count",
-        compute="_compute_risk_counts",
         export_string_translation=False,
+        compute="_compute_risk_counts",
     )
     high_risk_count = fields.Integer(
-        "High/Critical Risks",
-        compute="_compute_risk_counts",
+        string="High/Critical Risks",
         export_string_translation=False,
+        compute="_compute_risk_counts",
     )
 
     wip_count = fields.Integer(
-        "WIP Count",
+        string="WIP Count",
+        export_string_translation=False,
         compute="_compute_flow_metrics",
         store=True,
         help="Number of open, non-blocked tasks.",
-        export_string_translation=False,
     )
     avg_lead_time = fields.Float(
-        "Avg Lead Time (hours)",
+        string="Avg Lead Time (hours)",
+        export_string_translation=False,
+        digits=(16, 1),
         compute="_compute_flow_metrics",
         store=True,
-        digits=(16, 1),
         help="Average working hours from creation to closure (last 90 days). "
         "Includes queue wait time.",
-        export_string_translation=False,
     )
     avg_cycle_time = fields.Float(
-        "Avg Cycle Time (hours)",
+        string="Avg Cycle Time (hours)",
+        export_string_translation=False,
+        digits=(16, 1),
         compute="_compute_flow_metrics",
         store=True,
-        digits=(16, 1),
         help="Average working hours from assignment to closure (last 90 days). "
         "Excludes queue wait time.",
-        export_string_translation=False,
     )
     throughput_week = fields.Float(
-        "Throughput / Week",
+        string="Throughput / Week",
+        export_string_translation=False,
+        digits=(16, 1),
         compute="_compute_flow_metrics",
         store=True,
-        digits=(16, 1),
         help="Tasks closed per week (rolling 4-week average).",
-        export_string_translation=False,
     )
     deadline_compliance_pct = fields.Float(
-        "Deadline Compliance %",
+        string="Deadline Compliance %",
+        export_string_translation=False,
+        digits=(5, 1),
         compute="_compute_flow_metrics",
         store=True,
-        digits=(5, 1),
         help="Percentage of closed tasks with deadlines that met their deadline.",
-        export_string_translation=False,
     )
 
     is_template = fields.Boolean(
-        copy=False,
         export_string_translation=False,
+        copy=False,
     )
     show_ratings = fields.Boolean(
-        compute="_compute_show_ratings",
         export_string_translation=False,
+        compute="_compute_show_ratings",
     )
 
     _project_date_greater = models.Constraint(
@@ -633,8 +633,10 @@ class ProjectProject(models.Model):
 
     def action_archive_to_history(self) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug("project.project.action_archive_to_history %s", self.id)
         self.env["project.history"].create_from_project(self)
 
+    @dbg.timed
     def action_compute_critical_path(self) -> None:
         self.check_singleton()
         tasks = self.env["project.task"].search(
@@ -644,6 +646,9 @@ class ProjectProject(models.Model):
                 ("state", "not in", list(CLOSED_STATES)),
             ]
         )
+        dbg.pipeline.debug(
+            "[project:%s] critical path: %d open tasks", self.id, len(tasks)
+        )
         if not tasks:
             return
 
@@ -652,11 +657,26 @@ class ProjectProject(models.Model):
             tasks, task_set
         )
         duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
+        dbg.pipeline.debug(
+            "[project:%s] critical path: %s edges, total duration %s h",
+            self.id,
+            dbg.lazy(lambda: sum(len(preds) for preds in deps_on.values())),
+            dbg.lazy(lambda: f"{sum(duration.values()):.2f}"),
+        )
         self._check_no_cyclic_dependencies(task_set, deps_on)
         topo = self._get_cpm_topological_order(task_set, deps_on, successors_of)
         es, ef = self._get_cpm_earliest_start_and_finish(topo, deps_on, duration)
+        project_end = max(ef.values()) if ef else 0.0
         ls_map = self._get_cpm_latest_start(
-            topo, deps_on, successors_of, duration, max(ef.values()) if ef else 0.0
+            topo, deps_on, successors_of, duration, project_end
+        )
+        dbg.logic.debug(
+            "[project:%s] critical path: end=%.2f h, critical tasks %s",
+            self.id,
+            project_end,
+            dbg.lazy(
+                lambda: [tid for tid in topo if abs(ls_map[tid] - es[tid]) < 0.01]
+            ),
         )
         self._update_cpm_schedule(tasks, es, ef, ls_map)
 
@@ -836,6 +856,12 @@ class ProjectProject(models.Model):
             key = repr(sorted(vals.items()))
             tasks_by_vals[key] |= task
             vals_by_key[key] = vals
+        dbg.performance.debug(
+            "_update_cpm_schedule [project:%s]: %d tasks in %d write groups",
+            self.id,
+            len(tasks),
+            len(tasks_by_vals),
+        )
         for key, group in tasks_by_vals.items():
             group.write(vals_by_key[key])
 
@@ -869,8 +895,10 @@ class ProjectProject(models.Model):
             return {}
         return {day: hours * capacity / total for day, capacity in days.items()}
 
+    @dbg.timed
     def action_level_resources(self) -> None:
         self.check_singleton()
+        dbg.pipeline.debug("[project:%s] level resources -> critical path", self.id)
         self.action_compute_critical_path()
 
         calendar = self.resource_calendar_id
@@ -889,6 +917,12 @@ class ProjectProject(models.Model):
         leveling_order = sorted(
             tasks.filtered(lambda t: not t.is_critical_path),
             key=lambda t: -(t.total_float or 0.0),
+        )
+        dbg.logic.debug(
+            "[project:%s] level resources: %d tasks, %d non-critical to level",
+            self.id,
+            len(tasks),
+            len(leveling_order),
         )
 
         def get_load_per_assignee(task) -> float:
@@ -978,6 +1012,15 @@ class ProjectProject(models.Model):
                     if calendar and new_start > task.cpm_date_start
                     else (new_start - task.cpm_date_start).total_seconds() / 3600
                 )
+                dbg.logic.debug(
+                    "level resources %s: user %s overloaded, shift %.2f h "
+                    "(float %.2f h) -> %s",
+                    dbg.rec(task),
+                    user.id,
+                    shift_hours,
+                    max_shift_hours,
+                    "shift" if 0 < shift_hours <= max_shift_hours else "keep",
+                )
                 if 0 < shift_hours <= max_shift_hours:
                     new_end = (
                         calendar.plan_hours(task._get_cpm_duration_hours(), new_start)
@@ -1005,6 +1048,7 @@ class ProjectProject(models.Model):
         for project in self:
             project.retrospective_count = counts.get(project.id, 0)
 
+    @dbg.timed
     def _compute_health_indicators(self) -> None:
         if not self.ids:
             self.health_score = 100
@@ -1125,6 +1169,16 @@ class ProjectProject(models.Model):
             risk_health = max(0.0, 100.0 - total_risk * 2)
 
             score = int((schedule + staleness + milestone + risk_health) / 4)
+            dbg.logic.debug(
+                "health [project:%s]: schedule=%.1f staleness=%.1f milestone=%.1f "
+                "risk=%.1f -> %d",
+                project.id,
+                schedule,
+                staleness,
+                milestone,
+                risk_health,
+                score,
+            )
             project.health_score = max(0, min(100, score))
             if score >= 80:
                 project.health_status = "healthy"
@@ -1137,6 +1191,7 @@ class ProjectProject(models.Model):
 
     _LIVE_RISK_STATE_EXCLUDED = "resolved"
 
+    @dbg.timed
     @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state")
     def _compute_risk_counts(self) -> None:
         if not self.ids:
@@ -1164,6 +1219,7 @@ class ProjectProject(models.Model):
             project.risk_count = total
             project.high_risk_count = high
 
+    @dbg.timed
     def _compute_flow_metrics(self) -> None:
         if not self.ids:
             self.wip_count = 0
@@ -1254,6 +1310,16 @@ class ProjectProject(models.Model):
             wip, avg_lt, avg_ct, tp, dcp = results.get(
                 project.id, (0, 0.0, 0.0, 0.0, 0.0)
             )
+            dbg.logic.debug(
+                "flow [project:%s]: wip=%s lead=%s cycle=%s throughput=%s "
+                "deadline_pct=%s",
+                project.id,
+                wip,
+                avg_lt,
+                avg_ct,
+                tp,
+                dcp,
+            )
             project.wip_count = wip or 0
             project.avg_lead_time = avg_lt or 0.0
             project.avg_cycle_time = avg_ct or 0.0
@@ -1270,14 +1336,21 @@ class ProjectProject(models.Model):
         "deadline_compliance_pct",
     )
 
+    @dbg.timed
     def _reset_metrics(self) -> None:
+        dbg.lifecycle.debug("project.project._reset_metrics %s", dbg.rec(self))
         for fname in self._SNAPSHOT_METRIC_FIELDS:
             self.env.add_to_compute(self._fields[fname], self)
         self.env.flush_all()
 
     @api.model
     def _cron_reset_metrics(self) -> None:
-        self.search([])._reset_metrics()
+        projects = self.search([])
+        dbg.lifecycle.debug(
+            "project.project._cron_reset_metrics: %d projects", len(projects)
+        )
+        projects._reset_metrics()
+        dbg.lifecycle.debug("project.project._cron_reset_metrics: done")
 
     def action_reset_metrics(self) -> bool:
         self._reset_metrics()
@@ -1321,6 +1394,16 @@ class ProjectProject(models.Model):
                 )
             if not account or not account.company_id:
                 continue
+            dbg.logic.debug(
+                "_inverse_company_id [project:%s]: company %s -> %s, account %s "
+                "(projects=%s, has lines=%s)",
+                project.id,
+                account.company_id.id,
+                project.company_id.id,
+                account.id,
+                account.project_count,
+                bool(account.line_ids),
+            )
             if (
                 account.project_count > 1 or account.line_ids
             ) and project.company_id != account.company_id:
@@ -1426,48 +1509,54 @@ class ProjectProject(models.Model):
                 project.id, 0
             )
 
-    @api.depends("privacy_visibility")
-    def _compute_privacy_visibility_warning(self) -> None:
+    @api.depends_context("uid")
+    @api.depends("privacy_visibility", "member_user_ids", "user_id", "collaborator_ids")
+    def _compute_user_has_access(self) -> None:
+        accessible = set(
+            self.sudo()
+            .with_context(active_test=False)
+            ._search([("id", "in", self._origin.ids), ("user_has_access", "=", True)])
+        )
         for project in self:
-            if not project.ids:
-                project.privacy_visibility_warning = ""
-            elif project.privacy_visibility in [
-                "invited_users",
-                "portal",
-            ] and project._origin.privacy_visibility not in [
-                "invited_users",
-                "portal",
-            ]:
-                project.privacy_visibility_warning = _(
-                    "Customers will be added to the followers of their project and tasks."
-                )
-            elif project.privacy_visibility not in [
-                "invited_users",
-                "portal",
-            ] and project._origin.privacy_visibility in [
-                "invited_users",
-                "portal",
-            ]:
-                project.privacy_visibility_warning = _(
-                    "Portal users will be removed from the followers of the project and its tasks."
-                )
-            else:
-                project.privacy_visibility_warning = ""
+            project.user_has_access = project._origin.id in accessible
+
+    def _search_user_has_access(self, operator: str, value: Any) -> Domain:
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        accessible = self._get_domain_user_access()
+        return accessible if (operator == "in") == (True in value) else ~accessible
+
+    def _get_domain_user_access(self) -> Domain:
+        user = self.env.user
+        if user.share:
+            collaborations = (
+                self.env["project.collaborator"]
+                .sudo()
+                ._search([("partner_id", "=", user.partner_id.id)])
+            )
+            return Domain(
+                "privacy_visibility", "in", ["invited_users", "portal"]
+            ) & Domain("id", "in", collaborations.subselect("project_id"))
+        return (
+            Domain("privacy_visibility", "in", ["employees", "portal"])
+            | Domain("member_user_ids", "in", user.id)
+            | Domain("user_id", "=", user.id)
+        )
 
     @api.depends("privacy_visibility")
     def _compute_access_instruction_message(self) -> None:
         for project in self:
             if project.privacy_visibility == "portal":
                 project.access_instruction_message = self.env._(
-                    "To give portal users access to your project, add them as followers. For task access, add them as followers for each task."
+                    "Every internal user can access the project. Invite portal users as collaborators to give them access."
                 )
             elif project.privacy_visibility == "followers":
                 project.access_instruction_message = self.env._(
-                    "Grant employees access to your project or tasks by adding them as followers. Employees automatically get access to the tasks they are assigned to."
+                    "Only the project manager and the team members can access the project."
                 )
             elif project.privacy_visibility == "invited_users":
                 project.access_instruction_message = self.env._(
-                    "Grant users access by adding them as followers — either to the project or individual tasks. Internal users automatically gain access to tasks they are assigned to."
+                    "Only the project manager and the team members can access the project, plus the portal users invited as collaborators."
                 )
             else:
                 project.access_instruction_message = ""
@@ -1500,6 +1589,7 @@ class ProjectProject(models.Model):
         for project in self:
             project.show_ratings = project in projects_with_rating_active
 
+    @dbg.timed
     def _inverse_allow_dependencies(self) -> None:
         project_with_task_dependencies_feature = self.filtered("allow_dependencies")
         projects_without_task_dependencies_feature = (
@@ -1519,6 +1609,10 @@ class ProjectProject(models.Model):
                 ]
             )
         ):
+            dbg.logic.debug(
+                "_inverse_allow_dependencies: blocking %s",
+                dbg.rec(open_tasks_with_dependencies),
+            )
             open_tasks_with_dependencies.state = "blocked"
         if projects_without_task_dependencies_feature and (
             waiting_tasks := ProjectTask.search(
@@ -1532,6 +1626,9 @@ class ProjectProject(models.Model):
                 ]
             )
         ):
+            dbg.logic.debug(
+                "_inverse_allow_dependencies: unblocking %s", dbg.rec(waiting_tasks)
+            )
             waiting_tasks.state = "in_progress"
         res = self._sync_feature_group_to_usage(
             "allow_dependencies", "project.group_project_task_dependencies"
@@ -1558,6 +1655,7 @@ class ProjectProject(models.Model):
             "project_id": project.id,
         }
 
+    @dbg.timed
     def map_tasks(self, new_project_id: int) -> bool:
         project = self.browse(new_project_id)
         tasks = (
@@ -1565,20 +1663,38 @@ class ProjectProject(models.Model):
             .with_context(active_test=False)
             .search([("project_id", "=", self.id), ("parent_id", "=", False)])
         )
+        dbg.pipeline.debug(
+            "[project:%s] map_tasks -> %s: %d root tasks",
+            self.id,
+            project.id,
+            len(tasks),
+        )
         if self.allow_dependencies and "task_mapping" not in self.env.context:
             self = self.with_context(task_mapping={})
         defaults = self._prepare_map_tasks_defaults(project)
         new_tasks = tasks.with_context(copy_project=True).copy(defaults)
         all_subtasks = new_tasks._get_all_subtasks()
-        all_subtasks.filtered(lambda child: child.project_id == self).write(
-            {"project_id": project.id}
+        relinked = all_subtasks.filtered(lambda child: child.project_id == self)
+        dbg.pipeline.debug(
+            "[project:%s] map_tasks: copied %s, relinking %d of %d subtasks",
+            self.id,
+            dbg.rec(new_tasks),
+            len(relinked),
+            len(all_subtasks),
         )
+        relinked.write({"project_id": project.id})
         return True
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         copy_from_template = self.env.context.get("copy_from_template")
+        dbg.lifecycle.debug(
+            "project.project.copy_data %s: default=%s copy_from_template=%s",
+            dbg.rec(self),
+            dbg.keys(default),
+            copy_from_template,
+        )
         has_project_stage_feature = False
         if copy_from_template and "phase_id" not in default:
             has_project_stage_feature = self.env.user.has_group(
@@ -1609,6 +1725,7 @@ class ProjectProject(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
+    @dbg.timed
     def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
         default["milestone_ids"] = False
@@ -1621,9 +1738,20 @@ class ProjectProject(models.Model):
         new_projects = super(ProjectProject, self.with_context(copy_context)).copy(
             default=default
         )
+        dbg.lifecycle.debug(
+            "project.project.copy %s -> %s", dbg.rec(self), dbg.rec(new_projects)
+        )
         if "milestone_mapping" not in self.env.context:
             self = self.with_context(milestone_mapping={})
         for old_project, new_project in zip(self, new_projects, strict=True):
+            dbg.pipeline.debug(
+                "[project:%s] copy -> %s: followers=%d milestones=%s tasks=%s",
+                old_project.id,
+                new_project.id,
+                len(old_project.message_follower_ids),
+                old_project.allow_milestones,
+                "task_ids" not in default,
+            )
             for follower in old_project.message_follower_ids:
                 new_project.message_subscribe(
                     partner_ids=follower.partner_id.ids,
@@ -1643,6 +1771,7 @@ class ProjectProject(models.Model):
         )
         return new_projects
 
+    @dbg.timed
     def _copy_shared_embedded_actions(self, new_projects: Self) -> dict[int, int]:
         shared_embedded_actions_per_record = dict(
             self.env["ir.embedded.actions"]
@@ -1675,8 +1804,14 @@ class ProjectProject(models.Model):
                     copied_action.filter_ids = original_action.filter_ids.copy(
                         {"embedded_parent_res_id": new_project.id}
                     )
+        dbg.logic.debug(
+            "_copy_shared_embedded_actions %s: %d actions copied",
+            dbg.rec(self),
+            len(shared_embedded_actions_mapping),
+        )
         return shared_embedded_actions_mapping
 
+    @dbg.timed
     def _copy_embedded_actions_config(
         self,
         new_projects: Self,
@@ -1734,6 +1869,11 @@ class ProjectProject(models.Model):
                         for action_id in embedded_actions_order
                     )
                 new_embedded_actions_config_vals_list.append(config_vals)
+        dbg.logic.debug(
+            "_copy_embedded_actions_config %s: %d user configs copied",
+            dbg.rec(self),
+            len(new_embedded_actions_config_vals_list),
+        )
         self.env["res.users.settings.embedded.action"].sudo().create(
             new_embedded_actions_config_vals_list
         )
@@ -1752,6 +1892,9 @@ class ProjectProject(models.Model):
         stepless = self.filtered(lambda project: not project.workflow_step_ids)
         if not stepless:
             return
+        dbg.lifecycle.debug(
+            "_create_default_workflow_steps: 'New' step for %s", dbg.rec(stepless)
+        )
         self.env["project.workflow.step"].sudo().create(
             [
                 {"name": _("New"), "project_ids": [Command.link(project.id)]}
@@ -1759,8 +1902,15 @@ class ProjectProject(models.Model):
             ]
         )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        dbg.lifecycle.debug(
+            "project.project.create: %d vals, keys=%s, uid=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+            self.env.uid,
+        )
         self = self.with_context(mail_create_nosubscribe=True)
         if any("label_tasks" in vals and not vals["label_tasks"] for vals in vals_list):
             task_label = _("Tasks")
@@ -1796,21 +1946,44 @@ class ProjectProject(models.Model):
                         lambda s, d=stage_domain: s.company_id.id in d
                     )[:1]
                     vals["phase_id"] = stage.id
+                    dbg.logic.debug(
+                        "project.project.create: default phase %s for company %s",
+                        stage.id,
+                        vals.get("company_id"),
+                    )
 
         for vals in vals_list:
             self._check_date_pair(
                 vals.get("date_start"),
                 vals.get("date_end", vals.get("date")),
             )
-        projects = super().create(vals_list)
+        with dbg.timer(self.env, "project.project.create: super().create"):
+            projects = super().create(vals_list)
+        dbg.lifecycle.debug("project.project.create: created %s", dbg.rec(projects))
+        dbg.pipeline.debug(
+            "[project:%s] create -> default workflow steps", dbg.rec(projects)
+        )
         projects._create_default_workflow_steps()
+        dbg.pipeline.debug("[project:%s] create -> reset metrics", dbg.rec(projects))
         projects._reset_metrics()
         return projects
 
+    @dbg.timed
     def write(self, vals: dict[str, Any]) -> bool:
+        dbg.lifecycle.debug(
+            "project.project.write on %s: keys=%s uid=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            self.env.uid,
+        )
         if vals.get("access_token"):
             self.check_singleton()
             if self.privacy_visibility not in ["invited_users", "portal"]:
+                dbg.logic.debug(
+                    "project.project.write %s: visibility %s, access_token cleared",
+                    dbg.rec(self),
+                    self.privacy_visibility,
+                )
                 vals["access_token"] = ""
 
         company_id = vals.get("company_id")
@@ -1819,6 +1992,12 @@ class ProjectProject(models.Model):
                 lambda p: p.company_id.id == company_id
             )
             if projects_already_with_company:
+                dbg.logic.debug(
+                    "project.project.write: %s already in company %s, "
+                    "writing without company_id",
+                    dbg.rec(projects_already_with_company),
+                    company_id,
+                )
                 projects_already_with_company.write(
                     {key: value for key, value in vals.items() if key != "company_id"}
                 )
@@ -1833,8 +2012,19 @@ class ProjectProject(models.Model):
                     order=f"sequence asc, {ProjectStage._order}",
                     limit=1,
                 ).id
+                dbg.logic.debug(
+                    "project.project.write %s: company -> %s, phase reset to %s",
+                    dbg.rec(self),
+                    company_id,
+                    vals["phase_id"],
+                )
 
         if "last_update_status" in vals and vals["last_update_status"] != "to_define":
+            dbg.pipeline.debug(
+                "[project:%s] write -> project.update %s",
+                dbg.rec(self),
+                vals["last_update_status"],
+            )
             for project in self:
                 self.env["project.update"].with_context(
                     default_project_id=project.id
@@ -1850,8 +2040,11 @@ class ProjectProject(models.Model):
                     }
                 )
             vals.pop("last_update_status")
-        if vals.get("privacy_visibility"):
-            self._sync_access_to_privacy_visibility(vals["privacy_visibility"])
+        visibility_before = (
+            {project: project.privacy_visibility for project in self}
+            if vals.get("privacy_visibility")
+            else {}
+        )
 
         if {"date_start", "date_end", "date"} & vals.keys():
             for project in self:
@@ -1860,25 +2053,51 @@ class ProjectProject(models.Model):
                     vals.get("date_end", vals.get("date", project.date_end)),
                 )
 
-        res = super().write(vals) if vals else True
+        with dbg.timer(self.env, "project.project.write: super().write"):
+            res = super().write(vals) if vals else True
+
+        if visibility_before:
+            dbg.pipeline.debug(
+                "[project:%s] write -> sync access to visibility %s",
+                dbg.rec(self),
+                vals["privacy_visibility"],
+            )
+            self._sync_access_to_privacy_visibility(visibility_before)
 
         if "allow_dependencies" in vals and not vals.get("allow_dependencies"):
-            self.env["project.task"].search(
+            blocked = self.env["project.task"].search(
                 [
                     ("project_id", "in", self.ids),
                     ("state", "=", "blocked"),
                 ]
-            ).write({"state": "in_progress"})
+            )
+            dbg.pipeline.debug(
+                "[project:%s] write -> dependencies off, unblocking %s",
+                dbg.rec(self),
+                dbg.rec(blocked),
+            )
+            blocked.write({"state": "in_progress"})
 
         if "allow_recurring_tasks" in vals and not vals["allow_recurring_tasks"]:
-            self.env["project.task"].search(
+            recurring = self.env["project.task"].search(
                 [("project_id", "in", self.ids), ("recurring_task", "=", True)]
-            ).write({"recurring_task": False})
+            )
+            dbg.pipeline.debug(
+                "[project:%s] write -> recurrence off, clearing %s",
+                dbg.rec(self),
+                dbg.rec(recurring),
+            )
+            recurring.write({"recurring_task": False})
 
         if "active" in vals:
-            self.with_context(active_test=False).task_ids.write(
-                {"active": vals["active"]}
+            tasks = self.with_context(active_test=False).task_ids
+            dbg.pipeline.debug(
+                "[project:%s] write -> active=%s on %s",
+                dbg.rec(self),
+                vals["active"],
+                dbg.rec(tasks),
             )
+            tasks.write({"active": vals["active"]})
         if "name" in vals and self.account_id:
             projects_read_group = self.env["project.project"]._read_group(
                 [("account_id", "in", self.account_id.ids)],
@@ -1888,10 +2107,17 @@ class ProjectProject(models.Model):
             analytic_account_to_update = self.env["account.analytic.account"].browse(
                 [analytic_account.id for [analytic_account] in projects_read_group]
             )
+            dbg.pipeline.debug(
+                "[project:%s] write -> rename analytic accounts %s",
+                dbg.rec(self),
+                dbg.rec(analytic_account_to_update),
+            )
             analytic_account_to_update.write({"name": vals["name"]})
         return res
 
+    @dbg.timed
     def unlink(self) -> bool:
+        dbg.lifecycle.debug("project.project.unlink %s", dbg.rec(self))
         self.env["res.users.settings.embedded.action"].sudo().search(
             domain=[("res_id", "in", self.ids), ("res_model", "=", self._name)],
         ).unlink()
@@ -1903,7 +2129,14 @@ class ProjectProject(models.Model):
         for account, deleted_count in deleted_per_account.items():
             if not account.line_ids and account.project_count <= deleted_count:
                 analytic_accounts_to_delete |= account
-        self.with_context(active_test=False).task_ids.unlink()
+        tasks = self.with_context(active_test=False).task_ids
+        dbg.pipeline.debug(
+            "[project:%s] unlink -> tasks %s, then analytic accounts %s",
+            dbg.rec(self),
+            dbg.rec(tasks),
+            dbg.rec(analytic_accounts_to_delete),
+        )
+        tasks.unlink()
         result = super().unlink()
         analytic_accounts_to_delete.unlink()
         return result
@@ -1919,6 +2152,49 @@ class ProjectProject(models.Model):
         self._sync_feature_group_to_usage(
             "allow_recurring_tasks", "project.group_project_recurring_tasks"
         )
+
+    def _get_fields_assignment(self) -> set[str]:
+        """The fields a write names the project manager through.
+
+        `user_id` is the manager everything downstream reads, but a layer that
+        composes it from fields of its own must name those here, or every hook
+        keyed on a manager change stops firing.
+        """
+        return {"user_id"}
+
+    def _get_assigned_users(self, values: dict[str, Any]):
+        """The user a write makes the manager, whatever field carried it.
+
+        Read before the write is applied, so a composed `user_id` cannot be read
+        back from the record yet.
+        """
+        user_id = values.get("user_id")
+        return (
+            self.env["res.users"].browse(user_id) if user_id else self.env["res.users"]
+        )
+
+    @api.model
+    def _prepare_assignment_vals(self, users) -> dict[str, Any]:
+        return {"user_id": users[:1].id}
+
+    def _message_auto_subscribe_followers(
+        self, updated_values: dict, default_subtype_ids: list[int]
+    ) -> list:
+        # Not super()'s: it subscribes `user_id` only while that field is tracked,
+        # and a layer composing it from its own tracked fields leaves it untracked.
+        # The manager follows the project either way.
+        manager = self._get_assigned_users(updated_values).sudo()
+        if not manager or not manager.active or not manager.partner_id:
+            return super()._message_auto_subscribe_followers(
+                updated_values, default_subtype_ids
+            )
+        return [
+            (
+                manager.partner_id.id,
+                default_subtype_ids,
+                "mail.message_user_assigned" if manager != self.env.user else False,
+            )
+        ]
 
     def message_subscribe(
         self,
@@ -1941,6 +2217,12 @@ class ProjectProject(models.Model):
                     partners = frozenset(task.message_partner_ids.ids) & partner_set
                     if partners:
                         tasks_by_partners[partners] |= task
+                dbg.pipeline.debug(
+                    "[project:%s] message_subscribe -> %d task groups, subtypes %s",
+                    dbg.rec(self),
+                    len(tasks_by_partners),
+                    task_subtypes,
+                )
                 for partners, tasks in tasks_by_partners.items():
                     tasks.message_subscribe(
                         partner_ids=list(partners),
@@ -1952,21 +2234,19 @@ class ProjectProject(models.Model):
         return res
 
     def message_unsubscribe(self, partner_ids: list[int] | None = None) -> None:
+        dbg.pipeline.debug(
+            "[project:%s] message_unsubscribe %s -> tasks",
+            dbg.rec(self),
+            partner_ids,
+        )
         self.task_ids.message_unsubscribe(partner_ids=partner_ids)
         super().message_unsubscribe(partner_ids=partner_ids)
-        if partner_ids:
-            self.env["project.collaborator"].search(
-                [
-                    ("partner_id", "in", partner_ids),
-                    ("project_id", "in", self.ids),
-                ]
-            ).unlink()
 
     def _alias_get_creation_values(self) -> dict:
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("project.task").id
         if self.id:
-            values["alias_defaults"] = defaults = self._get_alias_defaults()
+            values["alias_defaults"] = defaults = self._prepare_alias_defaults()
             defaults["project_id"] = self.id
         return values
 
@@ -2024,6 +2304,14 @@ class ProjectProject(models.Model):
             base_group_user.sudo().write({"implied_ids": [Command.unlink(group.id)]})
             group.sudo().write({"user_ids": [Command.clear()]})
             res = False
+        dbg.logic.debug(
+            "_sync_feature_group_to_usage %s/%s: has_group=%s in_use=%s -> %s",
+            field_name,
+            group_name,
+            has_user_group,
+            has_project_field_set,
+            {True: "implied", False: "removed", None: "unchanged"}[res],
+        )
         return res
 
     def _get_project_features_mapping(self) -> dict:
@@ -2304,12 +2592,19 @@ class ProjectProject(models.Model):
             "color": self.last_update_color,
         }
 
+    @dbg.timed
     def get_panel_data(self) -> dict:
         self.check_singleton()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
         self._reset_metrics()
         show_profitability = self._is_profitability_shown()
+        dbg.logic.debug(
+            "get_panel_data [project:%s]: profitability=%s milestones=%s",
+            self.id,
+            show_profitability,
+            self.allow_milestones,
+        )
         panel_data = {
             "user": self._get_user_values(),
             "buttons": sorted(self._get_stat_buttons(), key=lambda k: k["sequence"]),
@@ -2459,6 +2754,7 @@ class ProjectProject(models.Model):
             )
         return buttons
 
+    @dbg.timed
     def _get_profitability_values(self) -> tuple[dict, bool]:
         if not self.env.user.has_group("project.group_project_manager"):
             return {}, False
@@ -2565,12 +2861,18 @@ class ProjectProject(models.Model):
             for project_vals in project_vals_list
         ]
 
+    @dbg.timed
     def _create_analytic_account(self) -> None:
         analytic_accounts_values = self._prepare_analytic_account_vals_list(
             self._read_format(["name", "company_id", "partner_id"], None)
         )
         analytic_accounts = self.env["account.analytic.account"].create(
             analytic_accounts_values
+        )
+        dbg.lifecycle.debug(
+            "_create_analytic_account %s -> %s",
+            dbg.rec(self),
+            dbg.rec(analytic_accounts),
         )
         for project, analytic_account in zip(self, analytic_accounts, strict=True):
             project.account_id = analytic_account
@@ -2594,22 +2896,37 @@ class ProjectProject(models.Model):
             ]
         )
 
-    def _get_account_node_context(self, plan: Any) -> dict:
+    def _prepare_account_node_context(self, plan: Any) -> dict:
         return {
-            **super()._get_account_node_context(plan),
+            **super()._prepare_account_node_context(plan),
             "default_company_id": unquote("company_id"),
         }
 
-    def _sync_access_to_privacy_visibility(self, new_visibility: str) -> None:
+    @dbg.timed
+    def _sync_access_to_privacy_visibility(self, visibility_before: dict) -> None:
+        shared = ("invited_users", "portal")
         for project in self:
-            if project.privacy_visibility == new_visibility:
+            old_visibility = visibility_before[project]
+            if project.privacy_visibility == old_visibility:
                 continue
-            if new_visibility in ["invited_users", "portal"]:
-                project.message_subscribe(partner_ids=project.partner_id.ids)
+            dbg.logic.debug(
+                "_sync_access_to_privacy_visibility [project:%s]: %s -> %s",
+                project.id,
+                old_visibility,
+                project.privacy_visibility,
+            )
+            if project.privacy_visibility in shared and old_visibility not in shared:
+                project._add_collaborators(project.partner_id, access_mode="view")
                 for task in project.task_ids.filtered("partner_id"):
                     task.message_subscribe(partner_ids=task.partner_id.ids)
-            elif project.privacy_visibility in ["invited_users", "portal"]:
+            elif old_visibility in shared and project.privacy_visibility not in shared:
                 portal_users = project.message_partner_ids.user_ids.filtered("share")
+                dbg.pipeline.debug(
+                    "[project:%s] visibility closed -> unsubscribing portal users %s, "
+                    "clearing tokens",
+                    project.id,
+                    dbg.rec(portal_users),
+                )
                 project.message_unsubscribe(partner_ids=portal_users.partner_id.ids)
                 project.task_ids._unsubscribe_portal_users()
                 project.task_ids.access_token = ""
@@ -2618,9 +2935,14 @@ class ProjectProject(models.Model):
     def _is_project_sharing_accessible(self) -> bool:
         self.check_singleton()
         if self.privacy_visibility not in ["invited_users", "portal"]:
+            dbg.logic.debug(
+                "_is_project_sharing_accessible [project:%s]: visibility %s -> no",
+                self.id,
+                self.privacy_visibility,
+            )
             return False
         if self.env.user._is_portal():
-            return bool(
+            accessible = bool(
                 self.env["project.collaborator"].search_count(
                     [
                         ("project_id", "=", self.sudo().id),
@@ -2629,11 +2951,28 @@ class ProjectProject(models.Model):
                     limit=1,
                 )
             )
+            dbg.logic.debug(
+                "_is_project_sharing_accessible [project:%s]: portal user %s "
+                "collaborator=%s",
+                self.id,
+                self.env.uid,
+                accessible,
+            )
+            return accessible
         return self.env.user._is_internal()
 
-    def _add_collaborators(self, partners: Any, limited_access: bool = False) -> None:
+    def _add_collaborators(
+        self, partners: Any, access_mode: str = "advanced_edit"
+    ) -> None:
         self.check_singleton()
         new_collaborators = self._get_new_collaborators(partners)
+        dbg.lifecycle.debug(
+            "_add_collaborators [project:%s]: %s -> new %s (mode=%s)",
+            self.id,
+            dbg.rec(partners),
+            dbg.rec(new_collaborators),
+            access_mode,
+        )
         if not new_collaborators:
             return
         self.write(
@@ -2642,7 +2981,7 @@ class ProjectProject(models.Model):
                     Command.create(
                         {
                             "partner_id": collaborator.id,
-                            "limited_access": limited_access,
+                            "access_mode": access_mode,
                         }
                     )
                     for collaborator in new_collaborators
@@ -2680,6 +3019,12 @@ class ProjectProject(models.Model):
                     dict_partner_ids_to_subscribe_per_partner[task.partner_id] = (
                         partner_ids_to_subscribe
                     )
+        dbg.pipeline.debug(
+            "[project:%s] _add_followers %s -> %d task partner groups",
+            self.id,
+            dbg.rec(partners),
+            len(dict_tasks_per_partner),
+        )
         for partner, tasks in dict_tasks_per_partner.items():
             tasks.message_subscribe(dict_partner_ids_to_subscribe_per_partner[partner])
 
@@ -2769,6 +3114,11 @@ class ProjectProject(models.Model):
     def action_create_template_from_project(self) -> dict:
         self.check_singleton()
         template = self.copy(default={"is_template": True, "partner_id": False})
+        dbg.lifecycle.debug(
+            "project.project.action_create_template_from_project %s -> template %s",
+            self.id,
+            template.id,
+        )
         template._update_template_mode(True)
         template.message_post(body=self.env._("Template created from %s.", self.name))
         config = {
@@ -2819,6 +3169,11 @@ class ProjectProject(models.Model):
 
     def _update_template_mode(self, is_template: bool) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "project.project._update_template_mode [project:%s]: is_template=%s",
+            self.id,
+            is_template,
+        )
         self.is_template = is_template
         if not is_template:
             self.task_ids.role_ids = False
@@ -2835,11 +3190,17 @@ class ProjectProject(models.Model):
             "partner_id",
         ]
 
+    @dbg.timed
     def action_create_from_template(
         self, values: dict | None = None, role_to_users_mapping: Any = None
     ) -> Self:
         self.check_singleton()
         values = values or {}
+        dbg.lifecycle.debug(
+            "project.project.action_create_from_template [project:%s]: values=%s",
+            self.id,
+            dbg.keys(values),
+        )
 
         if self.date_start and self.date:
             if not values.get("date_start"):
@@ -2857,6 +3218,12 @@ class ProjectProject(models.Model):
         project = self.with_context(
             copy_from_template=True, copy_from_project_template=True
         ).copy(default=default)
+        dbg.pipeline.debug(
+            "[project:%s] create_from_template -> project %s (%d tasks)",
+            self.id,
+            project.id,
+            len(project.task_ids),
+        )
         project.message_post(
             body=self.env._("Project created from template %(name)s.", name=self.name)
         )
@@ -2893,6 +3260,14 @@ class ProjectProject(models.Model):
             for original_task, copied_task in self._get_template_task_pairs(project):
                 if original_task.date_start:
                     tasks_to_schedule += copied_task
+        dbg.pipeline.debug(
+            "[project:%s] create_from_template -> schedule %s in %s..%s (%d pinned)",
+            project.id,
+            dbg.rec(tasks_to_schedule),
+            project_start_datetime,
+            project_end_datetime,
+            len(first_possible_date_per_task),
+        )
         tasks_to_schedule._schedule_tasks(
             {
                 "date_start": datetime.strftime(

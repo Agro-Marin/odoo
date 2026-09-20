@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useExternalListener } from "@odoo/owl";
+import { Component, onWillDestroy, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
@@ -29,29 +29,41 @@ export class PromoteStudioDialog extends Component {
         this.uiService = useService("ui");
 
         this.modalRef = useChildRef();
+        onWillDestroy(() => this.releaseInstallBlock());
 
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
     }
 
     async onClickInstallStudio() {
+        if (this.disableClick) {
+            return;
+        }
         this.disableClick = true;
         this.uiService.block();
-        const [module] = await this.ormService.searchRead(
-            "ir.module.module",
-            [["name", "=", "web_studio"]],
-            ["id"],
-        );
-        if (!module) {
-            this.uiService.unblock();
-            this.disableClick = false;
-            throw new Error("web_studio is not available in this database");
+        try {
+            const [module] = await this.ormService.searchRead(
+                "ir.module.module",
+                [["name", "=", "web_studio"]],
+                ["id"],
+            );
+            if (!module) {
+                throw new Error("web_studio is not available in this database");
+            }
+            await this.ormService.call("ir.module.module", "button_immediate_install", [
+                [module.id],
+            ]);
+            browser.localStorage.setItem("openStudioOnReload", "main");
+            browser.location.reload();
+        } finally {
+            this.releaseInstallBlock();
         }
-        await this.ormService.call("ir.module.module", "button_immediate_install", [
-            [module.id],
-        ]);
-        this.uiService.unblock();
-        browser.localStorage.setItem("openStudioOnReload", "main");
-        browser.location.reload();
+    }
+
+    releaseInstallBlock() {
+        if (this.disableClick) {
+            this.disableClick = false;
+            this.uiService.unblock();
+        }
     }
 
     /** @param {MouseEvent} ev */

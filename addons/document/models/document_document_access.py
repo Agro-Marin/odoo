@@ -4,9 +4,12 @@ from typing import Any
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
-from odoo.addons.document.tools import UserFolder
+from odoo.addons.document.tools import UserFolder, is_mimetype_inline_rendered
+
+_debug = DebugLog(__name__)
 
 
 class DocumentsDocument(models.Model):
@@ -90,6 +93,9 @@ class DocumentsDocument(models.Model):
             document_id: "edit" if is_editable else "view"
             for document_id, is_editable in self.env.cr.fetchall()
         }
+        _debug.perf.count(
+            "user_permission_computed", documents=saved, resolved=len(levels)
+        )
         for document in saved:
             document.user_permission = levels.get(document.id, "none")
 
@@ -107,6 +113,7 @@ class DocumentsDocument(models.Model):
         if self.env.is_admin() or self.env.user.has_group(
             "document.group_documents_system"
         ):
+            _debug.logic("user_can_move", by="system_group", documents=self)
             active_documents.user_can_move = True
             return
         owned_documents = active_documents.filtered(
@@ -334,10 +341,40 @@ class DocumentsDocument(models.Model):
     def _is_download_allowed(self) -> bool:
         self.check_singleton()
         target = self.shortcut_document_id or self
-        return not target.is_download_blocked or target.user_permission == "edit"
+        allowed = not target.is_download_blocked or (
+            target.user_permission == "edit" or target.access_via_link == "edit"
+        )
+        # Log the INPUTS, not only the refusal. Both of these gates used to be
+        # visible in a log only through the caller's `content_refused` event,
+        # so an allowed request said nothing -- and "was this blocked document
+        # served because the block is off, because the caller is an editor, or
+        # because the link is an edit link?" was unanswerable from any log,
+        # which is exactly the question a download-block complaint asks.
+        _debug.logic(
+            "download_gate",
+            document=self,
+            target=target,
+            allowed=allowed,
+            blocked=target.is_download_blocked,
+            permission=target.user_permission,
+            via_link=target.access_via_link,
+        )
+        return allowed
 
-    def _filtered_downloadable(self) -> DocumentsDocument:
-        return self.filtered(lambda document: document._is_download_allowed())
+    def _is_inline_content_allowed(self) -> bool:
+        self.check_singleton()
+        if self._is_download_allowed():
+            return True
+        target = self.shortcut_document_id or self
+        renderable = is_mimetype_inline_rendered(target.mimetype)
+        _debug.logic(
+            "inline_gate",
+            document=self,
+            target=target,
+            allowed=renderable,
+            mimetype=target.mimetype or "",
+        )
+        return renderable
 
     def action_update_access_rights(
         self,
@@ -355,6 +392,7 @@ class DocumentsDocument(models.Model):
         )
 
         if self.shortcut_document_id:
+            _debug.logic("access_update_refused", reason="shortcut", documents=self)
             raise UserError(
                 _(
                     "You can not update the access of a shortcut, update its target instead."
@@ -394,6 +432,11 @@ class DocumentsDocument(models.Model):
             ),
         }
         if incorrect_fields_to_options:
+            _debug.logic(
+                "access_update_refused",
+                reason="bad_values",
+                fields=sorted(incorrect_fields_to_options),
+            )
             hints = "\n- " + "\n- ".join(
                 f"{name}: {options}"
                 for name, options in incorrect_fields_to_options.items()
@@ -418,6 +461,12 @@ class DocumentsDocument(models.Model):
                 )
                 for partner, (role, exp) in (partners or {}).items()
             }
+            _debug.pipeline(
+                "access_members_update",
+                documents=self,
+                partners=len(partners),
+                propagate=not no_propagation,
+            )
             member_changes = self._action_update_members(
                 partners, no_propagation=no_propagation
             )
@@ -437,6 +486,11 @@ class DocumentsDocument(models.Model):
 
         self.env["document.access.tracking"]._create_access_tracking(
             changes_by_document_dict
+        )
+        _debug.lifecycle(
+            "access_rights_updated",
+            documents=self,
+            changed=len(changes_by_document_dict),
         )
 
         return self.mapped("user_permission")
@@ -461,10 +515,10 @@ class DocumentsDocument(models.Model):
                 continue
 
             skip_propagation = no_propagation or field == "is_access_via_link_hidden"
+            _debug.pipeline("access_field_update", field=field, skip=skip_propagation)
 
             candidates_domain = Domain(
                 [
-                    (field, "!=", value),
                     ("shortcut_document_id", "=", False),
                     ("id", "in" if skip_propagation else "child_of", self.ids),
                 ]
@@ -503,9 +557,12 @@ class DocumentsDocument(models.Model):
                       FROM documents_and_shortcuts AS doc
                         -- document | document.children_ids | document.shortcut_ids
                      WHERE document_document.id = doc.id
+                       -- only rows that actually change: no needless write, and
+                       -- tracking is returned the old value of a real change
+                       AND document_document.%(field)s IS DISTINCT FROM %(value)s
                  RETURNING doc.id, doc.%(field)s
             """,
-                    field=SQL(field),
+                    field=SQL.identifier(field),
                     value=value,
                     root_ids=self.ids,
                     candidates=candidates,
@@ -517,6 +574,7 @@ class DocumentsDocument(models.Model):
 
             for id, old_value in self.env.cr.fetchall():
                 changes_by_document_dict[id][field] = old_value
+            _debug.perf.count("access_field_rows", field=field, value=value)
 
         self._invalidate_permission_cache(
             [
@@ -540,6 +598,11 @@ class DocumentsDocument(models.Model):
             for field in self.pool.get_dependent_fields(permission)
             if field.model_name == self._name and not field.store
         ]
+        _debug.pipeline(
+            "permission_cache_invalidated",
+            written=fields_written,
+            dependents=len(dependents),
+        )
         self.invalidate_model([*fields_written, "user_permission", *dependents])
 
     def _get_permission_without_token(self) -> str:
@@ -573,6 +636,9 @@ class DocumentsDocument(models.Model):
                 )
             )
             levels.update(dict.fromkeys(query.get_result_ids(), level))
+        _debug.perf.count(
+            "permission_without_token", documents=saved, resolved=len(levels)
+        )
         for document in saved:
             permission_by_document[document] = levels.get(document.id, "none")
         return permission_by_document
@@ -580,7 +646,7 @@ class DocumentsDocument(models.Model):
     def _get_unauthorized_root_document_owners_sudo(self) -> models.Model:
         return self.mapped("owner_id").sudo().filtered("share")
 
-    def _get_inherited_access_ids_vals(self) -> list[dict]:
+    def _prepare_inherited_access_vals(self) -> list[dict]:
         self.check_singleton()
         vals = [
             {
@@ -604,6 +670,7 @@ class DocumentsDocument(models.Model):
                 continue
             if code == Command.SET and not command[2]:
                 continue
+            _debug.logic("access_command_refused", code=code)
             raise UserError(
                 _(
                     "Document access can only be granted at creation "
@@ -641,4 +708,9 @@ class DocumentsDocument(models.Model):
         if any(
             folder.user_permission != "edit" for folder in unowned_documents.folder_id
         ):
+            _debug.logic(
+                "archive_refused",
+                reason="unowned_in_uneditable_folder",
+                documents=unowned_documents,
+            )
             raise UserError(self._archive_denied_message())

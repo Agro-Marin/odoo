@@ -1,4 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SurveySurvey(models.Model):
@@ -8,7 +11,11 @@ class SurveySurvey(models.Model):
         selection_add=[("recruitment", "Recruitment")],
         ondelete={"recruitment": "set default"},
     )
-    hr_job_ids = fields.One2many("hr.job", "survey_id", string="Job Position")
+    hr_job_ids = fields.One2many(
+        comodel_name="hr.job",
+        inverse_name="survey_id",
+        string="Job Position",
+    )
 
     @api.depends_context("uid")
     def _compute_allowed_survey_types(self):
@@ -28,6 +35,7 @@ class SurveySurvey(models.Model):
                 else self.env.user
             )
             if not access_user.has_group("survey.group_survey_user"):
+                _debug.logic("recruitment_survey_view", user=access_user, survey=self)
                 if view := self.env.ref(
                     "hr_recruitment_survey.survey_survey_view_form",
                     raise_if_not_found=False,

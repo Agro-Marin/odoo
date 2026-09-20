@@ -7,15 +7,18 @@ from typing import TYPE_CHECKING, Any
 
 import psutil
 
+from odoo.libs.debug_log import DebugLog
+
 from ._limits import get_memory_over_soft_limit
 from .settings import ServerSettings, current
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-_SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
+SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 
 _on_stop_hooks: list[Callable] = []
@@ -40,19 +43,30 @@ watches this list.
 def register_on_stop_hook(func: Callable) -> None:
     if func not in _on_stop_hooks:
         _on_stop_hooks.append(func)
+        _debug.lifecycle(
+            "server.stop_hook.registered",
+            hook=getattr(func, "__qualname__", None),
+            hooks=len(_on_stop_hooks),
+        )
 
 
 def run_on_stop_hooks(logger: logging.Logger) -> None:
+    _debug.pipeline("server.stop_hooks.run", hooks=len(_on_stop_hooks))
     for func in _on_stop_hooks:
         try:
             logger.debug("on_close call %s", func)
-            func()
+            with _debug.perf(
+                "server.stop_hook.ran", hook=getattr(func, "__qualname__", None)
+            ):
+                func()
         except Exception:
             name = getattr(func, "__name__", repr(func))
             logger.warning("Exception in %s", name, exc_info=True)
+            _debug.logic("server.stop_hook.failed", hook=name)
 
 
 class CommonServer:
+    is_reload_watcher_owner = True
     flavor = "unknown"
     """How this server names itself to an operator, a metric, an alert.
 
@@ -61,14 +75,22 @@ class CommonServer:
     visible, where a name-keyed dict outside the class answers with the class
     name and is not.
     """
+    port_setting = "http_port"
 
     def __init__(self, app: Any) -> None:
         self.app = app
         self.interface: str = self.settings.http_interface or "0.0.0.0"
-        self.port: int = self.settings.http_port
+        self.port: int = getattr(self.settings, self.port_setting)
         self.pid: int = os.getpid()
         self.logger = _logger.getChild(self.__class__.__name__)
         self._process_handle = psutil.Process(self.pid)
+        _debug.lifecycle(
+            "server.created",
+            flavor=self.flavor,
+            interface=self.interface,
+            port=self.port,
+            pid=self.pid,
+        )
 
     @property
     def settings(self) -> ServerSettings:
@@ -84,19 +106,51 @@ class CommonServer:
         return {}
 
     def get_memory_over_soft_limit(self) -> int | None:
-        memory = get_memory_over_soft_limit(
-            self._process_handle, self.get_memory_soft_limit()
-        )
+        limit = self.get_memory_soft_limit()
+        memory = get_memory_over_soft_limit(self._process_handle, limit)
         if memory is not None:
             self.logger.warning("RSS memory soft-limit reached: %s bytes.", memory)
+            _debug.logic(
+                "server.memory_soft_limit_exceeded",
+                flavor=self.flavor,
+                rss=memory,
+                limit=limit,
+            )
         return memory
 
     def get_memory_soft_limit(self) -> int:
         return self.settings.limit_memory_soft
+
+    def describe_capacity(self) -> str:
+        raise NotImplementedError
+
+    def log_ready(self) -> None:
+        # One line an operator can read the deployment's shape from, where
+        # the bind, thread-budget and worker lines each told a part of it.
+        settings = self.settings
+        budgets = ", ".join(
+            f"{label} {int(settings.get_real_time_budget(kind))}s"
+            for label, kind in (
+                ("limit_time_real", "http"),
+                ("cron", "cron"),
+                ("job", "job"),
+            )
+        )
+        self.logger.info(
+            "Ready: %s, pid %s; %s; %s; limit_memory_soft %d MiB; db_maxconn %s",
+            self.flavor,
+            self.pid,
+            self.describe_capacity(),
+            budgets,
+            self.get_memory_soft_limit() // (1024 * 1024),
+            settings.db_maxconn,
+        )
+        _debug.lifecycle("server.ready", flavor=self.flavor, pid=self.pid)
 
     @classmethod
     def register_on_stop_hook(cls, func: Callable) -> None:
         register_on_stop_hook(func)
 
     def stop(self) -> None:
+        _debug.lifecycle("server.stopping", flavor=self.flavor, pid=self.pid)
         run_on_stop_hooks(self.logger)

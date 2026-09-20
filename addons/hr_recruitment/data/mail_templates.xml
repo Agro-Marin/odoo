@@ -3,7 +3,7 @@
 
     <data noupdate="1">
         <template id="applicant_hired_template">
-Employee created: <a href="#" t-att-data-oe-id="applicant.employee_id.id" data-oe-model="hr.employee"><t t-esc="applicant.employee_id.name" /></a>
+Employee created: <a href="#" t-att-data-oe-id="applicant.employee_id.id" data-oe-model="hr.employee"><t t-out="applicant.employee_id.name" /></a>
         </template>
         <template
             id="mail_notification_light_without_background"

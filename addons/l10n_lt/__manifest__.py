@@ -33,7 +33,6 @@ This module also includes:
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "auto_install": [
         "account",
     ],

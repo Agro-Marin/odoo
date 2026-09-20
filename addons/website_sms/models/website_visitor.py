@@ -1,14 +1,14 @@
 from odoo import _, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class WebsiteVisitor(models.Model):
     _inherit = "website.visitor"
 
-    def _check_for_sms_composer(self):
-        """Purpose of this method is to actualize visitor model prior to contacting
-        him. Used notably for inheritance purpose, when dealing with leads that
-        could update the visitor model."""
+    def _can_use_sms_composer(self):
         return bool(self.partner_id.phone_ids)
 
     def _prepare_sms_composer_context(self):
@@ -21,7 +21,13 @@ class WebsiteVisitor(models.Model):
 
     def action_send_sms(self):
         self.check_singleton()
-        if not self._check_for_sms_composer():
+        _debug.logic(
+            "visitor_sms_composer",
+            visitor=self,
+            partner=self.partner_id,
+            reachable=self._can_use_sms_composer(),
+        )
+        if not self._can_use_sms_composer():
             raise UserError(
                 _(
                     "There are no contact and/or no phone or mobile numbers linked to this visitor."

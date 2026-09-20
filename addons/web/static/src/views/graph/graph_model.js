@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -32,6 +33,8 @@ const SEQUENTIAL_TYPES = ["date", "datetime"];
 
 /** @typedef {import("@web/model/types").SearchParams} SearchParams */
 
+const log = makeLogger("web.view.graph");
+
 export class GraphModel extends Model {
     /** @override */
     setup(params) {
@@ -62,7 +65,12 @@ export class GraphModel extends Model {
     }
 
     /** @param {SearchParams} searchParams */
-    async load(searchParams) {
+    load(searchParams) {
+        return this.fetches.track(this._loadSearchParams(searchParams));
+    }
+
+    /** @param {SearchParams} searchParams */
+    async _loadSearchParams(searchParams) {
         const previousSearchParams = this.searchParams;
         this.searchParams = searchParams;
         if (
@@ -82,13 +90,37 @@ export class GraphModel extends Model {
         }
         this._consumeContextParams(searchParams.context);
         const metaData = this._buildMetaData();
-        await addPropertyFieldDefs(
-            this.orm,
-            metaData.resModel,
-            searchParams.context,
-            metaData.fields,
-            metaData.groupBy.map((gb) => gb.fieldName),
+        log.pipeline("load", () => ({
+            resModel: metaData.resModel,
+            mode: metaData.mode,
+            measure: metaData.measure,
+            groupBy: metaData.groupBy.map((gb) => gb.spec),
+            domain: searchParams.domain,
+        }));
+        let generation;
+        const properties = this.keepLast.add(
+            addPropertyFieldDefs(
+                this.orm,
+                metaData.resModel,
+                searchParams.context,
+                metaData.fields,
+                metaData.groupBy.map((gb) => gb.fieldName),
+                () => generation === this.keepLast.generation,
+            ),
         );
+        generation = this.keepLast.generation;
+        try {
+            await properties;
+        } catch (error) {
+            if (!(error instanceof SupersededError)) {
+                throw error;
+            }
+            log.logic("property load superseded");
+            return;
+        }
+        if (generation !== this.keepLast.generation) {
+            return;
+        }
         await this._fetchDataPoints(metaData);
     }
 
@@ -202,14 +234,18 @@ export class GraphModel extends Model {
      */
     async _fetchDataPoints(metaData) {
         let dataPoints;
+        const endFetch = log.perf(`loadDataPoints ${metaData.resModel}`);
         try {
             dataPoints = await this.keepLast.add(this.loadDataPoints(metaData));
         } catch (error) {
             if (error instanceof SupersededError) {
+                endFetch({ superseded: true });
                 return false;
             }
+            endFetch({ failed: true });
             throw error;
         }
+        endFetch({ dataPoints: dataPoints.length });
         /** @type {any} */ (this).dataPoints = dataPoints;
         this.metaData = metaData;
         this.prepareData();

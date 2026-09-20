@@ -2,11 +2,13 @@ import logging
 import typing
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_alias import MailAlias
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MixinMailAlias(models.AbstractModel):
@@ -34,7 +36,11 @@ class MixinMailAlias(models.AbstractModel):
         }
         child_model = self.sudo().with_context(child_ctx)
 
-        for record in child_model.search([("alias_id", "=", False)]):
+        orphans = child_model.search([("alias_id", "=", False)])
+        _debug.lifecycle(
+            "alias_column_initialized", model=self._name, records=len(orphans)
+        )
+        for record in orphans:
             record_company = record._mail_get_companies()[record.id]
             alias = (
                 self.env["mail.alias"]

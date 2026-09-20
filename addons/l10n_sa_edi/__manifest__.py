@@ -2,9 +2,7 @@
     "name": "Saudi Arabia - E-invoicing",
     "version": "0.3",
     "category": "Accounting/Localizations/EDI",
-    "summary": """
-        E-Invoicing, Universal Business Language
-    """,
+    "summary": "E-Invoicing, Universal Business Language",
     "description": """
 E-invoice implementation for Saudi Arabia; Integration with ZATCA
     """,

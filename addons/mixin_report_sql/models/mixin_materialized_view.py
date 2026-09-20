@@ -7,6 +7,8 @@ from odoo import _, models
 from odoo.exceptions import UserError
 from odoo.libs.sql import SQL
 
+_PENDING_REBUILDS = "mixin_report_sql.pending_materialized_view_rebuilds"
+
 _logger = logging.getLogger(__name__)
 
 # Marker prefix for the definition hash stored as the COMMENT of every
@@ -312,10 +314,7 @@ class MixinMaterializedView(models.AbstractModel):
         # once per upgraded module in the closure, so on `-u base` it fires many
         # times per load, each a full CREATE ... WITH DATA (minutes on prod).
         if not self.pool.loaded:
-            pending = getattr(self.pool, "_pending_materialized_views", None)
-            if pending is None:
-                pending = self.pool._pending_materialized_views = {}
-            pending[self._name] = with_data
+            self.pool.loading.state(_PENDING_REBUILDS, dict)[self._name] = with_data
             return
         # Ready registry (e.g. reload_schema on a running server).
         self._sync_existing_relation(with_data)
@@ -323,15 +322,16 @@ class MixinMaterializedView(models.AbstractModel):
     def _register_hook(self) -> None:
         """Process a rebuild deferred by ``init()`` during module loading.
 
-        Called once per registry load after all modules are in (and again on
-        incremental setups of a ready registry, where the pending map is
-        normally empty).  Cheap no-op when this model has nothing pending.
+        Called once per registry load after all modules are in, and again on
+        every incremental setup of a ready registry. The deferred rebuilds live
+        in the loading phase, which closes before the registry becomes ready,
+        so a ready registry has nothing pending and no phase to ask.
         """
         super()._register_hook()
-        if self._abstract:
+        if self._abstract or self.pool.ready:
             return
-        pending = getattr(self.pool, "_pending_materialized_views", None)
-        if pending is None or self._name not in pending:
+        pending = self.pool.loading.state(_PENDING_REBUILDS, dict)
+        if self._name not in pending:
             return
         self._sync_existing_relation(pending.pop(self._name))
 
@@ -346,7 +346,7 @@ class MixinMaterializedView(models.AbstractModel):
         if self._relation_needs_rebuild(with_data=with_data):
             self._create_relation(with_data=with_data)
         else:
-            self._relation_ensure_indexes()
+            self._relation_create_indexes()
 
     def _relation_prepare_schema(self) -> None:
         """Hook for DDL this relation depends on — functions, types, extensions.
@@ -492,7 +492,7 @@ class MixinMaterializedView(models.AbstractModel):
                 self._table,
             )
 
-        self._relation_ensure_indexes(index_cols)
+        self._relation_create_indexes(index_cols)
 
         # Stamp the definition hash so later init() calls can recognize an
         # up-to-date relation and skip the rebuild.
@@ -524,7 +524,7 @@ class MixinMaterializedView(models.AbstractModel):
             )
         )
 
-    def _relation_ensure_indexes(self, index_cols=None) -> None:
+    def _relation_create_indexes(self, index_cols=None) -> None:
         """Create the unique index, an ``id`` index, and any extras — idempotently.
 
         The ``id`` index is not optional.  Every ORM read of a report ends in

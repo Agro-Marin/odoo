@@ -31,7 +31,6 @@
             "project_todo/static/tests/**/*",
         ],
     },
-    "installable": True,
     "application": True,
     "auto_install": True,
     "post_init_hook": "_todo_post_init",

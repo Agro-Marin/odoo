@@ -24,15 +24,15 @@
                     <button
                         name="set_employee_location"
                         type="object"
-                        class="btn-primary"
-                        string="Set Location" />
+                        string="Set Location"
+                        class="btn-primary" />
                 </footer>
             </form>
         </field>
     </record>
 
     <record id="set_location_wizard_action" model="ir.actions.act_window">
-        <field name="name">Set Location</field>
+        <field name="name">Set Location…</field>
         <field name="res_model">homework.location.wizard</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="homework_location_wizard_view_form" />

@@ -4172,6 +4172,25 @@ test("scroll position is restored when coming back to pivot view", async () => {
 });
 
 test.tags("mobile");
+test("a small screen indents headers by 5px per level and carries no tooltips", async () => {
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+            <pivot>
+                <field name="product_id" type="row"/>
+                <field name="foo" type="measure"/>
+            </pivot>`,
+    });
+    expect(".o_pivot [data-tooltip]").toHaveCount(0);
+    expect(".o_pivot [data-tooltip-position]").toHaveCount(0);
+    expect("tbody .o_pivot_header_cell_opened").toHaveStyle({ paddingLeft: "5px" });
+    expect("tbody .o_pivot_header_cell_closed:first").toHaveStyle({
+        paddingLeft: "10px",
+    });
+});
+
+test.tags("mobile");
 test("scroll position is restored when coming back to pivot view (mobile)", async () => {
     Partner._views = {
         kanban: `
@@ -4244,4 +4263,112 @@ test("a row group-by hidden by a context expression is dropped from the arch", a
     ).toEqual(["customer"], {
         message: "with it true, the group-by the arch asked to hide is gone",
     });
+});
+
+test("a delayed property definition cannot replace a newer grouping", async () => {
+    Partner._fields.properties_definition = fields.PropertiesDefinition();
+    Partner._fields.parent_id = fields.Many2one({ relation: "partner" });
+    Partner._fields.properties = fields.Properties({
+        definition_record: "parent_id",
+        definition_record_field: "properties_definition",
+    });
+    const pending = new Deferred();
+    let requests = 0;
+    onRpc("get_property_definition", async () => {
+        requests++;
+        await pending;
+        return { name: "delayed", type: "char", string: "Old property" };
+    });
+    onRpc("formatted_read_grouping_sets", ({ kwargs }) => {
+        if (
+            kwargs.grouping_sets.some((group) => group.includes("properties.delayed"))
+        ) {
+            return kwargs.grouping_sets.map((group) => [
+                {
+                    __extra_domain: [],
+                    __count: 1,
+                    ...(group.includes("properties.delayed")
+                        ? { "properties.delayed": "Old property" }
+                        : {}),
+                },
+            ]);
+        }
+    });
+    const view = await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `<pivot/>`,
+    });
+    const model = findComponent(view, (c) => c instanceof PivotController).model;
+    const initial = model.searchParams;
+    const older = model.load({ ...initial, groupBy: ["properties.delayed"] });
+    let settled = false;
+    older.then(() => (settled = true));
+    await animationFrame();
+    expect(model.loads.isBusy).toBe(true);
+    expect(requests).toBe(1);
+    await model.load({ ...initial, groupBy: ["bar"] });
+    await animationFrame();
+    expect(settled).toBe(true);
+    pending.resolve();
+    await animationFrame();
+    await older;
+    expect(model.metaData.rowGroupBys).toEqual(["bar"]);
+    expect(model.metaData.fields["properties.delayed"]).toBe(undefined);
+});
+
+test("a superseded property failure cannot overwrite a newer definition", async () => {
+    Partner._fields.properties_definition = fields.PropertiesDefinition();
+    Partner._fields.parent_id = fields.Many2one({ relation: "partner" });
+    Partner._fields.properties = fields.Properties({
+        definition_record: "parent_id",
+        definition_record_field: "properties_definition",
+    });
+    const pending = new Deferred();
+    let requests = 0;
+    onRpc("get_property_definition", async () => {
+        requests++;
+        if (requests === 1) {
+            await pending;
+            throw new Error("old property lookup failed");
+        }
+        return { name: "delayed", type: "integer", string: "Current property" };
+    });
+    onRpc("formatted_read_grouping_sets", ({ kwargs }) => {
+        if (
+            kwargs.grouping_sets.some((group) => group.includes("properties.delayed"))
+        ) {
+            return kwargs.grouping_sets.map((group) => [
+                {
+                    __extra_domain: [],
+                    __count: 1,
+                    ...(group.includes("properties.delayed")
+                        ? { "properties.delayed": 4 }
+                        : {}),
+                },
+            ]);
+        }
+    });
+    const view = await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `<pivot/>`,
+    });
+    const model = findComponent(view, (c) => c instanceof PivotController).model;
+    const initial = model.searchParams;
+    const older = model.load({ ...initial, groupBy: ["properties.delayed"] });
+    let settled = false;
+    older.then(() => (settled = true));
+    await animationFrame();
+    expect(model.loads.isBusy).toBe(true);
+    expect(requests).toBe(1);
+    await model.load({ ...initial, groupBy: ["properties.delayed"] });
+    await animationFrame();
+    expect(settled).toBe(true);
+    pending.resolve();
+    await animationFrame();
+    await older;
+    expect(model.metaData.rowGroupBys).toEqual(["properties.delayed"]);
+    expect(model.metaData.fields["properties.delayed"].type).toBe("integer");
+    expect(requests).toBe(2);
 });

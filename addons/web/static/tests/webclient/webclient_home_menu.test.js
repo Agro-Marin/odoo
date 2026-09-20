@@ -26,6 +26,7 @@ import { config as transitionConfig } from "@web/core/transition";
 import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
+import { HomeMenuAction } from "@web/webclient/home_menu/home_menu_service";
 import { shareUrlMenuItem } from "@web/webclient/share_url/share_url";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 import { WebClient } from "@web/webclient/webclient";
@@ -171,8 +172,6 @@ class TestClientAction extends Component {
     }
 }
 
-onRpc("has_group", () => true);
-
 beforeEach(() => {
     actionRegistry.add("__test__client__action__", TestClientAction);
     patchWithCleanup(transitionConfig, { disabled: true });
@@ -220,12 +219,7 @@ describe("basic flow with home menu", () => {
         ]);
         await contains(".o_app.o_menuitem").click();
         await animationFrame();
-        expect.verifySteps([
-            "/web/action/load",
-            "get_views",
-            "web_search_read",
-            "has_group",
-        ]);
+        expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
         expect(document.body).not.toHaveClass("o_home_menu_background");
         expect(".o_home_menu").toHaveCount(0);
         expect(".o_kanban_view").toHaveCount(1);
@@ -241,12 +235,7 @@ describe("basic flow with home menu", () => {
         ]);
         await contains(".o_app.o_menuitem").click();
         await animationFrame();
-        expect.verifySteps([
-            "/web/action/load",
-            "get_views",
-            "web_search_read",
-            "has_group",
-        ]);
+        expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
         expect(".o_kanban_view").toHaveCount(1);
         await contains(".o_kanban_record").click();
         await animationFrame();
@@ -271,12 +260,7 @@ describe("basic flow with home menu", () => {
         ]);
         await contains(".o_app.o_menuitem").click();
         await animationFrame();
-        expect.verifySteps([
-            "/web/action/load",
-            "get_views",
-            "web_search_read",
-            "has_group",
-        ]);
+        expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
         expect(".o_kanban_view").toHaveCount(1);
         await contains(".o_kanban_record").click();
         expect.verifySteps(["web_read"]);
@@ -303,12 +287,7 @@ describe("basic flow with home menu", () => {
         ]);
         await contains(".o_app.o_menuitem").click();
         await animationFrame();
-        expect.verifySteps([
-            "/web/action/load",
-            "get_views",
-            "web_search_read",
-            "has_group",
-        ]);
+        expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
         expect(".o_kanban_view").toHaveCount(1);
         await contains(".o_kanban_record").click();
         expect.verifySteps(["web_read"]);
@@ -338,12 +317,7 @@ describe("basic flow with home menu", () => {
         ]);
         await contains(".o_app.o_menuitem").click();
         await animationFrame();
-        expect.verifySteps([
-            "/web/action/load",
-            "get_views",
-            "web_search_read",
-            "has_group",
-        ]);
+        expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
         expect(".o_kanban_view").toHaveCount(1);
         await contains(".o_kanban_record").click();
         expect.verifySteps(["web_read"]);
@@ -360,6 +334,7 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["web_read"]);
         expect(".o_home_menu").toHaveCount(0);
         expect(".o_form_view").toHaveCount(1);
+        await animationFrame();
         expect(".o_menu_toggle").not.toHaveClass("o_menu_toggle_back");
         expect(".o_breadcrumb .active").toHaveText("Second record");
         expect(".breadcrumb-item").toHaveCount(2);
@@ -958,4 +933,76 @@ test("app navigation keeps Home alive until all layout edits finish saving", asy
     expect(".o_home_menu").toHaveCount(0);
     expect(home.layout.config.pinned).toEqual(["app.first", "app.second", "app.third"]);
     expect(home.layout.unsaved).toBe(false);
+});
+
+test("the launcher state is set before the launcher mounts, and a superseded launcher does not reset it", async () => {
+    await mountWebClient();
+    const action = getService("action");
+    const homeMenu = getService("home_menu");
+    await action.doAction(1);
+    expect(homeMenu.hasHomeMenu).toBe(false);
+    const instances = { setup: 0, mounted: 0, flagAtSetup: [] };
+    const firstSetup = new Deferred();
+    patchWithCleanup(HomeMenuAction.prototype, {
+        setup() {
+            super.setup(...arguments);
+            instances.setup++;
+            instances.flagAtSetup.push(getService("home_menu").hasHomeMenu);
+            onMounted(() => instances.mounted++);
+            firstSetup.resolve();
+        },
+    });
+    const first = action.doAction("menu");
+    await firstSetup;
+    expect(instances.setup).toBe(1, {
+        message: "the first launcher is set up, not yet mounted",
+    });
+    expect(instances.mounted).toBe(0);
+    const second = action.doAction("menu");
+    await Promise.all([first, second]);
+    await animationFrame();
+    expect(instances.setup).toBe(2);
+    expect(instances.mounted).toBe(1, { message: "only the second launcher mounted" });
+    expect(instances.flagAtSetup).toEqual([true, true]);
+    expect(".o_home_menu").toHaveCount(1);
+    expect(homeMenu.hasHomeMenu).toBe(true, {
+        message: "the superseded launcher's teardown left the mounted one's flag alone",
+    });
+    await action.doAction(1);
+    await animationFrame();
+    expect(homeMenu.hasHomeMenu).toBe(false);
+});
+
+test("a layout save the server refuses does not keep the user on Home", async () => {
+    patchWithCleanup(user, { settings: { id: 1 } });
+    /** @type {HomeMenu | undefined} */
+    let home;
+    patchWithCleanup(HomeMenu.prototype, {
+        setup() {
+            super.setup(...arguments);
+            home = this;
+        },
+    });
+    let writes = 0;
+    onRpc("res.users.settings", "update_homemenu_config", () => {
+        writes++;
+        throw new Error("access denied");
+    });
+    await mountWebClient();
+    await getService("action").doAction("menu");
+    if (!home) {
+        throw new Error("Home did not mount");
+    }
+    const pin = Promise.resolve(home.layout.togglePinned({ xmlid: "app.first" })).catch(
+        (error) => error.message,
+    );
+    await animationFrame();
+    expect(await pin).toBe("access denied");
+    expect(home.layout.state.status).toBe("error");
+    expect(".o_home_menu_save_status .text-danger").toHaveCount(1);
+    await getService("action").doAction(1);
+    await animationFrame();
+    expect(writes).toBe(2, { message: "leaving retried the save once more" });
+    expect(".o_home_menu").toHaveCount(0);
+    expect(".o_kanban_view").toHaveCount(1);
 });

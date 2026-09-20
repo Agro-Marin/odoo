@@ -1,8 +1,10 @@
-import inspect
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from odoo.service._cron import CronSchedule
+
+from .conftest import build_worker, threaded_server
 
 
 class _Clock:
@@ -79,6 +81,29 @@ class TestANotifyStormIsNotAScanStorm:
         assert schedule.get_due_databases([]) == ["a", "d"]
         assert catalogue["calls"] == 2
 
+    def test_a_database_created_between_sweeps_is_due_on_its_first_notify(
+        self, schedule, catalogue, clock
+    ):
+        schedule.get_due_databases([])
+        clock.advance(1)
+        catalogue["names"] = ["a", "b", "c", "d"]
+        assert schedule.get_due_databases(["d"]) == ["d"]
+        assert catalogue["calls"] == 2
+
+    def test_unknown_names_re_read_the_list_once_per_interval(
+        self, schedule, catalogue, clock
+    ):
+        schedule.get_due_databases([])
+        for _ in range(50):
+            clock.advance(0.1)
+            assert schedule.get_due_databases(["nope"]) == []
+        assert catalogue["calls"] == 2
+        clock.advance(60)
+        schedule.get_due_databases([])
+        clock.advance(1)
+        schedule.get_due_databases(["nope"])
+        assert catalogue["calls"] == 4
+
     def test_a_database_that_disappeared_stops_being_due(
         self, schedule, catalogue, clock
     ):
@@ -108,23 +133,54 @@ class TestTheListIsResolvedLate:
 
 
 class TestBothLoopsUseIt:
-    def test_the_threaded_loop_builds_one(self):
+    """Each loop sweeps exactly the databases its schedule hands it, in that
+    order; neither lists or orders on its own."""
+
+    def _spy_schedule(self, due):
+        schedule = MagicMock()
+        schedule.get_due_databases.return_value = list(due)
+        schedule.polling_delay = 0.0
+        return schedule
+
+    def test_the_threaded_loop_sweeps_what_the_schedule_returns(self):
         from odoo.service import _threaded
 
-        assert "CronSchedule(" in inspect.getsource(_threaded.ThreadedServer)
+        server = threaded_server()
+        schedule = self._spy_schedule(["z", "y"])
+        listener = MagicMock()
+        listener.wait.return_value = True
+        listener.drain.return_value = {"y", "z", "unknown"}
+        swept = []
+        clock = iter([0.0, 0.0, 0.0, 0.0, 100.0, 100.0])
+        with (
+            patch.object(_threaded, "CronSchedule", return_value=schedule),
+            patch.object(_threaded, "CRON_NOTIFY_JITTER_MAX_S", 0),
+            patch.object(_threaded, "drain_swept_database"),
+            patch.object(_threaded, "current_worker_thread", return_value=MagicMock()),
+            patch.object(_threaded.time, "monotonic", lambda: next(clock, 100.0)),
+        ):
+            _threaded.ThreadedServer._poll_cron_channel(
+                server, listener, 0, swept.append, MagicMock(), max_age=1
+            )
+        schedule.get_due_databases.assert_called_once_with({"y", "z", "unknown"})
+        assert swept == ["z", "y"]
 
-    def test_the_prefork_worker_builds_one(self):
+    def test_the_prefork_worker_queues_what_the_schedule_returns(self, worker_multi):
         from odoo.service import _worker
 
-        assert "CronSchedule(" in inspect.getsource(_worker.WorkerCron)
-
-    def test_neither_still_orders_the_databases_itself(self):
-        from odoo.service import _threaded, _worker
-
-        for mod in (_threaded, _worker):
-            assert "order_notified_first" not in inspect.getsource(mod), (
-                f"{mod.__name__} re-implements the ordering CronSchedule owns"
-            )
+        worker = build_worker(_worker.WorkerCron, worker_multi)
+        worker.schedule = self._spy_schedule(["z", "y"])
+        worker.listener = MagicMock(connected=True)
+        worker.listener.drain.return_value = {"y", "z"}
+        with (
+            patch.object(worker, "_run_jobs_for_database") as run_jobs,
+            patch.object(worker, "setproctitle"),
+            patch.object(_worker, "drain_swept_database"),
+        ):
+            worker.process_work()
+        worker.schedule.get_due_databases.assert_called_once_with({"y", "z"})
+        assert list(worker.db_queue) == ["y"]
+        run_jobs.assert_called_once_with("z")
 
     def test_they_use_the_same_refresh_interval(self):
         """Both take the default, so there is nothing left to keep in step."""
@@ -152,10 +208,12 @@ class TestBothLoopsUseIt:
         assert calls, "the schedule bound the function instead of the module"
 
     def test_neither_loop_carries_its_own_wrapper_any_more(self):
-        from odoo.service import _cron, _threaded, _worker
+        from odoo.service import _threaded, _worker
 
         for mod in (_threaded, _worker):
             assert not hasattr(mod, "_get_databases_to_sweep"), (
                 f"{mod.__name__} grew its own copy back; the seam splits again"
             )
-        assert hasattr(_cron, "_get_databases_to_sweep")
+            assert not hasattr(mod, "get_cron_databases"), (
+                f"{mod.__name__} imports the lister; patch it on _cron only"
+            )

@@ -7,6 +7,7 @@ import psycopg
 
 from odoo.db import FunctionStatus
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import get_index_name
 from odoo.tools import OrderedSet
 
@@ -22,17 +23,43 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
+_debug = DebugLog(__name__)
 
 
 class _RegistrySchemaMixin(_RegistryStubs):
     _ordinary_tables: dict[str, bool]
     _constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]]
     not_null_fields: set[Field]
+    not_null_columns: set[tuple[str, str]]
+
+    database_translated_fields: dict[str, str]
+    database_company_dependent_fields: set[str]
 
     def _init_schema_state(self) -> None:
         self._ordinary_tables = {}
         self._constraint_queue = {}
         self.not_null_fields = set()
+        self.not_null_columns = set()
+        self.database_translated_fields = {}
+        self.database_company_dependent_fields = set()
+
+    def reflect_database_fields(self, cr: BaseCursor) -> None:
+        cr.execute(
+            "SELECT model || '.' || name, translate FROM ir_model_fields "
+            "WHERE translate IS NOT NULL"
+        )
+        self.database_translated_fields = dict(cr.fetchall())
+        if sql.column_exists(cr, "ir_model_fields", "company_dependent"):
+            cr.execute(
+                "SELECT model || '.' || name FROM ir_model_fields "
+                "WHERE company_dependent IS TRUE"
+            )
+            self.database_company_dependent_fields = {row[0] for row in cr.fetchall()}
+
+    def take_database_translated_fields(self) -> dict[str, str]:
+        taken = self.database_translated_fields
+        self.database_translated_fields = {}
+        return taken
 
     def post_constraint(
         self, cr: BaseCursor, func: Callable[[BaseCursor], None], key
@@ -42,8 +69,15 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 with cr.savepoint(flush=False):
                     func(cr)
             else:
+                _debug.logic("registry.constraint.requeued", key=key)
                 self._constraint_queue[key] = func
         except Exception as e:
+            _debug.logic(
+                "registry.constraint.failed",
+                key=key,
+                install=self.init_phase.install,
+                error=type(e).__name__,
+            )
             if self.init_phase.install:
                 _schema.error("%s", e)
             else:
@@ -51,6 +85,9 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 self._constraint_queue[key] = func
 
     def finalize_constraints(self, cr: Cursor) -> None:
+        _debug.pipeline(
+            "registry.finalize_constraints", queued=len(self._constraint_queue)
+        )
         for func in self._constraint_queue.values():
             try:
                 with cr.savepoint(flush=False):
@@ -70,8 +107,17 @@ class _RegistrySchemaMixin(_RegistryStubs):
             AND a.attnum > 0
             AND a.attname != 'id';
         """)
-        not_null_columns = set(cr.fetchall())
+        self.not_null_columns = set(cr.fetchall())
+        self.rebuild_not_null_fields(warn=True)
+        _debug.perf.count(
+            "registry.null_constraints_checked",
+            columns=len(self.not_null_columns),
+            fields=len(self.not_null_fields),
+        )
 
+    def rebuild_not_null_fields(self, *, warn: bool = False) -> None:
+        # the set holds Field objects, which setup_models recreates; rebuild it from
+        # the reflected columns so a re-setup never leaves it pointing at dead fields
         self.not_null_fields.clear()
         for Model in self.models.values():
             if Model._auto and not Model._abstract:
@@ -80,9 +126,9 @@ class _RegistrySchemaMixin(_RegistryStubs):
                         self.not_null_fields.add(field)
                         continue
                     if field.column_type and field.store and field.required:
-                        if (Model._table, field_name) in not_null_columns:
+                        if (Model._table, field_name) in self.not_null_columns:
                             self.not_null_fields.add(field)
-                        else:
+                        elif warn:
                             _schema.warning("Missing not-null constraint on %s", field)
 
     def _get_index_expression(self, field, index) -> tuple[str, str, str]:
@@ -128,6 +174,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
         try:
             with cr.savepoint(flush=False):
                 if stale:
+                    _debug.logic(
+                        "registry.index.stale_dropped",
+                        index=indexname,
+                        table=tablename,
+                    )
                     sql.drop_index(cr, indexname, tablename)
                 sql.create_index(
                     cr,
@@ -142,7 +193,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             _schema.error("Unable to add index %r for %s", indexname, self)
 
     def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:
-
+        model_names = list(model_names)
         expected = [
             (get_index_name(Model._table, field.name), Model._table, field)
             for model_name in model_names
@@ -171,6 +222,12 @@ class _RegistrySchemaMixin(_RegistryStubs):
             indexname: (tablename, method, has_predicate)
             for indexname, tablename, method, has_predicate in cr.fetchall()
         }
+        _debug.pipeline(
+            "registry.check_indexes",
+            models=len(model_names),
+            expected=len(expected),
+            existing=len(existing),
+        )
 
         for indexname, tablename, field in expected:
             index = field.index
@@ -248,28 +305,38 @@ class _RegistrySchemaMixin(_RegistryStubs):
             )
         }
 
+        _debug.pipeline(
+            "registry.check_foreign_keys",
+            declared=len(foreign_keys),
+            existing=len(existing),
+            tables=len(tablenames),
+        )
         for key, val in foreign_keys.items():
             table1, column1 = key
             table2, column2, ondelete, model, module = val
             deltype = sql._CONFDELTYPES[ondelete.upper()]
             spec = existing.get(key)
-            if spec is None:
-                sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
-                conname = sql.get_fk_constraint_names(
-                    cr, table1, column1, table2, column2, ondelete
-                )[0]
-                model.env["ir.model.constraint"]._reflect_constraint(
-                    model, conname, "f", None, module
-                )
-            elif (spec[1], spec[2], spec[3]) != (table2, column2, deltype):
+            if spec is not None:
+                if (spec[1], spec[2], spec[3]) == (table2, column2, deltype):
+                    continue
                 sql.drop_constraint(cr, table1, spec[0])
-                sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
-                conname = sql.get_fk_constraint_names(
-                    cr, table1, column1, table2, column2, ondelete
-                )[0]
-                model.env["ir.model.constraint"]._reflect_constraint(
-                    model, conname, "f", None, module
-                )
+            _debug.logic(
+                "registry.foreign_key.added"
+                if spec is None
+                else "registry.foreign_key.replaced",
+                table=table1,
+                column=column1,
+                target=table2,
+                ondelete=ondelete,
+                previous=None if spec is None else spec[0],
+            )
+            sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
+            conname = sql.get_fk_constraint_names(
+                cr, table1, column1, table2, column2, ondelete
+            )[0]
+            model.env.registry.metaschema.reflect_constraint(
+                model, conname, "f", None, module
+            )
 
     def check_tables_exist(self, cr: Cursor) -> None:
         from .environment import Environment
@@ -284,11 +351,17 @@ class _RegistrySchemaMixin(_RegistryStubs):
             sql.get_tables_existing(cr, table2model)
         )
 
+        _debug.pipeline(
+            "registry.check_tables_exist",
+            tables=len(table2model),
+            missing=len(missing_tables),
+        )
         if missing_tables:
             missing = {table2model[table] for table in missing_tables}
             _logger.info("Models have no table: %s.", ", ".join(missing))
             for name in missing:
                 _logger.info("Recreate table of model %s.", name)
+                env[name]._auto_init()
                 env[name].init()
             env.flush_all()
             missing_tables = set(table2model).difference(

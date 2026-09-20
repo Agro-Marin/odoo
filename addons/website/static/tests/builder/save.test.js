@@ -102,11 +102,6 @@ test("failure to save does not block the builder", async () => {
 });
 
 test("a failed save leaves elements dirty so the retry actually saves them", async () => {
-    // Regression: `o_dirty` used to be stripped from the live element before
-    // the write was attempted (and, because that happened before the first
-    // `await`, for every group before any RPC resolved). After a failure the
-    // user's retry therefore found nothing dirty, reported success and reloaded
-    // the iframe -- silently discarding the edit.
     expect.errors(1);
     const resultSave = [];
     let deferred = new Deferred();
@@ -131,11 +126,9 @@ test("a failed save leaves elements dirty so the retry actually saves them", asy
     expect.verifyErrors(["Message"]);
     await animationFrame();
 
-    // The write never landed, so the element must still be marked dirty.
     expect(":iframe #wrap").toHaveClass("o_dirty");
     expect(resultSave).toHaveLength(0);
 
-    // ... and the retry must therefore actually send the content.
     deferred = new Deferred();
     deferred.resolve(true);
     await contains(".o-snippets-top-actions button:contains(Save)").click();
@@ -187,7 +180,6 @@ test("content is escaped twice", async () => {
 
     onRpc("ir.ui.view", "save", ({ args }) => {
         const savedView = args[1];
-        // we expect the html sent to have doubly escaped text content
         expect(savedView).toInclude(
             `<div class="my_content">&amp;lt;div&amp;gt;html&amp;lt;/div&amp;gt;hey</div>`,
         );
@@ -207,7 +199,6 @@ test("content is not escaped twice inside data-oe-model nodes which are not ir.u
 
     onRpc("ir.ui.view", "save", ({ args }) => {
         const savedView = args[1];
-        // we expect the html sent to have simply escaped text content
         expect(savedView).toInclude(
             `<div class="my_content" data-oe-model="other">&lt;div&gt;html&lt;/div&gt;hey</div>`,
         );
@@ -227,7 +218,6 @@ test("content is not escaped twice inside root data-oe-model node which is not i
 
     onRpc("ir.ui.view", "save", ({ args }) => {
         const savedView = args[1];
-        // we expect the html sent to have simply escaped text content
         expect(savedView).toInclude(
             `<div class="my_content" data-oe-model="other" data-oe-id="42" data-oe-field="thing">&lt;div&gt;html&lt;/div&gt;hey</div>`,
         );
@@ -265,10 +255,6 @@ test("reload save with target, then discard and edit again should not reselect t
     deferred.resolve();
     expect.verifySteps(["save"]);
     await animationFrame();
-    // NOTE: the goal of the following assertion is to ensure that the relaod is
-    // completed. This relies on the "save" mocked for this test that does
-    // nothing to save anything and the reload (mocked in `setupWebsiteBuilder`)
-    // resets to initial content
     expect(":iframe .test-option").not.toHaveAttribute("data-applied");
     expect(".o-website-builder_sidebar button[data-name=customize]").toHaveClass(
         "active",
@@ -295,7 +281,6 @@ test("preview shouldn't let o_dirty", async () => {
             normalize_handlers: (root) => {
                 const el = root.querySelector(".test-option");
                 if (editorIsStart && el.dataset.applied !== "true") {
-                    // apply a mutation when we remove the preview
                     el.classList.add("test");
                 }
             },
@@ -313,11 +298,11 @@ test("preview shouldn't let o_dirty", async () => {
     });
     editorIsStart = true;
     await contains(":iframe .test-option").click();
-    await contains("[data-action-id=testAction]").hover(); // preview
+    await contains("[data-action-id=testAction]").hover();
     expect(":iframe .test-option").toHaveAttribute("data-applied");
     expect(":iframe .test-option").not.toHaveClass("test");
 
-    await contains(":iframe body").hover(); // leave preview
+    await contains(":iframe body").hover();
     expect(":iframe .test-option").not.toHaveAttribute("data-applied");
     expect(":iframe .test-option").toHaveClass("test");
     expect(":iframe #wrap").not.toHaveClass("o_dirty");
@@ -335,8 +320,6 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
         </div>    
     `);
 
-    // Dragging in outer view then in inner view should only apply dirty on the
-    // inner one.
     let dragUtils = await contains(
         ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
     ).drag();
@@ -349,12 +332,9 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
     expect(":iframe .view.o_editable").toHaveClass("o_dirty");
     expect(":iframe #wrap").not.toHaveClass("o_dirty");
     expect(":iframe .o_dirty").toHaveCount(1);
-    // Undo
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe .o_dirty").toHaveCount(0);
 
-    // Dragging in inner view then in outer view should only apply dirty on the
-    // outer one.
     dragUtils = await contains(
         ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
     ).drag();
@@ -367,12 +347,9 @@ test("Drag and drop from sidebar should only mark the concerned elements as dirt
     expect(":iframe .view.o_editable").not.toHaveClass("o_dirty");
     expect(":iframe #wrap").toHaveClass("o_dirty");
     expect(":iframe .o_dirty").toHaveCount(1);
-    // Undo
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe .o_dirty").toHaveCount(0);
 
-    // Dragging over the views then dropping in the sidebar to cancel should not
-    // apply dirty at all.
     dragUtils = await contains(
         ".o-snippets-menu #snippet_content .o_snippet_thumbnail",
     ).drag();
@@ -409,8 +386,6 @@ test("Drag and drop from the page should only mark the concerned elements as dir
         </div>      
     `);
 
-    // Drag and dropping at the same place should cancel everything and not mark
-    // anything dirty.
     await contains(":iframe .s_alert").click();
     expect(".overlay .o_overlay_options .o_move_handle").toHaveCount(1);
     let dragUtils = await contains(".o_overlay_options .o_move_handle").drag();
@@ -421,8 +396,6 @@ test("Drag and drop from the page should only mark the concerned elements as dir
     expect(".o-website-builder_sidebar .fa-undo").toHaveAttribute("disabled");
     expect(":iframe .o_dirty").toHaveCount(0);
 
-    // Dragging across views and dropping in the original one should only apply
-    // dirty on that one.
     dragUtils = await contains(".o_overlay_options .o_move_handle").drag();
     expect(":iframe .oe_drop_zone").toHaveCount(6);
     await dragUtils.moveTo(":iframe .s_dummy_snippet_2 .oe_drop_zone");
@@ -435,12 +408,9 @@ test("Drag and drop from the page should only mark the concerned elements as dir
     expect(":iframe .view_1.o_editable").not.toHaveClass("o_dirty");
     expect(":iframe .view_2.o_editable").not.toHaveClass("o_dirty");
     expect(":iframe .o_dirty").toHaveCount(1);
-    // Undo
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe .o_dirty").toHaveCount(0);
 
-    // Dragging across views and dropping in another one should only apply dirty
-    // on the original and the one where we dropped.
     dragUtils = await contains(".o_overlay_options .o_move_handle").drag();
     expect(":iframe .oe_drop_zone").toHaveCount(6);
     await dragUtils.moveTo(":iframe .s_dummy_snippet_2 .oe_drop_zone");
@@ -452,7 +422,6 @@ test("Drag and drop from the page should only mark the concerned elements as dir
     expect(":iframe .view_1.o_editable").not.toHaveClass("o_dirty");
     expect(":iframe .view_2.o_editable").toHaveClass("o_dirty");
     expect(":iframe .o_dirty").toHaveCount(2);
-    // Undo
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe .o_dirty").toHaveCount(0);
 });
@@ -538,7 +507,7 @@ describe("Add Language", () => {
         await contains(`.o_theme_tab button[data-action-id="addLanguage"]`).click();
         expect(".modal main").toHaveText(/Adding a language/);
         await contains(`.modal button:contains(Ok)`).click();
-        expect(".modal").not.toHaveText(/Adding a language/); // The modal mocking the add lang action
+        expect(".modal").not.toHaveText(/Adding a language/);
         expect(".o-website-builder_sidebar").not.toBeVisible();
         expect("button[data-action=save]").not.toBeEnabled();
         await contains(".o_form_button_cancel").click();

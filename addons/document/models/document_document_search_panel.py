@@ -5,9 +5,12 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.document.tools import UserFolder
+
+_debug = DebugLog(__name__)
 
 
 class DocumentsDocument(models.Model):
@@ -57,32 +60,31 @@ class DocumentsDocument(models.Model):
         for document in self:
             document.last_access_date_group = values.get(document.id)
 
-    def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:
-        if fname == "last_access_date_group":
-            if query is None:
-                msg = (
-                    "last_access_date_group needs a query to hang its join on; "
-                    "it cannot be rendered as a standalone expression"
-                )
-                raise ValueError(msg)
-            join_alias = f"{alias}__last_access"
-            subquery = SQL(
-                """(SELECT document_id,
-                    %s AS date_group
-                    FROM document_access
-                    WHERE partner_id = %s)""",
-                self._last_access_date_group_case_sql(),
-                self.env.user.partner_id.id,
+    def _last_access_date_group_sql(
+        self, field: fields.Field, alias: str, query: Any = None
+    ) -> SQL:
+        if query is None:
+            msg = (
+                "last_access_date_group needs a query to hang its join on; "
+                "it cannot be rendered as a standalone expression"
             )
-            condition = SQL(
-                "%s = %s",
-                SQL.identifier(join_alias, "document_id"),
-                SQL.identifier(alias, "id"),
-            )
-            query.add_join("LEFT JOIN", join_alias, subquery, condition)
-            return SQL.identifier(join_alias, "date_group")
-
-        return super()._field_to_sql(alias, fname, query)
+            raise ValueError(msg)
+        join_alias = f"{alias}__last_access"
+        subquery = SQL(
+            """(SELECT document_id,
+                %s AS date_group
+                FROM document_access
+                WHERE partner_id = %s)""",
+            self._last_access_date_group_case_sql(),
+            self.env.user.partner_id.id,
+        )
+        condition = SQL(
+            "%s = %s",
+            SQL.identifier(join_alias, "document_id"),
+            SQL.identifier(alias, "id"),
+        )
+        query.add_join("LEFT JOIN", join_alias, subquery, condition)
+        return SQL.identifier(join_alias, "date_group")
 
     def _get_last_access_date_group_cte(self) -> SQL:
         return SQL(
@@ -142,33 +144,27 @@ class DocumentsDocument(models.Model):
             now - relativedelta(months=1),
         )
 
-    def _order_field_to_sql(
-        self, alias: str, field_name: str, direction: SQL, nulls: SQL, query: Any
+    def _order_by_sql_last_access_date_group(
+        self, field, alias: str, direction: SQL, nulls: SQL, query: Any
     ) -> SQL:
-        if field_name == "last_access_date_group":
-            sql_field = SQL(
-                "SELECT last_access_date FROM document_access WHERE partner_id = %s AND document_id = %s",
-                self.env.user.partner_id.id,
-                SQL.identifier(alias, "id"),
-            )
-            return SQL("(%s) %s %s", sql_field, direction, nulls)
-
-        if field_name == "is_folder":
-            sql_field = SQL("%s != 'folder'", SQL.identifier(alias, "type"))
-            return SQL("(%s) %s %s", sql_field, direction, nulls)
-
-        return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
+        sql_field = SQL(
+            "(SELECT last_access_date FROM document_access WHERE partner_id = %s AND document_id = %s)",
+            self.env.user.partner_id.id,
+            SQL.identifier(alias, "id"),
+        )
+        return self._order_value_to_sql(sql_field, direction, nulls, query)
 
     @api.model
     def _search_panel_get_folder_counts(self, model_domain: Domain) -> dict:
-        return {
-            folder.id: count
-            for folder, count in self._read_group(
-                model_domain & Domain("folder_id", "!=", False),
-                groupby=["folder_id"],
-                aggregates=["__count"],
-            )
-        }
+        with _debug.perf("search_panel_folder_counts", cr=self.env.cr):
+            return {
+                folder.id: count
+                for folder, count in self._read_group(
+                    model_domain & Domain("folder_id", "!=", False),
+                    groupby=["folder_id"],
+                    aggregates=["__count"],
+                )
+            }
 
     @api.model
     def _search_panel_rollup_folder_counts(self, values_range: dict) -> None:
@@ -178,6 +174,7 @@ class DocumentsDocument(models.Model):
         local_counts = {
             folder_id: values["__count"] for folder_id, values in values_range.items()
         }
+        _debug.pipeline("search_panel_rollup", folders=len(values_range))
         for folder_id, count in local_counts.items():
             if not count:
                 continue
@@ -202,6 +199,7 @@ class DocumentsDocument(models.Model):
             search_panel_fields = self._get_fields_search_panel()
             domain = Domain("type", "=", "folder")
 
+            _debug.pipeline("search_panel_range", counters=enable_counters)
             if unique_folder_id := self.env.context.get("documents_unique_folder_id"):
                 values = self.env["document.document"].search_read(
                     domain & Domain("folder_id", "child_of", unique_folder_id),

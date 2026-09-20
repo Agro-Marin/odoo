@@ -2,6 +2,9 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartnerIdentifier(models.Model):
@@ -12,16 +15,15 @@ class ResPartnerIdentifier(models.Model):
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     type_id = fields.Many2one(
         comodel_name="res.partner.identifier.type",
-        string="Type",
+        index=True,
         required=True,
         ondelete="restrict",
-        index=True,
     )
     value = fields.Char(
         required=True,
@@ -43,13 +45,11 @@ class ResPartnerIdentifier(models.Model):
     document_ids = fields.One2many(
         comodel_name="ir.attachment",
         inverse_name="res_id",
-        domain=[("res_model", "=", "res.partner.identifier")],
         string="Documents",
+        domain=[("res_model", "=", "res.partner.identifier")],
     )
     company_id = fields.Many2one(
         related="partner_id.company_id",
-        store=True,
-        index="btree_not_null",
     )
 
     _type_value_index = models.Index("(type_id, normalized_value)")
@@ -67,6 +67,7 @@ class ResPartnerIdentifier(models.Model):
 
     @api.constrains("type_id", "value")
     def _check_value_is_valid(self):
+        _debug.logic("identifier_values_checked", count=len(self))
         for identifier in self:
             identifier.type_id.check_value(identifier.value)
 
@@ -74,6 +75,7 @@ class ResPartnerIdentifier(models.Model):
     def _check_one_per_contact(self):
         candidates = self.filtered(lambda i: not i.type_id.multiple_per_contact)
         if not candidates:
+            _debug.logic("one_per_contact_skipped", count=len(self))
             return
         held = defaultdict(list)
         for other in self.search(
@@ -83,9 +85,18 @@ class ResPartnerIdentifier(models.Model):
             ]
         ):
             held[(other.partner_id.id, other.type_id.id)].append(other.id)
+        _debug.logic(
+            "one_per_contact_check", candidates=len(candidates), held_keys=len(held)
+        )
         for identifier in candidates:
             key = (identifier.partner_id.id, identifier.type_id.id)
             if len(held.get(key, ())) > 1:
+                _debug.logic(
+                    "one_per_contact_violated",
+                    partner=identifier.partner_id.id,
+                    type=identifier.type_id.id,
+                    held=len(held[key]),
+                )
                 raise ValidationError(
                     self.env._(
                         "%(partner)s already has a %(type)s.",
@@ -108,6 +119,11 @@ class ResPartnerIdentifier(models.Model):
             ]
         ):
             holders[(other.type_id.id, other.normalized_value)] |= other
+        _debug.logic(
+            "identifier_uniqueness",
+            candidates=len(candidates),
+            holders=sum(len(v) for v in holders.values()),
+        )
         for identifier in candidates:
             commercial = identifier.partner_id.commercial_partner_id
             taken = holders[
@@ -119,6 +135,12 @@ class ResPartnerIdentifier(models.Model):
                 )
             )
             if taken:
+                _debug.logic(
+                    "identifier_taken",
+                    identifier=identifier.id,
+                    type=identifier.type_id.id,
+                    holder=taken[0].partner_id.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(value)s is already the %(type)s of %(other)s.",

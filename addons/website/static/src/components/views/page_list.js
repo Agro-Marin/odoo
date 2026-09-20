@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { listView } from "@web/views/list";
 import {
@@ -11,6 +14,8 @@ import {
 
 import { usePageManager } from "./page_manager_hook.js";
 import { PageSearchModel } from "./page_search_model.js";
+
+const log = makeLogger("website.view.page_list");
 
 export class PageListController extends listView.Controller {
     static components = {
@@ -22,6 +27,7 @@ export class PageListController extends listView.Controller {
      */
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.orm = useService("orm");
         this.dialog = useService("dialog");
         this.pageManager = usePageManager({
@@ -29,6 +35,7 @@ export class PageListController extends listView.Controller {
             createAction: this.props.context.create_action,
         });
         if (this.props.resModel === "website.page") {
+            log.logic("PageListController website.page: archive disabled");
             this.archiveEnabled = false;
         }
     }
@@ -37,22 +44,25 @@ export class PageListController extends listView.Controller {
      * @override
      */
     onClickCreate() {
+        log.logic("onClickCreate", () => ({ resModel: this.props.resModel }));
         return this.pageManager.createWebsiteContent();
     }
 
     /**
-     * Adds a "Publish/Unpublish" button to the 'action' menu of the list view.
-     *
      * @override
      */
     getStaticActionMenuItems() {
         const menuItems = super.getStaticActionMenuItems();
         if (Object.prototype.hasOwnProperty.call(this.props.fields, "is_published")) {
             menuItems.publish = {
-                sequence: 15,
+                groupNumber: COG_GROUP.RECORD,
+                sequence: 35,
                 icon: "fa-solid fa-earth-americas",
                 description: _t("Publish"),
                 callback: async () => {
+                    log.lifecycle("publish confirmation dialog", () => ({
+                        selected: this.model.root.selection.length,
+                    }));
                     this.dialogService.add(ConfirmationDialog, {
                         title: _t("Publish Website Content"),
                         body: _t(
@@ -64,7 +74,8 @@ export class PageListController extends listView.Controller {
                 },
             };
             menuItems.unpublish = {
-                sequence: 16,
+                groupNumber: COG_GROUP.RECORD,
+                sequence: 36,
                 icon: "fa-solid fa-link-slash",
                 description: _t("Unpublish"),
                 callback: async () => this.togglePublished(false),
@@ -73,6 +84,7 @@ export class PageListController extends listView.Controller {
         if (this.props.resModel === "website.page") {
             menuItems.duplicate.callback = async (records = []) => {
                 const resIds = this.model.root.selection.map((record) => record.resId);
+                log.logic("duplicate pages", { resIds });
                 this.dialog.add(DuplicatePageDialog, {
                     pageIds: resIds,
                     onDuplicate: () => {
@@ -86,13 +98,18 @@ export class PageListController extends listView.Controller {
 
     async onDeleteSelectedRecords() {
         const pageIds = this.model.root.selection.map((record) => record.resId);
+        const endRead = log.perf("onDeleteSelectedRecords read is_new_page_template", {
+            pageIds,
+        });
         const newPageTemplateRecords = await this.orm.read("website.page", pageIds, [
             "is_new_page_template",
         ]);
+        endRead();
         this.dialogService.add(DeletePageDialog, {
             resIds: pageIds,
             resModel: this.props.resModel,
             onDelete: () => {
+                log.pipeline("delete selected records", { pageIds });
                 this.model.root.deleteRecords();
             },
             hasNewPageTemplate: newPageTemplateRecords.some(
@@ -103,7 +120,9 @@ export class PageListController extends listView.Controller {
 
     async togglePublished(publish) {
         const resIds = this.model.root.selection.map((record) => record.resId);
+        const endWrite = log.perf("togglePublished write", { publish, resIds });
         await this.orm.write(this.props.resModel, resIds, { is_published: publish });
+        endWrite();
         this.actionService.switchView("list");
     }
 }

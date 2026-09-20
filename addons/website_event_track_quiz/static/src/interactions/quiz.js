@@ -5,16 +5,7 @@ import { _t } from "@web/core/translation";
 import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 
-/**
- * This widget is responsible of displaying quiz questions and propositions. Submitting the quiz will fetch the
- * correction and decorate the answers according to the result. Error message can be displayed.
- *
- * This widget can be attached to DOM rendered server-side by `gamification_quiz.`
- */
 export class Quiz extends Interaction {
-    // To match template: 'quiz.main',
-    //static selector = ".o_quiz_main div:has(> div > div.o_quiz_js_quiz_question)";
-    //static selector = "div:has(> div > div.o_quiz_js_quiz_question)";
     static selector = ".o_quiz_main";
     dynamicContent = {
         ".o_quiz_quiz_answer": {
@@ -64,12 +55,6 @@ export class Quiz extends Interaction {
         this.redirectURL = encodeURIComponent(document.URL);
     }
 
-    /**
-     * Overridden to add custom rendering behavior upon start of the widget.
-     *
-     * If the user has answered the quiz before having joined the course, we check
-     * their answers (saved into their session) here as well.
-     */
     start() {
         this.renderValidationInfo();
     }
@@ -88,19 +73,12 @@ export class Quiz extends Interaction {
         });
     }
 
-    /**
-     * Get the quiz answers filled in by the User
-     */
     getQuizAnswers() {
         return [...this.el.querySelectorAll("input[type=radio]:checked")].map((el) =>
             parseInt(el.value),
         );
     }
 
-    /**
-     * Decorate the answer inputs according to the correction and adds the answer comment if
-     * any.
-     */
     renderAnswersHighlightingAndComments() {
         for (const questionEl of this.el.querySelectorAll(".o_quiz_js_quiz_question")) {
             const questionId = questionEl.dataset.questionId;
@@ -148,9 +126,6 @@ export class Quiz extends Interaction {
         }
     }
 
-    /*
-     * Update validation box (karma, buttons) according to widget state
-     */
     renderValidationInfo() {
         const validationEl = this.el.querySelector(".o_quiz_js_quiz_validation");
         validationEl.replaceChildren();
@@ -163,9 +138,6 @@ export class Quiz extends Interaction {
         );
     }
 
-    /**
-     * Remove the answer decorators
-     */
     resetQuiz() {
         for (const questionEl of this.el.querySelectorAll(".o_quiz_js_quiz_question")) {
             for (const answerEl of questionEl.querySelectorAll(
@@ -185,10 +157,6 @@ export class Quiz extends Interaction {
         this.renderValidationInfo();
     }
 
-    /**
-     * Submit a quiz and get the correction. It will display messages
-     * according to quiz result.
-     */
     async onSubmitQuizClick() {
         const data = await this.waitFor(
             rpc("/event_track/quiz/submit", {
@@ -212,11 +180,7 @@ export class Quiz extends Interaction {
     }
 
     /**
-     * Extract data from exiting DOM rendered server-side, to have the list of questions with their
-     * relative answers.
-     * This method should return the same format as /gamification_quiz/quiz/get controller.
-     *
-     * @return {Array<Object>} list of questions with answers
+     * @return {Array<Object>}
      */
     extractQuestionsAndAnswers() {
         const questions = [];
@@ -238,8 +202,7 @@ export class Quiz extends Interaction {
     }
 
     /**
-     * When clicking on an answer, this one should be marked as "checked".
-     * @param OdooEvent ev
+     * @param OdooEvent
      * @param {HTMLElement} currentTargetEl
      */
     onAnswerClick(ev, currentTargetEl) {
@@ -248,10 +211,6 @@ export class Quiz extends Interaction {
         }
     }
 
-    /**
-     * Resets the completion of the track so the user can take
-     * the quiz again
-     */
     async onResetQuizClick() {
         await this.waitFor(
             rpc("/event_track/quiz/reset", {

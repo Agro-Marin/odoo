@@ -3,9 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.settings import OptionSource, SettingsSlot
 
-__all__ = ["PoolSettings", "current", "installed", "override", "provide", "slot"]
+__all__ = [
+    "PoolSettings",
+    "current",
+    "installed",
+    "override",
+    "provide",
+    "resolve",
+    "slot",
+]
+
+_debug = DebugLog(__name__)
 
 REPLICA_OVERRIDABLE: tuple[tuple[str, str], ...] = (
     ("host", "replica_host"),
@@ -48,12 +59,26 @@ class PoolSettings:
     discard_on_return: bool = False
     healthcheck_grace: float = 1.0
     leak_detection: float = 0.0
+    idle_in_transaction_timeout: float = 0.0
+    replica_write_pin: float = 2.0
+    replica_max_lag: float = 0.0
     session_gucs: str = "jit=off,work_mem=16MB"
     readonly_cursors: bool = False
 
     @classmethod
     def from_config(cls, config: OptionSource, *, evented: bool = False) -> Self:
         replica_host = config["db_replica_host"] or None
+        _debug.lifecycle(
+            "settings.built",
+            evented=evented,
+            maxconn=config["db_maxconn"],
+            maxconn_gevent=config["db_maxconn_gevent"],
+            maxconn_replica=config["db_maxconn_replica"],
+            replica=replica_host is not None,
+            test_enable=bool(config["test_enable"]),
+            session_gucs=config["db_session_gucs"],
+            leak_detection=config["db_leak_detection"],
+        )
         return cls(
             host=config["db_host"] or None,
             port=_coerce_optional_int(config["db_port"]),
@@ -81,6 +106,11 @@ class PoolSettings:
             discard_on_return=bool(config["db_discard_on_return"]),
             healthcheck_grace=float(config["db_healthcheck_grace"] or 0.0),
             leak_detection=float(config["db_leak_detection"] or 0.0),
+            idle_in_transaction_timeout=float(
+                config["db_idle_in_transaction_timeout"] or 0.0
+            ),
+            replica_write_pin=float(config["db_replica_write_pin"] or 0.0),
+            replica_max_lag=float(config["db_replica_max_lag"] or 0.0),
             session_gucs=config["db_session_gucs"] or "",
             readonly_cursors=bool(
                 replica_host
@@ -91,12 +121,22 @@ class PoolSettings:
 
     def connection_keywords(self, readonly: bool = False) -> dict[str, Any]:
         keywords: dict[str, Any] = {}
+        overrides = 0  # debuglog
         for name, replica_name in REPLICA_OVERRIDABLE:
             value = getattr(self, name)
             if readonly:
-                value = getattr(self, replica_name) or value
+                replica_value = getattr(self, replica_name)
+                overrides += bool(replica_value)  # debuglog
+                value = replica_value or value
             if value:
                 keywords[name] = value
+        _debug.logic(
+            "settings.connection_keywords",
+            readonly=readonly,
+            keywords=len(keywords),
+            replica_overrides=overrides,
+            host=keywords.get("host"),
+        )
         return keywords
 
 
@@ -105,3 +145,7 @@ provide = slot.provide
 current = slot.current
 installed = slot.installed
 override = slot.override
+
+
+def resolve(settings: PoolSettings | None) -> PoolSettings:
+    return settings if settings is not None else current()

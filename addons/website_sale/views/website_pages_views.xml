@@ -60,7 +60,7 @@
                         <i class="fa-solid fa-earth-americas me-1" title="Website" />
                         <field name="website_id" />
                     </div>
-                    <field class="text-primary" name="website_url" />
+                    <field name="website_url" class="text-primary" />
                 </div>
             </xpath>
             <xpath expr="//aside" position="after">

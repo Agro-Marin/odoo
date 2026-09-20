@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
+import { navigateIndex } from "@mail/utils/common/misc";
 import {
     Component,
     onWillRender,
@@ -12,9 +13,13 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { usePosition } from "@web/core/position/position_hook";
+import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.navigable_list");
 export class NavigableList extends Component {
     static components = { ImStatus };
     static template = "mail.NavigableList";
@@ -54,16 +59,21 @@ export class NavigableList extends Component {
         onExternalClick(
             "root",
             /** @param {MouseEvent} ev */ async (ev) => {
-                await new Promise((resolve) => browser.setTimeout(resolve));
+                await delay();
                 if (isEventHandled(ev, "composer.onClickTextarea")) {
                     return;
                 }
                 this.close();
             },
         );
-        usePosition("root", () => this.props.anchorRef, {
+        const positioning = usePosition("root", () => this.props.anchorRef, {
             position: this.props.position,
         });
+        // the root stays in the DOM while closed; do not measure and place it then
+        useEffect(
+            (show) => (show ? positioning.unlock() : positioning.lock()),
+            () => [this.show],
+        );
         useEffect(
             () => {
                 const optionsKey = this.props.options
@@ -131,6 +141,7 @@ export class NavigableList extends Component {
     }
 
     open() {
+        log.lifecycle("open", () => ({ options: this.props.options.length }));
         this.state.open = true;
         this.state.activeIndex = null;
         this.navigate("first");
@@ -139,6 +150,7 @@ export class NavigableList extends Component {
     /** @param {boolean} [force] */
     close(force = false) {
         if (force || this.props.closeOnSelect) {
+            log.lifecycle("close", () => ({ force }));
             this.state.open = false;
             this.state.activeIndex = null;
         }
@@ -158,6 +170,7 @@ export class NavigableList extends Component {
             this.close();
             return;
         }
+        log.logic("selectOption", () => ({ index, label: option.label }));
         this.props.onSelect(ev, option, {
             ...params,
         });
@@ -166,37 +179,14 @@ export class NavigableList extends Component {
 
     /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
-        if (this.props.options.length === 0) {
-            return;
+        const targetId = navigateIndex(
+            direction,
+            this.state.activeIndex,
+            this.props.options.length,
+        );
+        if (targetId !== undefined) {
+            this.state.activeIndex = targetId;
         }
-        const activeOptionId =
-            this.state.activeIndex !== null ? this.state.activeIndex : 0;
-        let targetId;
-        switch (direction) {
-            case "first":
-                targetId = 0;
-                break;
-            case "last":
-                targetId = this.props.options.length - 1;
-                break;
-            case "previous":
-                targetId = activeOptionId - 1;
-                if (targetId < 0) {
-                    this.navigate("last");
-                    return;
-                }
-                break;
-            case "next":
-                targetId = activeOptionId + 1;
-                if (targetId > this.props.options.length - 1) {
-                    this.navigate("first");
-                    return;
-                }
-                break;
-            default:
-                return;
-        }
-        this.state.activeIndex = targetId;
     }
 
     /** @param {KeyboardEvent} ev */

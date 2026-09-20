@@ -2,11 +2,14 @@ import typing
 from collections.abc import Callable
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 
 from .mixin_mail_render import BYPASS_RESTRICTED_RENDERING
 
 if typing.TYPE_CHECKING:
     from .mail_template import MailTemplate
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailComposer(models.AbstractModel):
@@ -17,40 +20,42 @@ class MixinMailComposer(models.AbstractModel):
     _template_field_counterparts = {"body": "body_html"}
 
     subject = fields.Char(
-        "Subject",
         compute="_compute_subject",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
     )
     body = fields.Html(
-        "Contents",
+        string="Contents",
+        sanitize="email_outgoing",
         compute="_compute_body",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         render_engine="qweb",
         render_options={"post_process": True},
-        sanitize="email_outgoing",
     )
     body_has_template_value = fields.Boolean(
-        "Body content is the same as the template",
+        string="Body content is the same as the template",
         compute="_compute_body_has_template_value",
     )
     template_id: MailTemplate = fields.Many2one(
-        "mail.template", "Mail Template", domain="[('model', '=', render_model)]"
+        comodel_name="mail.template",
+        string="Mail Template",
+        domain="[('model', '=', render_model)]",
     )
     lang = fields.Char(
         compute="_compute_lang",
         precompute=True,
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
     )
     is_mail_template_editor = fields.Boolean(
-        "Is Editor", compute="_compute_is_mail_template_editor"
+        string="Is Editor",
+        compute="_compute_is_mail_template_editor",
     )
-    can_edit_body = fields.Boolean("Can Edit Body", compute="_compute_can_edit_body")
+    can_edit_body = fields.Boolean(compute="_compute_can_edit_body")
 
     def _copy_from_template(
         self, field: str, is_empty: Callable[[typing.Any], bool] | None = None
@@ -173,6 +178,15 @@ class MixinMailComposer(models.AbstractModel):
         if self._is_template_value_render_required(field) or (
             translation_asked and from_template
         ):
+            _debug.logic(
+                "composer_field_render",
+                model=self._name,
+                record=self.id,
+                field=field,
+                by="template",
+                template=self.template_id.id,
+                translation=translation_asked,
+            )
             if translation_asked and not res_ids_lang and not set_lang:
                 res_ids_lang = self._get_res_ids_lang(res_ids)
             return self.template_id._render_field(
@@ -191,6 +205,14 @@ class MixinMailComposer(models.AbstractModel):
             record = self.with_context(
                 bypass_restricted_rendering=BYPASS_RESTRICTED_RENDERING
             )
+        _debug.logic(
+            "composer_field_render",
+            model=self._name,
+            record=self.id,
+            field=field,
+            by="composer",
+            bypass=from_template and not self.is_mail_template_editor,
+        )
         return super(MixinMailComposer, record)._render_field(
             field,
             res_ids,

@@ -7,6 +7,7 @@ from markupsafe import Markup
 
 from odoo.exceptions import AccessError, UserError
 from odoo.libs.colors import DEFAULT, GREEN, RED, colorize
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import (
     pattern_to_translated_trigram_pattern,
     pg_varchar,
@@ -32,6 +33,8 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
     from ..runtime import Environment
     from ._field_stubs import TranslateDialect
+
+_debug = DebugLog(__name__)
 
 
 def _get_string_comparand(value: typing.Any) -> typing.Any:
@@ -78,10 +81,24 @@ class BaseString(Field[str | typing.Literal[False]]):
             coerced = [_get_string_comparand(v) for v in value]
             if coerced == list(value):
                 return condition
+            _debug.logic(
+                "field.string.comparands_coerced",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                values=len(coerced),
+            )
             return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
         coerced = _get_string_comparand(value)
         if coerced is value:
             return condition
+        _debug.logic(
+            "field.string.comparand_coerced",
+            model=model._name,
+            field=condition.field_expr,
+            operator=operator,
+            type=type(value).__name__,
+        )
         return DomainCondition(condition.field_expr, operator, coerced)
 
     falsy_value = ""
@@ -120,9 +137,6 @@ class BaseString(Field[str | typing.Literal[False]]):
                 return self.convert_to_record(fb_val, record)
         return super()._get_cache_miss(record, env, record_id)
 
-    def _is_translate_fallback_required(self, record_id: typing.Any) -> bool:
-        return _translation.is_fallback_required(self, record_id)
-
     def _get_lang_cache_key(self, env: Environment, lang: str) -> tuple:
         return _translation.get_lang_cache_key(self, env, lang)
 
@@ -138,6 +152,12 @@ class BaseString(Field[str | typing.Literal[False]]):
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.store and self.translate:
+            _debug.logic(
+                "field.translate.stored_related",
+                model=self.model_name,
+                field=self.name,
+                related=self.related,
+            )
             _logger.warning(
                 "Translated stored related field (%s) will not be computed correctly in all languages",
                 self,
@@ -148,6 +168,12 @@ class BaseString(Field[str | typing.Literal[False]]):
             dep, dep_ctx = super().get_depends(model)
             extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
             if extra and self.store:
+                _debug.logic(
+                    "field.translate.context_depends_ignored",
+                    model=self.model_name,
+                    field=self.name,
+                    ignored=list(extra),
+                )
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context: "
                     "the flushed column keeps one value per language; "
@@ -160,6 +186,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         if callable(self.translate) and self.store:
             dep, dep_ctx = super().get_depends(model)
             if dep_ctx:
+                _debug.logic(
+                    "field.translate.context_depends_ignored",
+                    model=self.model_name,
+                    field=self.name,
+                    ignored=list(dep_ctx),
+                )
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context",
                     self,
@@ -238,6 +270,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         if field_ is not self:
             return field_.convert_to_record(value, record_)
         if record.env.context.get("edit_translations") and self.get_trans_terms(value):
+            _debug.logic(
+                "field.translate.edit_translations_value",
+                model=self.model_name,
+                field=self.name,
+                record=record.id,
+            )
             return _translation.edit_translations_value(self, value, record)
         return value
 
@@ -256,6 +294,11 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     def _get_stored_translations(self, record: ModelLike) -> dict[str, str] | None:
         return _translation.get_stored_translations(self, record)
+
+    def _get_stored_translations_multi(
+        self, records: ModelLike
+    ) -> dict[IdType, dict[str, str] | None]:
+        return _translation.get_stored_translations_multi(self, records, ())
 
     def get_translation_lang(self, env: Environment) -> str:
         return _translation.get_translation_lang(self, env)
@@ -307,6 +350,12 @@ class BaseString(Field[str | typing.Literal[False]]):
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         if not self.translate or value is False or value is None:
             if self.translate is True and (value is False or value is None):
+                _debug.logic(
+                    "field.translate.cleared_all_langs",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                )
                 self._invalidate_cache(records.env, records._ids)
             super().mark_dirty(records, value)
             return
@@ -333,6 +382,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         sql_field = super().to_sql(model, alias)
         if self.translate and not model.env.context.get("prefetch_langs"):
             langs = self.get_translation_fallback_langs(model.env)
+            _debug.logic(
+                "field.translate.to_sql",
+                model=model._name,
+                field=self.name,
+                langs=list(langs),
+            )
             sql_field_langs = [SQL("%s->>%s", sql_field, lang) for lang in langs]
             if len(sql_field_langs) == 1:
                 return sql_field_langs[0]
@@ -393,6 +448,13 @@ class BaseString(Field[str | typing.Literal[False]]):
             else:
                 value = "%"
 
+            _debug.logic(
+                "field.translate.trigram_condition",
+                model=model._name,
+                field=self.name,
+                operator=operator,
+                applied=value != "%",
+            )
             if value == "%":
                 return base_condition
 
@@ -451,6 +513,11 @@ class Char(BaseString):
             and "lang" not in depends_context
         ):
             depends_context = [*depends_context, "lang"]
+            _debug.logic(
+                "field.char.display_name_depends_on_lang",
+                model=model._name,
+                rec_name=model._rec_name,
+            )
 
         return depends, depends_context
 
@@ -488,6 +555,11 @@ class Html(BaseString):
     def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
         if attrs.get("sanitize") == "email_outgoing":
+            _debug.logic(
+                "field.html.sanitize_email_outgoing",
+                model=model_class._name,
+                field=name,
+            )
             attrs["sanitize"] = True
             attrs.update(
                 {
@@ -503,6 +575,11 @@ class Html(BaseString):
             )
         elif attrs.get("translate") is True and attrs.get("sanitize", True):
             attrs["translate"] = html_translate
+            _debug.logic(
+                "field.html.translate_by_terms",
+                model=model_class._name,
+                field=name,
+            )
         return attrs
 
     _related_sanitize = property(attrgetter("sanitize"))
@@ -559,12 +636,26 @@ class Html(BaseString):
 
         if self.sanitize_overridable:
             if record.env.user.has_group("base.group_sanitize_override"):
+                _debug.logic(
+                    "field.html.sanitize_overridden",
+                    model=self.model_name,
+                    field=self.name,
+                    uid=record.env.uid,
+                )
                 return value
 
             for rec in record:
                 self._check_overridable_content(rec, sanitize_vals)
 
-        return html_sanitize(value, **sanitize_vals)
+        with _debug.perf(
+            "field.html.sanitize",
+            model=self.model_name,
+            field=self.name,
+            length=len(value),
+        ) as span:
+            sanitized = html_sanitize(value, **sanitize_vals)
+            span.set(sanitized_length=len(sanitized))
+        return sanitized
 
     def _check_overridable_content(
         self, record: ModelLike, sanitize_vals: dict[str, typing.Any]
@@ -594,6 +685,13 @@ class Html(BaseString):
                     else:
                         diff_str += line.rstrip() + "\n"
                 _logger.info(diff_str)
+                _debug.logic(
+                    "field.html.overridable_content_locked",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record.id,
+                    uid=record.env.uid,
+                )
 
                 raise UserError(
                     record.env._(

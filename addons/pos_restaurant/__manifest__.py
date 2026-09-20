@@ -3,7 +3,7 @@
     "version": "1.0",
     "category": "Sales/Point of Sale",
     "sequence": 6,
-    "summary": "Restaurant extensions for the Point of Sale ",
+    "summary": "Restaurant extensions for the Point of Sale",
     "description": """
 
 This module adds several features to the Point of Sale that are specific to restaurant management:
@@ -25,6 +25,7 @@ This module adds several features to the Point of Sale that are specific to rest
         "views/pos_restaurant_views.xml",
         "views/pos_preset_views.xml",
         "views/res_config_settings_views.xml",
+        "views/pos_restaurant_menus.xml",
     ],
     "demo": [
         "demo/demo_data.xml",
@@ -46,6 +47,5 @@ This module adds several features to the Point of Sale that are specific to rest
             "pos_restaurant/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

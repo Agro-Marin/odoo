@@ -10,8 +10,8 @@
                 <field name="barcode" />
                 <field
                     name="uom_id"
-                    readonly="context.get('default_uom_id')"
-                    optional="hide" />
+                    optional="hide"
+                    readonly="context.get('default_uom_id')" />
             </list>
         </field>
     </record>
@@ -24,11 +24,11 @@
             <xpath expr="//sheet" position="inside">
                 <div class="oe_button_box" name="button_box">
                     <button
-                        class="oe_stat_button"
-                        icon="fa-barcode"
+                        name="action_view_packaging_barcodes"
                         type="object"
+                        icon="fa-barcode"
                         context="{'default_uom_id': id}"
-                        name="action_view_packaging_barcodes">
+                        class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_text">Packaging Barcodes</span>
                         </div>

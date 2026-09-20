@@ -9,6 +9,7 @@ import {
     makeSequential,
     nearestGreaterThanOrEqual,
 } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatList } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -17,6 +18,8 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
 import { getOrigin, imageUrl } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.thread");
 const commandRegistry = registry.category("discuss.channel_commands");
 
 /** @type {Partial<typeof Thread> & ThisType<typeof Thread>} */
@@ -50,7 +53,7 @@ const threadStaticPatch = {
      * @returns {Promise<import("models").Thread|undefined>}
      */
     async getOrFetch(data, fieldNames = []) {
-        if (data.model !== "discuss.channel" || data.id < 1) {
+        if (data.model !== "discuss.channel" || !(Number(data.id) > 0)) {
             return super.getOrFetch(...arguments);
         }
         const thread = this.store.Thread.get({ id: data.id, model: data.model });
@@ -65,8 +68,14 @@ const threadStaticPatch = {
             data.id,
         );
         if (fetchChannelInfoDeferred) {
+            log.logic("getOrFetch channel dedup", () => ({ channelId: data.id }));
             return fetchChannelInfoDeferred;
         }
+        log.pipeline("getOrFetch channel", () => ({
+            channelId: data.id,
+            known: Boolean(thread),
+            state: thread?.fetchChannelInfoState,
+        }));
         /** @type {Deferred<import("models").Thread | undefined>} */
         const def = new Deferred();
         this.store.channelIdsFetchingDeferred.set(data.id, def);
@@ -77,6 +86,10 @@ const threadStaticPatch = {
                     id: data.id,
                     model: data.model,
                 });
+                log.pipeline("getOrFetch channel resolved", () => ({
+                    channelId: data.id,
+                    found: Boolean(thread?.exists()),
+                }));
                 if (thread?.exists()) {
                     thread.fetchChannelInfoState = "fetched";
                     def.resolve(thread);
@@ -85,6 +98,7 @@ const threadStaticPatch = {
                 }
             },
             () => {
+                log.logic("getOrFetch channel failed", () => ({ channelId: data.id }));
                 this.store.channelIdsFetchingDeferred.delete(data.id);
                 const thread = this.store.Thread.get({
                     id: data.id,
@@ -226,7 +240,7 @@ const threadPatch = {
             /** @this {import("models").Thread} */
             compute() {
                 return (
-                    this.model === "discuss.channel" &&
+                    this.isChannelKind &&
                     this.self_member_id?.memberSince >=
                         this.store.env.services.bus_service.startedAt
                 );
@@ -278,76 +292,57 @@ const threadPatch = {
         if (!this.hasSeenFeature) {
             return;
         }
-        return this.channel_member_ids.reduce(
-            (/** @type {number | undefined} */ lastMessageSeenByAllId, member) => {
-                if (member.notEq(this.self_member_id) && member.seen_message_id) {
-                    return lastMessageSeenByAllId
-                        ? Math.min(
-                              lastMessageSeenByAllId,
-                              Number(member.seen_message_id.id),
-                          )
-                        : Number(member.seen_message_id.id);
-                } else {
-                    return lastMessageSeenByAllId;
-                }
-            },
-            undefined,
-        );
+        /** @type {number | undefined} */
+        let lastMessageSeenByAllId;
+        for (const member of this.channel_member_ids) {
+            if (member.notEq(this.self_member_id) && member.seen_message_id) {
+                const seenId = Number(member.seen_message_id.id);
+                lastMessageSeenByAllId = lastMessageSeenByAllId
+                    ? Math.min(lastMessageSeenByAllId, seenId)
+                    : seenId;
+            }
+        }
+        return lastMessageSeenByAllId;
+    },
+    /**
+     * @this {import("models").Thread}
+     * @param {"seen_message_id" | "fetched_message_id"} fieldName
+     */
+    _maxMessageIdByOthers(fieldName) {
+        if (!this.hasSeenFeature) {
+            return 0;
+        }
+        let max = 0;
+        for (const member of this.channel_member_ids) {
+            if (
+                member.notEq(this.self_member_id) &&
+                member.persona &&
+                member[fieldName]
+            ) {
+                max = Math.max(max, Number(member[fieldName].id));
+            }
+        }
+        return max;
     },
     /** @this {import("models").Thread} */
     _computeMaxSeenMessageIdByOthers() {
-        if (!this.hasSeenFeature) {
-            return 0;
-        }
-        let max = 0;
-        for (const member of this.channel_member_ids) {
-            if (
-                member.notEq(this.self_member_id) &&
-                member.persona &&
-                member.seen_message_id
-            ) {
-                max = Math.max(max, Number(member.seen_message_id.id));
-            }
-        }
-        return max;
+        return this._maxMessageIdByOthers("seen_message_id");
     },
     /** @this {import("models").Thread} */
     _computeMaxFetchedMessageIdByOthers() {
-        if (!this.hasSeenFeature) {
-            return 0;
-        }
-        let max = 0;
-        for (const member of this.channel_member_ids) {
-            if (
-                member.notEq(this.self_member_id) &&
-                member.persona &&
-                member.fetched_message_id
-            ) {
-                max = Math.max(max, Number(member.fetched_message_id.id));
-            }
-        }
-        return max;
+        return this._maxMessageIdByOthers("fetched_message_id");
     },
     /** @this {import("models").Thread} */
     _computeLastSelfMessageSeenByEveryone() {
         if (!this.lastMessageSeenByAllId) {
             return false;
         }
-        let res;
-        const persistentMessages = this.persistentMessages;
-        for (let i = persistentMessages.length - 1; i >= 0; i--) {
-            const message = persistentMessages[i];
-            if (
-                !message.isSelfAuthored ||
-                message.isNotification ||
-                Number(message.id) > this.lastMessageSeenByAllId
-            ) {
-                continue;
-            }
-            res = message;
-            break;
-        }
-        return res;
+        return this.persistentMessages.findLast(
+            (message) =>
+                message.isSelfAuthored &&
+                !message.isNotification &&
+                Number(message.id) <= this.lastMessageSeenByAllId,
+        );
     },
     /** @returns {import("models").ChannelMember[]} */
     _computeOfflineMembers() {
@@ -363,6 +358,12 @@ const threadPatch = {
     },
     get isChatChannel() {
         return ["chat", "group"].includes(this.channel_type);
+    },
+    get isMuted() {
+        return Boolean(this.self_member_id?.mute_until_dt);
+    },
+    get isMultiMemberChannel() {
+        return this.channel_type === "channel" || this.channel_type === "group";
     },
     get allowedToLeaveChannelTypes() {
         return ["channel", "group"];
@@ -386,7 +387,7 @@ const threadPatch = {
     computeDisplayToSelf() {
         return (
             this.self_member_id?.is_pinned ||
-            (["channel", "group"].includes(this.channel_type) &&
+            (this.isMultiMemberChannel &&
                 this.hasSelfAsMember &&
                 !this.parent_channel_id)
         );
@@ -405,10 +406,10 @@ const threadPatch = {
         return this.isChatChannel && this.channel_type !== "group";
     },
     get allowDescription() {
-        return ["channel", "group"].includes(this.channel_type);
+        return this.isMultiMemberChannel;
     },
     get invitationLink() {
-        if (!this.uuid || this.channel_type === "chat") {
+        if (!this.uuid || this.isDirectChat) {
             return undefined;
         }
         return `${getOrigin()}/chat/${this.id}/${this.uuid}`;
@@ -435,17 +436,14 @@ const threadPatch = {
         return super.getFetchRoute();
     },
     get imStatusMember() {
-        return this.channel_type === "chat" ? this.correspondent : undefined;
+        return this.isDirectChat ? this.correspondent : undefined;
     },
     /**
      * @param {import("models").Persona} persona
      * @returns {boolean}
      */
     isChatWith(persona) {
-        return (
-            this.channel_type === "chat" &&
-            Boolean(this.correspondent?.persona.eq(persona))
-        );
+        return this.isDirectChat && Boolean(this.correspondent?.persona.eq(persona));
     },
     get chatWindowComposerType() {
         return this.isChannelKind ? undefined : super.chatWindowComposerType;
@@ -505,6 +503,10 @@ const threadPatch = {
      * @returns {Promise<any>}
      */
     executeCommand(command, body = "") {
+        log.logic("executeCommand", () => ({
+            thread: this.localId,
+            method: command.methodName,
+        }));
         return this.store.env.services.orm.call(
             "discuss.channel",
             command.methodName,
@@ -513,6 +515,7 @@ const threadPatch = {
         );
     },
     async markAsFetched() {
+        log.logic("markAsFetched", () => ({ thread: this.localId }));
         await this.store.env.services.orm.silent.call(
             "discuss.channel",
             "channel_fetched",
@@ -521,6 +524,7 @@ const threadPatch = {
     },
     /** @param {string} data */
     async notifyAvatarToServer(data) {
+        log.logic("notifyAvatarToServer", () => ({ thread: this.localId }));
         await rpc("/discuss/channel/update_avatar", {
             channel_id: this.id,
             data,
@@ -533,6 +537,7 @@ const threadPatch = {
     async notifyDescriptionToServer(description) {
         const previousDescription = this.description;
         this.description = description;
+        log.logic("notifyDescriptionToServer", () => ({ thread: this.localId }));
         try {
             return await this.store.env.services.orm.call(
                 "discuss.channel",
@@ -541,6 +546,9 @@ const threadPatch = {
                 { description },
             );
         } catch (e) {
+            log.logic("notifyDescriptionToServer rollback", () => ({
+                thread: this.localId,
+            }));
             this.description = previousDescription;
             throw e;
         }
@@ -552,7 +560,12 @@ const threadPatch = {
             newName !== this.displayName &&
             ((newName && this.channel_type === "channel") || this.isChatChannel)
         ) {
-            if (this.channel_type === "channel" || this.channel_type === "group") {
+            log.logic("rename", () => ({
+                thread: this.localId,
+                channel_type: this.channel_type,
+                custom: !this.isMultiMemberChannel,
+            }));
+            if (this.isMultiMemberChannel) {
                 const previousName = this.name;
                 this.name = newName;
                 try {
@@ -563,6 +576,7 @@ const threadPatch = {
                         { name: newName },
                     );
                 } catch (e) {
+                    log.logic("rename rollback", () => ({ thread: this.localId }));
                     this.name = previousName;
                     throw e;
                 }
@@ -594,23 +608,26 @@ const threadPatch = {
      * @param {boolean} [options.force=false]
      */
     async leaveChannel({ force = false } = {}) {
-        if (
-            this.channel_type !== "group" &&
-            this.create_uid?.eq(this.store.self_partner?.main_user_id) &&
-            !force
-        ) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are the administrator of this channel. Are you sure you want to leave?",
-                ),
-            );
-        }
-        if (this.channel_type === "group" && !force) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
-                ),
-            );
+        log.logic("leaveChannel", () => ({
+            thread: this.localId,
+            channel_type: this.channel_type,
+            force,
+            isAdmin: Boolean(this.create_uid?.eq(this.store.selfUser)),
+        }));
+        if (!force) {
+            const prompt =
+                this.channel_type === "group"
+                    ? _t(
+                          "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
+                      )
+                    : this.create_uid?.eq(this.store.selfUser)
+                      ? _t(
+                            "You are the administrator of this channel. Are you sure you want to leave?",
+                        )
+                      : undefined;
+            if (prompt && !(await this.askLeaveConfirmation(prompt))) {
+                return false;
+            }
         }
         await this.closeChatWindow();
         await this.store.env.services.orm.silent.call(
@@ -618,6 +635,7 @@ const threadPatch = {
             "action_unfollow",
             [this.id],
         );
+        return true;
     },
     get allow_invite_by_email() {
         return (
@@ -629,26 +647,26 @@ const threadPatch = {
         return this.member_count === this.channel_member_ids.length;
     },
     get avatarUrl() {
-        if (this.channel_type === "channel" || this.channel_type === "group") {
+        if (this.isMultiMemberChannel) {
             return imageUrl("discuss.channel", Number(this.id), "avatar_128", {
                 unique: this.avatar_cache_key,
             });
         }
-        if (this.channel_type === "chat" && this.correspondent) {
+        if (this.isDirectChat && this.correspondent) {
             return this.correspondent.avatarUrl;
         }
         return super.avatarUrl;
     },
     async checkReadAccess() {
         const res = await super.checkReadAccess();
-        if (!res && this.model === "discuss.channel") {
+        if (!res && this.isChannelKind) {
             return this.channel_type;
         }
         return res;
     },
     /** @returns {import("models").ChannelMember} */
     computeCorrespondent() {
-        if (["channel", "group"].includes(this.channel_type)) {
+        if (this.isMultiMemberChannel) {
             return undefined;
         }
         const correspondents = this.correspondents;
@@ -673,7 +691,7 @@ const threadPatch = {
         ) {
             return this.self_member_id.custom_channel_name;
         }
-        if (this.channel_type === "chat" && this.correspondent) {
+        if (this.isDirectChat && this.correspondent) {
             return this.correspondent.name;
         }
         if (this.channel_name_member_ids.length && !this.name) {
@@ -689,13 +707,16 @@ const threadPatch = {
             }
             return formatList(nameParts);
         }
-        if (this.model === "discuss.channel" && this.name) {
+        if (this.isChannelKind && this.name) {
             return this.name;
         }
         return super.displayName;
     },
     async fetchChannelMembers() {
         if (this.fetchMembersState === "pending") {
+            log.logic("fetchChannelMembers already pending", () => ({
+                thread: this.localId,
+            }));
             return;
         }
         const previousState = this.fetchMembersState;
@@ -704,24 +725,37 @@ const threadPatch = {
             (channelMember) => channelMember.id,
         );
         let data;
+        const endFetch = log.perf("fetchChannelMembers");
         try {
             data = await rpc("/discuss/channel/members", {
                 channel_id: this.id,
                 known_member_ids: known_member_ids,
             });
         } catch (e) {
+            endFetch({ thread: this.localId, failed: true });
             this.fetchMembersState = previousState;
             throw e;
         }
+        endFetch({
+            thread: this.localId,
+            known: known_member_ids.length,
+            memberCount: this.member_count,
+        });
         this.fetchMembersState = "fetched";
         this.store.insert(data);
     },
     /** @param {number} [limit=30] */
     async fetchMoreAttachments(limit = 30) {
         if (this.isLoadingAttachments || this.areAttachmentsLoaded) {
+            log.logic("fetchMoreAttachments skipped", () => ({
+                thread: this.localId,
+                loading: this.isLoadingAttachments,
+                loaded: this.areAttachmentsLoaded,
+            }));
             return;
         }
         this.isLoadingAttachments = true;
+        const endFetch = log.perf("fetchMoreAttachments");
         try {
             const data = await rpc("/discuss/channel/attachments", {
                 before: Math.min(...this.attachments.map(({ id }) => id)),
@@ -729,6 +763,12 @@ const threadPatch = {
                 limit,
             });
             this.store.insert(data.store_data);
+            endFetch({
+                thread: this.localId,
+                limit,
+                hasMore: data.has_more,
+                attachments: this.attachments.length,
+            });
             if (!data.has_more) {
                 this.areAttachmentsLoaded = true;
             }
@@ -737,7 +777,7 @@ const threadPatch = {
         }
     },
     get hasMemberList() {
-        return ["channel", "group"].includes(this.channel_type);
+        return this.isMultiMemberChannel;
     },
     get hasSelfAsMember() {
         return Boolean(this.self_member_id);
@@ -750,10 +790,7 @@ const threadPatch = {
             if (this.store.settings.channel_notifications === "no_notif") {
                 return 0;
             }
-            if (
-                this.store.settings.channel_notifications === "all" &&
-                !this.self_member_id?.mute_until_dt
-            ) {
+            if (this.store.settings.channel_notifications === "all" && !this.isMuted) {
                 return this.self_member_id?.message_unread_counter_ui;
             }
         }
@@ -786,8 +823,18 @@ const threadPatch = {
             this.self_member_id.seen_message_id?.id >= newestPersistentMessage.id &&
             this.self_member_id.new_message_separator > newestPersistentMessage.id;
         if (alreadyReadBySelf) {
+            log.logic("markAsRead already read", () => ({
+                thread: this.localId,
+                lastMessageId: newestPersistentMessage.id,
+            }));
             return;
         }
+        log.pipeline("markAsRead channel", () => ({
+            thread: this.localId,
+            lastMessageId: newestPersistentMessage.id,
+            seenMessageId: this.self_member_id.seen_message_id?.id,
+            separator: this.self_member_id.new_message_separator,
+        }));
         this.markReadSequential(async () => {
             this.markingAsRead = true;
             try {
@@ -825,6 +872,10 @@ const threadPatch = {
         ) {
             return;
         }
+        log.logic("onNewSelfMessage advances seen", () => ({
+            thread: this.localId,
+            messageId: message.id,
+        }));
         this.self_member_id.seen_message_id = message;
         this.self_member_id.new_message_separator = Number(message.id) + 1;
         this.self_member_id.new_message_separator_ui =
@@ -883,7 +934,7 @@ const threadPatch = {
     /** @param {string} body */
     async post(body) {
         const textContent = createElementWithContent("div", body).textContent.trim();
-        if (this.model === "discuss.channel" && textContent.startsWith("/")) {
+        if (this.isChannelKind && textContent.startsWith("/")) {
             const [firstWord] = textContent.substring(1).split(/\s/);
             const command = commandRegistry.get(firstWord, false);
             if (
@@ -893,6 +944,10 @@ const threadPatch = {
                 (!command.channel_types ||
                     command.channel_types.includes(this.channel_type))
             ) {
+                log.logic("post as command", () => ({
+                    thread: this.localId,
+                    command: firstWord,
+                }));
                 await this.executeCommand(command, textContent);
                 return;
             }
@@ -901,7 +956,7 @@ const threadPatch = {
     },
     get shouldSubscribeToBusChannel() {
         return Boolean(
-            this.model === "discuss.channel" &&
+            this.isChannelKind &&
             !this.isTransient &&
             !this.self_member_id &&
             (this.isLocallyPinned || this.chat_window?.isOpen),

@@ -13,34 +13,41 @@ class MailingSubscription(models.Model):
     _order = "list_id DESC, contact_id DESC"
 
     contact_id = fields.Many2one(
-        "mailing.contact", string="Contact", ondelete="cascade", required=True
+        comodel_name="mailing.contact",
+        required=True,
+        ondelete="cascade",
     )
     list_id = fields.Many2one(
-        "mailing.list",
+        comodel_name="mailing.list",
         string="Mailing List",
-        ondelete="cascade",
-        required=True,
         index=True,
+        required=True,
+        ondelete="cascade",
     )
     opt_out = fields.Boolean(
-        string="Opt Out",
         default=False,
         help="The contact has chosen not to receive mails anymore from this list",
     )
     opt_out_reason_id = fields.Many2one(
-        "mailing.subscription.optout", string="Reason", ondelete="restrict"
+        comodel_name="mailing.subscription.optout",
+        string="Reason",
+        ondelete="restrict",
     )
     opt_out_datetime = fields.Datetime(
         string="Unsubscription Date",
         compute="_compute_opt_out_datetime",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     message_bounce = fields.Integer(
-        related="contact_id.message_bounce", store=False, readonly=False
+        related="contact_id.message_bounce",
+        store=False,
+        readonly=False,
     )
     is_blacklisted = fields.Boolean(
-        related="contact_id.is_blacklisted", store=False, readonly=False
+        related="contact_id.is_blacklisted",
+        store=False,
+        readonly=False,
     )
 
     _unique_contact_list = models.Constraint(

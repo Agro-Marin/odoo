@@ -92,7 +92,7 @@
                 ref="event.event_event_ticket_view_kanban_from_event" />
             <field name="arch" type="xml">
                 <field name="name" position="after">
-                    <field class="fw-bold ms-auto" name="price" />
+                    <field name="price" class="fw-bold ms-auto" />
                 </field>
                 <xpath expr="//div[hasclass('d-flex')]" position="after">
                     <field name="product_id" />

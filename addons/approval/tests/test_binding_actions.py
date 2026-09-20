@@ -1,6 +1,8 @@
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import common, tagged
 
+from odoo.addons.approval.tests.common import add_category_approver
+
 
 @tagged("post_install", "-at_install")
 class TestApprovalBindingActions(common.TransactionCase):
@@ -36,16 +38,13 @@ class TestApprovalBindingActions(common.TransactionCase):
             )
         )
         cls.category = cls.env["approval.category"].create(
-            {"name": "Action Category", "approval_minimum": 1}
-        )
-        cls.env["approval.category.approver"].create(
             {
-                "category_id": cls.category.id,
-                "user_id": cls.approver.id,
-                "required": True,
-                "sequence": 10,
+                "name": "Action Category",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
             }
         )
+        add_category_approver(cls.category, cls.approver, required=True, sequence=10)
         cls.server_action = cls.env["ir.actions.server"].create(
             {
                 "name": "Mark reviewed",

@@ -11,11 +11,11 @@
 
     <record id="group_partner_scoring_manager" model="res.groups">
         <field name="name">Administrator</field>
-        <field name="privilege_id" ref="res_groups_privilege_partner_scoring" />
         <field name="sequence" eval="20" />
-        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
+        <field name="privilege_id" ref="res_groups_privilege_partner_scoring" />
         <field
             name="comment">Can configure the contact attributes, their scoring weights and the commercial profile bands.</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="base.group_system" model="res.groups">

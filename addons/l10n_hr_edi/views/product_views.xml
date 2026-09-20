@@ -9,8 +9,8 @@
             <field name="categ_id" position="after">
                 <field
                     name="l10n_hr_kpd_category_id"
-                    invisible="'HR' not in fiscal_country_codes"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    invisible="'HR' not in fiscal_country_codes" />
             </field>
         </field>
     </record>

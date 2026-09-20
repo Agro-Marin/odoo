@@ -3,7 +3,10 @@ from collections import defaultdict
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet, float_is_zero
+
+_debug = DebugLog(__name__)
 
 
 class StockMove(models.Model):
@@ -31,93 +34,100 @@ class StockMove(models.Model):
         return defaults
 
     created_production_id = fields.Many2one(
-        "mrp.production",
-        "Created Production Order",
-        check_company=True,
+        comodel_name="mrp.production",
+        string="Created Production Order",
         index="btree_not_null",
+        check_company=True,
     )
     production_id = fields.Many2one(
-        "mrp.production",
-        "Production Order for finished products",
-        check_company=True,
+        comodel_name="mrp.production",
+        string="Production Order for finished products",
         index="btree_not_null",
         ondelete="cascade",
+        check_company=True,
     )
     raw_material_production_id = fields.Many2one(
-        "mrp.production",
-        "Production Order for components",
-        check_company=True,
+        comodel_name="mrp.production",
+        string="Production Order for components",
         index="btree_not_null",
         ondelete="cascade",
+        check_company=True,
     )
     production_group_id = fields.Many2one(
-        "mrp.production.group",
-        "Used for Productions",
+        comodel_name="mrp.production.group",
+        string="Used for Productions",
         index="btree_not_null",
     )
     unbuild_id = fields.Many2one(
-        "mrp.unbuild", "Disassembly Order", check_company=True, index="btree_not_null"
+        comodel_name="mrp.unbuild",
+        string="Disassembly Order",
+        index="btree_not_null",
+        check_company=True,
     )
     consume_unbuild_id = fields.Many2one(
-        "mrp.unbuild",
-        "Consumed Disassembly Order",
-        check_company=True,
+        comodel_name="mrp.unbuild",
+        string="Consumed Disassembly Order",
         index="btree_not_null",
+        check_company=True,
     )
     allowed_operation_ids = fields.One2many(
-        "mrp.routing.workcenter",
+        comodel_name="mrp.routing.workcenter",
         related="raw_material_production_id.bom_id.operation_ids",
     )
     operation_id = fields.Many2one(
-        "mrp.routing.workcenter",
-        "Operation To Consume",
-        check_company=True,
+        comodel_name="mrp.routing.workcenter",
+        string="Operation To Consume",
         domain="[('id', 'in', allowed_operation_ids)]",
+        check_company=True,
     )
     workorder_id = fields.Many2one(
-        "mrp.workorder",
-        "Work Order To Consume",
+        comodel_name="mrp.workorder",
+        string="Work Order To Consume",
+        index="btree_not_null",
         copy=False,
         check_company=True,
-        index="btree_not_null",
     )
-    bom_line_id = fields.Many2one("mrp.bom.line", "BoM Line", check_company=True)
+    bom_line_id = fields.Many2one(
+        comodel_name="mrp.bom.line",
+        string="BoM Line",
+        check_company=True,
+    )
     byproduct_id = fields.Many2one(
-        "mrp.bom.byproduct",
-        "By-products",
+        comodel_name="mrp.bom.byproduct",
+        string="By-products",
         check_company=True,
         help="By-product line that generated the move in a manufacturing order",
     )
     unit_factor = fields.Float(
-        "Unit Factor", compute="_compute_unit_factor", store=True
+        compute="_compute_unit_factor",
+        store=True,
     )
     order_finished_lot_ids = fields.Many2many(
-        "stock.lot",
-        string="Finished Lot/Serial Number",
+        comodel_name="stock.lot",
         related="raw_material_production_id.lot_producing_ids",
+        string="Finished Lot/Serial Number",
     )
     should_consume_qty = fields.Float(
-        "Quantity To Consume",
-        compute="_compute_should_consume_qty",
+        string="Quantity To Consume",
         digits="Product Unit",
+        compute="_compute_should_consume_qty",
     )
     cost_share = fields.Float(
-        "Cost Share (%)",
+        string="Cost Share (%)",
         digits=0,
         help="The percentage of the final production cost for this by-product. The total of all by-products' cost share must be smaller or equal to 100.",
     )
     product_qty_available = fields.Float(
-        "Product On Hand Quantity",
         related="product_id.qty_available",
+        string="Product On Hand Quantity",
         depends=["product_id"],
     )
     product_virtual_available = fields.Float(
-        "Product Forecasted Quantity",
         related="product_id.qty_available_virtual",
+        string="Product Forecasted Quantity",
         depends=["product_id"],
     )
     manual_consumption = fields.Boolean(
-        "Manual Consumption",
         compute="_compute_manual_consumption",
         store=True,
         readonly=False,
@@ -190,17 +200,14 @@ class StockMove(models.Model):
                 ids_to_super.add(move.id)
         return super(StockMove, self.browse(ids_to_super))._compute_location_dest_id()
 
-    @api.depends(
-        "bom_line_id",
-        "picking_id.move_ids",
-        "raw_material_production_id.move_raw_ids",
-    )
+    @api.depends("bom_line_id")
     def _compute_description_picking(self):
         super()._compute_description_picking()
+        stored = self.filtered("id")
         siblings = (
             self
-            | self.picking_id.move_ids
-            | self.raw_material_production_id.move_raw_ids
+            | stored.picking_id.move_ids
+            | stored.raw_material_production_id.move_raw_ids
         )
         present_lines = siblings.bom_line_id
         bom_line_description = {}
@@ -417,6 +424,12 @@ class StockMove(models.Model):
                     values["location_dest_id"] = mo.location_dest_id.id
                 if not values.get("location_final_id"):
                     values["location_final_id"] = mo.warehouse_id.lot_stock_id.id
+        _debug.lifecycle(
+            "create",
+            count=len(vals_list),
+            productions=len(productions_by_id),
+            locations=len(locations_by_id),
+        )
         return super().create(vals_list)
 
     @api.model
@@ -452,6 +465,13 @@ class StockMove(models.Model):
             else {}
         )
         res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            moves=self,
+            fields=list(vals),
+            rereserve=len(moves_to_rereserve),
+            manual=len(moves_to_update) if moves_to_update else 0,
+        )
         if moves_to_rereserve:
             moves_to_rereserve._action_assign()
         if moves_to_update:
@@ -535,6 +555,13 @@ class StockMove(models.Model):
                     )
                 )
 
+        _debug.pipeline(
+            "move_reprocurement",
+            moves=self,
+            assigned=len(to_assign),
+            candidates=len(proc_move),
+            procurements=len(procurements),
+        )
         if procurements:
             self.env["stock.rule"].run(procurements)
 
@@ -546,6 +573,7 @@ class StockMove(models.Model):
                 key = (move.raw_material_production_id.id, move.workorder_id.id)
                 lines_by_owner[key].extend(move.move_line_ids.ids)
         move_lines = self.env["stock.move.line"]
+        _debug.pipeline("raw_move_lines_owned", moves=self, owners=len(lines_by_owner))
         for (production_id, workorder_id), line_ids in lines_by_owner.items():
             move_lines.browse(line_ids).write(
                 {"production_id": production_id, "workorder_id": workorder_id}
@@ -610,6 +638,12 @@ class StockMove(models.Model):
         )
         explodable = self.filtered(lambda move: move._is_explodable())
         kit_boms = explodable._get_kit_boms()
+        _debug.pipeline(
+            "move_explode",
+            moves=self,
+            explodable=len(explodable),
+            kits=len(kit_boms),
+        )
         for move in self:
             bom = kit_boms.get(move.product_id) if move in explodable else None
             if not bom:
@@ -621,7 +655,7 @@ class StockMove(models.Model):
                 else move.product_uom_qty
             )
             factor = (
-                move.product_uom_id._compute_quantity(quantity, bom.product_uom_id)
+                move.product_uom_id._get_quantity_in_unit(quantity, bom.product_uom_id)
                 / bom.product_qty
             )
             _dummy, lines = bom.sudo()._explode(
@@ -635,6 +669,7 @@ class StockMove(models.Model):
 
         if phantom_moves_vals_list:
             phantom_moves = self.env["stock.move"].create(phantom_moves_vals_list)
+            _debug.lifecycle("phantom_moves_created", moves=phantom_moves)
             phantom_moves._update_procure_method()
             moves_ids_to_return |= phantom_moves.action_explode().ids
         move_to_unlink = self.env["stock.move"].browse(moves_ids_to_unlink).sudo()
@@ -685,6 +720,11 @@ class StockMove(models.Model):
                 lambda p: all(m.state == "cancel" for m in p.move_raw_ids)
             )
             if mo_to_cancel:
+                _debug.lifecycle(
+                    "production_cancelled_by_moves",
+                    moves=self,
+                    productions=mo_to_cancel,
+                )
                 mo_to_cancel._action_cancel()
         return res
 
@@ -855,7 +895,7 @@ class StockMove(models.Model):
 
         def get_qty(move):
             if move.picked:
-                return move.product_uom_id._compute_quantity(
+                return move.product_uom_id._get_quantity_in_unit(
                     move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
                 )
             else:
@@ -871,7 +911,7 @@ class StockMove(models.Model):
             )
             if bom_line_moves:
                 uom_qty_per_kit = bom_line_data["qty"] / (bom_line_data["original_qty"])
-                qty_per_kit = bom_line.product_uom_id._compute_quantity(
+                qty_per_kit = bom_line.product_uom_id._get_quantity_in_unit(
                     uom_qty_per_kit / kit_bom.product_qty,
                     bom_line.product_id.uom_id,
                     round=False,
@@ -890,6 +930,14 @@ class StockMove(models.Model):
                 )
             else:
                 return 0.0
+        _debug.logic(
+            "kit_quantity",
+            kit_bom=kit_bom.id,
+            product=product_id.id,
+            lines=len(bom_sub_lines),
+            ratios=len(qty_ratios),
+            qty=min(qty_ratios) // 1 if qty_ratios else 0.0,
+        )
         if qty_ratios:
             return min(qty_ratios) // 1
         else:

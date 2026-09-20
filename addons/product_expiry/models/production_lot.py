@@ -3,16 +3,19 @@ from collections import defaultdict
 
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockLot(models.Model):
     _inherit = "stock.lot"
 
     use_expiration_date = fields.Boolean(
-        string="Use Expiration Date", related="product_id.use_expiration_date"
+        related="product_id.use_expiration_date",
+        string="Use Expiration Date",
     )
     expiration_date = fields.Datetime(
-        string="Expiration Date",
         compute="_compute_expiration_date",
         store=True,
         readonly=False,
@@ -26,18 +29,16 @@ class StockLot(models.Model):
         help="This is the date on which the goods with this Serial Number start deteriorating, without being dangerous yet.",
     )
     removal_date = fields.Datetime(
-        string="Removal Date",
         compute="_compute_removal_date",
         store=True,
         readonly=False,
         help="This is the date on which the goods with this Serial Number should be removed from the stock and not be counted in the Fresh On Hand Stock anymore. This date will be used in FEFO removal strategy.",
     )
     alert_date = fields.Datetime(
-        string="Alert Date",
         compute="_compute_alert_date",
         store=True,
-        readonly=False,
         index="btree_not_null",
+        readonly=False,
         help='Date to determine the expired lots and serial numbers using the filter "Expiration Alerts".',
     )
     product_expiry_alert = fields.Boolean(
@@ -74,6 +75,7 @@ class StockLot(models.Model):
 
     @api.depends("expiration_date")
     def _compute_product_expiry_alert(self):
+        _debug.perf.count("expiry_alert_compute", lots=self)
         current_date = fields.Datetime.now()
         for lot in self:
             lot.product_expiry_alert = (
@@ -100,6 +102,7 @@ class StockLot(models.Model):
         self._update_expiry_date("alert_date", "alert_time")
 
     def _update_expiry_date(self, date_field, time_field):
+        _debug.lifecycle("lot_expiry_date_update", lots=self, field=date_field)
         for lot in self:
             if not lot.product_id.use_expiration_date or not lot.expiration_date:
                 lot[date_field] = False
@@ -110,6 +113,7 @@ class StockLot(models.Model):
 
     @api.model
     def _alert_lots_past_alert_date(self, company_id=False):
+        _debug.pipeline("expiry_alert_scan", company=company_id)
         domain = Domain(
             [
                 ("quantity", ">", 0),
@@ -131,6 +135,7 @@ class StockLot(models.Model):
         alert_lots.product_expiry_reminded = True
 
     def _schedule_expiry_activity(self):
+        _debug.lifecycle("expiry_activity_schedule", lots=self)
         lots_by_user = defaultdict(self.browse)
         for lot in self:
             product = lot.product_id

@@ -32,6 +32,5 @@
         "views/efaktur_document.xml",
         "views/uom_uom.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

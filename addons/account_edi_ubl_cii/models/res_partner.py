@@ -15,7 +15,7 @@ PEPPOL_ENDPOINT_INVALID_CHARS_RE_BY_EAS = {
 }
 
 
-def sanitize_peppol_endpoint(peppol_endpoint, eas=None):
+def normalize_peppol_endpoint(peppol_endpoint, eas=None):
     if not peppol_endpoint:
         return peppol_endpoint
     sanitizer = PEPPOL_ENDPOINT_INVALID_CHARS_RE_BY_EAS.get(
@@ -35,28 +35,20 @@ class ResPartner(models.Model):
             ("nlcius", "Netherlands (NLCIUS)"),
             ("ubl_a_nz", "Australia (BIS Billing 3.0 A-NZ)"),
             ("ubl_sg", "Singapore (BIS Billing 3.0 SG)"),
-        ],
+        ]
     )
     is_ubl_format = fields.Boolean(compute="_compute_is_ubl_format")
     is_peppol_edi_format = fields.Boolean(
         compute="_compute_is_peppol_edi_format"
     )  # TODO remove in master
     peppol_endpoint = fields.Char(
-        string="Peppol Endpoint",
-        help="Unique identifier used by the BIS Billing 3.0 and its derivatives, also known as 'Endpoint ID'.",
         compute="_compute_peppol_endpoint",
         store=True,
         readonly=False,
         tracking=True,
+        help="Unique identifier used by the BIS Billing 3.0 and its derivatives, also known as 'Endpoint ID'.",
     )
     peppol_eas = fields.Selection(
-        string="Peppol e-address (EAS)",
-        help="""Code used to identify the Endpoint for BIS Billing 3.0 and its derivatives.
-             List available at https://docs.peppol.eu/poacc/billing/3.0/codelist/eas/""",
-        compute="_compute_peppol_eas",
-        store=True,
-        readonly=False,
-        tracking=True,
         selection=[
             ("9923", "Albania VAT"),
             ("9922", "Andorra VAT"),
@@ -146,6 +138,13 @@ class ResPartner(models.Model):
             ("AU", "File Transfer Protocol"),
             ("EM", "Electronic mail"),
         ],
+        string="Peppol e-address (EAS)",
+        compute="_compute_peppol_eas",
+        store=True,
+        readonly=False,
+        tracking=True,
+        help="""Code used to identify the Endpoint for BIS Billing 3.0 and its derivatives.
+             List available at https://docs.peppol.eu/poacc/billing/3.0/codelist/eas/""",
     )
     available_peppol_eas = fields.Json(compute="_compute_available_peppol_eas")
 
@@ -275,13 +274,13 @@ class ResPartner(models.Model):
             if value.isalnum():
                 value = value.removeprefix(country_code)
 
-        return sanitize_peppol_endpoint(value, eas)
+        return normalize_peppol_endpoint(value, eas)
 
     @api.depends(lambda self: self._peppol_eas_endpoint_depends() + ["peppol_eas"])
     def _compute_peppol_endpoint(self):
         """If the EAS changes and a valid endpoint is available, set it. Otherwise, keep the existing value."""
         for partner in self:
-            partner.peppol_endpoint = sanitize_peppol_endpoint(
+            partner.peppol_endpoint = normalize_peppol_endpoint(
                 partner.peppol_endpoint, partner.peppol_eas
             )
             country_code = partner._deduce_country_code()

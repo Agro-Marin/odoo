@@ -10,14 +10,14 @@ class UtmCampaign(models.Model):
     _inherit = "utm.campaign"
 
     mailing_mail_ids = fields.One2many(
-        "mailing.mailing",
-        "campaign_id",
-        domain=[("mailing_type", "=", "mail")],
+        comodel_name="mailing.mailing",
+        inverse_name="campaign_id",
         string="Mass Mailings",
+        domain=[("mailing_type", "=", "mail")],
         groups="mass_mailing.group_mass_mailing_user",
     )
     mailing_mail_count = fields.Integer(
-        "Number of Mass Mailing",
+        string="Number of Mass Mailing",
         compute="_compute_mailing_mail_count",
         groups="mass_mailing.group_mass_mailing_user",
     )
@@ -27,25 +27,28 @@ class UtmCampaign(models.Model):
 
     # A/B Testing
     ab_testing_mailings_count = fields.Integer(
-        "A/B Test Mailings #", compute="_compute_mailing_mail_count"
+        string="A/B Test Mailings #",
+        compute="_compute_mailing_mail_count",
     )
     ab_testing_completed = fields.Boolean(
-        "A/B Testing Campaign Finished",
+        string="A/B Testing Campaign Finished",
         compute="_compute_ab_testing_completed",
+        store=True,
         copy=False,
         readonly=True,
-        store=True,
     )
     ab_testing_winner_mailing_id = fields.Many2one(
-        "mailing.mailing", "A/B Campaign Winner Mailing", copy=False
+        comodel_name="mailing.mailing",
+        string="A/B Campaign Winner Mailing",
+        copy=False,
     )
     ab_testing_schedule_datetime = fields.Datetime(
-        "Send Final On",
+        string="Send Final On",
         default=lambda self: fields.Datetime.now() + relativedelta(days=1),
         help="Date that will be used to know when to determine and send the winner mailing",
     )
     ab_testing_winner_selection = fields.Selection(
-        [
+        selection=[
             ("manual", "Manual"),
             ("opened_ratio", "Highest Open Rate"),
             ("clicks_ratio", "Highest Click Rate"),
@@ -57,12 +60,10 @@ class UtmCampaign(models.Model):
     )
 
     # stat fields
-    received_ratio = fields.Float(
-        compute="_compute_statistics", string="Received Ratio"
-    )
-    opened_ratio = fields.Float(compute="_compute_statistics", string="Opened Ratio")
-    replied_ratio = fields.Float(compute="_compute_statistics", string="Replied Ratio")
-    bounced_ratio = fields.Float(compute="_compute_statistics", string="Bounced Ratio")
+    received_ratio = fields.Float(compute="_compute_statistics")
+    opened_ratio = fields.Float(compute="_compute_statistics")
+    replied_ratio = fields.Float(compute="_compute_statistics")
+    bounced_ratio = fields.Float(compute="_compute_statistics")
 
     @api.depends("ab_testing_winner_mailing_id")
     def _compute_ab_testing_completed(self):
@@ -114,9 +115,12 @@ class UtmCampaign(models.Model):
                 COUNT(s.trace_status) FILTER (WHERE s.trace_status = 'cancel') AS cancel
             FROM
                 mailing_trace s
+            JOIN
+                mailing_mailing m
+                ON (m.id = s.mass_mailing_id)
             RIGHT JOIN
                 utm_campaign c
-                ON (c.id = s.campaign_id)
+                ON (c.id = m.campaign_id)
             WHERE
                 c.id = ANY(%s)
             GROUP BY
@@ -163,14 +167,14 @@ class UtmCampaign(models.Model):
         # Every id is assigned in the loop below, so no seeded default is
         # needed. It used to be dict.fromkeys(self.ids, {}), which both shared
         # one dict across all keys and seeded a dict where a set is stored.
-        res = {}
-        for campaign in self:
-            domain = [("campaign_id", "=", campaign.id)]
-            if model:
-                domain += [("model", "=", model)]
-            res[campaign.id] = set(
-                self.env["mailing.trace"].search(domain).mapped("res_id")
-            )
+        domain = [("campaign_id", "in", self.ids)]
+        if model:
+            domain += [("model", "=", model)]
+        res = {campaign.id: set() for campaign in self}
+        for campaign, res_ids in self.env["mailing.trace"]._read_group(
+            domain, ["campaign_id"], ["res_id:array_agg"]
+        ):
+            res[campaign.id] = set(res_ids)
         return res
 
     @api.model

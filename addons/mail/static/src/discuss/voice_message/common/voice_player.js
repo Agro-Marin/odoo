@@ -10,8 +10,11 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.voice.player");
 const WAVE_COLOR = "#7775";
 
 /**
@@ -157,11 +160,14 @@ export class VoicePlayer extends Component {
      * @throws {Error}
      */
     async fetchFile(url) {
+        const endFetch = log.perf("fetchFile");
         const response = await this._fetch(url);
         if (!response.ok) {
+            endFetch({ status: response.status, failed: true });
             throw new Error("HTTP error status: " + response.status);
         }
         const arrayBuffer = await response.arrayBuffer();
+        endFetch({ bytes: arrayBuffer.byteLength });
         return arrayBuffer;
     }
 
@@ -178,6 +184,11 @@ export class VoicePlayer extends Component {
     }
 
     play() {
+        log.logic("play", () => ({
+            attachmentId: this.props.attachment?.id,
+            position: this.startPosition,
+            pausedOther: Boolean(this.voiceMessageService.activePlayer),
+        }));
         if (this.voiceMessageService.activePlayer) {
             this.voiceMessageService.activePlayer.pause();
         }
@@ -197,6 +208,10 @@ export class VoicePlayer extends Component {
      * @param {boolean} [options.continue]
      */
     pause(options) {
+        log.logic("pause", () => ({
+            attachmentId: this.props.attachment?.id,
+            ...options,
+        }));
         this.voiceMessageService.activePlayer = null;
         if (options?.end) {
             this.state.repeat = true;
@@ -304,7 +319,12 @@ export class VoicePlayer extends Component {
         if (status(this) === "destroyed") {
             return;
         }
+        const endDecode = log.perf("decodeAudioData");
         const buffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+        endDecode({
+            attachmentId: this.props.attachment?.id,
+            duration: buffer.duration,
+        });
         if (status(this) === "destroyed") {
             return;
         }

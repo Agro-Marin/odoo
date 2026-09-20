@@ -4,9 +4,12 @@ import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/center
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { TagsList } from "@web/components/tags_list";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 
 import { groupOrderlines } from "./orderline_groups.js";
+const log = makeLogger("pos.component.order_display");
 export class OrderDisplay extends Component {
     static template = "point_of_sale.OrderDisplay";
     static components = { CenteredIcon, Orderline, TagsList };
@@ -20,6 +23,7 @@ export class OrderDisplay extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.scrollableRef = useRef("scrollable");
         /** @type {Map<string, import("./orderline_groups").OrderlineGroup>} */
         this.groupOfLine = new Map();
@@ -63,10 +67,17 @@ export class OrderDisplay extends Component {
         if (!this.isGrouped) {
             return sorted;
         }
+        const endGroup = log.perf("comboSortedLines: groupOrderlines");
         const { lines, groupOf } = groupOrderlines(sorted);
         for (const [uuid, group] of groupOf) {
             this.groupOfLine.set(uuid, group);
         }
+        endGroup({
+            order: this.order.uuid,
+            lines: sorted.length,
+            grouped: lines.length,
+            groups: groupOf.size,
+        });
         return lines;
     }
 

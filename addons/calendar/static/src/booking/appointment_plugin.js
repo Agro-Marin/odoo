@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { _t } from "@web/core/translation";
 import { FormViewDialog } from "@web/views/view_dialogs";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 class AppointmentFormViewDialog extends FormViewDialog {
     static props = {

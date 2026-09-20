@@ -76,7 +76,6 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     l10n_it_edi_state = fields.Selection(
-        string="SDI State",
         selection=[
             ("being_sent", "Being Sent To SdI"),
             (
@@ -95,46 +94,66 @@ class AccountMove(models.Model):
                 "SdI Accepted, PA Partner Expired Terms",
             ),
         ],
+        string="SDI State",
         copy=False,
         tracking=True,
         help="This state is updated by default, but you can force the value. ",
     )
     l10n_it_edi_header = fields.Html(
-        help="User description of the current state, with hints to make the flow progress",
+        copy=False,
         readonly=True,
+        help="User description of the current state, with hints to make the flow progress",
+    )
+    l10n_it_edi_transaction = fields.Char(
+        string="FatturaPA Transaction",
         copy=False,
     )
-    l10n_it_edi_transaction = fields.Char(copy=False, string="FatturaPA Transaction")
-    l10n_it_edi_attachment_file = fields.Binary(copy=False, attachment=True)
+    l10n_it_edi_attachment_file = fields.Binary(
+        attachment=True,
+        copy=False,
+    )
     l10n_it_edi_attachment_name = fields.Char(string="FatturaPA Attachment")
     l10n_it_edi_proxy_mode = fields.Selection(
-        related="company_id.l10n_it_edi_proxy_user_id.edi_mode", depends=["company_id"]
+        related="company_id.l10n_it_edi_proxy_user_id.edi_mode",
+        depends=["company_id"],
     )
     l10n_it_edi_button_label = fields.Char(compute="_compute_l10n_it_edi_button_label")
     l10n_it_edi_is_self_invoice = fields.Boolean(
         compute="_compute_l10n_it_edi_is_self_invoice"
     )
     l10n_it_stamp_duty = fields.Float(string="Dati Bollo")
-    l10n_it_ddt_id = fields.Many2one("l10n_it.ddt", string="DDT", copy=False)
+    l10n_it_ddt_id = fields.Many2one(
+        comodel_name="l10n_it.ddt",
+        string="DDT",
+        copy=False,
+    )
 
     l10n_it_origin_document_type = fields.Selection(
-        string="Origin Document Type",
         selection=[
             ("purchase_order", "Purchase Order"),
             ("contract", "Contract"),
             ("agreement", "Agreement"),
         ],
+        string="Origin Document Type",
         copy=False,
     )
     l10n_it_origin_document_name = fields.Char(
-        string="Origin Document Name", copy=False
+        string="Origin Document Name",
+        copy=False,
     )
     l10n_it_origin_document_date = fields.Date(
-        string="Origin Document Date", copy=False
+        string="Origin Document Date",
+        copy=False,
     )
-    l10n_it_cig = fields.Char(string="CIG", copy=False, help="Tender Unique Identifier")
+    l10n_it_cig = fields.Char(
+        string="CIG",
+        copy=False,
+        help="Tender Unique Identifier",
+    )
     l10n_it_cup = fields.Char(
-        string="CUP", copy=False, help="Public Investment Unique Identifier"
+        string="CUP",
+        copy=False,
+        help="Public Investment Unique Identifier",
     )
     # Technical field for showing the above fields or not
     l10n_it_partner_pa = fields.Boolean(compute="_compute_l10n_it_partner_pa")
@@ -150,8 +169,8 @@ class AccountMove(models.Model):
         comodel_name="l10n_it.document.type",
         compute="_compute_l10n_it_document_type",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
 
     def _auto_init(self):
@@ -308,11 +327,11 @@ class AccountMove(models.Model):
         But when reversing the move, the document type of the original move is copied and so it isn't recomputed.
         """
         # EXTENDS account
-        default_values_list = default_values_list or [{}] * len(self)
-        for default_values in default_values_list:
-            default_values.update({"l10n_it_document_type": False})
-        reverse_moves = super()._reverse_moves(default_values_list, cancel)
-        return reverse_moves
+        default_values_list = [
+            {**default_values, "l10n_it_document_type": False}
+            for default_values in (default_values_list or [{} for _move in self])
+        ]
+        return super()._reverse_moves(default_values_list, cancel)
 
     @api.depends("l10n_it_edi_transaction")
     def _compute_show_reset_to_draft_button(self):
@@ -1439,7 +1458,7 @@ class AccountMove(models.Model):
         ):
             proxy_user = proxy_user.with_company(proxy_user.company_id)
             if proxy_user.edi_mode != "demo":
-                moves_to_check = self.search(
+                moves_to_check = self.search(  # noqa: E8507 - one query per proxy user, in that user's company
                     [
                         ("company_id", "=", proxy_user.company_id.id),
                         ("l10n_it_edi_transaction", "!=", False),
@@ -1626,7 +1645,7 @@ class AccountMove(models.Model):
             email and ["|", ("email", "=", email), ("l10n_it_pec_email", "=", email)],
         ]:
             if domain and (
-                partner := self.env["res.partner"].search(domain + base_domain, limit=1)
+                partner := self.env["res.partner"].search(domain + base_domain, limit=1)  # noqa: E8507 - the candidate domains are tried in priority order and the first hit wins
             ):
                 return partner
         return self.env["res.partner"]
@@ -2184,14 +2203,14 @@ class AccountMove(models.Model):
             for element_code in elements_code:
                 type_code = element_code.xpath(".//CodiceTipo")[0]
                 code = element_code.xpath(".//CodiceValore")[0]
-                product = self.env["product.product"].search(
+                product = self.env["product.product"].search(  # noqa: E8507 - one probe per article code of the imported line, in the document's order; the first hit wins
                     [("barcode", "=", code.text)]
                 )
                 if product and type_code.text == "EAN":
                     move_line.product_id = product
                     break
                 if partner:
-                    product_supplier = self.env["product.supplierinfo"].search(
+                    product_supplier = self.env["product.supplierinfo"].search(  # noqa: E8507 - one probe per article code of the imported line, in the document's order; the first hit wins
                         [
                             ("partner_id", "=", partner.id),
                             ("product_code", "=", code.text),
@@ -2208,7 +2227,7 @@ class AccountMove(models.Model):
             if not move_line.product_id:
                 for element_code in elements_code:
                     code = element_code.xpath(".//CodiceValore")[0]
-                    product = self.env["product.product"].search(
+                    product = self.env["product.product"].search(  # noqa: E8507 - one probe per article code of the imported line, in the document's order; the first hit wins
                         [("default_code", "=", code.text)], limit=2
                     )
                     if product and len(product) == 1:

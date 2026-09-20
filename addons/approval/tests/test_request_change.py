@@ -4,7 +4,7 @@ from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, add_category_approver, add_rule_step
 
 
 @tagged("post_install", "-at_install")
@@ -34,16 +34,9 @@ class TestRequestChange(common.TransactionCase):
                 "sequence_code": "SC0051",
                 "name": "Test Request Change Category",
                 "approval_minimum": 1,
-                "has_date": "optional",
             }
         )
-        cls.env["approval.category.approver"].create(
-            {
-                "user_id": cls.approver_user.id,
-                "category_id": cls.category.id,
-                "required": True,
-            }
-        )
+        add_category_approver(cls.category, cls.approver_user, required=True)
 
     def _pending_request(self):
         request = self.env["approval.request"].create(
@@ -52,6 +45,7 @@ class TestRequestChange(common.TransactionCase):
                 "request_owner_id": self.admin_user.id,
                 "category_id": self.category.id,
                 "reason": "<p>Initial description.</p>",
+                "date": fields.Datetime.now(),
             }
         )
         request.action_confirm()
@@ -267,8 +261,8 @@ class TestRequestChange(common.TransactionCase):
 @tagged("post_install", "-at_install")
 class TestRequestChangeAuditRegressions(ApprovalCommon):
     def test_change_request_note_preserves_line_breaks(self):
-        category = self._make_category(approvers=[self.approver_1], has_date="optional")
-        request = self._prepare_request(category)
+        category = self._make_category(approvers=[self.approver_1])
+        request = self._prepare_request(category, date=fields.Datetime.now())
         approver = request.approver_ids
 
         wizard = (
@@ -311,7 +305,6 @@ class TestRequestChangeInvalidatesApprovals(ApprovalCommon):
         category = self._make_category(
             name=f"Change Cat {self.id()}",
             approval_minimum=2,
-            has_date="required",
             approvers=[(self.approver_1, True, 10), (self.approver_2, True, 20)],
         )
         return self._prepare_request(category, date=fields.Datetime.now())
@@ -370,8 +363,7 @@ class TestRequestChangeInvalidatesApprovals(ApprovalCommon):
         category = self._make_category(
             name=f"Change Seq Cat {self.id()}",
             approval_minimum=2,
-            approve_sequentially=True,
-            has_date="required",
+            in_order=True,
             approvers=[(self.approver_1, True, 10), (self.approver_2, True, 20)],
         )
         request = self._prepare_request(category, date=fields.Datetime.now())
@@ -432,14 +424,13 @@ class TestRequestChangeInvalidatesApprovals(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestRequestChangeReachability(ApprovalCommon):
-    def _pending(self, **category_vals):
+    def _pending(self, **request_vals):
         category = self._make_category(
             name=f"Reach Cat {self.id()}",
             approval_minimum=1,
             approvers=[(self.approver_1, True, 10)],
-            **category_vals,
         )
-        return self._prepare_request(category, date=fields.Datetime.now())
+        return self._prepare_request(category, **request_vals)
 
     def _request_change(self, request, field):
         approver = request.approver_ids.filtered(
@@ -450,8 +441,8 @@ class TestRequestChangeReachability(ApprovalCommon):
             requested_change_field=field,
         ).action_request_change(approver=approver)
 
-    def test_date_change_refused_when_the_category_shows_no_date(self):
-        request = self._pending(has_date="no", has_date_range="no")
+    def test_date_change_refused_when_the_request_carries_no_date(self):
+        request = self._pending()
 
         with self.assertRaises(UserError):
             self._request_change(request, "date")
@@ -464,30 +455,30 @@ class TestRequestChangeReachability(ApprovalCommon):
         self._request_change(request, "reason")
         self.assertEqual(request.pending_change_field, "reason")
 
-    def test_date_change_allowed_when_only_the_period_is_exposed(self):
-        request = self._pending(has_date="no", has_date_range="optional")
+    def test_date_change_allowed_when_only_the_period_is_set(self):
+        request = self._pending(
+            date_start=fields.Datetime.now(),
+            date_end=fields.Datetime.now() + timedelta(days=1),
+        )
 
         self._request_change(request, "date")
 
         self.assertEqual(request.pending_change_field, "date")
         request.with_user(self.owner_user).write(
-            {
-                "date_start": fields.Datetime.now(),
-                "date_end": fields.Datetime.now() + timedelta(days=2),
-            },
+            {"date_end": fields.Datetime.now() + timedelta(days=2)},
         )
         request.with_user(self.owner_user).action_resubmit()
         self.assertFalse(request.pending_change_field)
 
     def test_reason_is_always_reachable(self):
-        request = self._pending(has_date="no", has_date_range="no")
+        request = self._pending()
         self.assertEqual(
             request._get_pending_change_candidates(),
             frozenset({"reason"}),
         )
 
     def test_the_wizard_surfaces_the_same_refusal(self):
-        request = self._pending(has_date="no", has_date_range="no")
+        request = self._pending()
         approver = request.approver_ids.filtered(
             lambda a: a.user_id == self.approver_1,
         )
@@ -527,21 +518,16 @@ class TestRequestChangeReroutes(ApprovalCommon):
         category = self._make_category(
             "RC Reroute",
             approvers=[self.approver_1],
-            has_date="optional",
-            has_date_range="optional",
         )
-        self.env["approval.rule"].create(
-            {
-                "name": "Long trips need a second signature",
-                "category_id": category.id,
-                "condition_field": "date_range_days",
-                "operator": "gt",
-                "threshold": 14,
-                "action_type": "add_approver",
-                "approver_ids": [(6, 0, [self.long_trip_approver.id])],
-                "approver_required": False,
-                "approver_sequence": 20,
-            },
+        add_rule_step(
+            category,
+            self.long_trip_approver,
+            required=False,
+            sequence=20,
+            name="Long trips need a second signature",
+            condition_field="date_range_days",
+            operator="gt",
+            threshold=14,
         )
         return category
 
@@ -592,21 +578,16 @@ class TestRequestChangeReroutes(ApprovalCommon):
             "RC Reroute Reset",
             approvers=[(self.approver_1, False, 10), (self.approver_2, False, 20)],
             approval_minimum=2,
-            has_date="optional",
-            has_date_range="optional",
         )
-        self.env["approval.rule"].create(
-            {
-                "name": "Long trips need a second signature",
-                "category_id": category.id,
-                "condition_field": "date_range_days",
-                "operator": "gt",
-                "threshold": 14,
-                "action_type": "add_approver",
-                "approver_ids": [(6, 0, [self.long_trip_approver.id])],
-                "approver_required": False,
-                "approver_sequence": 20,
-            },
+        add_rule_step(
+            category,
+            self.long_trip_approver,
+            required=False,
+            sequence=20,
+            name="Long trips need a second signature",
+            condition_field="date_range_days",
+            operator="gt",
+            threshold=14,
         )
         request = self._short_trip(category)
         request.with_user(self.approver_1).action_approve()
@@ -641,7 +622,7 @@ class TestRequestChangeReroutes(ApprovalCommon):
 class TestChangeRequestActivityBelongsToTheAction(ApprovalCommon):
     def test_inline_request_change_schedules_the_owner_activity(self):
         category = self._make_category(
-            name="Inline Change", approvers=[self.approver_1], has_date="optional"
+            name="Inline Change", approvers=[self.approver_1]
         )
         request = self._prepare_request(category)
         change_type = self.env.ref("approval.mail_activity_data_change_request")

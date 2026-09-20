@@ -5,10 +5,15 @@ class SmsComposer(models.TransientModel):
     _inherit = "sms.composer"
 
     # mass mode with mass sms
-    mass_sms_allow_unsubscribe = fields.Boolean("Include opt-out link", default=True)
-    mailing_id = fields.Many2one("mailing.mailing", string="Mailing")
+    mass_sms_allow_unsubscribe = fields.Boolean(
+        string="Include opt-out link",
+        default=True,
+    )
+    mailing_id = fields.Many2one(comodel_name="mailing.mailing")
     utm_campaign_id = fields.Many2one(
-        "utm.campaign", string="Campaign", ondelete="set null"
+        comodel_name="utm.campaign",
+        string="Campaign",
+        ondelete="set null",
     )
 
     # ------------------------------------------------------------
@@ -60,7 +65,7 @@ class SmsComposer(models.TransientModel):
         """A/B testing could lead to records having been already mailed."""
         res = super()._get_done_record_ids(records, recipients_info)
         if self.mailing_id:
-            seen_ids, seen_list = self.mailing_id._get_seen_list_sms()
+            seen_ids, _seen_list = self.mailing_id._get_seen_list_sms()
             res += seen_ids
         return res
 
@@ -95,8 +100,8 @@ class SmsComposer(models.TransientModel):
             )
         return result
 
-    def _prepare_mass_sms(self, records, sms_record_values):
-        sms_all = super()._prepare_mass_sms(records, sms_record_values)
+    def _create_mass_sms(self, records, sms_record_values):
+        sms_all = super()._create_mass_sms(records, sms_record_values)
         if self.mailing_id:
             updated_bodies = sms_all._update_body_short_links()
             for sms in sms_all:

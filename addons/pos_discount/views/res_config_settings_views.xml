@@ -9,8 +9,8 @@
             <div id="warning_text_pos_discount" position="replace">
                 <div class="row">
                     <label
-                        string="Discount Product"
                         for="pos_discount_product_id"
+                        string="Discount Product"
                         class="col-lg-3 o_light_label" />
                     <field
                         name="pos_discount_product_id"
@@ -18,8 +18,8 @@
                 </div>
                 <div class="row">
                     <label
-                        string="Discount %"
                         for="pos_discount_pc"
+                        string="Discount %"
                         class="col-lg-3 o_light_label" />
                     <field name="pos_discount_pc" />
                 </div>

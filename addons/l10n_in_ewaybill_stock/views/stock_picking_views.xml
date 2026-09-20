@@ -8,21 +8,21 @@
         <field name="arch" type="xml">
             <xpath expr="//header/field[@name='state']" position="before">
                 <button
-                    string="Create e-Waybill / Challan"
-                    type="object"
                     name="action_l10n_in_ewaybill_create"
+                    type="object"
+                    string="Create e-Waybill / Challan"
+                    groups="stock.group_stock_manager"
                     invisible="                             country_code != 'IN'                             or not l10n_in_ewaybill_feature_enabled                             or l10n_in_ewaybill_ids                             or (picking_type_code == 'incoming' and state not in ('done', 'assigned'))                             or (picking_type_code != 'incoming' and state != 'done')"
-                    data-hotkey="e"
-                    groups="stock.group_stock_manager" />
+                    data-hotkey="e" />
             </xpath>
             <xpath expr="//sheet/div[hasclass('oe_button_box')]" position="inside">
                 <button
                     name="action_view_l10n_in_ewaybill"
-                    class="oe_stat_button"
-                    icon="fa-truck"
                     type="object"
+                    icon="fa-truck"
+                    groups="stock.group_stock_manager"
                     invisible="not l10n_in_ewaybill_ids"
-                    groups="stock.group_stock_manager">
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">e-Waybill / Challan</span>
                     </div>

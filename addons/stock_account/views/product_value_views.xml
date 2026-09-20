@@ -15,9 +15,9 @@
                         <div class="oe_inline">
                             <field
                                 name="current_value"
-                                style="width: 100px;"
                                 widget="monetary"
-                                options="{'currency_field': 'currency_id', 'field_digits': True}" />
+                                options="{'currency_field': 'currency_id', 'field_digits': True}"
+                                style="width: 100px;" />
                             <span><field name="current_value_details" class="oe_inline me-5" /></span>
                         </div>
                         <field
@@ -29,18 +29,18 @@
                     </group>
                     <group>
                         <field
-                            class="alert alert-info"
-                            role="alert"
                             name="current_value_description"
-                            nolabel="1"
-                            colspan="2" />
-                        <field
-                            class="alert alert-info"
-                            role="alert"
-                            name="computed_value_description"
-                            nolabel="1"
                             colspan="2"
-                            invisible="not computed_value_description" />
+                            nolabel="1"
+                            class="alert alert-info"
+                            role="alert" />
+                        <field
+                            name="computed_value_description"
+                            colspan="2"
+                            nolabel="1"
+                            invisible="not computed_value_description"
+                            class="alert alert-info"
+                            role="alert" />
                     </group>
                 </group>
                 </sheet>

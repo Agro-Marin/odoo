@@ -1,15 +1,24 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
-    pos_payment_method_id = fields.Many2one("pos.payment.method", "POS Payment Method")
+    pos_payment_method_id = fields.Many2one(
+        comodel_name="pos.payment.method",
+        string="POS Payment Method",
+    )
     force_outstanding_account_id = fields.Many2one(
-        "account.account", "Forced Outstanding Account", check_company=True
+        comodel_name="account.account",
+        string="Forced Outstanding Account",
+        check_company=True,
     )
     pos_session_id = fields.Many2one(
-        "pos.session", "POS Session", index="btree_not_null"
+        comodel_name="pos.session",
+        string="POS Session",
+        index="btree_not_null",
     )
 
     @api.depends("force_outstanding_account_id")
@@ -17,6 +26,11 @@ class AccountPayment(models.Model):
         super()._compute_outstanding_account_id()
         for payment in self:
             if payment.force_outstanding_account_id:
+                dbg.logic.debug(
+                    "account.payment %s: outstanding forced to %s",
+                    payment.id,
+                    dbg.rec(payment.force_outstanding_account_id),
+                )
                 payment.outstanding_account_id = payment.force_outstanding_account_id
 
     def _get_payment_method_codes_to_exclude(self):

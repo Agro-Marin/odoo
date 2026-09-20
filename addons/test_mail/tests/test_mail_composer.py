@@ -2615,6 +2615,60 @@ class TestComposerResultsComment(TestMailComposer, CronMixinCase):
         self.assertEqual(message.subtype_id, self.env.ref("mail.mt_comment"))
         self.assertEqual(message.partner_ids, self.partner_1 | self.partner_2)
 
+    @users("employee")
+    def test_mail_composer_recipients_batch(self):
+        """The recipients chosen on a batch comment reach every record's message,
+        as they do on a single record (upstream's `TDE FIXME` in
+        `_prepare_mail_values_dynamic`: rendering mode dropped them)."""
+        composer = (
+            self.env["mail.compose.message"]
+            .with_context(
+                self._get_web_context(
+                    self.test_records, default_composition_mode="comment"
+                )
+            )
+            .create(
+                {
+                    "body": "<p>Batch Body</p>",
+                    "partner_ids": [(4, self.partner_1.id), (4, self.partner_2.id)],
+                }
+            )
+        )
+        self.assertTrue(composer.composition_batch)
+        with self.mock_mail_gateway():
+            composer._action_send_mail()
+
+        for record in self.test_records:
+            message = record.message_ids[0]
+            self.assertEqual(message.body, "<p>Batch Body</p>")
+            self.assertEqual(
+                message.partner_ids,
+                self.partner_1 | self.partner_2,
+                f"{record.name}: the chosen recipients are on the message",
+            )
+            self.assertMailNotifications(
+                message,
+                [
+                    {
+                        "content": "Batch Body",
+                        "message_type": "comment",
+                        "notif": [
+                            {
+                                "partner": partner,
+                                "status": "ready",  # batch mode queues its mails
+                                "type": "email",
+                            }
+                            for partner in (
+                                self.partner_employee_2,
+                                self.partner_1,
+                                self.partner_2,
+                            )
+                        ],
+                        "subtype": "mail.mt_comment",
+                    }
+                ],
+            )
+
     def test_mail_composer_recipients_email_only(self):
         """Check that messages can be sent to standalone emails, with no associated partner."""
         email_addrs = [

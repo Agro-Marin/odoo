@@ -8,15 +8,15 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='account']" position="inside">
                 <block
-                    title="Vietnamese Integration"
                     id="vn_localization"
+                    title="Vietnamese Integration"
                     invisible="country_code != 'VN'">
                     <setting
                         id="sinvoice_setting"
                         string="Setup SInvoice"
                         help="Check the documentation to get credentials"
-                        documentation="/applications/finance/fiscal_localizations/vietnam.html"
-                        company_dependent="1">
+                        company_dependent="1"
+                        documentation="/applications/finance/fiscal_localizations/vietnam.html">
                         <div class="content-group">
                             <div class="mt16 row">
                                 <label
@@ -32,8 +32,8 @@
                                     class="col-3 col-lg-3 o_light_label" />
                                 <field
                                     name="l10n_vn_edi_password"
-                                    password="True"
-                                    nolabel="1" />
+                                    nolabel="1"
+                                    password="True" />
                             </div>
                             <div class="row">
                                 <label

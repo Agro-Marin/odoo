@@ -16,6 +16,7 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import escape_psql
 from odoo.libs.web import contains_dot_segments
 from odoo.tools import SQL
@@ -27,6 +28,7 @@ from odoo.addons.website.models.ir_http import sitemap_qs2dom
 from odoo.addons.website.tools import get_base_hostname
 
 logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 DEFAULT_CDN_FILTERS = [
@@ -53,6 +55,18 @@ TEMPLATE_AFFECTING_FIELDS = frozenset(
 DEFAULT_BLOCKED_THIRD_PARTY_DOMAINS = "youtu.be\nyoutube.com\nyoutube-nocookie.com\ninstagram.com\ninstagr.am\nig.me\nvimeo.com\ndailymotion.com\ndai.ly\nyouku.com\ntudou.com\nfacebook.com\nfacebook.net\nfb.com\nfb.me\nfb.watch\ntiktok.com\nx.com\ntwitter.com\nt.co\ngoogletagmanager.com\ngoogle-analytics.com\ngoogle.com\ngoogle.ad\ngoogle.ae\ngoogle.com.af\ngoogle.com.ag\ngoogle.al\ngoogle.am\ngoogle.co.ao\ngoogle.com.ar\ngoogle.as\ngoogle.at\ngoogle.com.au\ngoogle.az\ngoogle.ba\ngoogle.com.bd\ngoogle.be\ngoogle.bf\ngoogle.bg\ngoogle.com.bh\ngoogle.bi\ngoogle.bj\ngoogle.com.bn\ngoogle.com.bo\ngoogle.com.br\ngoogle.bs\ngoogle.bt\ngoogle.co.bw\ngoogle.by\ngoogle.com.bz\ngoogle.ca\ngoogle.cd\ngoogle.cf\ngoogle.cg\ngoogle.ch\ngoogle.ci\ngoogle.co.ck\ngoogle.cl\ngoogle.cm\ngoogle.cn\ngoogle.com.co\ngoogle.co.cr\ngoogle.com.cu\ngoogle.cv\ngoogle.com.cy\ngoogle.cz\ngoogle.de\ngoogle.dj\ngoogle.dk\ngoogle.dm\ngoogle.com.do\ngoogle.dz\ngoogle.com.ec\ngoogle.ee\ngoogle.com.eg\ngoogle.es\ngoogle.com.et\ngoogle.fi\ngoogle.com.fj\ngoogle.fm\ngoogle.fr\ngoogle.ga\ngoogle.ge\ngoogle.gg\ngoogle.com.gh\ngoogle.com.gi\ngoogle.gl\ngoogle.gm\ngoogle.gr\ngoogle.com.gt\ngoogle.gy\ngoogle.com.hk\ngoogle.hn\ngoogle.hr\ngoogle.ht\ngoogle.hu\ngoogle.co.id\ngoogle.ie\ngoogle.co.il\ngoogle.im\ngoogle.co.in\ngoogle.iq\ngoogle.is\ngoogle.it\ngoogle.je\ngoogle.com.jm\ngoogle.jo\ngoogle.co.jp\ngoogle.co.ke\ngoogle.com.kh\ngoogle.ki\ngoogle.kg\ngoogle.co.kr\ngoogle.com.kw\ngoogle.kz\ngoogle.la\ngoogle.com.lb\ngoogle.li\ngoogle.lk\ngoogle.co.ls\ngoogle.lt\ngoogle.lu\ngoogle.lv\ngoogle.com.ly\ngoogle.co.ma\ngoogle.md\ngoogle.me\ngoogle.mg\ngoogle.mk\ngoogle.ml\ngoogle.com.mm\ngoogle.mn\ngoogle.com.mt\ngoogle.mu\ngoogle.mv\ngoogle.mw\ngoogle.com.mx\ngoogle.com.my\ngoogle.co.mz\ngoogle.com.na\ngoogle.com.ng\ngoogle.com.ni\ngoogle.ne\ngoogle.nl\ngoogle.no\ngoogle.com.np\ngoogle.nr\ngoogle.nu\ngoogle.co.nz\ngoogle.com.om\ngoogle.com.pa\ngoogle.com.pe\ngoogle.com.pg\ngoogle.com.ph\ngoogle.com.pk\ngoogle.pl\ngoogle.pn\ngoogle.com.pr\ngoogle.ps\ngoogle.pt\ngoogle.com.py\ngoogle.com.qa\ngoogle.ro\ngoogle.ru\ngoogle.rw\ngoogle.com.sa\ngoogle.com.sb\ngoogle.sc\ngoogle.se\ngoogle.com.sg\ngoogle.sh\ngoogle.si\ngoogle.sk\ngoogle.com.sl\ngoogle.sn\ngoogle.so\ngoogle.sm\ngoogle.sr\ngoogle.st\ngoogle.com.sv\ngoogle.td\ngoogle.tg\ngoogle.co.th\ngoogle.com.tj\ngoogle.tl\ngoogle.tm\ngoogle.tn\ngoogle.to\ngoogle.com.tr\ngoogle.tt\ngoogle.com.tw\ngoogle.co.tz\ngoogle.com.ua\ngoogle.co.ug\ngoogle.co.uk\ngoogle.com.uy\ngoogle.co.uz\ngoogle.com.vc\ngoogle.co.ve\ngoogle.co.vi\ngoogle.com.vn\ngoogle.vu\ngoogle.ws\ngoogle.rs\ngoogle.co.za\ngoogle.co.zm\ngoogle.co.zw\ngoogle.cat"
 
 
+def normalize_sitemap_url(url):
+    return "/" if url == "/" else url.rstrip("/")
+
+
+def get_underlying_function(f):
+    if isinstance(f, functools.partial):
+        f = f.func
+    if isinstance(f, types.MethodType):
+        return f.__func__
+    return f
+
+
 def to_punycode(host):
     try:
         return host.encode("idna").decode("ascii")
@@ -69,9 +83,12 @@ def from_punycode(host):
 
 class Website(models.Model):
     _name = "website"
-
+    _inherit = ["mixin.credential.holder"]
     _description = "Website"
     _order = "sequence, id"
+    _credential_holder_field = "website_credential_id"
+    _credential_purpose = "website:settings"
+    _CREDENTIAL_FIELDS = {"plausible_shared_key": "plausible_shared_key"}
 
     def website_domain(self):
         return Domain("website_id", "in", [False, *self.ids])
@@ -87,9 +104,15 @@ class Website(models.Model):
         def_lang_id = self.env["res.lang"]._get_data(code=lang_code).id
         return def_lang_id or self._get_active_lang_ids()[0]
 
-    name = fields.Char("Website Name", required=True)
+    name = fields.Char(
+        string="Website Name",
+        required=True,
+    )
     sequence = fields.Integer(default=10)
-    domain = fields.Char("Website Domain", help="E.g. https://www.mydomain.com")
+    domain = fields.Char(
+        string="Website Domain",
+        help="E.g. https://www.mydomain.com",
+    )
     domain_punycode = fields.Char(
         string="Punycode Domain",
         compute="_compute_domain_punycode",
@@ -97,50 +120,52 @@ class Website(models.Model):
         readonly=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
         required=True,
     )
     language_ids = fields.Many2many(
-        "res.lang",
-        "website_lang_rel",
-        "website_id",
-        "lang_id",
+        comodel_name="res.lang",
+        relation="website_lang_rel",
+        column1="website_id",
+        column2="lang_id",
         string="Languages",
         default=_default_language_ids,
         required=True,
     )
-    language_count = fields.Count("language_ids", "Number of languages")
+    language_count = fields.Count(
+        count_of="language_ids",
+        string="Number of languages",
+    )
     default_lang_id = fields.Many2one(
-        "res.lang",
+        comodel_name="res.lang",
         string="Default Language",
         default=_default_default_lang_id,
         required=True,
     )
     auto_redirect_lang = fields.Boolean(
-        "Autoredirect Language",
+        string="Autoredirect Language",
         default=True,
         help="Should users be redirected to their browser's language",
     )
     cookies_bar = fields.Boolean(
-        "Cookies Bar", help="Display a customizable cookies bar on your website."
+        help="Display a customizable cookies bar on your website."
     )
     configurator_done = fields.Boolean(
         help="True if configurator has been completed or ignored"
     )
     block_third_party_domains = fields.Boolean(
-        "Block 3rd-party domains",
-        help="Block 3rd-party domains that may track users (YouTube, Google Maps, etc.).",
+        string="Block 3rd-party domains",
         default=True,
+        help="Block 3rd-party domains that may track users (YouTube, Google Maps, etc.).",
     )
     custom_blocked_third_party_domains = fields.Text(
-        "User list of blocked 3rd-party domains",
-        groups="website.group_website_designer",
+        string="User list of blocked 3rd-party domains",
         translate=False,
+        groups="website.group_website_designer",
     )
     blocked_third_party_domains = fields.Text(
-        "List of blocked 3rd-party domains",
+        string="List of blocked 3rd-party domains",
         compute="_compute_blocked_third_party_domains",
     )
 
@@ -152,73 +177,117 @@ class Website(models.Model):
             return base64.b64encode(f.read())
 
     logo = fields.Binary(
-        "Website Logo", default=_default_logo, help="Display this logo on the website."
+        string="Website Logo",
+        default=_default_logo,
+        help="Display this logo on the website.",
     )
     social_twitter = fields.Char(
-        "X Account", default=lambda self: self._default_social("twitter")
+        string="X Account",
+        default=lambda self: self._default_social("twitter"),
     )
     social_facebook = fields.Char(
-        "Facebook Account", default=lambda self: self._default_social("facebook")
+        string="Facebook Account",
+        default=lambda self: self._default_social("facebook"),
     )
     social_github = fields.Char(
-        "GitHub Account", default=lambda self: self._default_social("github")
+        string="GitHub Account",
+        default=lambda self: self._default_social("github"),
     )
     social_linkedin = fields.Char(
-        "LinkedIn Account", default=lambda self: self._default_social("linkedin")
+        string="LinkedIn Account",
+        default=lambda self: self._default_social("linkedin"),
     )
     social_youtube = fields.Char(
-        "Youtube Account", default=lambda self: self._default_social("youtube")
+        string="Youtube Account",
+        default=lambda self: self._default_social("youtube"),
     )
     social_instagram = fields.Char(
-        "Instagram Account", default=lambda self: self._default_social("instagram")
+        string="Instagram Account",
+        default=lambda self: self._default_social("instagram"),
     )
     social_tiktok = fields.Char(
-        "TikTok Account", default=lambda self: self._default_social("tiktok")
+        string="TikTok Account",
+        default=lambda self: self._default_social("tiktok"),
     )
     social_discord = fields.Char(
-        "Discord Account", default=lambda self: self._default_social("discord")
+        string="Discord Account",
+        default=lambda self: self._default_social("discord"),
     )
     social_default_image = fields.Binary(
         string="Default Social Share Image",
         help="If set, replaces the website logo as the default social share image.",
     )
     has_social_default_image = fields.Boolean(
-        compute="_compute_has_social_default_image", store=True
+        compute="_compute_has_social_default_image",
+        store=True,
     )
 
-    google_analytics_key = fields.Char("Google Analytics Key")
+    google_analytics_key = fields.Char()
     google_search_console = fields.Char(
         help="Google key, or Enable to access first reply"
     )
 
-    google_maps_api_key = fields.Char("Google Maps API Key")
+    google_maps_api_key = fields.Char(string="Google Maps API Key")
 
-    plausible_shared_key = fields.Char()
+    plausible_shared_key = fields.Char(
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        copy=True,
+    )
+    plausible_shared_key_set = fields.Boolean(
+        copy=True,
+        readonly=True,
+    )
     plausible_site = fields.Char()
+    website_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds this website's integration secrets.",
+    )
 
-    user_id = fields.Many2one("res.users", string="Public User", required=True)
-    cdn_activated = fields.Boolean("Content Delivery Network (CDN)")
-    cdn_url = fields.Char("CDN Base URL", default="")
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Public User",
+        required=True,
+    )
+    cdn_activated = fields.Boolean(string="Content Delivery Network (CDN)")
+    cdn_url = fields.Char(
+        string="CDN Base URL",
+        default="",
+    )
     cdn_filters = fields.Text(
-        "CDN Filters",
+        string="CDN Filters",
         default=lambda s: "\n".join(DEFAULT_CDN_FILTERS),
         help="URL matching those filters will be rewritten using the CDN Base URL",
     )
     partner_id = fields.Many2one(
-        related="user_id.partner_id", string="Public Partner", readonly=False
+        related="user_id.partner_id",
+        string="Public Partner",
+        readonly=False,
     )
     menu_id = fields.Many2one(
-        "website.menu", compute="_compute_menu_id", string="Main Menu"
+        comodel_name="website.menu",
+        string="Main Menu",
+        compute="_compute_menu_id",
     )
     homepage_url = fields.Char(help="E.g. /contactus or /shop")
-    custom_code_head = fields.Html("Custom <head> code", sanitize=False)
-    custom_code_footer = fields.Html("Custom end of <body> code", sanitize=False)
+    custom_code_head = fields.Html(
+        string="Custom <head> code",
+        sanitize=False,
+    )
+    custom_code_footer = fields.Html(
+        string="Custom end of <body> code",
+        sanitize=False,
+    )
 
     robots_txt = fields.Html(
-        "Robots.txt",
+        string="Robots.txt",
         translate=False,
-        groups="website.group_website_designer",
         sanitize=False,
+        groups="website.group_website_designer",
     )
 
     def _default_favicon(self):
@@ -227,17 +296,19 @@ class Website(models.Model):
 
     favicon = fields.Binary(
         string="Website Favicon",
-        help="This field holds the image used to display a favicon on the website.",
         default=_default_favicon,
+        help="This field holds the image used to display a favicon on the website.",
     )
-    theme_id = fields.Many2one("ir.module.module", help="Installed theme")
+    theme_id = fields.Many2one(
+        comodel_name="ir.module.module",
+        help="Installed theme",
+    )
 
     specific_user_account = fields.Boolean(
-        "Specific User Account",
-        help="If True, new accounts will be associated to the current website",
+        help="If True, new accounts will be associated to the current website"
     )
     auth_signup_uninvited = fields.Selection(
-        [
+        selection=[
             ("b2b", "On invitation"),
             ("b2c", "Free sign up"),
         ],
@@ -313,21 +384,36 @@ class Website(models.Model):
 
             website.blocked_third_party_domains = full_list
 
-    def _get_blocked_third_party_domains_list(self):
-        return [
+    @tools.ormcache("self.id", cache="templates")
+    def _get_blocked_third_party_domains_tuple(self):
+        # Split once per website rather than once per rendered element: qweb
+        # calls _post_processing_att for every element it compiles, and for
+        # every element carrying a dynamic attribute on every render, and the
+        # default blocklist is ~200 lines. Cached in the "templates" group,
+        # which `write` already clears for `custom_blocked_third_party_domains`
+        # (TEMPLATE_AFFECTING_FIELDS). Cached as a tuple: an ormcache must not
+        # hand out a mutable object for a caller to mutate in place.
+        return tuple(
             domain
             for line in (self.blocked_third_party_domains or "").split("\n")
             if (domain := line.strip().lower())
-        ]
+        )
 
-    def _get_blocked_iframe_containers_classes(self):
-        return {
+    def _get_blocked_third_party_domains_list(self):
+        return list(self._get_blocked_third_party_domains_tuple())
+
+    _BLOCKED_IFRAME_CONTAINER_CLASSES = frozenset(
+        {
             "s_map",
             "s_instagram_page",
             "o_facebook_page",
             "o_background_video",
             "media_iframe_video",
         }
+    )
+
+    def _get_blocked_iframe_containers_classes(self):
+        return self._BLOCKED_IFRAME_CONTAINER_CLASSES
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -342,6 +428,7 @@ class Website(models.Model):
                 vals["user_id"] = company._get_public_user().id
 
         websites = super().create(vals_list)
+        _debug.lifecycle("create", websites=websites, count=len(websites))
         self.env.registry.clear_cache()
         websites.company_id._compute_website_id()
         for website in websites:
@@ -355,6 +442,7 @@ class Website(models.Model):
             groups = self.env["res.groups"].concat(
                 *(self.env.ref(it) for it in all_user_groups.split(","))
             )
+            _debug.lifecycle("multi_website_group_implied", groups=groups)
             groups.write(
                 {"implied_ids": [(4, self.env.ref("website.group_multi_website").id)]}
             )
@@ -367,6 +455,7 @@ class Website(models.Model):
         values = vals
         self._update_vals(values)
 
+        _debug.lifecycle("write", websites=self, count=len(self), fields=sorted(values))
         self.env.registry.clear_cache()
 
         if "company_id" in values and "user_id" not in values:
@@ -375,6 +464,11 @@ class Website(models.Model):
             )
             if public_user_to_change_websites:
                 company = self.env["res.company"].browse(values["company_id"])
+                _debug.lifecycle(
+                    "public_user_moved",
+                    websites=public_user_to_change_websites,
+                    company=values["company_id"],
+                )
                 super(Website, public_user_to_change_websites).write(
                     dict(values, user_id=company and company._get_public_user().id)
                 )
@@ -382,20 +476,36 @@ class Website(models.Model):
         result = super(Website, self - public_user_to_change_websites).write(values)
 
         if not TEMPLATE_AFFECTING_FIELDS.isdisjoint(values):
+            _debug.lifecycle(
+                "templates_cache_cleared",
+                by=sorted(TEMPLATE_AFFECTING_FIELDS.intersection(values)),
+            )
             self.env.registry.clear_cache("templates")
 
         if "sequence" in values or "company_id" in values:
             (original_company | self.company_id)._compute_website_id()
 
         if "cookies_bar" in values:
-            for website in self:
-                existing_policy_page = self.env["website.page"].search(
+            policy_pages_by_website = (
+                self.env["website.page"]
+                .search(
                     [
-                        ("website_id", "=", website.id),
+                        ("website_id", "in", self.ids),
                         ("url", "=", "/cookie-policy"),
                     ]
                 )
+                .grouped("website_id")
+            )
+            for website in self:
+                existing_policy_page = policy_pages_by_website.get(
+                    website, self.env["website.page"]
+                )
                 if not values["cookies_bar"]:
+                    _debug.lifecycle(
+                        "cookie_policy_page_removed",
+                        website=website.id,
+                        pages=existing_policy_page,
+                    )
                     existing_policy_page.unlink()
                 elif not existing_policy_page:
                     cookies_view = self.env.ref(
@@ -408,6 +518,9 @@ class Website(models.Model):
                         specific_cook_view = website.with_context(
                             website_id=website.id
                         ).viewref("website.cookie_policy")
+                        _debug.lifecycle(
+                            "cookie_policy_page_created", website=website.id
+                        )
                         self.env["website.page"].create(
                             {
                                 "is_published": True,
@@ -422,6 +535,8 @@ class Website(models.Model):
 
     @api.model
     def _update_vals(self, vals):
+        if "plausible_shared_key" in vals:
+            vals["plausible_shared_key_set"] = bool(vals["plausible_shared_key"])
         self._update_vals_favicon(vals)
         self._update_vals_domain(vals)
         self._update_vals_homepage_url(vals)
@@ -469,6 +584,7 @@ class Website(models.Model):
                 ) from None
 
             if contains_dot_segments(parsed.path):
+                _debug.logic("domain_refused", reason="dot_segments", website=record.id)
                 raise ValidationError(
                     _(
                         "The domain path cannot contain relative path segments like '/./' or '/../'."
@@ -484,6 +600,7 @@ class Website(models.Model):
                 try:
                     re.compile(line)
                 except re.error as e:
+                    _debug.logic("cdn_filter_refused", website=website.id, filter=line)
                     raise ValidationError(
                         _(
                             "The CDN filter %(filter)s is not a valid regular expression: %(error)s",
@@ -496,6 +613,11 @@ class Website(models.Model):
     def _check_homepage_url(self):
         for website in self.filtered("homepage_url"):
             if not website.homepage_url.startswith("/"):
+                _debug.logic(
+                    "homepage_url_refused",
+                    reason="not_relative",
+                    website=website.id,
+                )
                 raise ValidationError(
                     _("The homepage URL should be relative and start with '/'.")
                 )
@@ -506,6 +628,7 @@ class Website(models.Model):
             "website.default_website", raise_if_not_found=False
         )
         if default_website and default_website in self:
+            _debug.logic("unlink_refused", reason="default_website")
             raise UserError(
                 _(
                     "You cannot delete default website %s. Try to change its settings instead",
@@ -514,14 +637,9 @@ class Website(models.Model):
             )
 
     def unlink(self):
+        _debug.lifecycle("unlink", websites=self, count=len(self))
         self._remove_attachments_on_website_unlink()
 
-        # Go through the ORM instead of relying purely on the DB-level
-        # ondelete="cascade" FKs, so website.page/ir.ui.view/website.menu's
-        # own Python-level cleanup (COU bookkeeping, template cache
-        # invalidation, orphaned-view removal) runs instead of being
-        # silently bypassed. Pages first: their own unlink() removes views
-        # left with no other page/inherit_children_ids.
         self.env["website.page"].search([("website_id", "in", self.ids)]).unlink()
         self.env["ir.ui.view"].search([("website_id", "in", self.ids)]).unlink()
         self.env["website.menu"].search([("website_id", "in", self.ids)]).unlink()
@@ -543,6 +661,11 @@ class Website(models.Model):
                 ("url", "ilike", ".assets\\_"),
             ]
         )
+        _debug.lifecycle(
+            "website_attachments_removed",
+            websites=self,
+            attachments=len(attachments_to_unlink),
+        )
         attachments_to_unlink.unlink()
 
     def _idna_url(self, url):
@@ -555,6 +678,7 @@ class Website(models.Model):
         Page = self.env["website.page"]
         standard_homepage = self.env.ref("website.homepage", raise_if_not_found=False)
         if not standard_homepage:
+            _debug.logic("bootstrap_homepage_skipped", reason="no_standard_homepage")
             return
 
         new_homepage_view = """<t name="Homepage" t-name="website.homepage">
@@ -589,6 +713,12 @@ class Website(models.Model):
             [("website_id", "=", self.id), ("url", "=", "/")]
         )
         home_menu.page_id = homepage_page
+        _debug.lifecycle(
+            "homepage_bootstrapped",
+            website=self.id,
+            page=homepage_page.id,
+            menu=home_menu.id,
+        )
 
     def copy_menu_hierarchy(self, top_menu):
         def copy_menu(menu, t_menu):
@@ -610,6 +740,12 @@ class Website(models.Model):
             )
             for submenu in top_menu.child_id:
                 copy_menu(submenu, new_top_menu)
+            _debug.lifecycle(
+                "menu_hierarchy_copied",
+                website=website.id,
+                source=top_menu.id,
+                top_menu=new_top_menu.id,
+            )
 
     @api.model
     def new_page(
@@ -626,6 +762,9 @@ class Website(models.Model):
     ):
         template_record = self.env.ref(template, raise_if_not_found=False)
         if not template_record:
+            _debug.logic(
+                "new_page_refused", reason="unknown_template", template=template
+            )
             raise UserError(_("'%s' is not a valid template reference.", template))
         if namespace:
             template_module = namespace
@@ -694,6 +833,7 @@ class Website(models.Model):
                     default_menu_values.update(menu_values)
                 menu = self.env["website.menu"].create(default_menu_values)
             result["menu_id"] = menu.id
+        _debug.lifecycle("new_page", url=page_url, key=key, keys=sorted(result))
         return result
 
     def get_unique_path(self, page_url):
@@ -711,6 +851,8 @@ class Website(models.Model):
         ):
             inc += 1
             page_temp = page_url + ((inc and "-%s" % inc) or "")
+        if _debug.logic.enabled and inc:
+            _debug.logic("page_url_deduplicated", wanted=page_url, used=page_temp)
         return page_temp
 
     def _get_plausible_script_url(self):
@@ -757,6 +899,8 @@ class Website(models.Model):
         ):
             inc += 1
             key_copy = string + ((inc and "-%s" % inc) or "")
+        if _debug.logic.enabled and inc:
+            _debug.logic("view_key_deduplicated", wanted=string, used=key_copy)
         return key_copy
 
     @api.model
@@ -790,6 +934,7 @@ class Website(models.Model):
         for model_name, field_name in self._get_fields_html():
             Model = self.env[model_name]
             if not Model.has_access("read"):
+                _debug.logic("dependency_model_skipped", model=model_name)
                 continue
 
             domains = []
@@ -803,7 +948,7 @@ class Website(models.Model):
                     )
                 )
 
-            dependency_records = Model.search(Domain.OR(domains))
+            dependency_records = Model.search(Domain.OR(domains))  # noqa: E8507 - one query per dependent model, over every url at once
             if model_name == "ir.ui.view":
                 dependency_records = _handle_views_and_pages(dependency_records)
             if dependency_records:
@@ -823,6 +968,12 @@ class Website(models.Model):
                     for rec in dependency_records
                 ]
 
+        _debug.pipeline(
+            "url_dependencies",
+            model=res_model,
+            urls=len(search_criteria),
+            groups=len(dependencies),
+        )
         return dependencies
 
     @api.model
@@ -831,11 +982,14 @@ class Website(models.Model):
         if request and request.session.get("force_website_id"):
             forced_id = request.session["force_website_id"]
             if self._is_website_live(forced_id):
+                _debug.logic("current_website", by="session_force", website=forced_id)
                 return self.browse(forced_id)
+            _debug.logic("forced_website_dropped", reason="gone", website=forced_id)
             request.session.pop("force_website_id")
 
         website_id = self.env.context.get("website_id")
         if website_id and self._is_website_live(website_id):
+            _debug.logic("current_website", by="context", website=website_id)
             return self.browse(website_id)
 
         if not is_frontend_request and not fallback:
@@ -850,6 +1004,9 @@ class Website(models.Model):
             or ""
         )
         website_id = self.sudo()._get_current_website_id(domain_name, fallback=fallback)
+        _debug.logic(
+            "current_website", by="domain", host=domain_name, website=website_id
+        )
         return self.browse(website_id)
 
     @api.model
@@ -887,9 +1044,20 @@ class Website(models.Model):
 
         if not websites:
             if not fallback:
+                _debug.logic("website_by_domain", verdict="no_match", host=domain_name)
                 return False
+            _debug.logic(
+                "website_by_domain", verdict="fallback_first", host=domain_name
+            )
             return self.search([], limit=1).id
 
+        _debug.logic(
+            "website_by_domain",
+            verdict="matched",
+            host=domain_name,
+            website=websites[0].id,
+            candidates=len(found_websites),
+        )
         return websites[0].id
 
     def _force(self):
@@ -897,6 +1065,7 @@ class Website(models.Model):
 
     def _force_website(self, website_id):
         if request:
+            _debug.lifecycle("website_forced", website=website_id)
             request.session["force_website_id"] = (
                 website_id and str(website_id).isdigit() and int(website_id)
             )
@@ -995,16 +1164,13 @@ class Website(models.Model):
         url_set = set()
 
         sitemap_endpoint_done = set()
-
-        def normalize_url(url):
-            return "/" if url == "/" else url.rstrip("/")
-
-        def get_underlying_function(f):
-            if isinstance(f, functools.partial):
-                f = f.func
-            if isinstance(f, types.MethodType):
-                return f.__func__
-            return f
+        _debug.pipeline(
+            "enumerate_pages",
+            website=self.id,
+            pages=len(pages),
+            query=query_string or None,
+            force=force,
+        )
 
         for rule in router.iter_rules():
             sitemap_func = rule.endpoint.routing.get("sitemap")
@@ -1021,7 +1187,7 @@ class Website(models.Model):
                     rule,
                     query_string,
                 ):
-                    loc_norm = {**loc, "loc": normalize_url(loc["loc"])}
+                    loc_norm = {**loc, "loc": normalize_sitemap_url(loc["loc"])}
                     url = loc_norm["loc"]
                     if url not in url_set:
                         yield loc_norm
@@ -1086,7 +1252,7 @@ class Website(models.Model):
 
             for value in values:
                 _domain_part, url = rule.build(value, append_unknown=False)
-                url = normalize_url(url)
+                url = normalize_sitemap_url(url)
                 pattern = query_string and "*%s*" % "*".join(query_string.split("/"))
                 if not query_string or fnmatch.fnmatch(url.lower(), pattern):
                     page = {"loc": url}
@@ -1098,6 +1264,9 @@ class Website(models.Model):
 
     def get_website_page_ids(self):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
+            _debug.logic(
+                "page_ids_refused", reason="not_restricted_editor", user=self.env.uid
+            )
             raise AccessError(_("Access Denied"))
 
         domain = Domain("url", "!=", False)
@@ -1121,8 +1290,16 @@ class Website(models.Model):
     def _get_website_pages(self, domain=None, order="name", limit=None):
         website = self.get_current_website()
         domain = Domain(domain or Domain.TRUE) & website.website_domain()
-        pages = self.env["website.page"].sudo().search(domain, order=order, limit=limit)
-        return pages.with_context(website_id=website.id)._get_most_specific_pages()
+        # The limit is applied AFTER the shadowed generics are dropped. Applied
+        # in SQL it cut the rows the dedup was about to choose between, so a url
+        # carrying both a generic page and this website's override could lose
+        # both: `_get_website_pages([("url", "=", u)], limit=1)` answered with
+        # nothing for a url that serves, and `is_page_existing(u)` said False.
+        with _debug.perf("website_pages", cr=self.env.cr, website=website.id) as span:
+            pages = self.env["website.page"].sudo().search(domain, order=order)
+            span.set(found=len(pages))
+        pages = pages.with_context(website_id=website.id)._get_most_specific_pages()
+        return pages[:limit] if limit else pages
 
     def search_pages(self, needle=None, limit=None):
         name = self.env["ir.http"]._slugify(needle, max_length=50, path=True)
@@ -1156,11 +1333,13 @@ class Website(models.Model):
             .bind_to_environ(request.httprequest.environ)
         )
         if not router.test(path_info=page, method="GET"):
+            _debug.logic("page_existing", verdict="no_route", page=page)
             return False
 
         try:
             rule, args = router.match(page, method="GET", return_rule=True)
         except werkzeug.routing.RequestRedirect:
+            _debug.logic("page_existing", verdict="route_redirect", page=page)
             return True
 
         try:
@@ -1172,10 +1351,15 @@ class Website(models.Model):
                         and args[arg].website_id
                         and args[arg].website_id != self
                     ):
+                        _debug.logic(
+                            "page_existing", verdict="other_website", page=page
+                        )
                         return False
             rule.build(args, append_unknown=False)
         except MissingError:
+            _debug.logic("page_existing", verdict="missing_record", page=page)
             return False
+        _debug.logic("page_existing", verdict="route", page=page)
         return True
 
     def get_suggested_controllers(self):
@@ -1211,6 +1395,7 @@ class Website(models.Model):
         cdn_filters = (self.cdn_filters or "").splitlines()
         for flt in cdn_filters:
             if flt and re.match(flt, uri):
+                _debug.logic("cdn_url", uri=uri, filter=flt, cdn=cdn_url)
                 return tools.urls.urljoin(cdn_url, uri)
         return uri
 
@@ -1222,6 +1407,7 @@ class Website(models.Model):
             return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "website.backend_dashboard"
             )
+        _debug.logic("dashboard_refused", user=self.env.uid)
         raise AccessError(
             _("You don't have the necessary access rights to access this dashboard.")
         )
@@ -1270,6 +1456,7 @@ class Website(models.Model):
     def _get_cached_values(self):
         self.check_singleton()
 
+        _debug.perf.count("cached_values_computed", website=self.id)
         self.fetch(
             ["user_id", "company_id", "default_lang_id", "homepage_url", "cookies_bar"]
         )
@@ -1322,43 +1509,77 @@ class Website(models.Model):
                 continue
 
             html_fields.append((model_name, field_name))
+        _debug.perf.count("html_fields_computed", fields=len(html_fields))
         return html_fields
 
-    def _is_snippet_used(
-        self, snippet_module, snippet_id, asset_version, asset_type, html_fields
-    ):
-        snippet_occurences = []
+    def _get_snippet_occurrences(self, snippet_ids, html_fields):
+        """Every stored element carrying one of `snippet_ids`, grouped by id.
+
+        One scan for all of them. This used to be one `UNION` over every stored
+        html field of every model *per snippet asset*, and the SQL depends only
+        on the snippet id -- so a snippet with three versions in two flavours
+        re-ran the identical scan six times. On a stock install that was 82
+        scans over 22 fields, 1,804 `regexp_matches` branches, to answer a
+        question that fits in one query.
+        """
+        occurrences = {snippet_id: [] for snippet_id in snippet_ids}
+        if not snippet_ids or not html_fields:
+            return occurrences
+        models_and_fields = [
+            (self.env[model_name], field_name) for model_name, field_name in html_fields
+        ]
+        alternation = "|".join(
+            re.escape(snippet_id) for snippet_id in sorted(snippet_ids)
+        )
+        pattern = f'<([^>]*data-snippet="(?:{alternation})"[^>]*)>'
+        rows = self.env.execute_query(
+            SQL(" UNION ").join(
+                SQL(
+                    "SELECT regexp_matches(%s, %s, 'g') FROM %s",
+                    model._field_to_sql(model._table, field_name),
+                    pattern,
+                    SQL.identifier(model._table),
+                )
+                for model, field_name in models_and_fields
+            )
+        )
+        carried = re.compile(r'data-snippet="([^"]*)"')
+        for (match,) in rows:
+            element = match[0]
+            found = carried.search(element)
+            if found and found.group(1) in occurrences:
+                occurrences[found.group(1)].append(element)
+        _debug.perf.count(
+            "snippet_occurrences_scanned",
+            snippets=len(snippet_ids),
+            models=len(models_and_fields),
+            occurrences=sum(len(v) for v in occurrences.values()),
+        )
+        return occurrences
+
+    def _get_snippet_template_occurrence(self, snippet_module, snippet_id):
         snippet_template_html = self.env["ir.qweb"]._render(
             f"{snippet_module}.{snippet_id}", raise_if_not_found=False
         )
         if snippet_template_html:
             match = re.search(r'<([^>]*class="[^>]*)>', snippet_template_html)
             if match:
-                snippet_occurences.append(match.group())
+                return [match.group()]
+        return []
 
+    def _is_snippet_used(
+        self, snippet_module, snippet_id, asset_version, asset_type, html_fields
+    ):
         if self._is_snippet_used_in_occurrences(
-            snippet_occurences, asset_type, asset_version
+            self._get_snippet_template_occurrence(snippet_module, snippet_id),
+            asset_type,
+            asset_version,
         ):
             return True
-
-        html_fields = [
-            (self.env[model_name], field_name) for model_name, field_name in html_fields
-        ]
-        self.env.cr.execute(
-            SQL(" UNION ").join(
-                SQL(
-                    "SELECT regexp_matches(%s, %s, 'g') FROM %s",
-                    model._field_to_sql(model._table, field_name),
-                    f'<([^>]*data-snippet="{snippet_id}"[^>]*)>',
-                    SQL.identifier(model._table),
-                )
-                for model, field_name in html_fields
-            )
-        )
-
-        snippet_occurences = [r[0][0] for r in self.env.cr.fetchall()]
         return self._is_snippet_used_in_occurrences(
-            snippet_occurences, asset_type, asset_version
+            self._get_snippet_occurrences([snippet_id], html_fields)[snippet_id],
+            asset_type,
+            asset_version,
         )
 
     def _is_snippet_used_in_occurrences(
@@ -1375,7 +1596,17 @@ class Website(models.Model):
     def _check_access_to_modify(self, record):
         record.check_access("write")
 
+    def _filter_modifiable(self, records):
+        modifiable = records._filtered_access("write")
+        _debug.logic(
+            "website_modifiable_filtered",
+            records=records,
+            modifiable=len(modifiable),
+        )
+        return modifiable
+
     def _disable_unused_snippets_assets(self):
+        _debug.pipeline("disable_unused_snippets", website=self.id)
         snippet_assets = (
             self.env["ir.asset"]
             .with_context(active_test=False)
@@ -1387,7 +1618,11 @@ class Website(models.Model):
             r"(\w*)\/.*\/snippets\/(\w*)\/(\d{3})(?:_\w*)?\.(js|scss)"
         )
         html_fields = self._get_fields_html()
-        snippet_used = {}
+
+        # One pass to learn which snippets exist, then ONE scan of the stored
+        # html for all of them, then the per-(version, flavour) decision. The
+        # scan used to run once per asset and depends only on the snippet id.
+        parsed = []
         for snippet_asset in snippet_assets:
             match = snippet_re.match(snippet_asset.path)
             if not match:
@@ -1395,17 +1630,45 @@ class Website(models.Model):
             (snippet_module, snippet_id, asset_version, asset_type) = match.groups()
             if asset_type == "scss":
                 asset_type = "css"
+            parsed.append(
+                (snippet_asset, snippet_module, snippet_id, asset_version, asset_type)
+            )
+        stored_occurrences = self._get_snippet_occurrences(
+            {snippet_id for _a, _m, snippet_id, _v, _t in parsed}, html_fields
+        )
+        template_occurrences = {}
+        snippet_used = {}
+        for (
+            snippet_asset,
+            snippet_module,
+            snippet_id,
+            asset_version,
+            asset_type,
+        ) in parsed:
             key = (
                 snippet_id,
                 asset_version,
                 asset_type,
             )
             if key not in snippet_used:
-                snippet_used[key] = self._is_snippet_used(
-                    snippet_module, snippet_id, asset_version, asset_type, html_fields
+                if snippet_id not in template_occurrences:
+                    template_occurrences[snippet_id] = (
+                        self._get_snippet_template_occurrence(
+                            snippet_module, snippet_id
+                        )
+                    )
+                snippet_used[key] = self._is_snippet_used_in_occurrences(
+                    template_occurrences[snippet_id], asset_type, asset_version
+                ) or self._is_snippet_used_in_occurrences(
+                    stored_occurrences.get(snippet_id, ()), asset_type, asset_version
                 )
             is_snippet_used = snippet_used[key]
             if is_snippet_used != snippet_asset.active:
+                _debug.lifecycle(
+                    "snippet_asset_toggled",
+                    path=snippet_asset.path,
+                    active=is_snippet_used,
+                )
                 snippet_asset.active = is_snippet_used
                 if (
                     snippet_id == "s_quotes_carousel"

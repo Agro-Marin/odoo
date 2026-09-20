@@ -94,24 +94,24 @@
                         <field
                             name="l10n_in_gstin_verified_date"
                             widget="remaining_days"
-                            class="oe_inline"
-                            readonly="1" />
+                            readonly="1"
+                            class="oe_inline" />
                         <button
                             name="action_l10n_in_verify_gstin_status"
                             type="object"
+                            title="Reverify GSTIN status"
                             icon="fa-refresh"
-                            class="oe_link p-0 ps-2"
-                            title="Reverify GSTIN status" />
+                            class="oe_link p-0 ps-2" />
                         )
                     </span>
                     <button
-                        string="Check Status"
                         name="action_l10n_in_verify_gstin_status"
                         type="object"
-                        icon="fa-check"
-                        class="oe_link p-0"
+                        string="Check Status"
                         title="Check GSTIN status"
-                        invisible="l10n_in_gstin_verified_date" />
+                        icon="fa-check"
+                        invisible="l10n_in_gstin_verified_date"
+                        class="oe_link p-0" />
                 </span>
             </xpath>
         </field>

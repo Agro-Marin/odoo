@@ -2,6 +2,7 @@ from datetime import datetime
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.stock.tools.reservation import RemovalStrategy
@@ -17,7 +18,7 @@ def _fefo_sort_key(quant):
     """
     return (
         quant.removal_date is False,
-        quant.removal_date or datetime.min,  # noqa: DTZ901
+        quant.removal_date or datetime.min,  # noqa: DTZ901  naive sentinel, the field is naive UTC
         quant.in_date,
         quant.id,
     )
@@ -29,20 +30,20 @@ FEFO_REMOVAL_STRATEGY = RemovalStrategy(
 )
 
 
+_debug = DebugLog(__name__)
+
+
 class StockQuant(models.Model):
     _inherit = "stock.quant"
 
     expiration_date = fields.Datetime(
         related="lot_id.expiration_date",
-        store=True,
     )
-    removal_date = fields.Datetime(
+    removal_date = fields.Datetime(  # noqa: E8529  FEFO gathers ORDER BY removal_date, in_date, id, and report_stock_quantity reads the column
         related="lot_id.removal_date",
         store=True,
     )
-    use_expiration_date = fields.Boolean(
-        related="product_id.use_expiration_date",
-    )
+    use_expiration_date = fields.Boolean(related="product_id.use_expiration_date")
     available_quantity = fields.Float(
         help="On hand quantity which hasn't been reserved on a transfer and is still fresh, in the default unit of measure of the product"
     )
@@ -54,6 +55,7 @@ class StockQuant(models.Model):
         return Domain("removal_date", ">=", cutoff) | Domain("removal_date", "=", False)
 
     def _filtered_not_expired(self):
+        _debug.logic("quants_expiry_filter", quants=self)
         cutoff = self.env.context.get("with_expiration")
         if not cutoff:
             return super()._filtered_not_expired()
@@ -73,6 +75,7 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_removal_strategies(self):
+        _debug.logic("removal_strategies_read", quants=self)
         strategies = super()._get_removal_strategies()
         strategies["fefo"] = FEFO_REMOVAL_STRATEGY
         return strategies
@@ -84,6 +87,12 @@ class StockQuant(models.Model):
         for quant in self:
             if quant.removal_date and quant.removal_date <= current_date:
                 quant.available_quantity = 0
+
+    def _aggregates_through_records(self, field, func):
+        # _read_group_select below answers this one in SQL
+        if field.name == "available_quantity" and func == "sum":
+            return False
+        return super()._aggregates_through_records(field, func)
 
     def _read_group_select(self, aggregate_spec, query):
         if aggregate_spec != "available_quantity:sum":

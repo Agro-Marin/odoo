@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_test_website_test_model"
+        name="Test Model"
+        parent="website.menu_website_global_configuration"
+        action="action_test_website_test_model"
+        sequence="100"
+        groups="base.group_no_one" />
+
+</odoo>

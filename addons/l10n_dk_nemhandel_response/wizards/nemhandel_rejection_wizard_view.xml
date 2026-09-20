@@ -12,15 +12,15 @@
                 <group>
                     <field
                         name="note"
-                        nolabel="1"
+                        placeholder="Enter an optional note here..."
                         colspan="2"
-                        placeholder="Enter an optional note here..." />
+                        nolabel="1" />
                 </group>
                 <footer>
                     <button
                         name="button_send"
-                        string="Send Rejection"
                         type="object"
+                        string="Send Rejection"
                         class="btn-primary"
                         data-hotkey="q" />
                 </footer>

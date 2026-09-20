@@ -32,7 +32,6 @@ patch(Form.prototype, {
     },
 
     /**
-     * Discard all library changes to reset the state of the Html.
      * @override
      */
     destroy() {

@@ -9,9 +9,12 @@ from pathlib import Path
 
 import requests
 
+from odoo.libs.debug_log import DebugLog
+
 from . import Command
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 EXCLUDED_DIR_NAMES = frozenset(
     {
@@ -125,12 +128,20 @@ class Deploy(Command):
     ) -> str:
         url = url.rstrip("/")
         module_file = self.zip_module(module_path)
+        _debug.pipeline(
+            "cli.deploy.zipped",
+            module=Path(module_path).name,
+            archive=module_file,
+            url=url,
+            db=db or None,
+        )
         try:
             return self.login_upload_module(
                 module_file, url, login, password, db, force=force
             )
         finally:
             Path(module_file).unlink()
+            _debug.lifecycle("cli.deploy.zip_removed", path=module_file)
 
     def login_upload_module(
         self,
@@ -143,11 +154,13 @@ class Deploy(Command):
     ) -> str:
         print("Uploading module file...")
         encoded_db = urllib.parse.quote(db or "", safe="")
-        self.session.get(
-            f"{url}/web/login?db={encoded_db}",
-            allow_redirects=False,
-            timeout=_LOGIN_TIMEOUT,
-        )
+        with _debug.perf("cli.deploy.login_page", url=url, db=db or None) as span:
+            login_page = self.session.get(
+                f"{url}/web/login?db={encoded_db}",
+                allow_redirects=False,
+                timeout=_LOGIN_TIMEOUT,
+            )
+            span.set(status=login_page.status_code, cookies=len(self.session.cookies))
         endpoint = url + "/base_import_module/login_upload"
         post_data = {
             "login": login,
@@ -156,57 +169,104 @@ class Deploy(Command):
             "force": "1" if force else "",
         }
         with Path(module_file).open("rb") as f:
-            res = self.session.post(
-                endpoint,
-                files={"mod_file": f},
-                data=post_data,
-                timeout=_UPLOAD_TIMEOUT,
-            )
+            with _debug.perf(
+                "cli.deploy.upload",
+                url=url,
+                db=db or None,
+                force=force,
+                bytes=Path(module_file).stat().st_size,
+            ) as span:
+                res = self.session.post(
+                    endpoint,
+                    files={"mod_file": f},
+                    data=post_data,
+                    timeout=_UPLOAD_TIMEOUT,
+                )
+                span.set(status=res.status_code)
 
         if res.status_code == 404:
+            _debug.logic("cli.deploy.upload_rejected", status=404, url=url)
             raise requests.exceptions.HTTPError(
                 f"The server {url!r} does not have the 'base_import_module' installed or is not up-to-date.",
                 response=res,
             )
-        res.raise_for_status()
+        if not res.ok:
+            detail = (res.text or "").strip()
+            _debug.logic(
+                "cli.deploy.upload_rejected",
+                status=res.status_code,
+                url=url,
+                detail=bool(detail),
+            )
+            raise requests.exceptions.HTTPError(
+                f"The server {url!r} refused the upload: "
+                f"{res.status_code} {res.reason}" + (f" — {detail}" if detail else ""),
+                response=res,
+            )
+        _debug.lifecycle(
+            "cli.deploy.uploaded", url=url, status=res.status_code, reply=len(res.text)
+        )
         return res.text
 
     def zip_module(self, path: str | Path) -> str:
         module_dir = Path(path).resolve()
         if not module_dir.is_dir():
+            _debug.logic(
+                "cli.deploy.rejected", path=str(module_dir), reason="not_a_directory"
+            )
             raise FileNotFoundError(f"Could not find module directory {module_dir!r}")
         fd, temp = tempfile.mkstemp(suffix=".zip")
         os.close(fd)
         try:
             print("Zipping module directory...")
-            with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED) as zfile:
-                for dirpath, dirnames, filenames in module_dir.walk():
-                    kept_dirs = []
-                    for dirname in dirnames:
-                        if dirname in EXCLUDED_DIR_NAMES:
-                            continue
-                        if (dirpath / dirname).is_symlink():
-                            print(
-                                f"WARNING: skipping symlink {dirpath / dirname}",
-                                file=sys.stderr,
+            with _debug.perf("cli.deploy.zip", module=module_dir.name) as span:
+                files = 0  # debuglog
+                symlinks = 0  # debuglog
+                excluded = 0  # debuglog
+                with zipfile.ZipFile(
+                    temp, "w", compression=zipfile.ZIP_DEFLATED
+                ) as zfile:
+                    for dirpath, dirnames, filenames in module_dir.walk():
+                        kept_dirs = []
+                        for dirname in dirnames:
+                            if dirname in EXCLUDED_DIR_NAMES:
+                                excluded += 1  # debuglog
+                                continue
+                            if (dirpath / dirname).is_symlink():
+                                symlinks += 1  # debuglog
+                                print(
+                                    f"WARNING: skipping symlink {dirpath / dirname}",
+                                    file=sys.stderr,
+                                )
+                                continue
+                            kept_dirs.append(dirname)
+                        dirnames[:] = kept_dirs
+                        for filename in filenames:
+                            filepath = dirpath / filename
+                            if filepath.is_symlink():
+                                symlinks += 1  # debuglog
+                                print(
+                                    f"WARNING: skipping symlink {filepath}",
+                                    file=sys.stderr,
+                                )
+                                continue
+                            if not filepath.is_file():
+                                continue
+                            if _is_file_excluded(filepath):
+                                excluded += 1  # debuglog
+                                continue
+                            zfile.write(
+                                filepath, filepath.relative_to(module_dir.parent)
                             )
-                            continue
-                        kept_dirs.append(dirname)
-                    dirnames[:] = kept_dirs
-                    for filename in filenames:
-                        filepath = dirpath / filename
-                        if filepath.is_symlink():
-                            print(
-                                f"WARNING: skipping symlink {filepath}",
-                                file=sys.stderr,
-                            )
-                            continue
-                        if not filepath.is_file():
-                            continue
-                        if _is_file_excluded(filepath):
-                            continue
-                        zfile.write(filepath, filepath.relative_to(module_dir.parent))
-        except Exception:
+                            files += 1  # debuglog
+                span.set(
+                    files=files,
+                    symlinks=symlinks,
+                    excluded=excluded,
+                    bytes=Path(temp).stat().st_size,
+                )
+        except Exception as e:
+            _debug.logic("cli.deploy.zip_failed", error=type(e).__name__)
             Path(temp).unlink()
             raise
         return temp
@@ -220,9 +280,17 @@ class Deploy(Command):
                 hostname = (parsed.hostname or "").lower()
                 scheme = "http" if hostname in _LOCAL_HOSTS else "https"
                 args.url = f"{scheme}://{args.url}"
+                _debug.logic("cli.deploy.scheme_inferred", scheme=scheme, host=hostname)
+            else:
+                _debug.logic("cli.deploy.scheme_given", url=args.url)
 
             if not args.verify_ssl:
                 self.session.verify = False
+                _debug.logic(
+                    "cli.deploy.ssl_verification",
+                    verify=False,
+                    https=args.url.lower().startswith("https://"),
+                )
                 if args.url.lower().startswith("https://"):
                     print(
                         f"WARNING: SSL verification is OFF for {args.url}; "
@@ -236,15 +304,20 @@ class Deploy(Command):
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
             with self.session:
-                result = self.deploy_module(
-                    args.path,
-                    args.url,
-                    args.login,
-                    args.password,
-                    args.db,
-                    force=args.force,
-                )
+                with _debug.perf(
+                    "cli.deploy.run", path=args.path, url=args.url, force=args.force
+                ):
+                    result = self.deploy_module(
+                        args.path,
+                        args.url,
+                        args.login,
+                        args.password,
+                        args.db,
+                        force=args.force,
+                    )
             print(result or "Module deployed successfully.")
+            _debug.lifecycle("cli.deploy.done", url=args.url, server_reply=bool(result))
         except Exception as e:
+            _debug.logic("cli.deploy.failed", error=type(e).__name__)
             _logger.debug("deploy failed", exc_info=True)
             sys.exit(f"ERROR: {e}")

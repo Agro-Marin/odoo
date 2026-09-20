@@ -5,7 +5,7 @@
             <t t-foreach="items" t-as="month" t-key="month.id">
                 <div
                     class="o_date_picker d-grid flex-grow-1 rounded overflow-auto"
-                    t-on-pointerleave="() => (state.hoveredDate = null)"
+                    t-on-pointerleave="() => this.onDateHover(null)"
                 >
                     <t t-foreach="month.daysOfWeek" t-as="dayOfWeek" t-key="dayOfWeek[0]">
                         <div
@@ -31,14 +31,13 @@
                                     o_selected: arInfo.isSelected,
                                     o_select_start: arInfo.isSelectStart,
                                     o_select_end: arInfo.isSelectEnd,
-                                    o_highlighted: arInfo.isHighlighted,
                                     'o_today fw-bolder': itemInfo.includesToday,
                                     [itemInfo.extraClass]: true,
                                     'opacity-50': !itemInfo.isValid,
                                     'cursor-pointer': itemInfo.isValid,
                                 }"
                                 t-att-disabled="!itemInfo.isValid"
-                                t-on-pointerenter="() => (state.hoveredDate = itemInfo.range[0])"
+                                t-on-pointerenter="() => this.onDateHover(itemInfo)"
                                 t-on-click="() => this.zoomOrSelect(itemInfo)"
                             >
                                 <div t-att-class="{'w-75 align-content-center text-center rounded-circle': itemInfo.includesToday}">
@@ -84,7 +83,6 @@
                         o_selected: arInfo.isSelected,
                         o_select_start: arInfo.isSelectStart,
                         o_select_end: arInfo.isSelectEnd,
-                        o_highlighted: arInfo.isHighlighted,
                         o_today: itemInfo.includesToday,
                         'opacity-50': !itemInfo.isValid,
                     }"

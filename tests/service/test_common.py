@@ -72,15 +72,10 @@ class TestVersionPayload:
 
         assert common_mod.exp_version()["server_version"] == odoo.release.version
 
-    def test_rpc_version_1_survives_as_a_snapshot(self, common_mod):
-        snapshot = common_mod.RPC_VERSION_1
-        assert snapshot == common_mod.exp_version()
-        snapshot["server_version"] = "tampered"
+    def test_each_version_payload_is_a_fresh_dict(self, common_mod):
+        payload = common_mod.exp_version()
+        payload["server_version"] = "tampered"
         assert common_mod.exp_version()["server_version"] != "tampered"
-
-    def test_an_unknown_module_attribute_still_raises(self, common_mod):
-        with pytest.raises(AttributeError, match="no attribute 'NoSuchName'"):
-            common_mod.NoSuchName
 
 
 class TestExpAuthenticateExceptionAbsorption:
@@ -229,15 +224,41 @@ class TestExpAuthenticateNeverServableNames:
                 with pytest.raises(RuntimeError, match="reached"):
                     common_mod.exp_authenticate("served_db", "a", "b", None)
 
-    def test_dbfilter_is_not_applied(self, common_mod):
+    def test_a_host_dbfilter_is_not_applied(self, common_mod):
+        """`dispatch_rpc` runs with no request host, so `^%h$` would refuse
+        every RPC login on a virtual-host deployment; an RPC caller names its
+        database explicitly."""
+        from odoo.service import _dispatch
         from odoo.tools import config
 
+        _dispatch._compile_static_dbfilter.cache_clear()
         with (
-            config.patch(dbfilter="^nomatch$", db_name=[]),
+            config.patch(dbfilter="^%h$", db_name=[]),
             patch.object(common_mod, "Registry", side_effect=RuntimeError("reached")),
         ):
             with pytest.raises(RuntimeError, match="reached"):
                 common_mod.exp_authenticate("any_db", "a", "b", None)
+
+    def test_a_static_dbfilter_scopes_rpc_like_it_scopes_cron(self, common_mod):
+        from odoo.service import _dispatch
+        from odoo.tools import config
+
+        _dispatch._compile_static_dbfilter.cache_clear()
+
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for a filtered-out db")
+
+        with (
+            config.patch(dbfilter="^served_", db_name=[]),
+            patch.object(common_mod, "Registry", side_effect=_must_not_run),
+        ):
+            assert common_mod.exp_authenticate("other_db", "a", "b", None) is False
+        with (
+            config.patch(dbfilter="^served_", db_name=[]),
+            patch.object(common_mod, "Registry", side_effect=RuntimeError("reached")),
+        ):
+            with pytest.raises(RuntimeError, match="reached"):
+                common_mod.exp_authenticate("served_db", "a", "b", None)
 
     def test_configured_template_refused_without_connecting(self, common_mod):
         from odoo.tools import config

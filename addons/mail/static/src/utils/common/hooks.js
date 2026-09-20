@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
-import { onChange } from "@mail/utils/common/misc";
+import { awaitScrollEnd, onChange } from "@mail/utils/common/misc";
 import {
     Component,
     onMounted,
@@ -18,11 +18,14 @@ import {
     xml,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+
+const log = makeLogger("mail.thread.ui");
 /**
  * @param {() => EventTarget|undefined} target
  * @param {string} eventName
@@ -476,6 +479,11 @@ export function useMessageScrolling(duration = 2000) {
         async highlightMessage(message, thread) {
             state.initiated = true;
             let messageScrollDirection;
+            log.logic("highlightMessage", () => ({
+                messageId: message.id,
+                thread: thread.localId,
+                loaded: message.in(thread.messages),
+            }));
             if (message.notIn(thread.messages)) {
                 messageScrollDirection =
                     message.id < thread.messages[0]?.id ? "top" : "bottom";
@@ -484,7 +492,7 @@ export function useMessageScrolling(duration = 2000) {
             const lastHighlightedMessageId = state.highlightedMessageId;
             this.clear();
             if (lastHighlightedMessageId === message.id) {
-                await new Promise((resolve) => browser.setTimeout(resolve));
+                await delay();
             }
             thread.scrollTop = messageScrollDirection === "top" ? "bottom" : undefined;
             if (thread.scrollTop === "bottom") {
@@ -501,27 +509,9 @@ export function useMessageScrolling(duration = 2000) {
         scrollPromise: null,
         /** @param {Element} el */
         scrollTo(el) {
-            state.scrollPromise?.resolve();
-            const scrollPromise = new Deferred();
+            state.scrollPromise?.settle();
+            const scrollPromise = awaitScrollEnd();
             state.scrollPromise = scrollPromise;
-            /** @type {ReturnType<typeof browser.setTimeout>} */
-            let scrollTimeout;
-            const onScrollEnd = () => {
-                browser.clearTimeout(scrollTimeout);
-                document.removeEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                scrollPromise.resolve();
-            };
-            if ("onscrollend" in window) {
-                document.addEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                    once: true,
-                });
-                scrollTimeout = browser.setTimeout(onScrollEnd, 3000);
-            } else {
-                scrollTimeout = browser.setTimeout(onScrollEnd, 250);
-            }
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             return scrollPromise;
         },
@@ -531,7 +521,7 @@ export function useMessageScrolling(duration = 2000) {
         browser.clearTimeout(timeout);
         timeout = null;
         state.startupDeferred?.resolve();
-        state.scrollPromise?.resolve();
+        state.scrollPromise?.settle();
     });
     return state;
 }
@@ -556,6 +546,9 @@ export function useMicrophoneVolume() {
             state.isReady = false;
             disconnectAudioMonitor?.();
             disconnectAudioMonitor = undefined;
+            log.logic("microphone volume toggle", () => ({
+                stop: Boolean(audioTrack),
+            }));
             if (audioTrack) {
                 audioTrack.stop();
                 audioTrack = null;
@@ -573,6 +566,7 @@ export function useMicrophoneVolume() {
                         });
                     track = audioStream.getAudioTracks()[0];
                 } catch {
+                    log.logic("microphone volume test refused");
                     store.env.services.notification.add(
                         _t('"%(hostname)s" requires microphone access', {
                             hostname: browser.location.host,

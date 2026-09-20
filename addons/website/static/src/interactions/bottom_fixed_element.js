@@ -1,37 +1,33 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { isVisible, touching } from "@web/core/utils/dom/ui";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.bottom_fixed_element");
 
 export class BottomFixedElement extends Interaction {
     static selector = "#wrapwrap";
     dynamicContent = {
         _window: {
-            "t-on-resize": this.hideBottomFixedElements,
-            "t-on-scroll": this.hideBottomFixedElements,
+            "t-on-resize": this.throttled(this.hideBottomFixedElements),
+            "t-on-scroll": this.throttled(this.hideBottomFixedElements),
         },
     };
 
     destroy() {
+        log.lifecycle("BottomFixedElement destroy: restore elements", () => ({
+            elements: this.el.querySelectorAll(".o_bottom_fixed_element").length,
+        }));
         this.restoreBottomFixedElements();
     }
 
     hideBottomFixedElements() {
-        // Note: check in the whole DOM instead of #wrapwrap as unfortunately
-        // some things are still put outside of the #wrapwrap (like the livechat
-        // button which is the main reason of this code).
         const bottomFixedEls = document.querySelectorAll(".o_bottom_fixed_element");
         if (!bottomFixedEls.length) {
             return;
         }
 
-        // The bottom fixed elements are always hidden when a modal is open
-        // thanks to the CSS that is based on the 'modal-open' class added to
-        // the body. However, when the modal does not have a backdrop (e.g.
-        // cookies bar), this 'modal-open' class is not added. That's why we
-        // handle it here. The popup widget code triggers a 'scroll'
-        // event when the modal is hidden to make the bottom fixed elements
-        // reappear.
         if (this.el.querySelector(".s_popup_no_backdrop.show")) {
             for (const bottomFixedEl of bottomFixedEls) {
                 bottomFixedEl.classList.add("o_bottom_fixed_element_hidden");

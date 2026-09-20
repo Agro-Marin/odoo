@@ -4,7 +4,6 @@
     <record id="hr.job_marketing" model="hr.job">
         <field name="is_published">True</field>
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -114,7 +113,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -164,7 +162,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -197,7 +194,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What we offer -->
             <section
                 class="s_features pt64 pb64"
                 data-name="Features"
@@ -257,7 +253,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"
@@ -308,7 +303,6 @@
     <record id="hr.job_developer" model="hr.job">
         <field name="is_published">True</field>
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -423,7 +417,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -471,7 +464,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -504,7 +496,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What we offer -->
             <section
                 class="s_features pt64 pb64"
                 data-name="Features"
@@ -564,7 +555,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"
@@ -615,7 +605,6 @@
     <record id="hr.job_consultant" model="hr.job">
         <field name="is_published">True</field>
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -731,7 +720,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -781,7 +769,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -814,7 +801,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What we offer -->
             <section
                 class="s_features pt64 pb64"
                 data-name="Features"
@@ -874,7 +860,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"
@@ -924,7 +909,6 @@
 
     <record id="hr.job_cto" model="hr.job">
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -1044,7 +1028,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -1094,7 +1077,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -1127,7 +1109,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"
@@ -1177,7 +1158,6 @@
 
     <record id="hr.job_trainee" model="hr.job">
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -1289,7 +1269,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -1339,7 +1318,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -1372,7 +1350,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What we offer -->
             <section
                 class="s_features pt64 pb64"
                 data-name="Features"
@@ -1432,7 +1409,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"
@@ -1482,7 +1458,6 @@
 
     <record id="hr.job_hrm" model="hr.job">
         <field name="website_description" type="html">
-            <!-- Description text and ratings -->
             <section class="pt0">
                 <div class="container">
                     <div class="row">
@@ -1596,7 +1571,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Responsabilities, Must Have and Nice to have -->
             <section
                 class="s_comparisons pt24 pb24 bg-200"
                 data-snippet="s_comparisons">
@@ -1646,7 +1620,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What's great -->
             <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row align-items-center">
@@ -1679,7 +1652,6 @@
                     </div>
                 </div>
             </section>
-            <!-- What we offer -->
             <section
                 class="s_features pt64 pb64"
                 data-name="Features"
@@ -1739,7 +1711,6 @@
                     </div>
                 </div>
             </section>
-            <!-- Photos -->
             <section
                 class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
                 data-vcss="001"

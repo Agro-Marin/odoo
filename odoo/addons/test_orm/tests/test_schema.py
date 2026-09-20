@@ -28,6 +28,7 @@ class TestReflection(common.TransactionCase):
         self.assertEqual(record, self.env.ref(xid))
 
     def test_models_fields(self):
+        crew_table = self.env["test_orm.crew"]._table
         model_data = self.env["ir.model.data"].search(
             [("module", "=", "test_orm"), ("model", "=", "ir.model")]
         )
@@ -88,11 +89,14 @@ class TestReflection(common.TransactionCase):
                             relation = self.env["ir.model.relation"].search(
                                 [("name", "=", field.relation)]
                             )
-                            self.assertTrue(relation)
-                            self.assertIn(
-                                relation.model.model,
-                                [field.model_name, field.comodel_name],
-                            )
+                            if field.relation == crew_table:
+                                self.assertFalse(relation)
+                            else:
+                                self.assertTrue(relation)
+                                self.assertIn(
+                                    relation.model.model,
+                                    [field.model_name, field.comodel_name],
+                                )
                         if field.type == "selection":
                             selection = [
                                 (sel.value, sel.name) for sel in ir_field.selection_ids

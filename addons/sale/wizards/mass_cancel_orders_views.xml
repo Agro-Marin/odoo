@@ -21,24 +21,25 @@
                 <div invisible="orders_count == 1"> So, are you sure you want to cancel these <field name="orders_count" /> items? </div>
                 <footer>
                     <button
-                        class="btn-primary"
                         name="action_mass_cancel"
                         type="object"
-                        string="Cancel" />
-                    <button string="Discard" special="cancel" />
+                        string="Cancel"
+                        class="btn-primary" />
+                    <button special="cancel" string="Discard" />
                 </footer>
             </form>
         </field>
     </record>
 
     <record id="action_mass_cancel_orders" model="ir.actions.act_window">
-        <field name="name">Cancel</field>
+        <field name="name">Cancel…</field>
         <field name="res_model">sale.mass.cancel.orders</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="mass_cancel_orders_view_form" />
         <field name="target">new</field>
         <field name="binding_model_id" ref="model_sale_order" />
         <field name="binding_view_types">list,kanban</field>
+        <field name="binding_icon">fa-solid fa-ban</field>
     </record>
 
 </odoo>

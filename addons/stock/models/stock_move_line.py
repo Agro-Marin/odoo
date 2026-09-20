@@ -12,6 +12,7 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
+from ..tools import debug_log as dbg
 
 LOGGED_RELATIONS = [
     ("lot_id", "lot_name"),
@@ -68,30 +69,25 @@ class StockMoveLine(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
-        readonly=True,
         index=True,
+        readonly=True,
+        required=True,
     )
 
     picking_id = fields.Many2one(
         comodel_name="stock.picking",
         string="Transfer",
-        bypass_search_access=True,
-        check_company=True,
         index=True,
+        check_company=True,
+        bypass_search_access=True,
         help="The stock operation where the packing has been made",
     )
     picking_partner_id = fields.Many2one(
         related="picking_id.partner_id",
         readonly=True,
     )
-    picking_location_id = fields.Many2one(
-        related="picking_id.location_id",
-    )
-    picking_location_dest_id = fields.Many2one(
-        related="picking_id.location_dest_id",
-    )
+    picking_location_id = fields.Many2one(related="picking_id.location_id")
+    picking_location_dest_id = fields.Many2one(related="picking_id.location_dest_id")
     picking_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Operation type",
@@ -114,10 +110,10 @@ class StockMoveLine(models.Model):
     move_id = fields.Many2one(
         comodel_name="stock.move",
         string="Stock Operation",
-        check_company=True,
         index=True,
+        check_company=True,
     )
-    state = fields.Selection(
+    state = fields.Selection(  # noqa: E8529  the WHERE clause of the partial index (product_id, location_id, lot_id, package_id, owner_id, company_id)
         related="move_id.state",
         store=True,
     )
@@ -129,50 +125,42 @@ class StockMoveLine(models.Model):
         related="move_id.partner_id",
         readonly=True,
     )
-    scrap_id = fields.Many2one(
-        related="move_id.scrap_id",
-    )
-    is_inventory = fields.Boolean(
-        related="move_id.is_inventory",
-    )
+    scrap_id = fields.Many2one(related="move_id.scrap_id")
+    is_inventory = fields.Boolean(related="move_id.is_inventory")
     is_locked = fields.Boolean(
         related="move_id.is_locked",
         readonly=True,
     )
-    reference = fields.Char(
-        related="move_id.reference",
-    )
+    reference = fields.Char(related="move_id.reference")
     origin = fields.Char(
         related="move_id.origin",
         string="Source",
     )
-    description_picking = fields.Text(
-        related="move_id.description_picking",
-    )
+    description_picking = fields.Text(related="move_id.description_picking")
 
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="From",
-        required=True,
         compute="_compute_locations",
-        store=True,
         precompute=True,
-        readonly=False,
-        check_company=True,
-        domain="[('usage', '!=', 'view')]",
+        store=True,
         index=True,
+        readonly=False,
+        required=True,
+        domain="[('usage', '!=', 'view')]",
+        check_company=True,
     )
     location_dest_id = fields.Many2one(
         comodel_name="stock.location",
         string="To",
-        required=True,
         compute="_compute_locations",
-        store=True,
         precompute=True,
-        readonly=False,
-        check_company=True,
-        domain="[('usage', '!=', 'view')]",
+        store=True,
         index=True,
+        readonly=False,
+        required=True,
+        domain="[('usage', '!=', 'view')]",
+        check_company=True,
     )
     location_usage = fields.Selection(
         related="location_id.usage",
@@ -185,24 +173,22 @@ class StockMoveLine(models.Model):
     owner_id = fields.Many2one(
         comodel_name="res.partner",
         string="From Owner",
-        check_company=True,
         index="btree_not_null",
+        check_company=True,
         help="When validating the transfer, the products will be taken from this owner.",
     )
     date = fields.Datetime(
-        string="Date",
-        required=True,
         default=fields.Datetime.now,
+        required=True,
         help="Creation date of this move line until updated due to: quantity being increased, 'picked' status has updated, or move line is done.",
     )
 
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
-        check_company=True,
+        index=True,
         domain="[('type', '!=', 'service')]",
         ondelete="cascade",
-        index=True,
+        check_company=True,
     )
     product_category_name = fields.Char(
         related="product_id.categ_id.complete_name",
@@ -219,55 +205,52 @@ class StockMoveLine(models.Model):
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
-        required=True,
         compute="_compute_product_uom_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
         domain="[('id', 'in', allowed_uom_ids)]",
     )
     quantity = fields.Float(
-        string="Quantity",
         digits="Product Unit",
         compute="_compute_quantity",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     quantity_product_uom = fields.Float(
-        min_display_digits="Product Unit",
         string="Quantity in Product UoM",
+        min_display_digits="Product Unit",
         compute="_compute_quantity_product_uom",
         store=True,
         copy=False,
     )
     picked = fields.Boolean(
-        string="Picked",
         compute="_compute_picked",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     package_id = fields.Many2one(
         comodel_name="stock.package",
         string="Source Package",
-        check_company=True,
         domain="[('location_id', '=', location_id)]",
         ondelete="restrict",
+        check_company=True,
     )
     lot_id = fields.Many2one(
         comodel_name="stock.lot",
         string="Lot/Serial Number",
-        check_company=True,
-        domain="[('product_id', '=', product_id)]",
         index=True,
+        domain="[('product_id', '=', product_id)]",
+        check_company=True,
     )
     lot_name = fields.Char(string="Lot/Serial Number Name")
     result_package_id = fields.Many2one(
         comodel_name="stock.package",
         string="Destination Package",
         required=False,
-        check_company=True,
         domain="""[
         '|', '|',
         ('location_id', '=', location_dest_id),
@@ -277,6 +260,7 @@ class StockMoveLine(models.Model):
         ('move_line_ids.location_dest_id', '=', location_dest_id)
         ]""",
         ondelete="restrict",
+        check_company=True,
         help="If set, the operations are packed into this package",
     )
     result_package_dest_name = fields.Char(
@@ -285,15 +269,10 @@ class StockMoveLine(models.Model):
     )
     package_history_id = fields.Many2one(
         comodel_name="stock.package.history",
-        string="Package History",
         index="btree_not_null",
     )
-    is_entire_pack = fields.Boolean(
-        string="Is added through entire package",
-    )
-    lots_visible = fields.Boolean(
-        compute="_compute_lots_visible",
-    )
+    is_entire_pack = fields.Boolean(string="Is added through entire package")
+    lots_visible = fields.Boolean(compute="_compute_lots_visible")
     consume_line_ids = fields.Many2many(
         comodel_name="stock.move.line",
         relation="stock_move_line_consume_rel",
@@ -339,20 +318,41 @@ class StockMoveLine(models.Model):
         if any(ml.product_uom_id.compare(ml.quantity, 0) < 0 for ml in self):
             raise ValidationError(self._get_negative_quantity_message())
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.move.line.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         vals_list = self._prepare_create_vals(vals_list)
 
         mls = super().create(vals_list)
+        dbg.lifecycle.debug("stock.move.line.create: created %s", dbg.rec(mls))
 
         created_moves = mls._link_or_create_moves()
+        if created_moves:
+            dbg.pipeline.debug(
+                "create: lines %s created moves %s",
+                dbg.rec(mls),
+                dbg.rec(created_moves),
+            )
         mls._reserve_new_move_lines()
         created_moves._post_process_created_moves()
         done_lines = mls.filtered(lambda ml: ml.state == "done")
+        if done_lines:
+            dbg.pipeline.debug(
+                "create: done lines %s update quants directly", dbg.rec(done_lines)
+            )
         for ml in done_lines.with_context(quants_cache=done_lines._get_quants_cache()):
             ml._update_quants_and_reservations()
 
         if next_moves := done_lines._get_pending_dest_moves():
+            dbg.pipeline.debug(
+                "create: done lines -> unreserve + assign dest moves %s",
+                dbg.rec(next_moves),
+            )
             next_moves._unreserve()
             next_moves._action_assign()
 
@@ -362,7 +362,11 @@ class StockMoveLine(models.Model):
         mls._check_blocked_outgoing()
         return mls
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.move.line.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         plan = self._prepare_write(vals)
         res = super().write(plan.vals)
         self._apply_write_plan(plan)
@@ -407,6 +411,18 @@ class StockMoveLine(models.Model):
             vals = {**vals, "date": fields.Datetime.now()}
             progressed = self.browse()
 
+        if reservation_touched:
+            dbg.logic.debug(
+                "_prepare_write on %s: updates=%s restock=%s adjust=%s next_moves=%s "
+                "recompute=%s progressed=%s",
+                dbg.rec(self),
+                dbg.keys(updates),
+                dbg.rec(to_restock),
+                dbg.rec(to_adjust),
+                dbg.rec(next_moves),
+                dbg.rec(moves_to_recompute_state),
+                dbg.rec(progressed),
+            )
         return WritePlan(
             vals=vals,
             watched=watched,
@@ -429,13 +445,22 @@ class StockMoveLine(models.Model):
         plan.to_restock._update_quants_again(plan.reverted_in_dates)
         plan.to_adjust._update_quants_by_delta(plan.deltas)
 
-        survivors = self.exists()
+        survivors = self.exists() if plan.to_restock or plan.to_adjust else self
 
         plan.packages_to_check._update_orphaned_package_dests()
         if plan.reservation_touched:
             if mls_to_update := survivors._get_lines_not_entire_pack():
+                dbg.logic.debug(
+                    "_apply_write_plan: %s no longer entire pack",
+                    dbg.rec(mls_to_update),
+                )
                 mls_to_update.write({"is_entire_pack": False})
 
+            if plan.next_moves:
+                dbg.pipeline.debug(
+                    "_apply_write_plan -> unreserve + assign %s",
+                    dbg.rec(plan.next_moves),
+                )
             plan.next_moves._unreserve()
             plan.next_moves._action_assign()
 
@@ -461,10 +486,18 @@ class StockMoveLine(models.Model):
                 and line.location_dest_id.usage not in DISPOSAL_DEST_USAGES
             ),
         )
+        if blocked:
+            dbg.logic.debug(
+                "_check_blocked_outgoing: %s leave blocked locations %s",
+                dbg.rec(blocked),
+                dbg.rec(blocked.location_id),
+            )
         for location in blocked.location_id:
             location._check_operation_allowed("out")
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.move.line.unlink %s", dbg.rec(self))
         self._unlink_except_done_or_cancel()
         self._release_quants()
         moves = self.mapped("move_id")
@@ -569,13 +602,13 @@ class StockMoveLine(models.Model):
                 record.move_id._get_visible_quantity() if record.move_id else 0.0
             )
 
-            move_demand = record.move_id.product_uom_id._compute_quantity(
+            move_demand = record.move_id.product_uom_id._get_quantity_in_unit(
                 record.move_id.product_uom_qty, sml_uom, rounding_method="HALF-UP"
             )
-            move_quantity = record.move_id.product_uom_id._compute_quantity(
+            move_quantity = record.move_id.product_uom_id._get_quantity_in_unit(
                 move_visible_quantity, sml_uom, rounding_method="HALF-UP"
             )
-            quant_qty = product_uom._compute_quantity(
+            quant_qty = product_uom._get_quantity_in_unit(
                 record.quant_id.available_quantity, sml_uom, rounding_method="HALF-UP"
             )
 
@@ -587,7 +620,7 @@ class StockMoveLine(models.Model):
     @api.depends("quantity", "product_uom_id", "product_id.uom_id")
     def _compute_quantity_product_uom(self):
         for line in self:
-            line.quantity_product_uom = line.product_uom_id._compute_quantity_stored(
+            line.quantity_product_uom = line.product_uom_id._get_quantity_stored(
                 line.quantity, line.product_id.uom_id
             )
 
@@ -635,6 +668,11 @@ class StockMoveLine(models.Model):
                 )
             )
             if recommended_location:
+                dbg.logic.debug(
+                    "_onchange_serial_number: lot %s recommends location %s",
+                    self.lot_id.id,
+                    recommended_location.id,
+                )
                 self.location_id = recommended_location
         else:
             quants = (
@@ -669,6 +707,14 @@ class StockMoveLine(models.Model):
         self.check_singleton()
         return self.lot_id.name or self.lot_name
 
+    def _get_similar_move_lines(self):
+        self.check_singleton()
+        picking = self.move_id.picking_id or self.picking_id
+        others = picking.move_line_ids - self - self._origin
+        return others.filtered(
+            lambda ml: ml.product_id == self.product_id and (ml.lot_id or ml.lot_name)
+        )
+
     @api.onchange("quantity", "product_uom_id")
     def _onchange_quantity(self):
         if self.quantity and self.product_id.tracking == "serial":
@@ -684,9 +730,17 @@ class StockMoveLine(models.Model):
                     ),
                 )
 
+    @dbg.timed
     def _action_done(self):
+        dbg.pipeline.debug("stock.move.line._action_done start on %s", dbg.rec(self))
         mls_to_delete, mls_needing_lot_check, mls_without_lot = (
             self._classify_done_lines()
+        )
+        dbg.logic.debug(
+            "_action_done: delete=%s lot_check=%s without_lot=%s",
+            dbg.rec(mls_to_delete),
+            dbg.rec(mls_needing_lot_check),
+            dbg.rec(mls_without_lot),
         )
         (
             mls_without_lot | mls_needing_lot_check._update_done_lots()
@@ -700,8 +754,12 @@ class StockMoveLine(models.Model):
         if not self.env.context.get("ignore_dest_packages"):
             package_history_vals = mls_todo._prepare_package_history_vals()
             if package_history_vals:
+                dbg.lifecycle.debug(
+                    "_action_done: %d package history rows", len(package_history_vals)
+                )
                 self.env["stock.package.history"].create(package_history_vals)
 
+        dbg.pipeline.debug("_action_done -> _update_quants_done %s", dbg.rec(mls_todo))
         mls_todo._update_quants_done()
 
         if not self.env.context.get("ignore_dest_packages"):
@@ -798,6 +856,13 @@ class StockMoveLine(models.Model):
 
         if blocked_by_archived:
             raise self._prepare_archived_lots_error(blocked_by_archived)
+        dbg.logic.debug(
+            "_update_done_lots: %d existing lots matched, create lots for %s, "
+            "still without lot %s",
+            sum(len(lots) for lots in lots_per_group.values()),
+            list(ml_ids_to_create_lot),
+            list(ml_ids_tracked_without_lot),
+        )
         self.browse(ml_ids_to_create_lot)._create_production_lots()
         return self.browse(ml_ids_tracked_without_lot)
 
@@ -865,6 +930,8 @@ class StockMoveLine(models.Model):
                 new_qty = ml._get_new_quantity_product_uom(vals, updates)
                 if ml.product_uom_id.compare(ml.quantity_product_uom, new_qty) < 0:
                     progressed_ids.add(ml.id)
+        if progressed_ids:
+            dbg.logic.debug("_get_progressed_lines: %s", sorted(progressed_ids))
         return self.browse(progressed_ids)
 
     def _create_production_lots(self):
@@ -875,6 +942,11 @@ class StockMoveLine(models.Model):
 
         lots = self.env["stock.lot"].create(
             [mls[0]._prepare_new_lot_vals() for mls in key_to_mls.values()]
+        )
+        dbg.lifecycle.debug(
+            "_create_production_lots: %s for %d line groups",
+            dbg.rec(lots),
+            len(key_to_mls),
         )
         for lot, mls in zip(lots, key_to_mls.values(), strict=True):
             mls.with_prefetch(self._prefetch_ids).write(
@@ -946,7 +1018,7 @@ class StockMoveLine(models.Model):
 
     def _get_new_quantity_product_uom(self, vals, updates):
         self.check_singleton()
-        return updates.get("product_uom_id", self.product_uom_id)._compute_quantity(
+        return updates.get("product_uom_id", self.product_uom_id)._get_quantity_in_unit(
             vals.get("quantity", self.quantity),
             self.product_id.uom_id,
             rounding_method="HALF-UP",
@@ -980,7 +1052,14 @@ class StockMoveLine(models.Model):
             vals = {"move_id": move_id, "picking_id": picking_id}
             if picked:
                 vals["picked"] = True
+            dbg.pipeline.debug(
+                "_link_to_existing_moves: %s -> move %s", dbg.rec(lines), move_id
+            )
             lines.write(vals)
+        if unlinked:
+            dbg.logic.debug(
+                "_link_to_existing_moves: no linkable move for %s", dbg.rec(unlinked)
+            )
         return unlinked
 
     def _create_moves(self):
@@ -1004,6 +1083,9 @@ class StockMoveLine(models.Model):
 
         if not new_move_vals:
             return self.env["stock.move"]
+        dbg.pipeline.debug(
+            "_create_moves: %d moves for %d lines", len(new_move_vals), len(self)
+        )
         created_moves = self.env["stock.move"].create(new_move_vals)
         for new_move, lines in zip(created_moves, lines_per_new_move, strict=True):
             lines.move_id = new_move.id

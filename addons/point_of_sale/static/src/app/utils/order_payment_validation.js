@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { ConnectionLostError, RPCError } from "@web/core/network";
@@ -8,6 +9,7 @@ import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog";
 import { handleRPCError, showLimitedFunctionalityWarning } from "./error_handlers.js";
 import { ask } from "./make_awaitable_dialog.js";
 import { logPosMessage } from "./pretty_console_log.js";
+const log = makeLogger("pos.payment.validation");
 
 /**
  * @param {Object} params
@@ -24,7 +26,29 @@ export default class OrderPaymentValidation {
         this.pos = vals.pos;
         this.orderUuid = vals.orderUuid;
         this.payment_methods_from_config = this.pos.config.orderedPaymentMethods;
-        this.fastPaymentMethod = vals.fastPaymentMethod || null;
+        this.fastPaymentLine = null;
+        if (vals.fastPaymentMethod) {
+            const res = this.order.addPaymentline(vals.fastPaymentMethod);
+            this.fastPaymentLine = res?.data || null;
+        }
+        log.lifecycle("setup", () => ({
+            order: this.orderUuid,
+            fastPaymentMethod: vals.fastPaymentMethod?.id,
+            fastPaymentLine: this.fastPaymentLine?.uuid,
+        }));
+    }
+
+    rollbackFastPayment() {
+        const line = this.fastPaymentLine;
+        log.logic("rollbackFastPayment", () => ({
+            order: this.orderUuid,
+            line: line?.uuid,
+            present: Boolean(line && this.order.payment_ids.includes(line)),
+        }));
+        if (line && this.order.payment_ids.includes(line)) {
+            this.order.removePaymentline(line);
+        }
+        this.fastPaymentLine = null;
     }
 
     get order() {
@@ -56,6 +80,13 @@ export default class OrderPaymentValidation {
         return this.order.payment_ids;
     }
 
+    shouldRemoveZeroPayment(line) {
+        return (
+            line.amount === 0 &&
+            !(this.pos.config.hasCashRounding && line.payment_method_id.is_cash_count)
+        );
+    }
+
     async beforePostPushOrderResolve(order, order_server_ids) {
         return true;
     }
@@ -69,6 +100,11 @@ export default class OrderPaymentValidation {
 
     async shouldHideValidationBehindFeedbackScreen() {
         const nextPage = this.nextPage;
+        log.pipeline("finalize: next page", () => ({
+            order: this.orderUuid,
+            page: nextPage.page,
+            background: nextPage.page === "FeedbackScreen",
+        }));
         if (nextPage.page === "FeedbackScreen") {
             const waitForFn = async () => {
                 try {
@@ -105,66 +141,101 @@ export default class OrderPaymentValidation {
     }
 
     async validateOrder(isForceValidate) {
-        let fastPaymentLine = null;
-        if (this.fastPaymentMethod) {
-            const res = this.order.addPaymentline(this.fastPaymentMethod);
-            fastPaymentLine = res?.data || null;
-            this.fastPaymentMethod = null;
-        }
-        const rollbackFastPayment = () => {
-            if (fastPaymentLine) {
-                this.order.removePaymentline(fastPaymentLine);
-            }
-        };
+        const endValidate = log.perf("validateOrder");
+        log.pipeline("validateOrder", () => ({
+            order: this.orderUuid,
+            isForceValidate,
+            state: this.order.state,
+            lines: this.order.lines.length,
+            payments: this.paymentLines.length,
+            toInvoice: this.order.isToInvoice(),
+        }));
+        const rollbackFastPayment = () => this.rollbackFastPayment();
         if ((await this.askBeforeValidation()) === false) {
+            log.logic("validateOrder: askBeforeValidation refused", () => ({
+                order: this.orderUuid,
+            }));
             rollbackFastPayment();
+            endValidate({ order: this.orderUuid, stoppedAt: "askBeforeValidation" });
             return false;
         }
         if ((await this._askForCustomerIfRequired()) === false) {
             rollbackFastPayment();
+            endValidate({ order: this.orderUuid, stoppedAt: "customerRequired" });
             return false;
         }
         this.pos.numberBuffer.capture();
         if (!this.checkCashRoundingHasBeenWellApplied()) {
             rollbackFastPayment();
+            endValidate({ order: this.orderUuid, stoppedAt: "cashRounding" });
             return false;
         }
         const linesToRemove = this.order.lines.filter((line) => line.canBeRemoved);
+        log.logic("validateOrder: zero-qty lines", () => ({
+            order: this.orderUuid,
+            removed: linesToRemove.map((l) => l.uuid),
+        }));
         for (const line of linesToRemove) {
             this.order.removeOrderline(line);
         }
         if (await this.isOrderValid(isForceValidate)) {
             const toRemove = [];
             for (const line of this.paymentLines) {
-                if (!line.isDone() || line.amount === 0) {
+                if (!line.isDone() || this.shouldRemoveZeroPayment(line)) {
                     toRemove.push(line);
                 }
             }
+            log.logic("validateOrder: dropping payment lines", () => ({
+                order: this.orderUuid,
+                removed: toRemove.map((l) => ({
+                    payment: l.uuid,
+                    status: l.getPaymentStatus(),
+                    amount: l.amount,
+                })),
+            }));
 
             for (const line of toRemove) {
                 this.order.removePaymentline(line);
             }
 
-            return await this.shouldHideValidationBehindFeedbackScreen();
+            const result = await this.shouldHideValidationBehindFeedbackScreen();
+            endValidate({ order: this.orderUuid, result });
+            return result;
         }
 
         rollbackFastPayment();
+        endValidate({ order: this.orderUuid, stoppedAt: "isOrderValid" });
         return false;
     }
 
     async finalizeValidation() {
+        const endFinalize = log.perf("finalizeValidation");
+        log.pipeline("finalizeValidation", () => ({
+            order: this.orderUuid,
+            openCashbox: Boolean(this.order.isPaidWithCash() || this.order.change),
+            payments: this.paymentLines.map((p) => ({
+                payment: p.uuid,
+                method: p.payment_method_id.id,
+                amount: p.amount,
+            })),
+            toInvoice: this.order.isToInvoice(),
+        }));
         if (this.order.isPaidWithCash() || this.order.change) {
             this.pos.hardwareProxy.openCashbox();
         }
 
         this.order.date_order = serializeDateTime(luxon.DateTime.now());
         for (const line of this.paymentLines) {
-            if (line.amount === 0) {
+            if (this.shouldRemoveZeroPayment(line)) {
                 this.order.removePaymentline(line);
             }
         }
 
         this.pos.addPendingOrder([this.order.id]);
+        log.lifecycle("finalizeValidation: state -> paid", () => ({
+            order: this.orderUuid,
+            id: this.order.id,
+        }));
         this.order.state = "paid";
         this.pos.data.localUnsyncedPaidOrderUuids.add(this.order.uuid);
 
@@ -175,10 +246,15 @@ export default class OrderPaymentValidation {
                 force: true,
             });
             if (!syncOrderResult) {
+                endFinalize({ order: this.orderUuid, synced: false });
                 return false;
             }
 
             if (this.shouldDownloadInvoice() && this.order.isToInvoice()) {
+                log.logic("finalizeValidation: invoice", () => ({
+                    order: this.orderUuid,
+                    accountMove: this.order.raw.account_move,
+                }));
                 if (this.order.raw.account_move) {
                     await this.pos.env.services.account_move.downloadPdf(
                         this.order.raw.account_move,
@@ -196,14 +272,22 @@ export default class OrderPaymentValidation {
             const postPushOrders = syncOrderResult.filter((order) =>
                 order.waitForPushOrder(),
             );
+            log.logic("finalizeValidation: post push", () => ({
+                order: this.orderUuid,
+                synced: syncOrderResult.length,
+                postPush: postPushOrders.map((o) => o.id),
+            }));
             if (postPushOrders.length > 0) {
                 await this.postPushOrderResolve(
                     postPushOrders.map((order) => order.id),
                 );
             }
 
-            return await this.afterOrderValidation();
+            const result = await this.afterOrderValidation();
+            endFinalize({ order: this.orderUuid, id: this.order.id, synced: true });
+            return result;
         } catch (error) {
+            endFinalize({ order: this.orderUuid, error: error?.constructor?.name });
             return this.handleValidationError(error);
         }
     }
@@ -224,6 +308,14 @@ export default class OrderPaymentValidation {
     }
 
     async afterOrderValidation() {
+        log.pipeline("afterOrderValidation", () => ({
+            order: this.orderUuid,
+            restaurant: this.pos.config.module_pos_restaurant,
+            nbPrint: this.order.nb_print,
+            printAuto: this.pos.config.iface_print_auto,
+            toInvoice: this.order.isToInvoice(),
+            finalized: this.order.finalized,
+        }));
         if (!this.pos.config.module_pos_restaurant) {
             this.pos
                 .checkPreparationStateAndSentOrderInPreparation(this.order, {
@@ -256,6 +348,12 @@ export default class OrderPaymentValidation {
     }
 
     handleValidationError(error) {
+        log.logic("handleValidationError", () => ({
+            order: this.orderUuid,
+            connectionLost: error instanceof ConnectionLostError,
+            rpcError: error instanceof RPCError,
+            error: error?.message,
+        }));
         if (error instanceof ConnectionLostError) {
             this.pos.data.syncLocalDataInIndexedDB();
             this.afterOrderValidation();
@@ -289,6 +387,12 @@ export default class OrderPaymentValidation {
             if (currency.isZero(expectedAmountPaid - amountPaid)) {
                 continue;
             }
+            log.logic("checkCashRounding: mismatch", () => ({
+                order: this.orderUuid,
+                payment: payment.uuid,
+                amountPaid,
+                expectedAmountPaid,
+            }));
 
             this.pos.dialog.add(AlertDialog, {
                 title: _t("Rounding error in payment lines"),
@@ -314,8 +418,16 @@ export default class OrderPaymentValidation {
     }
 
     async isOrderValid(isForceValidate) {
-        if (this.order.isRefundInProcess()) {
+        const reject = (reason, extra) => {
+            log.logic("isOrderValid: rejected", () => ({
+                order: this.orderUuid,
+                reason,
+                ...(extra || {}),
+            }));
             return false;
+        };
+        if (this.order.isRefundInProcess()) {
+            return reject("refundInProcess");
         }
 
         const inFlightPayment = this.order.payment_ids.find(
@@ -325,6 +437,7 @@ export default class OrderPaymentValidation {
                 !["pending", "retry"].includes(p.getPaymentStatus()),
         );
         if (this.pos.paymentTerminalInProgress || inFlightPayment) {
+            reject("terminalInProgress", { inFlightPayment: inFlightPayment?.uuid });
             this.pos.dialog.add(AlertDialog, {
                 title: _t("Electronic payment in progress"),
                 body: _t(
@@ -335,6 +448,7 @@ export default class OrderPaymentValidation {
         }
 
         if (this.order.getOrderlines().length === 0 && this.order.isToInvoice()) {
+            reject("emptyInvoicedOrder");
             this.pos.dialog.add(AlertDialog, {
                 title: _t("Empty Order"),
                 body: _t(
@@ -348,6 +462,7 @@ export default class OrderPaymentValidation {
             (this.order.isToInvoice() || this.order.getShippingDate()) &&
             !this.order.getPartner()
         ) {
+            reject("partnerRequired");
             const confirmed = await ask(this.pos.dialog, {
                 title: _t("Please select the Customer"),
                 body: _t(
@@ -365,6 +480,7 @@ export default class OrderPaymentValidation {
             this.order.getShippingDate() &&
             !(partner.name && partner.street && partner.city && partner.country_id)
         ) {
+            reject("shippingAddress", { partner: partner.id });
             this.pos.dialog.add(AlertDialog, {
                 title: _t("Incorrect address for shipping"),
                 body: _t("The selected customer needs an address."),
@@ -375,6 +491,7 @@ export default class OrderPaymentValidation {
         const missingRequirement = this.order.getMissingPresetRequirement();
         if (missingRequirement) {
             const { field, message } = missingRequirement;
+            reject("presetRequirement", { field });
             this.pos.dialog.add(AlertDialog, {
                 title: field ? _t("%s required", field) : _t("Missing required"),
                 body: message || _t("Some required information is missing."),
@@ -389,11 +506,15 @@ export default class OrderPaymentValidation {
             this.pos.notification.add(
                 _t("Select a payment method to validate the order."),
             );
-            return false;
+            return reject("noPayment", { priceIncl: this.order.priceIncl });
         }
 
         if (!this.order.isPaid()) {
-            return false;
+            return reject("notPaid", {
+                priceIncl: this.order.priceIncl,
+                amountPaid: this.order.amountPaid,
+                remainingDue: this.order.remainingDue,
+            });
         }
 
         if (
@@ -404,6 +525,10 @@ export default class OrderPaymentValidation {
             ) > 0.00001
         ) {
             if (!this.pos.models["pos.payment.method"].some((pm) => pm.is_cash_count)) {
+                reject("changeWithoutCash", {
+                    priceIncl: this.order.priceIncl,
+                    amountPaid: this.order.amountPaid,
+                });
                 this.pos.dialog.add(AlertDialog, {
                     title: _t("Cannot return change without a cash payment method"),
                     body: _t(
@@ -419,6 +544,10 @@ export default class OrderPaymentValidation {
             this.order.priceIncl > 0 &&
             this.order.priceIncl * 1000 < this.order.amountPaid
         ) {
+            reject("largeAmountConfirmation", {
+                priceIncl: this.order.priceIncl,
+                amountPaid: this.order.amountPaid,
+            });
             this.pos.dialog.add(ConfirmationDialog, {
                 title: _t("Please Confirm Large Amount"),
                 body:
@@ -437,9 +566,15 @@ export default class OrderPaymentValidation {
         }
 
         if (!this.order._isValidEmptyOrder()) {
-            return false;
+            return reject("invalidEmptyOrder");
         }
 
+        log.logic("isOrderValid: accepted", () => ({
+            order: this.orderUuid,
+            isForceValidate,
+            priceIncl: this.order.priceIncl,
+            amountPaid: this.order.amountPaid,
+        }));
         return true;
     }
 
@@ -449,6 +584,10 @@ export default class OrderPaymentValidation {
         );
         if (splitPayments.length && !this.order.getPartner()) {
             const paymentMethod = splitPayments[0].payment_method_id;
+            log.logic("askForCustomerIfRequired: split payment needs partner", () => ({
+                order: this.orderUuid,
+                method: paymentMethod.id,
+            }));
             const confirmed = await ask(this.pos.dialog, {
                 title: _t("Customer Required"),
                 body: _t(

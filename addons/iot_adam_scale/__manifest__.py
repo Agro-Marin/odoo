@@ -9,6 +9,7 @@ devices, so install it only if you have one.
 """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["iot"],
-    "installable": True,
+    "depends": [
+        "iot",
+    ],
 }

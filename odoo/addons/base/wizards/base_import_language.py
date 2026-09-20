@@ -6,25 +6,37 @@ from tempfile import TemporaryFile
 
 from odoo import fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import TranslationImporter
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class BaseLanguageImport(models.TransientModel):
     _name = "base.language.import"
     _description = "Language Import"
 
-    name = fields.Char("Language Name", required=True)
+    name = fields.Char(
+        string="Language Name",
+        required=True,
+    )
     code = fields.Char(
-        "ISO Code",
+        string="ISO Code",
         required=True,
         help="ISO Language and Country code, e.g. en_US",
     )
-    data = fields.Binary("File", required=True, attachment=False)
-    filename = fields.Char("File Name", required=True)
+    data = fields.Binary(
+        string="File",
+        attachment=False,
+        required=True,
+    )
+    filename = fields.Char(
+        string="File Name",
+        required=True,
+    )
     overwrite = fields.Boolean(
-        "Overwrite Existing Terms",
+        string="Overwrite Existing Terms",
         default=True,
         help="If you enable this option, existing translations (including custom ones) "
         "will be overwritten and replaced by those in this file",
@@ -60,5 +72,10 @@ class BaseLanguageImport(models.TransientModel):
                             error_message=e,
                         ),
                     ) from e
+            _debug.pipeline(
+                "import_language",
+                langs=[imp.code for imp in base_lang_imports],
+                overwrite=overwrite,
+            )
             translation_importer.save(overwrite=overwrite)
         return True

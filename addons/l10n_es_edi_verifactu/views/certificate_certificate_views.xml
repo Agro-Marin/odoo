@@ -12,10 +12,10 @@
             <field name="arch" type="xml">
                 <filter name="scope_general" position="after">
                     <filter
-                        string="Veri*Factu"
                         name="scope_verifactu"
-                        domain="[('scope','=','verifactu')]"
-                        help="Veri*Factu certificates" />
+                        string="Veri*Factu"
+                        help="Veri*Factu certificates"
+                        domain="[('scope','=','verifactu')]" />
                 </filter>
             </field>
         </record>
@@ -44,19 +44,6 @@
                 </field>
             </field>
         </record>
-        <menuitem
-            id="menu_l10n_es_edi_verifactu_root"
-            name="Veri*Factu (Spain)"
-            parent="account.menu_finance_configuration"
-            sequence="110"
-            groups="account.group_account_manager">
-            <menuitem
-                id="menu_l10n_es_edi_verifactu_certificates"
-                name="Certificates"
-                action="l10n_es_edi_verifactu_certificate_action"
-                sequence="100"
-                groups="account.group_account_manager" />
-        </menuitem>
     </data>
 
 </odoo>

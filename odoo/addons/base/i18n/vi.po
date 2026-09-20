@@ -15109,7 +15109,7 @@ msgstr ""
 "Sử dụng thương mại điện tử để bán gian hàng sự kiện của bạn.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_sales_team
+#: model:ir.module.module,description:base.module_sale_team
 msgid ""
 "\n"
 "Using this application you can manage Sales Teams with CRM and/or Sales\n"
@@ -23086,11 +23086,15 @@ msgid "Change My Preferences"
 msgstr "Thay đổi tùy chọn của tôi"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.change_password_wizard_action
 #: model_terms:ir.ui.view,arch_db:base.change_password_own_form
 #: model_terms:ir.ui.view,arch_db:base.change_password_wizard_view
 msgid "Change Password"
 msgstr "Thay đổi Mật khẩu"
+
+#. module: base
+#: model:ir.actions.act_window,name:base.change_password_wizard_action
+msgid "Change Password…"
+msgstr "Thay đổi Mật khẩu…"
 
 #. module: base
 #: model:ir.model,name:base.model_change_password_wizard
@@ -23879,8 +23883,8 @@ msgstr "So sánh bảng chấm công và kế hoạch"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.reset_view_arch_wizard_action
-msgid "Compare/Reset"
-msgstr "So sánh/Đặt lại"
+msgid "Compare/Reset…"
+msgstr "So sánh/Đặt lại…"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_partner__contact_address
@@ -34803,8 +34807,8 @@ msgstr "Menu"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_partner_merge
-msgid "Merge"
-msgstr "Hợp nhất"
+msgid "Merge…"
+msgstr "Hợp nhất…"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
@@ -36086,11 +36090,6 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:base.open_module_tree
 msgid "No module found!"
 msgstr "Không tìm thấy phân hệ!"
-
-#. module: base
-#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
-msgid "No of Views"
-msgstr "Số lượt xem"
 
 #. module: base
 #. odoo-python
@@ -43450,8 +43449,8 @@ msgid "Sales PDF Quotation Builder"
 msgstr "Trình tạo báo giá bán hàng PDF"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_sales_team
-#: model:ir.module.module,summary:base.module_sales_team
+#: model:ir.module.module,shortdesc:base.module_sale_team
+#: model:ir.module.module,summary:base.module_sale_team
 msgid "Sales Teams"
 msgstr "Bộ phận sales"
 
@@ -46132,7 +46131,7 @@ msgstr "Trường kỹ thuật cho cài đặt nhóm người dùng"
 
 #. module: base
 #: model:ir.actions.report,name:base.ir_module_reference_print
-msgid "Technical guide"
+msgid "Technical Guide"
 msgstr "Hướng dẫn kỹ thuật"
 
 #. module: base
@@ -49993,6 +49992,7 @@ msgid "View livechat sessions for leads"
 msgstr "Xem phiên trò chuyện trực tiếp của lead"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
 #: model:ir.actions.act_window,name:base.action_ui_view
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__views
 #: model:ir.model.fields,field_description:base.field_ir_model__view_ids

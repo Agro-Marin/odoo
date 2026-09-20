@@ -24,9 +24,9 @@
         <field
             name="groups"
             eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_public'))]" />
+        <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
-        <field name="perm_write" eval="False" />
     </record>
 
     <record id="ir_default_user_rule" model="ir.rule">
@@ -106,32 +106,32 @@
         <field name="name">company rule portal</field>
         <field name="model_id" ref="model_res_company" />
         <field name="global" eval="False" />
-        <field name="groups" eval="[Command.set([ref('base.group_portal')])]" />
         <field name="domain_force">[('id','in', company_ids)]</field>
+        <field name="groups" eval="[Command.set([ref('base.group_portal')])]" />
     </record>
 
     <record id="res_company_rule_employee" model="ir.rule">
         <field name="name">company rule employee</field>
         <field name="model_id" ref="model_res_company" />
         <field name="global" eval="False" />
-        <field name="groups" eval="[Command.set([ref('base.group_user')])]" />
         <field name="domain_force">[('id','in', company_ids)]</field>
+        <field name="groups" eval="[Command.set([ref('base.group_user')])]" />
     </record>
 
     <record id="res_company_rule_public" model="ir.rule">
         <field name="name">company rule public</field>
         <field name="model_id" ref="model_res_company" />
         <field name="global" eval="False" />
-        <field name="groups" eval="[Command.set([ref('base.group_public')])]" />
         <field name="domain_force">[('id','in', company_ids)]</field>
+        <field name="groups" eval="[Command.set([ref('base.group_public')])]" />
     </record>
 
     <record id="res_company_rule_erp_manager" model="ir.rule">
         <field name="name">company rule erp manager</field>
         <field name="model_id" ref="model_res_company" />
         <field name="global" eval="False" />
-        <field name="groups" eval="[Command.set([ref('base.group_erp_manager')])]" />
         <field name="domain_force">[(1,'=',1)]</field>
+        <field name="groups" eval="[Command.set([ref('base.group_erp_manager')])]" />
     </record>
 
     <record id="res_users_identity_check" model="ir.rule">
@@ -151,9 +151,9 @@
     <record id="res_users_rule_portal" model="ir.rule">
         <field name="name">portal user access</field>
         <field name="model_id" ref="model_res_users" />
-        <field name="groups" eval="[Command.set([ref('base.group_portal')])]" />
         <field
             name="domain_force">[('commercial_partner_id', '=', user.commercial_partner_id.id)]</field>
+        <field name="groups" eval="[Command.set([ref('base.group_portal')])]" />
     </record>
 
     <record id="change_password_own_rule" model="ir.rule">
@@ -165,8 +165,8 @@
     <record id="res_users_settings_rule_admin" model="ir.rule">
         <field name="name">Administrators can access all User Settings.</field>
         <field name="model_id" ref="model_res_users_settings" />
-        <field name="groups" eval="[Command.link(ref('base.group_system'))]" />
         <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('base.group_system'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -176,8 +176,8 @@
     <record id="res_users_settings_rule_user" model="ir.rule">
         <field name="name">res.users.settings: access their own entries</field>
         <field name="model_id" ref="model_res_users_settings" />
-        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -261,8 +261,8 @@
     <record id="properties_base_definition_rule_admin" model="ir.rule">
         <field name="name">properties.base.definition: system all access</field>
         <field name="model_id" ref="base.model_properties_base_definition" />
-        <field name="groups" eval="[Command.link(ref('base.group_system'))]" />
         <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[Command.link(ref('base.group_system'))]" />
     </record>
 
     <record id="res_partner_identifier_rule" model="ir.rule">
@@ -283,17 +283,17 @@
         <field
             name="groups"
             eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_public'))]" />
-        <field name="perm_create" eval="False" />
         <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
     </record>
 
     <record id="res_partner_private_address_rule" model="ir.rule">
         <field name="name">res.partner: a private address is its subject's</field>
         <field name="model_id" ref="base.model_res_partner" />
+        <field name="global" eval="True" />
         <field
             name="domain_force">['|', ('type', '!=', 'private'), ('parent_id', '=', user.partner_id.id)]</field>
-        <field name="global" eval="True" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />

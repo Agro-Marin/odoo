@@ -7,11 +7,23 @@ import {
     darkenColor,
     DEFAULT_BG,
     getBorderWhite,
+    getCalendarColor,
     getColor,
+    getColorBrightness,
     getColors,
     getCustomColor,
+    getNextColorIndex,
+    getNonzeroColorIndex,
+    getPaletteColor,
+    getPreparationDisplayColor,
+    getRandomColorIndex,
+    getRandomSelectionColor,
+    getStrokeAndHoveredStrokeColor,
     hexToRGBA,
     lightenColor,
+    PLC_CHART_COLORS,
+    SIGN_COLOR_INDICES,
+    withOpacity,
 } from "@web/core/colors/colors";
 
 describe.current.tags("headless");
@@ -26,6 +38,12 @@ function withScheme(isDark) {
 }
 
 describe("palette selection", () => {
+    test("random record indices include zero and the final palette slot", () => {
+        patchWithCleanup(Math, { random: () => 0 });
+        expect(getRandomColorIndex()).toBe(0);
+        patchWithCleanup(Math, { random: () => 0.999999 });
+        expect(getRandomColorIndex()).toBe(11);
+    });
     test("a numeric size picks the smallest palette that fits", () => {
         /** @type {[number, "sm" | "md" | "lg" | "xl"][]} */
         const ladder = [
@@ -75,6 +93,10 @@ describe("palette selection", () => {
 });
 
 describe("colour arithmetic", () => {
+    test("the public color module exposes shared contrast and opacity", () => {
+        expect(getColorBrightness("#fff")).toBeCloseTo(1);
+        expect(withOpacity("#abc", 0.5)).toBe("rgba(170, 187, 204, 0.5)");
+    });
     test("lightenColor interpolates toward white", () => {
         expect(lightenColor("#4EA7F2", 0)).toBe("#4ea7f2");
         expect(lightenColor("#4EA7F2", 0.5)).toBe("#a7d3f9");
@@ -133,5 +155,74 @@ describe("scheme-dependent constants", () => {
 
     test("DEFAULT_BG is a parseable colour", () => {
         expect(hexToRGBA(DEFAULT_BG, 1)).toBe("rgba(211,211,211,1)");
+    });
+});
+
+describe("consumer color contracts", () => {
+    test("calendar preserves numeric cycles, CSS values and UTF-16 category hashes", () => {
+        expect(getCalendarColor(0)).toBe(false);
+        expect(getCalendarColor(55)).toBe(55);
+        expect(getCalendarColor(56)).toBe(1);
+        expect(getCalendarColor(-1)).toBe(-1);
+        expect(getCalendarColor(1.5)).toBe(1.5);
+        expect(getCalendarColor("#AbC")).toBe("#AbC");
+        expect(getCalendarColor("rgba(1, 2, 3, .5)")).toBe("rgba(1, 2, 3, .5)");
+        expect(getCalendarColor("red")).toBe(10);
+        expect(getCalendarColor("😀")).toBe(20);
+    });
+
+    test("nonzero record colors preserve the reconciliation cycle", () => {
+        expect(getNonzeroColorIndex(0)).toBe(1);
+        expect(getNonzeroColorIndex(10)).toBe(11);
+        expect(getNonzeroColorIndex(11)).toBe(1);
+        expect(getNonzeroColorIndex(22)).toBe(1);
+        expect(Number.isNaN(getNonzeroColorIndex(NaN))).toBe(true);
+    });
+
+    test("signers reuse the first free slot and fall back to zero when full", () => {
+        expect(getNextColorIndex([], SIGN_COLOR_INDICES)).toBe(0);
+        expect(getNextColorIndex([0, 2, 3], SIGN_COLOR_INDICES)).toBe(1);
+        expect(
+            getNextColorIndex(SIGN_COLOR_INDICES.slice(0, 54), SIGN_COLOR_INDICES),
+        ).toBe(54);
+        expect(getNextColorIndex(SIGN_COLOR_INDICES, SIGN_COLOR_INDICES)).toBe(0);
+    });
+
+    test("preparation displays share the nine-class cycle and numeric string coercion", () => {
+        expect(getPreparationDisplayColor(0)).toBe("o_pdis_card_color_0");
+        expect(getPreparationDisplayColor(8)).toBe("o_pdis_card_color_8");
+        expect(getPreparationDisplayColor(9)).toBe("o_pdis_card_color_0");
+        expect(getPreparationDisplayColor("10")).toBe("o_pdis_card_color_1");
+    });
+
+    test("collaboration cursor hue preserves the rounding and saturation", () => {
+        patchWithCleanup(Math, { random: () => 0 });
+        expect(getRandomSelectionColor()).toBe("hsl(0, 75%, 50%)");
+        patchWithCleanup(Math, { random: () => 0.5 });
+        expect(getRandomSelectionColor()).toBe("hsl(180, 75%, 50%)");
+        patchWithCleanup(Math, { random: () => 0.999999 });
+        expect(getRandomSelectionColor()).toBe("hsl(360, 75%, 50%)");
+    });
+
+    test("PLC charts preserve all five colors and wrap at the next dataset", () => {
+        expect(PLC_CHART_COLORS).toEqual([
+            "#017E84",
+            "#5B899E",
+            "#F4A261",
+            "#E76F51",
+            "#8E7CC3",
+        ]);
+        expect(getPaletteColor(5, PLC_CHART_COLORS)).toBe("#017E84");
+    });
+});
+
+test("connector colors preserve channels and highlight opacity", () => {
+    expect(getStrokeAndHoveredStrokeColor(211, 65, 59)).toEqual({
+        color: "rgba(211,65,59,0.5)",
+        highlightedColor: "rgba(211,65,59,1)",
+    });
+    expect(getStrokeAndHoveredStrokeColor(1.5, 2.5, 3.5)).toEqual({
+        color: "rgba(1.5,2.5,3.5,0.5)",
+        highlightedColor: "rgba(1.5,2.5,3.5,1)",
     });
 });

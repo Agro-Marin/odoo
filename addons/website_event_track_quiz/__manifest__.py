@@ -1,6 +1,6 @@
 {
     "name": "Quizzes on Tracks",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Marketing/Events",
     "sequence": 1007,
     "summary": "Quizzes on tracks",
@@ -34,5 +34,4 @@
             "website_event_track_quiz/static/src/xml/quiz_templates.xml",
         ],
     },
-    "installable": True,
 }

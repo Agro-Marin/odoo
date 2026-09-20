@@ -1,12 +1,19 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class CrmLead(models.Model):
     _inherit = "crm.lead"
 
-    visitor_ids = fields.Many2many("website.visitor", string="Web Visitors")
+    visitor_ids = fields.Many2many(
+        comodel_name="website.visitor",
+        string="Web Visitors",
+    )
     visitor_page_count = fields.Integer(
-        "# Page Views", compute="_compute_visitor_page_count"
+        string="# Page Views",
+        compute="_compute_visitor_page_count",
     )
 
     @api.depends("visitor_ids.page_ids")
@@ -22,8 +29,9 @@ class CrmLead(models.Model):
                         JOIN website_track p ON p.visitor_id = v.id
                         WHERE l.id = ANY(%s)
                         GROUP BY l.id"""
-            self.env.cr.execute(sql, (list(self.ids),))
-            page_data = self.env.cr.dictfetchall()
+            with _debug.perf("visitor_page_count_query", cr=self.env.cr, leads=self):
+                self.env.cr.execute(sql, (list(self.ids),))
+                page_data = self.env.cr.dictfetchall()
             mapped_data = {
                 data["lead_id"]: data["page_view_count"] for data in page_data
             }
@@ -40,6 +48,11 @@ class CrmLead(models.Model):
             len(visitors.website_track_ids) > 15
             and len(visitors.website_track_ids.page_id) > 1
         ):
+            _debug.logic(
+                "page_views_grouped",
+                visitors=visitors,
+                tracks=visitors.website_track_ids,
+            )
             action["context"] = {"search_default_group_by_page": "1"}
         return action
 
@@ -68,12 +81,12 @@ class CrmLead(models.Model):
             and not self._is_rule_based_assignment_activated()
         ):
             values["user_id"] = (
-                self.env["crm.team"].sudo().browse([values["team_id"]]).user_id.id
+                self.env["team.team"].sudo().browse([values["team_id"]]).user_id.id
             )
         if values.get("team_id"):
             values["type"] = (
                 "lead"
-                if self.env["crm.team"].sudo().browse(values["team_id"]).use_leads
+                if self.env["team.team"].sudo().browse(values["team_id"]).use_leads
                 else "opportunity"
             )
         else:
@@ -83,4 +96,11 @@ class CrmLead(models.Model):
                 else "opportunity"
             )
 
+        _debug.logic(
+            "lead_defaults_resolved",
+            team=values["team_id"],
+            user=values["user_id"],
+            type=values["type"],
+            medium=values["medium_id"],
+        )
         return values

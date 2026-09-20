@@ -9,13 +9,13 @@
             <xpath expr="//field[@name='vat']" position="after">
                 <field
                     name="sst_registration_number"
-                    invisible="'MY' not in fiscal_country_codes"
                     placeholder="A01-2345-67891012"
+                    invisible="'MY' not in fiscal_country_codes"
                     readonly="parent_id" />
                 <field
                     name="ttx_registration_number"
-                    invisible="'MY' not in fiscal_country_codes"
                     placeholder="123-4567-89012345"
+                    invisible="'MY' not in fiscal_country_codes"
                     readonly="parent_id" />
             </xpath>
         </field>

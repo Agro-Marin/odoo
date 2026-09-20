@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { download } from "@web/core/network";
+import { registry } from "@web/core/registry";
 
 async function executeAccountReportDownload({ env, action }) {
     env.services.ui.block();
@@ -10,12 +10,13 @@ async function executeAccountReportDownload({ env, action }) {
 
     try {
         await download({ url, data });
-        if (!data.no_closing_after_download)
+        if (!data.no_closing_after_download) {
             if (data.next_action) {
                 env.services.action.doAction(data.next_action);
             } else {
                 env.services.action.doAction({ type: "ir.actions.act_window_close" });
             }
+        }
     } catch (e) {
         if (e.exceptionName === "AccountReportFileDownloadException") {
             const reportOptions = JSON.parse(data.options);

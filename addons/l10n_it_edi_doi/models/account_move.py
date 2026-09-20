@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
@@ -16,12 +19,12 @@ class AccountMove(models.Model):
     )
 
     l10n_it_edi_doi_id = fields.Many2one(
+        comodel_name="l10n_it_edi_doi.declaration_of_intent",
         string="Declaration of Intent",
         compute="_compute_l10n_it_edi_doi_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
-        comodel_name="l10n_it_edi_doi.declaration_of_intent",
     )
 
     l10n_it_edi_doi_amount = fields.Monetary(
@@ -135,7 +138,7 @@ class AccountMove(models.Model):
                         if order.l10n_it_edi_doi_id == declaration:
                             linked_orders |= order
                         qty_invoiced = (
-                            invoice_line.product_uom_id._compute_quantity(
+                            invoice_line.product_uom_id._get_quantity_in_unit(
                                 invoice_line.quantity, sale_line.product_uom_id
                             )
                             * -move.direction_sign
@@ -207,6 +210,7 @@ class AccountMove(models.Model):
                 move.company_id, move.partner_id.commercial_partner_id, move.currency_id
             )
             if validity_errors:
+                _debug.logic("doi_rejected", move=move, errors=len(validity_errors))
                 raise UserError("\n".join(validity_errors))
 
     def _post_entries(self):
@@ -248,6 +252,7 @@ class AccountMove(models.Model):
                     )
                 )
         if errors:
+            _debug.logic("doi_post_refused", moves=self, errors=len(errors))
             raise UserError("\n".join(errors))
 
         return super()._post_entries()

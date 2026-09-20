@@ -1,8 +1,20 @@
 from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        transactions = super().create(vals_list)
+        invoices = transactions.filtered(
+            lambda tx: tx.operation not in ("refund", "validation")
+        ).invoice_ids
+        invoices._lock_for_payment()
+        if any(invoice.state == "cancel" for invoice in invoices):
+            raise ValidationError(_("You cannot pay a cancelled invoice."))
+        return transactions
 
     # The edge is stored once, on `account.payment.transaction_id`, and a partial
     # unique index there makes the one-to-one real rather than asserted in a
@@ -10,27 +22,26 @@ class PaymentTransaction(models.Model):
     # is what makes `payment_id` invalidate when a payment is linked; read
     # `payment_id`.
     payment_ids = fields.One2many(
-        string="Payments",
         comodel_name="account.payment",
         inverse_name="transaction_id",
+        string="Payments",
         readonly=True,
     )
     payment_id = fields.Many2one(
-        string="Payment",
         comodel_name="account.payment",
-        readonly=True,
         compute="_compute_payment_id",
         search="_search_payment_id",
+        readonly=True,
     )
 
     invoice_ids = fields.Many2many(
-        string="Invoices",
         comodel_name="account.move",
         relation="account_invoice_transaction_rel",
         column1="transaction_id",
         column2="invoice_id",
-        readonly=True,
+        string="Invoices",
         copy=False,
+        readonly=True,
         domain=[
             (
                 "move_type",
@@ -39,7 +50,7 @@ class PaymentTransaction(models.Model):
             )
         ],
     )
-    invoices_count = fields.Count("invoice_ids", string="Invoices Count")
+    invoices_count = fields.Count(count_of="invoice_ids")
 
     # === COMPUTE METHODS ===#
 
@@ -81,7 +92,7 @@ class PaymentTransaction(models.Model):
     # === BUSINESS METHODS - PAYMENT FLOW ===#
 
     @api.model
-    def _compute_reference_prefix(self, separator, **values):
+    def _get_reference_prefix(self, separator, **values):
         """Compute the reference prefix from the invoice names in the transaction values.
 
         Note: This method should be called in sudo mode to give access to documents (INV, SO, ...).
@@ -108,7 +119,7 @@ class PaymentTransaction(models.Model):
                 if name := values.get("name_next_installment"):
                     prefix = name
                 return prefix
-        return super()._compute_reference_prefix(separator, **values)
+        return super()._get_reference_prefix(separator, **values)
 
     # === BUSINESS METHODS - POST-PROCESSING ===#
 
@@ -214,7 +225,7 @@ class PaymentTransaction(models.Model):
         for invoice in self.invoice_ids:
             if invoice.state != "posted":
                 continue
-            next_payment_values = invoice._get_invoice_next_payment_values()
+            next_payment_values = invoice._prepare_invoice_next_payment_values()
             if (
                 next_payment_values["installment_state"] != "epd"
                 or self.amount != next_payment_values["amount_due"]

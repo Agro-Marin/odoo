@@ -92,9 +92,6 @@ def get_base_hostname(url, strip_www=False):
 
 def website_form_signature_payload(email_to, extra_recipients):
     parts = [email_to or ""]
-    # An empty recipient and an absent one are the same recipient set: the
-    # browser drops an empty input from the POST, so signing "email_cc=" at
-    # render time would reject every submission of a form that renders one.
     parts.extend(
         "%s=%s" % (name, extra_recipients[name])
         for name in ("email_cc", "email_bcc")

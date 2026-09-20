@@ -4,8 +4,9 @@ from collections.abc import Iterable
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.tools import DOMAIN_PREDICATES
 
-from odoo.addons.stock.const import PY_OPERATORS
+from ..tools import debug_log as dbg
 from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
 
 
@@ -18,12 +19,12 @@ class StockLot(models.Model):
 
     name = fields.Char(
         string="Lot/Serial Number",
-        required=True,
         compute="_compute_name",
-        store=True,
         precompute=True,
-        readonly=False,
+        store=True,
         index="trigram",
+        readonly=False,
+        required=True,
         help="Unique Lot/Serial Number",
     )
     active = fields.Boolean(default=True)
@@ -33,28 +34,24 @@ class StockLot(models.Model):
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
-        required=True,
-        check_company=True,
-        domain=(
-            "[('tracking', '!=', 'none'), ('is_storable', '=', True)] +"
-            " ([('product_tmpl_id', '=', context['default_product_tmpl_id'])] if context.get('default_product_tmpl_id') else [])"
-        ),
         index=True,
+        required=True,
+        domain="[('tracking', '!=', 'none'), ('is_storable', '=', True)] +"
+        " ([('product_tmpl_id', '=', context['default_product_tmpl_id'])] if context.get('default_product_tmpl_id') else [])",
+        check_company=True,
         tracking=True,
     )
     product_uom_id = fields.Many2one(
-        related="product_id.uom_id",
         comodel_name="uom.uom",
+        related="product_id.uom_id",
         string="Unit",
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         compute="_compute_company_id",
         store=True,
-        readonly=False,
         index=True,
+        readonly=False,
     )
     note = fields.Html(string="Description")
     display_complete = fields.Boolean(compute="_compute_display_complete")
@@ -75,7 +72,7 @@ class StockLot(models.Model):
         compute="_compute_delivery_ids",
     )
     count_transfer_outgoing = fields.Count(
-        "delivery_ids",
+        count_of="delivery_ids",
         string="Delivery order count",
     )
     partner_ids = fields.Many2many(
@@ -84,19 +81,18 @@ class StockLot(models.Model):
         search="_search_partner_ids",
     )
     lot_properties = fields.Properties(
-        string="Properties",
         definition="product_id.lot_properties_definition",
+        string="Properties",
         copy=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Location",
         compute="_compute_location_id",
+        inverse="_inverse_location_id",
         store=True,
         readonly=False,
-        inverse="_inverse_location_id",
-        domain="[('usage', '!=', 'view')]",
         group_expand="_read_group_location_id",
+        domain="[('usage', '!=', 'view')]",
     )
 
     _name_product_company_uniq = models.Constraint(
@@ -187,8 +183,14 @@ class StockLot(models.Model):
                 }
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.lot.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         lot_product_ids = {
             product_id
             for product_id in (
@@ -210,11 +212,16 @@ class StockLot(models.Model):
             vals_list
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.lot.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         identity_changed = any(
             field in vals for field in ("name", "product_id", "company_id")
         )
         if identity_changed:
+            dbg.logic.debug("stock.lot.write: identity change, checking duplicates")
             self._check_lots_allowed(
                 {vals.get("product_id"), *self.product_id.ids} - {None, False}
             )
@@ -279,6 +286,25 @@ class StockLot(models.Model):
     def _compute_company_id(self):
         for lot in self:
             owner = lot.product_id.company_id
+            current = lot.company_id
+            if owner and current and current != owner and owner in current.parent_ids:
+                # The branch below reads `self.env.company` and
+                # `self.env.companies`, so it decides by WHO is computing. That
+                # is defensible while the lot is being placed and indefensible
+                # afterwards. Measured: a product owned by a parent company, a
+                # lot created by a user allowed only in the child, gets the
+                # child -- and the same row recomputed by a user allowed in
+                # both silently moves to the parent. `company_id` drives
+                # record-rule visibility and `check_company` on the lot's
+                # quants and move lines, so that move can hide a lot from the
+                # people who created it.
+                #
+                # A lot sitting strictly BELOW its product's owner is exactly
+                # what that branch produces, so it is kept rather than
+                # re-decided. Every other shape still falls through: no owner
+                # clears the lot as before, an unrelated owner re-derives, and
+                # an unset company is decided for the first time.
+                continue
             if (
                 owner
                 and owner in self.env.company.parent_ids
@@ -337,6 +363,13 @@ class StockLot(models.Model):
                 continue
             message = _("Lot/Serial Number Relocated")
             breaking = quants._filtered_breaking_a_package()
+            dbg.pipeline.debug(
+                "[lot:%s] relocate to %s: breaking packages %s, intact %s",
+                lot.id,
+                lot.location_id.id,
+                dbg.rec(breaking),
+                dbg.rec(quants - breaking),
+            )
             if breaking:
                 breaking.move_quants(
                     location_dest_id=lot.location_id,
@@ -351,7 +384,7 @@ class StockLot(models.Model):
                 )
 
     def _search_product_qty(self, operator, value):
-        op = PY_OPERATORS.get(operator)
+        op = DOMAIN_PREDICATES.get(operator)
         if not op:
             return get_domain_quantity_in_python(self, "product_qty", operator, value)
         if isinstance(value, Iterable) and not isinstance(value, str):
@@ -380,6 +413,7 @@ class StockLot(models.Model):
         warehouses = self.env["stock.warehouse"].search([])
         return partner_locations + warehouses.lot_stock_id
 
+    @dbg.timed
     def _get_product_qty_by_lot(self, lot_domain):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             self.env["stock.location"]

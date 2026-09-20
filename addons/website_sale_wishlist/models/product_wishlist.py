@@ -2,40 +2,57 @@ from datetime import datetime, timedelta
 
 from odoo import api, fields, models
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductWishlist(models.Model):
     _name = "product.wishlist"
     _description = "Product Wishlist"
-    _product_unique_partner_id = models.Constraint(
-        "UNIQUE(product_id, partner_id)",
+    _product_unique_partner_id = models.UniqueIndex(
+        "(product_id, partner_id) WHERE partner_id IS NOT NULL",
         "Duplicated wishlisted product for this partner.",
     )
 
-    partner_id = fields.Many2one("res.partner", string="Owner", index="btree_not_null")
-    product_id = fields.Many2one("product.product", string="Product", required=True)
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Owner",
+        index="btree_not_null",
+    )
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        required=True,
+    )
     currency_id = fields.Many2one(
-        "res.currency", related="website_id.currency_id", readonly=True
+        comodel_name="res.currency",
+        related="website_id.currency_id",
+        readonly=True,
     )
     pricelist_id = fields.Many2one(
-        "product.pricelist", string="Pricelist", help="Pricelist when added"
+        comodel_name="product.pricelist",
+        help="Pricelist when added",
     )
     price = fields.Monetary(
         currency_field="currency_id",
-        string="Price",
         help="Price of the product when it has been added in the wishlist",
     )
-    website_id = fields.Many2one("website", ondelete="cascade", required=True)
-    active = fields.Boolean(default=True, required=True)
+    website_id = fields.Many2one(
+        comodel_name="website",
+        required=True,
+        ondelete="cascade",
+    )
+    active = fields.Boolean(
+        default=True,
+        required=True,
+    )
 
     @api.model
     def current(self):
-        """Get all wishlist items that belong to current user or session,
-        filter products that are unpublished."""
         if not request:
             return self
 
-        if request.website.is_public_user():
+        if request.env.user._is_public():
             wish = self.sudo().search(
                 [("id", "in", request.session.get("wishlist_ids", []))]
             )
@@ -47,6 +64,11 @@ class ProductWishlist(models.Model):
                 ]
             )
 
+        _debug.pipeline(
+            "wishlist_candidates",
+            candidates=wish,
+            anonymous=request.env.user._is_public(),
+        )
         return wish.filtered(
             lambda wish: (
                 wish.sudo().product_id.product_tmpl_id.website_published
@@ -71,7 +93,6 @@ class ProductWishlist(models.Model):
 
     @api.model
     def _check_wishlist_from_session(self):
-        """Assign all wishlist withtout partner from this the current session"""
         session_wishes = self.sudo().search(
             [("id", "in", request.session.get("wishlist_ids", []))]
         )
@@ -79,40 +100,47 @@ class ProductWishlist(models.Model):
             [("partner_id", "=", self.env.user.partner_id.id)]
         )
         partner_products = partner_wishes.mapped("product_id")
-        # Remove session products already present for the user
         duplicated_wishes = session_wishes.filtered(
             lambda wish: wish.product_id <= partner_products
         )
         session_wishes -= duplicated_wishes
+        _debug.lifecycle(
+            "wishlist_session_merged",
+            partner=self.env.user.partner_id,
+            adopted=session_wishes,
+            dropped_as_duplicate=duplicated_wishes,
+            already_owned=len(partner_wishes),
+        )
         duplicated_wishes.unlink()
-        # Assign the rest to the user
         session_wishes.write({"partner_id": self.env.user.partner_id.id})
         request.session.pop("wishlist_ids")
 
     @api.autovacuum
     def _gc_sessions(self, *args, **kwargs):
-        """Remove wishlists for unexisting sessions."""
-        self.with_context(active_test=False).search(
-            [
-                (
-                    "create_date",
-                    "<",
-                    fields.Datetime.to_string(
-                        datetime.now() - timedelta(weeks=kwargs.get("wishlist_week", 5))
+        with _debug.perf(
+            "wishlist_gc", cr=self.env.cr, weeks=kwargs.get("wishlist_week", 5)
+        ):
+            self.with_context(active_test=False).search(
+                [
+                    (
+                        "create_date",
+                        "<",
+                        fields.Datetime.to_string(
+                            datetime.now()
+                            - timedelta(weeks=kwargs.get("wishlist_week", 5))
+                        ),
                     ),
-                ),
-                ("partner_id", "=", False),
-            ]
-        ).unlink()
+                    ("partner_id", "=", False),
+                ]
+            ).unlink()
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
     wishlist_ids = fields.One2many(
-        "product.wishlist",
-        "partner_id",
-        string="Wishlist",
+        comodel_name="product.wishlist",
+        inverse_name="partner_id",
         domain=[("active", "=", True)],
     )
 

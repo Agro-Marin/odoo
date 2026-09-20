@@ -12,14 +12,14 @@
                             name="action_submit_to_myinvois"
                             type="object"
                             string="Submit To MyInvois"
-                            class="oe_highlight"
-                            invisible="myinvois_state and myinvois_state != 'invalid'" />
+                            invisible="myinvois_state and myinvois_state != 'invalid'"
+                            class="oe_highlight" />
                         <button
                             name="action_update_submission_status"
                             type="object"
                             string="Update Submission Status"
-                            class="oe_highlight"
-                            invisible="not myinvois_state or (myinvois_state not in ['in_progress', 'valid'])" />
+                            invisible="not myinvois_state or (myinvois_state not in ['in_progress', 'valid'])"
+                            class="oe_highlight" />
                         <button
                             name="action_cancel_submission"
                             type="object"
@@ -34,13 +34,13 @@
                         <widget
                             name="web_ribbon"
                             title="Processing"
-                            bg_color="text-bg-info"
-                            invisible="myinvois_state != 'in_progress'" />
+                            invisible="myinvois_state != 'in_progress'"
+                            bg_color="text-bg-info" />
                         <widget
                             name="web_ribbon"
                             title="Rejected"
-                            bg_color="text-bg-warning"
-                            invisible="myinvois_state != 'rejected'" />
+                            invisible="myinvois_state != 'rejected'"
+                            bg_color="text-bg-warning" />
                         <div class="oe_button_box" name="button_box"/>  <!-- Add the box to make it easier to add buttons in there when inheriting. -->
                         <div class="oe_title">
                             <h1>
@@ -80,13 +80,13 @@
                     <header>
                         <button
                             name="action_submit_to_myinvois"
-                            string="Submit To MyInvois"
                             type="object"
+                            string="Submit To MyInvois"
                             class="btn-primary" />
                         <button
                             name="action_update_submission_status"
-                            string="Fetch Status From MyInvois"
-                            type="object" />
+                            type="object"
+                            string="Fetch Status From MyInvois" />
                     </header>
                     <field name="display_name" />
                     <field name="myinvois_issuance_date" />

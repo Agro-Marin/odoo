@@ -20,9 +20,9 @@ class ResPartner(models.Model):
     )
     score_points = fields.Float(
         compute="_compute_score",
-        store=True,
-        compute_sudo=True,
         precompute=True,
+        compute_sudo=True,
+        store=True,
         help="Sum of the applied audit rows (see the score breakdown).",
     )
     score_max_possible = fields.Float(
@@ -35,9 +35,9 @@ class ResPartner(models.Model):
     score_pct = fields.Float(
         string="Score (%)",
         compute="_compute_score",
-        store=True,
-        compute_sudo=True,
         precompute=True,
+        compute_sudo=True,
+        store=True,
         help="Normalized score percentage (0-100) used to classify the "
         "partner into a commercial profile.",
     )
@@ -50,12 +50,12 @@ class ResPartner(models.Model):
         "the score is current versus still pending that background job.",
     )
     partner_profile_id = fields.Many2one(
-        string="Commercial Profile",
         comodel_name="partner.profile",
+        string="Commercial Profile",
         compute="_compute_partner_profile_id",
-        store=True,
         compute_sudo=True,
         recursive=True,
+        store=True,
         tracking=True,
         help="First active profile whose score range contains the partner's "
         "score percentage. A contact carries its commercial entity's profile: "
@@ -65,8 +65,8 @@ class ResPartner(models.Model):
         "and would bury the transitions that carry commercial meaning.",
     )
     factor = fields.Float(
-        string="Profile Factor",
         related="partner_profile_id.factor",
+        string="Profile Factor",
         readonly=True,
     )
     score_line_ids = fields.One2many(
@@ -75,7 +75,7 @@ class ResPartner(models.Model):
         string="Score Breakdown",
     )
     score_line_count = fields.Count(
-        "score_line_ids",
+        count_of="score_line_ids",
         string="Score Rows",
         store=True,
         help="How many audit rows explain the score. Stored so the partner "

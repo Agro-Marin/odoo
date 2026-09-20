@@ -732,3 +732,9 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account_payment.portal_my_invoices_payment
 msgid "overdue"
 msgstr ""
+
+#. module: account_payment_provider
+#. odoo-python
+#: code:addons/account_payment_provider/models/payment_transaction.py:0
+msgid "You cannot pay a cancelled invoice."
+msgstr ""

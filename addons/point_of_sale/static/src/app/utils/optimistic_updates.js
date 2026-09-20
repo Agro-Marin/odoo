@@ -1,4 +1,6 @@
 // @ts-check
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.data.optimistic");
 const snapshot = (value) => (Array.isArray(value) ? [...value] : value);
 
 export class OptimisticUpdates {
@@ -27,6 +29,12 @@ export class OptimisticUpdates {
         const fields = Object.keys(values).filter(
             (field) => field !== "id" && field !== "uuid" && this.model.fields[field],
         );
+        log.lifecycle("apply", () => ({
+            model: this.model.name,
+            records: records.map((r) => r.id),
+            fields,
+            pending: this.pending,
+        }));
         const settle = (success) => {
             const updates = new Map();
             for (const { record, field, state, change } of changes) {
@@ -51,6 +59,15 @@ export class OptimisticUpdates {
                     tracked.delete(field);
                 }
             }
+            log.logic("settle", () => ({
+                model: this.model.name,
+                success,
+                reverted: [...updates].map(([record, vals]) => ({
+                    id: record.id,
+                    fields: Object.keys(vals),
+                })),
+                pending: this.pending - 1,
+            }));
             try {
                 this.update(updates);
             } finally {

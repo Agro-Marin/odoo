@@ -20,6 +20,8 @@ import {
 } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { normalize } from "@web/core/l10n/utils";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -40,6 +42,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { makeAppConfig } from "@web/env";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
+
+const log = makeLogger("web.components.emoji_picker");
 
 export function useEmojiPicker(
     /** @type {any} */ ref,
@@ -199,10 +203,13 @@ export class EmojiPicker extends Component {
     /** @type {string | undefined} */
     lastSearchTerm;
     keyboardNavigated = false;
-    /** @type {number[][]} */
-    emojiMatrix = [];
+    /** @type {number[][] | null} */
+    _emojiMatrix = null;
+    /** @type {string | undefined} */
+    navbarReprKey;
 
     setup() {
+        useLifecycleLog(log);
         this.gridRef = useRef("emoji-grid");
         this.navbarRef = useRef("navbar");
         this.ui = useService("ui");
@@ -220,7 +227,9 @@ export class EmojiPicker extends Component {
             this.highlightActiveCategory(),
         );
         onWillStart(async () => {
+            const end = log.perf("loadEmoji");
             const { categories, emojis } = await loadEmoji();
+            end({ emojis: emojis.length });
             this.categories = categories;
             this.emojis = emojis;
             this.emojiByCodepoints = Object.fromEntries(
@@ -270,13 +279,12 @@ export class EmojiPicker extends Component {
                     const gridWidth = this.gridRef.el?.clientWidth;
                     if (gridWidth !== undefined && gridWidth !== this.gridWidth) {
                         this.gridWidth = gridWidth;
-                        this.updateEmojiPickerRepr();
+                        this._emojiMatrix = null;
                     }
                 });
                 this.gridResizeObserver.observe(this.gridRef.el);
             }
             this.adaptNavbar();
-            this.highlightActiveCategory();
             if (this.props.storeScroll && this.gridRef.el) {
                 this.gridRef.el.scrollTop = this.props.storeScroll.get();
             }
@@ -290,8 +298,10 @@ export class EmojiPicker extends Component {
             }
         });
         useEffect(
-            () => this.updateEmojiPickerRepr(),
-            () => [this.state.categoryId, this.searchTerm, this._emojisFromSearch],
+            () => {
+                this._emojiMatrix = null;
+            },
+            () => [this.searchTerm, this._emojisFromSearch],
         );
     }
 
@@ -406,6 +416,11 @@ export class EmojiPicker extends Component {
             }
             repr.push(panel);
         }
+        const key = repr.map((p) => p.join(",")).join(";");
+        if (key === this.navbarReprKey) {
+            return;
+        }
+        this.navbarReprKey = key;
         this.state.emojiNavbarRepr = repr;
     }
 
@@ -473,12 +488,39 @@ export class EmojiPicker extends Component {
         }
     }
 
-    onMouseenterEmoji(ev, emoji) {
-        this.setHoveredEmoji(emoji);
+    /**
+     * @param {Event} ev
+     * @returns {HTMLElement | null}
+     */
+    emojiCellOf(ev) {
+        const cell = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (ev.target).closest?.(".o-Emoji")
+        );
+        return cell && this.gridRef.el?.contains(cell) ? cell : null;
     }
 
-    onMouseleaveEmoji(ev, emoji) {
-        this.setHoveredEmoji(this.activeEmoji);
+    /** @param {MouseEvent} ev */
+    onGridMouseover(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell && !cell.contains(/** @type {Node} */ (ev.relatedTarget))) {
+            this.setHoveredEmoji(this.emojiByCodepoints[cell.dataset.codepoints ?? ""]);
+        }
+    }
+
+    /** @param {MouseEvent} ev */
+    onGridMouseout(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell && !cell.contains(/** @type {Node} */ (ev.relatedTarget))) {
+            this.setHoveredEmoji(this.activeEmoji);
+        }
+    }
+
+    /** @param {MouseEvent} ev */
+    onGridClick(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell) {
+            this.selectEmoji(cell, ev.shiftKey);
+        }
     }
 
     onClick(ev) {
@@ -504,10 +546,20 @@ export class EmojiPicker extends Component {
         this.selectCategory(panels[panelIndex - 1].at(-2));
     }
 
-    updateEmojiPickerRepr() {
-        if (!this.emojis.length || !this.gridRef.el) {
-            return;
+    /** @returns {number[][]} */
+    get emojiMatrix() {
+        if (!this._emojiMatrix) {
+            this._emojiMatrix = this.computeEmojiMatrix();
         }
+        return this._emojiMatrix;
+    }
+
+    /** @returns {number[][]} */
+    computeEmojiMatrix() {
+        if (!this.emojis.length || !this.gridRef.el) {
+            return [];
+        }
+        const end = log.perf("computeEmojiMatrix");
         const emojiEls = /** @type {HTMLElement[]} */ (
             Array.from(this.gridRef.el.querySelectorAll(".o-Emoji"))
         );
@@ -526,7 +578,8 @@ export class EmojiPicker extends Component {
                 Number.parseInt(emojiIndex, 10),
             );
         }
-        this.emojiMatrix = matrix;
+        end({ rows: matrix.length });
+        return matrix;
     }
 
     /**
@@ -657,9 +710,11 @@ export class EmojiPicker extends Component {
         this.shouldScrollElem = true;
     }
 
-    selectEmoji(ev) {
-        const codepoints = ev.currentTarget.dataset.codepoints;
-        let resetOnSelect = !ev.shiftKey;
+    /** @param {HTMLElement} cell */
+    selectEmoji(cell, shiftKey = false) {
+        const codepoints = cell.dataset.codepoints;
+        log.logic("selectEmoji", () => ({ codepoints, shiftKey }));
+        let resetOnSelect = !shiftKey;
         const res = this.props.onSelect(codepoints, resetOnSelect);
         if (res === false) {
             resetOnSelect = false;

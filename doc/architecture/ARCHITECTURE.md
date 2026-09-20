@@ -5,18 +5,12 @@ system, utilities. This page carries context, forces, cross-cutting mechanisms
 and the index of the views. Per-addon maps live in
 `addons/*/machine_doc_v1/ARCHITECTURE.md`.
 
-The 2026-09-04 fork audit records prioritized findings, implemented transaction
-and dependency improvements, and remaining work. It lives in the knowledge
-vault, under `agromarin-knowledge/research/`, dated 2026-09-04: this page
-linked it inside `odoo` until commit `19e72c2120b` deleted it there.
-
 | If you are… | Read |
 |---|---|
 | new to the core | *Context* and *Forces* below, then [`module.md`](module.md) |
 | placing new code | *Where to add code* below |
 | debugging a runtime path | [`runtime.md`](runtime.md) |
-| changing a boundary | [`gates.md`](gates.md) |
-| wondering why a rule exists | the gate's own module docstring |
+| changing a boundary | [`module.md`](module.md), *Dependency rules* |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -66,13 +60,8 @@ a reason.
 | **Horizontal scale** | N processes with no shared memory | database-mediated registry/cache signaling |
 | **Write throughput** | a loop that touches 10k records must not issue 10k `UPDATE`s | deferred writes; the flush fixpoint loop; `cr.pipeline()` |
 | **Correctness under contention** | concurrent requests must not corrupt or silently lose writes | `retrying()` on serialization/deadlock; savepoints; the RO→RW promotion |
-| **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port |
-| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts, each held at zero by its gate |
-
-The last is this fork's addition and the reason `tooling/architecture/` exists.
-Upstream treats the core's internal shape as fixed; `19.0-marin` treats it as
-the thing most worth improving, which is safe only while the public surface is
-mechanically pinned.
+| **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port with no lossy or blocking branch; the ORM's dependence on `addons/base` behind six port objects. Measured on 2026-09-13 (odoo `f7e799ce3578`, frozen): the share of a module's tests that touch nothing storage-specific is base 81 %, stock 95 %, mail 68 %, account 67 % |
+| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts |
 
 ## Non-goals
 
@@ -84,7 +73,7 @@ Each buys something above. An argument appealing to one is already settled.
 | **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__`; everything behind it is free to move, and the layer contracts say in which direction |
 | **Business behaviour in the core** | behaviour belonging to a business process belongs in an addon |
 | **A build step that freezes shape** | the contributor set is unknown until the module graph is loaded, so nothing resolves at import time |
-| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |
+| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and `psycopg2` is neither declared in `requirements.txt` nor installed, so a stray import fails at import time |
 
 ## Mechanisms
 
@@ -100,9 +89,8 @@ the graph. `env["res.partner"]` in one database is a different class from the
 same name in another.
 
 Consequences: fields cannot be resolved at import time; the framework cannot
-import addon-owned models, so it names them by string key (`env["res.users"]`),
-gated by `env_model_surface_check.py`. The framework's largest coupling to its
-consumer produces no import edge.
+import addon-owned models, so it names them by string key (`env["res.users"]`).
+The framework's largest coupling to its consumer produces no import edge.
 
 ### Writes do not reach SQL where you write them
 
@@ -121,6 +109,25 @@ process-lifetime cache must be registered in `CACHES_BY_KEY`. Detail:
 [*Concurrency, and why the process model is
 architectural*](runtime.md#concurrency-and-why-the-process-model-is-architectural).
 
+### A field's query behaviour is declared on the field, not dispatched by the model
+
+Where a field's SQL is not its column, the field says so: `value_sql`,
+`group_by_sql` and `order_by_sql` name the model method that composes the
+expression, the GROUP BY term or the ORDER BY term, and `group_by_field` /
+`order_by_field` name the stored field that stands in. An aggregate of a
+non-stored compute needs no declaration at all: `_read_group` selects the
+group's ids and folds the computed values in Python
+(`_aggregates_through_records`). The alternative — overriding
+`_field_to_sql`, `_read_group_groupby`, `_order_field_to_sql` or the
+`_read_group_select` pair on the model for one field and deferring to `super()`
+for the rest — is model-wide by construction: a reader looking for where one
+field gets its SQL finds a method every field goes through, and a tool that
+reads the model by its methods (the Rust engine's routing gate, which keys on
+method identity) must treat the whole model as Python. Declared, the same SQL
+is a static fact per field; the engine's export drops such a field from the
+kernel's registry so a query naming it falls back, and every other field on the
+model routes. Rule and signatures: `coding_guidelines.rst` §2.4.1.
+
 ### Access control is a model-layer concern, applied per operation
 
 Every model carries `AccessMixin` (`orm/models/mixins/access.py`), so checks are
@@ -128,11 +135,30 @@ methods on the recordset: model-level permissions per CRUD operation,
 record-level rules contributing a domain, field-level (`_has_field_access`,
 `check_field_access_rights`) and multi-company (`_check_company`).
 `_check_access(operation)` returns the accessible subset plus the callable that
-explains the refusal, so one code path serves both filtering and raising.
+explains the refusal, so one code path serves both filtering and raising. The
+answers themselves -- may this model be touched, which records may this user
+read -- come from `registry.access_policy`, the one object that names
+`ir.model.access` and `ir.rule`; both storage backends ask it, so record rules
+filter an in-memory search as they filter a PostgreSQL one.
 
 Superuser is not a bypass flag: `sudo()` returns an environment whose `su` is
 part of the `(cr, uid, su, context)` interning key. Two recordsets differing
-only in privilege are different objects by construction.
+only in privilege are different objects by construction. `uid == SUPERUSER_ID`
+forces `su`, so the superuser has one environment per `(cr, context)`.
+
+### The ORM talks to `addons/base` through six objects
+
+The framework cannot import the models it needs from `base`, and for years it
+named them by string at every site. It now names them in six files: the
+meta-schema (`registry.metaschema`), access (`registry.access_policy`), external
+ids (`registry.xmlids`), files (`registry.file_store`), settings
+(`registry.settings`) and the locale (`registry.locale`), each a small object
+whose methods are the questions the ORM asks. A PostgreSQL install runs the same
+calls it always did; the in-memory registry carries the same six and answers
+from its own storage where it can. What this buys is a place: a new need of the
+ORM's is a method on a port, and a site that names a base model elsewhere is a
+regression the ORM's own tests report
+([`module.md`](module.md#the-set-of-addon-owned-models-the-framework-may-name-is-closed)).
 
 ### A request is a transaction, and it may run twice
 
@@ -155,46 +181,34 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
 
-Rationale is not a view. Each gate's module docstring carries its own, beside
-the `MEASURED` block `doc_measured.py` keeps fresh; investigation write-ups are
-in `agromarin-knowledge/research/`.
+Rationale is not a view. Investigation write-ups are in
+`agromarin-knowledge/research/`.
 
 Two subsystems document themselves deeper than any view:
 `odoo/db/README.md` and `odoo/http/README.md` — the latter carries the
 canonical, unflattened HTTP call graph.
 
-> **These documents are enforced.** The dependency rules in the module view are
-> checked by `tooling/architecture/layer_check.py`. The claims *about* the
-> checkers are pinned by `tooling/architecture/test_architecture_doc.py`:
-> contract names and row bodies, pinned counts, the mixin composition, the
-> runtime floors, the module inventories, the gate table against the roster,
-> and every measured figure, derived from a live run of the checker that
-> produces it.
->
-> **A number added here arrives with the assertion that re-derives it.** Prose
-> no test reads has already drifted: a mixin count copied into three files and
-> stale in all three, an `env` surface figure two documents agreed on and no run
-> reproduced, a ratchet table stating nine floors against thirteen baseline
-> files.
->
-> That rule selects for claims that are *checkable*, not claims that are
-> *important*. The forces above, which no checker can verify, belong here too.
+Every figure in these pages carries the date it was measured. Nothing re-derives
+one; a figure is as of that date.
 
 ## Where to add code
 
-| You are adding | It goes in | The constraint | Caught by |
-|---|---|---|---|
-| A dependency-free helper | `odoo/libs/<area>/` | no `odoo` imports; if it needs model data, take it through a `Protocol` (see `libs/locale/number_format.py`) | `libs-is-dependency-free` |
-| An Odoo-coupled helper | `odoo/tools/` | may use ORM values and types, never the ORM runtime | `tools-does-not-reach-the-orm-runtime` |
-| A new field type | `odoo/orm/fields/` | Layer 1: no `models`/`runtime` imports; reach the model layer through `_recordset.py` | `orm-layer1-below-models-and-runtime` |
-| Model behaviour | a mixin under `odoo/orm/models/mixins/` | prefer a leaf nothing else in the composition depends on | `mixin_coupling_check.py` |
-| Cache / compute logic | `odoo/orm/components/` | pure Python, collaborators injected, no `pool` or `env` reach | `orm-components-are-pure-python`, `pool_surface_check.py` |
-| A persistence primitive | `odoo/db/` | no ORM import; cross the boundary by injection | `db-is-orm-agnostic` |
-| An HTTP feature | `odoo/http/` `[features]` | must not import `[serving]` | `http-features-below-serving` |
-| A third-party patch | `odoo/_monkeypatches/<module>.py` | expose `patch_module()` (names starting with `_` are helpers and exempt) | `test_architecture_doc.py` |
-| An addon | `odoo/addons/<module>/` | import through `odoo.api` / `odoo.fields` / `odoo.models` | `facade-boundary` |
-| A package README module index | register it in `PACKAGE_INDEXES` | an unregistered index is gated by nothing | `package_index_check.py` |
+| You are adding | It goes in | The constraint |
+|---|---|---|
+| A dependency-free helper | `odoo/libs/<area>/` | no `odoo` imports; if it needs model data, take it through a `Protocol` (see `libs/locale/number_format.py`) |
+| An Odoo-coupled helper | `odoo/tools/` | may use ORM values and types, never the ORM runtime |
+| A new field type | `odoo/orm/fields/` | Layer 1: no `models`/`runtime` imports; reach the model layer through `_recordset.py` |
+| Model behaviour | a mixin under `odoo/orm/models/mixins/` | prefer a leaf nothing else in the composition depends on |
+| Cache / compute logic | `odoo/orm/components/` | pure Python, collaborators injected, no `pool` or `env` reach |
+| A persistence primitive | `odoo/db/` | no ORM import; cross the boundary by injection |
+| Something the ORM needs from a `base` model | the matching port in `odoo/orm/runtime/` (`metaschema`, `access_policy`, `xmlids`, `filestore`, `settings`, `locale`) | a method on the port, implemented for both registries; never a new `env["ir.*"]` in a mixin or field |
+| A statement the ORM must run | `odoo/orm/runtime/backend.py` and `_backend_memory.py` | a `StorageBackend` method with a PostgreSQL body in the first and an in-memory body in the second; the protocol test refuses one without a caller |
+| A view type | the addon's own module | `register("<root tag>")` an `ElementHandler` from `odoo/addons/base/models/ir_ui_view_arch.py`; do not inherit `ir.ui.view` for it |
+| An HTTP feature | `odoo/http/` `[features]` | must not import `[serving]` |
+| A third-party patch | `odoo/_monkeypatches/<module>.py` | expose `patch_module()` (names starting with `_` are helpers) |
+| An addon | `odoo/addons/<module>/` | import through `odoo.api` / `odoo.fields` / `odoo.models` — `test_lint` rule `orm-import` (`E8508`) fails any other |
+| A package README module index | `odoo/db/README.md`, `odoo/http/README.md` | kept in step with the package by hand |
 
 Two rules over all of the above: a new module must appear in the **Subsystem
 map** in [`module.md`](module.md) if its package's contents are enumerated
-there, and a new number must arrive with the assertion that re-derives it.
+there, and a new number must say when it was measured.

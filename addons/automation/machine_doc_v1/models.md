@@ -9,7 +9,7 @@ and the set of `ir.actions.server` nodes that form the DAG.
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `trigger` | Selection (19 values) | When this workflow fires |
+| `trigger` | Selection (18 values) | When this workflow fires |
 | `model_id` | Many2one `ir.model` | Target model (required) |
 | `filter_pre_domain` | Char | Pre-condition: record state *before* write |
 | `filter_domain` | Char | Post-condition: record state *after* event |
@@ -18,12 +18,9 @@ and the set of `ir.actions.server` nodes that form the DAG.
 | `on_change_field_ids` | Many2many `ir.model.fields` | Onchange field watch list |
 | `trg_date_id` | Many2one `ir.model.fields` | Date field for time triggers |
 | `trg_date_range` | Integer | Delay amount (always positive) |
-| `trg_date_range_type` | Selection | minutes / hour / day / month |
+| `trg_date_range_type` | Selection | minute / hour / day / month, the shared `time_unit_selection` units |
 | `trg_date_range_mode` | Selection | before / after the trigger date |
 | `trg_date_calendar_id` | Many2one `resource.calendar` | Working-day calendar |
-| `webhook_uuid` | Char | UUID for webhook URL (rotatable) |
-| `record_getter` | Char | Python expression: payload → record |
-| `log_webhook_calls` | Boolean | Log webhook calls to `ir.logging` |
 | `last_run` | Datetime | Last successful cron execution |
 | ~~`use_workflow_dag`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — all automations are DAG-capable |
 | ~~`auto_execute_workflow`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — execution is always auto-advancing |
@@ -45,11 +42,10 @@ MAIL triggers:     on_message_received, on_message_sent
 UNLINK trigger:    on_unlink
 
 MANUAL trigger:    on_hand
-WEBHOOK trigger:   on_webhook
 ONCHANGE trigger:  on_change  (UI-only, form view onchange)
 ```
 
-Every one of the 19 values appears above; `factcheck.sh` asserts that both ways,
+Every one of the 18 values appears above; `factcheck.sh` asserts that both ways,
 so a value added to the Selection without a line here fails the gate.
 
 ### Constants (module-level)
@@ -95,6 +91,8 @@ server action model AND the workflow node definition.
 | `approval_user_ids` / `approval_note` | Many2many `res.users` / Char | Who must approve, and what the activity asks |
 | `subflow_automation_id` | Many2one `automation.rule` | What a Sub-workflow step runs; a cycle is refused |
 | `wait_delay` / `wait_unit` | Integer / Selection | How long a `wait` node pauses the run; a non-positive delay is refused |
+| `start_delay` / `start_delay_unit` | Integer / Selection | For a step with no incoming edge only: how long after its line was created (the run's start, or the sync that added it) it becomes ready; the line is `scheduled` until then |
+| `validity_delay` / `validity_unit` | Integer / Selection | How long after its line became ready (`date_ready`) the step may still run; a line reached later is skipped with the reason in `error_message`. Zero never expires; a negative value is refused |
 | `pos_x` | Integer | Node's horizontal position on the workflow canvas |
 | `pos_y` | Integer | Node's vertical position on the workflow canvas |
 | `pos_width` / `pos_height` | Integer | Node's rect on the canvas; 0 means the default, and any other value is checked against `NODE_SIZE_MIN` / `NODE_SIZE_MAX` |
@@ -123,9 +121,17 @@ the result at the midpoint `getConnectionGeometry` already computes.
 `wait_delay` and `wait_unit` for a Wait, `approver_names` for an Approval, and
 `subflow_name` for a Sub-workflow. The canvas renders one line from whichever
 applies, so a reader sees "36 hours", the approvers by name, or the automation a
-Sub-workflow runs, rather than the bare type word. A plain Action draws no such
-line. The type word alone was what the canvas showed before, which told a reader
+Sub-workflow runs, rather than the bare type word. A plain Action draws the `detail`
+its application gives it through `ir.actions.server._workflow_step_detail()`
+(empty by default; a marketing activity answers "Email: <mailing>"). The type word alone was what the canvas showed before, which told a reader
 that a step waits without telling them how long.
+
+An application also names its events. `automation.rule._workflow_event_labels()`
+maps `(condition, event_code)` to a label, empty by default, and the payload sends
+each edge's `event_label`. The canvas then draws "Mail: opened, then 1 hours" or
+"Mail: not opened within 2 days" instead of the raw code, in the words the
+campaign's own activity tree uses, which is how decision D12 keeps the campaign
+kanban and this canvas speaking one vocabulary over one graph.
 
 ### Removal from the canvas
 
@@ -209,6 +215,8 @@ while a run is in flight must not change how that run routes.
 | `on_error` | `error` |
 | `always` | settled, however it settled |
 | `expression` | settled **and** `condition_expr` is truthy |
+| `event` | settled **and** has received `event_code` |
+| `no_event` | settled **and** has not received `event_code` within `delay` (a zero window fires as the source settles, unless the event already arrived) |
 
 An **unsettled** source satisfies nothing, whatever the condition: the answer is
 not yet knowable, and treating "not yet" as "no" would race the target into
@@ -216,8 +224,48 @@ not yet knowable, and treating "not yet" as "no" would race the target into
 logged rather than propagated — letting it out would abort the run from inside
 the readiness check, where no line owns the failure and nothing records it.
 
-Readiness is **AND across the incoming edges**, as it was when they were
-untyped: a step with two predecessors waits for both.
+### Timing and events
+
+Every edge also carries `delay` + `delay_unit` (the shared time units), copied onto
+the runtime edge with `event_code`. `automation.runtime.edge._verdict(now)` answers
+for one edge: *false*, *pending* (an `event` edge whose event has not arrived),
+*true*, or *true from a due time*. The due time is `delay` after the anchor: the
+source's `date_settled`, or the edge's `date_event` for an `event` edge. A
+`no_event` edge is the race partner. It is due `delay` after the source settled,
+and turns false the moment the event arrives, so its target is skipped by the
+dead-path rule below.
+
+`automation.runtime.line._receive_event(code, exclusive=False)` stamps
+`date_event` on the line's matching outgoing edges and re-settles their targets.
+`exclusive` revokes every other outgoing edge of the line, which is how a bounce
+closes a campaign's follow-ups. Events are generic: nothing in `automation` emits
+one. An application such as `marketing_automation` calls it from its own event
+sources.
+
+A waiting line with a target in the future becomes **`scheduled`**, carrying
+`date_resume` and a trigger on the resume cron, which re-settles it once due. A
+run whose only outstanding lines wait for events stays `waiting_resume`: it is
+waiting, not blocked, the way a marketing participant stays running.
+
+Readiness is **AND across the live incoming edges**: a step with two
+predecessors waits for both. `automation.runtime.line._settle_readiness()` decides
+a waiting line once every source has settled:
+
+- an edge whose source is **`skipped`** is *dead* and ignored;
+- no live edge, or any live edge *false* → **`skipped`**, and the skip propagates
+  to the line's successors;
+- any live edge *pending* → stays `waiting`;
+- any live edge due in the future → `scheduled` until the latest due time;
+- otherwise → `ready`.
+
+This is the WS-BPEL dead-path rule. It is what lets an if/else rejoin (the
+untaken branch's edge is dead, so the join runs), and what stops a branch that
+was never taken from failing the run. Before it, the untaken step sat `waiting`,
+`action_run_all` found it blocked, and marked it and the run `error`: every
+exclusive choice failed its run. A failure only propagates when it is
+*handled*. `action_mark_error` activates successors only for a line with an
+`on_error` or `always` edge, so an unhandled failure still fails the run and
+its successors are settled `error` by `action_error`, not `skipped`.
 
 ---
 
@@ -252,7 +300,7 @@ from a single call in `action_manual_trigger()`.
 | `amount` | Monetary | Operation amount |
 | `reference` | Char | External reference |
 | `date` | Date | Reference date |
-| `state` | Selection | draft / in_progress / done / error / cancel |
+| `state` | Selection | draft / in_progress / waiting_resume / done / error / cancel |
 | `line_ids` | One2many `automation.runtime.line` | Execution steps |
 | `progress` | Integer (computed) | 0–100% completion |
 | `progress_display` | Char (computed) | "3/5 steps" |
@@ -260,9 +308,9 @@ from a single call in `action_manual_trigger()`.
 ### State Machine
 
 ```
-draft → in_progress → done
-              ↓
-           cancel
+draft → in_progress ⇄ waiting_resume
+            ↓   ↓            ↓
+         error  done       cancel
 ```
 
 `action_start()`: creates `automation.runtime.line` records from the
@@ -271,12 +319,20 @@ automation's `action_server_ids`, sets first-in-sequence to `ready`.
 `action_next_step()`: executes next `ready` line, auto-marks `done` if all
 lines complete.
 
-`action_run_all()`: runs ready lines until the run settles. If no line is ready
-while lines remain outstanding, it marks those lines and the run `error` rather
-than returning silently in `in_progress`.
+`action_run_all()`: runs ready lines until the run settles. With no line ready it
+asks `_finish_if_settled()` first, then waits if something is paused, and only
+then treats outstanding lines as blocked and fails the run.
+
+`_finish_if_settled()`: the one completion rule — a run in `in_progress` or
+`waiting_resume` whose every line is in `SETTLED_STATES` (`done`, `error`,
+`cancel`, `skipped`) is done. Resume, approval and subflow release all end in
+`action_run_all`, so a run ending on a pause finishes; before it, such a run
+stayed `in_progress` for ever.
 
 `action_error()`: terminal failure state, set when a step raises or when the run
-can no longer advance.
+can no longer advance. It settles every unsettled line `error` ("Step never
+ran"), so a failure reached outside `action_run_all` — a refused approval with
+no handler — leaves no line `waiting` inside a failed run.
 
 ---
 
@@ -293,17 +349,20 @@ Fully isolated per-execution — no shared state with the definition.
 | `action_id` | Many2one `ir.actions.server` | Node being executed |
 | `name` | Char | Copied from action at creation |
 | `sequence` | Integer | Execution order |
-| `state` | Selection | waiting/ready/in_progress/done/cancel/error |
+| `state` | Selection | waiting/scheduled/ready/paused/in_progress/done/skipped/cancel/error |
 | `error_message` | Text | Error details |
-| `predecessor_ids` | Many2many self | DAG dependency at execution level |
-| `successor_ids` | Many2many self | Computed inverse |
+| `date_resume` | Datetime | When a scheduled step or a paused Wait step is due |
+| `date_ready` | Datetime | When the step became ready; its node's validity counts from here |
+| `skip_reason` | Selection | Why a `skipped` line was skipped: `branch` (dead path or false edge), `revoked` (an exclusive event), `expired` (validity), `filtered` and `cancelled` (set by a caller through `_skip(reason=, message=)`) |
+| `date_settled` | Datetime | When the step settled; delays on its outgoing edges count from here |
+| `edge_in_ids` / `edge_out_ids` | One2many `automation.runtime.edge` | DAG dependency at execution level |
 
 | `created_record_ref` | Reference | Record created by this step |
 
 ### DAG Resolution
 
-`action_mark_done()`: marks self done, then for each successor checks
-`_predecessors_satisfied()` — if so, calls `successor.action_mark_ready()`.
+`action_mark_done()`: marks self done, lets each waiting successor settle its
+readiness (`_settle_readiness()`, above), then asks the run to finish.
 This is the correct per-instance DAG propagation pattern. (An earlier
 `ir.actions.server.action_mark_done()` that mutated the global definition
 was removed in Phase 1 along with `action_state`/`is_ready`/`error_message` —
@@ -367,12 +426,113 @@ Marking it `done` rather than inventing a "resumed" state is what lets the
 existing edge conditions release the successors unchanged: an `on_success` edge
 out of a wait means "after the wait".
 
+`action_pause` also calls the resume cron's `_trigger(at=date_resume)`, so a
+wait wakes at its due time rather than at the next poll; the cron itself is an
+hourly backstop. It shipped `active=False` and nothing ever enabled it, so
+outside tests — which call `_resume_waiting_executions()` by hand — no wait ever
+resumed. It now ships active, and migration `1.9` enables it on existing
+databases and triggers it once.
+
 **Decision 2 requires this to be easy to delete.** It is one line state, one
 datetime, one method and one cron record; nothing else consults the polling.
 
-**One trap it exposed.** `action_run_all` ends by marking every unfinished line
-`error`, a sweep that exists to settle whatever a *failure* stranded. A paused
-line is unfinished but not stranded, so that sweep skips `paused`, and its guard
-skips a runtime in `waiting_resume`. Without both, a wait node's own line was
-marked failed the moment it paused — which is what the first run of
-`TestWaitNode` reported.
+**One trap it exposed.** A sweep settles every unfinished line `error` to clean
+up whatever a *failure* stranded. A paused line is unfinished but not stranded,
+so the sweep must never run on a live run. It first sat at the end of
+`action_run_all`, guarded against `in_progress` and `waiting_resume`; without
+that guard a wait node's own line was marked failed the moment it paused, which
+is what the first run of `TestWaitNode` reported. It now lives in
+`action_error`, which only a failed run reaches.
+
+## Queued runs and the dispatcher
+
+`automation.rule.run_mode` is `immediate` (the default: a run executes as soon as
+it starts, and whenever a step becomes ready) or `queued`. A queued run does
+nothing inline. `automation.runtime._launch()` starts it and triggers the cron,
+and `_advance()`, which every resume, approval, subflow and event path now goes
+through, only re-triggers the cron. The cron record the resume cron used to be
+now runs `_dispatch_due_steps()` (migration `1.10` rewrites its code and name):
+
+1. `_resume_waiting_executions()` promotes due `scheduled` and `paused` lines, as
+   before;
+2. it takes up to `DISPATCH_BATCH_SIZE` ready lines of queued runs and groups
+   them by node;
+3. it hands each group to `ir.actions.server._execute_runtime_lines(lines)`. The
+   default executes each line through `action_execute` and its savepoint; a node
+   type may override it to act on the whole batch at once, as a mailing does;
+4. it settles the runs left idle, commits progress through
+   `ir.cron._commit_progress` when it runs under a cron (never in a test), and
+   loops until no ready line is left that it has not already handed out.
+
+Immediate runs are never dispatched: a run that a person steps through with
+`action_next_step` keeps its ready lines until they click. Neither are the queued runs of an
+archived rule: both `_resume_waiting_executions` and the dispatcher filter on
+`automation_id.active`, so archiving a rule pauses its runs where they stand and
+unarchiving resumes them.
+
+`_dispatch_due_steps(rules=None)` and `_resume_waiting_executions(rules=None)`
+take an optional recordset of rules, so an application can dispatch its own rules
+now (a campaign's "execute" button) without touching anyone else's queue. Rules
+named that way are dispatched even when archived: asking for a rule by name is
+the explicit request the archive otherwise withholds.
+
+### What a failed step does
+
+`automation.rule.step_error_policy` decides what an *unhandled* failure does.
+`fail_run`, the default and the behaviour until now, stops the run and settles
+its unfinished steps `error`. `close_branch` treats the failure as handled:
+`automation.runtime.line._contains_its_error()` is true, so the failed step's
+successors are settled by their edges (an `on_success` successor is skipped) and
+the run's other branches carry on. Every path that used to ask
+`_has_error_handler()` before failing a run now asks `_contains_its_error()`:
+step execution, `action_mark_error`, a refused or deleted approval, and a failed
+subflow. A campaign uses `close_branch`, so one bounced SMS does not cancel a
+participant's other branches.
+
+The dispatcher re-filters each node's group to lines still `ready` before
+handing it over, because a failure earlier in the same page can already have
+settled a run's other ready lines.
+
+### Editing a workflow under running runs
+
+A run snapshots its lines and edges at start (decision D11 keeps that eager).
+`automation.runtime._sync_to_definition()` brings runs still in progress or
+waiting up to date with an edited definition, without rewriting history:
+
+- a node the run has no line for gets one, with its edges (`_materialize`, which
+  `_create_action_lines` also uses);
+- a runtime edge whose target is still `waiting` or `scheduled` takes the
+  definition's condition, event and delay again (`workflow.edge._runtime_copy_vals`);
+  an edge into a step already ready, running or settled keeps what it ran under;
+- every waiting or scheduled line is re-settled, so a longer delay reschedules it
+  and a new branch whose source already settled runs;
+- a finished run is left alone.
+
+`_add_steps(actions)` is the narrower form: it gives running runs lines for those
+nodes only, and settles them. A campaign uses it when a child activity is added,
+so participants already underway reach it, while a new *root* waits for the
+explicit sync, as marketing's "Update" always required.
+
+### Queued runs are built and settled in batches
+
+A queued rule is the high-volume path, so its runs do not behave like a person's
+run in the chatter or in the query log:
+
+- `_launch()` builds every draft run of a rule at once. `_materialize` takes a
+  recordset of runs and creates all their lines and edges in one create each.
+- queued runs draw no `ir.sequence` number (their name is the rule's), post no
+  chatter messages (`_log_run_message`), and are launched and dispatched with
+  `tracking_disable`.
+- readiness is decided for a recordset: `_settle_readiness` fetches the edges and
+  their sources once, asks `_readiness_decision` per line, and writes each outcome
+  (skip, wait, schedule at a due time, ready) as one write per group. Successor
+  activation, `_finish_if_settled`, `action_mark_done`, `action_resume` and
+  `_sync_to_definition` all take recordsets too. This fork's ORM neither batches
+  x2many reads across a loop nor defers the flush of dependent stored fields
+  past a write, so looping one line at a time turned every step into several
+  statements.
+- cron triggers are deduplicated per transaction: `_request_dispatch` once, and
+  `_trigger_resume_at` once per due time.
+
+A line that becomes ready from a due time already past keeps that due time in
+`date_resume`, so "when was this step due" survives until it runs.

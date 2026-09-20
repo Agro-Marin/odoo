@@ -9,6 +9,8 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs import sealing
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
@@ -21,6 +23,30 @@ _KEY_STATE: dict[str, Any] = {
     "version_cache_checked": False,
     "missing_warning_last_at": 0.0,
 }
+
+TEST_RUN_KEY = sealing.TEST_RUN_KEY
+
+
+def provide_test_run_key() -> bool:
+    """Give a test run that configured no key a fixed, publicly known one.
+
+    Only a process started with tests enabled gets it. A server started without
+    the variable keeps refusing to encrypt, because a key made up there would be
+    lost at restart along with everything it sealed. The key is fixed rather
+    than random so that a database installed by one test run still decrypts in
+    the next.
+    """
+    if not config["test_enable"] or os.environ.get("ODOO_API_ENCRYPTION_KEY"):
+        return False
+    os.environ["ODOO_API_ENCRYPTION_KEY"] = TEST_RUN_KEY  # noqa: E8519 - a public test-run key, set only with tests enabled
+    _logger.warning(
+        "Tests are enabled and ODOO_API_ENCRYPTION_KEY is not set: encrypting with "
+        "the fixed test-run key, which protects nothing"
+    )
+    return True
+
+
+provide_test_run_key()
 
 
 class MixinEncryption(models.AbstractModel):
@@ -193,7 +219,6 @@ class MixinEncryption(models.AbstractModel):
         if not encrypted_value:
             return False
 
-        allow_fallback = self._allow_key_fallback()
         encrypted_bytes = self._coerce_fernet_token(encrypted_value)
 
         def decode(raw: bytes) -> bytes | str:
@@ -216,10 +241,10 @@ class MixinEncryption(models.AbstractModel):
                 self._name,
                 self.id,
             )
-            if not allow_fallback:
+            if not self._allow_key_fallback():
                 raise self._prepare_fallback_disabled_error(binary) from None
         except InvalidToken:
-            if not allow_fallback:
+            if not self._allow_key_fallback():
                 raise self._prepare_fallback_disabled_error(binary) from None
             _logger.debug(
                 "Current key failed for %s record %s, trying old key versions",
@@ -354,21 +379,13 @@ class MixinEncryption(models.AbstractModel):
                 _KEY_STATE["version_cache_checked"] = True
                 return None
 
-            highest_old_version = 0
-            consecutive_misses = 0
-            max_consecutive_misses = 2
-            for i in range(1, 20):
-                if os.environ.get(f"ODOO_API_ENCRYPTION_KEY_V{i}"):
-                    highest_old_version = i
-                    consecutive_misses = 0
-                else:
-                    consecutive_misses += 1
-                    if consecutive_misses >= max_consecutive_misses:
-                        break
-
-            _KEY_STATE["version_cache"] = highest_old_version + 1
+            _KEY_STATE["version_cache"] = max(sealing.old_key_versions(), default=0) + 1
             _KEY_STATE["version_cache_checked"] = True
             return _KEY_STATE["version_cache"]
+
+    @api.model
+    def _is_encryption_key_configured(self) -> bool:
+        return bool(os.environ.get("ODOO_API_ENCRYPTION_KEY"))
 
     def _get_encryption_key(self, version: int | None = None) -> bytes | None:
         if version is None:

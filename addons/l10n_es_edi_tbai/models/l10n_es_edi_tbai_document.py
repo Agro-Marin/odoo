@@ -5,7 +5,6 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
-import requests
 from lxml import etree
 from requests.exceptions import RequestException
 
@@ -289,12 +288,12 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
     _description = "TicketBAI Document"
 
     name = fields.Char(
-        required=True,
         readonly=True,
+        required=True,
     )
     date = fields.Date(
-        required=True,
         readonly=True,
+        required=True,
     )
     xml_attachment_id = fields.Many2one(
         comodel_name="ir.attachment",
@@ -303,12 +302,12 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         readonly=True,
     )
     company_id = fields.Many2one(
-        "res.company",
+        comodel_name="res.company",
         required=True,
     )
 
     state = fields.Selection(
-        [
+        selection=[
             ("to_send", "To Send"),
             ("accepted", "Accepted"),
             ("rejected", "Rejected"),
@@ -466,7 +465,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
     def _post_to_agency(self, env, is_sale):
 
         def _send_request_to_agency(*args, **kwargs):
-            session = requests.Session()
+            session = env["ir.egress"].session(purpose="l10n_es_tbai", max_bytes=None)
             session.cert = kwargs.pop("pkcs12_data")
             session.mount("https://", CertificateAdapter())
             response = session.request("post", *args, **kwargs)

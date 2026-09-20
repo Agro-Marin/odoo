@@ -74,6 +74,7 @@ import { useSpecialData } from "@web/fields/relational/special_data";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
+import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { SIZES } from "@web/ui/viewport";
 import { FormController } from "@web/views/form/form_controller";
 import { AttachDocumentWidget } from "@web/views/widgets/attach_document/attach_document";
@@ -195,8 +196,6 @@ class ResCompany extends models.Model {
 }
 
 defineModels([Partner, PartnerType, Product, ResUsers, ResCompany]);
-
-onRpc("has_group", () => true);
 
 before(() => {
     patchWithCleanup(EventBus.prototype, {
@@ -2892,6 +2891,28 @@ test(`invisible attrs on separators`, async () => {
     expect(`div.o_horizontal_separator`).toHaveCount(0);
 });
 
+test(`a separator follows its modifier, in and out of a group`, async () => {
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <separator string="Bare" invisible="bar"/>
+                <group>
+                    <separator string="Grouped" invisible="bar"/>
+                    <field name="bar"/>
+                </group>
+            </form>
+        `,
+        resId: 1,
+    });
+    expect(`div.o_horizontal_separator`).toHaveCount(0);
+    await contains(`.o_field_widget[name=bar] input`).click();
+    expect(queryAllTexts`div.o_horizontal_separator`).toEqual(["BARE", "GROUPED"]);
+    await contains(`.o_field_widget[name=bar] input`).click();
+    expect(`div.o_horizontal_separator`).toHaveCount(0);
+});
+
 test(`form views in dialogs do not have a control panel`, async () => {
     Partner._views = {
         form: `<form><field name="foo"/></form>`,
@@ -3102,7 +3123,6 @@ test(`form with custom cog action that has a confirmation target="new" action`, 
         "/web/action/load",
         "get_views",
         "web_search_read",
-        "has_group",
     ]);
 });
 
@@ -3242,6 +3262,73 @@ test(`buttons should be in .o_statusbar_buttons in form view header on mobile`, 
     expect(`.o_statusbar_buttons > button:eq(0)`).toHaveAttribute("name", "0");
     await contains(".o_statusbar_buttons .dropdown-toggle:has(.oi-ellipsis-v)").click();
     expect(`.o-dropdown--menu div.o_field_widget`).toHaveAttribute("name", "foo");
+});
+
+test.tags("desktop");
+test(`header separators divide the visible button groups and collapse around empty ones`, async () => {
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <header>
+                    <separator name="leading"/>
+                    <button name="a1" string="A1"/>
+                    <button name="a2" string="A2"/>
+                    <separator name="first"/>
+                    <button name="hidden" string="Hidden" invisible="1"/>
+                    <separator name="second"/>
+                    <separator name="third"/>
+                    <button name="b1" string="B1"/>
+                    <separator name="trailing"/>
+                    <button name="c1" string="C1" invisible="not bar"/>
+                </header>
+                <sheet>
+                    <field name="bar"/>
+                </sheet>
+            </form>
+        `,
+        resId: 5,
+    });
+    expect(`.o_statusbar_buttons > *`).toHaveCount(4);
+    expect(`.o_statusbar_buttons > *:eq(2)`).toHaveClass(
+        "o_statusbar_buttons_separator",
+    );
+    expect(`.o_statusbar_buttons > button:eq(2)`).toHaveAttribute("name", "b1");
+
+    await contains(`.o_field_widget[name=bar] input`).click();
+    expect(`.o_statusbar_buttons > *`).toHaveCount(6);
+    expect(`.o_statusbar_buttons > *:eq(4)`).toHaveClass(
+        "o_statusbar_buttons_separator",
+    );
+    expect(`.o_statusbar_buttons > button:eq(3)`).toHaveAttribute("name", "c1");
+});
+
+test.tags("mobile");
+test(`header separators become dividers in the mobile dropdown`, async () => {
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <header>
+                    <button name="a1" string="A1"/>
+                    <separator name="first"/>
+                    <button name="b1" string="B1"/>
+                    <button name="b2" string="B2"/>
+                    <separator name="second"/>
+                    <button name="c1" string="C1"/>
+                </header>
+            </form>
+        `,
+        resId: 2,
+    });
+    expect(`.o_statusbar_buttons > button:eq(0)`).toHaveAttribute("name", "a1");
+    expect(`.o_statusbar_buttons_separator`).toHaveCount(0);
+    await contains(".o_statusbar_buttons .dropdown-toggle:has(.oi-ellipsis-v)").click();
+    expect(`.o-dropdown--menu > *`).toHaveCount(4);
+    expect(`.o-dropdown--menu > .dropdown-divider`).toHaveCount(1);
+    expect(`.o-dropdown--menu > *:eq(2)`).toHaveClass("dropdown-divider");
 });
 
 test(`button in form view and long willStart`, async () => {
@@ -4129,8 +4216,8 @@ test(`add custom static action menu`, async () => {
 
     await toggleActionMenu();
     expect(queryAllTexts`.o-dropdown--menu .dropdown-item`).toEqual([
-        "Custom Default Available",
         "Duplicate",
+        "Custom Default Available",
         "Custom Available",
         "Delete",
     ]);
@@ -8075,8 +8162,8 @@ test(`display toolbar`, async () => {
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(3);
     expect(queryAllTexts`.o-dropdown--menu .dropdown-item`).toEqual([
         "Duplicate",
-        "Delete",
         "Action partner",
+        "Delete",
     ]);
 
     await toggleMenuItem("Action partner");
@@ -9947,11 +10034,7 @@ test(`coming to a form view from a grouped and sorted list`, async () => {
 
     await mountWebClient();
     await getService("action").doAction(1);
-    expect.verifySteps([
-        "partner:get_views",
-        "partner:web_search_read",
-        "res.users:has_group",
-    ]);
+    expect.verifySteps(["partner:get_views", "partner:web_search_read"]);
     expect(`.o_list_view`).toHaveCount(1);
     expect(`.o_data_row`).toHaveCount(4);
     expect(queryAllTexts`.o_data_cell`).toEqual([
@@ -12910,6 +12993,7 @@ test("CogMenu receives the model in env", async () => {
     }
     registry.category("cogMenu").add("test-cog", {
         Component: CogItem,
+        groupNumber: COG_GROUP.APP,
         isDisplayed: (env) => {
             expect.step([
                 `cog displayed`,
@@ -13178,7 +13262,7 @@ test("executing new action, closes dialog, and avoid reload previous view", asyn
         views: [[false, "kanban"]],
     });
     expect(`.o_kanban_view`).toHaveCount(1);
-    expect.verifySteps(["get_views", "get_views", "web_search_read", "has_group"]);
+    expect.verifySteps(["get_views", "get_views", "web_search_read"]);
 });
 
 test.tags("mobile");

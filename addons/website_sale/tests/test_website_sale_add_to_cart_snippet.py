@@ -11,7 +11,6 @@ class TestAddToCartSnippet(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Create a dummy payment provider to ensure that the tour has at least one available to it.
         arch = """
         <form action="dummy" method="post">
             <input type="hidden" name="view_id" t-att-value="viewid"/>
@@ -37,7 +36,6 @@ class TestAddToCartSnippet(HttpCase):
         )
 
     def test_configure_product(self):
-        # Reset the company country id, which ensure that no country dependant fields are blocking the address form.
         self.env.company.country_id = self.env.ref("base.us")
         attribute = self.env["product.attribute"].create(
             {

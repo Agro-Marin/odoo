@@ -18,7 +18,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
         self.opener.cookies["session_id"] = self.session.sid
 
     def test_rpc_path_call_button(self):
-        with self.assertLogs("werkzeug", logging.INFO) as capture:
+        with self.assertLogs("odoo.service.http.access", logging.INFO) as capture:
             self.call_jsonrpc(
                 "/web/dataset/call_button",
                 {
@@ -36,7 +36,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
         )
 
     def test_rpc_path_call_kw(self):
-        with self.assertLogs("werkzeug", logging.INFO) as capture:
+        with self.assertLogs("odoo.service.http.access", logging.INFO) as capture:
             self.call_jsonrpc(
                 "/web/dataset/call_kw",
                 {
@@ -54,7 +54,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
         )
 
     def test_rpc_path_call_kw_with_path(self):
-        with self.assertLogs("werkzeug", logging.INFO) as capture:
+        with self.assertLogs("odoo.service.http.access", logging.INFO) as capture:
             self.call_jsonrpc(
                 "/web/dataset/call_kw/res.users.read",
                 {
@@ -73,7 +73,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
 
     @mute_logger("odoo.addons.rpc.controllers.jsonrpc")
     def test_rpc_path_jsonrpc(self):
-        with self.assertLogs("werkzeug", logging.INFO) as capture:
+        with self.assertLogs("odoo.service.http.access", logging.INFO) as capture:
             self.call_jsonrpc(
                 "/jsonrpc",
                 {
@@ -98,7 +98,7 @@ class TestRpcPath(HttpCaseWithUserDemo):
 
     @mute_logger("odoo.addons.rpc.controllers.xmlrpc")
     def test_rpc_path_xmlrpc(self):
-        with self.assertLogs("werkzeug", logging.INFO) as capture:
+        with self.assertLogs("odoo.service.http.access", logging.INFO) as capture:
             self.xmlrpc_object.execute_kw(
                 get_db_name(),
                 self.user_demo.id,

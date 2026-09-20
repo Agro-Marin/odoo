@@ -9,8 +9,8 @@
                 <field name="partner_id" />
                 <field name="product_id" />
                 <filter
-                    string="Effective Date Last Year"
                     name="later_than_a_year_ago"
+                    string="Effective Date Last Year"
                     domain="[('date', '&gt;=', 'today -1y')]" />
             </search>
         </field>

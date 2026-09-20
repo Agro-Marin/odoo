@@ -4,6 +4,7 @@ from odoo import _, fields, http
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import email_normalize, email_normalize_all
 from odoo.tools.misc import resolve_hash_signed
 
@@ -13,6 +14,8 @@ from odoo.addons.account.controllers.download_docs import (
 )
 from odoo.addons.portal.controllers.portal import CustomerPortal
 from odoo.addons.portal.controllers.portal import pager as portal_pager
+
+_debug = DebugLog(__name__)
 
 
 class PortalAccount(CustomerPortal):
@@ -38,6 +41,13 @@ class PortalAccount(CustomerPortal):
                 else 0
             )
             values["bill_count"] = bill_count
+        _debug.pipeline(
+            "home_counters_prepared",
+            counters=len(counters),
+            invoice_count=values.get("invoice_count"),
+            bill_count=values.get("bill_count"),
+            overdue_invoice_count=values.get("overdue_invoice_count"),
+        )
         return values
 
     def _get_overdue_invoice_count(self):
@@ -58,7 +68,7 @@ class PortalAccount(CustomerPortal):
                 custom_amount = None
         values = {
             "page_name": "invoice",
-            **invoice._get_invoice_portal_extra_values(custom_amount=custom_amount),
+            **invoice._prepare_invoice_portal_extra_values(custom_amount=custom_amount),
         }
         return self._get_page_view_values(
             invoice, access_token, values, "my_invoices_history", False, **kwargs
@@ -131,6 +141,7 @@ class PortalAccount(CustomerPortal):
     def portal_my_invoices(
         self, page=1, date_begin=None, date_end=None, sortby=None, filterby=None, **kw
     ):
+        _debug.pipeline("route", handler="PortalAccount.portal_my_invoices")
         values = self._prepare_my_invoices_values(
             page, date_begin, date_end, sortby, filterby
         )
@@ -179,12 +190,19 @@ class PortalAccount(CustomerPortal):
                 ("create_date", "<=", date_end),
             ]
 
+        _debug.logic(
+            "invoice_list_filters_resolved",
+            sortby=sortby,
+            filterby=filterby,
+            date_range=bool(date_begin and date_end),
+            url=url,
+        )
         values.update(
             {
                 "date": date_begin,
                 "invoices": lambda pager_offset: (
                     [
-                        invoice._get_invoice_portal_extra_values()
+                        invoice._prepare_invoice_portal_extra_values()
                         for invoice in AccountInvoice.search(
                             domain,
                             order=order,
@@ -226,6 +244,7 @@ class PortalAccount(CustomerPortal):
     def portal_my_invoice_detail(
         self, invoice_id, access_token=None, report_type=None, download=False, **kw
     ):
+        _debug.pipeline("route", handler="PortalAccount.portal_my_invoice_detail")
         try:
             invoice_sudo = self._document_check_access(
                 "account.move", invoice_id, access_token
@@ -281,6 +300,8 @@ class PortalAccount(CustomerPortal):
         website=True,
     )
     def portal_my_journal_unsubscribe(self, journal_id, **kw):
+        _debug.pipeline("route", handler="PortalAccount.portal_my_journal_unsubscribe")
+
         def _render(ctx, status=200):
             return request.render(
                 "account.portal_my_journal_mail_notifications", ctx, status=status

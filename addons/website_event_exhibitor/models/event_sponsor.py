@@ -11,7 +11,6 @@ class EventSponsor(models.Model):
     _name = "event.sponsor"
     _description = "Event Sponsor"
     _order = "sequence, sponsor_type_id"
-    # _order = 'sponsor_type_id, sequence' TDE FIXME
     _rec_name = "name"
     _inherit = [
         "mixin.mail.thread",
@@ -25,23 +24,29 @@ class EventSponsor(models.Model):
             self.env["event.sponsor.type"].search([], order="sequence desc", limit=1).id
         )
 
-    event_id = fields.Many2one("event.event", "Event", required=True, index=True)
+    event_id = fields.Many2one(
+        comodel_name="event.event",
+        index=True,
+        required=True,
+    )
     sponsor_type_id = fields.Many2one(
-        "event.sponsor.type",
-        "Sponsorship Level",
+        comodel_name="event.sponsor.type",
+        string="Sponsorship Level",
         default=lambda self: self._default_sponsor_type_id(),
         required=True,
         bypass_search_access=True,
     )
     url = fields.Char(
-        "Sponsor Website", compute="_compute_url", readonly=False, store=True
+        string="Sponsor Website",
+        compute="_compute_url",
+        store=True,
+        readonly=False,
     )
-    sequence = fields.Integer("Sequence")
+    sequence = fields.Integer()
     active = fields.Boolean(default=True)
-    # description
-    subtitle = fields.Char("Slogan")
+    subtitle = fields.Char(string="Slogan")
     exhibitor_type = fields.Selection(
-        [
+        selection=[
             ("sponsor", "Footer Logo Only"),
             ("exhibitor", "Exhibitor"),
             ("online", "Online Exhibitor"),
@@ -50,53 +55,79 @@ class EventSponsor(models.Model):
         default="sponsor",
     )
     website_description = fields.Html(
-        "Description",
-        compute="_compute_website_description",
+        string="Description",
+        translate=html_translate,
         sanitize_overridable=True,
         sanitize_attributes=False,
         sanitize_form=True,
-        translate=html_translate,
-        readonly=False,
+        compute="_compute_website_description",
         store=True,
+        readonly=False,
     )
-    show_on_ticket = fields.Boolean("Show on ticket", default=True)
-    # contact information
+    show_on_ticket = fields.Boolean(
+        string="Show on ticket",
+        default=True,
+    )
     partner_id = fields.Many2one(
-        "res.partner", "Partner", required=True, bypass_search_access=True
+        comodel_name="res.partner",
+        required=True,
+        bypass_search_access=True,
     )
-    partner_name = fields.Char("Name", related="partner_id.name")
-    partner_email = fields.Char("Email", related="partner_id.email")
-    partner_phone_ids = fields.Many2many(string="Phone", related="partner_id.phone_ids")
+    partner_name = fields.Char(
+        related="partner_id.name",
+        string="Name",
+    )
+    partner_email = fields.Char(
+        related="partner_id.email",
+        string="Email",
+    )
+    partner_phone_ids = fields.Many2many(
+        related="partner_id.phone_ids",
+        string="Phone",
+    )
     name = fields.Char(
-        "Sponsor Name", compute="_compute_name", readonly=False, store=True
+        string="Sponsor Name",
+        compute="_compute_name",
+        store=True,
+        readonly=False,
     )
     email = fields.Char(
-        "Sponsor Email", compute="_compute_email", readonly=False, store=True
+        string="Sponsor Email",
+        compute="_compute_email",
+        store=True,
+        readonly=False,
     )
     phone_ids = fields.Many2many(
-        "phone.number",
-        "event_sponsor_phone_number_rel",
-        "sponsor_id",
-        "phone_number_id",
+        comodel_name="phone.number",
+        relation="event_sponsor_phone_number_rel",
+        column1="sponsor_id",
+        column2="phone_number_id",
         string="Sponsor Phone",
         compute="_compute_phone_ids",
-        readonly=False,
         store=True,
+        readonly=False,
     )
-    # image
     image_512 = fields.Image(
         string="Logo",
         max_width=512,
         max_height=512,
         compute="_compute_image_512",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     image_256 = fields.Image(
-        "Image 256", related="image_512", max_width=256, max_height=256, store=False
+        related="image_512",
+        string="Image 256",
+        max_width=256,
+        max_height=256,
+        store=False,
     )
     image_128 = fields.Image(
-        "Image 128", related="image_512", max_width=128, max_height=128, store=False
+        related="image_512",
+        string="Image 128",
+        max_width=128,
+        max_height=128,
+        store=False,
     )
     website_image_url = fields.Char(
         string="Image URL",
@@ -104,21 +135,33 @@ class EventSponsor(models.Model):
         compute_sudo=True,
         store=False,
     )
-    # live mode
-    hour_from = fields.Float("Opening hour", default=8.0)
-    hour_to = fields.Float("End hour", default=18.0)
+    hour_from = fields.Float(
+        string="Opening hour",
+        default=8.0,
+    )
+    hour_to = fields.Float(
+        string="End hour",
+        default=18.0,
+    )
     event_date_tz = fields.Selection(
-        string="Timezone", related="event_id.date_tz", readonly=True
+        related="event_id.date_tz",
+        string="Timezone",
+        readonly=True,
     )
     is_in_opening_hours = fields.Boolean(
-        "Within opening hours", compute="_compute_is_in_opening_hours"
+        string="Within opening hours",
+        compute="_compute_is_in_opening_hours",
     )
-    # country information (related to ease frontend templates)
     country_id = fields.Many2one(
-        "res.country", string="Country", related="partner_id.country_id", readonly=True
+        comodel_name="res.country",
+        related="partner_id.country_id",
+        string="Country",
+        readonly=True,
     )
     country_flag_url = fields.Char(
-        string="Country Flag", compute="_compute_country_flag_url", compute_sudo=True
+        string="Country Flag",
+        compute="_compute_country_flag_url",
+        compute_sudo=True,
     )
 
     @api.depends("partner_id")
@@ -149,7 +192,6 @@ class EventSponsor(models.Model):
     def _compute_website_image_url(self):
         for sponsor in self:
             if sponsor.image_512:
-                # image_512 is stored, image_256 is derived from it dynamically
                 sponsor.website_image_url = self.env["website"].image_url(
                     sponsor, "image_256", size=256
                 )
@@ -163,8 +205,6 @@ class EventSponsor(models.Model):
                 )
 
     def _sync_with_partner(self, fname):
-        """Synchronize with partner if not set. Setting a value does not write
-        on partner as this may be event-specific information."""
         for sponsor in self:
             if not sponsor[fname]:
                 sponsor[fname] = sponsor.partner_id[fname]
@@ -183,8 +223,6 @@ class EventSponsor(models.Model):
         "event_id.date_end",
     )
     def _compute_is_in_opening_hours(self):
-        """Opening hours: hour_from and hour_to are given within event TZ or UTC.
-        Now() must therefore be computed based on that TZ."""
         for sponsor in self:
             if not sponsor.event_id.is_ongoing:
                 sponsor.is_in_opening_hours = False
@@ -192,7 +230,6 @@ class EventSponsor(models.Model):
                 sponsor.is_in_opening_hours = True
             else:
                 event_tz = timezone(sponsor.event_id.date_tz)
-                # localize now, begin and end datetimes in event tz
                 dt_begin = sponsor.event_id.date_begin.astimezone(event_tz)
                 dt_end = sponsor.event_id.date_end.astimezone(event_tz)
                 now_utc = (
@@ -200,7 +237,6 @@ class EventSponsor(models.Model):
                 )
                 now_tz = now_utc.astimezone(event_tz)
 
-                # compute opening hours
                 opening_from_tz = datetime.combine(
                     now_tz.date(), float_to_time(sponsor.hour_from)
                 ).replace(tzinfo=event_tz)
@@ -208,7 +244,6 @@ class EventSponsor(models.Model):
                     now_tz.date(), float_to_time(sponsor.hour_to)
                 ).replace(tzinfo=event_tz)
                 if sponsor.hour_to == 0:
-                    # when closing 'at midnight', we consider it's at midnight the next day
                     opening_to_tz += timedelta(days=1)
 
                 opening_from = max([dt_begin, opening_from_tz])
@@ -224,15 +259,11 @@ class EventSponsor(models.Model):
             else:
                 sponsor.country_flag_url = False
 
-    # ------------------------------------------------------------
-    # MIXINS
-    # ---------------------------------------------------------
-
     @api.depends("name", "event_id.name")
     def _compute_website_url(self):
         super()._compute_website_url()
         for sponsor in self:
-            if sponsor.id:  # avoid to perform a slug on a not yet saved record in case of an onchange.
+            if sponsor.id:
                 sponsor.website_url = f"/event/{self.env['ir.http']._slug(sponsor.event_id)}/exhibitor/{self.env['ir.http']._slug(sponsor)}"
 
     @api.depends("event_id.website_id.domain")
@@ -264,17 +295,8 @@ class EventSponsor(models.Model):
             "order": order,
         }
 
-    # ------------------------------------------------------------
-    # ACTIONS
-    # ---------------------------------------------------------
-
     def get_backend_menu_id(self):
         return self.env.ref("event.event_main_menu").id
 
-    # ------------------------------------------------------------
-    # Misc
-    # ------------------------------------------------------------
-
     def get_base_url(self):
-        """As website_id is not defined on this record, we rely on event website_id for base URL."""
         return self.event_id.get_base_url()

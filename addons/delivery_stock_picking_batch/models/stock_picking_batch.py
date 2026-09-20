@@ -1,12 +1,14 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
 
     wave_carrier_id = fields.Many2one(
-        "delivery.carrier",
-        "Wave Carrier",
+        comodel_name="delivery.carrier",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
@@ -17,6 +19,13 @@ class StockPickingBatch(models.Model):
         super()._compute_wave_grouping()
 
     def _is_auto_mergeable(self, *, moves=0, pickings=0, weight=0.0):
+        _debug.logic(
+            "batch_auto_mergeable",
+            batches=self,
+            moves=moves,
+            pickings=pickings,
+            weight=weight,
+        )
         if not super()._is_auto_mergeable(
             moves=moves, pickings=pickings, weight=weight
         ):

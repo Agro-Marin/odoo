@@ -14,9 +14,9 @@
                 <field name="lang" />
                 <field
                     name="transifex_url"
+                    string="Transifex"
                     widget="url"
-                    text="Contribute"
-                    string="Transifex" />
+                    text="Contribute" />
             </list>
         </field>
     </record>
@@ -32,13 +32,13 @@
                 <field name="value" />
                 <separator />
                 <filter
-                    string="Not Translated"
                     name="not_translated"
+                    string="Not Translated"
                     domain="[('value', '=', '')]" />
                 <group>
                     <filter
-                        string="Module"
                         name="group_by_module"
+                        string="Module"
                         context="{'group_by': 'module'}" />
                 </group>
             </search>
@@ -48,14 +48,9 @@
     <record id="action_code_translations" model="ir.actions.server">
         <field name="name">Transifex Code Translations</field>
         <field name="model_id" ref="transifex.model_transifex_code_translation" />
+        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
         <field name="state">code</field>
         <field name="code">action = model._open_code_translations()</field>
-        <field name="group_ids" eval="[(4, ref('base.group_system'))]" />
     </record>
-
-    <menuitem
-        id="menu_transifex_code_translations"
-        parent="base.menu_translation_app"
-        action="action_code_translations" />
 
 </odoo>

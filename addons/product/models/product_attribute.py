@@ -19,10 +19,9 @@ class ProductAttribute(models.Model):
 
     name = fields.Char(string="Attribute")
     active = fields.Boolean(
-        help="If unchecked, it will allow you to hide the attribute without removing it.",
+        help="If unchecked, it will allow you to hide the attribute without removing it."
     )
     sequence = fields.Integer(
-        string="Sequence",
         default=20,
         index=True,
         help="Determine the display order",
@@ -34,15 +33,15 @@ class ProductAttribute(models.Model):
             ("no_variant", "Never"),
         ],
         string="Variant Creation",
-        required=True,
         default="always",
+        required=True,
         help="""- Instantly: All possible variants are created as soon as the attribute and its values are added to a product.
         - Dynamically: Each variant is created only when its corresponding attributes and values are added to a sales order.
         - Never: Variants are never created for the attribute.
         Note: this cannot be changed once the attribute is used on a product.""",
     )
     display_type = fields.Selection(
-        help="The display type used in the Product Configurator.",
+        help="The display type used in the Product Configurator."
     )
     value_type = fields.Selection(
         default="multi",
@@ -72,9 +71,7 @@ class ProductAttribute(models.Model):
         compute="_compute_product_tmpl_ids",
         store=True,
     )
-    count_product_tmpl = fields.Integer(
-        compute="_compute_count_product_tmpl",
-    )
+    count_product_tmpl = fields.Integer(compute="_compute_count_product_tmpl")
 
     def write(self, vals):
         if "create_variant" in vals:
@@ -102,7 +99,7 @@ class ProductAttribute(models.Model):
             self.env.invalidate_all()
         return res
 
-    def _used_records(self):
+    def _filtered_used(self):
         return self.filtered("count_product_tmpl")
 
     def _usage_label(self):

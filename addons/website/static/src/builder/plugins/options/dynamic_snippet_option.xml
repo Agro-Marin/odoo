@@ -9,7 +9,6 @@
     <t t-set="isSingleMode" t-value="dynamicOptionParams.domState.isSingleMode"/>
     <t t-set="numberOfRecords" t-value="dynamicOptionParams.domState.numberOfRecords"/>
     <t t-set="modelNameFilter" t-value="dynamicOptionParams.modelNameFilter"/>
-    <!-- Single record filter options -->
     <BuilderRow label.translate="Model" t-if="!modelNameFilter and isSingleMode">
         <BuilderSelect action="'dynamicModel'" preview="false" id="'model_opt'"></BuilderSelect>
     </BuilderRow>
@@ -23,7 +22,6 @@
             fields="['id', 'name']"
         />
     </BuilderRow>
-    <!-- Multi record & common options -->
     <BuilderRow id="filter_opt_row" label.translate="Filter" t-if="!!dynamicOptionParams.showFilterOption()">
         <BuilderSelect action="'dynamicFilter'" preview="false" id="'filter_opt'">
             <t t-foreach="dynamicFilters" t-as="filter" t-key="filter.id">

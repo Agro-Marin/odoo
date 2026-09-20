@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { VisibilityOption } from "./options/visibility_option.js";
 import { DEVICE_VISIBILITY_OPTION_SELECTOR } from "./options/visibility_option_plugin.js";
+
+const log = makeLogger("website.builder.plugin.website_visibility_plugin");
 
 export class WebsiteVisibilityPlugin extends Plugin {
     static id = "websiteVisibilityPlugin";
@@ -25,6 +28,10 @@ export class WebsiteVisibilityPlugin extends Plugin {
             const isConditionalHidden = editingEl.matches(
                 "[data-visibility='conditional']",
             );
+            log.logic("onTargetHide", () => ({
+                snippet: editingEl.dataset.snippet,
+                isConditionalHidden,
+            }));
             if (isConditionalHidden) {
                 editingEl.classList.add("o_conditional_hidden");
             }
@@ -43,6 +50,12 @@ export class WebsiteVisibilityPlugin extends Plugin {
             const isDesktopHidden = editingEl.classList.contains(
                 "o_snippet_desktop_invisible",
             );
+            log.logic("onTargetShow", () => ({
+                snippet: editingEl.dataset.snippet,
+                isMobilePreview,
+                isMobileHidden,
+                isDesktopHidden,
+            }));
             if (
                 (isMobileHidden && isMobilePreview) ||
                 (isDesktopHidden && !isMobilePreview)

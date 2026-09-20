@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
@@ -23,13 +26,13 @@ class ProductTemplate(models.Model):
         domain="['|', ('company_id', '=', False), '&', ('company_id', '=?', company_id), ('company_id', '=', current_company_id), ('allow_billable', '=', True), ('allow_timesheets', 'in', [service_policy == 'delivered_timesheet', True]), ('is_template', '=', True)]"
     )
     service_upsell_threshold = fields.Float(
-        "Threshold",
+        string="Threshold",
         default=1,
         help="Percentage of time delivered compared to the prepaid amount that must be reached for the upselling opportunity activity to be triggered.",
     )
     service_upsell_threshold_ratio = fields.Char(
-        compute="_compute_service_upsell_threshold_ratio",
         export_string_translation=False,
+        compute="_compute_service_upsell_threshold_ratio",
     )
 
     @api.depends("uom_id", "company_id")
@@ -114,6 +117,7 @@ class ProductTemplate(models.Model):
     def _unlink_except_master_data(self):
         time_product = self.env.ref("sale_timesheet.time_product")
         if time_product.product_tmpl_id in self:
+            _debug.logic("master_product_protected", products=self, action="unlink")
             raise ValidationError(
                 _(
                     "The %s product is required by the Timesheets app and cannot be archived, deleted nor linked to a company.",
@@ -125,6 +129,7 @@ class ProductTemplate(models.Model):
         if ("active" in vals and not vals["active"]) or (vals.get("company_id")):
             time_product = self.env.ref("sale_timesheet.time_product")
             if time_product.product_tmpl_id in self:
+                _debug.logic("master_product_protected", products=self, action="write")
                 raise ValidationError(
                     _(
                         "The %s product is required by the Timesheets app and cannot be archived, deleted nor linked to a company.",

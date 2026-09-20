@@ -13,8 +13,6 @@ export class ProductWishlist extends Interaction {
     };
 
     /**
-     * Remove a product from the wishlist.
-     *
      * @param {Event} ev
      */
     async removeProduct(ev) {
@@ -22,8 +20,6 @@ export class ProductWishlist extends Interaction {
     }
 
     /**
-     * Add a product to the cart from the wishlist page.
-     *
      * @param {Event} ev
      */
     async addToCart(ev) {
@@ -43,7 +39,7 @@ export class ProductWishlist extends Interaction {
                     ptavs: ptavs,
                 },
                 {
-                    isConfigured: false, // Custom attributes may still require configuration.
+                    isConfigured: false,
                     redirectToCart: false,
                     showQuantity: showQuantity,
                 },
@@ -56,10 +52,8 @@ export class ProductWishlist extends Interaction {
     }
 
     /**
-     * Remove a product from the wishlist.
-     *
-     * @param {Element} button The button that triggered the removal.
-     * @param {String} emptyRedirectUrl The URL to redirect to if the wishlist is empty.
+     * @param {Element} button
+     * @param {String} emptyRedirectUrl
      */
     async _removeProduct(button, emptyRedirectUrl) {
         const article = button.closest("article");

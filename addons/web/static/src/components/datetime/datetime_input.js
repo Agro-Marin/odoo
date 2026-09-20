@@ -45,10 +45,15 @@ export class DateTimeInput extends Component {
         const getPickerProps = () =>
             omit(this.props, .../** @type {any} */ (DATE_TIME_INPUT_OWN_PROP_NAMES));
 
+        const component = this;
         useDateTimePicker(
             /** @type {any} */ ({
-                format: this.props.format,
-                showSeconds: /** @type {number} */ (this.props.rounding) <= 0,
+                get format() {
+                    return component.props.format;
+                },
+                get showSeconds() {
+                    return /** @type {number} */ (component.props.rounding) <= 0;
+                },
                 get pickerProps() {
                     return getPickerProps();
                 },

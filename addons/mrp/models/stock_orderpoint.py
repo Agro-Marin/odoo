@@ -4,25 +4,31 @@ from datetime import datetime, time
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockWarehouseOrderpoint(models.Model):
     _inherit = "stock.warehouse.orderpoint"
 
-    show_bom = fields.Boolean("Show BoM column", compute="_compute_show_bom")
+    show_bom = fields.Boolean(
+        string="Show BoM column",
+        compute="_compute_show_bom",
+    )
     bom_id = fields.Many2one(
-        "mrp.bom",
+        comodel_name="mrp.bom",
         string="Bill of Materials",
-        check_company=True,
-        domain="[('type', '=', 'normal'), '&', '|', ('company_id', '=', company_id), ('company_id', '=', False), '|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_tmpl_id)]",
         inverse="_inverse_bom_id",
+        domain="[('type', '=', 'normal'), '&', '|', ('company_id', '=', company_id), ('company_id', '=', False), '|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_tmpl_id)]",
+        check_company=True,
     )
     bom_id_placeholder = fields.Char(compute="_compute_bom_id_placeholder")
     effective_bom_id = fields.Many2one(
-        "mrp.bom",
+        comodel_name="mrp.bom",
         string="Effective Bill of Materials",
-        search="_search_effective_bom_id",
         compute="_compute_effective_bom_id",
+        search="_search_effective_bom_id",
         store=False,
         help="Either the Bill of Materials set directly or the one computed to be used by this replenishment",
     )
@@ -51,14 +57,14 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_deadline_date(self):
         super()._compute_deadline_date()
 
-    def _get_lead_days_values(self):
-        values = super()._get_lead_days_values()
+    def _prepare_lead_time_params(self):
+        values = super()._prepare_lead_time_params()
         if self.bom_id:
             values["bom"] = self.bom_id
         return values
 
-    def _get_lead_days_values_map(self):
-        result = super()._get_lead_days_values_map()
+    def _prepare_lead_time_params_map(self):
+        result = super()._prepare_lead_time_params_map()
         orderpoints_by_lookup = defaultdict(
             lambda: self.env["stock.warehouse.orderpoint"],
         )
@@ -125,15 +131,24 @@ class StockWarehouseOrderpoint(models.Model):
             orderpoint.show_bom = orderpoint.effective_route_id.id in manufacture_route
 
     def _inverse_bom_id(self):
-        for orderpoint in self:
-            if orderpoint.route_id or not orderpoint.bom_id:
-                continue
-            manufacture_rule = self.env["stock.rule"].search(
-                [
-                    ("action", "=", "manufacture"),
-                    ("company_id", "in", [orderpoint.company_id.id, False]),
-                ],
-                limit=1,
+        orderpoints = self.filtered(lambda op: op.bom_id and not op.route_id)
+        if not orderpoints:
+            return
+        manufacture_rules = self.env["stock.rule"].search(
+            [
+                ("action", "=", "manufacture"),
+                ("company_id", "in", [*orderpoints.company_id.ids, False]),
+            ]
+        )
+        _debug.pipeline("orderpoint_route_from_bom", orderpoints=orderpoints)
+        for orderpoint in orderpoints:
+            manufacture_rule = next(
+                (
+                    rule
+                    for rule in manufacture_rules
+                    if not rule.company_id or rule.company_id == orderpoint.company_id
+                ),
+                None,
             )
             if manufacture_rule:
                 orderpoint.route_id = manufacture_rule.route_id
@@ -225,6 +240,13 @@ class StockWarehouseOrderpoint(models.Model):
                 company_id=company.id,
             )
             unmatched = products.filtered(lambda product, boms=boms: not boms[product])
+            _debug.logic(
+                "orderpoint_default_boms",
+                orderpoints=orderpoints,
+                products=len(products),
+                unmatched=len(unmatched),
+                rule=rule.id,
+            )
             if unmatched:
                 boms.update(
                     {
@@ -287,6 +309,12 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_without_kit = self - self.env["stock.warehouse.orderpoint"].concat(
             *bom_kit_orderpoints.keys()
         )
+        _debug.pipeline(
+            "orderpoint_in_progress",
+            orderpoints=self,
+            kits=len(bom_kit_orderpoints),
+            plain=len(orderpoints_without_kit),
+        )
         res = super(
             StockWarehouseOrderpoint, orderpoints_without_kit
         )._get_quantity_in_progress()
@@ -301,7 +329,7 @@ class StockWarehouseOrderpoint(models.Model):
                 ):
                     continue
                 uom_qty_per_kit = bom_line_data["qty"] / bom_line_data["original_qty"]
-                qty_per_kit = bom_line.product_uom_id._compute_quantity_estimate(
+                qty_per_kit = bom_line.product_uom_id._get_quantity_estimate(
                     uom_qty_per_kit, bom_line.product_id.uom_id
                 )
                 if not qty_per_kit:
@@ -317,7 +345,7 @@ class StockWarehouseOrderpoint(models.Model):
                 ratios_total.append(qty_available + (qty_in_progress / qty_per_kit))
             product_qty = min(ratios_total or [0]) - min(ratios_qty_available or [0])
             res[orderpoint.id] = (
-                orderpoint.product_id.uom_id._compute_quantity_estimate(
+                orderpoint.product_id.uom_id._get_quantity_estimate(
                     product_qty, orderpoint.product_uom_id, round=False
                 )
             )
@@ -332,7 +360,7 @@ class StockWarehouseOrderpoint(models.Model):
             ["product_qty:sum"],
         )
         for orderpoint, uom, product_qty_sum in productions_group:
-            res[orderpoint.id] += uom._compute_quantity_estimate(
+            res[orderpoint.id] += uom._get_quantity_estimate(
                 product_qty_sum, orderpoint.product_uom_id, round=False
             )
 
@@ -351,7 +379,7 @@ class StockWarehouseOrderpoint(models.Model):
             )
             lead_horizon_date = datetime.combine(orderpoint.lead_horizon_date, time.max)
             if date_start <= lead_horizon_date < date_end:
-                res[orderpoint.id] += prod.product_uom_id._compute_quantity_estimate(
+                res[orderpoint.id] += prod.product_uom_id._get_quantity_estimate(
                     prod.product_qty, orderpoint.product_uom_id, round=False
                 )
         return res
@@ -382,6 +410,9 @@ class StockWarehouseOrderpoint(models.Model):
             )
         )
         if Bom.search_count(domain, limit=1):
+            _debug.logic(
+                "orderpoint_refused", reason="product_is_kit", orderpoints=self
+            )
             raise ValidationError(
                 _(
                     "A product with a kit-type bill of materials can not have a reordering rule."

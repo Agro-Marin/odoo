@@ -22,10 +22,7 @@ class WebsiteSaleStockCommon(WebsiteSaleCommon):
 
     @classmethod
     def _create_product(cls, **create_values):
-        """Override of `website_sale` to create storable products by default and restrict them from
-        selling when out of stock.
-        """
-        if create_values.get("type", "consu") == "consu":  # Only for goods.
+        if create_values.get("type", "consu") == "consu":
             if "is_storable" not in create_values:
                 create_values["is_storable"] = True
             if "allow_out_of_stock_order" not in create_values:

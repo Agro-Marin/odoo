@@ -15,7 +15,6 @@
         </t>
     </template>
 
-    <!-- Event - Description -->
     <template id="event_description_full" name="Event Description" track="1">
         <t t-set="hide_submenu" t-value="True" />
         <t t-set="hide_register_cta" t-value="True" />
@@ -95,7 +94,6 @@
                     <div class="row">
                         <div class="col pe-xxl-5">
                             <t t-call="website_event.navbar" />
-                            <!-- Show the button tickets only on mobile -->
                             <div
                                 t-if="opt_event_registration_block"
                                 class="o_wevent_event_main_cta_block d-lg-none mb-3">
@@ -103,7 +101,6 @@
                                     <t t-set="cta_additional_classes">w-100 py-sm-3 mt-sm-2</t>
                                 </t>
                             </div>
-                            <!-- Description -->
                             <div id="o_wevent_event_main_col">
                                 <div
                                     t-if="edition_cover_only"
@@ -151,12 +148,10 @@
                             </div>
                         </div>
 
-                        <!-- Sidebar -->
                         <aside
                             t-if="opt_event_registration_block or opt_event_dates_block or opt_event_calendar_block or                         opt_event_location_block or opt_event_organizer_block or opt_event_share_block"
                             id="o_wevent_event_main_sidebar"
                             t-attf-class="col-lg-4 py-3 pb-lg-0 d-print-none {{'sticky-top align-self-start' if opt_event_fixed_sidebar else ''}}">
-                            <!-- CTA (desktop only) -->
                             <div
                                 t-if="opt_event_registration_block"
                                 class="d-none d-lg-block mb-3">
@@ -164,7 +159,6 @@
                                     <t t-set="cta_additional_classes">w-100</t>
                                 </t>
                             </div>
-                            <!-- Date & Time (desktop only) -->
                             <div
                                 t-if="opt_event_dates_block or opt_event_calendar_block"
                                 class="o_wevent_bordered_block pb-3 mb-4 d-none d-lg-block">
@@ -184,7 +178,6 @@
                                     itemprop="eventStatus"
                                     content="https://schema.org/EventScheduled" />
                             </header>
-                            <!-- Location -->
                             <meta
                                 itemprop="eventAttendanceMode"
                                 t-attf-content="https://schema.org/{{'Offline' if event.address_id else 'Online'}}EventAttendanceMode" />
@@ -235,7 +228,6 @@
                                 <h6 class="o_wevent_sidebar_title">Location</h6>
                                 <i class="fa-solid fa-location-dot" title="Location" /> Online event
                             </div>
-                            <!-- Organizer -->
                             <div
                                 t-if="opt_event_organizer_block and event.organizer_id"
                                 class="o_wevent_sidebar_block o_wevent_bordered_block pb-3 mb-4"
@@ -253,7 +245,6 @@
                                     t-field="event.organizer_id"
                                     t-options="{'widget': 'contact', 'fields': ['phone', 'email'], 'with_microdata': True,}" />
                             </div>
-                            <!-- Social -->
                             <div
                                 t-if="opt_event_share_block"
                                 class="o_wevent_sidebar_block">
@@ -278,8 +269,6 @@
         </t>
     </template>
 
-    <!-- Event - Registration -->
-    <!-- cta_additional_classes {string} - classes applied to the main CTA   -->
     <template id="registration_template" name="Registration">
         <a
             t-if="event_page and event.event_registrations_open"
@@ -309,14 +298,12 @@
             Registration failed! Suspicious activity detected by Google reCaptcha.
         </div>
         <t t-if="not event.event_registrations_open">
-            <!-- Cancelled -->
             <div
                 t-if="event.kanban_state == 'cancel'"
                 class="alert alert-danger mb-3 small text-center"
                 role="status">
                 <b>Cancelled</b>
             </div>
-            <!-- Delayed registration time -->
             <div
                 t-elif="not event.event_registrations_started and not event.event_registrations_sold_out"
                 class="alert alert-info mb-3 small"
@@ -328,21 +315,18 @@
                     t-options="{'widget': 'datetime', 'tz_name': event.date_tz, 'format': 'h:mm a'}" />
                 <small t-if="website_visitor_timezone != event.date_tz">(<t t-out="event.date_tz" /> time)</small>
             </div>
-            <!-- Sold Out -->
             <div
                 t-elif="event.event_registrations_sold_out"
                 class="alert alert-danger mb-3 small"
                 role="status">
                 <b>Sold Out</b>
             </div>
-            <!-- Registrations Closed -->
             <div t-else="" class="alert alert-warning mb-3 small" role="status">
                 <em>Registrations <b>Closed</b></em>
             </div>
         </t>
     </template>
 
-    <!-- Event - Calendar Links -->
     <template id="event_calendar_links">
         <h5>Add to your calendar</h5>
         <div
@@ -371,7 +355,6 @@
         </div>
     </template>
 
-    <!-- Event - Description Dates -->
     <template id="event_description_dates" name="Event Description Dates">
         <t
             t-set="is_one_day_without_slots"
@@ -389,7 +372,6 @@
                             t-out="event.date_tz" />
                     </small>
                     <div class="card bg-transparent py-3 px-2 px-md-3">
-                        <!-- Up to the next 3 closest dates -->
                         <t
                             t-set="slots_to_preview"
                             t-value="dict(list(slots.items())[:3])" />
@@ -794,7 +776,6 @@
         </div>
     </template>
 
-    <!-- Button to configure Tickets -->
     <template
         id="registration_configure_tickets_button"
         name="Registration Configure Ticket Button">
@@ -808,7 +789,6 @@
     </template>
 
     <template id="modal_ticket_registration" name="Modal for tickets registration">
-        <!-- Modal -->
         <div
             id="modal_ticket_registration"
             t-attf-class="modal fade {{'o_wevent_modal_slot_ticket_registration' if event.is_multi_slots else ''}}"
@@ -862,7 +842,6 @@
                         <t
                             t-set="tickets"
                             t-value="event.event_ticket_ids.filtered(lambda ticket: not ticket.is_expired)" />
-                        <!-- If some tickets expired and there is only one type left, we keep the same layout -->
                         <t t-if="len(event.event_ticket_ids) &gt; 1">
                             <span
                                 t-if="not event.event_registrations_open"
@@ -908,7 +887,8 @@
                                     </div>
                                     <div
                                         class="d-flex flex-column col-6 flex-md-row align-items-end align-items-md-start text-end gap-2">
-                                        <div t-attf-class="o_wevent_registration_multi_select flex-md-grow-1 text-end"/> <!-- t-attf-class added for some dynamic classes inherited -->
+                                        <div
+                                            t-attf-class="o_wevent_registration_multi_select flex-md-grow-1 text-end" />
                                         <div class="ms-auto">
                                             <t
                                                 t-set="limit_per_order"
@@ -1250,7 +1230,6 @@
         </div>
     </template>
 
-    <!-- Cover Options -->
     <template
         id="opt_event_description_cover_hidden"
         name="Event Description Cover Hidden Option"
@@ -1263,7 +1242,6 @@
         inherit_id="website_event.event_description_full"
         active="False" />
 
-    <!-- Sidebar Blocks Visibility Options -->
     <template
         id="opt_event_registration_block"
         name="Registrations"
@@ -1300,7 +1278,6 @@
         inherit_id="website_event.event_description_full"
         active="True" />
 
-    <!-- Sidebar Position Option -->
     <template
         id="opt_event_fixed_sidebar"
         name="Fixed Sidebar Option"

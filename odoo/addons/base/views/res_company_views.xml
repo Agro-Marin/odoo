@@ -9,11 +9,11 @@
                 <field name="sequence" widget="handle" />
                 <field
                     name="logo"
-                    invisible="not logo"
                     widget="image"
-                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}"
                     width="30"
-                    nolabel="1" />
+                    nolabel="1"
+                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}"
+                    invisible="not logo" />
                 <field name="code" optional="show" />
                 <field name="name" />
                 <field name="partner_id" required="0" />
@@ -39,10 +39,10 @@
                                 aria-label="Enterprise"
                                 title="Enterprise" />
                             <field
-                                class="fw-bold fs-5"
                                 name="code"
-                                invisible="not code" />
-                            <field class="fs-6" name="name" />
+                                invisible="not code"
+                                class="fw-bold fs-5" />
+                            <field name="name" class="fs-6" />
                         </div>
                         <hr class="mt4 mb4" />
                         <div class="row" t-if="!selection_mode">
@@ -89,20 +89,19 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
                             name="action_all_company_branches"
                             type="object"
-                            invisible="not all_child_ids"
+                            string="Branches"
                             icon="fa-sitemap"
-                            string="Branches" />
+                            invisible="not all_child_ids"
+                            class="oe_stat_button" />
                     </div>
                     <div class="d-flex gap-2">
                         <field
                             name="logo"
                             widget="contact_image"
-                            class="oe_avatar text-start float-none"
-                            nolabel="1"
-                            options="{'size': [100,100], 'img_class': 'rounded-4'}" />
+                            options="{'size': [100,100], 'img_class': 'rounded-4'}"
+                            class="oe_avatar text-start float-none" />
                         <div class="oe_title">
                             <label for="name" />
                             <h1>
@@ -115,15 +114,15 @@
                         </div>
                     </div>
                     <notebook colspan="4">
-                        <page string="General Information" name="general_info">
+                        <page name="general_info" string="General Information">
                             <group>
                                 <group>
                                     <field
                                         name="partner_id"
                                         string="Contact"
+                                        groups="base.group_no_one"
                                         readonly="1"
-                                        required="0"
-                                        groups="base.group_no_one" />
+                                        required="0" />
                                     <label for="street" string="Address" />
                                     <div class="o_address_format">
                                         <field
@@ -140,10 +139,10 @@
                                             class="o_address_city" />
                                         <field
                                             name="state_id"
-                                            class="o_address_state"
                                             placeholder="State"
+                                            context="{'country_id': country_id, 'default_country_id': country_id, 'zip': zip}"
                                             options="{'no_open': True, 'no_quick_create': True}"
-                                            context="{'country_id': country_id, 'default_country_id': country_id, 'zip': zip}" />
+                                            class="o_address_state" />
                                         <field
                                             name="zip"
                                             placeholder="ZIP"
@@ -151,8 +150,8 @@
                                         <field
                                             name="country_id"
                                             placeholder="Country"
-                                            class="o_address_country"
-                                            options="{'no_open': True, 'no_create': True}" />
+                                            options="{'no_open': True, 'no_create': True}"
+                                            class="o_address_country" />
                                     </div>
                                     <field name="vat" />
                                     <field
@@ -163,9 +162,9 @@
                                         options="{'placeholder_field': 'company_registry_placeholder'}" />
                                     <field
                                         name="currency_id"
-                                        options="{'no_create': True, 'no_open': True}"
                                         id="company_currency"
-                                        context="{'active_test': False}" />
+                                        context="{'active_test': False}"
+                                        options="{'no_create': True, 'no_open': True}" />
                                 </group>
                                 <group>
                                     <field name="phone_ids" widget="many2many_tags" />
@@ -173,8 +172,8 @@
                                     <field
                                         name="website"
                                         string="Website"
-                                        widget="url"
-                                        placeholder="e.g. https://www.odoo.com" />
+                                        placeholder="e.g. https://www.odoo.com"
+                                        widget="url" />
                                     <field
                                         name="parent_id"
                                         groups="base.group_no_one" />
@@ -183,10 +182,9 @@
                                 <group name="social_media" />
                             </group>
                         </page>
-                        <page string="Branches" name="branches">
+                        <page name="branches" string="Branches">
                             <field
                                 name="child_ids"
-                                nolabel="1"
                                 context="{'default_parent_id': id}" />
                         </page>
                     </notebook>

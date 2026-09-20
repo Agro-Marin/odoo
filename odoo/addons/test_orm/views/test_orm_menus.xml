@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_main"
+        name="Discussions"
+        parent="base.menu_tests"
+        sequence="20" />
+
+    <menuitem id="menu_sub" name="Discussions" parent="menu_main" sequence="10" />
+
+    <menuitem
+        id="menu_discussions"
+        parent="menu_sub"
+        action="action_discussions"
+        sequence="10" />
+
+    <menuitem
+        id="menu_messages"
+        parent="menu_sub"
+        action="action_messages"
+        sequence="20" />
+
+    <menuitem id="menu_multi" parent="menu_sub" action="action_multi" />
+
+    <menuitem id="menu_config" name="Configuration" parent="menu_main" sequence="20" />
+
+    <menuitem id="menu_categories" parent="menu_config" action="action_categories" />
+
+    <menuitem
+        id="menu_discussions_2"
+        parent="menu_sub"
+        action="action_discussions_2"
+        sequence="10" />
+
+    <menuitem
+        id="menu_discussions_3"
+        parent="menu_sub"
+        action="action_discussions_3"
+        sequence="11" />
+
+    <menuitem
+        id="menu_active"
+        name="Active Test"
+        parent="menu_main"
+        action="action_tests_active"
+        sequence="12" />
+
+</odoo>

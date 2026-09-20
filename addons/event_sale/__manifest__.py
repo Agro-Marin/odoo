@@ -20,7 +20,8 @@ this event.
     "license": "LGPL-3",
     "depends": [
         "event_product",
-        "sale_management",
+        "sale",
+        "sale_team",
     ],
     "data": [
         "views/event_registration_views.xml",
@@ -35,6 +36,7 @@ this event.
         "security/event_security.xml",
         "wizards/event_edit_registration.xml",
         "wizards/event_configurator_views.xml",
+        "views/event_sale_menus.xml",
     ],
     "demo": [
         "demo/event_sale_demo.xml",
@@ -48,6 +50,5 @@ this event.
             "event_sale/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

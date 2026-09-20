@@ -1,15 +1,23 @@
 from odoo import api, fields, models
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
     workorder_id = fields.Many2one(
-        "mrp.workorder", "Work Order", check_company=True, index="btree_not_null"
+        comodel_name="mrp.workorder",
+        string="Work Order",
+        index="btree_not_null",
+        check_company=True,
     )
     production_id = fields.Many2one(
-        "mrp.production", "Production Order", check_company=True
+        comodel_name="mrp.production",
+        string="Production Order",
+        check_company=True,
     )
 
     @api.depends("production_id.picking_type_id")
@@ -40,6 +48,11 @@ class StockMoveLine(models.Model):
                     move.product_uom_qty, move.quantity, move.product_uom_id
                 ):
                     move.manual_consumption = True
+        _debug.lifecycle(
+            "create",
+            lines=res,
+            forced=bool(self.env.context.get("force_manual_consumption")),
+        )
         for line in res:
             if line.move_id.raw_material_production_id and line.state == "done":
                 mo = line.move_id.raw_material_production_id
@@ -47,16 +60,20 @@ class StockMoveLine(models.Model):
                 finished_lots |= mo.move_finished_ids.filtered(
                     lambda m, mo=mo: m.product_id != mo.product_id
                 ).move_line_ids.lot_id
+                _debug.logic(
+                    "consume_line_traced",
+                    line=line.id,
+                    production=mo.id,
+                    by="finished_lots" if finished_lots else "all_finished_lines",
+                )
+                produced_move_lines = mo.move_finished_ids.move_line_ids
                 if finished_lots:
-                    produced_move_lines = mo.move_finished_ids.move_line_ids.filtered(
+                    produced_move_lines = produced_move_lines.filtered(
                         lambda sml, finished_lots=finished_lots: (
                             sml.lot_id in finished_lots
                         )
                     )
-                    line.produce_line_ids = [(6, 0, produced_move_lines.ids)]
-                else:
-                    produced_move_lines = mo.move_finished_ids.move_line_ids
-                    line.produce_line_ids = [(6, 0, produced_move_lines.ids)]
+                line.produce_line_ids = [Command.set(produced_move_lines.ids)]
         return res
 
     def _get_similar_move_lines(self):

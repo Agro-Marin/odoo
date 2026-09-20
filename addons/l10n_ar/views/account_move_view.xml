@@ -11,8 +11,8 @@
             </field>
             <group>
                 <filter
-                    string="ARCA Responsibility Type"
                     name="l10n_ar_afip_responsibility_type_id_filter"
+                    string="ARCA Responsibility Type"
                     context="{'group_by':'l10n_ar_afip_responsibility_type_id'}" />
             </group>
         </field>
@@ -29,11 +29,11 @@
                     invisible="not l10n_latam_use_documents or country_code != 'AR'" />
                 <label
                     for="l10n_ar_afip_service_start"
-                    invisible="l10n_ar_afip_concept not in ('2', '3', '4') or country_code != 'AR'"
-                    string="Service Date" />
+                    string="Service Date"
+                    invisible="l10n_ar_afip_concept not in ('2', '3', '4') or country_code != 'AR'" />
                 <div
                     invisible="l10n_ar_afip_concept not in ('2', '3', '4') or country_code != 'AR'">
-                    <field name="l10n_ar_afip_service_start" class="oe_inline" readonly="state != 'draft'" /> to <field name="l10n_ar_afip_service_end" class="oe_inline" readonly="state != 'draft'" />
+                    <field name="l10n_ar_afip_service_start" readonly="state != 'draft'" class="oe_inline" /> to <field name="l10n_ar_afip_service_end" readonly="state != 'draft'" class="oe_inline" />
                 </div>
             </group>
         </field>

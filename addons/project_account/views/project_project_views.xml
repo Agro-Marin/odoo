@@ -34,7 +34,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('analytic.group_analytic_accounting'))]" />
+            eval="[Command.link(ref('analytic.group_analytic_accounting'))]" />
         <field name="domain">[('account_id', '!=', False)]</field>
     </record>
 
@@ -49,7 +49,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('analytic.group_analytic_accounting'))]" />
+            eval="[Command.link(ref('analytic.group_analytic_accounting'))]" />
         <field name="domain">[('account_id', '!=', False)]</field>
     </record>
 

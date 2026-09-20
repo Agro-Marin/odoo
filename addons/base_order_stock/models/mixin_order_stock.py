@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 TRANSFER_STATE = [
     ("no", "Nothing to transfer"),
@@ -9,6 +10,9 @@ TRANSFER_STATE = [
 ]
 
 
+_debug = DebugLog(__name__)
+
+
 class MixinOrderStock(models.AbstractModel):
     _name = "mixin.order.stock"
     _inherit = ["mixin.order.state.rollup"]
@@ -17,8 +21,8 @@ class MixinOrderStock(models.AbstractModel):
     transfer_state = fields.Selection(
         selection=TRANSFER_STATE,
         string="Transfer Status",
-        default="no",
         compute="_compute_transfer_state",
+        default="no",
         store=True,
     )
     force_fully_delivered = fields.Boolean(
@@ -35,11 +39,10 @@ class MixinOrderStock(models.AbstractModel):
 
     incoterm_id = fields.Many2one(
         comodel_name="account.incoterms",
-        string="Incoterm",
         help="International Commercial Terms are a series of predefined commercial "
         "terms used in international transactions.",
     )
-    incoterm_location = fields.Char(string="Incoterm Location")
+    incoterm_location = fields.Char()
 
     @api.depends(
         "state",
@@ -49,6 +52,7 @@ class MixinOrderStock(models.AbstractModel):
         "force_fully_delivered",
     )
     def _compute_transfer_state(self):
+        _debug.perf.count("order_transfer_state_compute", orders=self)
         forced = self.filtered("force_fully_delivered")
         forced.transfer_state = "done"
         confirmed = (self - forced).filtered(lambda order: order.state == "done")
@@ -96,9 +100,11 @@ class MixinOrderStock(models.AbstractModel):
         )
 
     def action_force_transfer_state(self):
+        _debug.lifecycle("transfer_state_forced", orders=self)
         self.force_fully_delivered = True
 
     def action_unforce_transfer_state(self):
+        _debug.lifecycle("transfer_state_unforced", orders=self)
         self.force_fully_delivered = False
 
     def _get_action_view_picking(self, pickings):
@@ -115,8 +121,8 @@ class MixinOrderStock(models.AbstractModel):
             action["res_id"] = pickings.id
         else:
             action["domain"] = [("id", "in", pickings.ids)]
-        action["context"] = self._get_action_view_picking_context(pickings)
+        action["context"] = self._prepare_picking_action_context(pickings)
         return action
 
-    def _get_action_view_picking_context(self, pickings):
+    def _prepare_picking_action_context(self, pickings):
         return {}

@@ -4,9 +4,17 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import frozendict
+from odoo.tools import DOMAIN_PREDICATES, TransactionMemo, frozendict
 
-from odoo.addons.stock.const import PY_OPERATORS
+from ..tools import debug_log as dbg
+
+# the fields that decide which orderpoints a move's product and warehouses
+# reach; a write to any of them discards the transaction's memo
+ORDERPOINT_SCOPE_FIELDS = ("product_id", "warehouse_id", "active", "company_id")
+ORDERPOINTS_BY_SCOPE = TransactionMemo(
+    "stock.warehouse.orderpoint.by_scope",
+    invalidated_by={"stock.warehouse.orderpoint": ORDERPOINT_SCOPE_FIELDS},
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -22,20 +30,17 @@ class StockWarehouseOrderpoint(models.Model):
     _PROCUREMENT_RETRIES = 5
 
     name = fields.Char(
-        string="Name",
-        required=True,
         default=lambda self: self.env["ir.sequence"].next_by_code("stock.orderpoint"),
-        readonly=True,
         copy=False,
+        readonly=True,
+        required=True,
     )
     trigger = fields.Selection(
         selection=[("auto", "Auto"), ("manual", "Manual")],
-        string="Trigger",
-        required=True,
         default="auto",
+        required=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If the active field is set to False, it will allow you to hide the orderpoint without removing it.",
     )
@@ -45,53 +50,48 @@ class StockWarehouseOrderpoint(models.Model):
     )
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
-        string="Warehouse",
-        required=True,
         compute="_compute_warehouse_id",
-        store=True,
         precompute=True,
-        readonly=False,
-        check_company=True,
-        ondelete="cascade",
+        store=True,
         index=True,
+        readonly=False,
+        required=True,
+        ondelete="cascade",
+        check_company=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Location",
-        required=True,
         compute="_compute_location_id",
-        store=True,
         precompute=True,
-        readonly=False,
-        check_company=True,
-        ondelete="cascade",
+        store=True,
         index=True,
+        readonly=False,
+        required=True,
+        ondelete="cascade",
+        check_company=True,
     )
     product_tmpl_id = fields.Many2one(
-        related="product_id.product_tmpl_id",
         comodel_name="product.template",
+        related="product_id.product_tmpl_id",
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
-        required=True,
-        check_company=True,
-        domain=(
-            "[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
-            " [('id', '=', context.get('default_product_id', False))] if context.get('default_product_id') else"
-            " [('is_storable', '=', True)]"
-        ),
-        ondelete="cascade",
         index=True,
+        required=True,
+        domain="[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
+        " [('id', '=', context.get('default_product_id', False))] if context.get('default_product_id') else"
+        " [('is_storable', '=', True)]",
+        ondelete="cascade",
+        check_company=True,
     )
     product_category_id = fields.Many2one(
-        related="product_id.categ_id",
         comodel_name="product.category",
+        related="product_id.categ_id",
         string="Product Category",
     )
     product_uom_id = fields.Many2one(
-        related="product_id.uom_id",
         comodel_name="uom.uom",
+        related="product_id.uom_id",
         string="Unit",
     )
     product_uom_name = fields.Char(
@@ -102,18 +102,18 @@ class StockWarehouseOrderpoint(models.Model):
     product_min_qty = fields.Float(
         string="Min Quantity",
         digits="Product Unit",
-        required=True,
         default=0.0,
+        required=True,
         help="The minimum Stock level that will trigger a replenishment.",
     )
     product_max_qty = fields.Float(
         string="Max Quantity",
         digits="Product Unit",
-        required=True,
         compute="_compute_product_max_qty",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
         help="Stock level to reach when replenishing.",
     )
     allowed_replenishment_uom_ids = fields.Many2many(
@@ -127,14 +127,13 @@ class StockWarehouseOrderpoint(models.Model):
         help="The procurement quantity will be rounded up to a multiple of this unit/packaging. If it is not set, it is not rounded.",
     )
     replenishment_uom_id_placeholder = fields.Char(
-        compute="_compute_replenishment_uom_id_placeholder",
+        compute="_compute_replenishment_uom_id_placeholder"
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
         default=lambda self: self.env.company,
         index=True,
+        required=True,
     )
     allowed_location_ids = fields.Many2many(
         comodel_name="stock.location",
@@ -150,7 +149,6 @@ class StockWarehouseOrderpoint(models.Model):
     lead_days = fields.Float(compute="_compute_lead_time")
     route_id = fields.Many2one(
         comodel_name="stock.route",
-        string="Route",
         inverse="_inverse_route_id",
         domain="['|', ('product_selectable', '=', True), ('rule_ids.action', 'in', ['buy', 'manufacture'])]",
     )
@@ -158,8 +156,8 @@ class StockWarehouseOrderpoint(models.Model):
     effective_route_id = fields.Many2one(
         comodel_name="stock.route",
         compute="_compute_effective_route_id",
-        store=False,
         search="_search_effective_route_id",
+        store=False,
         help="Either the route set directly or the one computed to be used by this replenishment",
     )
     qty_on_hand = fields.Float(
@@ -187,7 +185,10 @@ class StockWarehouseOrderpoint(models.Model):
         compute="_compute_qty_to_order_computed",
         store=True,
     )
-    qty_to_order_manual = fields.Float(string="To Order Manual", digits="Product Unit")
+    qty_to_order_manual = fields.Float(
+        string="To Order Manual",
+        digits="Product Unit",
+    )
     qty_to_order_manual_set = fields.Boolean(
         string="Quantity Overridden",
         default=False,
@@ -212,10 +213,7 @@ class StockWarehouseOrderpoint(models.Model):
         help="Numbers of days  in advance that replenishments demands are created.",
     )
 
-    unwanted_replenish = fields.Boolean(
-        string="Unwanted Replenish",
-        compute="_compute_unwanted_replenish",
-    )
+    unwanted_replenish = fields.Boolean(compute="_compute_unwanted_replenish")
     show_supply_warning = fields.Boolean(compute="_compute_show_supply_warning")
     deadline_date = fields.Date(
         string="Deadline",
@@ -277,8 +275,14 @@ class StockWarehouseOrderpoint(models.Model):
             vals = dict(vals, qty_to_order_manual_set=True)
         return vals
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "orderpoint.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         vals_list = [self._update_vals_manual_qty_override(vals) for vals in vals_list]
         default_trigger = None
         if any(vals.get("snoozed_until") for vals in vals_list):
@@ -294,7 +298,11 @@ class StockWarehouseOrderpoint(models.Model):
             )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "orderpoint.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         vals = self._update_vals_manual_qty_override(vals)
         if "company_id" in vals:
             for orderpoint in self:
@@ -315,6 +323,9 @@ class StockWarehouseOrderpoint(models.Model):
                     ),
                 )
         if vals.get("trigger") == "auto" and "snoozed_until" not in vals:
+            dbg.logic.debug(
+                "write: trigger auto clears snoozed_until on %s", dbg.rec(self)
+            )
             vals = dict(vals, snoozed_until=False)
         return super().write(vals)
 
@@ -464,6 +475,20 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.company_id.id,
                 self.env["stock.warehouse"],
             )
+            current = orderpoint.location_id
+            # An editable default, so a stored location that still sits inside
+            # the warehouse is the user's and is kept. Assigning unconditionally
+            # reset a rule pointed at a particular shelf back to the warehouse's
+            # stock location on any write of `warehouse_id` -- including one
+            # that changed nothing, since `modified()` fires on the key and not
+            # on a change. A location outside the warehouse is re-derived,
+            # because that is what a real warehouse change invalidates.
+            if (
+                current
+                and warehouse
+                and current._is_child_of(warehouse.view_location_id)
+            ):
+                continue
             orderpoint.location_id = warehouse.lot_stock_id.id
 
     @api.depends("product_id", "qty_to_order", "product_max_qty")
@@ -541,13 +566,20 @@ class StockWarehouseOrderpoint(models.Model):
             for orderpoint in self
         }
 
+    @dbg.timed
     def _read_product_qty_by_context(self, field_names):
         result = {}
         orderpoints_by_context = defaultdict(self.browse)
         for orderpoint in self:
-            orderpoints_by_context[frozendict(orderpoint._get_product_context())] |= (
-                orderpoint
-            )
+            orderpoints_by_context[
+                frozendict(orderpoint._prepare_product_context())
+            ] |= orderpoint
+        dbg.performance.debug(
+            "_read_product_qty_by_context(%s): %d orderpoints in %d contexts",
+            field_names,
+            len(self),
+            len(orderpoints_by_context),
+        )
         for product_context, orderpoints in orderpoints_by_context.items():
             values_by_product = {
                 values["id"]: values
@@ -566,6 +598,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.qty_available_virtual",
         "product_id.seller_ids.delay",
     )
+    @dbg.timed
     @api.depends_context("global_horizon_days")
     def _compute_qty(self):
         orderpoints_to_compute = self.filtered(
@@ -585,6 +618,12 @@ class StockWarehouseOrderpoint(models.Model):
                 "qty_available"
             ]
             orderpoint.qty_forecast = qty_forecast[orderpoint.id]
+            dbg.logic.debug(
+                "[orderpoint:%s] on hand %s, forecast %s",
+                orderpoint.id,
+                orderpoint.qty_on_hand,
+                orderpoint.qty_forecast,
+            )
 
     @api.depends(
         "qty_to_order_manual",
@@ -627,6 +666,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.seller_ids.delay",
         "company_id.horizon_days",
     )
+    @dbg.timed
     def _compute_qty_to_order_computed(self):
         canonical = self._with_canonical_horizon()
         suggestions = canonical._get_qty_to_order_map()
@@ -648,6 +688,10 @@ class StockWarehouseOrderpoint(models.Model):
         by_quantity = defaultdict(self.browse)
         for orderpoint in overridden:
             by_quantity[orderpoint.qty_to_order] |= orderpoint
+        if overridden:
+            dbg.logic.debug(
+                "_inverse_qty_to_order: manual override on %s", dbg.rec(overridden)
+            )
         for quantity, group in by_quantity.items():
             group.write(
                 {"qty_to_order_manual_set": True, "qty_to_order_manual": quantity},
@@ -697,7 +741,7 @@ class StockWarehouseOrderpoint(models.Model):
         return Domain("route_id", "in", routes.ids) | Domain("id", "in", matched_ids)
 
     def _search_qty_to_order(self, operator, value):
-        if PY_OPERATORS.get(operator) is None:
+        if DOMAIN_PREDICATES.get(operator) is None:
             return NotImplemented
         return Domain(
             [

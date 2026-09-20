@@ -14,8 +14,8 @@
                     <div class="row mt8" invisible="company_country_code != 'MX'">
                         <label
                             for="l10n_mx_account_income_return_discount_id"
-                            class="col-lg-5 o_light_label"
-                            string="Credit notes" />
+                            string="Credit notes"
+                            class="col-lg-5 o_light_label" />
                         <field
                             name="l10n_mx_account_income_return_discount_id"
                             placeholder="Returns and discounts" />
@@ -23,8 +23,8 @@
                     <div class="row mt8" invisible="company_country_code != 'MX'">
                         <label
                             for="l10n_mx_account_income_re_invoicing_id"
-                            class="col-lg-5 o_light_label"
-                            string="Re-invoicing" />
+                            string="Re-invoicing"
+                            class="col-lg-5 o_light_label" />
                         <field
                             name="l10n_mx_account_income_re_invoicing_id"
                             placeholder="Re-invoicing" />

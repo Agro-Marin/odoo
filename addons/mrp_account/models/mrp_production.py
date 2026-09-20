@@ -1,20 +1,29 @@
 from collections import defaultdict
 
 from odoo import Command, _, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpProduction(models.Model):
     _inherit = "mrp.production"
 
-    extra_cost = fields.Float(copy=False, string="Extra Unit Cost")
-    wip_move_ids = fields.Many2many(
-        "account.move",
-        "wip_move_production_rel",
-        "production_id",
-        "move_id",
+    extra_cost = fields.Float(
+        string="Extra Unit Cost",
         copy=False,
     )
-    wip_move_count = fields.Count("wip_move_ids", "WIP Journal Entry Count")
+    wip_move_ids = fields.Many2many(
+        comodel_name="account.move",
+        relation="wip_move_production_rel",
+        column1="production_id",
+        column2="move_id",
+        copy=False,
+    )
+    wip_move_count = fields.Count(
+        count_of="wip_move_ids",
+        string="WIP Journal Entry Count",
+    )
 
     def write(self, vals):
         res = super().write(vals)
@@ -65,10 +74,13 @@ class MrpProduction(models.Model):
             )
         )
         if not finished_move:
+            _debug.logic("finished_price_skipped", production=self.id, by="no_move")
             return True
 
         quantity = sum(
-            move.product_uom_id._compute_quantity(move.quantity, move.product_id.uom_id)
+            move.product_uom_id._get_quantity_in_unit(
+                move.quantity, move.product_id.uom_id
+            )
             for move in finished_move
         )
         total_cost = (
@@ -94,14 +106,33 @@ class MrpProduction(models.Model):
         for byproduct in priced_byproducts:
             value = currency.round(total_cost * byproduct.cost_share / 100)
             shared_value -= value
-            byproduct.price_unit = value / byproduct.product_uom_id._compute_quantity(
-                byproduct.quantity, byproduct.product_id.uom_id
+            byproduct.price_unit = (
+                value
+                / byproduct.product_uom_id._get_quantity_in_unit(
+                    byproduct.quantity, byproduct.product_id.uom_id
+                )
             )
 
         if self.product_id.cost_method not in ("fifo", "average"):
+            _debug.logic(
+                "finished_price",
+                production=self.id,
+                by="standard",
+                cost_method=self.product_id.cost_method,
+                total_cost=total_cost,
+            )
             finished_move.price_unit = self.product_id.standard_price
             return True
         finished_move.check_singleton()
+        _debug.logic(
+            "finished_price",
+            production=self.id,
+            by="shared_value",
+            total_cost=total_cost,
+            shared=shared_value,
+            quantity=quantity,
+            byproducts=len(byproduct_moves),
+        )
         finished_move.price_unit = shared_value / quantity
         return True
 
@@ -141,9 +172,11 @@ class MrpProduction(models.Model):
                 mo.product_id.valuation != "real_time"
                 or not production_location.valuation_account_id
             ):
+                _debug.logic("labour_skipped", mo=mo, reason="not_real_time")
                 continue
 
             if mo.workorder_ids.time_ids.account_move_line_id:
+                _debug.logic("labour_skipped", mo=mo, reason="already_posted")
                 continue
 
             product_accounts = mo.product_id.product_tmpl_id._get_product_accounts()
@@ -151,7 +184,15 @@ class MrpProduction(models.Model):
                 mo._get_labour_amounts_per_account(product_accounts)
             )
             if mo.company_id.currency_id.is_zero(workcenter_cost):
+                _debug.logic("labour_skipped", mo=mo, reason="zero_cost")
                 continue
+            _debug.lifecycle(
+                "labour_posted",
+                mo=mo,
+                cost=workcenter_cost,
+                accounts=len(labour_amounts),
+                workorders=len(workorders),
+            )
 
             desc = _("%s - Labour", mo.name)
             charged = list(labour_amounts.items())

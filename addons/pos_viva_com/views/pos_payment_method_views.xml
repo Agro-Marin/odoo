@@ -34,9 +34,9 @@
                     required="use_payment_terminal == 'viva_com'" />
                 <field
                     name="viva_com_webhook_endpoint"
+                    widget="CopyClipboardChar"
                     invisible="use_payment_terminal != 'viva_com' or not id"
-                    required="use_payment_terminal == 'viva_com'"
-                    widget="CopyClipboardChar" />
+                    required="use_payment_terminal == 'viva_com'" />
             </xpath>
         </field>
     </record>

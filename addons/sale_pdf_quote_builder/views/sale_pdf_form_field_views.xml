@@ -5,7 +5,7 @@
         <field name="name">sale.pdf.form.field.list</field>
         <field name="model">sale.pdf.form.field</field>
         <field name="arch" type="xml">
-            <list editable="top" multi_edit="true" create="false">
+            <list editable="top" create="false" multi_edit="true">
                 <field name="name" />
                 <field name="path" />
                 <field name="document_type" />
@@ -32,8 +32,8 @@
                     string="Customizable"
                     domain="[('path', '=', False)]" />
                 <filter
-                    string="This document"
                     name="context_document"
+                    string="This document"
                     domain="[                         ('document_type', '=', context.get('default_document_type')),                         ('product_document_ids', '=', context.get('default_product_document_ids')),                         ('quotation_document_ids', '=', context.get('default_quotation_document_ids'))                     ]" />
             </search>
         </field>

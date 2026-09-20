@@ -11,21 +11,23 @@ class EventTypeBooth(models.Model):
         if category_id and len(category_id) == 1:
             return category_id
 
-    name = fields.Char(string="Name", required=True, translate=True)
-    event_type_id = fields.Many2one(
-        "event.type",
-        string="Event Category",
-        ondelete="cascade",
+    name = fields.Char(
+        translate=True,
         required=True,
+    )
+    event_type_id = fields.Many2one(
+        comodel_name="event.type",
+        string="Event Category",
         index=True,
+        required=True,
+        ondelete="cascade",
     )
     booth_category_id = fields.Many2one(
-        "event.booth.category",
-        string="Booth Category",
-        index=True,
+        comodel_name="event.booth.category",
         default=_default_booth_category_id,
-        ondelete="restrict",
+        index=True,
         required=True,
+        ondelete="restrict",
     )
 
     @api.model

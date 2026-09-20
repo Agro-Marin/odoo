@@ -6,10 +6,8 @@ from freezegun import freeze_time
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
-from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
-
-class TestIrMailServer(EncryptionKeyCase, TransactionCase):
+class TestIrMailServer(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -90,7 +88,7 @@ class TestIrMailServer(EncryptionKeyCase, TransactionCase):
                     "odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider._logger.info"
                 ) as mock_logger,
                 mock.patch(
-                    "odoo.addons.google_gmail.models.mixin_google_gmail.MixinGoogleGmail._get_gmail_access_token",
+                    "odoo.addons.google_gmail.models.mixin_google_gmail.MixinGoogleGmail._get_gmail_access_token_iap",
                     return_value=("new-access-token", new_token_expiry),
                 ) as mock_get_gmail_access_token,
             ):

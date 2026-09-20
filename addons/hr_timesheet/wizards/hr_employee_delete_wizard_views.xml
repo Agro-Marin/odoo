@@ -25,38 +25,38 @@
                     </span>
                     <footer invisible="not has_timesheet">
                         <button
-                            string="Archive Employees"
-                            type="object"
                             name="action_archive"
-                            class="btn btn-primary"
+                            type="object"
+                            string="Archive Employees"
                             invisible="not has_active_employee"
+                            class="btn btn-primary"
                             data-hotkey="q" />
                         <button
-                            string="See Timesheets"
-                            type="object"
                             name="action_view_timesheets"
-                            class="btn btn-primary"
+                            type="object"
+                            string="See Timesheets"
                             groups="hr_timesheet.group_hr_timesheet_approver"
                             invisible="has_active_employee"
+                            class="btn btn-primary"
                             data-hotkey="w" />
                         <button
-                            string="See Timesheets"
-                            type="object"
                             name="action_view_timesheets"
-                            class="btn btn-secondary"
+                            type="object"
+                            string="See Timesheets"
                             groups="hr_timesheet.group_hr_timesheet_approver"
                             invisible="not has_active_employee"
+                            class="btn btn-secondary"
                             data-hotkey="w" />
-                        <button string="Discard" special="cancel" data-hotkey="x" />
+                        <button special="cancel" string="Discard" data-hotkey="x" />
                     </footer>
                     <footer invisible="has_timesheet">
                         <button
-                            string="Ok"
-                            type="object"
                             name="action_confirm_delete"
+                            type="object"
+                            string="Ok"
                             class="btn btn-primary"
                             data-hotkey="q" />
-                        <button string="Discard" special="cancel" data-hotkey="x" />
+                        <button special="cancel" string="Discard" data-hotkey="x" />
                     </footer>
                 </form>
             </field>

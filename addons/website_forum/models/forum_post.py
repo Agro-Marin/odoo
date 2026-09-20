@@ -6,10 +6,12 @@ from datetime import datetime
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.json import scriptsafe as json_safe
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ForumPost(models.Model):
@@ -23,19 +25,28 @@ class ForumPost(models.Model):
     ]
     _order = "is_correct DESC, vote_count DESC, last_activity_date DESC"
 
-    _CUSTOMER_HEADERS_LIMIT_COUNT = 0  # never use X-Msg-To headers
+    _CUSTOMER_HEADERS_LIMIT_COUNT = 0
 
-    name = fields.Char("Title")
-    forum_id = fields.Many2one("forum.forum", string="Forum", required=True, index=True)
-    content = fields.Html("Content", strip_style=True)
+    name = fields.Char(string="Title")
+    forum_id = fields.Many2one(
+        comodel_name="forum.forum",
+        index=True,
+        required=True,
+    )
+    content = fields.Html(strip_style=True)
     plain_content = fields.Text(
-        "Plain Content", compute="_compute_plain_content", store=True
+        compute="_compute_plain_content",
+        store=True,
     )
     tag_ids = fields.Many2many(
-        "forum.tag", "forum_tag_rel", "forum_post_id", "forum_tag_id", string="Tags"
+        comodel_name="forum.tag",
+        relation="forum_tag_rel",
+        column1="forum_post_id",
+        column2="forum_tag_id",
+        string="Tags",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("active", "Active"),
             ("pending", "Waiting Validation"),
             ("close", "Closed"),
@@ -45,163 +56,250 @@ class ForumPost(models.Model):
         string="Status",
         default="active",
     )
-    views = fields.Integer("Views", default=0, readonly=True, copy=False)
-    active = fields.Boolean("Active", default=True)
+    views = fields.Integer(
+        default=0,
+        copy=False,
+        readonly=True,
+    )
+    active = fields.Boolean(default=True)
     website_message_ids = fields.One2many(
         domain=lambda self: [
             ("model", "=", self._name),
             ("message_type", "in", ["email", "comment", "email_outgoing"]),
         ]
     )
-    website_url = fields.Char("Website URL", compute="_compute_website_url")
-    website_id = fields.Many2one(related="forum_id.website_id", readonly=True)
-
-    # history
-    create_date = fields.Datetime("Asked on", index=True, readonly=True)
-    create_uid = fields.Many2one(
-        "res.users", string="Created by", index=True, readonly=True
+    website_url = fields.Char(
+        string="Website URL",
+        compute="_compute_website_url",
     )
-    write_date = fields.Datetime("Updated on", index=True, readonly=True)
+    website_id = fields.Many2one(
+        related="forum_id.website_id",
+        readonly=True,
+    )
+
+    create_date = fields.Datetime(
+        string="Asked on",
+        index=True,
+        readonly=True,
+    )
+    create_uid = fields.Many2one(
+        comodel_name="res.users",
+        string="Created by",
+        index=True,
+        readonly=True,
+    )
+    write_date = fields.Datetime(
+        string="Updated on",
+        index=True,
+        readonly=True,
+    )
     last_activity_date = fields.Datetime(
-        "Last activity on",
+        string="Last activity on",
+        default=fields.Datetime.now,
         readonly=True,
         required=True,
-        default=fields.Datetime.now,
         help="Field to keep track of a post's last activity. Updated whenever it is replied to, "
         "or when a comment is added on the post or one of its replies.",
     )
     write_uid = fields.Many2one(
-        "res.users", string="Updated by", index=True, readonly=True
+        comodel_name="res.users",
+        string="Updated by",
+        index=True,
+        readonly=True,
     )
-    relevancy = fields.Float("Relevance", compute="_compute_relevancy", store=True)
+    relevancy = fields.Float(
+        string="Relevance",
+        compute="_compute_relevancy",
+        store=True,
+    )
 
-    # vote
-    vote_ids = fields.One2many("forum.post.vote", "post_id", string="Votes")
-    user_vote = fields.Integer("My Vote", compute="_compute_user_vote")
+    vote_ids = fields.One2many(
+        comodel_name="forum.post.vote",
+        inverse_name="post_id",
+        string="Votes",
+    )
+    user_vote = fields.Integer(
+        string="My Vote",
+        compute="_compute_user_vote",
+    )
     vote_count = fields.Integer(
-        "Total Votes", compute="_compute_vote_count", store=True
+        string="Total Votes",
+        compute="_compute_vote_count",
+        store=True,
     )
 
-    # favorite
-    favorite_count = fields.Count("favorite_user_ids", "Favorite", store=True)
+    favorite_count = fields.Count(
+        count_of="favorite_user_ids",
+        string="Favorite",
+        store=True,
+    )
 
-    # hierarchy
-    is_correct = fields.Boolean("Correct", help="Correct answer or answer accepted")
+    is_correct = fields.Boolean(
+        string="Correct",
+        help="Correct answer or answer accepted",
+    )
     parent_id = fields.Many2one(
-        "forum.post", string="Question", ondelete="cascade", readonly=True, index=True
+        comodel_name="forum.post",
+        string="Question",
+        index=True,
+        readonly=True,
+        ondelete="cascade",
     )
     self_reply = fields.Boolean(
-        "Reply to own question", compute="_compute_self_reply", store=True
+        string="Reply to own question",
+        compute="_compute_self_reply",
+        store=True,
     )
     child_ids = fields.One2many(
-        "forum.post",
-        "parent_id",
+        comodel_name="forum.post",
+        inverse_name="parent_id",
         string="Post Answers",
         domain="[('forum_id', '=', forum_id)]",
     )
-    child_count = fields.Count("child_ids", "Answers", store=True)
+    child_count = fields.Count(
+        count_of="child_ids",
+        string="Answers",
+        store=True,
+    )
     uid_has_answered = fields.Boolean(
-        "Has Answered", compute="_compute_uid_has_answered"
+        string="Has Answered",
+        compute="_compute_uid_has_answered",
     )
     has_validated_answer = fields.Boolean(
-        "Is answered", compute="_compute_has_validated_answer", store=True
+        string="Is answered",
+        compute="_compute_has_validated_answer",
+        store=True,
     )
 
-    # offensive moderation tools
-    flag_user_id = fields.Many2one("res.users", string="Flagged by")
-    moderator_id = fields.Many2one("res.users", string="Reviewed by", readonly=True)
+    flag_user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Flagged by",
+    )
+    moderator_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Reviewed by",
+        readonly=True,
+    )
 
-    # closing
-    closed_reason_id = fields.Many2one("forum.post.reason", string="Reason", copy=False)
+    closed_reason_id = fields.Many2one(
+        comodel_name="forum.post.reason",
+        string="Reason",
+        copy=False,
+    )
     closed_uid = fields.Many2one(
-        "res.users", string="Closed by", readonly=True, copy=False
+        comodel_name="res.users",
+        string="Closed by",
+        copy=False,
+        readonly=True,
     )
-    closed_date = fields.Datetime("Closed on", readonly=True, copy=False)
+    closed_date = fields.Datetime(
+        string="Closed on",
+        copy=False,
+        readonly=True,
+    )
 
-    # karma calculation and access
     karma_accept = fields.Integer(
-        "Convert comment to answer",
+        string="Convert comment to answer",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     karma_edit = fields.Integer(
-        "Karma to edit", compute="_compute_post_karma_rights", compute_sudo=False
+        string="Karma to edit",
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     karma_close = fields.Integer(
-        "Karma to close", compute="_compute_post_karma_rights", compute_sudo=False
+        string="Karma to close",
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     karma_unlink = fields.Integer(
-        "Karma to unlink", compute="_compute_post_karma_rights", compute_sudo=False
+        string="Karma to unlink",
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     karma_comment = fields.Integer(
-        "Karma to comment", compute="_compute_post_karma_rights", compute_sudo=False
+        string="Karma to comment",
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     karma_comment_convert = fields.Integer(
-        "Karma to convert comment to answer",
+        string="Karma to convert comment to answer",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     karma_flag = fields.Integer(
-        "Flag a post as offensive",
+        string="Flag a post as offensive",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     can_ask = fields.Boolean(
-        "Can Ask", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_answer = fields.Boolean(
-        "Can Answer", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_accept = fields.Boolean(
-        "Can Accept", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_edit = fields.Boolean(
-        "Can Edit", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_close = fields.Boolean(
-        "Can Close", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_unlink = fields.Boolean(
-        "Can Unlink", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_upvote = fields.Boolean(
-        "Can Upvote", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_downvote = fields.Boolean(
-        "Can Downvote", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_comment = fields.Boolean(
-        "Can Comment", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_comment_convert = fields.Boolean(
-        "Can Convert to Comment",
+        string="Can Convert to Comment",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     can_view = fields.Boolean(
-        "Can View",
         compute="_compute_post_karma_rights",
-        compute_sudo=False,
         search="_search_can_view",
+        compute_sudo=False,
     )
     can_display_biography = fields.Boolean(
-        "Is the author's biography visible from his post",
+        string="Is the author's biography visible from his post",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     can_post = fields.Boolean(
-        "Can Automatically be Validated",
+        string="Can Automatically be Validated",
         compute="_compute_post_karma_rights",
         compute_sudo=False,
     )
     can_flag = fields.Boolean(
-        "Can Flag", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
     can_moderate = fields.Boolean(
-        "Can Moderate", compute="_compute_post_karma_rights", compute_sudo=False
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
-    can_use_full_editor = fields.Boolean(  # Editor Features: image and links
-        "Can Use Full Editor", compute="_compute_post_karma_rights", compute_sudo=False
+    can_use_full_editor = fields.Boolean(
+        compute="_compute_post_karma_rights",
+        compute_sudo=False,
     )
 
     @api.constrains("parent_id")
@@ -283,8 +381,6 @@ class ForumPost(models.Model):
     def _compute_post_karma_rights(self):
         user = self.env.user
         is_admin = self.env.is_admin()
-        # sudoed recordset instead of individual posts so values can be
-        # prefetched in bulk
         for post, post_sudo in zip(self, self.sudo(), strict=True):
             is_creator = post.create_uid == user
 
@@ -360,7 +456,6 @@ class ForumPost(models.Model):
             return NotImplemented
 
         user = self.env.user
-        # Won't impact sitemap, search() in converter is forced as public user
         if self.env.is_admin():
             return [(1, "=", 1)]
 
@@ -383,10 +478,8 @@ class ForumPost(models.Model):
         )
         return [("id", "in", sql)]
 
-    # EXTENDS WEBSITE.SEO.METADATA
-
-    def _default_website_meta(self):
-        res = super()._default_website_meta()
+    def _get_default_website_meta(self):
+        res = super()._get_default_website_meta()
         res["default_opengraph"]["og:title"] = res["default_twitter"][
             "twitter:title"
         ] = self.name
@@ -399,10 +492,6 @@ class ForumPost(models.Model):
         res["default_twitter"]["twitter:card"] = "summary"
         res["default_meta_description"] = self.plain_content
         return res
-
-    # ----------------------------------------------------------------------
-    # CRUD
-    # ----------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -418,17 +507,24 @@ class ForumPost(models.Model):
         )
 
         for post in posts:
-            # deleted or closed questions
             if post.parent_id and (
                 post.parent_id.state == "close" or post.parent_id.active is False
             ):
+                _debug.logic(
+                    "post_refused", reason="parent_closed", parent=post.parent_id.id
+                )
                 raise UserError(
                     _(
                         "Posting answer on a [Deleted] or [Closed] question is not possible."
                     )
                 )
-            # karma-based access
             if not post.parent_id and not post.can_ask:
+                _debug.logic(
+                    "post_refused",
+                    reason="karma_ask",
+                    forum=post.forum_id.id,
+                    required=post.forum_id.karma_ask,
+                )
                 raise AccessError(
                     _(
                         "%d karma required to create a new question.",
@@ -436,6 +532,12 @@ class ForumPost(models.Model):
                     )
                 )
             if post.parent_id and not post.can_answer:
+                _debug.logic(
+                    "post_refused",
+                    reason="karma_answer",
+                    forum=post.forum_id.id,
+                    required=post.forum_id.karma_answer,
+                )
                 raise AccessError(
                     _(
                         "%d karma required to answer a question.",
@@ -443,18 +545,20 @@ class ForumPost(models.Model):
                     )
                 )
             if not post.parent_id and not post.can_post:
+                _debug.lifecycle(
+                    "post_pending_moderation", post=post.id, forum=post.forum_id.id
+                )
                 post.sudo().state = "pending"
 
-            # add karma for posting new questions
             if not post.parent_id and post.state == "active":
                 post.create_uid.sudo()._add_karma(
                     post.forum_id.karma_gen_question_new, post, _("Ask a new question")
                 )
+        _debug.lifecycle("create", posts=posts, count=len(posts))
         posts.sudo()._notify_state_update()
         return posts
 
     def unlink(self):
-        # if unlinking an answer with accepted answer: remove provided karma
         for post in self:
             if post.is_correct:
                 post.create_uid.sudo()._add_karma(
@@ -474,7 +578,7 @@ class ForumPost(models.Model):
             "active",
             "is_correct",
             "tag_ids",
-        ]  # fields where security is checked manually
+        ]
         if "forum_id" in vals:
             forum = self.env["forum.forum"].browse(vals["forum_id"])
             forum.check_access("write")
@@ -526,7 +630,6 @@ class ForumPost(models.Model):
                             post.karma_accept,
                         )
                     )
-                # update karma except for self-acceptance
                 mult = 1 if vals["is_correct"] else -1
                 if (
                     vals["is_correct"] != post.is_correct
@@ -561,7 +664,6 @@ class ForumPost(models.Model):
 
         res = super().write(vals)
 
-        # if post content modify, notify followers
         if "content" in vals or "name" in vals:
             for post in self:
                 if post.parent_id:
@@ -588,7 +690,6 @@ class ForumPost(models.Model):
         return res
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to the post on the website directly"""
         self.check_singleton()
         if not force_website and self.state != "active":
             return super()._get_access_action(
@@ -614,12 +715,8 @@ class ForumPost(models.Model):
         forum = self.env["forum.forum"].browse(forum_id)
         if content and self.env.user.karma < forum.karma_dofollow:
             for match in re.findall(r'<a\s.*href=".*?">', content):
-                escaped_match = re.escape(
-                    match
-                )  # replace parenthesis or special char in regex
-                url_match = re.match(
-                    r'^.*href="(.*)".*', match
-                )  # extracting the link allows to rebuild a clean link tag
+                escaped_match = re.escape(match)
+                url_match = re.match(r'^.*href="(.*)".*', match)
                 url = url_match.group(1)
                 content = re.sub(
                     escaped_match, f'<a rel="nofollow" href="{url}">', content
@@ -633,10 +730,6 @@ class ForumPost(models.Model):
                     _("%d karma required to post an image or link.", forum.karma_editor)
                 )
         return content
-
-    # ----------------------------------------------------------------------
-    # BUSINESS
-    # ----------------------------------------------------------------------
 
     def _notify_state_update(self):
         for post in self:
@@ -657,8 +750,6 @@ class ForumPost(models.Model):
                     subtype_xmlid="website_forum.mt_question_new",
                 )
             elif post.state == "pending" and not post.parent_id:
-                # TDE FIXME: in master, you should probably use a subtype;
-                # however here we remove subtype but set partner_ids
                 partners = post.sudo().message_partner_ids | tag_partners
                 partners = partners.filtered(
                     lambda partner, post=post: (
@@ -680,6 +771,7 @@ class ForumPost(models.Model):
 
     def reopen(self):
         if any(post.parent_id or post.state != "close" for post in self):
+            _debug.logic("reopen_refused", reason="not_a_closed_question", posts=self)
             return False
 
         reason_offensive = self.env.ref("website_forum.reason_7")
@@ -693,8 +785,7 @@ class ForumPost(models.Model):
 
                 karma = post.forum_id.karma_gen_answer_flagged
                 if post.closed_reason_id == reason_spam:
-                    # If first post, increase the karma to add
-                    count_post = post.search_count(
+                    count_post = post.search_count(  # noqa: E8507 - one count per flagged post, on its author
                         [
                             ("parent_id", "=", False),
                             ("forum_id", "=", post.forum_id.id),
@@ -707,12 +798,15 @@ class ForumPost(models.Model):
                     karma * -1, post, _("Reopen a banned question")
                 )
 
+        _debug.lifecycle("posts_reopened", posts=self, count=len(self))
         self.sudo().write({"state": "active"})
         return None
 
     def close(self, reason_id):
         if any(post.parent_id for post in self):
+            _debug.logic("close_refused", reason="answer_not_question", posts=self)
             return False
+        _debug.lifecycle("posts_closed", posts=self, count=len(self), reason=reason_id)
 
         reason_offensive = self.env.ref("website_forum.reason_7").id
         reason_spam = self.env.ref("website_forum.reason_8").id
@@ -724,8 +818,7 @@ class ForumPost(models.Model):
                 )
                 karma = post.forum_id.karma_gen_answer_flagged
                 if reason_id == reason_spam:
-                    # If first post, increase the karma to remove
-                    count_post = post.search_count(
+                    count_post = post.search_count(  # noqa: E8507 - one count per flagged post, on its author
                         [
                             ("parent_id", "=", False),
                             ("forum_id", "=", post.forum_id.id),
@@ -753,22 +846,28 @@ class ForumPost(models.Model):
         )
         return True
 
-    def validate(self):
+    def accept_post(self):
         for post in self:
             if not post.can_moderate:
+                _debug.logic(
+                    "validate_refused",
+                    reason="karma_moderate",
+                    post=post.id,
+                    required=post.forum_id.karma_moderate,
+                )
                 raise AccessError(
                     _(
                         "%d karma required to validate a post.",
                         post.forum_id.karma_moderate,
                     )
                 )
-            # if state == pending, no karma previously added for the new question
             if post.state == "pending":
                 post.create_uid.sudo()._add_karma(
                     post.forum_id.karma_gen_question_new,
                     post,
                     _("Ask a question"),
                 )
+            _debug.lifecycle("post_validated", post=post.id, moderator=self.env.uid)
             post.write(
                 {
                     "state": "active",
@@ -782,12 +881,14 @@ class ForumPost(models.Model):
     def _refuse(self):
         for post in self:
             if not post.can_moderate:
+                _debug.logic("refuse_refused", reason="karma_moderate", post=post.id)
                 raise AccessError(
                     _(
                         "%d karma required to refuse a post.",
                         post.forum_id.karma_moderate,
                     )
                 )
+            _debug.lifecycle("post_refused_by_moderator", post=post.id)
             post.moderator_id = self.env.user
         return True
 
@@ -795,13 +896,18 @@ class ForumPost(models.Model):
         res = []
         for post in self:
             if not post.can_flag:
+                _debug.logic(
+                    "flag_refused",
+                    reason="karma_flag",
+                    post=post.id,
+                    required=post.forum_id.karma_flag,
+                )
                 raise AccessError(
                     _("%d karma required to flag a post.", post.forum_id.karma_flag)
                 )
             if post.state == "flagged":
                 res.append({"error": "post_already_flagged"})
             elif post.state == "active":
-                # TODO: potential performance bottleneck, can be batched
                 post.write(
                     {
                         "state": "flagged",
@@ -825,7 +931,6 @@ class ForumPost(models.Model):
                         post.forum_id.karma_moderate,
                     )
                 )
-            # remove some karma
             _logger.info(
                 "Downvoting user <%s> for posting spam/offensive contents",
                 post.create_uid,
@@ -835,7 +940,6 @@ class ForumPost(models.Model):
                 post,
                 _("Downvote for posting offensive contents"),
             )
-            # TODO: potential bottleneck, could be done in batch
             post.write(
                 {
                     "state": "offensive",
@@ -878,14 +982,10 @@ class ForumPost(models.Model):
         return {"vote_count": self.vote_count, "user_vote": new_vote_value}
 
     def convert_answer_to_comment(self):
-        """Tools to convert an answer (forum.post) to a comment (mail.message).
-        The original post is unlinked and a new comment is posted on the question
-        using the post create_uid as the comment's author."""
         self.check_singleton()
         if not self.parent_id:
             return self.env["mail.message"]
 
-        # karma-based action check: use the post field that computed own/all value
         if not self.can_comment_convert:
             raise AccessError(
                 _(
@@ -894,12 +994,11 @@ class ForumPost(models.Model):
                 )
             )
 
-        # post the message
         question = self.parent_id
         self_sudo = self.sudo()
         values = {
-            "author_id": self_sudo.create_uid.partner_id.id,  # use sudo here because of access to res.users model
-            "email_from": self_sudo.create_uid.email_formatted,  # use sudo here because of access to res.users model
+            "author_id": self_sudo.create_uid.partner_id.id,
+            "email_from": self_sudo.create_uid.email_formatted,
             "body": tools.html_sanitize(
                 self.content,
                 sanitize_attributes=True,
@@ -910,7 +1009,6 @@ class ForumPost(models.Model):
             "subtype_xmlid": "mail.mt_comment",
             "date": self.create_date,
         }
-        # done with the author user to have create_uid correctly set
         new_message = (
             question.with_user(self_sudo.create_uid.id)
             .with_context(mail_post_autofollow_author_skip=True)
@@ -919,25 +1017,17 @@ class ForumPost(models.Model):
             .sudo(False)
         )
 
-        # unlink the original answer, using SUPERUSER_ID to avoid karma issues
         self.sudo().unlink()
 
         return new_message
 
     @api.model
     def convert_comment_to_answer(self, message_id):
-        """Tool to convert a comment (mail.message) into an answer (forum.post).
-        The original comment is unlinked and a new answer from the comment's author
-        is created. Nothing is done if the comment's author already answered the
-        question."""
         comment_sudo = self.env["mail.message"].sudo().browse(message_id)
         post = self.browse(comment_sudo.res_id)
-        if (
-            not comment_sudo.author_id or not comment_sudo.author_id.user_ids
-        ):  # only comment posted by users can be converted
+        if not comment_sudo.author_id or not comment_sudo.author_id.user_ids:
             return False
 
-        # karma-based action check: must check the message's author to know if own / all
         is_author = comment_sudo.author_id.id == self.env.user.partner_id.id
         karma_own = post.forum_id.karma_comment_convert_own
         karma_all = post.forum_id.karma_comment_convert_all
@@ -955,7 +1045,6 @@ class ForumPost(models.Model):
                 _("%d karma required to convert a comment to an answer.", karma_all)
             )
 
-        # check the message's author has not already an answer
         question = post.parent_id or post
         post_create_uid = comment_sudo.author_id.user_ids[0]
         if any(
@@ -963,19 +1052,16 @@ class ForumPost(models.Model):
         ):
             return False
 
-        # create the new post
         post_values = {
             "forum_id": question.forum_id.id,
             "content": comment_sudo.body,
             "parent_id": question.id,
             "name": _("Re: %s", question.name or ""),
         }
-        # done with the author user to have create_uid correctly set
         new_post = (
             self.with_user(post_create_uid).sudo().create(post_values).sudo(False)
         )
 
-        # delete comment
         comment_sudo.unlink()
 
         return new_post
@@ -991,7 +1077,6 @@ class ForumPost(models.Model):
             if comment_sudo.res_id != post.id:
                 result.append(False)
                 continue
-            # karma-based action check: must check the message's author to know if own or all
             karma_required = (
                 post.forum_id.karma_comment_unlink_own
                 if comment_sudo.author_id.id == self.env.user.partner_id.id
@@ -1012,20 +1097,8 @@ class ForumPost(models.Model):
         self.check_singleton()
         return self.sudo().write({"last_activity_date": fields.Datetime.now()})
 
-    # ----------------------------------------------------------------------
-    # MESSAGING
-    # ----------------------------------------------------------------------
-
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         if message_operation in ("write", "unlink"):
-            # Not ``post.can_edit``: that field folds in ``self.env.is_admin()``,
-            # which is ``self.su or user._is_admin()`` -- and this method is
-            # called on a ``sudo()`` recordset by ``mail.message._get_with_access``
-            # and by the chatter's ``_get_thread_with_access_for_post``, where
-            # ``su`` is True. The karma gate therefore passed for *every* user on
-            # those paths while working correctly on the batch path
-            # (``_get_accessible_documents``), which does not sudo.
-            # Ask about the user, so the answer is the same in both.
             user = self.env.user
             is_admin = user._is_admin()
             filtered_self = self.filtered(
@@ -1052,10 +1125,7 @@ class ForumPost(models.Model):
         return groups
 
     def message_post(self, *, message_type="notification", **kwargs):
-        if (
-            self.ids and message_type == "comment"
-        ):  # user comments have a restriction on karma
-            # add followers of comments on the parent post
+        if self.ids and message_type == "comment":
             if self.parent_id:
                 partner_ids = kwargs.get("partner_ids", [])
                 comment_subtype = self.sudo().env.ref("mail.mt_comment")
@@ -1087,9 +1157,6 @@ class ForumPost(models.Model):
     def _notify_thread_by_inbox(
         self, message, recipients_data, msg_vals=False, **kwargs
     ):
-        # Override to avoid keeping all notified recipients of a comment.
-        # We avoid tracking needaction on post comments. Only emails should be
-        # ufficient.
         msg_vals = msg_vals or {}
         if msg_vals.get("message_type", message.message_type) == "comment":
             return None
@@ -1097,25 +1164,12 @@ class ForumPost(models.Model):
             message, recipients_data, msg_vals=msg_vals, **kwargs
         )
 
-    # ----------------------------------------------------------------------
-    # WEBSITE
-    # ----------------------------------------------------------------------
-
     def _get_microdata(self):
-        """
-        Generate structured data (microdata) for the post.
-
-        Returns:
-            str or None: Microdata in JSON format representing the post, or None
-            if not applicable.
-        """
         self.check_singleton()
-        # Return if it's not a question.
         if self.parent_id:
             return None
         correct_posts = self.child_ids.filtered(lambda post: post.is_correct)
         suggested_posts = self.child_ids.filtered(lambda post: not post.is_correct)[:5]
-        # A QAPage schema must have one accepted answer or at least one suggested answer
         if not suggested_posts and not correct_posts:
             return None
 
@@ -1136,12 +1190,6 @@ class ForumPost(models.Model):
         return json_safe.dumps(structured_data, indent=2)
 
     def _get_structured_data(self, post_type="answer"):
-        """
-        Generate structured data (microdata) for an answer or a question.
-
-        Returns:
-            dict: microdata.
-        """
         res = {
             "upvoteCount": self.vote_count,
             "datePublished": self.create_date.isoformat() + "Z",
@@ -1218,7 +1266,6 @@ class ForumPost(models.Model):
         elif my == "upvoted":
             domain &= Domain("vote_ids.user_id", "=", user.id)
 
-        # 'sorting' from the form's "Order by" overrides order during auto-completion
         order = options.get("sorting", order)
         if "is_published" in order:
             parts = [part for part in order.split(",") if "is_published" not in part]
@@ -1259,10 +1306,6 @@ class ForumPost(models.Model):
         return results_data
 
     def _get_related_posts(self, limit=5):
-        """Return at most a list of {limit} posts related to the main post, based on tag
-        Jaccard similarity. It computes similarity of sets based on ratio of sets
-        intersection divided by sets union (and thus varies from 0 to 1, 1 being
-        identical sets)."""
 
         self.check_singleton()
 

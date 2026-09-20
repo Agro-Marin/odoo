@@ -11,6 +11,10 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import email_normalize
 
+from odoo.addons.base.models.mixin_recurrence_rrule import (
+    MAX_RECURRENT_OCCURRENCES,
+)
+
 ATTENDEE_CONVERTER_O2M = {
     "needsAction": "notresponded",
     "tentative": "tentativelyaccepted",
@@ -26,7 +30,14 @@ ATTENDEE_CONVERTER_M2O = {
     "organizer": "accepted",
 }
 VIDEOCALL_URL_PATTERNS = (r"https://teams.microsoft.com",)
-MAX_RECURRENT_EVENT = 720
+
+# Outlook's words for a recurrence pattern. These were read straight off the
+# Odoo value, which worked only while `rrule_type` happened to be spelled the
+# way Outlook spells it -- `"daily"`, and `"monthly"` capitalised into
+# `absoluteMonthly`. The shared vocabulary says `day` and `month`, so the
+# translation is explicit and is the inverse of `MicrosoftEvent.get_recurrence`.
+MICROSOFT_SIMPLE_PATTERN = {"day": "daily", "week": "weekly"}
+MICROSOFT_PERIOD_PATTERN = {"month": "Monthly", "year": "Yearly"}
 
 _logger = logging.getLogger(__name__)
 
@@ -35,7 +46,9 @@ class CalendarEvent(models.Model):
     _name = "calendar.event"
     _inherit = ["calendar.event", "mixin.microsoft.calendar.sync"]
 
-    microsoft_recurrence_master_id = fields.Char("Microsoft Recurrence Master Id")
+    microsoft_recurrence_master_id = fields.Char(
+        string="Microsoft Recurrence Master Id"
+    )
 
     def _get_organizer(self):
         return self.user_id
@@ -103,7 +116,7 @@ class CalendarEvent(models.Model):
         ):
             self._forbid_recurrence_creation()
 
-        vals_check_organizer = self._check_organizer_validation_conditions(vals_list)
+        vals_check_organizer = self._get_organizer_validation_conditions(vals_list)
         for vals in [
             vals
             for vals, check_organizer in zip(vals_list, vals_check_organizer)
@@ -268,7 +281,7 @@ class CalendarEvent(models.Model):
                     deactivated_events_ids.append(event.id)
 
         # check a Outlook limitation in overlapping the actual recurrence
-        if recurrence_update_setting == "self_only" and "start" in values:
+        if recurrence_update_setting == "this" and "start" in values:
             self._check_recurrence_overlapping(values["start"])
 
         # if a single event becomes the base event of a recurrency, it should be first
@@ -303,7 +316,7 @@ class CalendarEvent(models.Model):
             ).write({**values, "active": False})
 
         if (
-            recurrence_update_setting in ("all_events",)
+            recurrence_update_setting in ("all",)
             and len(self) == 1
             and values.keys() & self._get_fields_microsoft_synced()
         ):
@@ -795,20 +808,18 @@ class CalendarEvent(models.Model):
 
         if values.get("type") == "seriesMaster":
             recurrence = self.recurrence_id
-            pattern = {"interval": recurrence.interval}
-            if recurrence.rrule_type in ["daily", "weekly"]:
-                pattern["type"] = recurrence.rrule_type
+            pattern = {"interval": recurrence.repeat_interval}
+            if recurrence.repeat_unit in MICROSOFT_SIMPLE_PATTERN:
+                pattern["type"] = MICROSOFT_SIMPLE_PATTERN[recurrence.repeat_unit]
             else:
                 prefix = "absolute" if recurrence.month_by == "date" else "relative"
-                pattern["type"] = (
-                    recurrence.rrule_type
-                    and prefix + recurrence.rrule_type.capitalize()
-                )
+                period = MICROSOFT_PERIOD_PATTERN.get(recurrence.repeat_unit)
+                pattern["type"] = period and prefix + period
 
             if recurrence.month_by == "date":
                 pattern["dayOfMonth"] = recurrence.day
 
-            if recurrence.month_by == "day" or recurrence.rrule_type == "weekly":
+            if recurrence.month_by == "day" or recurrence.repeat_unit == "week":
                 pattern["daysOfWeek"] = [
                     weekday_name
                     for weekday_name, weekday in {
@@ -824,7 +835,7 @@ class CalendarEvent(models.Model):
                 ]
                 pattern["firstDayOfWeek"] = "sunday"
 
-            if recurrence.rrule_type == "monthly" and recurrence.month_by == "day":
+            if recurrence.repeat_unit == "month" and recurrence.month_by == "day":
                 byday_selection = {
                     "1": "first",
                     "2": "second",
@@ -837,16 +848,16 @@ class CalendarEvent(models.Model):
             dtstart = recurrence.dtstart or fields.Datetime.now()
             rule_range = {"startDate": (dtstart.date()).isoformat()}
 
-            if recurrence.end_type == "count":  # e.g. stop after X occurence
+            if recurrence.repeat_type == "count":  # e.g. stop after X occurence
                 rule_range["numberOfOccurrences"] = min(
-                    recurrence.count, MAX_RECURRENT_EVENT
+                    recurrence.repeat_number, MAX_RECURRENT_OCCURRENCES
                 )
                 rule_range["type"] = "numbered"
-            elif recurrence.end_type == "forever":
-                rule_range["numberOfOccurrences"] = MAX_RECURRENT_EVENT
+            elif recurrence.repeat_type == "forever":
+                rule_range["numberOfOccurrences"] = MAX_RECURRENT_OCCURRENCES
                 rule_range["type"] = "numbered"
-            elif recurrence.end_type == "end_date":  # e.g. stop after 12/10/2020
-                rule_range["endDate"] = recurrence.until.isoformat()
+            elif recurrence.repeat_type == "until":  # e.g. stop after 12/10/2020
+                rule_range["endDate"] = recurrence.repeat_until.isoformat()
                 rule_range["type"] = "endDate"
 
             values["recurrence"] = {"pattern": pattern, "range": rule_range}

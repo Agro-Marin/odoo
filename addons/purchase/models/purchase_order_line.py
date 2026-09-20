@@ -38,7 +38,7 @@ class PurchaseOrderLine(models.Model):
     user_id = fields.Many2one(string="Buyer")
 
     is_expense = fields.Boolean(
-        help="Is true if the sales order line comes from an expense or a vendor bills",
+        help="Is true if the sales order line comes from an expense or a vendor bills"
     )
 
     parent_id = fields.Many2one(comodel_name="purchase.order.line")
@@ -54,33 +54,31 @@ class PurchaseOrderLine(models.Model):
     )
     tax_ids = fields.Many2many(
         compute="_compute_tax_ids",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         domain="[('type_tax_use', '=', 'purchase'), ('country_id', '=', tax_country_id)]",
     )
     selected_seller_id = fields.Many2one(
         comodel_name="product.supplierinfo",
         compute="_compute_selected_seller_id",
-        store=True,
         precompute=True,
+        store=True,
         help="The vendor pricelist entry that applies to this line based on "
         "partner, product, quantity, UoM, and date.",
     )
     price_unit_auto = fields.Float(
         help="Price from vendor/product. Compared with price_unit to detect manual overrides. "
-        "When price_unit != price_unit_auto, the price is considered manually set.",
+        "When price_unit != price_unit_auto, the price is considered manually set."
     )
-    discount = fields.Float(
-        aggregator="avg",
-    )
+    discount = fields.Float(aggregator="avg")
     date_commitment = fields.Datetime(
         string="Expected Arrival",
         compute="_compute_date_commitment",
-        store=True,
         precompute=True,
-        readonly=False,
+        store=True,
         index=True,
+        readonly=False,
         help="Delivery date expected from vendor. This date respectively defaults to vendor pricelist lead time then today's date.",
     )
     date_is_manual = fields.Boolean(
@@ -105,8 +103,8 @@ class PurchaseOrderLine(models.Model):
     )
     qty_invoiced_at_date = fields.Float(string="Billed")
 
-    def _get_display_type_nullify_vals(self):
-        return {**super()._get_display_type_nullify_vals(), "date_commitment": False}
+    def _prepare_display_type_reset_vals(self):
+        return {**super()._prepare_display_type_reset_vals(), "date_commitment": False}
 
     def _get_count_id(self, query):
         return SQL("order_id")
@@ -324,9 +322,9 @@ class PurchaseOrderLine(models.Model):
     )
     def _compute_invoice_amounts(self):
         for line in self:
-            line._compute_invoice_amounts_single()
+            line._update_invoice_amounts_single()
 
-    def _compute_invoice_amounts_single(self):
+    def _update_invoice_amounts_single(self):
         if self.display_type:
             self._reset_invoice_amounts()
             return
@@ -583,7 +581,7 @@ class PurchaseOrderLine(models.Model):
         seller=None,
     ):
         values = self.env.context.get("procurement_values", {})
-        uom_po_qty = product_uom_id._compute_quantity(
+        uom_po_qty = product_uom_id._get_quantity_in_unit(
             product_qty,
             product_id.uom_id,
             rounding_method="HALF-UP",
@@ -607,7 +605,7 @@ class PurchaseOrderLine(models.Model):
             and (seller.product_uom_id or seller.product_tmpl_id.uom_id)
             != product_uom_id
         ):
-            uom_po_qty = product_id.uom_id._compute_quantity(
+            uom_po_qty = product_id.uom_id._get_quantity_in_unit(
                 uom_po_qty,
                 seller.product_uom_id,
                 rounding_method="HALF-UP",
@@ -734,7 +732,7 @@ class PurchaseOrderLine(models.Model):
     def _get_invoiced_qty(self, invoice_lines):
         return sum(
             inv_line.move_id.direction_sign
-            * inv_line.product_uom_id._compute_quantity_reconcile(
+            * inv_line.product_uom_id._get_quantity_reconcile(
                 inv_line.quantity,
                 self.product_uom_id,
             )

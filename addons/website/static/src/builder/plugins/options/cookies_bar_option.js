@@ -2,8 +2,11 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("website.builder.plugin.cookies_bar_option_plugin");
 
 /**
  * @typedef { Object } CookiesBarOptionShared
@@ -28,6 +31,7 @@ class CookiesBarOptionPlugin extends Plugin {
 
     setup() {
         this.savedSelectors = {};
+        log.lifecycle("CookiesBarOptionPlugin setup");
     }
 
     getSavedSelectors() {
@@ -41,19 +45,15 @@ export class SelectLayoutAction extends BuilderAction {
     apply({ editingElement, value: layout }) {
         const savedSelectors =
             this.dependencies.CookiesBarOptionPlugin.getSavedSelectors();
+        const endRender = log.perf("SelectLayoutAction render layout", () => ({
+            layout,
+        }));
         const templateEl = renderToElement(`website.cookies_bar.${layout}`, {
             websiteId: this.services.website.currentWebsite.id,
         });
+        endRender();
         const contentEl = editingElement.querySelector(".modal-content");
 
-        // The selectors' order is significant since some selectors
-        // may be nested within others, and we want to preserve the
-        // nested ones.
-        // For instance, in the case of '.o_cookies_bar_text_policy'
-        // nested inside '.o_cookies_bar_text_secondary', the parent
-        // selector should be copied first, followed by the child
-        // selector to ensure that the content of the nested
-        // selector is not overwritten.
         const selectorsToKeep = [
             ".o_cookies_bar_text_button",
             ".o_cookies_bar_text_button_essential",
@@ -67,10 +67,6 @@ export class SelectLayoutAction extends BuilderAction {
             const currentLayoutEls = contentEl.querySelector(selector)?.childNodes;
             const newLayoutEl = templateEl.querySelector(selector);
             if (currentLayoutEls && currentLayoutEls.length) {
-                // Save value before change, eg 'title' is not
-                // inside the 'discrete' template but we want to
-                // preserve it in case we select another layout
-                // later
                 savedSelectors[selector] = [...currentLayoutEls];
             }
             const savedSelector = savedSelectors[selector];
@@ -79,6 +75,10 @@ export class SelectLayoutAction extends BuilderAction {
             }
         }
 
+        log.pipeline("SelectLayoutAction replace content", () => ({
+            layout,
+            savedSelectors: Object.keys(savedSelectors).length,
+        }));
         contentEl.replaceChildren(templateEl);
 
         switch (layout) {
@@ -93,9 +93,7 @@ export class SelectLayoutAction extends BuilderAction {
         }
     }
     clean({ editingElement }) {
-        // See popup_option.xml > Position option
         const positionClasses = ["s_popup_top", "s_popup_middle", "s_popup_bottom"];
-        // See popup_option.xml > Size option
         const sizeClasses = ["modal-sm", "modal-lg", "modal-xl", "s_popup_size_full"];
         editingElement.classList.remove(...positionClasses);
         this.getDialogEl(editingElement).classList.remove(...sizeClasses);

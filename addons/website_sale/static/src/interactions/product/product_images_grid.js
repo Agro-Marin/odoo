@@ -3,10 +3,6 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-/**
- * Interaction that sets the height of images as a CSS custom property
- * on the product grid element. Used for responsive product grid layouts on mobile devices.
- */
 export class ProductGridLayout extends Interaction {
     static selector = "#o-grid-product";
 
@@ -44,16 +40,12 @@ export class ProductGridLayout extends Interaction {
         if (this.imagesEls.length === 1 || !this.isAutoRatioMode) {
             this.handleStandardMode();
         } else {
-            // Multiple images in auto ratio mode: use tallest
             this.handleAutoRatioMode();
         }
 
         this.updateContent();
     }
 
-    /**
-     * Handle standard mode - use first image height
-     */
     handleStandardMode() {
         const firstImage = this.imagesEls[0];
 
@@ -64,9 +56,6 @@ export class ProductGridLayout extends Interaction {
         }
     }
 
-    /**
-     * Calculate and store the image height (standard mode)
-     */
     calculateImageHeight() {
         const firstImage = this.imagesEls[0];
         if (!firstImage) return;
@@ -76,11 +65,7 @@ export class ProductGridLayout extends Interaction {
         this.gridHeight = height ? `${height}px` : null;
     }
 
-    /**
-     * Handle auto ratio mode - wait for all images and use tallest
-     */
     handleAutoRatioMode() {
-        // Set 5-second timeout
         const timeoutId = this.waitForTimeout(() => {
             this.finalizeAutoRatioCalculation();
         }, 5000);
@@ -92,7 +77,6 @@ export class ProductGridLayout extends Interaction {
                 this.addListener(imgEl, "load", () => {
                     this.processLoadedImage(imgEl);
 
-                    // If all images are loaded, finalize early
                     if (this.loadedImages.size === this.imagesEls.length) {
                         clearTimeout(timeoutId);
                         this.finalizeAutoRatioCalculation();
@@ -101,16 +85,12 @@ export class ProductGridLayout extends Interaction {
             }
         });
 
-        // If all images were already loaded, finalize immediately
         if (this.loadedImages.size === this.imagesEls.length) {
             clearTimeout(timeoutId);
             this.finalizeAutoRatioCalculation();
         }
     }
 
-    /**
-     * Process a loaded image and track its height
-     */
     processLoadedImage(imgEl) {
         this.loadedImages.add(imgEl);
         const height = imgEl.offsetHeight;
@@ -119,24 +99,17 @@ export class ProductGridLayout extends Interaction {
         }
     }
 
-    /**
-     * Finalize calculation for auto ratio mode
-     */
     finalizeAutoRatioCalculation() {
         this.isGridReady = true;
         this.gridHeight = this.maxHeight ? `${this.maxHeight}px` : null;
     }
 
-    /**
-     * On page resize, recalculate the image height (mobile only)
-     */
     onResize() {
         if (!this.env.isSmall) {
             return;
         }
 
         if (this.isAutoRatioMode) {
-            // Recalculate max height from all loaded images
             this.maxHeight = 0;
             this.loadedImages.forEach((imgEl) => {
                 const height = imgEl.offsetHeight;

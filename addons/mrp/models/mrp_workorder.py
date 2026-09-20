@@ -7,9 +7,12 @@ from dateutil.relativedelta import relativedelta
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.intervals import Intervals
 from odoo.tools import float_round, format_datetime
 from odoo.tools.date_utils import get_intervals_hours
+
+_debug = DebugLog(__name__)
 
 
 class MrpWorkorder(models.Model):
@@ -45,6 +48,9 @@ class MrpWorkorder(models.Model):
     def _default_sequence(self):
         return self.operation_id.sequence or 100
 
+    def _sorted_by_routing(self):
+        return self.sorted(lambda workorder: (workorder.sequence, workorder.id))
+
     def _read_group_workcenter_id(self, workcenters, domain):
         workcenter_ids = self.env.context.get("default_workcenter_id")
         if not workcenter_ids:
@@ -57,82 +63,96 @@ class MrpWorkorder(models.Model):
         return workcenters.browse(workcenter_ids)
 
     is_late = fields.Boolean(
-        "Late",
+        string="Late",
         compute="_compute_is_late",
         search="_search_is_late",
         help="Should have started already.",
     )
-    name = fields.Char("Work Order", required=True)
-    sequence = fields.Integer("Sequence", default=_default_sequence)
-    barcode = fields.Char(compute="_compute_barcode", store=True)
-    workcenter_id = fields.Many2one(
-        "mrp.workcenter",
-        "Work Center",
+    name = fields.Char(
+        string="Work Order",
         required=True,
+    )
+    sequence = fields.Integer(default=_default_sequence)
+    barcode = fields.Char(
+        compute="_compute_barcode",
+        store=True,
+    )
+    workcenter_id = fields.Many2one(
+        comodel_name="mrp.workcenter",
+        string="Work Center",
         index=True,
+        required=True,
         group_expand="_read_group_workcenter_id",
         check_company=True,
     )
     working_state = fields.Selection(
-        string="Workcenter Status", related="workcenter_id.working_state"
+        related="workcenter_id.working_state",
+        string="Workcenter Status",
     )
     product_id = fields.Many2one(related="production_id.product_id")
     product_tracking = fields.Selection(related="product_id.tracking")
     product_uom_id = fields.Many2one(related="production_id.product_uom_id")
     product_variant_attributes = fields.Many2many(
-        "product.template.attribute.value",
+        comodel_name="product.template.attribute.value",
         related="product_id.product_template_attribute_value_ids",
     )
     production_id = fields.Many2one(
-        "mrp.production",
-        "Manufacturing Order",
+        comodel_name="mrp.production",
+        string="Manufacturing Order",
+        index="btree",
+        readonly=True,
         required=True,
         check_company=True,
-        readonly=True,
-        index="btree",
     )
     production_availability = fields.Selection(
+        related="production_id.reservation_state",
         string="Stock Availability",
         readonly=True,
-        related="production_id.reservation_state",
-        store=True,
     )
     production_state = fields.Selection(
-        string="Production State", readonly=True, related="production_id.state"
-    )
-    production_bom_id = fields.Many2one("mrp.bom", related="production_id.bom_id")
-    qty_production = fields.Float(
-        "Original Production Quantity",
+        related="production_id.state",
+        string="Production State",
         readonly=True,
+    )
+    production_bom_id = fields.Many2one(
+        comodel_name="mrp.bom",
+        related="production_id.bom_id",
+    )
+    qty_production = fields.Float(
         related="production_id.product_qty",
+        string="Original Production Quantity",
+        readonly=True,
     )
     company_id = fields.Many2one(related="production_id.company_id")
     qty_producing = fields.Float(
-        compute="_compute_qty_producing",
-        inverse="_inverse_qty_producing",
         string="Currently Produced Quantity",
         digits="Product Unit",
+        compute="_compute_qty_producing",
+        inverse="_inverse_qty_producing",
     )
     qty_remaining = fields.Float(
-        "Quantity To Be Produced",
-        compute="_compute_qty_remaining",
+        string="Quantity To Be Produced",
         digits="Product Unit",
+        compute="_compute_qty_remaining",
     )
     qty_produced = fields.Float(
-        "Quantity Done",
-        default=0.0,
+        string="Quantity Done",
         digits="Product Unit",
+        default=0.0,
         copy=False,
         help="The number of products already handled by this work order",
     )
     qty_ready = fields.Float(
-        "Quantity Ready", compute="_compute_qty_ready", digits="Product Unit"
+        string="Quantity Ready",
+        digits="Product Unit",
+        compute="_compute_qty_ready",
     )
     is_produced = fields.Boolean(
-        string="Has Been Produced", compute="_compute_is_produced"
+        string="Has Been Produced",
+        compute="_compute_is_produced",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("blocked", "Blocked"),
             ("ready", "To Do"),
             ("progress", "In Progress"),
@@ -141,128 +161,159 @@ class MrpWorkorder(models.Model):
         ],
         string="Status",
         compute="_compute_state",
-        store=True,
-        default="ready",
-        copy=False,
-        index=True,
         recursive=True,
+        default="ready",
+        store=True,
+        index=True,
+        copy=False,
     )
     reservation_id = fields.Many2one(
-        "resource.reservation",
-        string="Reservation",
+        comodel_name="resource.reservation",
         compute="_compute_reservation_id",
         help="Resource reservation booking this workcenter time slot.",
     )
-    date_start = fields.Datetime("Start", copy=False)
-    date_end = fields.Datetime("End", copy=False)
-    duration_expected = fields.Float(
-        "Expected Duration",
-        digits=(16, 2),
-        compute="_compute_duration_expected",
-        readonly=False,
-        store=True,
-    )
-    duration = fields.Float(
-        "Real Duration",
-        compute="_compute_durations",
-        inverse="_inverse_duration",
-        readonly=False,
-        store=True,
+    date_start = fields.Datetime(
+        string="Start",
         copy=False,
     )
+    date_end = fields.Datetime(
+        string="End",
+        copy=False,
+    )
+    duration_expected = fields.Float(
+        string="Expected Duration",
+        digits=(16, 2),
+        compute="_compute_duration_expected",
+        store=True,
+        readonly=False,
+    )
+    duration = fields.Float(
+        string="Real Duration",
+        compute="_compute_durations",
+        inverse="_inverse_duration",
+        store=True,
+        copy=False,
+        readonly=False,
+        help="Time logged against this work order, in minutes. A timer that is"
+        " still running counts for nothing until it is stopped, so this is a"
+        " function of the timer lines alone and does not move with the clock.",
+    )
     duration_live = fields.Float(
-        "Live Duration",
+        string="Live Duration",
         compute="_compute_duration_live",
-        help="Real duration including the time accrued so far on a running "
-        "timer. Technical: read by the timer widget.",
+        help="Real duration plus the time accrued so far on a running timer."
+        " Equal to Real Duration whenever no timer is running. Technical: read"
+        " by the timer widget.",
     )
     duration_unit = fields.Float(
-        "Duration Per Unit",
+        string="Duration Per Unit",
         compute="_compute_durations",
-        aggregator="avg",
-        readonly=True,
         store=True,
+        readonly=True,
+        aggregator="avg",
     )
     duration_percent = fields.Integer(
-        "Duration Deviation (%)",
+        string="Duration Deviation (%)",
         compute="_compute_durations",
-        aggregator="avg",
-        readonly=True,
         store=True,
+        readonly=True,
+        aggregator="avg",
     )
     progress = fields.Float(
-        "Progress Done (%)", digits=(16, 2), compute="_compute_progress"
+        string="Progress Done (%)",
+        digits=(16, 2),
+        compute="_compute_progress",
     )
 
     operation_id = fields.Many2one(
-        "mrp.routing.workcenter",
-        "Operation",
-        check_company=True,
+        comodel_name="mrp.routing.workcenter",
         index="btree_not_null",
+        check_company=True,
     )
     move_raw_ids = fields.One2many(
-        "stock.move",
-        "workorder_id",
-        "Raw Moves",
+        comodel_name="stock.move",
+        inverse_name="workorder_id",
+        string="Raw Moves",
         domain=[
             ("raw_material_production_id", "!=", False),
             ("production_id", "=", False),
         ],
     )
     move_finished_ids = fields.One2many(
-        "stock.move",
-        "workorder_id",
-        "Finished Moves",
+        comodel_name="stock.move",
+        inverse_name="workorder_id",
+        string="Finished Moves",
         domain=[
             ("raw_material_production_id", "=", False),
             ("production_id", "!=", False),
         ],
     )
     move_line_ids = fields.One2many(
-        "stock.move.line",
-        "workorder_id",
-        "Moves to Track",
+        comodel_name="stock.move.line",
+        inverse_name="workorder_id",
+        string="Moves to Track",
         help="Inventory moves for which you must scan a lot number at this work order",
     )
     finished_lot_ids = fields.Many2many(
-        "stock.lot",
-        string="Lot/Serial Numbers",
+        comodel_name="stock.lot",
         related="production_id.lot_producing_ids",
-        domain="[('product_id', '=', product_id), ('company_id', '=', company_id)]",
+        string="Lot/Serial Numbers",
         readonly=False,
+        domain="[('product_id', '=', product_id), ('company_id', '=', company_id)]",
         check_company=True,
     )
     time_ids = fields.One2many(
-        "mrp.workcenter.productivity", "workorder_id", copy=False
+        comodel_name="mrp.workcenter.productivity",
+        inverse_name="workorder_id",
+        copy=False,
     )
     is_user_working = fields.Boolean(
-        "Is the Current User Working", compute="_compute_working_users"
+        string="Is the Current User Working",
+        compute="_compute_working_users",
     )
     working_user_ids = fields.One2many(
-        "res.users",
+        comodel_name="res.users",
         string="Working user on this work order.",
         compute="_compute_working_users",
     )
     last_working_user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Last user that worked on this work order.",
         compute="_compute_working_users",
     )
-    costs_hour = fields.Float(string="Cost per hour", default=0.0, aggregator="avg")
+    costs_hour = fields.Float(
+        string="Cost per hour",
+        default=0.0,
+        aggregator="avg",
+    )
     cost_mode = fields.Selection(
-        [("actual", "Actual"), ("estimated", "Estimated")], default="actual"
+        selection=[("actual", "Actual"), ("estimated", "Estimated")],
+        default="actual",
     )
 
-    scrap_ids = fields.One2many("stock.scrap", "workorder_id")
-    scrap_count = fields.Integer(compute="_compute_scrap_count", string="Scrap Move")
-    production_date = fields.Datetime(
-        "Production Date", compute="_compute_production_date", store=True
+    scrap_ids = fields.One2many(
+        comodel_name="stock.scrap",
+        inverse_name="workorder_id",
     )
-    json_popover = fields.Char("Popover Data JSON", compute="_compute_popover")
-    show_json_popover = fields.Boolean("Show Popover?", compute="_compute_popover")
+    scrap_count = fields.Integer(
+        string="Scrap Move",
+        compute="_compute_scrap_count",
+    )
+    production_date = fields.Datetime(
+        compute="_compute_production_date",
+        store=True,
+    )
+    json_popover = fields.Char(
+        string="Popover Data JSON",
+        compute="_compute_popover",
+    )
+    show_json_popover = fields.Boolean(
+        string="Show Popover?",
+        compute="_compute_popover",
+    )
     consumption = fields.Selection(related="production_id.consumption")
     qty_reported_from_previous_wo = fields.Float(
-        "Carried Quantity",
+        string="Carried Quantity",
         digits="Product Unit",
         copy=False,
         help="The quantity already produced awaiting allocation in the backorders chain.",
@@ -272,22 +323,22 @@ class MrpWorkorder(models.Model):
         related="production_id.allow_workorder_dependencies"
     )
     blocked_by_workorder_ids = fields.Many2many(
-        "mrp.workorder",
+        comodel_name="mrp.workorder",
         relation="mrp_workorder_dependencies_rel",
         column1="workorder_id",
         column2="blocked_by_id",
         string="Blocked By",
-        domain="[('allow_workorder_dependencies', '=', True), ('id', '!=', id), ('production_id', '=', production_id)]",
         copy=False,
+        domain="[('allow_workorder_dependencies', '=', True), ('id', '!=', id), ('production_id', '=', production_id)]",
     )
     needed_by_workorder_ids = fields.Many2many(
-        "mrp.workorder",
+        comodel_name="mrp.workorder",
         relation="mrp_workorder_dependencies_rel",
         column1="blocked_by_id",
         column2="workorder_id",
         string="Blocks",
-        domain="[('allow_workorder_dependencies', '=', True), ('id', '!=', id), ('production_id', '=', production_id)]",
         copy=False,
+        domain="[('allow_workorder_dependencies', '=', True), ('id', '!=', id), ('production_id', '=', production_id)]",
     )
 
     def _get_qty_ready(self):
@@ -325,11 +376,23 @@ class MrpWorkorder(models.Model):
                 workorder.product_uom_id.compare(workorder._get_qty_ready(), 0) > 0
             )
             workorder.state = "ready" if has_qty_ready else "blocked"
+            _debug.logic(
+                "workorder_state",
+                workorder=workorder.id,
+                state=workorder.state,
+                by="qty_ready" if has_qty_ready else "no_qty_ready",
+            )
 
     DERIVED_STATES = ("blocked",)
 
     def set_state(self, state):
         if state in self.DERIVED_STATES:
+            _debug.logic(
+                "workorder_refused",
+                reason="derived_state_set",
+                state=state,
+                workorders=self,
+            )
             raise UserError(
                 _(
                     "A work order is blocked when the work orders it waits on "
@@ -348,6 +411,12 @@ class MrpWorkorder(models.Model):
             ids_to_update.append(wo.id)
 
         wo_to_update = self.browse(ids_to_update)
+        _debug.pipeline(
+            "workorder_set_state",
+            requested=state,
+            workorders=self,
+            applied=len(wo_to_update),
+        )
         if state == "cancel":
             wo_to_update.action_cancel()
         elif state == "done":
@@ -567,6 +636,7 @@ class MrpWorkorder(models.Model):
                 for needed_by in workorder.needed_by_workorder_ids
             ]
 
+        _debug.lifecycle("unlink", workorders=self, reconfirm=mo_dirty)
         self.end_all()
         res = super().unlink()
         mo_dirty.workorder_ids._action_confirm()
@@ -611,7 +681,7 @@ class MrpWorkorder(models.Model):
     )
     def _compute_durations(self):
         for order in self:
-            order.duration = order.get_duration()
+            order.duration = order._get_duration()
             order.duration_unit = (
                 round(order.duration / order.qty_produced, 2)
                 if order.qty_produced
@@ -632,8 +702,9 @@ class MrpWorkorder(models.Model):
 
     @api.depends("time_ids.date_start", "time_ids.date_end", "duration")
     def _compute_duration_live(self):
+        now = fields.Datetime.now()
         for workorder in self:
-            workorder.duration_live = workorder.get_duration()
+            workorder.duration_live = workorder._get_duration(until=now)
 
     def _inverse_duration(self):
 
@@ -643,7 +714,7 @@ class MrpWorkorder(models.Model):
             return minutes * 60 + seconds
 
         for order in self:
-            old_order_duration = order.get_duration()
+            old_order_duration = order._get_duration()
             new_order_duration = order.duration
             if new_order_duration == old_order_duration:
                 continue
@@ -779,7 +850,7 @@ class MrpWorkorder(models.Model):
             self.duration_expected / 60.0,
             date_start or self.date_start,
             compute_leaves=True,
-            domain=[("time_type", "in", ["leave", "other"])],
+            domain=[("time_type_id", "!=", False)],
         )
 
     @api.onchange("date_end")
@@ -802,7 +873,7 @@ class MrpWorkorder(models.Model):
         interval = self.workcenter_id.resource_calendar_id.get_work_duration_data(
             date_start or self.date_start,
             date_end or self.date_end,
-            domain=[("time_type", "in", ["leave", "other"])],
+            domain=[("time_type_id", "!=", False)],
         )
         return interval["hours"] * 60
 
@@ -823,6 +894,13 @@ class MrpWorkorder(models.Model):
             values, new_workcenter
         )
         res = self._write_grouped_by_derived_vals(values, derived_vals)
+        _debug.lifecycle(
+            "write",
+            workorders=self,
+            fields=list(values),
+            new_workcenter=new_workcenter.id if new_workcenter else False,
+            derived=len(derived_vals),
+        )
         self._post_write_qty_produced(values)
         self._post_write_workcenter(previous_workcenter_by_id, new_workcenter)
         return res
@@ -993,6 +1071,9 @@ class MrpWorkorder(models.Model):
                 values["sequence"] = sequence
 
         res = super().create(vals_list)
+        _debug.lifecycle(
+            "create", count=len(res), workorders=res, operations=len(operations)
+        )
 
         for workorder in res:
             if workorder.date_start and not workorder.date_end:
@@ -1003,6 +1084,7 @@ class MrpWorkorder(models.Model):
                 mo._resequence_workorders()
 
         if self.env.context.get("skip_confirm"):
+            _debug.logic("workorder_confirm_skipped", by="context", workorders=res)
             return res
         to_confirm = res.filtered(
             lambda wo: wo.production_id.state in ("confirmed", "progress", "to_close")
@@ -1038,8 +1120,17 @@ class MrpWorkorder(models.Model):
             if workorder.date_end and workorder.date_end > date_start:
                 date_start = workorder.date_end
         if self.state not in ["blocked", "ready"]:
+            _debug.logic(
+                "workorder_plan_skipped",
+                workorder=self.id,
+                reason="state",
+                state=self.state,
+            )
             return
         if self.date_start and not replan:
+            _debug.logic(
+                "workorder_plan_skipped", workorder=self.id, reason="already_dated"
+            )
             return
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
         best, reasons = workcenters._get_earliest_slot_and_reasons(
@@ -1055,10 +1146,23 @@ class MrpWorkorder(models.Model):
             reservations_to_ignore=self.reservation_ids,
         )
         if best is None:
+            _debug.logic(
+                "workorder_unplannable",
+                workorder=self.id,
+                workcenters=workcenters,
+                reasons=len(reasons),
+            )
             raise UserError(
                 workcenters._prepare_unplannable_error(self.display_name, reasons)
             )
         workcenter, date_start, date_end, duration_expected = best
+        _debug.lifecycle(
+            "workorder_planned",
+            workorder=self.id,
+            workcenter=workcenter.id,
+            alternatives=len(workcenters),
+            duration=duration_expected,
+        )
         self.write(
             {
                 "workcenter_id": workcenter.id,
@@ -1091,6 +1195,9 @@ class MrpWorkorder(models.Model):
 
     def button_start(self, skip_invalid_state=False):
         if any(wo.working_state == "blocked" for wo in self):
+            _debug.logic(
+                "workorder_refused", reason="workcenter_blocked", workorders=self
+            )
             raise UserError(
                 _("Please unblock the work center to start the work order.")
             )
@@ -1105,6 +1212,12 @@ class MrpWorkorder(models.Model):
             if wo.state in ("done", "cancel"):
                 if skip_invalid_state:
                     continue
+                _debug.logic(
+                    "workorder_refused",
+                    reason="start_closed",
+                    workorder=wo.id,
+                    state=wo.state,
+                )
                 raise UserError(
                     _("You cannot start a work order that is already done or cancelled")
                 )
@@ -1126,6 +1239,14 @@ class MrpWorkorder(models.Model):
                 "state": "progress",
                 "date_start": date_start,
             }
+            _debug.lifecycle(
+                "workorder_started",
+                workorder=wo.id,
+                production=wo.production_id.id,
+                workcenter=wo.workcenter_id.id,
+                qty_producing=wo.qty_producing,
+                reserved=len(wo.reservation_ids),
+            )
             if not wo.reservation_ids:
                 vals["date_end"] = date_start + relativedelta(
                     minutes=wo.duration_expected
@@ -1161,8 +1282,15 @@ class MrpWorkorder(models.Model):
             new_qty = move.product_uom_id.round(qty_available * move.unit_factor)
             move._update_quantity_done(new_qty)
 
+        _debug.pipeline(
+            "workorder_finish",
+            workorders=self,
+            to_end=len(workorders_to_end),
+            moves_picked=len(moves_to_pick),
+        )
         moves_to_pick.picked = True
         workorders_to_end.end_all()
+        workorders_to_end.flush_recordset(["duration_expected"])
         for workorder in workorders_to_end:
             vals = {
                 "qty_produced": workorder.qty_produced
@@ -1175,6 +1303,9 @@ class MrpWorkorder(models.Model):
             if not workorder.date_start or date_end < workorder.date_start:
                 vals["date_start"] = date_end
             all_vals_dict[frozenset(vals.items())] |= workorder
+        _debug.lifecycle(
+            "workorder_done", workorders=workorders_to_end, groups=len(all_vals_dict)
+        )
         for frozen_vals, workorders in all_vals_dict.items():
             workorders.with_context(bypass_duration_calculation=True).write(
                 dict(frozen_vals)
@@ -1420,6 +1551,11 @@ class MrpWorkorder(models.Model):
             self.qty_producing = quantity
 
     def _get_duration_of_intervals(self, intervals):
+        """Measure `(date_start, date_end, timer)` triples, overlaps counted once.
+
+        A timer may span several intervals; that is not a problem, because what
+        the split is for is telling employee time from blocking time.
+        """
         if not intervals:
             return 0.0
         spans = [
@@ -1430,18 +1566,35 @@ class MrpWorkorder(models.Model):
             self.env["mrp.workcenter.productivity.loss"]._get_durations_batch(spans)
         )
 
-    def get_duration(self):
+    def _get_duration(self, until=None):
+        """Measure the timer lines against the work center's working calendar.
+
+        `until` closes off a timer that is still running. With no bound a
+        running timer contributes nothing, which is what the stored `duration`
+        wants: a value that is a function of the timer rows and of nothing
+        else. `duration_live` passes the wall clock -- the same clock
+        `button_start` stamped `date_start` with. Never the cursor's clock:
+        `cr.now()` is PostgreSQL's `now()`, the transaction's start, so a timer
+        opened a second into the transaction spans backwards and `Intervals`
+        drops it.
+        """
         self.check_singleton()
-        now = self.env.cr.now()
         loss_type_times = defaultdict(lambda: self.env["mrp.workcenter.productivity"])
         for time in self.time_ids:
             loss_type_times[time.loss_id.loss_type] |= time
         duration = 0
         for times in loss_type_times.values():
             duration += self._get_duration_of_intervals(
-                [(t.date_start or now, t.date_end or now, t) for t in times]
+                [
+                    (time.date_start, time.date_end or until, time)
+                    for time in times
+                    if time.date_start and (time.date_end or until)
+                ]
             )
         return duration
+
+    def get_duration(self):
+        return self._get_duration(until=fields.Datetime.now())
 
     def action_mark_as_done(self):
         for wo in self:

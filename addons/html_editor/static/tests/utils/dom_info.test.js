@@ -471,7 +471,9 @@ describe("getDeepestEditablePosition", () => {
     });
 
     test("should keep the deepest position when nothing around it is editable", () => {
-        const [div] = insertTestHtml(`<div>abc<t contenteditable="false">def</t></div>`);
+        const [div] = insertTestHtml(
+            `<div>abc<t contenteditable="false">def</t></div>`,
+        );
         const root = div.parentElement;
         root.setAttribute("contenteditable", "false");
 

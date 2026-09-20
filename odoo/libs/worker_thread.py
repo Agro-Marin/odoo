@@ -19,11 +19,13 @@ class WorkerThread(Protocol):
     dbname: str | None
     uid: int | None
     url: str
+    request_id: str
     query_count: int
     query_time: float
     perf_t0: float
     cursor_mode: str | None
     rpc_model_method: str
+    request_line: str
 
     type: str
 

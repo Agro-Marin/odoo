@@ -6,6 +6,7 @@ from odoo import api, models
 from odoo.api import DomainType
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query
 
 from odoo.addons.mail.tools.access_scan import (
@@ -14,10 +15,21 @@ from odoo.addons.mail.tools.access_scan import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailMessage(models.Model):
     _inherit = "mail.message"
+    _search_visibility_fields = (
+        "model",
+        "res_id",
+        "author_id",
+        "create_uid",
+        "message_type",
+        "partner_ids",
+        "is_internal",
+        "subtype_id",
+    )
 
     _SEARCH_ACCESS_CHUNK_MIN = 30
     _SEARCH_ACCESS_CHUNK_MAX = 8192
@@ -54,6 +66,12 @@ class MailMessage(models.Model):
         self.env["mail.notification"].flush_model(["mail_message_id", "res_partner_id"])
 
         pid = self.env.user.partner_id.id
+        _debug.logic(
+            "search_by",
+            by="access_scan",
+            internal=self.env.user._is_internal(),
+            limit=limit,
+        )
 
         return get_accessible_query(
             self,
@@ -167,6 +185,14 @@ class MailMessage(models.Model):
                 record.id for record in records if record.id not in forbidden_doc_ids
             ]
 
+        _debug.perf.count(
+            "documents_checked",
+            model=doc_model,
+            operation=operation,
+            asked=len(documents_all),
+            operations=sorted(operation_res_ids),
+            allowed=len(allowed_ids),
+        )
         return self.env[doc_model].browse(allowed_ids)
 
     @api.model
@@ -175,6 +201,9 @@ class MailMessage(models.Model):
         allowed_ids = set()
         for doc_model, doc_dict in model_ids.items():
             if not IrModelAccess.check(doc_model, "read", False):
+                _debug.logic(
+                    "model_unreadable", model=doc_model, documents=len(doc_dict)
+                )
                 continue
             allowed = self._get_accessible_documents(doc_model, list(doc_dict), "read")
             allowed_ids |= {
@@ -206,40 +235,68 @@ class MailMessage(models.Model):
                 return forbidden
 
         remaining = self._get_access_values(operation)
+        asked = len(remaining)  # debuglog
         self._discard_own_messages(remaining, operation)
+        own = asked - len(remaining)  # debuglog
         if operation == "read":
             self._discard_notified_messages(remaining)
         documents = self._group_ids_by_document(remaining)
+        before_documents = len(remaining)  # debuglog
         self._discard_accessible_documents(remaining, documents, operation)
+        by_document = before_documents - len(remaining)  # debuglog
         if operation == "create":
             self._discard_notified_parents(remaining)
             self._discard_followed_documents(remaining, documents)
 
+        _debug.logic(
+            "access_scanned",
+            operation=operation,
+            asked=asked,
+            internal_forbidden=len(forbidden),
+            own=own,
+            notified=asked - own - before_documents,
+            documents=sum(len(docs) for docs in documents.values()),
+            by_document=by_document,
+            by_parent_or_follow=before_documents - by_document - len(remaining),
+            forbidden=len(remaining),
+        )
         return forbidden + self.browse(remaining)
 
     def _get_forbidden_internal(self, operation: str) -> api.Self:
-        self.flush_recordset(["is_internal", "subtype_id", "message_type"])
-        self.env["mail.message.subtype"].flush_model(["internal"])
-        message_type_condition = (
-            SQL("message.message_type = 'comment' AND")
-            if operation in ("create", "read")
-            else SQL.EMPTY
-        )
-        rows = self.env.execute_query(
-            SQL(
-                """ SELECT message.id
-                    FROM "mail_message" AS message
-                    LEFT JOIN "mail_message_subtype" as subtype ON message.subtype_id = subtype.id
-                    WHERE %s message.id = ANY (%s)
-                        AND (message.is_internal IS TRUE OR message.subtype_id IS NULL OR subtype.internal IS TRUE)
-                """,
-                message_type_condition,
-                self.ids,
+        messages = self.sudo()
+        messages.fetch(["is_internal", "subtype_id", "message_type"])
+        messages.subtype_id.fetch(["internal"])
+        comments_only = operation in ("create", "read")
+        return self.browse(
+            message.id
+            for message in messages
+            if (not comments_only or message.message_type == "comment")
+            and (
+                message.is_internal
+                or not message.subtype_id
+                or message.subtype_id.internal
             )
         )
-        return self.browse(id_ for [id_] in rows)
 
     def _get_access_values(self, operation: str) -> dict:
+        if operation in ("write", "create", "unlink"):
+            messages = self.sudo()
+            messages.fetch(
+                ["model", "res_id", "author_id", "parent_id", "message_type"]
+            )
+            return {
+                message.id: {
+                    "id": message.id,
+                    "model": message.model,
+                    "res_id": message.res_id,
+                    "author_id": message.author_id.id,
+                    "parent_id": message.parent_id.id,
+                    "message_type": message.message_type,
+                }
+                for message in messages
+            }
+        if operation != "read":
+            raise ValueError(f"Wrong operation name ({operation})")
         self.flush_recordset(
             [
                 "model",
@@ -252,34 +309,21 @@ class MailMessage(models.Model):
             ]
         )
         self.env["mail.notification"].flush_model(["mail_message_id", "res_partner_id"])
-
-        if operation == "read":
-            query = SQL(
-                """ SELECT m.id, m.model, m.res_id, m.author_id, m.create_uid, m.parent_id,
-                        bool_or(partner_rel.res_partner_id IS NOT NULL OR needaction_rel.res_partner_id IS NOT NULL) AS notified,
-                        m.message_type
-                    FROM "mail_message" m
-                    LEFT JOIN "mail_message_res_partner_rel" partner_rel
-                        ON partner_rel.mail_message_id = m.id AND partner_rel.res_partner_id = %(pid)s
-                    LEFT JOIN "mail_notification" needaction_rel
-                        ON needaction_rel.mail_message_id = m.id AND needaction_rel.res_partner_id = %(pid)s
-                    WHERE m.id = ANY(%(ids)s)
-                    GROUP BY m.id
-                """,
-                pid=self.env.user.partner_id.id,
-                ids=self.ids,
-            )
-        elif operation in ("write", "create", "unlink"):
-            query = SQL(
-                """ SELECT id, model, res_id, author_id, parent_id, message_type
-                    FROM "mail_message"
-                    WHERE id = ANY(%s)
-                """,
-                self.ids,
-            )
-        else:
-            raise ValueError(f"Wrong operation name ({operation})")
-
+        query = SQL(
+            """ SELECT m.id, m.model, m.res_id, m.author_id, m.create_uid, m.parent_id,
+                    bool_or(partner_rel.res_partner_id IS NOT NULL OR needaction_rel.res_partner_id IS NOT NULL) AS notified,
+                    m.message_type
+                FROM "mail_message" m
+                LEFT JOIN "mail_message_res_partner_rel" partner_rel
+                    ON partner_rel.mail_message_id = m.id AND partner_rel.res_partner_id = %(pid)s
+                LEFT JOIN "mail_notification" needaction_rel
+                    ON needaction_rel.mail_message_id = m.id AND needaction_rel.res_partner_id = %(pid)s
+                WHERE m.id = ANY(%(ids)s)
+                GROUP BY m.id
+            """,
+            pid=self.env.user.partner_id.id,
+            ids=self.ids,
+        )
         return {values["id"]: values for values in self.env.execute_query_dict(query)}
 
     def _get_creator_uid_for_access(self) -> int | None:

@@ -2,10 +2,14 @@
 import { BaseOptionComponent, useGetItemValue } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { ShadowOption } from "@html_builder/plugins/shadow_option";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { BaseWebsiteBackgroundOption } from "@website/builder/plugins/options/background_option";
 
 import { CardImageOption } from "./card_image_option.js";
 import { CARD_DISABLE_WIDTH_APPLY_TO, CARD_PARENT_HANDLERS } from "./utils.js";
+
+const log = makeLogger("website.builder.option.card_option");
 
 export class BaseCardOption extends BaseOptionComponent {
     static template = "website.CardOption";
@@ -23,6 +27,7 @@ export class BaseCardOption extends BaseOptionComponent {
     };
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.getItemValue = useGetItemValue();
     }
 }

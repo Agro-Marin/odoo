@@ -16,7 +16,7 @@ class ResPartnerBank(models.Model):
         ],
         ondelete={"bakong_id_solo": "set default", "bakong_id_merchant": "set default"},
     )
-    l10n_kh_merchant_id = fields.Char("Merchant ID")
+    l10n_kh_merchant_id = fields.Char(string="Merchant ID")
 
     @api.constrains("proxy_type", "proxy_value")
     def _check_kh_proxy(self):
@@ -38,7 +38,7 @@ class ResPartnerBank(models.Model):
             if bank.proxy_type == "bakong_id_merchant" and not bank.l10n_kh_merchant_id:
                 raise ValidationError(_("Merchant ID is missing."))
 
-    def _get_qr_code_vals_list(
+    def _prepare_emv_qr_fields(
         self,
         qr_method,
         amount,
@@ -47,7 +47,7 @@ class ResPartnerBank(models.Model):
         free_communication,
         structured_communication,
     ):
-        res = super()._get_qr_code_vals_list(
+        res = super()._prepare_emv_qr_fields(
             qr_method,
             amount,
             currency,

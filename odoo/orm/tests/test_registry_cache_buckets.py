@@ -4,15 +4,22 @@ import re
 import pytest
 
 from odoo.orm.runtime._registry_signaling import (
-    _SIGNALING_TABLES,
     CACHES_BY_KEY,
     REGISTRY_CACHES,
+    SIGNALING_TABLES,
 )
 
 BUCKET_OWNERS: dict[str, str] = {
     "default": "the implicit bucket — ormcache's fallback when none is named",
     "assets": "base/web — compiled asset bundles",
     "assets.links": "base/web — the asset link map",
+    "assets.files": (
+        "base — ir.asset's per-pattern static-file globs. Its own bucket for "
+        "the reason templates.mail has one: one page resolves 500-odd patterns, "
+        "and in the 512-entry `assets` LRU they evicted the compiled bundle "
+        "nodes, so a signed-in website page recompiled with esbuild on every "
+        "request (measured, signed-in /contactus warm: 112 -> 18 queries)"
+    ),
     "stable": "base — long-lived lookups (xmlids, ACLs, record-rule domains)",
     "templates": "base — QWeb template lookup",
     "templates.mail": (
@@ -41,6 +48,25 @@ BUCKET_OWNERS: dict[str, str] = {
         "model. Its own bucket because a binding change is signalled to every "
         "worker, and from `default` that signal evicted record rules, ACLs, "
         "menus and every other unnamed ormcache cluster-wide"
+    ),
+    "xmlid": (
+        "base — ir.model.data._xmlid_target, hits and misses. Its own bucket "
+        "because a miss is cached too (an optional xmlid probed on every request "
+        "re-ran its SELECT forever when only hits were kept), so a fresh insert "
+        "has to invalidate it, and from `default` that would have evicted record "
+        "rules, ACLs and menus in every worker on each new xmlid"
+    ),
+    "mail": (
+        "the `mail` addon — its small configuration snapshots: "
+        "mail.message.subtype._get_auto_subscription_subtypes and _get_subtypes, "
+        "and mail.alias._get_alias_addresses, the set every inbound email's "
+        "recipients and authors are matched against. One bucket for the three "
+        "because every check_signaling SELECT costs one scalar subquery per bucket, "
+        "and each is one query to rebuild. Its own bucket because a subtype or "
+        "alias create/write/unlink cleared `default` cluster-wide (5,687 misses of "
+        "the first ormcache in a single suite, and an alias is created with every "
+        "project, team or job); a bare clear_cache() still empties it, because "
+        "`default` and `stable` list it"
     ),
 }
 
@@ -116,8 +142,8 @@ def test_every_group_clears_itself():
 
 def test_signaling_tables_derive_from_the_groups():
     expected = tuple(f"orm_signaling_{name}" for name in ["registry", *CACHES_BY_KEY])
-    assert expected == _SIGNALING_TABLES
-    assert len(set(_SIGNALING_TABLES)) == len(_SIGNALING_TABLES), "duplicate table"
+    assert expected == SIGNALING_TABLES
+    assert len(set(SIGNALING_TABLES)) == len(SIGNALING_TABLES), "duplicate table"
 
 
 def test_bucket_sizes_are_positive():

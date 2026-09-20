@@ -6,12 +6,14 @@ from odoo import api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import frozendict
 from odoo.tools.translate import _
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 FLAG_MAPPING = {
@@ -33,13 +35,23 @@ NO_FLAG_COUNTRIES = [
 ]
 
 
+def _normalize_code(vals: dict[str, Any]) -> dict[str, Any]:
+    if code := vals.get("code"):
+        return {**vals, "code": code.upper()}
+    return vals
+
+
 class ResCountry(models.Model):
     _name = "res.country"
     _description = "Country"
     _order = "name, id"
     _rec_names_search = ["name", "code"]
 
-    name = fields.Char(string="Country Name", required=True, translate=True)
+    name = fields.Char(
+        string="Country Name",
+        translate=True,
+        required=True,
+    )
     code = fields.Char(
         string="Country Code",
         size=2,
@@ -48,6 +60,7 @@ class ResCountry(models.Model):
     )
     address_format = fields.Text(
         string="Layout in Reports",
+        default="%(street)s\n%(street2)s\n%(city)s %(state_code)s %(zip)s\n%(country_name)s",
         help="Display format to use for addresses belonging to this country.\n\n"
         "You can use python-style string pattern with all the fields of the address "
         "(for example, use '%(street)s' to display the field 'street') plus"
@@ -55,7 +68,6 @@ class ResCountry(models.Model):
         "\n%(state_code)s: the code of the state"
         "\n%(country_name)s: the name of the country"
         "\n%(country_code)s: the code of the country",
-        default="%(street)s\n%(street2)s\n%(city)s %(state_code)s %(zip)s\n%(country_name)s",
     )
     address_view_id = fields.Many2one(
         comodel_name="ir.ui.view",
@@ -66,24 +78,28 @@ class ResCountry(models.Model):
         "(in reports for example), while this field is used to modify the input form for "
         "addresses.",
     )
-    currency_id = fields.Many2one("res.currency", string="Currency")
+    currency_id = fields.Many2one(comodel_name="res.currency")
     image_url = fields.Char(
-        compute="_compute_image_url",
         string="Flag",
+        compute="_compute_image_url",
         help="Url of static flag image",
     )
     phone_code = fields.Integer(string="Country Calling Code")
     country_group_ids = fields.Many2many(
-        "res.country.group",
-        "res_country_res_country_group_rel",
-        "res_country_id",
-        "res_country_group_id",
+        comodel_name="res.country.group",
+        relation="res_country_res_country_group_rel",
+        column1="res_country_id",
+        column2="res_country_group_id",
         string="Country Groups",
     )
     country_group_codes = fields.Json(compute="_compute_country_group_codes")
-    state_ids = fields.One2many("res.country.state", "country_id", string="States")
+    state_ids = fields.One2many(
+        comodel_name="res.country.state",
+        inverse_name="country_id",
+        string="States",
+    )
     name_position = fields.Selection(
-        [
+        selection=[
             ("before", "Before Address"),
             ("after", "After Address"),
         ],
@@ -92,7 +108,6 @@ class ResCountry(models.Model):
         help="Determines where the customer/company name should be placed, i.e. after or before the address.",
     )
     vat_label = fields.Char(
-        string="Vat Label",
         translate=True,
         prefetch=True,
         help="Use this field if you want to change vat label.",
@@ -126,6 +141,7 @@ class ResCountry(models.Model):
                 limit=limit,
             )
             result.extend((country.id, country.display_name) for country in countries)
+            _debug.logic("country_name_search", by="code", matched=len(countries))
             domain &= Domain("id", "not in", countries.ids)
             if limit is not None:
                 limit -= len(countries)
@@ -137,34 +153,39 @@ class ResCountry(models.Model):
     @api.model
     @tools.ormcache("code", cache="stable")
     def _get_phone_code_by_code(self, code: str) -> int:
-        return self.search([("code", "=", code)]).phone_code
+        phone_code = self.search([("code", "=", code)]).phone_code
+        _debug.perf.count("phone_code_computed", code=code, phone_code=phone_code)
+        return phone_code
 
     @api.model
     @tools.ormcache(cache="stable")
     def _get_id_by_code(self) -> frozendict[str, int]:
-        return frozendict(
+        by_code = frozendict(
             (country.code, country.id)
             for country in self.sudo().search_fetch([], ["code"])
             if country.code
         )
+        _debug.perf.count("country_ids_by_code_computed", countries=len(by_code))
+        return by_code
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         self.env.registry.clear_cache("stable")
-        for vals in vals_list:
-            if vals.get("code"):
-                vals["code"] = vals["code"].upper()
+        vals_list = [_normalize_code(vals) for vals in vals_list]
+        _debug.lifecycle("create", codes=[vals.get("code") for vals in vals_list])
         return super().create(vals_list)
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if vals.get("code"):
-            vals["code"] = vals["code"].upper()
+        vals = _normalize_code(vals)
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         if "code" in vals or "phone_code" in vals:
+            _debug.lifecycle("stable_cache_cleared", by="write", count=len(self))
             self.env.registry.clear_cache("stable")
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", codes=self.mapped("code"))
         self.env.registry.clear_cache("stable")
         return super().unlink()
 
@@ -174,12 +195,15 @@ class ResCountry(models.Model):
 
     @api.depends("code")
     def _compute_image_url(self) -> None:
+        flagless = 0  # debuglog
         for country in self:
             if not country.code or country.code in NO_FLAG_COUNTRIES:
                 country.image_url = False
+                flagless += 1  # debuglog
             else:
                 code = FLAG_MAPPING.get(country.code, country.code.lower())
                 country.image_url = f"/base/static/img/country_flags/{code}.png"
+        _debug.perf.count("image_urls_computed", countries=len(self), flagless=flagless)
 
     @api.constrains("address_format")
     def _check_address_format(self) -> None:
@@ -191,11 +215,15 @@ class ResCountry(models.Model):
             "company_name",
         ]
         test_values = dict.fromkeys(address_fields, "test")
+        _debug.logic(
+            "address_format_checked", countries=len(self), keys=len(address_fields)
+        )
         for record in self:
             if record.address_format:
                 try:
                     record.address_format % test_values
                 except ValueError, KeyError, TypeError:
+                    _debug.logic("address_format_rejected", country=record.code)
                     raise UserError(
                         _("The layout contains an invalid format key")
                     ) from None
@@ -212,13 +240,16 @@ class ResCountryGroup(models.Model):
     _name = "res.country.group"
     _description = "Country Group"
 
-    name = fields.Char(required=True, translate=True)
-    code = fields.Char(string="Code")
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    code = fields.Char()
     country_ids = fields.Many2many(
-        "res.country",
-        "res_country_res_country_group_rel",
-        "res_country_group_id",
-        "res_country_id",
+        comodel_name="res.country",
+        relation="res_country_res_country_group_rel",
+        column1="res_country_group_id",
+        column2="res_country_id",
         string="Countries",
     )
 
@@ -227,17 +258,16 @@ class ResCountryGroup(models.Model):
         "The country group code must be unique!",
     )
 
-    def _sanitize_vals(self, vals: dict[str, Any]) -> dict[str, Any]:
-        if code := vals.get("code"):
-            vals["code"] = code.upper()
-        return vals
-
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        return super().create([self._sanitize_vals(vals) for vals in vals_list])
+        _debug.lifecycle(
+            "country_group_create", codes=[vals.get("code") for vals in vals_list]
+        )
+        return super().create([_normalize_code(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
-        return super().write(self._sanitize_vals(vals))
+        _debug.lifecycle("country_group_write", count=len(self), fields=list(vals))
+        return super().write(_normalize_code(vals))
 
 
 class ResCountryState(models.Model):
@@ -247,14 +277,20 @@ class ResCountryState(models.Model):
     _rec_names_search = ["name", "code"]
 
     country_id = fields.Many2one(
-        "res.country", string="Country", required=True, index=True
+        comodel_name="res.country",
+        index=True,
+        required=True,
     )
     name = fields.Char(
         string="State Name",
         required=True,
         help="Administrative divisions of a country. E.g. Fed. State, Department, Canton",
     )
-    code = fields.Char(string="State Code", help="The state code.", required=True)
+    code = fields.Char(
+        string="State Code",
+        required=True,
+        help="The state code.",
+    )
 
     _name_code_uniq = models.Constraint(
         "unique(country_id, code)",
@@ -274,6 +310,7 @@ class ResCountryState(models.Model):
         if operator == "in":
             if limit is None:
                 limit = 100
+            _debug.logic("state_name_search", by="terms", terms=len(name), limit=limit)
             for item in name:
                 result.extend(
                     self.name_search(  # noqa: E8507  one match per term by design
@@ -290,6 +327,7 @@ class ResCountryState(models.Model):
                 limit=limit,
             )
             result.extend((state.id, state.display_name) for state in states)
+            _debug.logic("state_name_search", by="code", matched=len(states))
             domain &= Domain("id", "not in", states.ids)
             if limit is not None:
                 limit -= len(states)
@@ -312,10 +350,20 @@ class ResCountryState(models.Model):
                 )
         if country_id := self.env.context.get("country_id"):
             domain &= Domain("country_id", "=", country_id)
+        _debug.logic(
+            "state_display_name_search",
+            operator=operator,
+            country=self.env.context.get("country_id"),
+        )
         return domain
 
     def _get_domain_name_search(self, name: str, operator: str) -> Domain:
         if m := re.fullmatch(r"(?P<name>.+)\((?P<country>.+)\)", name):
+            _debug.logic(
+                "state_name_with_country_parsed",
+                operator=operator,
+                country=m["country"].strip(),
+            )
             return Domain(
                 [
                     ("name", operator, m["name"].strip()),

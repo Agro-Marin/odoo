@@ -11,6 +11,7 @@ from zlib import compress, decompress, decompressobj
 
 from PIL import Image, PdfImagePlugin
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import reshape
 from odoo.libs.parse_version import parse_version
 from odoo.libs.iteration import SENTINEL
@@ -50,6 +51,7 @@ class PdfReader(PdfReaderBase):
 
 
 _logger = getLogger(__name__)
+_debug = DebugLog(__name__)
 DEFAULT_PDF_DATETIME_FORMAT = "D:%Y%m%d%H%M%S+00'00'"
 REGEX_SUBTYPE_UNFORMATED = re.compile(r"^\w+/[\w-]+$")
 REGEX_SUBTYPE_FORMATED = re.compile(r"^/\w+#2F[\w-]+$")
@@ -71,14 +73,21 @@ class BrandedFileWriter(PdfWriter):
 
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
     writer = BrandedFileWriter()
-    for document in pdf_data:
-        reader = PdfReader(io.BytesIO(document), strict=False)
-        for page in range(len(reader.pages)):
-            writer.add_page(reader.pages[page])
+    with _debug.perf(
+        "pdf.merge",
+        documents=len(pdf_data),
+        input_bytes=sum(len(document) for document in pdf_data),
+    ) as span:
+        for document in pdf_data:
+            reader = PdfReader(io.BytesIO(document), strict=False)
+            for page in range(len(reader.pages)):
+                writer.add_page(reader.pages[page])
 
-    with io.BytesIO() as _buffer:
-        writer.write(_buffer)
-        return _buffer.getvalue()
+        with io.BytesIO() as _buffer:
+            writer.write(_buffer)
+            merged = _buffer.getvalue()
+        span.set(pages=len(writer.pages), output_bytes=len(merged))
+    return merged
 
 
 def update_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None:
@@ -93,30 +102,50 @@ def update_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> No
 def rotate_pdf(pdf: bytes) -> bytes:
     writer = BrandedFileWriter()
     reader = PdfReader(io.BytesIO(pdf), strict=False)
-    for page in reader.pages:
-        page.rotate(90)
-        writer.add_page(page)
-    with io.BytesIO() as _buffer:
-        writer.write(_buffer)
-        return _buffer.getvalue()
+    with _debug.perf("pdf.rotate", pages=len(reader.pages), input_bytes=len(pdf)):
+        for page in reader.pages:
+            page.rotate(90)
+            writer.add_page(page)
+        with io.BytesIO() as _buffer:
+            writer.write(_buffer)
+            return _buffer.getvalue()
 
 
 def to_pdf_stream(attachment) -> io.BytesIO | None:
     if attachment_raw := attachment._get_pdf_raw():
+        _debug.logic(
+            "pdf.stream_source",
+            attachment=attachment.id,
+            source="pdf",
+            size=len(attachment_raw),
+        )
         return io.BytesIO(attachment_raw)
 
     raw = attachment._with_bin_size_disabled().raw
     if not raw:
         _logger.warning("%s has no raw data.", attachment)
+        _debug.logic("pdf.stream_source", attachment=attachment.id, source="empty")
         return None
 
     stream = io.BytesIO(raw)
     if attachment.mimetype.startswith("image"):
         output_stream = io.BytesIO()
-        Image.open(stream).convert("RGB").save(output_stream, format="pdf")
+        with _debug.perf(
+            "pdf.image_converted",
+            attachment=attachment.id,
+            mimetype=attachment.mimetype,
+            size=len(raw),
+        ):
+            Image.open(stream).convert("RGB").save(output_stream, format="pdf")
         return output_stream
     _logger.warning(
         "mimetype (%s) not recognized for %s", attachment.mimetype, attachment
+    )
+    _debug.logic(
+        "pdf.stream_source",
+        attachment=attachment.id,
+        source="unsupported",
+        mimetype=attachment.mimetype,
     )
     return None
 
@@ -193,16 +222,19 @@ def add_banner(
 
     watermark_pdf = PdfReader(packet)
     new_pdf = BrandedFileWriter()
-    for p in range(len(old_pdf.pages)):
-        new_pdf.add_page(old_pdf.pages[p])
-        new_page = new_pdf.pages[-1]
-        if "/Annots" in new_page:
-            del new_page["/Annots"]
-        new_page.merge_page(watermark_pdf.pages[p])
-        new_page.compress_content_streams()
+    with _debug.perf(
+        "pdf.banner_merged", pages=len(old_pdf.pages), logo=logo, text=text
+    ):
+        for p in range(len(old_pdf.pages)):
+            new_pdf.add_page(old_pdf.pages[p])
+            new_page = new_pdf.pages[-1]
+            if "/Annots" in new_page:
+                del new_page["/Annots"]
+            new_page.merge_page(watermark_pdf.pages[p])
+            new_page.compress_content_streams()
 
-    output = io.BytesIO()
-    new_pdf.write(output)
+        output = io.BytesIO()
+        new_pdf.write(output)
 
     return output
 
@@ -251,10 +283,12 @@ class OdooPdfFileReader(PdfReader):
                 self.trailer["/Root"].get("/Names", {}).get("/EmbeddedFiles", {})
             )
             if not embedded_files:
+                _debug.logic("pdf.no_embedded_files", encrypted=self.is_encrypted)
                 return
             visited_nodes: set = set()
             yield from _traverse_nodes(embedded_files)
-        except Exception:
+        except Exception as exc:
+            _debug.logic("pdf.embedded_files_walk_failed", error=type(exc).__name__)
             return
 
 
@@ -304,9 +338,21 @@ class OdooPdfFileWriter(BrandedFileWriter):
                 afrelationship,
                 ", ".join(sorted(valid_afrelationships)),
             )
+            _debug.logic("pdf.afrelationship_defaulted", given=afrelationship)
             afrelationship = "/Data"
 
         adapted_subtype = self.format_subtype(subtype)
+        _debug.lifecycle(
+            "pdf.attachment_added",
+            name=name,
+            size=len(data),
+            subtype=adapted_subtype,
+            afrelationship=afrelationship,
+            first=not (
+                self._root_object.get("/Names")
+                and self._root_object["/Names"].get("/EmbeddedFiles")
+            ),
+        )
 
         attachment = self._create_attachment_object(
             {
@@ -367,6 +413,12 @@ class OdooPdfFileWriter(BrandedFileWriter):
                 self.is_pdfa = True
         if not hasattr(self, "_ID"):
             self._set_id(reader.trailer.get("/ID", None))
+        _debug.lifecycle(
+            "pdf.reader_cloned",
+            pages=len(reader.pages),
+            pdfa=self.is_pdfa,
+            has_id=hasattr(self, "_ID"),
+        )
 
     def _set_id(self, pdf_id: Any) -> None:
         if not pdf_id:
@@ -404,6 +456,9 @@ class OdooPdfFileWriter(BrandedFileWriter):
                 annot[NameObject("/F")] = NumberObject(flags)
 
     def convert_to_pdfa(self) -> None:
+        _debug.pipeline(
+            "pdf.convert_to_pdfa", pages=len(self.pages), was_pdfa=self.is_pdfa
+        )
         self._header = b"%PDF-1.7"
 
         assert self._reader is not None

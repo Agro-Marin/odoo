@@ -1,20 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Parallax } from "@website/interactions/parallax/parallax";
 
-// A manual parallax implementation is required for snippet previews because
-// snippets are scaled down in preview, and `background-attachment: fixed`
-// (which enables the native parallax effect) does not work on transformed
-// elements.
-//
-// To simulate parallax behavior, we manually adjust the background position
-// relative to the scroll position.
+const log = makeLogger("website.interaction.parallax.preview");
 
 const ParallaxPreview = (I) =>
     class extends I {
-        // The PARALLAX_RATE controls how fast the background moves.
-        // A higher PARALLAX_RATE means faster movement, which requires a larger
-        // background SCALE to prevent background cutoff.
         PARALLAX_RATE = 16;
         SCALE = 2.4;
         dynamicContent = {};
@@ -28,10 +20,19 @@ const ParallaxPreview = (I) =>
             this.isZoomOut = this.el.dataset.parallaxType === "zoomOut";
             this.isZoom = this.isZoomIn || this.isZoomOut;
             this.baseScale = this.isZoom ? 1 : this.SCALE;
+            log.lifecycle("ParallaxPreview setup", () => ({
+                speed: this.speed,
+                isZoomIn: this.isZoomIn,
+                isZoomOut: this.isZoomOut,
+            }));
         }
 
         start() {
             if (!this.backgroundEl || !this.previewContainerEl) {
+                log.logic("ParallaxPreview start: missing element, skip", () => ({
+                    hasBackground: !!this.backgroundEl,
+                    hasPreviewContainer: !!this.previewContainerEl,
+                }));
                 return;
             }
 
@@ -40,9 +41,14 @@ const ParallaxPreview = (I) =>
         }
 
         destroy() {
+            this.previewContainerEl?.removeEventListener(
+                "scroll",
+                this.updateParallaxPosition,
+            );
             if (this.observer) {
                 this.observer.disconnect();
                 this.observer = null;
+                log.lifecycle("ParallaxPreview destroy: observer disconnected");
             }
         }
 
@@ -60,36 +66,38 @@ const ParallaxPreview = (I) =>
             });
         }
 
-        /**
-         * Sets up an IntersectionObserver to detect when the element enters
-         * or leaves the viewport, ensuring the parallax effect is applied
-         * only when necessary.
-         */
         initializeIntersectionObserver() {
-            this.observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        this.updateParallaxPosition();
-                        this.previewContainerEl.addEventListener(
-                            "scroll",
-                            this.updateParallaxPosition,
-                        );
-                    } else {
-                        this.previewContainerEl.removeEventListener(
-                            "scroll",
-                            this.updateParallaxPosition,
-                        );
+            this.observer = new IntersectionObserver(
+                this.bindDeferred((entries) => {
+                    if (this.isDestroyed) {
+                        return;
                     }
-                });
-            });
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            log.lifecycle(
+                                "ParallaxPreview visible: scroll listener added",
+                            );
+                            this.updateParallaxPosition();
+                            this.previewContainerEl.addEventListener(
+                                "scroll",
+                                this.updateParallaxPosition,
+                            );
+                        } else {
+                            log.lifecycle(
+                                "ParallaxPreview hidden: scroll listener removed",
+                            );
+                            this.previewContainerEl.removeEventListener(
+                                "scroll",
+                                this.updateParallaxPosition,
+                            );
+                        }
+                    });
+                }),
+            );
 
             this.observer.observe(this.el);
         }
 
-        /**
-         * Updates the background position to create a parallax effect based on
-         * scroll position.
-         */
         updateParallaxPosition = () => {
             const clamp = (value) => Math.min(1, Math.max(0, value));
             const rect = this.el.getBoundingClientRect();

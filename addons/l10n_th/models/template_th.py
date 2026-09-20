@@ -7,13 +7,12 @@ class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
 
     @template("th")
-    def _get_th_template_data(self):
+    def _prepare_th_template_data(self):
         return {
             "code_digits": "6",
             "property_account_receivable_id": "l10n_th_account_112100",
             "property_account_payable_id": "l10n_th_account_212100",
             "property_stock_valuation_account_id": "l10n_th_account_113100",
-            "downpayment_account_id": "l10n_th_account_212400",
         }
 
     @template("th", "res.company")
@@ -36,6 +35,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "default_cash_difference_expense_account_id": "l10n_th_account_622200",
                 "transfer_account_id": "l10n_th_account_111202",
                 "expense_account_id": "l10n_th_account_511100",
+                "downpayment_account_id": "l10n_th_account_212400",
                 "income_account_id": "l10n_th_account_411100",
                 "account_stock_valuation_id": "l10n_th_account_113100",
                 "tax_exigibility": "True",

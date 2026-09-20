@@ -10,8 +10,11 @@ import {
 } from "@mail/discuss/call/common/call_actions";
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
 import { Component, useState, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.rtc");
 export class CallInvitation extends Component {
     static props = ["thread"];
     static template = "discuss.CallInvitation";
@@ -33,6 +36,11 @@ export class CallInvitation extends Component {
     }
 
     joinCall() {
+        log.logic("joinCall from invitation", () => ({
+            thread: this.props.thread.localId,
+            hasMicrophone: this.state.hasMicrophone,
+            hasCamera: this.state.hasCamera,
+        }));
         this.props.thread.open({ focus: true });
         this.rtc.toggleCall(this.props.thread, {
             audio: this.state.hasMicrophone,
@@ -112,7 +120,7 @@ export class CallInvitation extends Component {
 
     get avatarTitle() {
         const channelName = this.props.thread.displayName;
-        if (this.props.thread.channel_type === "chat") {
+        if (this.props.thread.isDirectChat) {
             return _t("View chat with %(channel_name)s", { channel_name: channelName });
         }
         return _t("View the %(channel_name)s channel", { channel_name: channelName });
@@ -124,7 +132,7 @@ export class CallInvitation extends Component {
     }
 
     get incomingCallText() {
-        if (this.props.thread.channel_type === "chat" || !this.inviter) {
+        if (this.props.thread.isDirectChat || !this.inviter) {
             return _t("Incoming call");
         }
         return _t("Incoming call from %(inviter)s", { inviter: this.inviter.name });

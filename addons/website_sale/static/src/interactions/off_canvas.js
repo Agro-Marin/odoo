@@ -12,8 +12,6 @@ export class OffCanvas extends Interaction {
     };
 
     /**
-     * Unfold active filters, fold inactive ones
-     *
      * @param {Event} ev
      */
     toggleFilters() {

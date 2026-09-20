@@ -13,21 +13,19 @@ class ResourceAssetIdentifier(models.Model):
     _rec_name = "value"
 
     asset_id = fields.Many2one(
-        "resource.asset",
+        comodel_name="resource.asset",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     company_id = fields.Many2one(
         related="asset_id.company_id",
-        store=True,
     )
     type_id = fields.Many2one(
-        "resource.asset.identifier.type",
-        string="Type",
+        comodel_name="resource.asset.identifier.type",
+        index=True,
         required=True,
         ondelete="restrict",
-        index=True,
     )
     value = fields.Char(required=True)
     normalized_value = fields.Char(
@@ -92,6 +90,19 @@ class ResourceAssetIdentifier(models.Model):
         normalize = self.env["resource.asset.identifier.type"]._normalize
         for identifier in self:
             identifier.normalized_value = normalize(identifier.value)
+
+    @api.model
+    def _search_display_name(self, operator, value):
+        domain = super()._search_display_name(operator, value)
+        if not operator.endswith("like") or not isinstance(value, str):
+            return domain
+        normalized = self.env["resource.asset.identifier.type"]._normalize(value)
+        if not normalized:
+            return domain
+        by_normalized = Domain("normalized_value", operator, normalized)
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return Domain(domain) & by_normalized
+        return Domain(domain) | by_normalized
 
     @api.depends("type_id.name", "value")
     def _compute_display_name(self):

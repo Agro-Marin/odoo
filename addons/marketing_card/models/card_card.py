@@ -9,21 +9,26 @@ class CardCard(models.Model):
     _name = "card.card"
     _description = "Marketing Card"
 
-    active = fields.Boolean("Active", default=True)
+    active = fields.Boolean(default=True)
     campaign_id = fields.Many2one(
-        "card.campaign", required=True, index=True, ondelete="cascade"
+        comodel_name="card.campaign",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     res_model = fields.Selection(related="campaign_id.res_model")
     res_id = fields.Many2oneReference(
-        "Record ID", model_field="res_model", required=True
+        model_field="res_model",
+        string="Record ID",
+        required=True,
     )
     image = fields.Image()
     requires_sync = fields.Boolean(
-        help="Whether the image needs to be updated to match the campaign template.",
         default=True,
+        help="Whether the image needs to be updated to match the campaign template.",
     )
     share_status = fields.Selection(
-        [
+        selection=[
             ("shared", "Shared"),
             ("visited", "Visited"),
         ]
@@ -47,12 +52,6 @@ class CardCard(models.Model):
                 card.display_name = (
                     self.env[model].browse(card.res_id).sudo().display_name
                 )
-
-    @api.depends("campaign_id")
-    def _compute_res_model(self):
-        """Compute the res_model once and never update it again."""
-        for campaign, cards in self.grouped("campaign_id").items():
-            cards.res_model = campaign.res_model
 
     @api.autovacuum
     def _gc_card(self):

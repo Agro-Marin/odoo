@@ -19,6 +19,5 @@
             "event_sms/static/src/template_reference_field/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

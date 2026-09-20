@@ -1,11 +1,9 @@
 /** @odoo-module native */
-import { localization } from "@web/core/l10n/localization";
-
-import { useService } from "@web/core/utils/hooks";
-import { Component, useState } from "@odoo/owl";
-
 import { AccountReportDebugPopover } from "@account/components/account_report/line/popover/debug_popover";
 import { AccountReportLineCellEditable } from "@account/components/account_report/line_cell_editable/line_cell_editable";
+import { Component, useState } from "@odoo/owl";
+import { localization } from "@web/core/l10n/localization";
+import { useService } from "@web/core/utils/hooks";
 
 export class AccountReportLine extends Component {
     static template = "account.AccountReportLine";
@@ -31,14 +29,21 @@ export class AccountReportLine extends Component {
                 ? `line_level_${this.props.line.level}`
                 : "line_level_default";
 
-        if (!this.props.line.visible || this.isHiddenBySearchFilter())
+        if (!this.props.line.visible || this.isHiddenBySearchFilter()) {
             classes += " d-none";
+        }
 
-        if (this.props.line.unfolded && this.hasVisibleChild()) classes += " unfolded";
+        if (this.props.line.unfolded && this.hasVisibleChild()) {
+            classes += " unfolded";
+        }
 
-        if (this.controller.isTotalLine(this.props.lineIndex)) classes += " total";
+        if (this.controller.isTotalLine(this.props.lineIndex)) {
+            classes += " total";
+        }
 
-        if (this.props.line.class) classes += ` ${this.props.line.class}`;
+        if (this.props.line.class) {
+            classes += ` ${this.props.line.class}`;
+        }
 
         return classes;
     }
@@ -50,8 +55,9 @@ export class AccountReportLine extends Component {
             if (
                 this.controller.lines[nextLineIndex].visible &&
                 !this.isHiddenBySearchFilter(this.controller.lines[nextLineIndex].id)
-            )
+            ) {
                 return true;
+            }
 
             nextLineIndex += 1;
         }
@@ -104,14 +110,18 @@ export class AccountReportLine extends Component {
     isHiddenBySearchFilter(lineId = null) {
         lineId ||= this.props.line.id;
 
-        if (!("lines_searched" in this.controller)) return false;
+        if (!("lines_searched" in this.controller)) {
+            return false;
+        }
 
-        for (let searchLineId of this.controller.lines_searched)
+        for (const searchLineId of this.controller.lines_searched) {
             if (
                 this.controller.isLineRelatedTo(searchLineId, lineId) ||
                 lineId === searchLineId
-            )
+            ) {
                 return false;
+            }
+        }
 
         return true;
     }
@@ -125,7 +135,9 @@ export class AccountReportLine extends Component {
             this.popoverCloseFn = null;
         };
 
-        if (this.popoverCloseFn) close();
+        if (this.popoverCloseFn) {
+            close();
+        }
 
         this.popoverCloseFn = this.popover.add(
             ev.currentTarget,

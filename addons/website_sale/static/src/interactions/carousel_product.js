@@ -57,9 +57,6 @@ export class CarouselProduct extends Interaction {
     }
 
     /**
-     * Center the selected indicator to scroll the indicators list when it
-     * overflows.
-     *
      * @param {Event} ev
      */
     onSlideCarouselProduct(ev) {

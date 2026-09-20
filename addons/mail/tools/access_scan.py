@@ -11,11 +11,14 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import Query
 
 if typing.TYPE_CHECKING:
     from odoo import models
     from odoo.api import DomainType
+
+_debug = DebugLog(__name__)
 
 
 def prepare_document_access_error(
@@ -41,6 +44,19 @@ def stable_order(order: str | None, tiebreak: str = "id ASC") -> str | None:
     return order
 
 
+def prepare_column_fetcher(
+    model: models.BaseModel, fnames: Sequence[str]
+) -> Callable[[Query], list[tuple]]:
+    def fetch(query: Query) -> list[tuple]:
+        return model.env.execute_query(
+            query.select(
+                *[model._field_to_sql(model._table, fname) for fname in fnames]
+            )
+        )
+
+    return fetch
+
+
 def get_accessible_ids(
     model: models.BaseModel,
     domain: DomainType,
@@ -56,7 +72,7 @@ def get_accessible_ids(
     tiebreak: str = "id ASC",
     **kwargs,
 ) -> list[int]:
-    scan_order = stable_order(order, tiebreak)
+    scan_order = stable_order(order or model._order, tiebreak)
 
     if limit is None or limit is False:
         target = None
@@ -71,6 +87,7 @@ def get_accessible_ids(
     ordered: list[int] = []
     seen: set[int] = set()
     sql_offset = 0
+    passes = 0  # debuglog
     while True:
         query = base_search(
             domain, offset=sql_offset, limit=chunk, order=scan_order, **kwargs
@@ -85,10 +102,20 @@ def get_accessible_ids(
 
         got = len(rows)
         sql_offset += got
+        passes += 1  # debuglog
         if target is None or len(ordered) >= target or got < chunk:
             break
         chunk = min(chunk * 2, chunk_max)
 
+    _debug.perf.count(
+        "access_scan",
+        model=model._name,
+        target=target,
+        passes=passes,
+        scanned=sql_offset,
+        allowed=len(ordered),
+        last_chunk=chunk,
+    )
     return ordered[offset:target]
 
 

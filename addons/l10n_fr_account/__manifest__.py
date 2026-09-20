@@ -54,6 +54,7 @@ configuration of their taxes and fiscal positions manually.
         "wizards/account_fr_fec_export_wizard_view.xml",
         "security/ir.model.access.csv",
         "data/res.bank.csv",
+        "views/l10n_fr_account_menus.xml",
     ],
     "demo": [
         "demo/l10n_fr_account_demo.xml",

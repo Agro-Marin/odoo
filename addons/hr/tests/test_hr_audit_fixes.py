@@ -167,12 +167,17 @@ class TestHrAuditFixes(TestHrCommon):
         emp = self._new_employee("Counted Guy")
         partner = emp.partner_id
         self.assertEqual(partner.employees_count, 1)
+        other = self.env["res.company"].create({"name": "Counted Second Employer"})
         self.env["hr.employee"].create(
             {
                 "name": "Counted Guy 2",
                 "date_version": "2020-01-01",
                 "partner_id": partner.id,
+                "company_id": other.id,
             }
+        )
+        partner = partner.with_context(
+            allowed_company_ids=[self.env.company.id, other.id]
         )
         partner.invalidate_recordset(["employees_count"])
         self.assertEqual(partner.employees_count, 2)
@@ -356,7 +361,7 @@ class TestHrAuditRound2(TestHrCommon):
         current = emp.version_id
         self.assertEqual(str(current.date_end), "2026-07-31")
 
-        leave = self.env["resource.calendar.leaves"].create(
+        leave = self.env["resource.schedule.exception"].create(
             {
                 "name": "last day",
                 "resource_id": emp.resource_id.id,

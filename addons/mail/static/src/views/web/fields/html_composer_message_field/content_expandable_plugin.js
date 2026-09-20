@@ -4,7 +4,10 @@ import { Plugin } from "@html_editor/plugin";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { closestElement, selectElements } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("mail.composer.form");
 export class ContentExpandablePlugin extends Plugin {
     static id = "contentexpandable";
     static dependencies = ["protectedNode", "selection"];
@@ -60,6 +63,7 @@ export class ContentExpandablePlugin extends Plugin {
         if (!ele) {
             return;
         }
+        log.logic("insertReplyContent collapses quoted reply");
         this.dependencies.protectedNode.setProtectingNode(ele, true);
         for (const subEl of ele.querySelectorAll(":scope > .o_mail_reply_content")) {
             this.dependencies.protectedNode.setProtectingNode(subEl, false);
@@ -85,6 +89,7 @@ export class ContentExpandablePlugin extends Plugin {
         if (!ele) {
             return;
         }
+        log.logic("onClickViewButton expands quoted reply");
         for (const subEl of ele.querySelectorAll(":scope > .o_mail_reply_content")) {
             subEl.classList.toggle("d-none");
         }

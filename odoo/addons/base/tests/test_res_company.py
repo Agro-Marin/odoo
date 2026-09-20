@@ -40,7 +40,7 @@ class TestCompany(TransactionCase):
         company.write({"code": "   "})
         self.assertFalse(company.code)
 
-    def test_sanitize_vals_does_not_mutate_caller_dict(self):
+    def test_normalize_vals_does_not_mutate_caller_dict(self):
         create_vals = {"name": "Audit Caller", "code": "  ac "}
         create_vals_copy = dict(create_vals)
         company = self.env["res.company"].create(create_vals)
@@ -203,6 +203,25 @@ class TestCompany(TransactionCase):
         self.assertEqual(branches(root, grand), grand)
         self.assertEqual(branches(root, root + child), root + child)
 
+    def test_the_companies_of_an_environment_begin_with_its_company(self):
+        user = new_test_user(self.env, "companies-first")
+        own = user.company_id
+        earlier = self.env["res.company"].create(
+            {"name": "AAA sorts first", "sequence": -1}
+        )
+        user.write({"company_ids": [Command.link(earlier.id)]})
+        env = self.env(user=user, context={})
+        self.assertEqual(env.company, own)
+        self.assertEqual(env.companies[:1], env.company)
+        self.assertEqual(set(env.companies.ids), {own.id, earlier.id})
+        self.assertEqual(
+            self.env(
+                user=user, context={"allowed_company_ids": [earlier.id, own.id]}
+            ).companies.ids,
+            [earlier.id, own.id],
+            "a list the request sends keeps its own order",
+        )
+
     def test_get_main_company_falls_back_to_the_first_company(self):
         main = self.env.ref("base.main_company")
         self.env["ir.model.data"].search(
@@ -211,6 +230,26 @@ class TestCompany(TransactionCase):
         self.env.registry.clear_cache()
         self.assertFalse(self.env.ref("base.main_company", raise_if_not_found=False))
         self.assertEqual(self.env["res.company"]._get_main_company(), main)
+
+
+@tagged("post_install", "-at_install")
+class TestCompanyRootSearch(TransactionCase):
+    def test_root_id_search_returns_the_root_and_its_descendants(self):
+        Company = self.env["res.company"]
+        root = Company.create({"name": "Root Co"})
+        child = Company.create({"name": "Child Co", "parent_id": root.id})
+        grandchild = Company.create({"name": "Grandchild Co", "parent_id": child.id})
+        other = Company.create({"name": "Other Co"})
+        self.assertEqual(grandchild.root_id, root)
+        self.assertEqual(
+            Company.search([("root_id", "in", root.ids)]), root | child | grandchild
+        )
+        self.assertFalse(
+            Company.search([("root_id", "in", child.ids)]),
+            "a branch is nobody's root",
+        )
+        self.assertIn(other, Company.search([("root_id", "not in", root.ids)]))
+        self.assertNotIn(child, Company.search([("root_id", "not in", root.ids)]))
 
 
 @tagged("post_install", "-at_install")

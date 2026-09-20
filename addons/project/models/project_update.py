@@ -8,6 +8,8 @@ from odoo.api import ValuesType
 from odoo.fields import Domain
 from odoo.tools import format_amount, formatLang
 
+from ..tools import debug_log as dbg
+
 STATUS_COLOR = {
     "on_track": 20,
     "at_risk": 22,
@@ -25,6 +27,7 @@ class ProjectUpdate(models.Model):
     _order = "id desc"
     _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity"]
 
+    @dbg.timed
     @api.model
     def default_get(self, fields: list[str]) -> dict:
         result = super().default_get(fields)
@@ -32,6 +35,12 @@ class ProjectUpdate(models.Model):
             result["project_id"] = self.env.context.get("active_id")
         if result.get("project_id"):
             project = self.env["project.project"].browse(result["project_id"])
+            dbg.logic.debug(
+                "project.update.default_get [project:%s]: last status=%s progress=%s",
+                project.id,
+                project.last_update_status,
+                project.last_update_id.progress,
+            )
             if "progress" in fields and not result.get("progress"):
                 result["progress"] = project.last_update_id.progress
             if "description" in fields and not result.get("description"):
@@ -44,7 +53,11 @@ class ProjectUpdate(models.Model):
                 )
         return result
 
-    name = fields.Char("Title", required=True, tracking=True)
+    name = fields.Char(
+        string="Title",
+        required=True,
+        tracking=True,
+    )
     status = fields.Selection(
         selection=[
             ("on_track", "On Track"),
@@ -53,43 +66,52 @@ class ProjectUpdate(models.Model):
             ("on_hold", "On Hold"),
             ("done", "Complete"),
         ],
+        export_string_translation=False,
         required=True,
         tracking=True,
-        export_string_translation=False,
     )
-    color = fields.Integer(compute="_compute_color", export_string_translation=False)
+    color = fields.Integer(
+        export_string_translation=False,
+        compute="_compute_color",
+    )
     progress = fields.Integer(tracking=True)
     progress_percentage = fields.Float(
-        compute="_compute_progress_percentage", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_progress_percentage",
     )
     user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Author",
-        required=True,
         default=lambda self: self.env.user,
+        required=True,
     )
     description = fields.Html()
-    date = fields.Date(default=fields.Date.context_today, tracking=True)
+    date = fields.Date(
+        default=fields.Date.context_today,
+        tracking=True,
+    )
     project_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
+        export_string_translation=False,
+        index=True,
         required=True,
         domain=[("is_template", "=", False)],
-        index=True,
-        export_string_translation=False,
     )
     name_cropped = fields.Char(
-        compute="_compute_name_cropped", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_name_cropped",
     )
     task_count = fields.Integer(
-        "Task Count", readonly=True, export_string_translation=False
+        export_string_translation=False,
+        readonly=True,
     )
     closed_task_count = fields.Integer(
-        "Closed Task Count", readonly=True, export_string_translation=False
+        export_string_translation=False,
+        readonly=True,
     )
     closed_task_percentage = fields.Integer(
-        "Closed Task Percentage",
-        compute="_compute_closed_task_percentage",
         export_string_translation=False,
+        compute="_compute_closed_task_percentage",
     )
     label_tasks = fields.Char(related="project_id.label_tasks")
 
@@ -112,14 +134,21 @@ class ProjectUpdate(models.Model):
                 else update.name
             )
 
+    @api.depends("closed_task_count", "task_count")
     def _compute_closed_task_percentage(self) -> None:
         for update in self:
             update.closed_task_percentage = update.task_count and round(
                 update.closed_task_count * 100 / update.task_count
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        dbg.lifecycle.debug(
+            "project.update.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         updates = super().create(vals_list)
         per_snapshot = defaultdict(self.browse)
         for update in updates:
@@ -129,13 +158,23 @@ class ProjectUpdate(models.Model):
                 (project.task_count, project.task_count - project.open_task_count)
             ] |= update
         for (task_count, closed_task_count), group in per_snapshot.items():
+            dbg.pipeline.debug(
+                "[update:%s] create -> snapshot tasks=%d closed=%d",
+                dbg.rec(group),
+                task_count,
+                closed_task_count,
+            )
             group.write(
                 {"task_count": task_count, "closed_task_count": closed_task_count}
             )
         return updates
 
+    @dbg.timed
     def unlink(self) -> bool:
         projects = self.project_id
+        dbg.lifecycle.debug(
+            "project.update.unlink %s on projects %s", dbg.rec(self), dbg.rec(projects)
+        )
         res = super().unlink()
         if not projects:
             return res
@@ -145,20 +184,34 @@ class ProjectUpdate(models.Model):
         ):
             latest_per_project.setdefault(update.project_id.id, update)
         for project in projects:
-            project.last_update_id = latest_per_project.get(project.id, False)
+            latest = latest_per_project.get(project.id, False)
+            dbg.logic.debug(
+                "project.update.unlink [project:%s]: last_update_id -> %s",
+                project.id,
+                latest and latest.id,
+            )
+            project.last_update_id = latest
         return res
 
     @api.model
     def _prepare_description(self, project: Any) -> str:
         return self.env["ir.qweb"]._render(
             "project.project_update_default_description",
-            self._get_template_values(project),
+            self._prepare_update_rendering_context(project),
         )
 
+    @dbg.timed
     @api.model
-    def _get_template_values(self, project: Any) -> dict:
+    def _prepare_update_rendering_context(self, project: Any) -> dict:
         milestones = self._get_milestone_values(project)
         profitability_values, show_profitability = project._get_profitability_values()
+        dbg.logic.debug(
+            "project.update._prepare_update_rendering_context [project:%s]: milestones=%s "
+            "profitability=%s",
+            project.id,
+            milestones["show_section"],
+            show_profitability,
+        )
         return {
             "user": self.env.user,
             "project": project,
@@ -213,6 +266,7 @@ class ProjectUpdate(models.Model):
             "created": created_milestones,
         }
 
+    @dbg.timed
     @api.model
     def _get_last_updated_milestone(self, project: Any) -> list[dict]:
         query = """

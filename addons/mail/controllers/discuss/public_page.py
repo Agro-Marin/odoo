@@ -7,6 +7,7 @@ import psycopg.errors
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import NotFound, Response, request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import consteq, email_normalize, replace_exceptions
 from odoo.tools.misc import resolve_hash_signed
 
@@ -16,6 +17,8 @@ from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.discuss.discuss_channel import DiscussChannel
 
+
+_debug = DebugLog(__name__)
 
 _CREATE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,50}$")
 
@@ -125,7 +128,11 @@ class PublicPageController(http.Controller):
                         }
                     )
             except psycopg.errors.UniqueViolation:
+                _debug.logic("channel_from_token_raced", token=create_token)
                 channel_sudo = channel_sudo.search([("uuid", "=", create_token)])
+            _debug.lifecycle(
+                "channel_from_token", channel=channel_sudo.id, token=create_token
+            )
         store = Store().add_global_values(isChannelTokenSecret=False)
         return self._response_discuss_channel_invitation(
             store, channel_sudo.sudo(False)
@@ -140,6 +147,7 @@ class PublicPageController(http.Controller):
             or channel_sudo.parent_channel_id.group_public_id
         )
         if group_public_id and group_public_id not in request.env.user.all_group_ids:
+            _debug.logic("invitation_refused", channel=channel.id, reason="group")
             raise NotFound
         guest_already_known = channel.env["mail.guest"]._get_guest_from_context()
         with replace_exceptions(UserError, by=NotFound()):
@@ -150,6 +158,13 @@ class PublicPageController(http.Controller):
             )
         if guest_email and not guest.email:
             guest.sudo().email = guest_email
+        _debug.pipeline(
+            "invitation_answered",
+            channel=channel.id,
+            guest=guest.id if guest else None,
+            new_guest=bool(guest and not guest_already_known),
+            with_email=bool(guest_email),
+        )
         if guest and not guest_already_known:
             store.add_global_values(is_welcome_page_displayed=True)
             channel = channel.with_context(guest=guest)

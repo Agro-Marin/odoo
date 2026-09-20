@@ -9,14 +9,14 @@
             <group name="provider_credentials" position="inside">
                 <group invisible="code != 'dpo'">
                     <field
-                        string="Service ID"
                         name="dpo_service_ref"
+                        string="Service ID"
                         required="code == 'dpo' and state != 'disabled'" />
                     <field
-                        string="Company Token"
                         name="dpo_company_token"
-                        required="code == 'dpo' and state != 'disabled'"
-                        password="True" />
+                        string="Company Token"
+                        password="True"
+                        required="code == 'dpo' and state != 'disabled'" />
                 </group>
             </group>
         </field>

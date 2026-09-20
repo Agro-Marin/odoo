@@ -51,8 +51,11 @@ class L10n_InWithholdWizard(models.TransientModel):
             result["related_payment_id"] = active_record.id
         return result
 
-    reference = fields.Char(string="Reference")
-    type_name = fields.Char(string="Type", compute="_compute_type_name")
+    reference = fields.Char()
+    type_name = fields.Char(
+        string="Type",
+        compute="_compute_type_name",
+    )
     related_move_id = fields.Many2one(
         comodel_name="account.move",
         string="Invoice/Bill",
@@ -74,7 +77,8 @@ class L10n_InWithholdWizard(models.TransientModel):
         compute="_compute_tds_deduction",
     )
     company_id = fields.Many2one(
-        comodel_name="res.company", string="Company", compute="_compute_company_id"
+        comodel_name="res.company",
+        compute="_compute_company_id",
     )
     currency_id = fields.Many2one(
         related="company_id.currency_id",
@@ -82,34 +86,35 @@ class L10n_InWithholdWizard(models.TransientModel):
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Journal",
         compute="_compute_journal_id",
         precompute=True,
-        readonly=False,
         store=True,
+        readonly=False,
         required=True,
         check_company=True,
     )
-    date = fields.Date(
-        string="Date",
-        default=fields.Date.context_today,
-    )
+    date = fields.Date(default=fields.Date.context_today)
     l10n_in_tds_tax_type = fields.Char(
-        string="Indian Tax Type", compute="_compute_l10n_in_tds_tax_type"
+        string="Indian Tax Type",
+        compute="_compute_l10n_in_tds_tax_type",
     )
     l10n_in_withholding_warning = fields.Json(
-        string="Withholding warning", compute="_compute_l10n_in_withholding_warning"
+        string="Withholding warning",
+        compute="_compute_l10n_in_withholding_warning",
     )
     base = fields.Monetary(
-        string="Base Amount", compute="_compute_base", store=True, readonly=False
+        string="Base Amount",
+        compute="_compute_base",
+        store=True,
+        readonly=False,
     )
     tax_id = fields.Many2one(
         comodel_name="account.tax",
         string="TDS Section",
-        required=True,
         compute="_compute_tax_id",
         store=True,
         readonly=False,
+        required=True,
     )
     amount = fields.Monetary(
         string="TDS Amount",
@@ -184,7 +189,7 @@ class L10n_InWithholdWizard(models.TransientModel):
         for wizard in self:
             wizard.journal_id = (
                 wizard.company_id.parent_ids.l10n_in_withholding_journal_id[-1:]
-                or wizard.env["account.journal"].search(
+                or wizard.env["account.journal"].search(  # noqa: E8507 - a transient wizard: one record
                     [
                         *self.env["account.journal"]._check_company_domain(
                             wizard.company_id
@@ -245,7 +250,7 @@ class L10n_InWithholdWizard(models.TransientModel):
                 tax = self.env["account.tax"]
                 for section, account in accounts_by_section.items():
                     # Search for the last withhold move line that matches the pan entity and account and section
-                    withhold_move_line = self.env["account.move.line"].search(
+                    withhold_move_line = self.env["account.move.line"].search(  # noqa: E8507 - a transient wizard: one record
                         [
                             (
                                 "move_id.l10n_in_withholding_ref_move_id.commercial_partner_id.l10n_in_pan_entity_id",

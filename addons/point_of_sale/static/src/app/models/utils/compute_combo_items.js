@@ -1,4 +1,7 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.combo");
+
 export const computeComboItems = (
     parentProduct,
     childLineConf,
@@ -30,10 +33,19 @@ export const computeComboItems = (
     let remainingTotal = parentLstPrice;
     const ProductPrice =
         currency_id || decimalPrecision.find((dp) => dp.name === "Product Price");
-    if (
+    const splitLast =
         childLineConf[childLineConf.length - 1]?.qty > 1 &&
-        (childLineConf[childLineConf.length - 1]?.parentQty ?? 1) === 1
-    ) {
+        (childLineConf[childLineConf.length - 1]?.parentQty ?? 1) === 1;
+    log.logic("computeComboItems", () => ({
+        parent: parentProduct.id,
+        pricelist: pricelist?.id,
+        parentLstPrice,
+        originalTotal,
+        free: childLineConf.length,
+        extra: childLineExtra.length,
+        splitLast,
+    }));
+    if (splitLast) {
         childLineConf[childLineConf.length - 1].qty -= 1;
         childLineConf.push({ ...childLineConf[childLineConf.length - 1], qty: 1 });
     }
@@ -110,5 +122,14 @@ export const computeComboItems = (
         });
     }
 
+    log.logic("computeComboItems: result", () => ({
+        parent: parentProduct.id,
+        items: comboItems.map((item) => ({
+            item: item.combo_item_id.id,
+            qty: item.qty,
+            priceUnit: item.price_unit,
+        })),
+        remainingTotal,
+    }));
     return comboItems;
 };

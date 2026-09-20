@@ -4,8 +4,15 @@ from functools import partial
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.tools import TransactionMemo
+
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
+
+RULE_IDS_BY_ROUTE = TransactionMemo(
+    "stock.rule.ids_by_route", invalidated_by=("stock.rule",)
+)
 
 
 class StockRuleSelection(models.Model):
@@ -107,7 +114,14 @@ class StockRuleSelection(models.Model):
                         ),
                     )
                 if candidates:
-                    return self._sorted_by_precedence(candidates, warehouse_id)[:1]
+                    best = self._sorted_by_precedence(candidates, warehouse_id)[:1]
+                    dbg.logic.debug(
+                        "_get_best_rule: route %s -> rule %s of %s",
+                        route.id,
+                        best.id,
+                        dbg.rec(candidates),
+                    )
+                    return best
         return self.env["stock.rule"]
 
     def _get_domain_rule_by(
@@ -120,18 +134,34 @@ class StockRuleSelection(models.Model):
         valid_route_ids = self._get_valid_route_ids(
             route_ids, packaging_uom_id, product_id, warehouse_id
         )
-        if valid_route_ids:
-            domain &= Domain("route_id", "in", list(valid_route_ids))
         candidates_by_route = defaultdict(lambda: self.env["stock.rule"])
-        for route, rules in self.env["stock.rule"]._read_group(
-            domain, groupby=["route_id"], aggregates=["id:recordset"]
-        ):
-            candidates_by_route[route.id] |= rules
+        for route_id, rule_ids in self._get_rule_ids_by_route(domain).items():
+            if not valid_route_ids or route_id in valid_route_ids:
+                candidates_by_route[route_id] = self.env["stock.rule"].browse(rule_ids)
         return self._get_best_rule(
             candidates_by_route,
             self._get_sorted_buckets(product_id, warehouse_id, values),
             warehouse_id,
         )
+
+    @api.model
+    def _get_rule_ids_by_route(self, domain):
+        memo = RULE_IDS_BY_ROUTE(self.env)
+        key = (
+            self.env.uid,
+            self.env.su,
+            tuple(self.env.companies.ids),
+            self.env.context.get("active_test", True),
+            domain,
+        )
+        if key not in memo:
+            memo[key] = {
+                route.id: rules.ids
+                for route, rules in self.env["stock.rule"]._read_group(
+                    domain, groupby=["route_id"], aggregates=["id:recordset"]
+                )
+            }
+        return memo[key]
 
     @api.model
     def _get_location_hierarchy(self, location_id):
@@ -168,9 +198,22 @@ class StockRuleSelection(models.Model):
                     warehouse_id,
                 )
                 if rule:
+                    dbg.logic.debug(
+                        "_get_rule_from_hierarchy: product %s at %s (warehouse %s) -> rule %s",
+                        product_id.id,
+                        candidate_location.id,
+                        warehouse_id.id,
+                        rule.id,
+                    )
                     return rule
+        dbg.logic.debug(
+            "_get_rule_from_hierarchy: no rule for product %s in %s",
+            product_id.id,
+            dbg.rec(locations),
+        )
         return self.env["stock.rule"]
 
+    @dbg.timed
     @api.model
     def _get_rule(self, product_id, location_id, values):
         Rule = self.env["stock.rule"]
@@ -191,6 +234,7 @@ class StockRuleSelection(models.Model):
         )
         return self._get_rule_from_hierarchy(candidates, product_id, locations, values)
 
+    @dbg.timed
     @api.model
     def _get_rules_batch(self, procurements):
         Rule = self.env["stock.rule"]
@@ -215,6 +259,11 @@ class StockRuleSelection(models.Model):
                 frozenset(valid_route_ids),
             )
             groups[key].append((index, procurement, locations, valid_route_ids))
+        dbg.performance.debug(
+            "_get_rules_batch: %d procurements in %d candidate groups",
+            len(procurements),
+            len(groups),
+        )
         for group in groups.values():
             group_locations = self.env["stock.location"].union(
                 *(locations for _index, _procurement, locations, _routes in group),
@@ -253,11 +302,6 @@ class StockRuleSelection(models.Model):
         return self._get_intercomp_transit_location().id in locations.ids
 
     @api.model
-    def _get_domain_rule(self, locations, values):
-        return self._get_domain_rule_location(
-            locations,
-        ) & self._get_domain_rule_scope(values)
-
     @api.model
     def _get_domain_rule_location(self, locations):
         location_ids = locations.ids
@@ -305,4 +349,10 @@ class StockRuleSelection(models.Model):
                 domain,
             )
             location = location.location_id
+        dbg.logic.debug(
+            "_get_push_rule product=%s dest=%s -> %s",
+            product_id.id,
+            location_dest_id.id,
+            found_rule.id,
+        )
         return found_rule

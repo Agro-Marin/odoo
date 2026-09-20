@@ -6,6 +6,13 @@ corrected every headline number and retracted one finding outright.**
 Scope: `addons/web/static/src`, measured against its consumers in `odoo/addons`,
 `enterprise`, `agromarin`, `design-themes`.
 
+**Provenance note, 2026-09-12.** Every gate, ratchet floor and typecheck lock
+this review names (js_public_surface, js_extension_surface, js_private_access,
+scope_gate, doc_measured, the jsprivate floor, the tsconfig-paths guard) lived
+under the `tooling/` tree deleted in `7b0f58cb517f` on 2026-09-11. The findings
+and the measurements stand as taken; the mechanisms are history, named in plain
+text below so that a reader can find them in git rather than on disk.
+
 > This document does not restate `ARCHITECTURE.md`, `STATE_MANAGEMENT.md`,
 > `ESM_BUNDLING.md` or `DIRECTORY_MAP.md`. It covers one question those don't:
 > **how other modules extend `web`, and what that costs.**
@@ -153,7 +160,7 @@ so any chain through them breaks.** The true figures are therefore floors.
 
 ### Survived unchanged
 
-- `@ts-check` on **861 of 863** files — the two exclusions are
+- `@ts-check` on **871 of 873** files — the two exclusions are
   `module_loader.js` and `service_worker.js`.
 
   This read *756 of 763, exact* from the first revision until 2026-08-16, and
@@ -186,7 +193,7 @@ distinct `(base, method)` points** — 563→ `odoo/addons`, 307→ `enterprise`
 similarly.
 
 Those 440 points are the real public API of web's JS. They are written down
-nowhere and checked by nothing. `js_public_surface.py`'s own docstring names the
+nowhere and checked by nothing. js_public_surface.py's own docstring names the
 gap — *"`web` has no declared API"* — but its remedy pins **module specifiers**,
 a strictly weaker statement: it guarantees `@web/views/form` keeps existing, not
 that `beforeExecuteActionButton` does.
@@ -243,12 +250,12 @@ hooks during setup, then carry on*.
 This replaces the draft's weaker "2,447 `any`s" framing, which was true but not
 the point.
 
-`addons/web` is well typed internally: 861 of 863 files carry `@ts-check`.
+`addons/web` is well typed internally: 871 of 873 files carry `@ts-check`.
 Outside it, essentially nothing does:
 
 | tree | files with `@ts-check` |
 |---|---|
-| `addons/web` | 861 |
+| `addons/web` | 871 |
 | all other `odoo/addons` JS (4,997 files) | **40** |
 | `enterprise` | **10** |
 
@@ -293,7 +300,7 @@ Ordered by value ÷ cost. P1–P3 are independent and individually shippable;
 P4–P6 depend on P1 having produced the worklist.
 
 **P1 is implemented** (`a131d2e1c6e`, extended by `cc67e4cc4b2` and
-`9714f34c846`) — `js_extension_surface.py` + `extension_surface_web.txt`, wired
+`9714f34c846`) — js_extension_surface.py + `extension_surface_web.txt`, wired
 into all six inventory points and green. Now **496 points over 1,984 sites, 275
 single-use, 129 owner classes**, covering both `extends` and `patch()`.
 
@@ -339,7 +346,7 @@ something the others would have missed:
 5. **Check the artifact chain first.** `RelationalModel._updateSimilarRecords`
    is a legitimate promote and still unstarted, because it touches eight
    artifacts: definition, two call sites, the contract array *and* its typedef,
-   the consumer, `js_private_access`'s MEASURED block, the `jsprivate.json`
+   the consumer, `js_private_access`'s MEASURED block, the jsprivate.json
    ratchet floor, and a hand-written "7 privates over 53 accesses" figure in the
    contract docstring. For two accesses out of 247 that only pays as a batch.
 6. **Baseline the suite before and after**, and re-run any failure on unmodified
@@ -361,8 +368,8 @@ what these two changes actually ran into.
 
 ### P1 — Declare and gate the extension surface *(done)*
 
-`tooling/architecture/js_extension_surface.py` + `extension_surface_web.txt`,
-built to the shape of `js_public_surface.py`: per-consumer-scope provenance,
+js_extension_surface.py + `extension_surface_web.txt` (the script went with the tooling tree in `7b0f58cb517f`),
+built to the shape of js_public_surface.py: per-consumer-scope provenance,
 shrink-only both directions, empty-tree refusal test.
 
 ```
@@ -388,7 +395,7 @@ tsconfig aliases** is a prerequisite for the chain walk to be complete.
 Per point: **promote** (drop the underscore — `_importState`/`exportState` is a
 matched pair, one public and one not, which is an inconsistency rather than a
 design) or **replace** (declared hook, convert the callers). Then extend
-`js_private_access.py`, which today (a) scans only `addons/web/static/src` and
+js_private_access.py, which today (a) scans only `addons/web/static/src` and
 (b) explicitly excludes `super.`, to cover cross-addon overrides at a hard zero.
 
 ### P3 — Retire the single-use surface
@@ -526,8 +533,8 @@ nobody has declared and the refactor cannot be verified against anything.
 
 ## Implementation notes (P1)
 
-Shipped as `tooling/architecture/js_extension_surface.py`, modelled on
-`js_public_surface.py`: per-consumer-scope provenance, shrink-only in both
+Shipped as js_extension_surface.py in the tooling tree (deleted in `7b0f58cb517f`), modelled on
+js_public_surface.py: per-consumer-scope provenance, shrink-only in both
 directions, refuses an empty tree, `--check` / `--json` / `--update`.
 
 **Pinned at 448 points over 1,896 sites, 242 single-use, 112 owner classes,
@@ -547,7 +554,7 @@ Three things the implementation changed about the measurement:
   made `web/static/tests/` look like a downstream consumer: 3 points and 7 sites
   entered the first pin that way, and — worse — the pin then drifted whenever
   anyone edited a web test. The predicate is now the addon, matching
-  `js_public_surface.py`. `test_a_subclass_in_webs_own_tests_is_not_surface`
+  js_public_surface.py. `test_a_subclass_in_webs_own_tests_is_not_surface`
   pins it.
 - **`/lib/` is no longer a blanket exclusion.** `static/src/core/lib/` and
   `static/src/libs/` are first-party (`@web/libs/bootstrap` has four importers).
@@ -629,8 +636,8 @@ Landed as `8b4f47004de`: 169 aliases added (43 of 214 were mapped), 7 dropped
 that mapped nothing and were imported by nobody. `@test_mail/*` is kept despite
 the same absent directory — nine files reach its helpers through
 `@test_mail/../tests/…`, which resolves textually, and the first version of the
-guard test would have deleted it. `tooling/typecheck/test_tsconfig_paths.py`
-keeps the map honest from here.
+guard test would have deleted it. A tsconfig paths test in the tooling tree kept
+the map honest until that tree was deleted in `7b0f58cb517f`.
 
 **The typecheck scope gates are red at HEAD**, on
 `keep_last_abort.test.js` and `superseded_load.test.js` — another session's
@@ -642,10 +649,10 @@ issue rather than a resolution one.
 
 Step 2 was written as "turn on `@ts-check` for the addons that subclass web
 most". In this repo's terms that means adding a module to
-`tooling/typecheck/scope_gate.py`'s `SCOPED_MODULES`, which locks every file of
+the typecheck scope gate's `SCOPED_MODULES` (tooling tree, since deleted), which locks every file of
 that module at zero errors except those named in a generated exception list.
 
-`scope_gate.py --candidates` (added in `714bd73a68a`) now derives what that
+The scope gate's candidates mode (added in `714bd73a68a`) derived what that
 would cost, from the log the gate already needs. Ungated modules with ≥ 20
 compiled files, by the share that would lock:
 
@@ -656,7 +663,7 @@ compiled files, by the share that would lock:
 
 **Nothing would lock past about two thirds**, and the modules with real reach
 into web's extension surface are the worst of all: `project` 50%, `website` 29%,
-`mail` 24%. `scope_gate.py`'s own guidance — *"a gate that has to except most of
+`mail` 24%. scope_gate.py's own guidance — *"a gate that has to except most of
 a module teaches people to ignore it"* — therefore stands, and **no module was
 added**.
 
@@ -665,9 +672,9 @@ per-module cleanup effort measured in hundreds of files, and the ordering should
 follow reach into the surface rather than convenience. `project` is the obvious
 first target: 2nd-highest reach after `website`, 154 files, half already clean.
 
-The candidate table that used to sit in `scope_gate.py` was hand-copied from a
+The candidate table that used to sit in scope_gate.py was hand-copied from a
 2026-07-29 run, had no assertion behind it, and omitted both of the best
-candidates — the same rot `doc_measured.py` exists to stop. It is now derived.
+candidates — the same rot doc_measured.py exists to stop. It is now derived.
 
 ## Reproducing
 
@@ -687,4 +694,6 @@ sed -i 's/beforeExecuteActionButton/beforeRunActionButton/g' B/addons/web/static
 ```
 
 Run the arms **sequentially and identically configured**. The first attempt at
-this comparison was invalid because only one arm had `node_modules`.
+this comparison was invalid because only one arm had `node_modules`. The
+`pytest tooling/architecture` step no longer exists to run (the tree went on
+2026-09-11); the recipe is kept as the record of how the numbers above were taken.

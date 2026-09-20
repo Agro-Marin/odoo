@@ -2,22 +2,22 @@ from itertools import groupby
 
 from odoo import api, fields, models
 from odoo.db.schema import column_exists, create_column
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import format_amount
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    _name_search_services_index = models.Index(
-        "(order_id DESC, sequence, id) WHERE is_service IS TRUE"
-    )
-
+    # used to know if generate a task and/or a project, depending on the product settings
     is_service = fields.Boolean(
-        "Is a Service",
-        compute="_compute_is_service",
-        store=True,
-        compute_sudo=True,
+        string="Is a Service",
         export_string_translation=False,
+        compute="_compute_is_service",
+        compute_sudo=True,
+        store=True,
     )
 
     def _domain_sale_line_service(self, **kwargs):
@@ -37,6 +37,7 @@ class SaleOrderLine(models.Model):
 
     def _auto_init(self):
         if not column_exists(self.env.cr, "sale_order_line", "is_service"):
+            _debug.lifecycle("is_service_column_backfilled", model=self._name)
             create_column(self.env.cr, "sale_order_line", "is_service", "bool")
             self.env.cr.execute("""
                 UPDATE sale_order_line line
@@ -74,21 +75,3 @@ class SaleOrderLine(models.Model):
                 name_per_id[line.id] = f"- {name}"
 
         return name_per_id
-
-    @api.model
-    def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        domain = domain or []
-        if (
-            domain
-            and ("is_service", "=", True) in domain
-            and operator in ("like", "ilike")
-            and limit is not None
-        ):
-            sols = self.search_fetch(
-                domain,
-                ["display_name"],
-                limit=limit,
-                order="order_id.id DESC, sequence, id",
-            )
-            return [(sol.id, sol.display_name) for sol in sols]
-        return super().name_search(name, domain, operator, limit)

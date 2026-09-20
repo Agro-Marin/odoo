@@ -22,7 +22,6 @@
     }
 }
 
-// XS size
 @include media-breakpoint-down(md) {
     .oe_website_sale {
         .td-wish-btn {
@@ -49,7 +48,6 @@
             calc(var(--o-wsale-wishlist-grid-gap, 0px) * 0.5);
     }
 
-    // List layouts
     &.o_wsale_products_opt_layout_list {
         .o_wishlist_item {
             grid-column: auto/span 12;
@@ -60,7 +58,6 @@
         }
     }
 
-    // Card layouts
     &.o_wsale_products_opt_layout_catalog {
         --o-wsale-card-info-position: none;
         --o-wsale-card-btns-flex-direction: row;
@@ -158,9 +155,7 @@
     }
 }
 
-// List view styles
 :where(#o_comparelist_table.o_wsale_products_opt_layout_list) {
-    // List view except cards and showcase
     &:where(
         :not(.o_wsale_products_opt_design_cards, .o_wsale_products_opt_design_showcase)
     ) {
@@ -274,7 +269,6 @@
         }
     }
 
-    // Grid view only
     :where(.o_wsale_products_opt_design_grid.o_wsale_products_opt_layout_list)
         .o_wsale_product_btn {
         @include media-breakpoint-between(md, lg) {

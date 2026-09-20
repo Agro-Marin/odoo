@@ -5,6 +5,9 @@ import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { childNodes } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.composer.plugin");
 
 const ALLOWED_TAGS = [
     "A",
@@ -121,6 +124,9 @@ export class MailComposerPlugin extends Plugin {
             }
         };
         [...sanitizedFragment.childNodes].forEach(removeStyle);
+        log.pipeline("handlePasteHtmlOverride", () => ({
+            nodes: sanitizedFragment.childNodes.length,
+        }));
         this.dependencies.dom.insert(sanitizedFragment);
         this.dependencies.history.addStep();
         return true;

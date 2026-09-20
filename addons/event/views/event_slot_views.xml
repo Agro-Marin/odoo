@@ -14,13 +14,13 @@
                             <div>
                                 <field
                                     name="start_hour"
-                                    class="oe_inline o_input_5ch"
-                                    widget="float_time" />
+                                    widget="float_time"
+                                    class="oe_inline o_input_5ch" />
                                 <i class="fa-solid fa-arrow-right mx-2" title="to" />
                                 <field
                                     name="end_hour"
-                                    class="oe_inline o_input_5ch"
-                                    widget="float_time" />
+                                    widget="float_time"
+                                    class="oe_inline o_input_5ch" />
                             </div>
                             <field name="date_tz" string="Timezone" />
                         </group>
@@ -54,8 +54,8 @@
                     <field name="start_hour" string="From" widget="float_time" />
                     <button
                         name="durationArrow"
-                        width="20px"
                         title="Until"
+                        width="20px"
                         class="fa-solid fa-right-long text-center text-secondary pe-none" />
                     <field name="end_hour" string="To" widget="float_time" />
                     <field name="color" widget="color_picker" />
@@ -67,14 +67,14 @@
             <field name="model">event.slot</field>
             <field name="arch" type="xml">
                 <calendar
-                    js_class="event_slot_calendar"
+                    string="Slots"
+                    color="color"
                     date_start="start_datetime"
                     date_stop="end_datetime"
-                    string="Slots"
-                    scales="month"
-                    color="color"
+                    js_class="event_slot_calendar"
+                    multi_create_view="event.view_event_slot_multi_create_form"
                     quick_create_view_id="%(event.view_event_slot_form)d"
-                    multi_create_view="event.view_event_slot_multi_create_form">
+                    scales="month">
                     <field name="start_datetime" invisible="1" />
                     <field name="end_datetime" invisible="1" />
                     <field name="date_tz" invisible="1" />

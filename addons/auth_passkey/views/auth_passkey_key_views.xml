@@ -36,14 +36,14 @@
                 <footer>
                     <button
                         special="save"
-                        data-hotkey="s"
                         string="Save"
-                        class="btn-primary" />
+                        class="btn-primary"
+                        data-hotkey="s" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -75,9 +75,9 @@
                         data-hotkey="q" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

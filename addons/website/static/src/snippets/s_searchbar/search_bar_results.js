@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { verifyHttpsUrl } from "@website/utils/misc";
+
+const log = makeLogger("website.snippet.s_searchbar.results");
 
 export class SearchBarResults extends Interaction {
     static selector = ".o_searchbar_form .o_dropdown_menu";
@@ -36,10 +39,10 @@ export class SearchBarResults extends Interaction {
             }),
         },
         _window: {
-            "t-on-resize": () => {}, // Re-apply _root:t-att-style.
+            "t-on-resize": () => {},
         },
         _scrollingParent: {
-            "t-on-scroll": () => {}, // Re-apply _root:t-att-style.
+            "t-on-scroll": () => {},
         },
         ".dropdown-item": {
             "t-on-mousedown": this.onMousedown,
@@ -52,6 +55,7 @@ export class SearchBarResults extends Interaction {
         ".s_searchbar_fuzzy_submit": {
             "t-on-click.prevent": (event) => {
                 this.inputEl.value = event.target.textContent;
+                log.logic("fuzzy submit: searching suggested term");
                 const formEl = this.searchBarEl
                     .querySelector(".o_search_order_by")
                     .closest("form");
@@ -66,12 +70,6 @@ export class SearchBarResults extends Interaction {
         this.inputEl = this.searchBarEl.querySelector(".search-query");
         this.scrollingParentEl = null;
 
-        // Handle the case where the searchbar is in a mega menu by making
-        // it position:fixed and forcing its size. Note: this could be the
-        // default behavior or at least needed in more cases than the mega
-        // menu only (all scrolling parents). But as a stable fix, it was
-        // easier to fix that case only as a first step, especially since
-        // this cannot generically work on all scrolling parent.
         const megaMenuEl = this.searchBarEl.closest(".o_mega_menu");
         if (megaMenuEl) {
             const navbarEl = this.searchBarEl.closest(".navbar");
@@ -83,34 +81,31 @@ export class SearchBarResults extends Interaction {
             }
         }
 
-        // Adjust the menu's position based on the scroll height.
         this.isDropup = false;
         if (
             this.el.getBoundingClientRect().bottom >
             document.documentElement.offsetHeight
         ) {
-            // If the menu overflows below the page, we reduce its height.
             this.el.style.overflowY = "auto";
-            // We then recheck if the menu still overflows below the page.
             if (
                 this.el.getBoundingClientRect().bottom >
                 document.documentElement.offsetHeight
             ) {
-                // If the menu still overflows below the viewport after its
-                // height has been reduced, we position it where most space is
-                // available
                 const searchPosition = this.searchBarEl.getBoundingClientRect();
                 this.isDropup =
                     searchPosition.top >
                     document.documentElement.offsetHeight - searchPosition.bottom;
             }
         }
+        log.lifecycle("setup", () => ({
+            inMegaMenu: !!megaMenuEl,
+            scrollingParent: !!this.scrollingParentEl,
+            isDropup: this.isDropup,
+            items: this.el.children.length,
+        }));
     }
 
     onMousedown() {
-        // On Safari, links and buttons are not focusable by default. We need
-        // to get around that behavior to avoid onFocusOut() from triggering
-        // render(), as this would prevent the click from working.
         if (isBrowserSafari) {
             this.searchBarEl.dispatchEvent(
                 new CustomEvent("safarihack", { detail: { linkHasFocus: true } }),
@@ -119,7 +114,6 @@ export class SearchBarResults extends Interaction {
     }
 
     onMouseup() {
-        // See comment in onMousedown.
         if (isBrowserSafari) {
             this.searchBarEl.dispatchEvent(
                 new CustomEvent("safarihack", { detail: { linkHasFocus: false } }),
@@ -151,6 +145,9 @@ export class SearchBarResults extends Interaction {
      * @param {PointerEvent} ev
      */
     onExtraLinkClick(ev) {
+        log.logic("onExtraLinkClick: navigating", () => ({
+            target: ev.currentTarget.dataset.target,
+        }));
         browser.location.href = verifyHttpsUrl(ev.currentTarget.dataset.target);
     }
 }

@@ -29,8 +29,8 @@
             <search string="Account groups">
                 <field
                     name="name"
-                    filter_domain="['|', ('code_prefix_start', '=like', self + '%'), ('name', 'ilike', self)]"
-                    string="Account group" />
+                    string="Account group"
+                    filter_domain="['|', ('code_prefix_start', '=like', self + '%'), ('name', 'ilike', self)]" />
             </search>
         </field>
     </record>

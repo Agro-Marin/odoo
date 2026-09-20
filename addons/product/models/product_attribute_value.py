@@ -9,16 +9,14 @@ class ProductAttributeValue(models.Model):
 
     attribute_id = fields.Many2one(
         comodel_name="product.attribute",
-        string="Attribute",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
         help="The attribute cannot be changed once the value is used on at least one product.",
     )
     display_type = fields.Selection(related="attribute_id.display_type")
     name = fields.Char(string="Value")
     sequence = fields.Integer(
-        string="Sequence",
         index=True,
         help="Determine the display order",
     )
@@ -37,7 +35,6 @@ class ProductAttributeValue(models.Model):
 
     default_extra_price = fields.Float()
     image = fields.Image(
-        string="Image",
         max_width=70,
         max_height=70,
         help="You can upload an image that will be used as the color of the attribute value.",
@@ -52,10 +49,10 @@ class ProductAttributeValue(models.Model):
         compute="_compute_is_used_on_products",
     )
     default_extra_price_changed = fields.Boolean(
-        compute="_compute_default_extra_price_changed",
+        compute="_compute_default_extra_price_changed"
     )
 
-    def _used_records(self):
+    def _filtered_used(self):
         return self.filtered("is_used_on_products")
 
     def _usage_label(self):

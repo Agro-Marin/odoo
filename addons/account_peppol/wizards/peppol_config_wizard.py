@@ -30,8 +30,8 @@ class PeppolConfigWizard(models.TransientModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
         default=lambda self: self.env.company,
+        required=True,
     )
     account_peppol_edi_user = fields.Many2one(
         related="company_id.account_peppol_edi_user"
@@ -40,26 +40,29 @@ class PeppolConfigWizard(models.TransientModel):
         related="account_peppol_edi_user.edi_identification"
     )
     account_peppol_proxy_state = fields.Selection(
-        related="company_id.account_peppol_proxy_state", readonly=False
+        related="company_id.account_peppol_proxy_state",
+        readonly=False,
     )
     account_peppol_contact_email = fields.Char(
         default=lambda self: self.env.company.account_peppol_contact_email,
         required=True,
     )
     account_peppol_migration_key = fields.Char(
-        related="company_id.account_peppol_migration_key", readonly=False
+        related="company_id.account_peppol_migration_key",
+        readonly=False,
     )
     # Deprecated
     peppol_activate_self_billing = fields.Boolean(
         string="Activate self-billing",
-        help="If activated, you will be able to send and receive self-billed invoices via Peppol."
-        "You can still disable reception by disabling the self-billing document types below.",
         compute="_compute_peppol_activate_self_billing",
         inverse="_inverse_peppol_activate_self_billing",
+        help="If activated, you will be able to send and receive self-billed invoices via Peppol."
+        "You can still disable reception by disabling the self-billing document types below.",
     )
     # Deprecated
     peppol_self_billing_reception_journal_id = fields.Many2one(
-        related="company_id.peppol_self_billing_reception_journal_id", readonly=False
+        related="company_id.peppol_self_billing_reception_journal_id",
+        readonly=False,
     )
 
     service_json = fields.Json(

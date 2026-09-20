@@ -2,8 +2,11 @@ import re
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 from .mixin_catalog import name_uniq_index
+
+_debug = DebugLog(__name__)
 
 _NON_ALPHANUMERIC = re.compile(r"[^\w&]+|_+")
 
@@ -20,9 +23,7 @@ class ResPartnerIdentifierType(models.Model):
         "integrations name the code, never the label, which is translated "
         "and editable.",
     )
-    sequence = fields.Integer(
-        default=10,
-    )
+    sequence = fields.Integer(default=10)
     country_ids = fields.Many2many(
         comodel_name="res.country",
         string="Countries",
@@ -74,6 +75,9 @@ class ResPartnerIdentifierType(models.Model):
             try:
                 re.compile(identifier_type.pattern)
             except re.error as error:
+                _debug.logic(
+                    "pattern_rejected", type=identifier_type.code, error=str(error)
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s: the format is not a valid regular "
@@ -91,10 +95,12 @@ class ResPartnerIdentifierType(models.Model):
         self.check_singleton()
         normalized = self._normalize(value)
         if not normalized:
+            _debug.logic("identifier_rejected", type=self.code, reason="empty")
             raise ValidationError(
                 self.env._("%(name)s cannot be empty.", name=self.display_name)
             )
         if self.pattern and not re.fullmatch(self.pattern, normalized):
+            _debug.logic("identifier_rejected", type=self.code, reason="pattern")
             raise ValidationError(
                 self.env._(
                     "%(value)s is not a valid %(name)s.",
@@ -103,7 +109,14 @@ class ResPartnerIdentifierType(models.Model):
                 )
             )
         checker = getattr(self, f"_check_code_{(self.code or '').lower()}", None)
+        _debug.logic(
+            "identifier_checked",
+            type=self.code,
+            pattern=bool(self.pattern),
+            checker=checker.__name__ if checker else None,
+        )
         if checker and not checker(normalized):
+            _debug.logic("identifier_rejected", type=self.code, reason="checker")
             raise ValidationError(
                 self.env._(
                     "%(value)s is not a valid %(name)s.",
@@ -119,4 +132,8 @@ class ResPartnerIdentifierType(models.Model):
 
     @api.model
     def _get_type_by_code(self, code):
-        return self.search([("code", "=", code)], limit=1)
+        identifier_type = self.search([("code", "=", code)], limit=1)
+        _debug.perf.count(
+            "identifier_type_by_code", code=code, found=bool(identifier_type)
+        )
+        return identifier_type

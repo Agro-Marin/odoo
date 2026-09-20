@@ -8,42 +8,46 @@ from odoo.addons.payment_asiapay import const
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "asiapay_secure_hash_secret": "asiapay_secure_hash_secret",
+    }
 
     code = fields.Selection(
-        selection_add=[("asiapay", "AsiaPay")], ondelete={"asiapay": "set default"}
+        selection_add=[("asiapay", "AsiaPay")],
+        ondelete={"asiapay": "set default"},
     )
     asiapay_brand = fields.Selection(
-        string="Asiapay Brand",
-        help="The brand associated to your AsiaPay account.",
         selection=[
             ("paydollar", "PayDollar"),
             ("pesopay", "PesoPay"),
             ("siampay", "SiamPay"),
             ("bimopay", "BimoPay"),
         ],
-        required_if_provider="asiapay",
         default="paydollar",
         copy=False,
+        required_if_provider="asiapay",
+        help="The brand associated to your AsiaPay account.",
     )
     asiapay_merchant_id = fields.Char(
         string="AsiaPay Merchant ID",
-        help="The Merchant ID solely used to identify your AsiaPay account.",
-        required_if_provider="asiapay",
         copy=False,
+        required_if_provider="asiapay",
+        help="The Merchant ID solely used to identify your AsiaPay account.",
     )
     asiapay_secure_hash_secret = fields.Char(
         string="AsiaPay Secure Hash Secret",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="asiapay",
-        copy=False,
         groups="base.group_system",
     )
     asiapay_secure_hash_function = fields.Selection(
-        string="AsiaPay Secure Hash Function",
-        help="The secure hash function associated to your AsiaPay account.",
         selection=[("sha1", "SHA1"), ("sha256", "SHA256"), ("sha512", "SHA512")],
-        required_if_provider="asiapay",
+        string="AsiaPay Secure Hash Function",
         default="sha1",
         copy=False,
+        required_if_provider="asiapay",
+        help="The secure hash function associated to your AsiaPay account.",
     )
 
     # ==== CONSTRAINT METHODS ===#
@@ -98,7 +102,7 @@ class PaymentProvider(models.Model):
         api_urls = const.API_URLS[environment]
         return api_urls.get(self.asiapay_brand, api_urls["paydollar"])
 
-    def _asiapay_calculate_signature(self, data, incoming=True):
+    def _get_asiapay_signature(self, data, incoming=True):
         """Compute the signature for the provided data according to the AsiaPay documentation.
 
         :param dict data: The data to sign.

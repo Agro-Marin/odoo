@@ -1,16 +1,22 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     module_project_timesheet_holidays = fields.Boolean(
-        "Time Off", compute="_compute_timesheet_modules", store=True, readonly=False
+        string="Time Off",
+        compute="_compute_timesheet_modules",
+        store=True,
+        readonly=False,
     )
     reminder_user_allow = fields.Boolean(string="Employee Reminder")
     reminder_allow = fields.Boolean(string="Approver Reminder")
     project_time_mode_id = fields.Many2one(
-        "uom.uom",
+        comodel_name="uom.uom",
         related="company_id.project_time_mode_id",
         string="Project Time Unit",
         readonly=False,
@@ -19,10 +25,11 @@ class ResConfigSettings(models.TransientModel):
         "forget to setup the right unit of measure in your employees.",
     )
     is_encode_uom_days = fields.Boolean(
-        compute="_compute_is_encode_uom_days", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_is_encode_uom_days",
     )
     timesheet_encode_method = fields.Selection(
-        [
+        selection=[
             ("hours", "Hours / Minutes"),
             ("days", "Days / Half-Days"),
         ],
@@ -46,6 +53,11 @@ class ResConfigSettings(models.TransientModel):
         uom_day = self.env.ref("uom.product_uom_day", raise_if_not_found=False)
         uom_hour = self.env.ref("uom.product_uom_hour", raise_if_not_found=False)
         for settings in self:
+            _debug.lifecycle(
+                "timesheet_encode_method_set",
+                company=settings.company_id,
+                method=settings.timesheet_encode_method,
+            )
             settings.company_id.timesheet_encode_uom_id = (
                 uom_day if settings.timesheet_encode_method == "days" else uom_hour
             )

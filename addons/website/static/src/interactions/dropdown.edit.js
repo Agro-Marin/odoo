@@ -1,13 +1,14 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.dropdown.edit");
 
 export class DropdownEdit extends Interaction {
     static selector = "[data-bs-toggle=dropdown]";
     dynamicContent = {
         _root: {
-            // We want dropdown menus not to close when clicking inside them in
-            // edit mode.
             "t-att-data-bs-auto-close": () => "outside",
             "t-on-hidden.bs.dropdown": () => {
                 const selection = this.el.ownerDocument.getSelection();
@@ -16,9 +17,12 @@ export class DropdownEdit extends Interaction {
                         ?.querySelector(".dropdown-menu")
                         ?.contains(selection.anchorNode)
                 ) {
-                    // If the selection is in a closed dropdown, we remove it so
-                    // that overlays appearing around the selection go away
-                    // (like toolbar, or link tools)
+                    log.logic(
+                        "DropdownEdit hidden: clear selection inside menu",
+                        () => ({
+                            toggle: this.el.className,
+                        }),
+                    );
                     selection.empty();
                 }
             },

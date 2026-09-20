@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_faq_horizontal");
 
 export class FaqHorizontal extends Interaction {
     static selector = ".s_faq_horizontal";
@@ -18,6 +21,7 @@ export class FaqHorizontal extends Interaction {
     }
 
     start() {
+        log.lifecycle("start: menu callback registered");
         this.updateTitlesPosition();
         this.registerCleanup(
             this.services.website_menus.registerCallback(
@@ -27,7 +31,7 @@ export class FaqHorizontal extends Interaction {
     }
 
     updateTitlesPosition() {
-        let offset = 16; // Add 1rem equivalent in px to provide a visual gap by default
+        let offset = 16;
         for (const el of this.el.ownerDocument.querySelectorAll(
             ".o_top_fixed_element",
         )) {

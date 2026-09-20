@@ -15,18 +15,18 @@
                             editable="top"
                             create="false"
                             delete="false">
-                            <field name="event_id" readonly="1" force_save="1" />
-                            <field name="registration_id" readonly="1" force_save="1" />
+                            <field name="event_id" force_save="1" readonly="1" />
+                            <field name="registration_id" force_save="1" readonly="1" />
                             <field
                                 name="event_slot_id"
+                                force_save="1"
                                 domain="[('event_id', '=', event_id)]"
-                                readonly="1"
-                                force_save="1" />
+                                readonly="1" />
                             <field
                                 name="event_ticket_id"
+                                force_save="1"
                                 domain="[('event_id', '=', event_id)]"
-                                readonly="1"
-                                force_save="1" />
+                                readonly="1" />
                             <field name="name" />
                             <field name="email" />
                             <field
@@ -35,17 +35,17 @@
                                 class="o_force_ltr" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                optional="hide" />
+                                optional="hide"
+                                groups="base.group_multi_company" />
                             <field name="sale_order_line_id" column_invisible="True" />
                         </list>
                     </field>
                 </sheet>
                 <footer>
                     <button
-                        string="Create/Update registrations"
                         name="action_make_registration"
                         type="object"
+                        string="Create/Update registrations"
                         class="btn-primary"
                         data-hotkey="q" />
                 </footer>

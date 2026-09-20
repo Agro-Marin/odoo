@@ -11,6 +11,7 @@ from markupsafe import Markup, escape
 from PIL import Image
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import guess_mimetype
 from odoo.libs.numbers import float_utils
 from odoo.libs.text import nl2br
@@ -26,6 +27,7 @@ from odoo.tools.misc import babel_locale_parse, get_lang
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 TIMEDELTA_UNITS = (
     ("year", 3600 * 24 * 365),
@@ -63,6 +65,13 @@ class IrQwebField(models.AbstractModel):
             return data
 
         field = record._fields[field_name]
+        _debug.logic(
+            "attributes_branded",
+            model=record._name,
+            field=field_name,
+            readonly=bool(field.readonly),
+            translate=bool(options.get("translate")),
+        )
         data["data-oe-model"] = record._name
         data["data-oe-id"] = record.id
         data["data-oe-field"] = field.name
@@ -78,6 +87,7 @@ class IrQwebField(models.AbstractModel):
             return ""
 
         if isinstance(value, bytes):
+            _debug.logic("bytes_value_decoded", bytes=len(value))
             value = value.decode(errors="replace")
         return escape(value)
 
@@ -96,6 +106,7 @@ class IrQwebField(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         if not record:
+            _debug.logic("record_to_html_skipped", reason="empty_record")
             return False
         options = self._record_options(record, field_name, options)
         env_context = self.env.context
@@ -106,8 +117,21 @@ class IrQwebField(models.AbstractModel):
             if key in env_context and record_context.get(key) != env_context[key]
         }
         if context_delta:
+            _debug.logic(
+                "record_context_realigned",
+                model=record._name,
+                field=field_name,
+                keys=sorted(context_delta),
+            )
             record = record.with_context(**context_delta)
         value = record[field_name]
+        _debug.pipeline(
+            "record_to_html",
+            model=record._name,
+            field=field_name,
+            converter=self._name,
+            empty=value is False or value is None,
+        )
         return (
             False
             if value is False or value is None
@@ -155,6 +179,7 @@ class IrQwebFieldFloat(models.AbstractModel):
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if not math.isfinite(value):
+            _debug.logic("float_rejected", reason="not_finite")
             msg = f"The value passed to the float field is not finite: {value!r}"
             raise ValueError(msg)
         min_precision = options.get("min_precision")
@@ -171,6 +196,16 @@ class IrQwebFieldFloat(models.AbstractModel):
             precision = options["precision"]
 
         fmt = f"%.{precision}f"
+        _debug.logic(
+            "float_precision",
+            source="decimal_precision"
+            if "decimal_precision" in options
+            else "derived"
+            if options.get("precision") is None
+            else "option",
+            precision=precision,
+            min_precision=min_precision,
+        )
         if min_precision and min_precision < precision:
             _int_part, dec_part = float_utils.float_split_str(value, precision)
             digits_count = len(dec_part.rstrip("0"))
@@ -195,6 +230,10 @@ class IrQwebFieldFloat(models.AbstractModel):
         get_min_display_digits = getattr(field, "get_min_display_digits", None)
         if "min_precision" not in options and get_min_display_digits is not None:
             defaults["min_precision"] = get_min_display_digits(record.env)
+        if _debug.logic.enabled and defaults:
+            _debug.logic(
+                "float_options_defaulted", field=field_name, keys=sorted(defaults)
+            )
         return dict(options, **defaults) if defaults else options
 
 
@@ -226,9 +265,9 @@ class IrQwebFieldDatetime(models.AbstractModel):
         elif dateless:
             value = datetime.combine(value, time.min)
 
-        record = self
+        tz_source = self
         if options.get("tz_name"):
-            record = self.with_context(tz=options["tz_name"])
+            tz_source = self.with_context(tz=options["tz_name"])
             tzinfo = babel.dates.get_timezone(options["tz_name"])
         else:
             tzinfo = None
@@ -236,7 +275,7 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if dateless:
             tzinfo = None
         else:
-            value = fields.Datetime.context_timestamp(record, value)
+            value = fields.Datetime.context_timestamp(tz_source, value)
 
         if "format" in options:
             pattern = options["format"]
@@ -253,6 +292,18 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if options.get("hide_seconds"):
             pattern = pattern.replace(":ss", "").replace(":s", "")
 
+        _debug.logic(
+            "datetime_formatted",
+            lang=lang.code,
+            dateless=dateless,
+            tz=options.get("tz_name"),
+            explicit_format="format" in options,
+            mode="time"
+            if options.get("time_only")
+            else "date"
+            if options.get("date_only")
+            else "datetime",
+        )
         if options.get("time_only"):
             return babel.dates.format_time(
                 value, format=pattern, tzinfo=tzinfo, locale=locale
@@ -286,6 +337,7 @@ class IrQwebFieldSelection(models.AbstractModel):
             return ""
         selection = options.get("selection")
         if selection is None:
+            _debug.logic("selection_rejected", reason="no_selection_option")
             msg = (
                 "Missing 'selection' option for selection field rendering; "
                 "t-out with widget='selection' must supply the label map that "
@@ -301,7 +353,11 @@ class IrQwebFieldSelection(models.AbstractModel):
         if "selection" in options:
             return options
         field = record._fields[field_name]
-        return dict(options, selection=dict(field._description_selection(self.env)))
+        selection = dict(field._description_selection(self.env))
+        _debug.perf.count(
+            "selection_labels_loaded", field=field_name, labels=len(selection)
+        )
+        return dict(options, selection=selection)
 
 
 class IrQwebFieldMany2one(models.AbstractModel):
@@ -315,6 +371,7 @@ class IrQwebFieldMany2one(models.AbstractModel):
             return False
         value = value._filtered_display_name_access().sudo().display_name
         if not value:
+            _debug.logic("many2one_hidden", reason="no_display_name_access")
             return False
         return nl2br(value)
 
@@ -329,6 +386,12 @@ class IrQwebFieldMany2many(models.AbstractModel):
         if not value:
             return False
         visible = value._filtered_display_name_access().sudo()
+        _debug.perf.count(
+            "many2many_rendered",
+            model=value._name,
+            records=len(value),
+            visible=len(visible),
+        )
         text = ", ".join(visible.mapped("display_name"))
         if not text:
             return False
@@ -356,23 +419,26 @@ class IrQwebFieldHtml(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
         if not value:
             return Markup("")
-        irQweb = self.env["ir.qweb"]
+        qweb = self.env["ir.qweb"]
         body = etree.fromstring(
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
-        att_names = irQweb._get_post_processing_att_names()
+        att_names = qweb._get_post_processing_att_names()
+        rewritten = 0  # debuglog
         for element in body.iter():
             attrib = element.attrib
             if not attrib:
                 continue
             if att_names is not None and att_names.isdisjoint(attrib):
                 continue
-            processed = irQweb._post_processing_att(element.tag, dict(attrib))
+            processed = qweb._post_processing_att(element.tag, dict(attrib))
             if len(processed) != len(attrib) or any(
                 attrib.get(name) != value for name, value in processed.items()
             ):
                 attrib.clear()
                 attrib.update(processed)
+                rewritten += 1  # debuglog
+        _debug.perf.count("html_post_processed", chars=len(value), rewritten=rewritten)
         body = self._post_process_html_body(body, options)
         serialized = etree.tostring(body, encoding="unicode", method="html")
         return Markup(serialized.removeprefix("<body>").removesuffix("</body>"))
@@ -390,6 +456,7 @@ class IrQwebFieldImage(models.AbstractModel):
         elif isinstance(value, str):
             source = value
         else:
+            _debug.logic("image_rejected", reason="bad_type", type=type(value).__name__)
             msg = "Invalid image content"
             raise ValueError(msg)
 
@@ -397,10 +464,12 @@ class IrQwebFieldImage(models.AbstractModel):
             img_b64 = base64.b64decode(source)
             value_b64 = source if isinstance(source, str) else source.decode("ascii")
         except ValueError:
+            _debug.logic("image_rejected", reason="not_base64")
             msg = "Invalid image content"
             raise ValueError(msg) from None
 
         mimetype = guess_mimetype(img_b64, "") if img_b64 else None
+        _debug.logic("image_sniffed", mimetype=mimetype, bytes=len(img_b64))
         if mimetype == "image/webp":
             return self.env["ir.qweb"]._get_converted_image_data_uri(value)
         elif mimetype != "image/svg+xml":
@@ -414,12 +483,15 @@ class IrQwebFieldImage(models.AbstractModel):
                     or (f"image/{image.format.lower()}" if image.format else None)
                 )
                 if not mimetype:
+                    _debug.logic("image_rejected", reason="no_mimetype")
                     msg = "Invalid image content"
                     raise ValueError(msg)
             except OSError as exc:
+                _debug.logic("image_rejected", reason="not_an_image", sniffed=sniffed)
                 msg = "Non-image binary fields can not be converted to HTML"
                 raise ValueError(msg) from exc
             except SyntaxError as exc:
+                _debug.logic("image_rejected", reason="pil_syntax", sniffed=sniffed)
                 msg = "Invalid image content"
                 raise ValueError(msg) from exc
 
@@ -430,7 +502,7 @@ class IrQwebFieldImage(models.AbstractModel):
         return Markup('<img src="%s">') % self._get_src_data_b64(value, options)
 
 
-class IrQwebFieldImage_Url(models.AbstractModel):
+class IrQwebFieldImageUrl(models.AbstractModel):
     _name = "ir.qweb.field.image_url"
     _description = "Qweb Field Image"
     _inherit = ["ir.qweb.field.image"]
@@ -449,22 +521,32 @@ class IrQwebFieldMonetary(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
         display_currency = options.get("display_currency")
         if not display_currency:
+            _debug.logic("monetary_rejected", reason="no_display_currency")
             msg = "Missing display_currency option for monetary field rendering."
             raise ValueError(msg)
 
         if isinstance(value, bool) or not isinstance(value, (int, float)):
+            _debug.logic(
+                "monetary_rejected", reason="not_a_number", type=type(value).__name__
+            )
             msg = f"The value passed to the monetary field is not a number: {value!r}"
             raise TypeError(msg)
 
         if options.get("from_currency"):
-            date = options.get("date") or fields.Date.today()
+            conversion_date = options.get("date") or fields.Date.today()
             company_id = options.get("company_id")
             if company_id:
                 company = self.env["res.company"].browse(company_id)
             else:
                 company = self.env.company
             value = options["from_currency"]._convert(
-                value, display_currency, company, date
+                value, display_currency, company, conversion_date
+            )
+            _debug.logic(
+                "monetary_converted",
+                from_currency=options["from_currency"].id,
+                to_currency=display_currency.id,
+                company=company.id,
             )
 
         lang = self.user_lang()
@@ -476,6 +558,13 @@ class IrQwebFieldMonetary(models.AbstractModel):
             decimal_places=options.get("decimal_places"),
         )
 
+        _debug.logic(
+            "monetary_formatted",
+            currency=display_currency.id,
+            lang=lang.code,
+            decimal_places=options.get("decimal_places"),
+            label_price=bool(options.get("label_price")),
+        )
         if options.get("label_price") and lang.decimal_point in formatted_amount:
             sep = lang.decimal_point
             integer_part, decimal_part = formatted_amount.split(sep)
@@ -507,6 +596,13 @@ class IrQwebFieldMonetary(models.AbstractModel):
         )
         if declared:
             ranked = [declared, *(name for name in ranked if name != declared)]
+        _debug.logic(
+            "currency_fields_ranked",
+            model=getattr(record, "_name", None),
+            field=field_name,
+            declared=declared,
+            candidates=len(candidates),
+        )
         return ranked
 
     @api.model
@@ -518,6 +614,9 @@ class IrQwebFieldMonetary(models.AbstractModel):
             for name in self._get_currency_field_names(record, field_name):
                 currency = record[name]
                 if currency:
+                    _debug.logic(
+                        "display_currency_resolved", field=field_name, via=name
+                    )
                     options["display_currency"] = currency
                     break
         options.setdefault("date", record.env.context.get("date"))
@@ -525,7 +624,7 @@ class IrQwebFieldMonetary(models.AbstractModel):
         return options
 
 
-class IrQwebFieldFloat_Time(models.AbstractModel):
+class IrQwebFieldFloatTime(models.AbstractModel):
     _name = "ir.qweb.field.float_time"
     _description = "Qweb Field Float Time"
     _inherit = ["ir.qweb.field"]
@@ -575,10 +674,12 @@ class IrQwebFieldDuration(models.AbstractModel):
         try:
             return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
         except KeyError:
+            _debug.logic("timedelta_format_fallback", fmt=fmt, to="long")
             kwargs["format"] = "long"
             try:
                 return babel.dates.format_timedelta(seconds, locale=locale, **kwargs)
             except KeyError:
+                _debug.logic("timedelta_format_fallback", fmt="long", to="en_US")
                 return babel.dates.format_timedelta(
                     seconds, locale=babel_locale_parse("en_US"), **kwargs
                 )
@@ -588,6 +689,9 @@ class IrQwebFieldDuration(models.AbstractModel):
         try:
             return TIMEDELTA_SECONDS_BY_UNIT[name]
         except KeyError:
+            _debug.logic(
+                "duration_rejected", reason="unknown_unit", option=option, unit=name
+            )
             known = ", ".join(TIMEDELTA_SECONDS_BY_UNIT)
             msg = (
                 f"Unknown {option!r} unit {name!r} for the duration widget; "
@@ -609,6 +713,14 @@ class IrQwebFieldDuration(models.AbstractModel):
         seconds = round((value * factor) / round_to) * round_to
         sign = "-" if seconds < 0 else ""
         remainder = abs(seconds)
+        _debug.logic(
+            "duration_formatted",
+            factor=factor,
+            round_to=round_to,
+            digital=bool(options.get("digital")),
+            add_direction=bool(options.get("add_direction")),
+            seconds=seconds,
+        )
 
         if options.get("digital"):
             sections = []
@@ -661,6 +773,7 @@ class IrQwebFieldRelative(models.AbstractModel):
         reference = fields.Datetime.from_string(
             options.get("now") or fields.Datetime.now()
         )
+        _debug.logic("relative_formatted", explicit_now="now" in options)
 
         return babel.dates.format_timedelta(
             value - reference, add_direction=True, locale=locale
@@ -688,13 +801,15 @@ class IrQwebFieldBarcode(models.AbstractModel):
             return ""
         value = value if isinstance(value, str) else str(value)
         if not value.isascii():
+            _debug.logic("barcode_skipped", reason="non_ascii", chars=len(value))
             return nl2br(value)
         barcode_symbology = options.get("symbology", "Code128")
-        barcode = self.env["ir.actions.report"].prepare_barcode(
-            barcode_symbology,
-            value,
-            **{k: v for k, v in options.items() if k in BARCODE_RENDER_OPTIONS},
-        )
+        with _debug.perf("barcode", symbology=barcode_symbology, chars=len(value)):
+            barcode = self.env["ir.actions.report"].prepare_barcode(
+                barcode_symbology,
+                value,
+                **{k: v for k, v in options.items() if k in BARCODE_RENDER_OPTIONS},
+            )
 
         img_element = html.Element("img")
         for k, v in options.items():
@@ -718,6 +833,7 @@ class IrQwebFieldContact(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
         template_options = options.get("template_options") or {}
         if not value:
+            _debug.logic("contact_empty", null_text=bool(options.get("null_text")))
             if options.get("null_text"):
                 return self.env["ir.qweb"]._render(
                     "base.no_contact",
@@ -727,38 +843,62 @@ class IrQwebFieldContact(models.AbstractModel):
                 )
             return ""
 
-        opf = options.get("fields") or CONTACT_DEFAULT_FIELDS
-        sep = options.get("separator")
-        if sep:
-            opsep = escape(sep)
+        field_names = options.get("fields") or CONTACT_DEFAULT_FIELDS
+        if options.get("separator"):
+            separator = escape(options["separator"])
         elif options.get("no_tag_br"):
-            opsep = escape(", ")
+            separator = escape(", ")
         else:
-            opsep = Markup("<br/>")
+            separator = Markup("<br/>")
 
         value = value.sudo().with_context(show_address=True)
+        # a record delegating to a partner (a user) renders that partner's
+        # numbers; only res.partner carries them
+        contact = value
+        if value._name != "res.partner":
+            for parent_model, parent_field in value._inherits.items():
+                if parent_model == "res.partner":
+                    _debug.logic(
+                        "contact_delegated", model=value._name, via=parent_field
+                    )
+                    contact = value[parent_field]
+                    break
+        phone = (
+            contact._phone_get_number().number
+            if "phone" in field_names and contact._name == "res.partner"
+            else ""
+        )
         display_name = value.display_name or ""
         name_line, *address_lines = display_name.split("\n")
         if any(elem.strip() for elem in address_lines):
-            address = opsep.join(address_lines).strip()
+            address = separator.join(address_lines).strip()
         else:
             address = ""
-        val = {
+        _debug.logic(
+            "contact_rendered",
+            partner=value.id,
+            fields=list(field_names),
+            address_lines=len(address_lines),
+            separator="text"
+            if options.get("separator") or options.get("no_tag_br")
+            else "br",
+        )
+        values = {
             "name": name_line,
             "address": address,
-            "phone": value.phone_ids._primary().number,
+            "phone": phone,
             "city": value.city,
             "country_id": value.country_id.display_name,
             "website": value.website,
             "email": value.email,
             "vat": value.vat,
             "vat_label": value.country_id.vat_label or _("VAT"),
-            "fields": opf,
+            "fields": field_names,
             "object": value,
             "options": options,
         }
         return self.env["ir.qweb"]._render(
-            "base.contact", val, minimal_qcontext=True, **template_options
+            "base.contact", values, minimal_qcontext=True, **template_options
         )
 
 
@@ -773,6 +913,7 @@ class IrQwebFieldQweb(models.AbstractModel):
     ) -> str | Markup:
         view = record[field_name]
         if not view:
+            _debug.logic("qweb_field_empty", field=field_name, model=record._name)
             return ""
 
         if view._name != "ir.ui.view":
@@ -782,6 +923,7 @@ class IrQwebFieldQweb(models.AbstractModel):
                 field_name,
                 view._name,
             )
+            _debug.logic("qweb_field_not_a_view", field=field_name, model=view._name)
             return ""
 
         return self.env["ir.qweb"]._render(view.id, options.get("values", {}))

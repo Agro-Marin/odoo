@@ -14,8 +14,8 @@
                 position="inside">
                 <div class="row" groups="base.group_no_one">
                     <label
-                        string="Export Alias"
                         for="l10n_tr_nilvera_export_alias"
+                        string="Export Alias"
                         class="col-lg-3 o_light_label" />
                     <field name="l10n_tr_nilvera_export_alias" />
                 </div>

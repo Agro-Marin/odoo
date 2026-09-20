@@ -141,7 +141,7 @@ class TestSchedulerBatching(EventCase):
                     "event_id": event.id,
                     "interval_nbr": 1,
                     "interval_type": "after_event",
-                    "interval_unit": "hours",
+                    "interval_unit": "hour",
                     "template_ref": f"mail.template,{self.template.id}",
                 }
             )

@@ -4,8 +4,11 @@ import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { NO_MEMBERS_DEFAULT_OPEN_LS } from "@mail/core/public_web/discuss_app_model";
 import { ChannelMemberList } from "@mail/discuss/core/common/channel_member_list";
 import { SubChannelList } from "@mail/discuss/core/public_web/sub_channel_list";
+import {
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { useChildSubEnv } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { usePopover } from "@web/ui/popover";
 
@@ -76,15 +79,13 @@ registerThreadAction("member-list", {
             owner.env.inDiscussApp &&
             store.discuss?.shouldDisableMemberPanelAutoOpenFromClose(nextActiveAction)
         ) {
-            browser.localStorage.setItem(NO_MEMBERS_DEFAULT_OPEN_LS, String(true));
-            store.discuss._recomputeIsMemberPanelOpenByDefault++;
+            setLocalStorageItem(store, NO_MEMBERS_DEFAULT_OPEN_LS, String(true));
         }
     },
     /** @param {ActionParams} params */
     open: ({ owner, store }) => {
         if (owner.env.inDiscussApp) {
-            browser.localStorage.removeItem(NO_MEMBERS_DEFAULT_OPEN_LS);
-            store.discuss._recomputeIsMemberPanelOpenByDefault++;
+            removeLocalStorageItem(store, NO_MEMBERS_DEFAULT_OPEN_LS);
         }
     },
     sequence: 30,

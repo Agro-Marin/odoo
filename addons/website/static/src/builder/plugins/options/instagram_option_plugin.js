@@ -5,8 +5,13 @@ import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.instagram_option");
+
+const INSTAGRAM_URL_MARKER = "instagram.com/";
 
 /**
  * @typedef { Object } InstagramOptionShared
@@ -32,10 +37,6 @@ class InstagramOptionPlugin extends Plugin {
         normalize_handlers: this.normalize.bind(this),
     };
 
-    setup() {
-        this.instagramUrlStr = "instagram.com/";
-    }
-
     normalize(root) {
         const nodes = [
             ...selectElements(
@@ -44,31 +45,45 @@ class InstagramOptionPlugin extends Plugin {
             ),
         ];
         if (nodes.length) {
+            log.pipeline(
+                "InstagramOptionPlugin normalize: default pages found",
+                () => ({
+                    nodes: nodes.length,
+                }),
+            );
             this.loadAndSetPage(nodes);
         }
     }
 
     async loadAndSetPage(nodes) {
-        // TODO: look in shared cache with social info: was SocialMediaOption.getDbSocialValuesCache()
         if (this.instagramUrl) {
+            log.logic(
+                "InstagramOptionPlugin loadAndSetPage: url already known",
+                () => ({
+                    instagramUrl: this.instagramUrl,
+                }),
+            );
             this.setPage(nodes);
             return;
         }
-        // Fetches the default url for instagram page from website config
+        const endRead = log.perf("InstagramOptionPlugin read social_instagram");
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
             ["social_instagram"],
         );
+        endRead(() => ({ hasSocialInstagram: !!res?.[0]?.social_instagram }));
         if (res && res[0].social_instagram) {
             this.instagramUrl = this.instagramPageNameFromUrl(res[0].social_instagram);
 
-            // WARNING: the call to ignoreDOMMutations is very dangerous,
-            // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
                 this.setPage(nodes),
             );
 
+            log.logic("InstagramOptionPlugin default pages set", () => ({
+                hasChanged,
+                instagramUrl: this.instagramUrl,
+            }));
             if (hasChanged) {
                 const commonAncestor = getCommonAncestor(nodes, this.editable);
                 this.dispatchTo("content_manually_updated_handlers", commonAncestor);
@@ -92,14 +107,12 @@ class InstagramOptionPlugin extends Plugin {
     }
 
     /**
-     * Returns the instagram page name from the given url.
-     *
      * @private
      * @param {string} url
      * @returns {string|undefined}
      */
     instagramPageNameFromUrl(url) {
-        const pageName = url.split(this.instagramUrlStr)[1];
+        const pageName = url.split(INSTAGRAM_URL_MARKER)[1];
         if (
             !pageName ||
             pageName.includes("?") ||
@@ -120,12 +133,16 @@ export class InstagramPageAction extends BuilderAction {
     }
     apply({ editingElement, value }) {
         delete editingElement.dataset.instagramPageIsDefault;
-        if (value.includes(this.instagramUrlStr)) {
+        log.logic("InstagramPageAction apply", () => ({
+            value,
+        }));
+        if (value.includes(INSTAGRAM_URL_MARKER)) {
             value =
                 this.dependencies.instagramOption.instagramPageNameFromUrl(value) || "";
         }
         editingElement.dataset["instagramPage"] = value;
         if (value === "") {
+            log.logic("InstagramPageAction invalid page name");
             this.services.notification.add(_t("The Instagram page name is not valid"), {
                 type: "warning",
             });

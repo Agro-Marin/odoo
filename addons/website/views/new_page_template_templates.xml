@@ -1,15 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        This template is used to obtain the order and the translations of all
-        group names.
-        It is not done in python (eg: a method returning a list of translated terms,
-        overridden by modules), because:
-        - it needs to be simple for designers and community: only write XML in themes
-        - python is ignored when importing modules in Odoo, which is a common flow for
-        themes
-    -->
     <template id="new_page_template_groups">
         <div id="basic">Basic</div>
         <div id="about">About</div>
@@ -21,19 +12,6 @@
         <div id="custom">Custom</div>
     </template>
 
-    <!--
-        Specific templates are generated from the manifest files:
-        If the manifest defines:
-        'new_page_template': {
-        'somekind': {
-        'somespecific': ['s_cover'... list of snippets],
-        },
-        }
-        A template named: new_page_template_sections_somekind_somespecific is generated.
-        Its arch contains t-snippet-calls to each listed snippet, all nested in a div#wrap.
-    -->
-    <!-- Customized snippets -->
-    <!-- Alternative s_text_block: s_text_block_2nd -->
     <template id="s_text_block_2nd" inherit_id="website.s_text_block" primary="True">
         <xpath expr="//section" position="attributes">
             <attribute name="data-snippet">s_text_block</attribute>
@@ -89,7 +67,6 @@
         </xpath>
     </template>
 
-    <!-- Base H1 title as s_text_block: s_text_block_h1 -->
     <template id="s_text_block_h1" inherit_id="website.s_text_block" primary="True">
         <xpath expr="//section" position="attributes">
             <attribute name="data-snippet">s_text_block</attribute>
@@ -195,7 +172,6 @@
         </xpath>
     </template>
 
-    <!-- Secondary H2 title as s_text_block: s_text_block_h2 -->
     <template id="s_text_block_h2" inherit_id="website.s_text_block" primary="True">
         <xpath expr="//section" position="attributes">
             <attribute name="data-snippet">s_text_block</attribute>
@@ -329,7 +305,6 @@
         <xpath expr="//h2" position="replace" mode="inner">Questions?</xpath>
     </template>
 
-    <!-- Alernative secondary H2 title as s_text_block: s_text_block_h2_contact -->
     <template
         id="s_text_block_h2_contact"
         inherit_id="website.s_text_block_h2"
@@ -343,7 +318,6 @@
         <xpath expr="//h2" position="replace" mode="inner">Contact Us</xpath>
     </template>
 
-    <!-- s_image_text -->
     <template
         id="new_page_template_s_image_text"
         inherit_id="website.s_image_text"
@@ -415,7 +389,6 @@
         </xpath>
     </template>
 
-    <!-- Alternative s_image_text: s_image_text_2nd -->
     <template
         id="s_image_text_2nd"
         inherit_id="website.new_page_template_s_image_text"
@@ -486,7 +459,6 @@
         </xpath>
     </template>
 
-    <!-- s_text_image -->
     <template
         id="new_page_template_s_text_image"
         inherit_id="website.s_text_image"
@@ -579,7 +551,6 @@
         </xpath>
     </template>
 
-    <!-- s_picture -->
     <template
         id="new_page_template_s_picture"
         inherit_id="website.s_picture"
@@ -623,7 +594,6 @@
         </xpath>
     </template>
 
-    <!-- Image only s_picture: s_picture_only -->
     <template
         id="s_picture_only"
         inherit_id="website.new_page_template_s_picture"
@@ -636,7 +606,6 @@
         <xpath expr="//p" position="replace" />
     </template>
 
-    <!-- s_text_cover -->
     <template
         id="new_page_template_s_text_cover"
         inherit_id="website.s_text_cover"
@@ -694,7 +663,6 @@
         </xpath>
     </template>
 
-    <!-- s_features -->
     <template
         id="new_page_template_s_features"
         inherit_id="website.s_features"
@@ -751,7 +719,6 @@
         </xpath>
     </template>
 
-    <!-- s_numbers -->
     <template
         id="new_page_template_s_numbers"
         inherit_id="website.s_numbers"
@@ -797,7 +764,6 @@
         </xpath>
     </template>
 
-    <!-- s_company_team -->
     <template
         id="new_page_template_s_company_team"
         inherit_id="website.s_company_team"
@@ -812,7 +778,6 @@
         </xpath>
     </template>
 
-    <!-- s_quotes_carousel -->
     <template
         id="new_page_template_s_quotes_carousel"
         inherit_id="website.s_quotes_carousel"
@@ -831,7 +796,6 @@
         </xpath>
     </template>
 
-    <!-- s_references -->
     <template
         id="new_page_template_s_references"
         inherit_id="website.s_references"
@@ -841,7 +805,6 @@
         </xpath>
     </template>
 
-    <!-- s_cover -->
     <template
         id="new_page_template_s_cover"
         inherit_id="website.s_cover"
@@ -909,7 +872,6 @@
         </xpath>
     </template>
 
-    <!-- s_banner -->
     <template
         id="new_page_template_s_banner"
         inherit_id="website.s_banner"
@@ -967,7 +929,6 @@
         <xpath expr="//p" position="replace" />
     </template>
 
-    <!-- s_carousel -->
     <template
         id="new_page_template_s_carousel"
         inherit_id="website.s_carousel"
@@ -980,7 +941,6 @@
         </xpath>
     </template>
 
-    <!-- s_three_columns -->
     <template
         id="new_page_template_s_three_columns"
         inherit_id="website.s_three_columns"
@@ -1136,7 +1096,6 @@
         </xpath>
     </template>
 
-    <!-- Unchanged s_three_columns: s_three_columns_2nd -->
     <template
         id="s_three_columns_2nd"
         inherit_id="website.s_three_columns"
@@ -1146,7 +1105,6 @@
         </xpath>
     </template>
 
-    <!-- Custom snippet to reset customisations done to it in themes -->
     <template
         id="s_three_columns_menu"
         inherit_id="website.s_three_columns"
@@ -1174,7 +1132,6 @@
         </xpath>
     </template>
 
-    <!-- s_color_blocks_2 -->
     <template
         id="new_page_template_s_color_blocks_2"
         inherit_id="website.s_color_blocks_2"
@@ -1189,7 +1146,6 @@
         </xpath>
     </template>
 
-    <!-- s_showcase -->
     <template
         id="new_page_template_s_showcase"
         inherit_id="website.s_showcase"
@@ -1219,7 +1175,6 @@
         </xpath>
     </template>
 
-    <!-- s_call_to_action -->
     <template
         id="new_page_template_s_call_to_action"
         inherit_id="website.s_call_to_action"
@@ -1254,7 +1209,6 @@
         </xpath>
     </template>
 
-    <!-- Alternative s_call_to_action: s_call_to_action_about -->
     <template
         id="s_call_to_action_about"
         inherit_id="website.s_call_to_action"
@@ -1270,7 +1224,6 @@
         </xpath>
     </template>
 
-    <!-- Alternative s_call_to_action: s_call_to_action_digital -->
     <template
         id="s_call_to_action_digital"
         inherit_id="website.s_call_to_action"
@@ -1286,7 +1239,6 @@
         </xpath>
     </template>
 
-    <!-- Alternative s_call_to_action: s_call_to_action_menu -->
     <template
         id="s_call_to_action_menu"
         inherit_id="website.s_call_to_action"
@@ -1302,7 +1254,6 @@
         </xpath>
     </template>
 
-    <!-- s_parallax -->
     <template
         id="new_page_template_s_parallax"
         inherit_id="website.s_parallax"
@@ -1328,7 +1279,6 @@
         </xpath>
     </template>
 
-    <!-- s_media_list -->
     <template
         id="new_page_template_s_media_list"
         inherit_id="website.s_media_list"
@@ -1376,7 +1326,6 @@
         </xpath>
     </template>
 
-    <!-- s_image_gallery -->
     <template
         id="new_page_template_s_image_gallery"
         inherit_id="website.s_image_gallery"
@@ -1432,7 +1381,6 @@
         </xpath>
     </template>
 
-    <!-- s_images_wall -->
     <template
         id="new_page_template_s_images_wall"
         inherit_id="website.s_images_wall"
@@ -1480,9 +1428,6 @@
         </xpath>
     </template>
 
-    <!-- Previews for blocks that normally generate part of their content upon drop -->
-    <!-- Defined in website so that every theme can benefit from it -->
-    <!-- Form: adapt style -->
     <template
         id="new_page_template_s_website_form"
         inherit_id="s_website_form"
@@ -1497,20 +1442,16 @@
         </xpath>
     </template>
 
-    <!-- Map: change height -->
     <template id="new_page_template_s_map" inherit_id="s_map" primary="True">
         <xpath expr="//section" position="attributes">
             <attribute name="class" add="o_half_screen_height" separator=" " />
         </xpath>
     </template>
 
-    <!-- Using `function` so that it is called during both module install and update -->
-    <!-- Generate primary snippet templates that are not predefined -->
     <function model="ir.module.module" name="_create_primary_snippet_templates">
         <value eval="[ref('base.module_website')]" />
     </function>
 
-    <!-- Generate primary page templates from manifest -->
     <function model="ir.module.module" name="_create_primary_page_templates">
         <value eval="[ref('base.module_website')]" />
     </function>

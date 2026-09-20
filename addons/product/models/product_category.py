@@ -13,26 +13,23 @@ class ProductCategory(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     name = fields.Char(
-        string="Name",
-        required=True,
         index="trigram",
+        required=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the category without removing it.",
     )
     parent_id = fields.Many2one(
         comodel_name="product.category",
         string="Parent Category",
-        ondelete="restrict",
         index=True,
+        ondelete="restrict",
     )
     complete_name = fields.Char(
-        string="Complete Name",
         compute="_compute_complete_name",
-        store=True,
         recursive=True,
+        store=True,
     )
     child_id = fields.One2many(
         comodel_name="product.category",
@@ -50,10 +47,11 @@ class ProductCategory(models.Model):
         recursive=True,
         help="The number of products under this category and its children.",
     )
-    product_properties_definition = fields.PropertiesDefinition("Product Properties")
+    product_properties_definition = fields.PropertiesDefinition(
+        string="Product Properties"
+    )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         tracking=True,
         help="Keep empty to share this category with every company.",
     )
@@ -72,7 +70,7 @@ class ProductCategory(models.Model):
             domain = Domain("categ_id", "in", categories.ids) & ~Domain(
                 "company_id", "child_of", company.id
             )
-            if not self.env["product.template"].sudo().search_count(domain, limit=1):
+            if not self.env["product.template"].sudo().search_count(domain, limit=1):  # noqa: E8507 - one probe per company; categories sharing one were merged above
                 continue
             raise ValidationError(
                 self.env._(

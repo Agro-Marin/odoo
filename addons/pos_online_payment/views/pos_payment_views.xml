@@ -9,8 +9,8 @@
             <xpath expr="//field[@name='transaction_id']" position="after">
                 <field
                     name="online_account_payment_id"
-                    readonly="1"
-                    invisible="not online_account_payment_id" />
+                    invisible="not online_account_payment_id"
+                    readonly="1" />
             </xpath>
         </field>
     </record>

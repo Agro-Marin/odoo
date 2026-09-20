@@ -46,6 +46,7 @@ Help your customers with this chat, and analyse their feedback.
         "views/webclient_templates.xml",
         "reports/im_livechat_report_channel_views.xml",
         "reports/im_livechat_conversation_report.xml",
+        "views/im_livechat_menus.xml",
     ],
     "demo": [
         "demo/im_livechat_channel/im_livechat_channel.xml",
@@ -277,11 +278,10 @@ Help your customers with this chat, and analyse their feedback.
             ],
         },
         "dynamic_children": {
-            "web.assets_web": [
+            "im_livechat.assets_embed_external": [
                 "im_livechat.assets_livechat_support_tours",
             ],
         },
     },
-    "installable": True,
     "application": True,
 }

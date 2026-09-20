@@ -1,6 +1,6 @@
 {
     "name": "Forum",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Website/Website",
     "sequence": 265,
     "summary": "Manage a forum with FAQ and Q&A",
@@ -92,5 +92,4 @@ Ask questions, get answers, no distractions
             "website_forum/static/src/interactions/loader_loading.js",
         ],
     },
-    "installable": True,
 }

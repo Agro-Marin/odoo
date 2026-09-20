@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RPCError } from "@web/core/network";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.scheduled_message");
 
 const ALREADY_SENT_EXCEPTION = "odoo.exceptions.MissingError";
 export class ScheduledMessage extends Record {
@@ -34,14 +37,11 @@ export class ScheduledMessage extends Record {
     });
     thread = fields.One("Thread");
     get deletable() {
-        return (
-            this.store.self_partner?.main_user_id?.is_admin ||
-            this.thread.hasWriteAccess
-        );
+        return this.store.selfIsAdmin || this.thread.hasWriteAccess;
     }
 
     get editable() {
-        return this.store.self_partner?.main_user_id?.is_admin || this.isSelfAuthored;
+        return this.store.selfIsAdmin || this.isSelfAuthored;
     }
 
     get isSelfAuthored() {
@@ -56,12 +56,14 @@ export class ScheduledMessage extends Record {
     }
 
     async cancel() {
+        log.logic("cancel", () => ({ id: this.id, thread: this.thread?.localId }));
         await this.store.env.services.orm.unlink("mail.scheduled.message", [this.id]);
         this.delete();
     }
 
     async edit() {
         let action;
+        log.logic("edit", () => ({ id: this.id }));
         try {
             action = await this.store.env.services.orm.call(
                 "mail.scheduled.message",
@@ -82,6 +84,10 @@ export class ScheduledMessage extends Record {
         if (!(error instanceof RPCError)) {
             throw error;
         }
+        log.logic("handleServerError", () => ({
+            id: this.id,
+            exceptionName: error.exceptionName,
+        }));
         if (error.exceptionName === ALREADY_SENT_EXCEPTION) {
             this.notifyAlreadySent();
             return;
@@ -101,6 +107,7 @@ export class ScheduledMessage extends Record {
     }
 
     async send() {
+        log.logic("send", () => ({ id: this.id, thread: this.thread?.localId }));
         try {
             await this.store.env.services.orm.call(
                 "mail.scheduled.message",

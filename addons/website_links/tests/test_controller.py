@@ -4,24 +4,16 @@ from odoo.tests.common import HttpCase
 
 @tagged("post_install", "-at_install")
 class TestWebsiteLinksRussian(HttpCase):
-    """
-    The /r URL prefix is considered as an alias to /ru by the "nearest
-    lang" algorithm of our http router (http_routing match). This test
-    suite makes sure that there the link-tracker "/r" controller is not
-    affected by any (wrong) /ru redirection.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.link = cls.env["link.tracker"].create(
             {
                 "title": "/web/health",
-                "url": cls.base_url() + "/web/health",  # no-op route
+                "url": cls.base_url() + "/web/health",
             }
         )
 
-        # Courtesy of website/tests/test_lang_url.py
         website = cls.env.ref("website.default_website")
         lang_en = cls.env.ref("base.lang_en")
         lang_ru = cls.env["res.lang"]._activate_lang("ru_RU")
@@ -58,7 +50,6 @@ class TestWebsiteLinksRussian(HttpCase):
         )
 
     def test2_russian_page(self):
-        # This generate a new unused link
         no_link_code = self.env["link.tracker.code"]._get_random_code_strings()[0]
 
         view = self.env["ir.ui.view"].create(

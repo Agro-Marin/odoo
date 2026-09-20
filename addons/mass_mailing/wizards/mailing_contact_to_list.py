@@ -5,9 +5,13 @@ class MailingContactToList(models.TransientModel):
     _name = "mailing.contact.to.list"
     _description = "Add Contacts to Mailing List"
 
-    contact_ids = fields.Many2many("mailing.contact", string="Contacts")
+    contact_ids = fields.Many2many(
+        comodel_name="mailing.contact",
+        string="Contacts",
+    )
     mailing_list_id = fields.Many2one(
-        "mailing.list", string="Mailing List", required=True
+        comodel_name="mailing.list",
+        required=True,
     )
 
     def action_add_contacts(self):

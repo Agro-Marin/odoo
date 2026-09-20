@@ -248,9 +248,9 @@ class TestEmailHeaderFolding(unittest.TestCase):
 
 class TestExcelSheetNames(unittest.TestCase):
     def _sanitize(self, name, taken=()):
-        from odoo._monkeypatches._excel_utils import sanitize_excel_sheet_name
+        from odoo._monkeypatches._excel_utils import normalize_excel_sheet_name
 
-        return sanitize_excel_sheet_name(name, taken)
+        return normalize_excel_sheet_name(name, taken)
 
     def test_invalid_characters_are_dropped(self):
         self.assertEqual(self._sanitize("a[b]c:d*e?f/g\\h"), "abcdefgh")
@@ -537,6 +537,34 @@ class TestFreezegunFacade(unittest.TestCase):
             f"the facade drops {sorted(theirs - ours)}, so the same call is "
             f"valid or a TypeError depending on import order",
         )
+
+    def test_a_certificate_signed_while_frozen_does_not_poison_later_ones(self):
+        import datetime
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+
+        from odoo.tests.common import freeze_time
+
+        def sign():
+            key = ed25519.Ed25519PrivateKey.generate()
+            name = x509.Name([])
+            now = datetime.datetime.now(datetime.UTC)
+            return (
+                x509.CertificateBuilder()
+                .subject_name(name)
+                .issuer_name(name)
+                .public_key(key.public_key())
+                .serial_number(1)
+                .not_valid_before(now)
+                .not_valid_after(now + datetime.timedelta(days=1))
+                .sign(key, None)
+            )
+
+        with freeze_time("2019-01-01"):
+            frozen = sign()
+        self.assertEqual(frozen.not_valid_before_utc.year, 2019)
+        self.assertGreater(sign().not_valid_before_utc.year, 2019)
 
     def test_a_dropped_argument_reaches_freezegun(self):
         from odoo.tests.common import freeze_time

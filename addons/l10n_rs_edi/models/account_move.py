@@ -1,8 +1,7 @@
 import uuid
 from json import JSONDecodeError
 
-import requests
-from requests.exceptions import ConnectionError, HTTPError, Timeout
+from requests.exceptions import ConnectionError, HTTPError, InvalidURL, Timeout
 
 from odoo import _, api, fields, models
 
@@ -16,8 +15,8 @@ class AccountMove(models.Model):
     l10n_rs_edi_uuid = fields.Char(
         string="RS Invoice UUID",
         compute="_compute_l10n_rs_edi_uuid",
-        copy=False,
         store=True,
+        copy=False,
         help="Unique Identifier for an invoice used as request id",
     )
 
@@ -29,8 +28,8 @@ class AccountMove(models.Model):
 
     l10n_rs_edi_attachment_file = fields.Binary(
         string="Serbian E-Invoice XML File",
-        copy=False,
         attachment=True,
+        copy=False,
         help="Serbia: technical field holding the e-invoice XML data.",
     )
 
@@ -44,14 +43,14 @@ class AccountMove(models.Model):
     )
 
     l10n_rs_edi_state = fields.Selection(
-        string="Serbia E-Invoice state",
         selection=[
             ("sent", "Sent"),
             ("sending_failed", "Error"),
         ],
-        tracking=True,
-        readonly=True,
+        string="Serbia E-Invoice state",
         copy=False,
+        readonly=True,
+        tracking=True,
     )
 
     l10n_rs_edi_error = fields.Text(
@@ -61,19 +60,28 @@ class AccountMove(models.Model):
     )
 
     l10n_rs_tax_date_obligations_code = fields.Selection(
-        string="Tax Date Obligations",
         selection=[
             ("35", "By Delivery Date"),
             ("3", "By Issuance Date"),
             ("432", "By Billing System"),
         ],
+        string="Tax Date Obligations",
+        compute="_compute_l10n_rs_tax_date_obligations_code",
         store=True,
         readonly=False,
-        compute="_compute_l10n_rs_tax_date_obligations_code",
     )
-    l10n_rs_edi_invoice = fields.Char(string="Invoice Id", copy=False)
-    l10n_rs_edi_sales_invoice = fields.Char(string="Sales Invoice Id", copy=False)
-    l10n_rs_edi_purchase_invoice = fields.Char(string="Purchase Invoice Id", copy=False)
+    l10n_rs_edi_invoice = fields.Char(
+        string="Invoice Id",
+        copy=False,
+    )
+    l10n_rs_edi_sales_invoice = fields.Char(
+        string="Sales Invoice Id",
+        copy=False,
+    )
+    l10n_rs_edi_purchase_invoice = fields.Char(
+        string="Purchase Invoice Id",
+        copy=False,
+    )
 
     @api.depends("country_code", "move_type")
     def _compute_show_delivery_date(self):
@@ -142,11 +150,17 @@ class AccountMove(models.Model):
         }
         error_message = False
         try:
-            response = requests.post(
-                url=url, params=params, headers=headers, data=xml, timeout=30
+            response = self.env["ir.egress"].request(
+                "POST",
+                url,
+                purpose="l10n_rs_edi",
+                params=params,
+                headers=headers,
+                data=xml,
+                timeout=30,
             )
             response.raise_for_status()
-        except (Timeout, ConnectionError, HTTPError) as exception:
+        except (Timeout, ConnectionError, HTTPError, InvalidURL) as exception:
             error_message = _(
                 "There was a problem with the connection with eFaktura: %s", exception
             )

@@ -41,7 +41,6 @@ class TestCustomize(
                 ],
             }
         )
-        # create a template
         product_template = cls.env["product.template"].create(
             {
                 "name": "Test Product",
@@ -61,7 +60,6 @@ class TestCustomize(
         tax = cls.env["account.tax"].create({"name": "Test tax", "amount": 10})
         product_template.taxes_id = tax
 
-        # set a different price on the variants to differentiate them
         product_template_attribute_values = cls.env[
             "product.template.attribute.value"
         ].search(
@@ -76,9 +74,6 @@ class TestCustomize(
             else:
                 ptav.price_extra = 50.4
 
-        # Ensure that no pricelist is available during the test.
-        # This ensures that tours which triggers on the amounts will run properly, and that the
-        # currency will be the company currency.
         cls.env["product.pricelist"].action_archive()
 
     def test_01_admin_shop_custom_attribute_value_tour(self):
@@ -112,7 +107,6 @@ class TestCustomize(
         self.start_tour("/", "a_shop_custom_attribute_value", login="admin")
 
     def test_02_admin_shop_custom_attribute_value_tour(self):
-        # Make sure pricelist rule exist
         self.env["product.pricelist"].create(
             {
                 "name": "Base Pricelist",
@@ -134,9 +128,6 @@ class TestCustomize(
         self.start_tour("/", "shop_custom_attribute_value", login="admin")
 
     def test_03_public_tour_shop_dynamic_variants(self):
-        """The goal of this test is to make sure product variants with dynamic
-        attributes can be created by the public user (when being added to cart).
-        """
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "Dynamic Attribute",
@@ -148,7 +139,6 @@ class TestCustomize(
             }
         )
 
-        # create the template
         product_template = self.env["product.template"].create(
             {
                 "name": "Dynamic Product",
@@ -165,7 +155,6 @@ class TestCustomize(
             }
         )
 
-        # set a different price on the variants to differentiate them
         product_template_attribute_values = self.env[
             "product.template.attribute.value"
         ].search(
@@ -178,19 +167,12 @@ class TestCustomize(
             if ptav.name == "Dynamic Value 1":
                 ptav.price_extra = 10
             else:
-                # 0 to not bother with the pricelist of the public user
                 ptav.price_extra = 0
 
         self.start_tour("/", "tour_shop_dynamic_variants")
 
     def test_04_portal_tour_deleted_archived_variants(self):
-        """The goal of this test is to make sure deleted and archived variants
-        are shown as impossible combinations.
 
-        Using "portal" to have various users in the tests.
-        """
-
-        # create the attribute
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "My Attribute",
@@ -203,7 +185,6 @@ class TestCustomize(
             }
         )
 
-        # create the template
         product_template = self.env["product.template"].create(
             {
                 "name": "Test Product 2",
@@ -219,7 +200,6 @@ class TestCustomize(
             }
         )
 
-        # set a different price on the variants to differentiate them
         product_template_attribute_values = self.env[
             "product.template.attribute.value"
         ].search(
@@ -232,19 +212,12 @@ class TestCustomize(
         product_template_attribute_values[1].price_extra = 20
         product_template_attribute_values[2].price_extra = 30
 
-        # archive first combination (first variant)
         product_template.product_variant_ids[0].active = False
-        # delete second combination (which is now first variant since cache has been cleared)
         product_template.product_variant_ids[0].unlink()
 
         self.start_tour("/", "tour_shop_deleted_archived_variants", login="portal")
 
     def test_05_demo_tour_no_variant_attribute(self):
-        """The goal of this test is to make sure attributes no_variant are
-        correctly added to cart.
-
-        Using "demo" to have various users in the tests.
-        """
 
         product_attribute_no_variant = self.env["product.attribute"].create(
             {
@@ -254,7 +227,6 @@ class TestCustomize(
             }
         )
 
-        # create the template
         product_template = self.env["product.template"].create(
             {
                 "name": "Test Product 3",
@@ -272,7 +244,6 @@ class TestCustomize(
             }
         )
 
-        # set a price on the value
         product_template.attribute_line_ids.product_template_value_ids.price_extra = 10
 
         self.start_tour("/", "tour_shop_no_variant_attribute", login="demo")
@@ -303,11 +274,6 @@ class TestCustomize(
         self.start_tour("/", "shop_editor", login="website_user")
 
     def test_08_portal_tour_archived_variant_multiple_attributes(self):
-        """The goal of this test is to make sure that an archived variant with multiple
-        attributes only disabled other options if only one is missing or all are selected.
-
-        Using "portal" to have various users in the tests.
-        """
 
         attributes = self.env["product.attribute"].create(
             [
@@ -351,7 +317,6 @@ class TestCustomize(
             }
         )
 
-        # Archive (Small, Black, Brand B) variant
         combination_to_archive = (
             product_template.attribute_line_ids.product_template_value_ids.filtered(
                 lambda ptav: (
@@ -370,11 +335,6 @@ class TestCustomize(
         self.start_tour("/", "tour_shop_archived_variant_multi", login="portal")
 
     def test_09_pills_variant(self):
-        """The goal of this test is to make sure that you can click anywhere on a pill
-        and still trigger a variant change. The radio input be visually hidden.
-
-        Using "portal" to have various users in the tests.
-        """
 
         attribute_size = self.env["product.attribute"].create(
             {
@@ -458,14 +418,12 @@ class TestCustomize(
                 ],
             }
         )
-        # set an extra price for free attribute values on the product (nothing is free)
         self.env["product.template.attribute.value"].search(
             [
                 ("product_tmpl_id", "=", product_template.id),
                 ("price_extra", "=", 0),
             ]
         ).price_extra = 2
-        # set an exclusion between option 1 and option 3
         self.env["product.template.attribute.value"].search(
             [
                 ("product_tmpl_id", "=", product_template.id),

@@ -3,8 +3,11 @@ from collections import defaultdict
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.date_utils import get_fiscal_year
 from odoo.tools.misc import format_date
+
+_debug = DebugLog(__name__)
 
 
 class AccountResequenceWizard(models.TransientModel):
@@ -19,24 +22,29 @@ class AccountResequenceWizard(models.TransientModel):
         help="Date (inclusive) to which the numbers are resequenced. If not set, all Journal Entries up to the end of the period are resequenced."
     )
     first_name = fields.Char(
-        compute="_compute_first_name",
-        readonly=False,
-        store=True,
-        precompute=True,
-        required=True,
         string="First New Sequence",
+        compute="_compute_first_name",
+        precompute=True,
+        store=True,
+        readonly=False,
+        required=True,
     )
     ordering = fields.Selection(
-        [("keep", "Keep current order"), ("date", "Reorder by accounting date")],
-        required=True,
+        selection=[
+            ("keep", "Keep current order"),
+            ("date", "Reorder by accounting date"),
+        ],
         default="keep",
+        required=True,
     )
-    move_ids = fields.Many2many("account.move")
+    move_ids = fields.Many2many(comodel_name="account.move")
     new_values = fields.Text(compute="_compute_new_values")
     preview_moves = fields.Text(compute="_compute_preview_moves")
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields_list):
+        _debug.lifecycle("default_get", records=self)
         values = super().default_get(fields_list)
         if "move_ids" not in fields_list:
             return values
@@ -68,6 +76,14 @@ class AccountResequenceWizard(models.TransientModel):
                     "The sequences of this journal are different for Payments and non-Payments but you selected some of both types."
                 )
             )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "resequence_moves_selected",
+                move=active_move_ids,
+                journal=active_move_ids.journal_id,
+                move_types=sorted(move_types),
+                payment_kinds=len(is_payment),
+            )
         values["move_ids"] = [Command.set(active_move_ids.ids)]
         return values
 
@@ -91,6 +107,7 @@ class AccountResequenceWizard(models.TransientModel):
                 )
 
     @api.depends("new_values", "ordering", "sequence_number_reset")
+    @_debug.perf.timed
     def _compute_preview_moves(self):
         for record in self:
             new_values = sorted(
@@ -141,6 +158,15 @@ class AccountResequenceWizard(models.TransientModel):
                     in_elipsis += 1
                 previous_line = line
 
+            if _debug.pipeline.enabled:
+                _debug.pipeline(
+                    "resequence_preview_built",
+                    resequence=record,
+                    moves=len(new_values),
+                    shown_lines=len(change_lines),
+                    reset=record.sequence_number_reset,
+                    ordering=record.ordering,
+                )
             record.preview_moves = json.dumps(
                 {
                     "ordering": record.ordering,
@@ -167,6 +193,7 @@ class AccountResequenceWizard(models.TransientModel):
             case _:
                 return "default"
 
+    @_debug.perf.timed
     def _update_resequence_period_values(
         self,
         new_values,
@@ -203,6 +230,15 @@ class AccountResequenceWizard(models.TransientModel):
             )
             for i in range(len(period_recs))
         ]
+        _debug.pipeline(
+            "resequence_period_named",
+            resequence=self,
+            moves=len(period_recs),
+            date_start=date_start,
+            date_end=date_end,
+            reset=sequence_number_reset,
+            is_last_period=is_last_period,
+        )
 
         for move, new_name in zip(
             period_recs.sorted(lambda m: (m.sequence_prefix, m.sequence_number)),
@@ -219,6 +255,7 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.depends("first_name", "move_ids", "sequence_number_reset")
     @api.depends_context("lang")
+    @_debug.perf.timed
     def _compute_new_values(self):
         self.new_values = "{}"
         for record in self.filtered("first_name"):
@@ -263,6 +300,14 @@ class AccountResequenceWizard(models.TransientModel):
                     )
                 )
         moves_to_rename = self.env["account.move"].browse(int(k) for k in new_values)
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "renaming",
+                resequence=self,
+                ordering=self.ordering,
+                first=self.first_name,
+                moves_to_rename=moves_to_rename,
+            )
         moves_to_rename.name = False
         moves_to_rename.flush_recordset(["name"])
 

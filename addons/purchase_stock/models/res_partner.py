@@ -2,6 +2,9 @@ from collections import defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartner(models.Model):
@@ -15,6 +18,7 @@ class ResPartner(models.Model):
     on_time_rate = fields.Float(
         string="On-Time Delivery Rate",
         compute="_compute_on_time_rate",
+        groups="purchase.group_purchase_user",
         help="Over the past x days; the number of products received on time divided by the number of ordered products."
         "x is either the System Parameter purchase_stock.on_time_delivery_days or the default 365",
     )
@@ -29,8 +33,8 @@ class ResPartner(models.Model):
             ("all", "Always"),
         ],
         string="Group RFQ",
-        required=True,
         default="default",
+        required=True,
         help="Define if RFQ should be grouped \
         together based on expected arrival, except for dropship operations.\n \
         On Order: Replenishment needs will be grouped together except for MTO.\n \
@@ -50,12 +54,13 @@ class ResPartner(models.Model):
             ("7", "Sunday"),
         ],
         string="Week Day",
-        required=True,
         default="default",
+        required=True,
     )
 
     @api.depends("purchase_line_ids")
     def _compute_on_time_rate(self):
+        _debug.perf.count("on_time_rate_compute", partners=self)
         date_order_days_delta = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -86,9 +91,12 @@ class ResPartner(models.Model):
             [("purchase_line_id", "in", order_lines.ids), ("state", "=", "done")],
         )
         order_lines.fetch(["date_commitment", "partner_id", "product_uom_qty"])
-        moves.fetch(["purchase_line_id", "date", "quantity"])
+        moves.fetch(["purchase_line_id", "date", "quantity", "location_id"])
         moves = moves.filtered(
-            lambda m: m.date.date() <= m.purchase_line_id.date_commitment.date(),
+            lambda m: (
+                m.location_id._is_incoming()
+                and m.date.date() <= m.purchase_line_id.date_commitment.date()
+            ),
         )
         for move in moves:
             lines_quantity[move.purchase_line_id.id] += move.quantity

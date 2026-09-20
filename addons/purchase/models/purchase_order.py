@@ -1,3 +1,4 @@
+from collections import defaultdict
 from urllib.parse import urlencode
 
 from dateutil.relativedelta import relativedelta
@@ -51,14 +52,12 @@ class PurchaseOrder(models.Model):
         string="Vendor",
         help="You can find a vendor by its Name, TIN, Email or Internal Reference.",
     )
-    partner_bill_count = fields.Integer(
-        related="partner_id.supplier_invoice_count",
-    )
+    partner_bill_count = fields.Integer(related="partner_id.supplier_invoice_count")
     dest_address_id = fields.Many2one(
         comodel_name="res.partner",
         string="Dropship Address",
-        check_company=True,
         index=True,
+        check_company=True,
         tracking=True,
         help="Put an address if you want to deliver directly from the vendor to the customer. "
         "Otherwise, keep empty to deliver to your own company.",
@@ -80,9 +79,7 @@ class PurchaseOrder(models.Model):
         help="If set, the PO will invoice in this journal; "
         "otherwise the purchase journal with the lowest sequence is used.",
     )
-    state = fields.Selection(
-        selection=const.ORDER_STATE,
-    )
+    state = fields.Selection(selection=const.ORDER_STATE)
     tag_ids = fields.Many2many(
         comodel_name="srm.tag",
         relation="purchase_order_tag_rel",
@@ -90,12 +87,8 @@ class PurchaseOrder(models.Model):
         column2="tag_id",
         string="Tags",
     )
-    date_validity = fields.Date(
-        help="Validity of the RFQ, after which it expires.",
-    )
-    date_confirmed = fields.Datetime(
-        help="Date when the purchase order was confirmed.",
-    )
+    date_validity = fields.Date(help="Validity of the RFQ, after which it expires.")
+    date_confirmed = fields.Datetime(help="Date when the purchase order was confirmed.")
     date_calendar_start = fields.Datetime(
         compute="_compute_date_calendar_start",
         store=True,
@@ -107,8 +100,8 @@ class PurchaseOrder(models.Model):
         string="Expected Arrival",
         compute="_compute_date_commitment",
         store=True,
-        readonly=False,
         index=True,
+        readonly=False,
         help="Delivery date promised by vendor. "
         "This date is used to determine expected arrival of products.",
     )
@@ -128,14 +121,10 @@ class PurchaseOrder(models.Model):
         "delivery order sent by your vendor.",
     )
     acknowledged = fields.Boolean(
-        help="It indicates that the vendor has acknowledged the receipt of the purchase order.",
+        help="It indicates that the vendor has acknowledged the receipt of the purchase order."
     )
-    sent = fields.Boolean(
-        help="The RFQ has been sent to the vendor.",
-    )
-    printed_before = fields.Boolean(
-        help="The RFQ has already been printed.",
-    )
+    sent = fields.Boolean(help="The RFQ has been sent to the vendor.")
+    printed_before = fields.Boolean(help="The RFQ has already been printed.")
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
         compute="_compute_purchase_warning_text",
@@ -144,7 +133,6 @@ class PurchaseOrder(models.Model):
     )
     duplicated_order_ids = fields.Many2many(comodel_name="purchase.order")
     receipt_reminder_email = fields.Boolean(
-        string="Receipt Reminder Email",
         compute="_compute_receipt_reminder",
         store=True,
         readonly=False,
@@ -347,8 +335,7 @@ class PurchaseOrder(models.Model):
         }
 
     def _action_confirm(self):
-        for order in self:
-            order._create_supplier_to_product()
+        self._create_supplier_to_product()
 
     def action_draft(self):
         self.filtered(lambda order: order.state in ("draft", "cancel")).write(
@@ -388,12 +375,6 @@ class PurchaseOrder(models.Model):
         super()._merge_finalize(target, sources)
         target._merge_alternative_po(sources)
 
-    def action_print_quotation(self):
-        return self.action_print_order()
-
-    def _get_print_report_xmlid(self):
-        return "purchase.report_purchase_quotation"
-
     def action_send_rfq(self):
         self.check_singleton()
         return self._action_send_by_email()
@@ -401,12 +382,12 @@ class PurchaseOrder(models.Model):
     def _get_mail_composer_action_name(self):
         return _("Compose Email")
 
-    def _get_mail_composer_context(self):
-        return {**self.env.context, **super()._get_mail_composer_context()}
+    def _prepare_mail_composer_context(self):
+        return {**self.env.context, **super()._prepare_mail_composer_context()}
 
-    def _get_mail_composer_lang_context(self):
+    def _prepare_mail_composer_lang_context(self):
         return {
-            **super()._get_mail_composer_lang_context(),
+            **super()._prepare_mail_composer_lang_context(),
             "model_description": self.type_name,
         }
 
@@ -545,9 +526,9 @@ class PurchaseOrder(models.Model):
         res["context"]["partner_id"] = self.partner_id.id
         return res
 
-    def _get_action_add_from_catalog_extra_context(self):
+    def _prepare_catalog_extra_context(self):
         return {
-            **super()._get_action_add_from_catalog_extra_context(),
+            **super()._prepare_catalog_extra_context(),
             "precision": self.env["decimal.precision"].get_precision("Product Unit"),
             "product_catalog_currency_id": self.currency_id.id,
             "product_catalog_digits": self.line_ids._fields["price_unit"].get_digits(
@@ -653,52 +634,44 @@ class PurchaseOrder(models.Model):
         return self.action_view_invoice(invoices)
 
     def _create_supplier_to_product(self):
-        partner = (
-            self.partner_id
-            if not self.partner_id.parent_id
-            else self.partner_id.parent_id
-        )
-        partners = partner | self.partner_id
-
-        suppinfo_vals_list = []
-        seen_tmpls = set()
-
-        for line in self.line_ids:
-            if not line.product_id:
-                continue
-            tmpl = line.product_id.product_tmpl_id
-            if tmpl.id in seen_tmpls:
-                continue
-            already_seller = partners & line.product_id.seller_ids.mapped("partner_id")
-            if (
-                already_seller
-                or len(line.product_id.seller_ids) >= const.MAX_SUPPLIERS_PER_PRODUCT
-            ):
-                seen_tmpls.add(tmpl.id)
-                continue
-
-            seen_tmpls.add(tmpl.id)
-            price = line.price_unit
-            if tmpl.uom_id != line.product_uom_id:
-                price = line.product_uom_id._compute_price(price, tmpl.uom_id)
-
-            supplierinfo = self._prepare_supplierinfo(
-                partner,
-                line,
-                price,
-                line.currency_id,
+        vals_by_company = defaultdict(list)
+        seen = set()
+        for order in self:
+            partner = order.partner_id.parent_id or order.partner_id
+            partners = partner | order.partner_id
+            for line in order.line_ids:
+                if not line.product_id:
+                    continue
+                tmpl = line.product_id.product_tmpl_id
+                key = (partner.id, tmpl.id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                sellers = line.product_id.seller_ids
+                if (
+                    partners & sellers.partner_id
+                    or len(sellers) >= const.MAX_SUPPLIERS_PER_PRODUCT
+                ):
+                    continue
+                price = line.price_unit
+                if tmpl.uom_id != line.product_uom_id:
+                    price = line.product_uom_id._get_price_in_unit(price, tmpl.uom_id)
+                supplierinfo = order._prepare_supplierinfo(
+                    partner,
+                    line,
+                    price,
+                    line.currency_id,
+                )
+                if line.selected_seller_id:
+                    supplierinfo["product_name"] = line.selected_seller_id.product_name
+                    supplierinfo["product_code"] = line.selected_seller_id.product_code
+                    supplierinfo["product_uom_id"] = line.product_uom_id.id
+                supplierinfo["product_tmpl_id"] = tmpl.id
+                vals_by_company[order.company_id].append(supplierinfo)
+        for company, vals_list in vals_by_company.items():
+            self.env["product.supplierinfo"].sudo().with_company(company).create(
+                vals_list
             )
-            if line.selected_seller_id:
-                supplierinfo["product_name"] = line.selected_seller_id.product_name
-                supplierinfo["product_code"] = line.selected_seller_id.product_code
-                supplierinfo["product_uom_id"] = line.product_uom_id.id
-            supplierinfo["product_tmpl_id"] = tmpl.id
-            suppinfo_vals_list.append(supplierinfo)
-
-        if suppinfo_vals_list:
-            self.env["product.supplierinfo"].sudo().with_company(
-                self.company_id
-            ).create(suppinfo_vals_list)
 
     def get_acknowledge_url(self):
         return self.get_portal_url(query_string="&acknowledge=True")
@@ -708,7 +681,7 @@ class PurchaseOrder(models.Model):
             return self.get_acknowledge_url()
         return self.get_portal_url()
 
-    def _get_default_create_section_values(self):
+    def _prepare_default_create_section_values(self):
         return {"product_qty": 0}
 
     def get_localized_date_commitment(self, date_commitment=False):
@@ -725,9 +698,9 @@ class PurchaseOrder(models.Model):
     def _get_mail_template(self):
         self.check_singleton()
         xmlid = (
-            "purchase.email_template_edi_purchase"
-            if self.env.context.get("send_rfq", False)
-            else "purchase.email_template_edi_purchase_done"
+            "purchase.email_template_edi_purchase_done"
+            if self.state == "done"
+            else "purchase.email_template_edi_purchase"
         )
         return (
             self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
@@ -766,7 +739,7 @@ class PurchaseOrder(models.Model):
             if seller.currency_id != self.currency_id:
                 price = seller.currency_id._convert(price, self.currency_id)
             if seller.product_uom_id != product_uom_id:
-                price = product_uom_id._compute_price_report(
+                price = product_uom_id._get_price_report(
                     price, seller.product_uom_id
                 )
                 product_infos.update(
@@ -841,7 +814,7 @@ class PurchaseOrder(models.Model):
             _update(
                 key,
                 result,
-                self._read_group(
+                self._read_group(  # noqa: E8507 - one aggregate per literal count domain
                     domain, ["priority", "user_id"], ["id:count_distinct"]
                 ),
             )

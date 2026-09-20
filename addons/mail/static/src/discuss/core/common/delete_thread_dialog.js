@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.thread");
 export class DeleteThreadDialog extends Component {
     static components = { ActionPanel };
     static props = ["thread", "close"];
@@ -24,6 +27,10 @@ export class DeleteThreadDialog extends Component {
         ) {
             toOpenThread = this.props.thread.parent_channel_id;
         }
+        log.logic("delete sub channel", () => ({
+            thread: this.props.thread.localId,
+            reopen: toOpenThread?.localId,
+        }));
         await rpc("/discuss/channel/sub_channel/delete", {
             sub_channel_id: this.props.thread.id,
         });

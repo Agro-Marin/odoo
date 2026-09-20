@@ -4,12 +4,11 @@ from odoo import api, fields, models
 class EventType(models.Model):
     _inherit = "event.type"
 
-    website_menu = fields.Boolean("Display a dedicated menu on Website")
+    website_menu = fields.Boolean(string="Display a dedicated menu on Website")
     community_menu = fields.Boolean(
-        "Community Menu",
         compute="_compute_community_menu",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Display community tab on website",
     )
 

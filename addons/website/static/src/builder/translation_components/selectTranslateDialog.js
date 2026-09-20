@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { WebsiteDialog } from "@website/components/dialog/dialog";
 
-// Used to translate the text of `<select/>` options since it should not be
-// possible to interact with the content of `.o_translation_select` elements.
+const log = makeLogger("website.builder.translation.select_translate_dialog");
+
 export class SelectTranslateDialog extends Component {
     static components = { WebsiteDialog };
     static template = "website_builder.SelectTranslateDialog";
@@ -13,11 +15,15 @@ export class SelectTranslateDialog extends Component {
         close: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.inputEl = useRef("input");
     }
 
     onInputChange() {
         const value = this.inputEl.el.value;
+        log.logic("onInputChange", () => ({
+            translated: value !== this.props.node.dataset.initialTranslationValue,
+        }));
         this.optionEl.textContent = value;
         this.optionEl.classList.toggle(
             "oe_translated",
@@ -30,6 +36,7 @@ export class SelectTranslateDialog extends Component {
     }
 
     addStepAndClose() {
+        log.pipeline("addStepAndClose");
         this.props.addStep();
         this.props.close();
     }

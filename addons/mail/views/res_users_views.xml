@@ -25,16 +25,16 @@
                     <field
                         name="notification_type"
                         widget="radio"
-                        readonly="0"
-                        options="{'horizontal': true}" />
+                        options="{'horizontal': true}"
+                        readonly="0" />
                     <field name="outgoing_mail_server_id" invisible="1" />
                     <span class="o_form_label fw-bold" groups="base.group_user" invisible="not has_external_mail_server">Outgoing
                         Mail Server</span>
                     <field
                         name="outgoing_mail_server_type"
-                        nolabel="1"
                         string="Outgoing Mail Server"
                         widget="mail_server_configurator_selection"
+                        nolabel="1"
                         invisible="not has_external_mail_server" />
                 </xpath>
                 <field name="signature" position="attributes">
@@ -45,17 +45,17 @@
                     <div class="o_row">
                         <field
                             name="out_of_office_from"
+                            placeholder="None planned"
                             widget="daterange"
-                            options="{'end_date_field': 'out_of_office_to', 'show_time': False}"
-                            placeholder="None planned" />
+                            options="{'end_date_field': 'out_of_office_to', 'show_time': False}" />
                         <field name="out_of_office_to" invisible="1" />
                     </div>
                     <field
                         name="out_of_office_message"
                         string=""
+                        placeholder="Your out-of-office message..."
                         options="{'height': 112}"
-                        class="border border-secondary w-100"
-                        placeholder="Your out-of-office message..." />
+                        class="border border-secondary w-100" />
                 </group>
             </data>
         </field>
@@ -71,16 +71,16 @@
                     <field
                         name="notification_type"
                         widget="radio"
-                        invisible="share"
-                        options="{'horizontal': true}" />
+                        options="{'horizontal': true}"
+                        invisible="share" />
                     <field name="outgoing_mail_server_id" invisible="1" />
                     <span class="o_form_label fw-bold" groups="base.group_user" invisible="not has_external_mail_server">Outgoing
                         Mail Server</span>
                     <field
                         name="outgoing_mail_server_type"
-                        nolabel="1"
                         string="Outgoing Mail Server"
                         widget="mail_server_configurator_selection"
+                        nolabel="1"
                         invisible="not has_external_mail_server" />
                 </xpath>
                 <field name="signature" position="attributes">
@@ -91,17 +91,17 @@
                     <div class="o_row">
                         <field
                             name="out_of_office_from"
+                            placeholder="None planned"
                             widget="daterange"
-                            options="{'end_date_field': 'out_of_office_to', 'show_time': False}"
-                            placeholder="None planned" />
+                            options="{'end_date_field': 'out_of_office_to', 'show_time': False}" />
                         <field name="out_of_office_to" invisible="1" />
                     </div>
                     <field
                         name="out_of_office_message"
                         string=""
+                        placeholder="Your out-of-office message..."
                         options="{'height': 112}"
-                        class="border border-secondary w-100"
-                        placeholder="Your out-of-office message..." />
+                        class="border border-secondary w-100" />
                 </group>
             </data>
         </field>

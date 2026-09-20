@@ -7,10 +7,11 @@ from collections.abc import Collection, Mapping, MutableMapping
 from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -25,7 +26,6 @@ from odoo.tools.translate import (
     get_translation,
 )
 
-from ..primitives import SUPERUSER_ID
 from .registry import Registry
 from .transaction import Transaction
 
@@ -35,6 +35,7 @@ if typing.TYPE_CHECKING:
     from .._protocols import (
         DecimalPrecisionProtocol,
         IrAttachmentProtocol,
+        IrConfigParameterProtocol,
         IrCronProtocol,
         IrDefaultProtocol,
         IrModelAccessProtocol,
@@ -60,6 +61,8 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 _logger = logging.getLogger("odoo.api")
+_debug = DebugLog(__name__)
+_MISSING = object()
 
 
 class _Protecting:
@@ -117,6 +120,9 @@ class Environment(Mapping[str, "BaseModel"]):
         transaction = cr.transaction
         if transaction is None:
             transaction = cr.transaction = Transaction(Registry(cr.dbname))
+            _debug.lifecycle(
+                "environment.transaction_attached", db=cr.dbname, uid=uid, su=su
+            )
         return transaction.environment(cr, uid, context, su)
 
     @classmethod
@@ -153,6 +159,11 @@ class Environment(Mapping[str, "BaseModel"]):
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.attachment"]
     ) -> IrAttachmentProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.config_parameter"]
+    ) -> IrConfigParameterProtocol: ...
 
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
@@ -269,9 +280,18 @@ class Environment(Mapping[str, "BaseModel"]):
         cr = self.cr if cr is None else cr
         uid = self.uid if user is None else int(user)
         if context is None:
-            context = (
-                clean_context(self.context) if su and not self.su else self.context
-            )
+            context = self.context
+            # keep the frozendict itself when there is nothing to strip: the
+            # transaction then matches the last environment by identity and
+            # reuses its cached hash instead of copying and rehashing
+            if su and not self.su and any(k.startswith("default_") for k in context):
+                context = clean_context(context)
+                if _debug.logic.enabled:
+                    _debug.logic(
+                        "environment.sudo_context_cleaned",
+                        uid=uid,
+                        keys=len(self.context) - len(context),
+                    )
         su = (user is None and self.su) if su is None else su
         return Environment(cr, uid, context, su)
 
@@ -286,8 +306,8 @@ class Environment(Mapping[str, "BaseModel"]):
     ) -> BaseModel | None: ...
 
     def ref(self, xml_id: str, raise_if_not_found: bool = True) -> BaseModel | None:
-        res_model, res_id = self["ir.model.data"]._xmlid_to_res_model_res_id(
-            xml_id, raise_if_not_found=raise_if_not_found
+        res_model, res_id = self.registry.xmlids.target(
+            self, xml_id, raise_if_not_found
         )
 
         if res_model and res_id:
@@ -297,6 +317,13 @@ class Environment(Mapping[str, "BaseModel"]):
             if ref_cache.get(cache_key) or record.exists():
                 ref_cache[cache_key] = True
                 return record
+            _debug.logic(
+                "environment.ref.record_missing",
+                xml_id=xml_id,
+                model=res_model,
+                res_id=res_id,
+                raise_if_not_found=raise_if_not_found,
+            )
             if raise_if_not_found:
                 raise ValueError(
                     f"No record found for unique ID {xml_id}. It may have been deleted."
@@ -321,7 +348,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.cache
 
     @functools.cached_property
-    def _core(self) -> OrmCore[Field]:
+    def core(self) -> OrmCore[Field]:
         return self.transaction.core
 
     @property
@@ -332,14 +359,16 @@ class Environment(Mapping[str, "BaseModel"]):
     def user(self) -> ResUsersProtocol:
         return self(su=True)["res.users"].browse(self.uid)
 
-    @functools.cached_property
-    def _ir_defaults(self) -> BaseModel:
-        return self["ir.default"].with_user(SUPERUSER_ID).with_company(self.company)
-
     def _get_allowed_company_ids(self) -> list[int]:
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids and not self.su:
             if set(company_ids) - set(self.user._get_company_ids()):
+                _debug.logic(
+                    "environment.company.unauthorized",
+                    uid=self.uid,
+                    allowed=company_ids,
+                    user_companies=self.user._get_company_ids(),
+                )
                 raise AccessError(
                     self._("Access to unauthorized or invalid companies.")
                 )
@@ -349,13 +378,42 @@ class Environment(Mapping[str, "BaseModel"]):
     def company(self) -> BaseModel:
         if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids[0])
+        _debug.logic("environment.company.fallback_to_user", uid=self.uid)
         return self.user.company_id.with_env(self)
 
     @functools.cached_property
     def companies(self) -> BaseModel:
         if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids)
-        return self["res.company"].browse(self.user._get_company_ids())
+        _debug.logic("environment.companies.fallback_to_user", uid=self.uid)
+        user_company_ids = list(self.user._get_company_ids())
+        current = self.user.company_id.id
+        if current in user_company_ids:
+            user_company_ids.remove(current)
+            user_company_ids.insert(0, current)
+        return self["res.company"].browse(user_company_ids)
+
+    def _access_scope(self) -> typing.Any:
+        if self.su:
+            return True
+        if company_ids := self.context.get("allowed_company_ids"):
+            _debug.logic(
+                "environment.access_scope.from_context",
+                uid=self.uid,
+                companies=len(company_ids),
+            )
+            return (self.uid, tuple(sorted(company_ids)))
+        try:
+            scope = (self.uid, tuple(sorted(self.user._get_company_ids())))
+        except MissingError:
+            _debug.logic("environment.access_scope.user_missing", uid=self.uid)
+            return (self.uid, None)
+        _debug.logic(
+            "environment.access_scope.from_user",
+            uid=self.uid,
+            companies=len(scope[1]),
+        )
+        return scope
 
     @functools.cached_property
     def tz(self) -> tzinfo:
@@ -365,12 +423,17 @@ class Environment(Mapping[str, "BaseModel"]):
                 return get_timezone(tz_name)
             except Exception:
                 _logger.debug("Invalid timezone %r", tz_name, exc_info=True)
+                _debug.logic("environment.tz.invalid", uid=self.uid, tz=tz_name)
         return utc
 
     @functools.cached_property
     def lang(self) -> str | None:
         lang = self.context.get("lang")
-        if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
+        if (
+            lang
+            and lang != "en_US"
+            and not self.registry.locale.is_lang_installed(self, lang)
+        ):
             raise UserError(  # noqa: E8505  see above: this one cannot be translated
                 f"Invalid language code: {lang}"
             )
@@ -401,7 +464,12 @@ class Environment(Mapping[str, "BaseModel"]):
         try:
             module = get_translated_module(2)
             return get_translation(module, lang, source, format_args)
-        except Exception:
+        except Exception as exc:
+            _debug.logic(
+                "environment.translation_failed",
+                lang=lang,
+                error=type(exc).__name__,
+            )
             _logger.debug(
                 'translation went wrong for "%r", skipped',
                 source,
@@ -410,12 +478,14 @@ class Environment(Mapping[str, "BaseModel"]):
         return source
 
     def clear(self) -> None:
+        _debug.lifecycle("environment.clear", uid=self.uid)
         reset_cached_properties(self)
         self.transaction.clear()
 
     def invalidate_all(
         self, flush: bool = True, *, keep_new_records: bool = False
     ) -> None:
+        _debug.lifecycle("environment.invalidate_all", uid=self.uid, flush=flush)
         if flush:
             self.flush_all()
         self.transaction.invalidate_field_data(keep_new_records=keep_new_records)
@@ -424,19 +494,19 @@ class Environment(Mapping[str, "BaseModel"]):
         self.transaction.flush(self)
 
     def is_protected(self, field: Field, record: BaseModel) -> bool:
-        return self._core.is_protected(field, record.id)
+        return self.core.is_protected(field, record.id)
 
     def protecting(self, what, records=None) -> _Protecting:
-        return _Protecting(self._core, what, records)
+        return _Protecting(self.core, what, records)
 
     def fields_to_compute(self) -> Collection[Field]:
-        return self._core.get_pending_fields()
+        return self.core.get_pending_fields()
 
     def get_records_to_compute(self, field: Field) -> BaseModel:
-        return self[field.model_name].browse(self._core.get_pending_ids(field))
+        return self[field.model_name].browse(self.core.get_pending_ids(field))
 
     def is_to_compute(self, field: Field, record: BaseModel) -> bool:
-        return self._core.is_pending(field, record.id)
+        return self.core.is_pending(field, record.id)
 
     def add_to_compute(self, field: Field, records: BaseModel) -> None:
         if not records:
@@ -444,12 +514,18 @@ class Environment(Mapping[str, "BaseModel"]):
         assert field.store and field.compute, (
             "Cannot add to recompute no-store or no-computed field"
         )
-        self._core.schedule(field, records._ids)
+        _debug.pipeline(
+            "environment.to_compute_added",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+        )
+        self.core.schedule(field, records._ids)
 
     def remove_to_compute(self, field: Field, records: BaseModel) -> None:
         if not records:
             return
-        self._core.mark_done(field, records._ids)
+        self.core.mark_done(field, records._ids)
 
     def get_cache_key(self, field: Field) -> typing.Any:
 
@@ -458,6 +534,8 @@ class Environment(Mapping[str, "BaseModel"]):
                 return self.company.id
             elif key == "uid":
                 return self.uid if field.compute_sudo else (self.uid, self.su)
+            elif key == "access":
+                return None if field.compute else self._access_scope()
             elif key == "lang":
                 return get_context("lang") or "en_US"
             elif key == "active_test":
@@ -484,6 +562,24 @@ class Environment(Mapping[str, "BaseModel"]):
         return tuple(get(key) for key in self._field_depends_context[field])
 
     @functools.cached_property
+    def _derived_envs(self) -> dict[tuple, Environment]:
+        return {}
+
+    def _derive(self, *, su: bool | None = None, **overrides) -> Environment:
+        # sudo().with_context(key=value) as the ORM's own hot paths spell it
+        # (trigger traversal, monetary rounding): the answer for a given
+        # environment never changes, and each lookup would hash a fresh
+        # context, so it is memoized per environment
+        key = (su, tuple(sorted(overrides.items())))
+        env = self._derived_envs.get(key)
+        if env is None:
+            env = self if su is None or su == self.su else self(su=su)
+            if any(env.context.get(k, _MISSING) != v for k, v in overrides.items()):
+                env = env(context=dict(env.context, **overrides))
+            self._derived_envs[key] = env
+        return env
+
+    @functools.cached_property
     def _field_cache_memo(
         self,
     ) -> dict[Field, MutableMapping[IdType, typing.Any]]:
@@ -508,20 +604,47 @@ class Environment(Mapping[str, "BaseModel"]):
         if not fields_to_flush:
             return
 
+        _debug.pipeline(
+            "environment.flush_query",
+            fields=len(fields_to_flush),
+            first=f"{fields_to_flush[0].model_name}.{fields_to_flush[0].name}",
+        )
         first = fields_to_flush[0]
-        if len(fields_to_flush) == 1:
-            self[first.model_name].flush_model([first.name])
-            return
         first_model = first.model_name
-        if all(f.model_name == first_model for f in fields_to_flush):
+        single_model = len(fields_to_flush) == 1 or all(
+            f.model_name == first_model for f in fields_to_flush
+        )
+        if single_model and not self.registry[first_model]._table_inheritance_root:
             self[first_model].flush_model([f.name for f in fields_to_flush])
             return
 
         fnames_to_flush = defaultdict[str, OrderedSet[str]](OrderedSet)
         for field in fields_to_flush:
             fnames_to_flush[field.model_name].add(field.name)
+        for model_name, field_names in list(fnames_to_flush.items()):
+            # a query on a table-inheritance root reads the rows every model
+            # of the tree writes, each through its own field cache
+            for tree_model_name in self._table_inheritance_tree(model_name):
+                fnames_to_flush[tree_model_name].update(
+                    name
+                    for name in field_names
+                    if name in self[tree_model_name]._fields
+                )
         for model_name, field_names in fnames_to_flush.items():
             self[model_name].flush_model(field_names)
+
+    def _table_inheritance_tree(self, model_name: str) -> tuple[str, ...]:
+        # A root UPDATE reaches the rows of every table inheriting from it and
+        # a leaf SELECT reads the rows the root writes, so the tree is the
+        # same set of models seen from any of its members.
+        root = self.registry[model_name]._table_inheritance_root
+        if not root:
+            return ()
+        return tuple(
+            name
+            for name in self.registry.model_names_by_inheritance_root.get(root, ())
+            if name != model_name
+        )
 
     def execute_query(self, query: SQL) -> list[tuple]:
         if not isinstance(query, SQL):
@@ -533,6 +656,7 @@ class Environment(Mapping[str, "BaseModel"]):
         except ProgrammingError as exc:
             if exc.sqlstate is not None:
                 raise
+            _debug.logic("environment.execute_query.no_result_set", uid=self.uid)
             return []
 
     def execute_query_dict(self, query: SQL) -> list[dict]:

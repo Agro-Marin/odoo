@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 PAPER_SIZES = [
     {
@@ -195,57 +198,79 @@ class ReportPaperformat(models.Model):
     _name = "report.paperformat"
     _description = "Paper Format Config"
 
-    name = fields.Char("Name", required=True)
+    name = fields.Char(required=True)
     format = fields.Selection(
-        [(ps["key"], ps["description"]) for ps in PAPER_SIZES],
-        "Paper size",
+        selection=[(ps["key"], ps["description"]) for ps in PAPER_SIZES],
+        string="Paper size",
         default="A4",
         help="Select Proper Paper size",
     )
-    margin_top = fields.Float("Top Margin (mm)", default=40)
-    margin_bottom = fields.Float("Bottom Margin (mm)", default=20)
-    margin_left = fields.Float("Left Margin (mm)", default=7)
-    margin_right = fields.Float("Right Margin (mm)", default=7)
-    page_height = fields.Integer("Page height (mm)", default=False)
-    page_width = fields.Integer("Page width (mm)", default=False)
+    margin_top = fields.Float(
+        string="Top Margin (mm)",
+        default=40,
+    )
+    margin_bottom = fields.Float(
+        string="Bottom Margin (mm)",
+        default=20,
+    )
+    margin_left = fields.Float(
+        string="Left Margin (mm)",
+        default=7,
+    )
+    margin_right = fields.Float(
+        string="Right Margin (mm)",
+        default=7,
+    )
+    page_height = fields.Integer(
+        string="Page height (mm)",
+        default=False,
+    )
+    page_width = fields.Integer(
+        string="Page width (mm)",
+        default=False,
+    )
     orientation = fields.Selection(
-        [("Landscape", "Landscape"), ("Portrait", "Portrait")],
-        "Orientation",
+        selection=[("Landscape", "Landscape"), ("Portrait", "Portrait")],
         default="Landscape",
     )
-    header_line = fields.Boolean("Display a header line", default=False)
+    header_line = fields.Boolean(
+        string="Display a header line",
+        default=False,
+    )
     header_spacing = fields.Integer(
-        "Header spacing (mm)",
+        string="Header spacing (mm)",
         default=35,
         help="Height in mm of the header area. Used by report templates (e.g. DIN 5008) "
         "as a layout variable. Has no effect on standard Odoo reports.",
     )
     disable_shrinking = fields.Boolean(
-        "Disable auto-shrinking",
+        string="Disable auto-shrinking",
         help="When enabled, the Web Studio report preview skips viewport-shrink "
         "correction. Has no effect on WeasyPrint PDF generation.",
     )
     dpi = fields.Integer(
-        "Preview DPI",
-        required=True,
+        string="Preview DPI",
         default=90,
+        required=True,
         help="DPI used to scale the HTML preview in Web Studio (96 / dpi = zoom factor). "
         "Does not affect WeasyPrint PDF output, which is resolution-independent.",
     )
     report_ids = fields.One2many(
-        "ir.actions.report",
-        "paperformat_id",
-        "Associated reports",
+        comodel_name="ir.actions.report",
+        inverse_name="paperformat_id",
+        string="Associated reports",
         help="Explicitly associated reports",
     )
     print_page_width = fields.Float(
-        "Print page width (mm)", compute="_compute_print_page_size"
+        string="Print page width (mm)",
+        compute="_compute_print_page_size",
     )
     print_page_height = fields.Float(
-        "Print page height (mm)", compute="_compute_print_page_size"
+        string="Print page height (mm)",
+        compute="_compute_print_page_size",
     )
     css_margins = fields.Boolean(
-        "Use body padding margins",
+        string="Use body padding margins",
         default=False,
         help="When enabled, horizontal spacing is applied as CSS body padding (8 mm) "
         "rather than @page margin rules. Header/footer running elements add matching "
@@ -255,9 +280,15 @@ class ReportPaperformat(models.Model):
 
     @api.constrains("format", "page_width", "page_height")
     def _check_format_or_page(self) -> None:
-        if self.filtered(
+        _debug.perf.count("format_or_page_checked", paperformats=len(self))
+        if conflicting := self.filtered(
             lambda x: x.format != "custom" and (x.page_width or x.page_height)
         ):
+            _debug.logic(
+                "format_rejected",
+                paperformats=conflicting.ids,
+                reason="format_and_page",
+            )
             raise ValidationError(
                 self.env._(
                     "You can select either a format or a specific page width/height, but not both."
@@ -266,15 +297,29 @@ class ReportPaperformat(models.Model):
 
     @api.depends("format", "orientation", "page_width", "page_height")
     def _compute_print_page_size(self) -> None:
+        _debug.perf.count("print_page_size_computed", paperformats=len(self))
         for record in self:
             width = height = 0.0
+            if _debug.logic.enabled and not record.format:
+                _debug.logic("page_size_missing_format", paperformat=record.id)
             if record.format:
                 if record.format == "custom":
                     width = record.page_width
                     height = record.page_height
+                    _debug.logic(
+                        "page_size_custom",
+                        paperformat=record.id,
+                        width=width,
+                        height=height,
+                    )
                 else:
                     paper_size = PAPER_SIZE_BY_KEY.get(record.format)
                     if paper_size is None:
+                        _debug.logic(
+                            "page_size_unknown",
+                            paperformat=record.id,
+                            format=record.format,
+                        )
                         record.print_page_width = 0.0
                         record.print_page_height = 0.0
                         continue
@@ -284,5 +329,13 @@ class ReportPaperformat(models.Model):
             if record.orientation == "Landscape":
                 width, height = height, width
 
+            _debug.logic(
+                "page_size_resolved",
+                paperformat=record.id,
+                format=record.format,
+                orientation=record.orientation,
+                width=width,
+                height=height,
+            )
             record.print_page_width = width
             record.print_page_height = height

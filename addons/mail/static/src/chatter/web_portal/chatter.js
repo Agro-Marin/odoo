@@ -10,6 +10,8 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -28,6 +30,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {boolean} disabled
  * @property {boolean} [isTopStickyPinned]
  */
+const log = makeLogger("mail.chatter");
+
 /**
  * @template {Props} [P=Props]
  * @template {State} [S=State]
@@ -40,6 +44,7 @@ export class Chatter extends Component {
     static defaultProps = { composer: true, threadId: false, twoColumns: false };
 
     setup() {
+        useLifecycleLog(log);
         this.store = useService("mail.store");
         /** @type {S} */
         this.state = /** @type {S} */ (
@@ -102,6 +107,11 @@ export class Chatter extends Component {
      * @param {number|false} threadId
      */
     changeThread(threadModel, threadId) {
+        log.lifecycle("changeThread", () => ({
+            from: this.state.thread?.localId,
+            threadModel,
+            threadId,
+        }));
         this.state.thread = this.store.Thread.insert({
             model: threadModel,
             id: threadId,
@@ -143,9 +153,15 @@ export class Chatter extends Component {
      */
     async load(thread, requestList) {
         if (!thread.id || !this.state.thread?.eq(thread)) {
+            log.logic("load skipped", () => ({
+                thread: thread.localId,
+                current: this.state.thread?.localId,
+            }));
             return;
         }
+        const endLoad = log.perf("load");
         await thread.fetchThreadData(requestList);
+        endLoad({ thread: thread.localId, requestList });
     }
 
     /** @param {boolean} [isDiscard] */
@@ -164,6 +180,7 @@ export class Chatter extends Component {
     }
 
     onPostCallback() {
+        log.logic("onPostCallback", () => ({ thread: this.state.thread?.localId }));
         this.state.jumpThreadPresent++;
         this.load(this.state.thread, this.afterPostRequestList);
     }

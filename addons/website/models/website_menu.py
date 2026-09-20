@@ -6,7 +6,10 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import html_translate
+
+_debug = DebugLog(__name__)
 
 
 class WebsiteMenu(models.Model):
@@ -41,45 +44,64 @@ class WebsiteMenu(models.Model):
                 menu.mega_menu_content = False
                 menu.mega_menu_classes = False
 
-    name = fields.Char("Menu", required=True, translate=True)
-    url = fields.Char(
-        "Url",
-        compute="_compute_url",
-        store=True,
+    name = fields.Char(
+        string="Menu",
+        translate=True,
         required=True,
-        readonly=False,
+    )
+    url = fields.Char(
+        compute="_compute_url",
         precompute=True,
+        store=True,
         copy=True,
+        readonly=False,
+        required=True,
     )
     page_id = fields.Many2one(
-        "website.page", "Related Page", ondelete="cascade", index="btree_not_null"
+        comodel_name="website.page",
+        string="Related Page",
+        index="btree_not_null",
+        ondelete="cascade",
     )
     controller_page_id = fields.Many2one(
-        "website.controller.page",
-        "Related Model Page",
-        ondelete="cascade",
+        comodel_name="website.controller.page",
+        string="Related Model Page",
         index="btree_not_null",
+        ondelete="cascade",
     )
-    new_window = fields.Boolean("New Window")
+    new_window = fields.Boolean()
     sequence = fields.Integer(default=_default_sequence)
-    website_id = fields.Many2one("website", "Website", ondelete="cascade")
-    parent_id = fields.Many2one(
-        "website.menu", "Parent Menu", index=True, ondelete="cascade"
+    website_id = fields.Many2one(
+        comodel_name="website",
+        ondelete="cascade",
     )
-    child_id = fields.One2many("website.menu", "parent_id", string="Child Menus")
+    parent_id = fields.Many2one(
+        comodel_name="website.menu",
+        string="Parent Menu",
+        index=True,
+        ondelete="cascade",
+    )
+    child_id = fields.One2many(
+        comodel_name="website.menu",
+        inverse_name="parent_id",
+        string="Child Menus",
+    )
     parent_path = fields.Char(index=True)
-    is_visible = fields.Boolean(compute="_compute_is_visible", string="Is Visible")
+    is_visible = fields.Boolean(compute="_compute_is_visible")
     group_ids = fields.Many2many(
-        "res.groups",
+        comodel_name="res.groups",
         string="Visible Groups",
         groups="base.group_user",
         help="User needs to be at least in one of these groups to see the menu",
     )
     is_mega_menu = fields.Boolean(
-        compute=_compute_is_mega_menu, inverse=_inverse_is_mega_menu
+        compute=_compute_is_mega_menu,
+        inverse=_inverse_is_mega_menu,
     )
     mega_menu_content = fields.Html(
-        translate=html_translate, sanitize=False, prefetch=True
+        translate=html_translate,
+        sanitize=False,
+        prefetch=True,
     )
     mega_menu_classes = fields.Char()
 
@@ -117,6 +139,9 @@ class WebsiteMenu(models.Model):
                 level += 1
                 current_menu = current_menu.parent_id
                 if level > 2:
+                    _debug.logic(
+                        "menu_refused", reason="too_deep", menu=record.id, level=level
+                    )
                     raise UserError(
                         _("Menus cannot have more than two levels of hierarchy.")
                     )
@@ -125,6 +150,9 @@ class WebsiteMenu(models.Model):
                 if parent_menu.is_mega_menu or (
                     record.is_mega_menu and (parent_menu.parent_id or record.child_id)
                 ):
+                    _debug.logic(
+                        "menu_refused", reason="mega_menu_nesting", menu=record.id
+                    )
                     raise UserError(
                         _("A mega menu cannot have a parent or child menu.")
                     )
@@ -132,14 +160,22 @@ class WebsiteMenu(models.Model):
                 if record.child_id and (
                     parent_menu.parent_id or record.child_id.child_id
                 ):
+                    _debug.logic(
+                        "menu_refused", reason="submenu_with_children", menu=record.id
+                    )
                     raise UserError(
                         _("Menus with child menus cannot be added as a submenu.")
                     )
 
     @api.model_create_multi
     def create(self, vals_list):
-        self.env.registry.clear_cache("templates")
         menus = self.env["website.menu"]
+        websites = self.env["website"]
+        if not self.env.context.get("website_id") and any(
+            "website_id" not in vals and vals.get("url") != "/default-main-menu"
+            for vals in vals_list
+        ):
+            websites = websites.search([])
         for vals in vals_list:
             if vals.get("url") == "/default-main-menu":
                 menus |= super().create(vals)
@@ -153,7 +189,7 @@ class WebsiteMenu(models.Model):
                 continue
             default_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
             w_vals = []
-            for website in self.env["website"].search([]):
+            for website in websites:
                 parent_id = vals.get("parent_id")
                 if not parent_id or (default_menu and parent_id == default_menu.id):
                     parent_id = website.menu_id.id
@@ -164,28 +200,39 @@ class WebsiteMenu(models.Model):
                         "parent_id": parent_id,
                     }
                 )
+            _debug.logic(
+                "menu_create",
+                by="fanned_out",
+                websites=len(websites),
+                url=vals.get("url"),
+            )
             new_menu = super().create(w_vals)[-1:]
             if default_menu and vals.get("parent_id") == default_menu.id:
                 new_menu = super().create(vals)
             menus |= new_menu
+        _debug.lifecycle("create", menus=menus, count=len(menus))
+        self.env.registry.clear_cache("templates")
         return menus
 
     def write(self, vals):
-        self.env.registry.clear_cache("templates")
+        _debug.lifecycle("write", menus=self, count=len(self), fields=sorted(vals))
         res = super().write(vals)
         if "group_ids" in vals and not self.env.context.get(
             "adding_designer_group_to_menu"
         ):
-            self.filtered("group_ids").with_context(
+            restricted = self.filtered("group_ids")
+            _debug.lifecycle("menu_designer_group_added", menus=restricted)
+            restricted.with_context(
                 adding_designer_group_to_menu=True
             ).group_ids += self.env.ref("website.group_website_designer")
+        # After the write, not before: a cache cleared ahead of its own change is
+        # free to be refilled from pre-change state by anything `super()` reads.
+        self.env.registry.clear_cache("templates")
         return res
 
     def unlink(self):
-        self.env.registry.clear_cache("templates")
         default_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
-        menus_to_remove = self
-        for menu in self.filtered(
+        generic_menus = self.filtered(
             lambda m: (
                 default_menu
                 and not m.website_id
@@ -193,20 +240,31 @@ class WebsiteMenu(models.Model):
                 and m.url
                 and m.url != "#"
             )
-        ):
+        )
+        menus_to_remove = self
+        if generic_menus:
             menus_to_remove |= self.env["website.menu"].search(
                 [
-                    ("url", "=", menu.url),
+                    ("url", "in", generic_menus.mapped("url")),
                     ("website_id", "!=", False),
-                    ("id", "!=", menu.id),
                 ]
             )
-        return super(WebsiteMenu, menus_to_remove).unlink()
+        _debug.lifecycle(
+            "unlink",
+            menus=self,
+            count=len(self),
+            generic=len(generic_menus),
+            cascaded=len(menus_to_remove) - len(self),
+        )
+        result = super(WebsiteMenu, menus_to_remove).unlink()
+        self.env.registry.clear_cache("templates")
+        return result
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_master_tags(self):
         main_menu = self.env.ref("website.main_menu", raise_if_not_found=False)
         if main_menu and main_menu in self:
+            _debug.logic("menu_unlink_refused", reason="main_menu")
             raise UserError(
                 _(
                     "You cannot delete this website menu as this serves as the default parent menu for new websites (e.g., /shop, /event, ...)."
@@ -309,7 +367,14 @@ class WebsiteMenu(models.Model):
     @api.model
     def save(self, website_id, data):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
+            _debug.logic("menu_save_refused", reason="not_restricted_editor")
             raise AccessError(_("Only website editors can edit the menus."))
+        _debug.pipeline(
+            "menu_save",
+            website=website_id,
+            menus=len(data.get("data") or ()),
+            deleted=len(data.get("to_delete") or ()),
+        )
 
         def replace_id(old_id, new_id):
             for menu in data["data"]:
@@ -341,8 +406,9 @@ class WebsiteMenu(models.Model):
                     Domain("url", "=", menu["url"])
                     | Domain("url", "=", "/" + menu["url"])
                 )
-                page = self.env["website.page"].search(domain, limit=1)
+                page = self.env["website.page"].search(domain, limit=1)  # noqa: E8507 - one probe per submitted menu url; the limit=1 pick follows the website-specific ordering
                 if page:
+                    _debug.logic("menu_bound", by="page", menu=menu_id.id, page=page.id)
                     menu["page_id"] = page.id
                     menu["url"] = page.url
                     if isinstance(menu.get("parent_id"), str):
@@ -350,8 +416,20 @@ class WebsiteMenu(models.Model):
                 elif menu_id.page_id:
                     try:
                         self.env["ir.http"]._match(menu["url"])
+                        _debug.logic(
+                            "menu_bound",
+                            by="controller",
+                            menu=menu_id.id,
+                            url=menu["url"],
+                        )
                         menu_id.page_id = None
                     except werkzeug.exceptions.NotFound:
+                        _debug.logic(
+                            "menu_bound",
+                            by="page_url_rewritten",
+                            menu=menu_id.id,
+                            url=menu["url"],
+                        )
                         menu_id.page_id.write({"url": menu["url"]})
             menu_id.write(
                 {k: v for k, v in menu.items() if k in self._SAVE_ALLOWED_FIELDS}

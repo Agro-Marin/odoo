@@ -3,7 +3,8 @@ import {
     hrSkillModels,
 } from "@hr_skills/../tests/hr_skills_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { queryAllTexts } from "@odoo/hoot-dom";
+import { click, queryAllTexts } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import { defineModels, models, mountView, onRpc } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
@@ -74,6 +75,28 @@ test("two skill types sharing a name are two groups", async () => {
         "Languages",
         "Languages",
     ]);
+    expect(".o_skill_table .o_data_row").toHaveCount(2);
+    expect(queryAllTexts(".o_skill_table .o_data_row [name=skill_id]")).toEqual([
+        "French",
+        "LSF",
+    ]);
+});
+
+test("a skill row is the list's row component, editable on click", async () => {
+    const employeeId = seedEmployeeWithTwoHomonymTypes();
+    await mountView({
+        type: "form",
+        resModel: "hr.employee",
+        resId: employeeId,
+        arch: SKILLS_ARCH.replace("<list>", '<list editable="bottom">'),
+    });
+    expect(".o_skill_table .o_data_row.o_selected_row").toHaveCount(0);
+    await click(".o_skill_table .o_data_row:eq(1) [name=skill_level_id]");
+    await animationFrame();
+    expect(".o_skill_table .o_data_row:eq(1)").toHaveClass("o_selected_row");
+    expect(".o_skill_table .o_data_row:eq(1) [name=skill_level_id] input").toHaveCount(
+        1,
+    );
 });
 
 // The renderer asked four questions on every form open -- does any skill type

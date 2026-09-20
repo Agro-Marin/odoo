@@ -39,7 +39,6 @@ If the automated inventory valuation is active, the necessary accounting entries
             "mrp_account/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_configure_journals",
 }

@@ -1,6 +1,9 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.sale import const
+
+_debug = DebugLog(__name__)
 
 
 class SaleReport(models.Model):
@@ -11,8 +14,8 @@ class SaleReport(models.Model):
     _order = "date_order desc"
 
     order_reference = fields.Reference(
-        string="Order",
         selection=[("sale.order", "Sales Order")],
+        string="Order",
         aggregator="count_distinct",
     )
     currency_id = fields.Many2one(
@@ -52,11 +55,6 @@ class SaleReport(models.Model):
         comodel_name="product.pricelist",
         readonly=True,
     )
-    team_id = fields.Many2one(
-        comodel_name="crm.team",
-        string="Sales Team",
-        readonly=True,
-    )
     user_id = fields.Many2one(
         comodel_name="res.users",
         string="Salesperson",
@@ -64,17 +62,14 @@ class SaleReport(models.Model):
     )
     campaign_id = fields.Many2one(
         comodel_name="utm.campaign",
-        string="Campaign",
         readonly=True,
     )
     medium_id = fields.Many2one(
         comodel_name="utm.medium",
-        string="Medium",
         readonly=True,
     )
     source_id = fields.Many2one(
         comodel_name="utm.source",
-        string="Source",
         readonly=True,
     )
     name = fields.Char(
@@ -86,9 +81,7 @@ class SaleReport(models.Model):
         string="Status",
         readonly=True,
     )
-    sent = fields.Boolean(
-        readonly=True,
-    )
+    sent = fields.Boolean(readonly=True)
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
         string="Order Invoice Status",
@@ -114,18 +107,28 @@ class SaleReport(models.Model):
         string="Unit",
         readonly=True,
     )
-    qty_transferred = fields.Float(string="Qty Delivered", readonly=True)
-    qty_to_transfer = fields.Float(string="Qty To Deliver", readonly=True)
-    qty_invoiced = fields.Float(string="Qty Invoiced", readonly=True)
-    qty_to_invoice = fields.Float(string="Qty To Invoice", readonly=True)
+    qty_transferred = fields.Float(
+        string="Qty Delivered",
+        readonly=True,
+    )
+    qty_to_transfer = fields.Float(
+        string="Qty To Deliver",
+        readonly=True,
+    )
+    qty_invoiced = fields.Float(readonly=True)
+    qty_to_invoice = fields.Float(readonly=True)
     price_average = fields.Monetary(
         string="Average Price",
         readonly=True,
         aggregator="avg",
         help="Quantity-weighted average sale price (not a cost).",
     )
-    discount = fields.Float(string="Discount %", readonly=True, aggregator="avg")
-    discount_amount = fields.Monetary(string="Discount Amount", readonly=True)
+    discount = fields.Float(
+        string="Discount %",
+        readonly=True,
+        aggregator="avg",
+    )
+    discount_amount = fields.Monetary(readonly=True)
     amount_taxexc_invoiced = fields.Monetary(
         string="Untaxed Amount Invoiced",
         readonly=True,
@@ -158,7 +161,6 @@ class SaleReport(models.Model):
             "partner_zip": "partner.zip",
             "industry_id": "partner.primary_industry_id",
             "pricelist_id": "o.pricelist_id",
-            "team_id": "o.team_id",
             "user_id": "o.user_id",
             "campaign_id": "o.campaign_id",
             "medium_id": "o.medium_id",
@@ -270,6 +272,11 @@ class SaleReport(models.Model):
 
         additional_fields = self._select_additional_fields()
         fields.update(additional_fields)
+        _debug.pipeline(
+            "report_fields_select",
+            columns=len(fields),
+            additional=len(additional_fields),
+        )
 
         return fields
 
@@ -277,6 +284,7 @@ class SaleReport(models.Model):
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
         )
+        _debug.perf.count("report_currency_table", companies=self.env.companies)
 
         return [
             ("sale_order_line", "l", None, None),
@@ -314,7 +322,6 @@ class SaleReport(models.Model):
             "o.medium_id",
             "o.source_id",
             "o.pricelist_id",
-            "o.team_id",
             "p.product_tmpl_id",
             "partner.commercial_partner_id",
             "partner.country_id",

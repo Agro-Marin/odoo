@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
+import { toRaw } from "@odoo/owl";
 import { CalendarCommonRenderer } from "@web/views/calendar";
+
+/** @type {WeakSet<object>} */
+const defaultEventPopoverOpened = new WeakSet();
 
 export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     static eventTemplate = "calendar.AttendeeCalendarCommonRenderer.event";
@@ -11,8 +15,6 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     };
     /**
      * @override
-     *
-     * Give a new key to our fc records to be able to iterate through in templates
      */
     convertRecordToEvent(record) {
         let editable = false;
@@ -47,20 +49,20 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     onEventDidMount({ el, event }) {
         super.onEventDidMount(...arguments);
         const record = this.props.model.records[event.id];
-        if (record) {
-            if (
-                this.env.searchModel?.context?.default_calendar_event_id ===
-                parseInt(event.id)
-            ) {
-                this.openPopover(el, record);
-            }
+        if (
+            record &&
+            this.env.searchModel?.context?.default_calendar_event_id ===
+                parseInt(event.id) &&
+            !defaultEventPopoverOpened.has(toRaw(this.props.model))
+        ) {
+            // the prop is a reactive proxy that differs per renderer instance
+            defaultEventPopoverOpened.add(toRaw(this.props.model));
+            this.openPopover(el, record);
         }
     }
 
     /**
      * @override
-     *
-     * Allow slots to be selected over multiple days
      */
     isSelectionAllowed(event) {
         return true;

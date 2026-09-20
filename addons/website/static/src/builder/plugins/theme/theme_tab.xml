@@ -5,7 +5,6 @@
     <div class="o_theme_tab h-100" role="tabpanel" aria-labelledby="theme-tab">
         <div t-ref="content" class="d-flex flex-column h-100">
             <t t-foreach="optionsContainers" t-as="optionsContainer" t-key="optionsContainer.id">
-                <!-- TODO Define a more basic kind of options container -->
                 <OptionsContainer
                     snippetModel="optionsContainer.snippetModel"
                     editingElement="optionsContainer.element"
@@ -63,7 +62,6 @@
             <BuilderFontFamilyPicker action="'customizeWebsiteVariable'" actionParam="'font'" valueParamName="'actionValue'"/>
         </BuilderRow>
         <BuilderRow label.translate="Line Height">
-            <!-- "×": \u00D7\u2000 -->
             <BuilderNumberInput action="'customizeWebsiteVariable'" actionParam="'body-line-height'" default="null" unit="'✕'" saveUnit="''"/>
         </BuilderRow>
         <BuilderRow label.translate="Margins" action="'customizeWebsiteVariable'">

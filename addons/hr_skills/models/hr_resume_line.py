@@ -1,6 +1,10 @@
 from urllib.parse import urlsplit
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+from odoo.tools.mail import normalize_url
+
+_debug = DebugLog(__name__)
 
 
 class HrResumeLine(models.Model):
@@ -9,20 +13,31 @@ class HrResumeLine(models.Model):
     _order = "line_type_id, date_end desc, date_start desc"
 
     employee_id = fields.Many2one(
-        "hr.employee", string="Employee", required=True, ondelete="cascade", index=True
+        comodel_name="hr.employee",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     avatar_128 = fields.Image(related="employee_id.avatar_128")
     company_id = fields.Many2one(related="employee_id.company_id")
     department_id = fields.Many2one(related="employee_id.department_id")
-    name = fields.Char(required=True, translate=True)
-    date_start = fields.Date(required=True, default=fields.Date.context_today)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    date_start = fields.Date(
+        default=fields.Date.context_today,
+        required=True,
+    )
     date_end = fields.Date()
-    duration = fields.Integer(string="Duration")
-    description = fields.Html(string="Description", translate=True)
-    line_type_id = fields.Many2one("hr.resume.line.type", string="Type")
+    duration = fields.Integer()
+    description = fields.Html(translate=True)
+    line_type_id = fields.Many2one(
+        comodel_name="hr.resume.line.type",
+        string="Type",
+    )
     is_course = fields.Boolean(related="line_type_id.is_course")
     course_type = fields.Selection(
-        string="Course Type",
         selection=[("external", "External")],
         default="external",
         required=True,
@@ -37,13 +52,31 @@ class HrResumeLine(models.Model):
     certificate_filename = fields.Char()
     certificate_file = fields.Binary(string="Certificate")
     resume_line_properties = fields.Properties(
-        "Properties", definition="line_type_id.resume_line_type_properties_definition"
+        definition="line_type_id.resume_line_type_properties_definition",
+        string="Properties",
     )
 
     _date_check = models.Constraint(
         "CHECK ((date_start <= date_end OR date_end IS NULL))",
         "The start date must be anterior to the end date.",
     )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            self._normalize_external_url(vals)
+        _debug.lifecycle("resume_lines_created", count=len(vals_list))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        self._normalize_external_url(vals)
+        _debug.lifecycle("resume_line_write", lines=self, fields=list(vals))
+        return super().write(vals)
+
+    @staticmethod
+    def _normalize_external_url(vals):
+        if url := (vals.get("external_url") or "").strip():
+            vals["external_url"] = normalize_url(url)
 
     @api.onchange("external_url")
     def _onchange_external_url(self):

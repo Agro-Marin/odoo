@@ -13,7 +13,7 @@
         <field name="model_id" ref="test_mail_full.model_mail_test_rating" />
         <field
             name="domain_force">[('message_partner_ids', 'in', [user.partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
 </odoo>

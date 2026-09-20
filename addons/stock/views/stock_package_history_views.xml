@@ -10,23 +10,23 @@
                 <field name="location_id" groups="stock.group_stock_multi_locations" />
                 <field name="package_type_id" />
                 <filter
-                    string="In internal locations"
                     name="internal"
+                    string="In internal locations"
                     domain="['|', ('location_id.usage', '=', 'internal'), ('location_id', '=', False)]"
                     groups="stock.group_stock_multi_locations" />
                 <filter
-                    string="Main Packages"
                     name="main_packages"
+                    string="Main Packages"
                     domain="[('parent_dest_id', '=', False)]" />
                 <group>
                     <filter
-                        string="Location"
                         name="location"
+                        string="Location"
                         context="{'group_by' : 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter
-                        string="Package Type"
                         name="package_type"
+                        string="Package Type"
                         context="{'group_by' : 'package_type_id'}" />
                 </group>
             </search>
@@ -47,13 +47,13 @@
                 <field name="parent_dest_id" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <button
                     name="action_view_package"
                     type="object"
-                    width="50px"
-                    string="View" />
+                    string="View"
+                    width="50px" />
             </list>
         </field>
     </record>

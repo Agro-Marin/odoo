@@ -8,9 +8,12 @@ import {
     useExternalListener,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { isHtmlEmpty, isMarkup } from "@web/core/utils/dom/html";
 import { useDebounced } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.composer.draft");
 
 /**
  * @typedef {Object} ComposerDraft
@@ -27,6 +30,12 @@ export function saveComposerDraft(
     composer,
     { composerHtml, emailAddSignature, replyToMessageId, fromFullComposer = false },
 ) {
+    log.logic("saveComposerDraft", () => ({
+        composer: composer.localId,
+        empty: isHtmlEmpty(composerHtml),
+        replyToMessageId,
+        fromFullComposer,
+    }));
     if (isHtmlEmpty(composerHtml)) {
         browser.localStorage.removeItem(composer.localId);
     } else {
@@ -55,11 +64,20 @@ export function restoreComposerDraft(composer) {
     try {
         config = JSON.parse(browser.localStorage.getItem(composer.localId));
     } catch {
+        log.logic("restoreComposerDraft discards unparsable draft", () => ({
+            composer: composer.localId,
+        }));
         browser.localStorage.removeItem(composer.localId);
     }
     if (!config) {
         return;
     }
+    log.logic("restoreComposerDraft", () => ({
+        composer: composer.localId,
+        empty: isHtmlEmpty(config.composerHtml),
+        replyToMessageId: config.replyToMessageId,
+        fromFullComposer: config.fromFullComposer,
+    }));
     if (!isHtmlEmpty(config.composerHtml)) {
         if (composer.thread && !composer.thread.isChannelKind) {
             composer.restoredFromFullComposer = config.fromFullComposer;
@@ -135,6 +153,9 @@ export function useComposerDraft() {
             if (recoveryPopover.isOpen) {
                 return;
             }
+            log.lifecycle("recovery popover open", () => ({
+                composer: comp.props.composer.localId,
+            }));
             recoveryPopover.open(fullComposerButtonEl, {
                 composer: comp.props.composer,
                 onClickFullRecover: () => {

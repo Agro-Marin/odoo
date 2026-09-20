@@ -6,9 +6,15 @@ class JobAddApplicants(models.TransientModel):
     _description = "Add applicants to a job"
 
     applicant_ids = fields.Many2many(
-        "hr.applicant", string="Applications", required=True
+        comodel_name="hr.applicant",
+        string="Applications",
+        required=True,
     )
-    job_ids = fields.Many2many("hr.job", string="Job Positions", required=True)
+    job_ids = fields.Many2many(
+        comodel_name="hr.job",
+        string="Job Positions",
+        required=True,
+    )
 
     def _add_applicants_to_job(self):
         applicant_data = self.with_context(
@@ -44,7 +50,11 @@ class JobAddApplicants(models.TransientModel):
             message = self.env._(
                 "Created %(amount)s new applications for: %(names)s",
                 amount=len(new_applicants),
-                names=", ".join({a.partner_name for a in new_applicants}),
+                names=", ".join(
+                    dict.fromkeys(
+                        a.partner_name for a in new_applicants if a.partner_name
+                    )
+                ),
             )
             return {
                 "type": "ir.actions.client",

@@ -7,7 +7,6 @@ registry
     .add("event_booth_sale_pricelists_different_currencies", {
         url: "/event",
         steps: () => [
-            // Init: registering the booth
             {
                 content: 'Open "Test Event Booths" event',
                 trigger: 'h5.card-title span:contains("Test Event Booths")',

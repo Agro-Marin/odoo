@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Template -->
     <template id="s_showcase" name="Showcase">
         <section class="s_showcase pt48 pb48" data-vcss="003">
             <div class="container">
@@ -58,7 +57,6 @@
         </section>
     </template>
 
-    <!-- Assets -->
     <asset id="website.s_showcase_000_scss" name="Showcase 000 SCSS" active="False">
         <bundle>web.assets_frontend</bundle>
         <path>website/static/src/snippets/s_showcase/000.scss</path>

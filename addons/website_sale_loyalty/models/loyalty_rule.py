@@ -1,20 +1,19 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class LoyaltyRule(models.Model):
     _inherit = "loyalty.rule"
 
-    website_id = fields.Many2one(related="program_id.website_id", store=True)
+    website_id = fields.Many2one(
+        related="program_id.website_id",
+    )
 
-    # NOTE: is this sufficient?
     @api.constrains("code", "website_id", "active")
     def _check_code(self):
-        # Overrides `loyalty.rule._check_code` -- it must keep that name, or both
-        # run and the website-blind base one rejects a legitimate cross-website
-        # duplicate.
-        # Programs with the same code are allowed to coexist as long as they are
-        # not both accessible from a website.
         with_code = self.filtered(lambda r: r.mode == "with_code" and r.active)
         mapped_codes = with_code.mapped("code")
         read_result = self.env["loyalty.rule"].search_read(
@@ -35,10 +34,13 @@ class LoyaltyRule(models.Model):
             for website in website_checks:
                 val = (res["code"], website)
                 if val in existing_codes:
+                    _debug.logic(
+                        "promo_code_refused", reason="duplicate", code=res["code"]
+                    )
                     raise ValidationError(_("The promo code must be unique."))
                 existing_codes.add(val)
-        # Prevent coupons and programs from sharing a code
         if self.env["loyalty.card"].search_count(
             [("code", "in", mapped_codes), ("active", "=", True)], limit=1
         ):
+            _debug.logic("promo_code_refused", reason="coupon_exists")
             raise ValidationError(_("A coupon with the same code was found."))

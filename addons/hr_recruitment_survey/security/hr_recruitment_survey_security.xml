@@ -10,11 +10,11 @@
                 name="domain_force">[('survey_id.survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_user_input_line_rule_recruitment_manager" model="ir.rule">
             <field
@@ -24,11 +24,11 @@
                 name="domain_force">[('survey_id.survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_survey_rule_recruitment_manager" model="ir.rule">
             <field
@@ -37,11 +37,11 @@
             <field name="domain_force">[('survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_question_rule_recruitment_manager" model="ir.rule">
             <field
@@ -51,11 +51,11 @@
                 name="domain_force">[('survey_id.survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_question_answer_rule_recruitment_manager" model="ir.rule">
             <field
@@ -66,11 +66,11 @@
                 ('matrix_question_id.survey_id.survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_invite_recruitment_manager" model="ir.rule">
             <field
@@ -80,11 +80,11 @@
                 name="domain_force">[('survey_id.survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_user_input_rule_recruitment_user" model="ir.rule">
             <field
@@ -97,11 +97,11 @@
                         ('survey_id.restrict_user_ids', '=', False)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_user'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_user_input_line_rule_recruitment_user" model="ir.rule">
             <field
@@ -114,11 +114,11 @@
                         ('survey_id.restrict_user_ids', '=', False)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_user'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_survey_rule_recruitment_user" model="ir.rule">
             <field
@@ -127,11 +127,11 @@
             <field name="domain_force">[('survey_type', '=', 'recruitment')]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]" />
-            <field name="perm_unlink" eval="1" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_user'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
         <record id="survey_invite_recruitment_user" model="ir.rule">
             <field
@@ -144,11 +144,11 @@
                         ('survey_id.restrict_user_ids', '=', False)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_user'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record
             id="survey_user_input_line_rule_recruitment_interviewer"
@@ -164,11 +164,11 @@
                 ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_user_input_rule_recruitment_interviewer" model="ir.rule">
             <field
@@ -182,11 +182,11 @@
                 ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_survey_recruitment_interviewer" model="ir.rule">
             <field
@@ -199,11 +199,11 @@
                 ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_question_recruitment_interviewer" model="ir.rule">
             <field
@@ -216,11 +216,11 @@
                 ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_invite_recruitment_interviewer" model="ir.rule">
             <field
@@ -233,11 +233,11 @@
                 ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="1" />
+                eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_interviewer'))]" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
             <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="0" />
         </record>
     </data>
 

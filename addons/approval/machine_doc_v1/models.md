@@ -1,29 +1,27 @@
 # Approval Models
 
+`approval.template` and `approval.document.requirement` belong to `approval_app`
+since 19.0.2.6.0, together with the request form's fields marked below: the
+engine routes and decides a request, the application is how a person raises one.
+
 ## Model Relationship Diagram
 
 ```
 approval.category                       [inherits mixin.mail.thread, mixin.catalog]
-    +-- approver_ids -----> approval.category.approver
-    |                           +-- user_id -----> res.users
-    |                           +-- approver_ids -> res.users (m2m)
-    |                           +-- currency_id -> res.currency
     +-- rule_ids ---------> approval.rule      [inherits mixin.approval.threshold, mixin.approval.domain]
-    |                           +-- approver_ids -> res.users (m2m)
     |                           +-- currency_id -> res.currency
     |                           +-- subject_model_id -> ir.model
-    +-- step_ids ---------> approval.category.step   [inherits mixin.approval.domain]
+    +-- step_ids ---------> approval.category.step   [inherits mixin.approval.threshold, mixin.approval.domain]
     |                           +-- member_ids -> approval.category.step.member
     |                           |                   +-- user_id / delegated_by_id -> res.users
     |                           +-- group_id -> res.groups
     |                           +-- notify_user_ids -> res.users (m2m)
-    +-- document_requirement_ids -> approval.document.requirement
-    +-- template_count ----> approval.template (o2m via category_id)
+    +-- document_requirement_ids -> approval.document.requirement   (approval_app)
+    +-- template_count ----> approval.template (o2m via category_id)   (approval_app)
     +-- allowed_user_ids --> res.users (m2m)
     +-- allowed_group_ids -> res.groups (m2m)
-    +-- approver_group_id -> res.groups
     +-- escalation_user_id -> res.users
-    +-- automation_id ----> automation.rule
+    +-- automation_id ----> automation.rule   (approval_automation)
     +-- sequence_id ------> ir.sequence
 
 approval.request
@@ -41,11 +39,11 @@ approval.request
     |                           +-- source_rule_id -> approval.rule
     |                           +-- refusal_reason_id -> approval.refusal.reason
     +-- refusal_reason_id -> approval.refusal.reason (canonical, request-level)
-    +-- template_id -------> approval.template
+    +-- template_id -------> approval.template   (approval_app)
     +-- applied_rule_ids --> approval.rule (m2m)
     +-- res_model/res_id --> Any model (Many2oneReference)
     +-- attachment_ids ----> ir.attachment (o2m)
-    +-- automation_runtime_id -> automation.runtime
+    +-- automation_runtime_id -> automation.runtime   (approval_automation)
 
 mixin.approval.threshold (Abstract)   — base of approval.rule
     +-- company_id --------> res.company   (empty = applies to every company)
@@ -57,7 +55,7 @@ mixin.approval.domain (Abstract)      — base of approval.rule, approval.bindin
 approval.binding                        [inherits mixin.approval.domain]
     +-- model_id ----------> ir.model
     +-- category_id -------> approval.category
-    +-- observation_ids ---> approval.binding.observation (o2m)
+    +-- observation_ids ---> approval.observation (o2m)
                                 +-- user_id -----> res.users
 
 mixin.approval.source (Abstract)
@@ -71,22 +69,15 @@ mixin.approval (Abstract)              [inherits mixin.approval.source]
 mixin.approval.state.sync (Abstract)   [inherits mixin.approval]
     +-- the document's own state field (declared per adopter) drives approval_request_id
 
+mixin.approval.lifecycle (Abstract)    [inherits mixin.approval, mixin.lifecycle]
+    +-- action_confirm asks for approval where a category applies
+
 mixin.approval.subjects (Abstract)     [inherits mixin.approval.source]
+mixin.approval.access (Abstract)       [inherits mixin.approval.subjects]
     +-- approval_request_ids -> approval.request (o2m on res_id, one live per subject_key)
 
 approval.refusal.reason
     +-- category_ids ------> approval.category (m2m)
-
-approval.metrics (SQL View)
-    +-- category_id -------> approval.category
-
-approver.performance (SQL View)
-    +-- user_id -----------> res.users
-
-approval.dashboard (Singleton)
-    +-- slowest_category_id -> approval.category
-    +-- slowest_approver_id -> res.users
-    +-- most_pending_approver_id -> res.users
 
 mail.activity (extended)
     +-- approval_request_id -> approval.request (computed from approver_id)
@@ -130,34 +121,28 @@ so category names are unique per company, archived rows included.
 | `sequence_id` | Many2one(`ir.sequence`) | Yes | No | check_company |
 | `image` | Binary | Yes | No | default=Folder.png |
 | `description` | Char | Yes | No | translate |
-| `has_date` | Selection(required/optional/no) | Yes | Yes | default="no", tracking |
-| `has_date_deadline` | Selection | Yes | Yes | default="no", tracking |
-| `has_date_planned` | Selection | Yes | Yes | default="no", tracking |
-| `has_date_range` | Selection | Yes | Yes | default="no", tracking |
-| `has_partner` | Selection | Yes | Yes | default="no", tracking |
-| `has_automation` | Selection | Yes | Yes | default="no", tracking |
-| `has_quantity` | Selection | Yes | Yes | default="no", tracking |
-| `has_amount` | Selection | Yes | Yes | default="no", tracking |
-| `has_reference` | Selection | Yes | Yes | default="no", tracking |
-| `has_location` | Selection | Yes | Yes | default="no", tracking |
-| `has_document` | Selection(required/optional) | Yes | Yes | default="optional", tracking |
-| `group_approval` | Selection(`no`="Users" / `exclusive`="Security group") | Yes | Yes | default="no", tracking. Labelled "Approver Source". Only two values, so `!= "no"` and `== "exclusive"` are the same test in `_compute_desired_approvers` — in `exclusive` mode the category list, the manager hook and approver-replacing rules are all bypassed and the group's `all_user_ids` become the approvers, all optional |
-| `approver_group_id` | Many2one(`res.groups`) | Yes | No | tracking |
-| `approver_group_user_ids` | Many2many(`res.users`) | No | No | related=approver_group_id.all_user_ids — members reachable through implied groups, not just direct ones |
+| `has_date` | Selection(required/optional/no) | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_date_deadline` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_date_planned` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_date_range` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_partner` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_automation` | Selection | Yes | Yes | default="no", tracking *(added by `approval_automation`)* |
+| `has_quantity` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_amount` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_reference` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_location` | Selection | Yes | Yes | default="no", tracking *(added by `approval_app`)* |
+| `has_document` | Selection(required/optional) | Yes | Yes | default="optional", tracking *(added by `approval_app`)* |
+| `allow_self_approval` | Boolean | No | Yes | Whether the request owner may also decide; off, no step stages them. Off by default; categories existing at 19.0.2.1.0 were migrated to on |
 | `allowed_user_ids` | Many2many(`res.users`) | Yes | No | Gate request creation; also the `restricted_users` read audience |
 | `allowed_group_ids` | Many2many(`res.groups`) | Yes | No | Gate request creation; also the `restricted_groups` read audience |
 | `privacy_visibility` | Selection(private/restricted_users/restricted_groups/employees) | Yes | Yes | **default="private"**, tracking. Additive READ audience (ir.rule based) — the default adds NO audience beyond requester/approvers/delegates/managers |
-| `approval_minimum` | Integer | Yes | Yes | default=1, tracking |
+| `approval_minimum` | Integer | Yes | Yes | default=1, tracking. A request's minimum when none of the category's steps applies, and the minimum of a pool step `_add_approver` creates |
 | `approval_type` | Selection([general]) | Yes | No | tracking, extensible |
 | `target_model` | Selection([]) | Yes | No | tracking, extensible |
-| `approve_sequentially` | Boolean | Yes | No | tracking |
-| `approver_ids` | One2many(`approval.category.approver`) | Yes | No | |
-| `document_requirement_ids` | One2many(`approval.document.requirement`) | Yes | No | |
+| `document_requirement_ids` | One2many(`approval.document.requirement`) | Yes | No | *(added by `approval_app`)* |
 | `rule_ids` | One2many(`approval.rule`) | Yes | No | |
 | `rule_count` | Integer | No | No | compute |
-| `template_count` | Integer | No | No | compute |
-| `invalid_minimum` | Boolean | No | No | compute |
-| `invalid_minimum_warning` | Char | No | No | compute |
+| `template_count` | Integer | No | No | compute *(added by `approval_app`)* |
 | `count_request_to_validate` | Integer | No | No | compute |
 | `color` | Integer | Yes | No | |
 | `kanban_dashboard` | Text | No | No | compute (JSON) |
@@ -169,8 +154,8 @@ so category names are unique per company, archived rows included.
 | `sla_target_hours` | Integer | Yes | No | default=0, tracking |
 | `sla_warning_pct` | Integer | Yes | No | default=80, tracking |
 | `consent_approval_hours` | Integer | Yes | No | default=0, tracking |
-| `automation_id` | Many2one(`automation.rule`) | Yes | No | |
-| `step_ids` | One2many(`approval.category.step`) | — | No | Declaring steps switches the category to step mode. Without steps, the flat `approver_ids` and `approval_minimum` apply exactly as before |
+| `automation_id` | Many2one(`automation.rule`) | Yes | No | *(added by `approval_automation`)* |
+| `step_ids` | One2many(`approval.category.step`) | — | No | Every request routes by the steps whose condition it meets. A category created where the context carries `approval_category_routes_by_steps` starts with an "Approvers" step counting approvers added by hand (`default_get`) |
 | `notify_sequentially` | Boolean | Yes | No | Step mode only. Every step may be decided at any time, but an approver is only asked — given an activity — once every earlier step is met. It orders the asking, not the deciding |
 | `activity_target` | Selection | Yes | No | string="Ask Approvers On", default `request`. `document` asks each approver on the request's source document, when it has one that holds activities; the activity still decides the request when done (it carries `approver_id`) |
 
@@ -181,20 +166,16 @@ so category names are unique per company, archived rows included.
 | `create()` | Always auto-creates the ir.sequence from sequence_code |
 | `write()` | Syncs sequence_code and company_id to ir.sequence |
 | `_compute_kanban_dashboard()` | Batched _read_group for dashboard JSON |
-| `_compute_minimum_validity()` | Validates minimum vs available approvers |
 | `create_request()` | Opens new request form with defaults |
 | `_get_view_request()` | Base helper for all dashboard view actions |
+| `_add_approver(user, required, sequence)` | Adds `user` as a member of the category's pool step, the first counting approvers added by hand, creating that step when the category has none |
 
 ### Constraints
 
 | Method | Rule |
 |--------|------|
-| `_constrains_approval_minimum` | minimum >= count(required approvers) |
-| `_constrains_approver_ids` | No duplicate users in approver list |
-| `_constrains_approve_sequentially` | Sequential requires minimum >= 1 |
-| `_constrains_consent_sequential` | Consent auto-approval cannot be combined with sequential approval |
-| `_constrains_approval_minimum_vs_group` | In `exclusive` mode the minimum cannot exceed the security group's member count — the group IS the approver list, so a higher minimum is unreachable |
-| `_constrains_group_approval` | Group approval requires a security group (with members in exclusive mode) |
+| `_constrains_approval_minimum` | minimum >= 1 |
+| `_constrains_consent_sequential` | Consent auto-approval cannot be combined with a step whose members decide in order |
 
 ### SQL constraints
 
@@ -202,27 +183,6 @@ so category names are unique per company, archived rows included.
 |------|------|
 | `_name_src_uniq` | `name` unique per `company_id` (redeclares `mixin.catalog`'s default whole-table index with a company scope; archived rows keep their name reserved) |
 | `_sequence_code_uniq` | `unique nulls not distinct (sequence_code, company_id)` |
-
----
-
-## approval.category.approver
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.category.approver` |
-| File | `models/approval_category_approver.py` |
-| Type | Model |
-| Order | `sequence` |
-
-### Fields
-
-| Field | Type | Stored | Required | Key Attributes |
-|-------|------|--------|----------|----------------|
-| `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade |
-| `existing_user_ids` | Many2many(`res.users`) | No | No | compute |
-| `user_id` | Many2one(`res.users`) | Yes | Yes | ondelete=cascade, index |
-| `sequence` | Integer | Yes | No | default=10 |
-| `required` | Boolean | Yes | No | default=False |
 
 ---
 
@@ -255,8 +215,8 @@ so category names are unique per company, archived rows included.
 | `date` | Datetime | Yes | No | |
 | `date_start` | Datetime | Yes | No | |
 | `date_end` | Datetime | Yes | No | |
-| `date_deadline` | Datetime | Yes | No | |
-| `date_planned` | Datetime | Yes | No | |
+| `date_deadline` | Datetime | Yes | No | *(added by `approval_app`)* |
+| `date_planned` | Datetime | Yes | No | *(added by `approval_app`)* |
 | `date_confirmed` | Datetime | Yes | No | index (cleared by reset-to-draft) |
 | `date_approval_granted` | Datetime | Yes | No | compute, store, index, copy=False; cleared whenever the request leaves `approved`, except on a revoked request (`revoked_state`), which keeps the date its approval was granted |
 | `date_refused` | Datetime | Yes | No | compute, store, index, copy=False, cleared whenever the request is not in the state it records |
@@ -267,9 +227,9 @@ so category names are unique per company, archived rows included.
 | `granted_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False. Set by `_approve_without_decision()` when a pending request is approved from outside its decisions; `_compute_state` reads it after `revoked_state` and before the approver rows. Cleared by `_force_draft()`; a request carrying it refuses withdrawal |
 | `refusal_reason_id` | Many2one(`approval.refusal.reason`) | Yes | No | readonly, copy=False, tracking. Canonical reason of the terminal refusal (wizard, cascade or auto-rule) |
 | `refusal_note` | Text | Yes | No | readonly, copy=False, tracking |
-| `pending_change_field` | Selection(date/reason) | Yes | No | readonly, copy=False. Field the requester must update before approval can resume |
-| `location` | Char | Yes | No | |
-| `reference` | Char | Yes | No | |
+| `pending_change_field` | Selection(date/reason) | Yes | No | readonly, copy=False. Field the requester must update before approval can resume. `_get_pending_change_candidates()` offers `reason` always and `date` once the request carries a date or a period; `approval_app` offers `date` by what the category's form exposes instead |
+| `location` | Char | Yes | No | *(added by `approval_app`)* |
+| `reference` | Char | Yes | No | *(added by `approval_app`)* |
 | `reason` | Html | Yes | No | |
 | `quantity` | Float | Yes | No | |
 | `amount` | **Monetary** | Yes | No | Expressed in `currency_id`, NOT company currency |
@@ -281,11 +241,10 @@ so category names are unique per company, archived rows included.
 | `is_terminal` | Boolean | No | No | compute. True once the request reaches approved, refused or cancelled — exists so views can say "this is over" BY NAME instead of spelling `_TERMINAL_STATES` out as a literal triple in four `invisible` expressions |
 | `is_pending_my_review` | Boolean | No | No | compute (context=uid), search (via `boolean_search_domain`). Delegation-aware "is this in my queue right now" — backs the review inbox |
 | `can_change_request_owner` | Boolean | No | No | compute |
-| `has_*` | Selection | No | No | 11 related fields from category (there is no `has_product` — see `approval_product`, and no `has_payment_method` since 19.0.1.0.26) |
+| `has_*` | Selection | No | No | 10 related fields from category *(added by `approval_app`)* (there is no `has_product` — see `approval_product`, and no `has_payment_method` since 19.0.1.0.26) |
 | `approval_minimum` | Integer | Yes | No | default=1, readonly, copy=True. Effective minimum (an approver-replacing rule's override, or the category default) |
-| `approve_sequentially` | Boolean | No | No | related |
-| `group_approval` | Selection | No | No | related |
-| `approver_group_id` | Many2one | No | No | related |
+| `allow_self_approval` | Boolean | No | No | related to the category |
+| `decision_log_ids` | One2many(`approval.decision.log`) | No | No | compute_sudo; the decision history |
 | `approval_type` | Selection | Yes | No | related, store |
 | `target_model` | Selection | Yes | No | related, store |
 | `approval_progress` | Float | No | No | compute |
@@ -296,7 +255,7 @@ so category names are unique per company, archived rows included.
 | `sla_elapsed_hours` | Float | No | No | compute |
 | `sla_remaining_hours` | Float | No | No | compute |
 | `can_withdraw` | Boolean | No | No | compute (context=uid) |
-| `template_id` | Many2one(`approval.template`) | Yes | No | readonly, copy=False, index=btree_not_null |
+| `template_id` | Many2one(`approval.template`) | Yes | No | readonly, copy=False, index=btree_not_null *(added by `approval_app`)* |
 | `applied_rule_ids` | Many2many(`approval.rule`) | Yes | No | readonly, copy=False (cleared by reset-to-draft) |
 | `category_snapshot` | Json | Yes | No | readonly, copy=False (built at confirm; cleared by reset-to-draft) |
 | `res_model` | Char | Yes | No | readonly, index |
@@ -305,12 +264,15 @@ so category names are unique per company, archived rows included.
 | `res_name` | Char | No | No | compute (batched per model) |
 | `attachment_ids` | One2many(`ir.attachment`) | Yes | No | domain=[res_model=approval.request] |
 | `count_attachment` | Integer | No | No | compute |
-| `automation_id` | Many2one | No | No | related |
-| `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null |
+| `automation_id` | Many2one | No | No | related *(added by `approval_automation`)* |
+| `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null *(added by `approval_automation`)* |
 | `binding_id` | Many2one(`approval.binding`) | Yes | No | readonly, copy=False, ondelete=set null. Set when an `approval.binding` in Request mode raised the request; approving it runs that binding's method once, as `request_owner_id` |
 | `binding_snapshot` | Json | Yes | No | readonly, copy=False. The values the binding's condition read from the source document when the request was raised. The approval covers the record only while they still match |
 | `subject_key` | Char | Yes | No | readonly, copy=False, indexed. What the request asks about when its record holds one request per subject (`mixin.approval.subjects`): `access:<partner>` on a course, `stage:<stage>` on an engineering change. Only a request carrying one reaches such a record |
 | `date_binding_replayed` | Datetime | Yes | No | readonly, copy=False. When the gated operation ran after approval. Set once, so a withdrawal and a second approval do not run it again |
+| `operation` | Char | Yes | No | readonly, copy=False, index=btree_not_null. The gated operation a document's own `mixin.approval.gate` raised this request for. A grant clears that operation and no other |
+| `operation_snapshot` | Json | Yes | No | "Approved Subject": what the document looked like when the request was raised, as its `_get_approval_snapshot` describes it. The grant covers that version and no other |
+| `date_operation_run` | Datetime | Yes | No | readonly, copy=False. When the grant ran that operation, so it runs once |
 | `binding_replay_error` | Text | Yes | No | readonly, copy=False. Why the gated operation did not run. The approval itself stands |
 
 Removed in 19.0.1.0.7 (or earlier): `revision_count`, `cloned_from_id`,
@@ -337,7 +299,6 @@ State is a **stored computed field** based on `approver_ids.state`
 - Any approver `new` => `new`
 - approved_count >= `approval_minimum` (NOT clamped to len(approvers)) AND all required approved => `approved`
 - Otherwise => `pending`
-- `_constrains_steps_not_sequential`: a category with steps cannot also use `approve_sequentially` — sequencing individual approvers forbids a later step from deciding early, which steps allow; `notify_sequentially` orders them instead
 
 `refused` outranks `cancelled` so a real decision is never masked.
 `_TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})`
@@ -354,8 +315,8 @@ requester re-submits (`action_resubmit`).
 | Method | File | Purpose |
 |--------|------|---------|
 | `create()` | request.py | Approval minimum from category, subscribe owner, sync approvers (no name assignment — deferred to confirm) |
-| `write()` | request.py | Access check, forged-compute and locked-fields business rules, category-change guard, owner re-subscription, sync approvers when a field in `_get_approver_sync_trigger_fields()` is written |
-| `copy_data()` / `copy()` | request.py | Duplicate with smart defaults from owner history (`_smart_clone_defaults`) + "Duplicated from" log |
+| `write()` | request.py | Access check, forged-compute and locked-fields business rules, category-change guard, owner re-subscription, sync approvers when a field in `_get_fields_approver_sync_trigger()` is written |
+| `copy()` | request.py | Duplicate with a "Duplicated from" log; `approval_app` overrides `copy_data()` to seed smart defaults from the owner's history (`_smart_clone_defaults`) |
 | `unlink()` | request.py | Two-layer validation (access + business rules: draft only) |
 | `_compute_display_name()` | request.py | Translated "New" placeholder for unnumbered drafts |
 | `_compute_state()` | request.py | Core state machine (no side effects) |
@@ -380,7 +341,7 @@ requester re-submits (`action_resubmit`).
 | `action_view_to_review()` | request.py | Pending-review inbox, includes requests delegated TO the user |
 | `_refuse_approval_request()` | lifecycle.py | No-op anchor for cooperative document rollback (account/purchase/sale override) |
 | `_sync_approvers()` | routing.py | **Core engine**: reconcile approver rows from all sources (write step) |
-| `_compute_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
+| `_get_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
 | `_approve_without_decision(body, ...)` | lifecycle.py | Approves a **pending** request from outside its decisions (a leave the system validates): writes `granted_by_user_id`, turns pending rows to `waiting`, cancels activities, notifies the source document once. No row is recorded as deciding, and one decided before keeps its decision. A non-pending request raises `UserError` |
@@ -390,13 +351,12 @@ requester re-submits (`action_resubmit`).
 | `_get_notifiable_source_document()` | lifecycle.py | The adopting document to tell, or None: registry, `mixin.approval` and two-way-link checks; returned under `sudo()` with `approval_acting_user_id` |
 | `_notify_source_document_progress()` | lifecycle.py | Calls the document's `_on_approval_progress()` after an approval that met a step while the request stays pending |
 | `_lock_for_approval_action()` | lifecycle.py | SELECT FOR UPDATE to prevent race conditions |
-| `_update_next_approvers_state()` | lifecycle.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |
 | `_check_auto_action_rules()` | routing.py | Auto-approve/refuse rules; auto-refuse stamps `refusal_reason_auto_rule` metadata |
-| `_find_matching_replacement()` | routing.py | The first `set_approvers` rule this request falls into, by `(sequence, id)` (via prefetched `category_id.rule_ids`) |
-| `_get_additional_approvers()` | routing.py | Extension hook only (base returns `[]`); `add_approver` rules are merged by `_compute_desired_approvers` from the one `_matched_add_approver_rules()` evaluation |
+| `_get_desired_approvers()` | routing.py | Every request takes its approvers from its applicable steps alone, each row staged with its member's `required` and `sequence`, and hands back the steps' `when_rule_ids` as the matched rules `applied_rule_ids` records. The rules steps read are evaluated once per request per sync (`_get_step_rule_matches`, remembered in the `approval_rule_matches` context) |
+| `_reroute_steps_live(desired)` | routing.py | A pending request its steps route, after a routing field changed: rows join the steps that now apply (an approval given for a step that stopped applying carries to the step that replaced it), a user only an arriving step names gets a row, and nothing happens when no step arrived or departed, so a member added to a step already applying is not asked mid-flight |
 | `_get_escalation_rules()` | escalation.py | `ESCALATION_RULES` defaults + `approval.escalation.<priority>.<kind>` ir.config_parameter overrides |
 | `_get_escalation_manager()` | escalation.py | Hook: manager to escalate to (base returns empty; approval_hr overrides) |
-| `_prepare_category_snapshot()` | routing.py | Audit snapshot incl. `effective_*` keys and the matched replacing rule |
+| `_prepare_category_snapshot()` | routing.py | Audit snapshot of the category's configuration, its applicable steps and the `effective_*` keys |
 | `_notify_source_document_state_change()` | lifecycle.py | Calls mixin hook on source doc (registry isinstance check) |
 | `_check_access_write()` | access.py | Owner OR assigned approver write access |
 | `_check_locked_fields()` | access.py | **Business rule, never bypassed**: value fields frozen outside draft; `pending_change_field` selectively reopens date/reason, and only for the requester (owner/manager/sudo) |
@@ -409,8 +369,8 @@ requester re-submits (`action_resubmit`).
 | `cron_auto_expire()` | escalation.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
 | `cron_consent_approval()` | escalation.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
 | `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set, when the binding's `run_on_approval` is off, or while an invoking call is recording its own approval |
-| `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them instead of the flat approvers, group and replacement |
-| `_is_quorum_met(state_counts, threshold)` | Step mode when any row carries steps: every applicable step meets its quorum. Otherwise the flat `approval_minimum`, unchanged |
+| `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them |
+| `_is_quorum_met(state_counts, threshold)` | When any row carries steps: every applicable step meets its quorum. Otherwise (rows added by hand where no step applies) the request's `approval_minimum` |
 | `_get_step_counts()` / `_get_step_assignment()` | Approvals per step. An approved row counts toward every step its decision was given for (`decided_step_ids`). Only a row approved for several steps one of which is exclusive -- consent, an automatic rule -- is resolved here, toward the lowest step still short |
 | `_get_steps_for_decision(approver)` | The steps an approval naming none is given for: every undecided step of the row, or, beside an exclusive step, the first still short of its quorum (exclusive first within a sequence). Decided when taken, so who decided which step stays fixed as later approvals come in |
 | `_check_steps_decidable(approvers, steps)` | Studio's exclusivity for decisions that name steps: a step already decided by the row, or a second step beside an exclusive decided one, raises |
@@ -461,11 +421,13 @@ resolved by `_get_escalation_rules()`:
 | `company_id` | Many2one(`res.company`) | Yes | No | related, store, index |
 | `user_id` | Many2one(`res.users`) | Yes | Yes | check_company, index |
 | `sequence` | Integer | Yes | No | default=10 |
-| `state` | Selection(new/pending/waiting/approved/refused/cancelled) | Yes | No | default="new", readonly, index |
+| `state` | Selection(new/pending/waiting/approved/refused/cancelled) | Yes | No | compute (`_compute_state`), store, readonly, index. A projection of the decision ledger over `flow_state`: the row's standing fact since the request's last `reset` -- `approved`, or `withdrawn` with steps still decided, reads approved; `refused` reads refused -- else `flow_state`. `create`/`write` naming it raise for every caller, `sudo()` included (`_raise_state_is_derived`) |
+| `flow_state` | Selection(new/pending/waiting/refused/cancelled) | Yes | No | required, default="new", readonly. Where routing has put the row: whose turn it is, and the rows a refusal or a cancellation closed. Never a decision; every funnel that moves a turn writes this, never `state`. `_stamp_pending_since` keys on it |
+| `decision_log_ids` | One2many(`approval.decision.log`, `approver_id`) | No | No | readonly. The facts `state` is projected from |
 | `required` | Boolean | Yes | No | default=False, readonly |
 | `pending_since` | Datetime | Yes | No | readonly, copy=False, index=btree_not_null. Stamped by `_stamp_pending_since` (from `create`/`write`, so all five promotion paths are covered) when the row ENTERS `pending`; cleared by reset-to-draft. With `decision_date` it gives each approver's OWN turnaround instead of the request's age since `date_confirmed` |
 | `source_synced` | Boolean | Yes | No | readonly, copy=False. Exact sync provenance since 19.0.1.0.13: set on every row `_sync_approvers` creates. A synced row whose source stopped producing it is DELETED on re-sync rather than kept as a phantom manual approver |
-| `source_rule_id` | Many2one(`approval.rule`) | Yes | No | readonly, copy=False, index=btree_not_null. Which `add_approver` rule injected this row |
+| `source_rule_id` | Many2one(`approval.rule`) | Yes | No | readonly, copy=False, index=btree_not_null. Which rule injected this row, on rows staged before 19.0.2.8.0; the sync still reads it as an automated source |
 | `decision_date` | Datetime | Yes | No | readonly, copy=False, index. Stamped by `_apply_decision` on a GENUINE approve/refuse; cleared on withdraw/reset. NULL for non-decision flips. Drives the performance analytics |
 | `decided_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False, index. WHO exercised the slot (`user_id` is WHOSE it is) — the delegate inside an active delegation window. Stamped and cleared beside `decision_date`; both analytics consumers key on `COALESCE(decided_by_user_id, user_id)` |
 | `delegate_id` | Many2one(`res.users`) | Yes | No | check_company, copy=False |
@@ -486,11 +448,11 @@ resolved by `_get_escalation_rules()`:
 | `_get_effective_approver()` | Returns delegate if delegation window active, else user_id |
 | `_create_activity()` | Schedule mail activity for approver to-do, assigned to the **effective approver** (delegate when active); idempotent per effective-user+request |
 | `_get_activity_target()` / `_get_activity_type()` | Where the row's approver is asked -- the request, or its source document when the category's `activity_target` is `document` and the document holds activities -- and with which type: the first of the row's steps that names one, else the approval activity. `_create_activity`, escalation reminders and the delegation wizard all use both |
-| `_check_access_create/write/unlink()` | Access control layer. Write is field-scoped for non-managers: delegation fields by the original `user_id` only; decision-note fields (`refusal_reason_id`, `note`) by the effective approver; `state`/`sequence`/`required`/`request_id` are workflow-managed (manager/sudo only) |
+| `_check_access_create/write/unlink()` | Access control layer. Write is field-scoped for non-managers: delegation fields by the original `user_id` only; decision-note fields (`refusal_reason_id`, `note`) by the effective approver; `flow_state`/`sequence`/`required`/`request_id` are workflow-managed (manager/sudo only); `state` is derived and writable by no one |
 | `_check_business_rules_create/unlink()` | Business rules layer: DRAFT only since 19.0.1.0.13 (relaxed only by `env.su` + `approver_ids_computation` sync context) — rows on decided requests are state-transition vehicles and are re-cycled via reset-to-draft |
 | `_check_delegation_dates` (constraint) | Delegation requires both dates, end >= start |
 | `_check_delegate_identity` (constraint) | Delegate must not be the approver themselves, the request owner, or a co-approver on the same request |
-| `_get_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones. Only a row whose user is listed for one of its steps is asked, and, when the category requests its steps in order, once a step they are listed for opens, not one they may decide through its group. A listed approver is asked only while one of their steps is still short of its quorum; after a decision or a withdrawal, `_retire_unasked_approval_activities` unlinks the approval activities of rows this stops asking |
+| `_filtered_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones. Only a row whose user is listed for one of its steps is asked, and, when the category requests its steps in order, once a step they are listed for opens, not one they may decide through its group. A listed approver is asked only while one of their steps is still short of its quorum; after a decision or a withdrawal, `_retire_unasked_approval_activities` unlinks the approval activities of rows this stops asking |
 | `_approve_for_every_step()` | Approves rows nobody decided -- consent approval, an auto-approve rule -- for all their steps, so they count as those paths always counted |
 
 ---
@@ -521,7 +483,7 @@ so the comparison is never raw.
 | Method | Purpose |
 |--------|---------|
 | `_convert_request_amount(request)` | Converts `request.amount` from `request.currency_id` into this record's `currency_id` before any threshold comparison. Rate date is `request.date` → `request.date_confirmed` → today; rate company is `request.company_id` → the record's → `env.company`. Identity short-circuit when the currencies match |
-| `_intervals_overlap(bounds_a, bounds_b)` (static) | Half-open/closed-aware interval overlap, used by `approval.rule._check_replacement_overlap` and `_check_auto_action_conflict` |
+| `_intervals_overlap(bounds_a, bounds_b)` (static) | Half-open/closed-aware interval overlap, used by `approval.rule._check_auto_action_conflict` |
 
 ---
 
@@ -576,7 +538,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `action_view_approval_request()` | Open the linked request form |
 | `_clear_refused_approval_link()` | Release a refused/cancelled link so a reopened document can request a fresh approval |
 | `_get_domain_approval_category()` | **Override**: domain to find category |
-| `_get_approval_required_fields()` | **Override**: required fields before approval |
+| `_get_fields_approval_required()` | **Override**: required fields before approval |
 | `_get_approval_request_name()` | **Override**: customize request name |
 | `_prepare_approval_request_values()` | **Override**: customize request creation values. Honours `approval_binding_for` = (model, id, binding) in context, only when it names this record, so a binding-raised request knows its operation and a nested document cannot inherit the link |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
@@ -584,7 +546,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
 | `_approval_side_effect(failure_note)` | Context manager wrapping any document-advancing call made from a hook: savepoint + `UserError`/`ValidationError` catch + chatter note. Hooks run inside the approver's transaction — do not hand-roll this |
 | `_approval_decider_names(state)` | The filter-and-join over `approver_ids` that opens a decision message |
-| `write()` / `_get_approval_protected_fields()` | Freezes the listed source-document fields while an approval is in flight |
+| `write()` / `_get_fields_approval_protected()` | Freezes the listed source-document fields while an approval is in flight |
 | `unlink()` | Blocks deleting a document with a live approval |
 | `_check_can_request_approval()` / `_compute_can_request_approval()` | Gate on the "Request Approval" button |
 | `_before_approval_request_submit(approval)` | Hook between request creation and auto-confirm |
@@ -630,7 +592,7 @@ pattern, a document the engine moves through `_on_approval_approved` and friends
 | `_check_approval_sync_policy(kind)` | The document's own authority, run as the acting user before a request-side decision is applied. Raises to veto |
 | `_apply_approval_sync_outcome(kind)` | Moves the document for a kind, through the document's overridable methods. Required |
 | `_get_approval_category_xmlid()` | Optional: the category the document's requests belong to |
-| `_needs_approval_request()` | Whether a pending document raises a request: its state is `pending` and `_can_raise_approval_request()` holds |
+| `_is_approval_request_required()` | Whether a pending document raises a request: its state is `pending` and `_can_raise_approval_request()` holds |
 | `_can_raise_approval_request()` | Whether the document may hold a request at all, whatever its state: none yet, and a category applies. Adopters add their own exclusions here, so they reach a backfilled document in progress too |
 | `_get_legacy_approval_activity_xmlids()` | The review activities the document scheduled itself before adopting the engine, which a backfilled request replaces. Default none |
 | `_get_approval_backfill_decider()` | Who decided the first step of a document in progress before its request existed. Default nobody |
@@ -705,38 +667,30 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | `condition_field` | Selection(amount/quantity/date_range_days/priority) | Yes | No | required by `_check_condition_shape` for `threshold` rules only |
 | `operator` | Selection(gt/gte/lt/lte/eq/neq/between) | Yes | No | string="Comparison"; required for `threshold` rules only |
 | `threshold` | Float | Yes | No | `threshold` rules only. The lower bound (inclusive) when `operator` is `between`; for `priority`, 0=Low 1=Normal 2=High 3=Urgent |
-| `threshold_max` | Float | Yes | No | `between` only: the upper bound, EXCLUSIVE. 0 means unlimited, which is how the highest band is spelled |
+| `threshold_max` | Float | Yes | No | `between` only: the upper bound, EXCLUSIVE. 0 means unlimited |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | ondelete=cascade. Required for `domain` and `field_selection`: the model the condition reads |
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | `domain` rules: evaluated with `filtered_domain` against the source document; every dotted path is walked against the registry at save time |
 | `subject_field` | Char | Yes | No | `field_selection` rules: the field on the source model |
 | `subject_value` | Char | Yes | No | `field_selection` rules: compared as text against the raw value — a Selection's key, a Many2one's id |
-| `action_type` | Selection(add_approver/set_approvers/auto_approve/auto_refuse) | Yes | Yes | default="add_approver". `set_approvers` replaces the category's approvers AND its minimum; first match by sequence wins, and it is skipped entirely when the category draws approvers from a security group |
-| `approval_minimum` | Integer | Yes | No | default=1. `set_approvers` only: the minimum this band requires, overriding the category's |
-| `approver_ids` | Many2many(`res.users`) | Yes | No | |
-| `approver_required` | Boolean | Yes | No | default=True |
-| `approver_sequence` | Integer | Yes | No | default=5 |
+| `action_type` | Selection(auto_approve/auto_refuse/condition) | Yes | Yes | default="condition". `condition` does nothing by itself: steps apply by it (`when_rule_ids`, `unless_rule_ids`), and while one does the rule can be neither archived, deleted nor given another action (`_check_no_step_reads_it`). Rules that added or replaced approvers were retired in 19.0.2.8.0: a step names the approvers and applies by a condition |
 
 ### Constraints
 
 - `_name_category_uniq`: unique nulls not distinct (name, category_id, company_id)
-- `_check_approver_ids_required`: `add_approver`/`set_approvers` need at least one approver
-- `_check_approval_minimum`: `set_approvers` only — at least 1, and no more than the approvers the rule sets
 - `_check_range_bounds`: `threshold` rules with `between` only — the upper bound exceeds the lower one, or is 0 for unlimited
 - `_check_threshold`: `threshold` rules only — a `priority` threshold is one of 0, 1, 2, 3
 - `_check_condition_shape`: a `threshold` rule needs `condition_field` and `operator`; any other type needs `subject_model_id`, and every path its `subject_domain` or `subject_field` names must exist on that model. Refused at save time because a rule that never matches reads as "approval was not required"
-- `_check_replacement_overlap`: compares `threshold` rules only. A domain cannot be interval-checked, so two `domain` replacement rules may coexist and the first match by sequence wins
 
 ### Key Methods
 
 | Method | Purpose |
 |--------|---------|
-| `_evaluate(request)` | Dispatches on `condition_type` and is the only entry point. `_find_matching_replacement` used to call `_get_field_value` + `_compare` directly, which silently never matched a non-threshold rule |
+| `_evaluate(request)` | Dispatches on `condition_type` and is the only entry point |
 | `_get_subject(request)` | The source document, or False when it is absent, deleted, or not of `subject_model_id` |
 | `_evaluate_domain(request)` / `_evaluate_field_selection(request)` | The two source-document condition types |
 | `_get_field_value(request)` | Extract numeric value using match/case; `amount` goes through `_convert_request_amount()` so the comparison happens in the rule's currency |
 | `_compare(value, threshold)` | Apply operator |
-| `_get_approver_tuples()` | Return (user_id, required, sequence) list |
 
 ---
 
@@ -773,6 +727,85 @@ For a record that holds one request per subject rather than one in all: a course
 | `_get_approval_request(subject_key)` / `_get_live_approval_request(subject_key)` | The latest request for the subject, and that request only while it is new or pending |
 
 `approval.request._get_notifiable_source_document()` tells such a record only about a request that carries a `subject_key`; a request pointed at the record without one reaches nothing, as a `mixin.approval` document is told only about the request it references. Covered by `test_approval/tests/test_approval_subjects.py` against `approval.test.subject.document`.
+
+---
+
+## mixin.approval.gate (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.gate` |
+| File | `models/mixin_approval_gate.py` |
+| Inherits | `mixin.approval` |
+
+For a document that gates its own terminal transitions — confirming, posting, validating — without owning a `mixin.lifecycle` state machine. The adopter declares `_approval_operations` (the gated methods) and, through the registry's `_operation_checkpoints`, where each one's validations live.
+
+| Method | What it does |
+|--------|--------------|
+| `_run_through_approval(operation, run)` | Splits the records, calls `run(ready)` on what needs no approval or already holds it, raises a request for the rest (one record: returns that request's action), and carries the run's own action as the notification's `next` |
+| `_split_for_approval(operation)` | ready / needs-approval. A waiting request always refuses; a refused or cancelled one refuses while the document still requires approval; an approved one is checked by `_check_approval_covers` |
+| `_approval_request_gates(operation)` | Whether the linked request was raised for this operation. A grant clears the operation it was asked for and no other |
+| `_check_approval_covers(operation)` | Hook: raises when the grant no longer covers what the operation would do |
+| `_check_approval_admits(operation)` | Called from the operation's checkpoint, so a caller that did not come through the gate is caught. Records an `approval.observation` and refuses only once `approval.gate_enforced` is set |
+| `_is_operation_run_on_approval(operation)` / `_run_operation_on_approval()` | Whether a grant re-enters the transition, and the re-entry itself: once, as superuser, through the gated method so its validations run again |
+| `_refuse_pending_approval()` | Refuses a waiting request, for an adopter's cancel path |
+
+Adopted by `mixin.approval.lifecycle`. Covered by `test_approval/tests/test_gate.py` against `approval.test.gated`.
+
+---
+
+## mixin.approval.lifecycle (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.lifecycle` |
+| File | `models/mixin_approval_lifecycle.py` |
+| Inherits | `mixin.approval.gate`, `mixin.lifecycle` |
+
+For a document with a declared lifecycle whose confirmation is the approval gate. It is `mixin.approval.gate` with `_approval_operations = ("action_confirm",)`, so the split, the coverage check and the re-entry are the gate's; only the lifecycle's own wiring lives here. The adopter supplies `_get_domain_approval_category`; with no category matching, confirming is the plain lifecycle.
+
+| Method | What it does |
+|--------|--------------|
+| `action_confirm` | Runs the confirm checks, then `_run_through_approval("action_confirm", ...)` |
+| `_is_operation_run_on_approval` | A grant re-enters `action_confirm` while the document is still a draft |
+| `action_cancel` | Cancels, then `_refuse_pending_approval`, so an adopter whose refusal callback cancels meets an already cancelled document |
+| `action_draft` | Clears a refused or cancelled request's link, so confirming asks again |
+
+An adopter that gains the mixin after its model's own `action_confirm` (sale and purchase orders in `approval_product`) sits below that method in the MRO. It overrides `action_confirm` to call `_run_through_approval` with its own `super()`, so nothing the order does on confirmation runs before the gate.
+
+Adopted by `maintenance.order` and agromarin's `mixin.approval.document`. Covered by `maintenance`'s `TestMaintenanceOrderApproval`.
+
+---
+
+## mixin.approval.access (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.access` |
+| File | `models/mixin_approval_access.py` |
+| Inherits | `mixin.approval.subjects` |
+
+For a record whose access a partner asks for: a course on invitation, a shared document or folder, a knowledge article. Each ask is a subject, `access:<partner>` or `access:<partner>:<role>`, so a view request and an edit request wait separately. The grant row stays the domain's (a course membership, a `document.access`, a `knowledge.article.member`); the decision is the engine's. There is no shared grant-row mixin, because the rows disagree on roles, expiry and what a row without a role means.
+
+### Adopter hooks
+
+| Hook | Contract |
+|------|----------|
+| `_access_approval_category` | Class attribute: the xmlid of the shipped category. Or override `_get_approval_subject_category` |
+| `_has_access(partner, role)` | Whether the partner already holds the role. Required |
+| `_grant_access(partner, role)` | Writes the grant when a request is approved. Required |
+| `_get_access_request_name(partner, role)` | The request's name; "Access to <record> for <partner>" by default |
+
+### Behaviour
+
+| Method | What it does |
+|--------|--------------|
+| `_get_access_subject_key(partner, role)` / `_get_access_subject(subject_key)` | Encode and decode the subject; a key of another kind decodes to no partner |
+| `_request_access(partner, role)` | Raises the request, refused when `_has_access` already holds or a request for that subject is waiting |
+| `_get_live_access_request(partner, role)` | The waiting request for that subject, read under `sudo` |
+| `_decide_access_request(partner, role, approve)` | A caller who can decide the request records a decision. Otherwise, a caller who may write the record approves without a decision or refuses by force. Anyone else gets an `AccessError`. Returns False when nothing is waiting |
+
+`_on_approval_subject_state_changed` grants on `approved` and nothing else. Covered by `test_approval/tests/test_approval_access.py` against `approval.test.access.document`, and by `website_slides`' `TestCourseAccessRequest`.
 
 ---
 
@@ -837,7 +870,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
 | `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running — and, with `run_on_approval`, runs the operation exactly once when it is approved, as the person who called it |
 | `sudo_policy` | Selection(enforce/superuser/bypass) | Yes | **Yes** | default="superuser". Who the gate does NOT apply to. `sudo()` flips `su` and keeps `uid`, so the real superuser and an ordinary user elevated by `sudo()` are separate risks and separate settings |
-| `observation_ids` | One2many(`approval.binding.observation`) | — | No | |
+| `observation_ids` | One2many(`approval.observation`) | — | No | |
 | `observation_count` | Count | — | No | |
 | `elevated_count` | Integer | No | No | computed by one grouped read over observations |
 | `self_elevated_count` | Integer | No | No | same read; callers elevated by `sudo()`, not the superuser |
@@ -845,8 +878,8 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `run_on_approval` | Boolean | Yes | No | default=True, `request` mode only. Run the operation once, as the requester, when the request is approved. Off, approval only clears the gate and the operation runs on the next call — how Studio approvals behave. Off also lifts the zero-argument limit, since there is no replay to feed |
 | `action_id` | Many2one(`ir.actions.actions`) | Yes | No | ondelete=cascade. The action to gate instead of a method; a binding gates exactly one of the two |
 | `is_enforced` | Boolean | No | No | computed. True for a method, a server action or a report; False for a window or client action, which only opens a view — nothing the server can intercept, so only the client's check stands in the way |
-| `reset_domain` | Char | Yes | No | string="Reset When". Domain on the gated model; when a covered record comes to match it, the approval that covered it is reset to draft. Fires on the transition INTO the condition only |
-| `reset_automation_id` | Many2one(`automation.rule`) | Yes | No | readonly, copy=False, ondelete=set null. The managed rule that keeps Reset When in effect |
+| `reset_domain` | Char | Yes | No | string="Reset When". Domain on the gated model; when a covered record comes to match it, the approval that covered it is reset to draft. Fires on the transition INTO the condition only *(added by `approval_automation`)* |
+| `reset_automation_id` | Many2one(`automation.rule`) | Yes | No | readonly, copy=False, ondelete=set null. The managed rule that keeps Reset When in effect *(added by `approval_automation`)* |
 
 ### Constraints
 
@@ -859,7 +892,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
 - A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
 - With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
-- `reset_domain`, when set, must name paths that exist on the gated model
+- `reset_domain`, when set, must name paths that exist on the gated model *(added by `approval_automation`)*
 
 ### Key Methods
 
@@ -882,9 +915,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_approve_on_invoke(requests)` | Records the caller's approval on every pending step they may decide. Runs with `approval_binding_invoking` in context, so a request this completes is NOT replayed: the call already running performs the operation, and a replay would perform it a second time. A refused approval leaves the request pending with its approvers asked |
 | `_mark_invoked_run(records)` | Stamps `date_binding_replayed` on the approved requests an invoking call just ran, so a later withdrawal and re-approval cannot run the operation again |
 | `_replay(request)` | Runs the method once after approval, as `request_owner_id` — never the approver, never under sudo, so an approval cannot lend the approver's rights (the superuser account keeps its `su`). Re-checks coverage first, so a record whose snapshot moved is not run. A `UserError` (including access, validation and missing-record errors) is recorded in `binding_replay_error` and the approval stands; anything else propagates. Runs with `approval_binding_replay` in context, under which the wrapper refuses rather than raising a new request |
-| `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule |
+| `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule *(added by `approval_automation`)* |
 | `_reset_coverage(records)` | Resets to draft every request `_get_requests_holding_decisions` returns: an approved one through `action_reset_to_draft`, so an adopter hears it through `_on_approval_reset`; a waiting one, locked first, through `_force_draft`, so a decision given for the document's earlier state does not survive. Clears the one-shot stamp so the next cycle runs on approval again |
-| `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
+| `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` *(added by `approval_automation`)* | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
 | `_get_requests_holding_decisions(records)` | What a reset clears: the covering approved requests, and the binding's waiting requests some approver has already decided in part |
 | `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it (`approval.request._can_decide_step`: neither decided by the caller nor excluded by an exclusive step they decided) and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
 | `check_button_approval(model, res_id, method, action_id)` | `_gate` with a no-op operation: `{approved, request_id}`. It raises or reuses the request and marks the one-shot, because the browser runs the action next |
@@ -899,30 +932,99 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 
 ---
 
-## approval.binding.observation
+## approval.observation
 
 | Key | Value |
 |-----|-------|
-| Model | `approval.binding.observation` |
-| File | `models/approval_binding_observation.py` |
+| Model | `approval.observation` |
+| File | `models/approval_observation.py` |
 | Type | Model |
 | Order | `id desc` |
 
-One row per gated call written by an Observe binding, or by any binding whose
-`sudo_policy` let an elevated caller pass. Append-only on purpose: a counter
-on the binding would contend for one row lock on every gated call, and the
-question the table answers needs the breakdown rather than a total.
+One row per gated call let through while its gate was only watching: written by
+an Observe binding, by any binding whose `sudo_policy` let an elevated caller
+pass, and by `mixin.approval.gate` when a call reaches a terminal transition by
+a path the gate does not own and `approval.gate_enforced` is not set.
+Append-only on purpose: a counter on the binding would contend for one row lock
+on every gated call, and the question the table answers needs the breakdown
+rather than a total.
+
+**Reading it is the point.** Both gates are meant to be sized before they are
+switched on, so the table has its own screen: *Settings > Technical > Approvals
+> Watched Calls* (`action_approval_observation`), which opens filtered to
+`would_block` and grouped by model and operation. Those rows are what
+enforcement would begin refusing. Rows with no `binding_id` come from a code
+gate and are switched on through `approval.gate` rather than a binding's mode;
+the search view separates the two.
 
 ### Fields
 
 | Field | Type | Stored | Required | Key Attributes |
 |-------|------|--------|----------|----------------|
-| `binding_id` | Many2one(`approval.binding`) | Yes | **Yes** | ondelete=cascade, index |
+| `binding_id` | Many2one(`approval.binding`) | Yes | No | ondelete=cascade, index=btree_not_null. Empty for a gate a model declares in code |
+| `model_name` | Char | Yes | **Yes** | index. The gated model |
+| `operation` | Char | Yes | **Yes** | index. The gated method the call was reaching |
 | `res_id` | Integer | Yes | No | index |
 | `user_id` | Many2one(`res.users`) | Yes | No | the caller's uid, which `sudo()` preserves |
 | `elevation` | Selection(none/superuser/self_elevated) | Yes | **Yes** | index |
 | `would_block` | Boolean | Yes | No | whether Block would have refused this call — the number that sizes switching a binding on |
 | `date` | Datetime | Yes | No | default=now, index |
+
+---
+
+## approval.gate
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.gate` |
+| File | `models/approval_gate.py` |
+| Type | Model |
+| Order | `model_name, operation` |
+
+One row per terminal transition a model gates in its own code -- the configured
+twin of `approval.binding`. A binding exists because a person decided to gate a
+method; a gate exists because a model declares `_approval_operations`, so
+**nobody creates these**. `_register_hook` calls `_sync_declared_gates`, which
+walks the registry, adds a row for each declared operation and deletes any row
+whose operation the model no longer declares. A new adopter therefore appears
+the next time the registry is built, without a data file.
+
+An operation earns a row only where the model also names it in
+`_operation_checkpoints`. `_check_approval_admits` is called from that checkpoint
+and nowhere else, so without one enforcement has no path to close: the toggle
+would govern nothing and the count beside it could never leave zero.
+`mixin.approval.lifecycle` is the standing case -- it declares `action_confirm`
+for every order-like document and names no checkpoint, so `sale.order`,
+`purchase.order`, `maintenance.order` and `rma.order` have no row. The pairs left
+out are named on `trace.REGISTRY` at each sync.
+
+The only field a person may write is `enforced`, and that is the point: the row
+is a place to put the decision the counts beside it inform. Enforcement is **per
+operation**, so a gate whose watched calls cost nothing can be switched on while
+an expensive one keeps watching. `mixin.approval.gate._is_approval_gate_enforced`
+asks `_is_enforced`, which reads an `ormcache`d set cleared on every write here.
+
+Supersedes `approval.gate_enforced`, the single system parameter 19.0.2.9.0
+shipped with. `_adopt_legacy_enforcement` carries a `1` there onto every row and
+deletes the parameter, so a database that was enforcing keeps enforcing. It runs
+from the sync rather than from a migration because **no migration phase runs late
+enough**: the gates cannot be discovered until every adopter is in the registry,
+which is `_register_hook`, and end migrations run before that.
+
+A document holds **one** `approval_request_id` at a time, so a model may declare
+several gated operations but cannot have two of them waiting at once.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `model_name` | Char | Yes | **Yes** | index, readonly. The gated model |
+| `operation` | Char | Yes | **Yes** | index, readonly. The method the model declares as terminal |
+| `model_id` | Many2one(`ir.model`) | No | No | compute, for display |
+| `enforced` | Boolean | Yes | No | the one writable field: whether this operation refuses a bypassing caller yet |
+| `would_block_count` | Integer | No | No | compute: the calls enforcement would refuse -- the cost of switching it on, and the only count a code gate can honestly offer, since it records a call it would have refused and no other |
+
+Constraint: UNIQUE `(model_name, operation)`.
 
 ---
 
@@ -933,15 +1035,14 @@ question the table answers needs the breakdown rather than a total.
 | Model | `approval.category.step` |
 | File | `models/approval_category_step.py` |
 | Type | Model |
-| Inherits | `mixin.approval.domain` (parses and path-checks `subject_domain` and `subject_user_path`) |
+| Inherits | `mixin.approval.threshold` (a numeric condition on the request's own figures), `mixin.approval.domain` (parses and path-checks `subject_domain` and `subject_user_path`) |
 | Order | `category_id, sequence, id` |
 
 One step of a category's approval: a pool of users, and how many of them must
-approve. The flat model — one approver list and one request-wide minimum —
-cannot tell two steps that each need one of two people from one step that needs
-two: a minimum of 2 accepts both approvals from the first. That is exactly what a
-Studio approval rule is. A category that needs steps declares them, and one that
-does not is left as it was.
+approve. One approver list and one request-wide minimum cannot tell two steps that
+each need one of two people from one step that needs two: a minimum of 2 accepts
+both approvals from the first. That is exactly what a Studio approval rule is, and
+since 19.0.2.8.0 every category routes by steps.
 
 ### Fields
 
@@ -956,11 +1057,16 @@ does not is left as it was.
 | `member_ids` | One2many(`approval.category.step.member`) | — | No | the step's named users |
 | `group_id` | Many2one(`res.groups`) | Yes | No | its members join the pool too — the union Studio's `approver_ids` / `approval_group_id` pair expresses |
 | `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
+| `asks_group_members` | Boolean | Yes | No | Every user of `group_id` is asked (`_is_notifiable`). Off, the group is a queue and only listed members are asked |
+| `counts_added_approvers` | Boolean | Yes | No | Approvers added by hand to a request (rows routing did not stage, `source_synced` False) join the step at sync: they are asked (`_is_notifiable`), may decide it, count toward its quorum, and count into its pool at confirm (`_check_steps_can_be_met`). Migration 2.8 set it on every step it built from an approver list, since the list counted them toward the minimum |
+| `in_order` | Boolean | Yes | No | string="Members Decide in Order". Only the member whose turn it is (`approval.request._get_step_turn_row`: the first, by member `sequence`, whose row has not approved the step) is asked and may decide; `_check_step_turn` refuses the others and `_get_steps_for_decision` leaves the step out of their decision. The step's quorum ends the chain. Rows are ordered by member `sequence`, and an added approver by its own row `sequence`, as the approver list ordered them. A step is also unmet while a member marked `required` (`approval.category.step.member.required`) has not approved it (`_get_step_required_rows_pending`). The users an approver path names stand at `subject_user_sequence` in the order, and `subject_user_required` makes the step wait for them; `_check_in_order_pool` refuses a group on such a step, whose users have no place in the order |
 | `advisory` | Boolean | Yes | No | The step's approvers are asked (its unmet advisory steps are open beside the lowest blocking step) and their decisions recorded, but it decides nothing: `_is_quorum_met` reads `_get_blocking_unmet_steps()`, a row refused only for advisory steps (`approval.approver._is_advisory_only()`) is no deciding refusal (`_get_deciding_refusals()`) and flips no other row, progress is reported for blocking steps only, and confirmation does not need an advisory step's pool. The ECO's optional and comment roles |
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
-| `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set |
+| `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set. **`approval.request` means the request itself** (`_get_subject`): its domain and path read the request, so a request raised with no source document can still name approvers, as approval_hr names the requester's manager through `requester_manager_user_id`. The document's own approver policy still filters the pool |
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
+| `condition_field` / `operator` / `threshold` / `threshold_max` / `currency_id` | Selection / Selection / Float / Float / Many2one | Yes | No | from `mixin.approval.threshold`. The step applies only when the request's amount (converted into `currency_id`), quantity, date range in days or priority compares true. Unlike `subject_domain` it needs no source document, which is what lets a threshold rule or a replacement band be written as a step |
+| `when_rule_ids` / `unless_rule_ids` | Many2many(`approval.rule`) | Yes | No | The step applies only when every `when` rule matches and no `unless` rule does, as `approval.rule._evaluate` and the rule's company decide (`_matches_request_rules`). The conversion writes them for rule sets figure conditions cannot express |
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
 | `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
@@ -973,6 +1079,9 @@ does not is left as it was.
 - `_check_pool`: a quorum of at least one, and members, a group or an approver path to give it
 - `_check_source_user_path`: an approver path names its source model, every part of it exists there, and it ends in a field whose comodel is `res.users`
 - `_check_condition`: a condition names its source model, and every path it reads exists there
+- `_check_in_order_without_consent`: consent auto-approval approves every member at once, so a step whose members decide in order refuses it (and `approval.category._constrains_consent_sequential` refuses it from the category's side)
+- `_check_in_order_pool`: a step whose members decide in order has no group
+- `_check_figure_condition`: a figure condition has a comparison, and a `between` band's upper bound is above its lower one (or 0 for none)
 - `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
 
 ### Key Methods
@@ -983,7 +1092,7 @@ does not is left as it was.
 | `_get_candidate_user_ids(document)` | Members, path users and group users with neither the company nor the document narrowing them: the set routing owns rows for |
 | `_filter_document_user_ids(user_ids, document)` | Hands the pool to `document._filter_approval_step_user_ids(step, user_ids)` (under `sudo`) when the record adopts `mixin.approval.source` (`mixin.approval` or `mixin.approval.subjects`); any other record, such as one gated by a binding button, keeps its pool |
 | `_get_source_user_ids(document)` | The users the path names on this document; empty for another model, no document, or no path. Confirm refuses a step whose document names nobody through `_check_steps_can_be_met` |
-| `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
+| `_is_applicable_to_request(request)` | The figure condition first (`_matches_request_figure`), then the document condition: no document condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 
 ---
 
@@ -1009,77 +1118,6 @@ does not is left as it was.
 ### SQL constraints
 
 - `_step_user_uniq`: unique(step_id, user_id)
-
----
-
-## approval.template
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.template` |
-| File | `models/approval_template.py` |
-| Type | Model |
-| Inherits | `mixin.catalog` (`name` required+translate, `active`); `_name_src_uniq` rescoped to `company_id` |
-| Order | `sequence, name` |
-
-### Fields
-
-| Field | Type | Stored | Required | Key Attributes |
-|-------|------|--------|----------|----------------|
-| `name` | Char | Yes | Yes | translate |
-| `active` | Boolean | Yes | No | default=True |
-| `sequence` | Integer | Yes | No | default=10 |
-| `description` | Text | Yes | No | translate |
-| `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade, index |
-| `company_id` | Many2one(`res.company`) | Yes | No | default=env.company, index |
-| `default_reason` | Html | Yes | No | translate |
-| `default_amount` | Float | Yes | No | |
-| `default_quantity` | Float | Yes | No | |
-| `default_location` | Char | Yes | No | |
-| `default_partner_id` | Many2one(`res.partner`) | Yes | No | |
-| `default_reference` | Char | Yes | No | |
-| `default_priority` | Selection(0-3) | Yes | No | default="1" |
-| `has_*` | Selection | No | No | 5 related fields from category |
-| `usage_count` | Integer | No | No | compute |
-
-### Key Methods
-
-| Method | Purpose |
-|--------|---------|
-| `action_create_request()` | Open form with template defaults in context |
-| `action_view_requests()` | View requests from this template |
-
----
-
-## approval.document.requirement
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.document.requirement` |
-| File | `models/approval_document_requirement.py` |
-| Type | Model |
-| Order | `category_id, sequence` |
-
-### Fields
-
-| Field | Type | Stored | Required | Key Attributes |
-|-------|------|--------|----------|----------------|
-| `name` | Char | Yes | Yes | |
-| `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade, index |
-| `sequence` | Integer | Yes | No | default=10 |
-| `required` | Boolean | Yes | No | default=True |
-| `description` | Text | Yes | No | |
-
-### Constraints
-
-- `_name_src_uniq`: `name_uniq_index("category_id", nulls_distinct=True)` — UNIQUE over the `en_US` source term, not the jsonb document
-
-`_check_name_unique_per_language` is **gone** (19.0.1.0.23), along with
-`_name_variants`. It existed because the confirm-time check matched
-attachments by NAME, so two requirements sharing a name in any installed
-translation made the matching ambiguous. The link is structural now —
-`ir.attachment.approval_requirement_id`, set by the requester — so the name
-is a label and two requirements may share a translation freely.
 
 ---
 
@@ -1150,113 +1188,48 @@ Approving is a 1-click action that never opens this wizard.
 
 ---
 
-## approval.metrics (SQL View)
+## The reporting models moved out at 19.0.2.0.0
 
-| Key | Value |
-|-----|-------|
-| Model | `approval.metrics` |
-| File | `reports/approval_metrics.py` |
-| Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` |
-| Order | `category_id, avg_approval_hours` |
-
-The model does **not** write `_table_query` itself. `mixin.sql.report`
-(`odoo/addons/mixin_report_sql`) owns `_table_query` and assembles the
-statement in `_query()` from four overrides this model supplies:
-`_get_fields_select()`, `_get_from_tables()`, `_get_where_conditions()`,
-`_get_fields_group_by()`. Add a field here and you must add its SELECT
-entry there — nothing links them automatically.
-
-### Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `category_id` | Many2one(`approval.category`) | Grouped by category |
-| `company_id` | Many2one(`res.company`) | Grouped by company |
-| `total_requests` | Integer | Total submitted |
-| `approved_count` | Integer | state = approved |
-| `rejected_count` | Integer | state = refused |
-| `pending_count` | Integer | state = pending |
-| `cancelled_count` | Integer | state = cancelled (labelled "Cancelled", not "Refused") |
-| `approval_rate` | Float | Approved / DECIDED (%). Denominator is `approval.request._DECISION_STATES` (approved + refused) — a cancelled request was retracted or expired, so nobody decided it. Counting cancellations made a category with 4 approvals, 4 retractions and zero refusals report 50%. |
-| `avg_approval_hours` | Float | AVG(approved - confirmed) in hours |
-| `median_approval_hours` | Float | PERCENTILE_CONT(0.5) in hours |
-| `sla_target_hours` | Float | From category config (`sla_target_hours`) |
-| `sla_compliant_count` | Integer | Approved within SLA |
-| `sla_compliance_rate` | Float | Compliant / approved (%) |
+`approval.metrics`, `approver.performance` and `approval.dashboard` now live in
+`approval_analytics`, and `approval.binding.reset_domain` /
+`reset_automation_id` in `approval_automation`. Both auto-install, so a database
+that had them keeps them; the split exists so that a module adopting
+`mixin.approval` does not take `mixin_report_sql` and the whole `automation`
+closure with it. Read their fields in those modules.
 
 ---
 
-## approver.performance (SQL View)
+## approval.decision.log
 
 | Key | Value |
 |-----|-------|
-| Model | `approver.performance` |
-| File | `reports/approver_performance.py` |
-| Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` (same four overrides as `approval.metrics`) |
-| Order | `avg_response_hours` |
+| Model | `approval.decision.log` |
+| File | `models/approval_decision_log.py` |
+| Order | `date desc, id desc` |
+| Access | Approval managers read the model directly; everyone else reads a request's history through `approval.request.decision_log_ids` (`compute_sudo`), so whoever may read the request may read what was decided about it |
 
-### Fields
+| Field | Type | Notes |
+|-------|------|-------|
+| `request_id` | Many2one(`approval.request`) | required, cascade |
+| `approver_id` | Many2one(`approval.approver`) | the row the fact is about, if any |
+| `step_ids` | Many2many(`approval.category.step`) | the steps a decision was given for, or withdrawn from |
+| `verdict` | Selection | approved, refused, withdrawn, granted, revoked, cancelled, reset |
+| `state_after` | Char | the request's state once the fact was applied |
+| `user_id` | Many2one(`res.users`) | who acted |
+| `principal_id` | Many2one(`res.users`) | the approver a delegate acted for |
+| `elevation` | Selection | none, superuser, self_elevated |
+| `refusal_reason_id` / `note` | | as given |
+| `date` | Datetime | |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `user_id` | Many2one(`res.users`) | Grouped by the deciding actor: `COALESCE(decided_by_user_id, user_id)` |
-| `company_id` | Many2one(`res.company`) | Grouped by company |
-| `total_approvals` | Integer | GENUINE decisions (approver rows with `decision_date` set) |
-| `approved_count` | Integer | Approvals with `decision_date` set |
-| `refused_count` | Integer | Refusals with `decision_date` set (cascade/consent flips excluded) |
-| `pending_count` | Integer | Currently pending |
-| `avg_response_hours` | Float | `AVG(a.decision_date − COALESCE(a.pending_since, ar.date_confirmed))` in hours — the clock starts when the ROW entered `pending`, so a sequential approver is not billed for the queue ahead of them. `date_confirmed` is only the fallback for rows predating `pending_since` |
-| `approval_rate` | Float | Approved / decided (%), genuine decisions only |
+**Invariants.** Created only by `_append_decision_log`, which every funnel calls: `_apply_decision`, `action_withdraw`, `_withdraw_decided_steps`, `_force_draft` (before it clears the rows), `_force_terminal`, `_revoke`, `_approve_without_decision`, `_approve_for_every_step`, `_record_decision`, and the change-request resubmission. `write` and `unlink` raise for every caller, except a write to an empty recordset, which changes nothing.
 
-> The view keys on `approval.approver.decision_date` (stamped only in
-> `_apply_decision`). Rows flipped to refused/cancelled by a sequential/
-> cascade close-out, consent auto-approval, or expiration have no
-> `decision_date` and are excluded — so an approver's rate is not tanked
-> by refusals they never made, and response time is per-approver
-> (2026-07-03 audit, majors #6 & #8).
->
-> Rows are attributed to whoever ACTUALLY decided, not to the slot owner.
-> Under delegation those differ, and grouping on `user_id` alone credited
-> the delegated decision, and its response time, to the absent principal
-> while the delegate who did the work scored nothing (measured 16.0h on
-> the principal, 0.0h on the delegate; 2026-08-11 audit). `pending_count`
-> deliberately still follows the assignee through the COALESCE fallback:
-> an undecided row has no actor, and "how much is queued on this person"
-> is a property of the slot. `approval.dashboard.my_avg_response_hours`
-> matches on the same expression.
+**An approver's status is the ledger's, not the row's (19.0.2.7.0).** `approval.approver.state` is computed from the row's facts, so a row reads approved or refused only when a fact says so, and no write -- a server action, an import, adopter code, `sudo()` -- can make it read otherwise. Deciding without the approve/refuse actions goes through `_record_decision(verdict, actor, steps, date, note)`, which stamps the decision fields and appends the fact in one call: mrp_plm's import of a stage's history uses it, and tests that need a decided row without deciding it use `tests/common.record_approval`, which calls it. `_approve_for_every_step` (consent, automatic rules) appends its fact under the superuser with the rule or the consent window as the note, and a requested change applied to an approved request appends `withdrawn` for the rows it undoes. `state_after` is stamped once the facts' rows are flushed, so it reads the state they produced. Migration 2.7 filled `flow_state` from the old column and appended the facts the ledger never saw: an approved row, or a refused row carrying a `decision_date`, with no standing fact since its request's last reset.
 
----
+**Separation of duties (19.0.2.1.0).** `approval.category.allow_self_approval`, mirrored on the request: when false, `_get_desired_approvers` never stages the request owner, on any routing path, and `_check_not_deciding_own_request` refuses a decision on a row whose effective approver is the owner -- checked before `_check_decision_actor`'s superuser return, so `sudo()` does not reopen it. Categories existing at the upgrade were migrated to allowing. The Studio editor's categories allow it by design: a button's approval restricts who may press, and the presser is the approver.
 
-## approval.dashboard (Singleton)
+**Subject integrity (19.0.2.2.0).** After approval, a write that actually changes a field of `_get_fields_approval_protected()` -- compared value by value, x2many commands included -- sends the request back to draft through `_force_draft`, logged as a `reset` naming the fields, unless `_is_approval_invalidated_by_changes(fields)` says the document re-checks those fields itself. Applies to every caller; a request whose `_check_reset_allowed` refuses makes the write refuse instead. Context key `approval_keep_on_subject_change` skips it.
 
-| Key | Value |
-|-----|-------|
-| Model | `approval.dashboard` |
-| File | `reports/approval_dashboard.py` |
-| Type | Model |
-
-### Fields
-
-`name` is the only stored column (the singleton's label); everything below
-is computed and non-stored, recalculated per read.
-
-| Group | Fields |
-|-------|--------|
-| Today | `pending_today`, `approved_today`, `refused_today`, `submitted_today`, `avg_response_time_hours` |
-| Meta | `last_refresh` |
-| Trends | `trend_7days`, `trend_15days`, `trend_30days`, and their rendered siblings `trend_7days_display`, `trend_15days_display`, `trend_30days_display` |
-| Bottlenecks | `slowest_category_id`, `slowest_category_hours`, `slowest_approver_id`, `slowest_approver_hours`, `most_pending_approver_id`, `most_pending_count` |
-| All-time | `total_requests_all_time`, `total_pending_all_time`, `overall_approval_rate`, `avg_approval_time_all_time` |
-| User | `my_pending_count`, `my_pending_urgent_count`, `my_avg_response_hours` |
-| Velocity | `requests_per_day_7d`, `requests_per_day_15d`, `requests_per_day_30d`, `approvals_per_day_7d`, `approvals_per_day_15d`, `approvals_per_day_30d`, `avg_response_hours_7d`, `avg_response_hours_15d`, `avg_response_hours_30d`, `median_approval_hours` |
-
-### Key Methods
-
-| Method | Purpose |
-|--------|---------|
-| `get_dashboard()` | Singleton pattern: search or create |
-| `action_refresh()` | Invalidate cache + reload |
-| `_get_avg_response_time_sql()` | Efficient SQL AVG calculation |
+**Coverage integrity (19.0.2.1.0).** `mixin.approval` refuses writes to `approval_state`, `date_approval_granted` and `date_approval_requested` for every caller, and accepts an `approval_request_id` only for a request about the record itself, a subject-less request still in `new`, which the write binds to the record, or a request whose category's `target_model` is the record's model linking what it produced. The last is written inside `approval.request._link_produced_documents` (or its `_producing_documents` window), which is kept on the cursor so that no RPC caller can open it: pointing an order at an approved request that produces orders is refused. Re-writing the link a record already has is not checked.
 
 ---
 

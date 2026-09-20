@@ -1,6 +1,6 @@
 {
     "name": "Repairs",
-    "version": "1.2",
+    "version": "1.3",
     "category": "Supply Chain/Inventory",
     "sequence": 230,
     "summary": "Repair damaged products",
@@ -20,7 +20,7 @@ The following topics are covered by this module:
     "license": "LGPL-3",
     "depends": [
         "sale_stock",
-        "sale_management",
+        "sale",
     ],
     "data": [
         "security/ir.model.access.csv",
@@ -36,6 +36,7 @@ The following topics are covered by this module:
         "reports/repair_reports.xml",
         "reports/repair_templates_repair_order.xml",
         "data/repair_data.xml",
+        "views/repair_menus.xml",
     ],
     "demo": [
         "demo/repair_demo.xml",
@@ -48,7 +49,6 @@ The following topics are covered by this module:
             "repair/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_create_warehouse_data",
 }

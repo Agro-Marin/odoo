@@ -11,38 +11,40 @@ class SurveyFollowupRule(models.Model):
     _order = "sequence, id"
 
     survey_id = fields.Many2one(
-        "survey.survey",
-        string="Survey",
+        comodel_name="survey.survey",
+        index="btree_not_null",
         required=True,
         ondelete="cascade",
-        index="btree_not_null",
     )
-    name = fields.Char("Rule Name", required=True)
-    active = fields.Boolean("Active", default=True)
-    sequence = fields.Integer("Sequence", default=10)
+    name = fields.Char(
+        string="Rule Name",
+        required=True,
+    )
+    active = fields.Boolean(default=True)
+    sequence = fields.Integer(default=10)
     condition_type = fields.Selection(
-        [
+        selection=[
             ("always", "Always (on every completion)"),
             ("score_range", "Score in range"),
             ("passed", "Passed certification"),
             ("failed", "Failed certification"),
         ],
         string="Condition",
-        required=True,
         default="always",
+        required=True,
     )
     score_min = fields.Float(
-        "Min Score (%)",
+        string="Min Score (%)",
         help="Minimum scoring_percentage to trigger (inclusive).",
     )
     score_max = fields.Float(
-        "Max Score (%)",
+        string="Max Score (%)",
         default=100,
         help="Maximum scoring_percentage to trigger (inclusive).",
     )
 
     mail_template_id = fields.Many2one(
-        "mail.template",
+        comodel_name="mail.template",
         string="Email Template",
         required=True,
         domain="[('model', '=', 'survey.user_input')]",

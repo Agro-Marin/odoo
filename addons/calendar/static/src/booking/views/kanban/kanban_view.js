@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { AppointmentTypeKanbanController } from "@calendar/booking/views/kanban/kanban_controller";
+import { AppointmentTypeKanbanRenderer } from "@calendar/booking/views/kanban/kanban_renderer";
 import { registry } from "@web/core/registry";
 import { kanbanView } from "@web/views/kanban";
-import { AppointmentTypeKanbanRenderer } from "@calendar/booking/views/kanban/kanban_renderer";
-import { AppointmentTypeKanbanController } from "@calendar/booking/views/kanban/kanban_controller";
 
 export const AppointmentTypeKanbanView = {
     ...kanbanView,

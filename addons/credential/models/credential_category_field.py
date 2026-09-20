@@ -15,8 +15,8 @@ class CredentialCategoryField(models.Model):
 
     category_id = fields.Many2one(
         comodel_name="credential.category",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     code = fields.Char(
@@ -36,7 +36,7 @@ class CredentialCategoryField(models.Model):
     )
     requirement_group = fields.Char(
         help="Fields sharing a group satisfy the requirement between them, so any "
-        "one of them is enough. Leave empty to require this field on its own.",
+        "one of them is enough. Leave empty to require this field on its own."
     )
     is_blob_key = fields.Boolean(
         compute="_compute_is_blob_key",

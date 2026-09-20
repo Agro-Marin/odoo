@@ -25,10 +25,18 @@ class MixinCredentialStore(models.AbstractModel):
 
     credential_value_encrypted = fields.Binary(
         string="Credential Value (Encrypted)",
-        copy=False,
         attachment=False,
+        copy=False,
         groups="base.group_system",
         help="Encrypted storage for credential value (API key, token, secret, etc.)",
+    )
+
+    is_provisioned = fields.Boolean(
+        compute="_compute_is_provisioned",
+        store=True,
+        help="Whether the vault holds a secret for this record. A credential "
+        "created by a data or demo file, or one whose secret has not been "
+        "entered yet, exists unprovisioned until a secret is stored.",
     )
 
     cached_plaintext = fields.Char(
@@ -48,19 +56,26 @@ class MixinCredentialStore(models.AbstractModel):
         ],
         default="none",
         store=True,
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Storage mode for credential_value_encrypted. Write-once: set "
         "by the first payload write and sealed thereafter. Mixing simple "
         "and JSON storage on the same record is not permitted.",
     )
 
+    @api.depends("credential_value_encrypted")
+    def _compute_is_provisioned(self):
+        for record in self:
+            record.is_provisioned = bool(
+                record.with_context(bin_size=False).credential_value_encrypted
+            )
+
     credential_value = fields.Char(
         compute="_compute_credential_value",
-        store=False,
         inverse="_inverse_credential_value",
-        readonly=False,
+        store=False,
         copy=False,
+        readonly=False,
         groups="base.group_system",
         help="Credential value (encrypted at rest) - API key, bearer token, etc.",
     )
@@ -68,10 +83,10 @@ class MixinCredentialStore(models.AbstractModel):
     credential_data = fields.Text(
         string="Credential Data (JSON)",
         compute="_compute_credential_data",
-        store=False,
         inverse="_inverse_credential_data",
-        readonly=False,
+        store=False,
         copy=False,
+        readonly=False,
         groups="base.group_system",
         help="JSON storage for complex multi-value credentials (e.g., OAuth2). "
         "Example: {'access_token': '...', 'refresh_token': '...'}",

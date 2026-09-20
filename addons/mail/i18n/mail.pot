@@ -2721,9 +2721,13 @@ msgstr ""
 #: code:addons/mail/static/src/core/common/full_composer_hook.js:0
 #: code:addons/mail/static/src/core/web/activity_mail_template.js:0
 #: code:addons/mail/wizard/mail_compose_message.py:0
-#: model:ir.actions.act_window,name:mail.action_email_compose_message_wizard
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "Compose Email"
+msgstr ""
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_email_compose_message_wizard
+msgid "Compose Email…"
 msgstr ""
 
 #. module: mail
@@ -9228,7 +9232,7 @@ msgstr ""
 
 #. module: mail
 #: model:ir.actions.act_window,name:mail.mail_template_reset_action
-msgid "Reset Mail Template"
+msgid "Reset Mail Template…"
 msgstr ""
 
 #. module: mail
@@ -9903,7 +9907,7 @@ msgstr ""
 
 #. module: mail
 #: model:ir.actions.act_window,name:mail.action_partner_mass_mail
-msgid "Send email"
+msgid "Send Email…"
 msgstr ""
 
 #. module: mail
@@ -10655,7 +10659,7 @@ msgstr ""
 
 #. module: mail
 #: model:ir.actions.act_window,name:mail.mail_template_preview_action
-msgid "Template Preview"
+msgid "Template Preview…"
 msgstr ""
 
 #. module: mail
@@ -11693,10 +11697,10 @@ msgid ""
 "The request is UNAUTHENTICATED: no credential, no signature, no retry, and no record of the exchange beyond the server log. That is the right shape for notifying a receiver that accepts an open URL.\n"
 "\n"
 "For anything that needs a credential, a retry policy, a rate limit, secret redaction or an auditable record of what was sent, use an 'Execute Code' action against a configured outbound endpoint instead. With the API Transport application installed:\n"
-"    endpoint = env['api.endpoint.outbound'].search(\n"
+"    endpoint = env['integration.service'].search(\n"
 "        [('code', '=', 'my_service')], limit=1)\n"
 "    endpoint._get_api_client().post('/path', json={'id': record.id})\n"
-"That endpoint owns the credential, the retry policy and the api.event.log row."
+"That endpoint owns the credential, the retry policy and the integration.exchange row."
 msgstr ""
 
 #. module: mail

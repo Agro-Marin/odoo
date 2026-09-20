@@ -19,7 +19,7 @@ from odoo.fields import Domain
 from odoo.libs.filesystem import SVG, ZIP
 from odoo.orm.registration import add_model_to_registry
 from odoo.tests import Form, TransactionCase, tagged, users
-from odoo.tools import float_repr, human_size, mute_logger
+from odoo.tools import float_repr, html_sanitize, human_size, mute_logger
 from odoo.tools.image import image_data_uri
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
@@ -254,7 +254,21 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             SET compute = 'pass', depends = 'x_stuff_id.x_custom_1'
             WHERE model = 'x_test_10_compute_store_x_name' AND name = 'x_name'
         """)
-        self.registry._setup_models__(self.cr, ["x_test_10_compute_store_x_name"])
+        if not self.registry.loaded:
+            # while modules load, a manual many2one to a model the registry
+            # has not seen is deferred without a field, not skipped with a
+            # warning (ir.model.fields._is_field_ready_now)
+            with self.assertNoLogs("odoo.registry", level="WARNING"):
+                self.registry.setup_models(self.cr, ["x_test_10_compute_store_x_name"])
+            self.assertNotIn(
+                "x_stuff_id", self.env["x_test_10_compute_store_x_name"]._fields
+            )
+            return
+        with self.assertLogs("odoo.registry", level="WARNING") as logs:
+            self.registry.setup_models(self.cr, ["x_test_10_compute_store_x_name"])
+        self.assertEqual(len(logs.output), 1, logs.output)
+        self.assertIn("Skipping manual field", logs.output[0])
+        self.assertIn("x_stuff_id", logs.output[0])
 
     def test_10_context_dependent_related(self):
         self.env["res.lang"]._activate_lang("fr_FR")
@@ -659,7 +673,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env["ir.config_parameter"].set_param("test_orm.full_name", "name1,name2")
 
         self.env.flush_all()
-        self.registry._setup_models__(self.cr, ["test_orm.compute.dynamic.depends"])
+        self.registry.setup_models(self.cr, ["test_orm.compute.dynamic.depends"])
         self.assertEqual(
             self.registry.field_depends[Model.full_name], ("name1", "name2")
         )
@@ -1070,6 +1084,12 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(self.cr.rowcount)
         self.assertEqual(record.number, 1.1)
 
+    def test_fields_get_refuses_a_bare_field_name(self):
+        Mixed = self.env["test_orm.mixed"]
+        self.assertEqual(list(Mixed.fields_get(["number2"])), ["number2"])
+        with self.assertRaises(TypeError):
+            Mixed.fields_get("number2")
+
     def test_21_float_digits(self):
         precision = self.env.ref("test_orm.decimal_orm_number")
         description = self.env["test_orm.mixed"].fields_get()["number2"]
@@ -1343,6 +1363,36 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         with self.assertRaises(ValueError):
             record.reference = self.env["ir.model"].search([], limit=1)
 
+    def test_24_reference_records_prefetch_with_their_siblings(self):
+        partners = self.env["res.partner"].create(
+            [{"name": f"ref partner {i}"} for i in range(30)]
+        )
+        currencies = (
+            self.env["res.currency"].with_context(active_test=False).search([], limit=3)
+        )
+        records = self.env["test_orm.mixed"].create(
+            [
+                {
+                    "reference": f"res.partner,{partners[i % 30].id}"
+                    if i % 4
+                    else f"res.currency,{currencies[i % 3].id}"
+                }
+                for i in range(120)
+            ]
+        )
+        self.env.invalidate_all()
+        # the column, one verification per model, the partners' and the
+        # currencies' rows: the record a Reference answers carries the
+        # siblings naming its model as prefetch ids, as a many2one's does
+        with self.assertQueryCount(3):
+            names = [record.reference.display_name for record in records]
+        self.assertEqual(names[1], "ref partner 1")
+        self.assertEqual(names[0], currencies[0].display_name)
+        self.assertEqual(
+            sorted(set(records[1].reference._prefetch_ids)),
+            sorted(set(partners.ids)),
+        )
+
     def test_24_reference_validate_false_skips_db(self):
         record = self.env["test_orm.mixed"].create({})
         field = record._fields["reference"]
@@ -1407,7 +1457,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(text2.trim, "The related field was defined with trim=True")
 
         self.patch(text, "trim", True)
-        self.registry._setup_models__(self.cr, ["test_orm.foo"])
+        self.registry.setup_models(self.cr, ["test_orm.foo"])
         self.assertTrue(self.registry["test_orm.foo"].text.trim)
         self.assertTrue(self.registry["test_orm.bar"].text1.trim)
 
@@ -2539,7 +2589,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 """
             SELECT "test_orm_message"."id" FROM "test_orm_message"
             WHERE "test_orm_message"."active" IS TRUE
-            ORDER BY  "test_orm_message"."discussion"
+            ORDER BY  "test_orm_message"."discussion", "test_orm_message"."id"
         """
             ]
         ):
@@ -4279,6 +4329,23 @@ class TestHtmlField(TransactionCase):
         super().setUp()
         self.model = self.env["test_orm.mixed"]
 
+    def test_create_sanitizes_once_and_caches_the_column_value(self):
+        """2ea81a5dbb81 dropped html from the create cache to stop a second
+        sanitize; the column value is now cached instead, so a read right
+        after create (every message_post does one) costs neither."""
+        dirty = "<p onclick='x'>kept<script>dropped</script></p>"
+        with patch(
+            "odoo.orm.fields.textual.html_sanitize",
+            side_effect=html_sanitize,
+        ) as sanitize:
+            record = self.model.create({"comment0": dirty, "comment1": dirty})
+        self.assertEqual(sanitize.call_count, 1)
+        with self.assertQueryCount(0):
+            self.assertEqual(record.comment0, "<p>kept</p>")
+            self.assertEqual(record.comment1, dirty)
+        record.invalidate_recordset(["comment0"])
+        self.assertEqual(record.comment0, "<p>kept</p>")
+
     def test_00_sanitize(self):
         self.assertEqual(self.model._fields["comment1"].sanitize, False)
         self.assertEqual(self.model._fields["comment2"].sanitize_attributes, True)
@@ -4456,7 +4523,7 @@ class TestMagicFields(TransactionCase):
         models = registry.models
 
         self.patch(registry, "models", OrderedDict(sorted(models.items())))
-        registry._setup_models__(self.cr)
+        registry.setup_models(self.cr)
         field = registry["test_orm.display"].display_name
         self.assertTrue(field.store)
 
@@ -4465,7 +4532,7 @@ class TestMagicFields(TransactionCase):
             "models",
             OrderedDict(sorted(models.items(), reverse=True)),
         )
-        registry._setup_models__(self.cr)
+        registry.setup_models(self.cr)
         field = registry["test_orm.display"].display_name
         self.assertTrue(field.store)
 
@@ -4839,7 +4906,7 @@ class TestMany2oneReference(TransactionExpressionCase):
 
         self.assertIn(
             reference.id,
-            self.env._core.get_dirty(reference._fields["res_model"]) or (),
+            self.env.core.get_dirty(reference._fields["res_model"]) or (),
         )
 
         records = record.search([("model_ids.create_date", "!=", False)])
@@ -4890,7 +4957,9 @@ class TestSelectionUpdates(TransactionCase):
 
     def test_selection_related_readonly(self):
         related_record = self.env[self.MODEL_BASE].create({"my_selection": "foo"})
-        with self.assertQueryCount(2):
+        # warm the model's defaults cache; the pin counts the create, not the cache
+        self.env[self.MODEL_RELATED].create({"selection_id": related_record.id})
+        with self.assertQueryCount(1):
             record = self.env[self.MODEL_RELATED].create(
                 {"selection_id": related_record.id}
             )
@@ -4899,7 +4968,8 @@ class TestSelectionUpdates(TransactionCase):
 
     def test_selection_related(self):
         related_record = self.env[self.MODEL_BASE].create({"my_selection": "foo"})
-        with self.assertQueryCount(2):
+        self.env[self.MODEL_RELATED_UPDATE].create({"selection_id": related_record.id})
+        with self.assertQueryCount(1):
             record = self.env[self.MODEL_RELATED_UPDATE].create(
                 {"selection_id": related_record.id}
             )
@@ -5114,8 +5184,13 @@ class TestSelectionOndelete(TransactionCase):
         rec = self.env[self.MODEL_WRITE_OVERRIDE].create({"my_selection": "divinity"})
         self.assertEqual(rec.my_selection, "divinity")
 
-        self._unlink_option(self.MODEL_WRITE_OVERRIDE, "divinity")
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_model_fields_selection", level="WARNING"
+        ) as logs:
+            self._unlink_option(self.MODEL_WRITE_OVERRIDE, "divinity")
         self.assertEqual(rec.my_selection, "foo")
+        self.assertEqual(len(logs.output), 1, logs.output)
+        self.assertIn("attempting ORM bypass", logs.output[0])
 
 
 @tagged("selection_ondelete_advanced")
@@ -5146,7 +5221,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_default_no_default(self):
 
@@ -5165,7 +5240,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_value_no_valid(self):
 
@@ -5184,7 +5259,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_required_null_explicit(self):
 
@@ -5203,7 +5278,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_required_null_implicit(self):
 
@@ -5221,7 +5296,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
 
 class TestFieldParametersValidation(TransactionCase):
@@ -5237,7 +5312,7 @@ class TestFieldParametersValidation(TransactionCase):
         self.addCleanup(self.registry.__delitem__, Foo._name)
 
         with self.assertLogs("odoo.fields", level="WARNING") as cm:
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
         self.assertTrue(
             cm.output[0].startswith(
@@ -5573,7 +5648,7 @@ class TestWrongRelatedError(TransactionCase):
             "test_orm.wrong_related_path.foo_non_existing does not exist."
         )
         with self.assertRaisesRegex(KeyError, errMsg):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
 
 class TestPrecomputeHonoursGivenValues(TransactionCase):
@@ -5637,7 +5712,7 @@ class TestPrecomputeModel(TransactionCase):
         self.addCleanup(self.registry.reset_changes)
         self.patch(Model.upper, "precompute", False)
         with self.assertWarns(UserWarning):
-            self.registry._setup_models__(self.cr, ["test_orm.precompute"])
+            self.registry.setup_models(self.cr, ["test_orm.precompute"])
             self.registry.field_computed
 
     def test_precompute_dependencies_base(self):
@@ -5651,7 +5726,7 @@ class TestPrecomputeModel(TransactionCase):
         self.patch(Model.upper, "precompute", False)
 
         with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
-            self.registry._setup_models__(self.cr, ["test_orm.precompute"])
+            self.registry.setup_models(self.cr, ["test_orm.precompute"])
             self.registry.get_trigger_tree(Model._fields.values())
         self.assertTrue(Model.lowup.precompute)
 
@@ -5672,7 +5747,7 @@ class TestPrecomputeModel(TransactionCase):
         self.patch(Model.size, "precompute", True)
         self.patch(Line.size, "precompute", False)
         with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
-            self.registry._setup_models__(
+            self.registry.setup_models(
                 self.cr, ["test_orm.precompute", "test_orm.precompute.line"]
             )
             self.registry.get_trigger_tree(Model._fields.values())

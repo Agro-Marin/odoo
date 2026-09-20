@@ -32,28 +32,28 @@
                         <group col="2">
                             <field
                                 name="applicant_ids"
-                                widget="many2many_tags"
                                 placeholder="Specify Refused Applicants..."
-                                required="send_mail"
-                                options="{'no_create': True}" />
+                                widget="many2many_tags"
+                                options="{'no_create': True}"
+                                required="send_mail" />
                         </group>
                         <group col="2">
                             <field name="lang" invisible="1" />
                             <field name="render_model" invisible="1" />
                             <field
                                 name="subject"
-                                required="send_mail"
-                                placeholder="Subject..." />
+                                placeholder="Subject..."
+                                required="send_mail" />
                         </group>
                         <field name="can_edit_body" invisible="1" />
                         <field
                             name="body"
-                            nolabel="1"
-                            class="oe-bordered-editor"
-                            widget="html_mail"
-                            readonly="not can_edit_body"
                             placeholder="Email Body..."
-                            force_save="1" />
+                            widget="html_mail"
+                            nolabel="1"
+                            force_save="1"
+                            readonly="not can_edit_body"
+                            class="oe-bordered-editor" />
                         <field
                             name="attachment_ids"
                             widget="many2many_binary"
@@ -69,14 +69,14 @@
                 <footer>
                     <button
                         name="action_refuse_reason_apply"
-                        string="Refuse"
                         type="object"
+                        string="Refuse"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                     <div class="d-flex" invisible="not send_mail">
                         <div invisible="not can_edit_body">

@@ -21,6 +21,5 @@ This module correct some behaviors when both module are installed.
             "pos_restaurant_loyalty/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

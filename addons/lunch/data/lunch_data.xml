@@ -27,13 +27,13 @@
             <field name="partner_id" ref="partner_hungry_dog" />
             <field
                 name="available_location_ids"
-                eval="[             (6, 0, [ref('lunch_location_main')]),             ]" />
+                eval="[Command.set([ref('lunch_location_main')])]" />
         </record>
     </data>
 
     <data>
         <record id="lunch_order_action_confirm" model="ir.actions.server">
-            <field name="name">Lunch: Receive meals</field>
+            <field name="name">Lunch: Receive Meals</field>
             <field name="model_id" ref="model_lunch_order" />
             <field name="binding_model_id" ref="model_lunch_order" />
             <field name="binding_view_types">list,kanban</field>
@@ -41,7 +41,7 @@
             <field name="code">records.action_confirm()</field>
         </record>
         <record id="lunch_order_action_cancel" model="ir.actions.server">
-            <field name="name">Lunch: Cancel meals</field>
+            <field name="name">Lunch: Cancel Meals</field>
             <field name="model_id" ref="model_lunch_order" />
             <field name="binding_model_id" ref="model_lunch_order" />
             <field name="binding_view_types">list,kanban</field>
@@ -49,7 +49,7 @@
             <field name="code">records.action_cancel()</field>
         </record>
         <record id="lunch_order_action_notify" model="ir.actions.server">
-            <field name="name">Lunch: Send notifications</field>
+            <field name="name">Lunch: Send Notifications</field>
             <field name="model_id" ref="model_lunch_order" />
             <field name="binding_model_id" ref="model_lunch_order" />
             <field name="binding_view_types">list,kanban</field>

@@ -5,7 +5,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     property_stock_subcontractor = fields.Many2one(
-        "stock.location",
+        comodel_name="stock.location",
         string="Subcontractor Location",
         company_dependent=True,
         help="The stock location used as source and destination when sending\
@@ -13,24 +13,24 @@ class ResPartner(models.Model):
     )
     is_subcontractor = fields.Boolean(
         string="Subcontractor",
-        store=False,
-        search="_search_is_subcontractor",
         compute="_compute_is_subcontractor",
+        search="_search_is_subcontractor",
+        store=False,
     )
     bom_ids = fields.Many2many(
-        "mrp.bom",
-        compute="_compute_bom_ids",
+        comodel_name="mrp.bom",
         string="BoMs for which the Partner is one of the subcontractors",
+        compute="_compute_bom_ids",
     )
     production_ids = fields.Many2many(
-        "mrp.production",
-        compute="_compute_production_ids",
+        comodel_name="mrp.production",
         string="MRP Productions for which the Partner is the subcontractor",
+        compute="_compute_production_ids",
     )
     picking_ids = fields.Many2many(
-        "stock.picking",
-        compute="_compute_picking_ids",
+        comodel_name="stock.picking",
         string="Stock Pickings for which the Partner is the subcontractor",
+        compute="_compute_picking_ids",
     )
 
     def _compute_bom_ids(self):
@@ -110,17 +110,26 @@ class ResPartner(models.Model):
         return [("id", "in", subcontractor_ids)]
 
     def _compute_is_subcontractor(self):
+        candidates = self.filtered(
+            lambda partner: any(user._is_portal() for user in partner.user_ids)
+        )
+        subcontractor_ids = set()
+        if candidates:
+            subcontractor_ids = {
+                subcontractor.id
+                for [subcontractor] in self.env["mrp.bom"]._read_group(
+                    [
+                        ("type", "=", "subcontract"),
+                        (
+                            "subcontractor_ids",
+                            "in",
+                            (candidates | candidates.commercial_partner_id).ids,
+                        ),
+                    ],
+                    ["subcontractor_ids"],
+                )
+            }
         for partner in self:
-            partner.is_subcontractor = any(
-                user._is_portal() for user in partner.user_ids
-            ) and partner.env["mrp.bom"].search_count(
-                [
-                    ("type", "=", "subcontract"),
-                    (
-                        "subcontractor_ids",
-                        "in",
-                        (partner | partner.commercial_partner_id).ids,
-                    ),
-                ],
-                limit=1,
+            partner.is_subcontractor = partner in candidates and bool(
+                subcontractor_ids & set((partner | partner.commercial_partner_id).ids)
             )

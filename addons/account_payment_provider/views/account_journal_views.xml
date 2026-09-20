@@ -12,17 +12,17 @@
                 <field name="code" column_invisible="True" />
                 <field
                     name="payment_provider_id"
-                    options="{'no_open': True, 'no_create': True}"
                     optional="hide"
+                    options="{'no_open': True, 'no_create': True}"
                     readonly="payment_provider_state in ('enabled', 'test')" />
                 <field name="payment_provider_state" column_invisible="True" />
                 <button
                     name="action_view_provider_form"
                     type="object"
                     string="SETUP"
-                    class="float-end btn-secondary"
+                    groups="base.group_system"
                     invisible="not payment_provider_id"
-                    groups="base.group_system" />
+                    class="float-end btn-secondary" />
             </xpath>
             <xpath
                 expr="//field[@name='inbound_payment_channel_ids']/list"

@@ -4,7 +4,7 @@ from odoo import api, models
 class Im_LivechatChannel(models.Model):
     _inherit = "im_livechat.channel"
 
-    def _get_livechat_discuss_channel_vals(
+    def _prepare_livechat_discuss_channel_vals(
         self,
         /,
         *,
@@ -14,7 +14,7 @@ class Im_LivechatChannel(models.Model):
         operator_model,
         **kwargs,
     ):
-        discuss_channel_vals = super()._get_livechat_discuss_channel_vals(
+        discuss_channel_vals = super()._prepare_livechat_discuss_channel_vals(
             agent=agent,
             chatbot_script=chatbot_script,
             operator_partner=operator_partner,
@@ -26,8 +26,6 @@ class Im_LivechatChannel(models.Model):
         visitor_sudo = self.env["website.visitor"]._get_visitor_from_request()
         if visitor_sudo:
             discuss_channel_vals["livechat_visitor_id"] = visitor_sudo.id
-            # As chat requested by the visitor, delete the chat requested by an operator if any to avoid conflicts between two flows
-            # TODO DBE : Move this into the proper method (open or init mail channel)
             pending_chats_domain = [
                 ("is_pending_chat_request", "=", True),
                 ("livechat_visitor_id", "=", visitor_sudo.id),

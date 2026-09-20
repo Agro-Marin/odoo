@@ -114,9 +114,9 @@ class SQL:
     ) -> tuple[Field, ...]:
         if to_flush is None:
             return ()
-        if isinstance(to_flush, (str, bytes)) or not hasattr(to_flush, "__iter__"):
-            return (to_flush,)
-        return tuple(to_flush)
+        if isinstance(to_flush, Iterable) and not isinstance(to_flush, (str, bytes)):
+            return tuple(to_flush)
+        return (to_flush,)
 
     @property
     def code(self) -> str:
@@ -146,7 +146,7 @@ class SQL:
             if directive == "%":
                 return "%%"
             if directive == "s":
-                literal = _sql.Literal(next(params)).as_string(cr._cnx)
+                literal = _sql.Literal(next(params)).as_string(cr.connection)
                 return literal.replace("%", "%%")
             raise ValueError(
                 f"SQL.inlined(): unsupported format directive "

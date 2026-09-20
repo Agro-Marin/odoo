@@ -8,20 +8,24 @@ from odoo.addons.payment_buckaroo import const
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "buckaroo_secret_key": "buckaroo_secret_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("buckaroo", "Buckaroo")], ondelete={"buckaroo": "set default"}
+        selection_add=[("buckaroo", "Buckaroo")],
+        ondelete={"buckaroo": "set default"},
     )
     buckaroo_website_key = fields.Char(
         string="Website Key",
-        help="The key solely used to identify the website with Buckaroo",
-        required_if_provider="buckaroo",
         copy=False,
+        required_if_provider="buckaroo",
+        help="The key solely used to identify the website with Buckaroo",
     )
     buckaroo_secret_key = fields.Char(
-        string="Buckaroo Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="buckaroo",
-        copy=False,
         groups="base.group_system",
     )
 
@@ -61,7 +65,7 @@ class PaymentProvider(models.Model):
         else:
             return "https://testcheckout.buckaroo.nl/html/"
 
-    def _buckaroo_generate_digital_sign(self, values, incoming=True):
+    def _get_buckaroo_signature(self, values, incoming=True):
         """Generate the shasign for incoming or outgoing communications.
 
         :param dict values: The values used to generate the signature

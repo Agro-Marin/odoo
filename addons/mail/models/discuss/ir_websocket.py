@@ -1,6 +1,9 @@
 import re
 
 from odoo import models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrWebsocket(models.AbstractModel):
@@ -27,6 +30,14 @@ class IrWebsocket(models.AbstractModel):
             remaining.append(guest)
         domain = ["|", ("is_member", "=", True), ("id", "in", discuss_channel_ids)]
         all_user_channels = self.env["discuss.channel"].search(domain)
+        _debug.logic(
+            "bus_channels_resolved",
+            asked=len(channels),
+            discuss_channels=len(discuss_channel_ids),
+            member_channels=len(all_user_channels),
+            guest=token_guest.id or None,
+            internal=not self.env.user.share,
+        )
         remaining.extend(all_user_channels)
         if not self.env.user.share:
             remaining.extend((c, "internal_users") for c in all_user_channels)

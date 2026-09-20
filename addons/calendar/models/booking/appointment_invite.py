@@ -81,65 +81,77 @@ class AppointmentInvite(models.Model):
         return res
 
     access_token = fields.Char(
-        "Token",
+        string="Token",
         default=lambda s: uuid.uuid4().hex,
-        required=True,
         copy=False,
         readonly=True,
+        required=True,
     )
-    short_code = fields.Char("Short Code", required=True)
-    short_code_format_warning = fields.Boolean(
-        "Short Code Format Warning", compute="_compute_short_code_warning"
-    )
-    short_code_unique_warning = fields.Boolean(
-        "Short Code Unique Warning", compute="_compute_short_code_warning"
-    )
+    short_code = fields.Char(required=True)
+    short_code_format_warning = fields.Boolean(compute="_compute_short_code_warning")
+    short_code_unique_warning = fields.Boolean(compute="_compute_short_code_warning")
     disable_save_button = fields.Boolean(
-        "Computes if alert is present", compute="_compute_disable_save_button"
+        string="Computes if alert is present",
+        compute="_compute_disable_save_button",
     )
     identical_config_id = fields.Many2one(
-        "appointment.invite",
-        string="Identical Config",
+        comodel_name="appointment.invite",
         help="Interface field to try to prevent creating identical links",
     )
 
-    base_book_url = fields.Char("Base Link URL", compute="_compute_base_book_url")
-    book_url = fields.Char("Link URL", compute="_compute_book_url")
-    book_url_params = fields.Char("Link URL params", compute="_compute_book_url_params")
-    redirect_url = fields.Char("Redirect URL", compute="_compute_redirect_url")
+    base_book_url = fields.Char(
+        string="Base Link URL",
+        compute="_compute_base_book_url",
+    )
+    book_url = fields.Char(
+        string="Link URL",
+        compute="_compute_book_url",
+    )
+    book_url_params = fields.Char(
+        string="Link URL params",
+        compute="_compute_book_url_params",
+    )
+    redirect_url = fields.Char(
+        string="Redirect URL",
+        compute="_compute_redirect_url",
+    )
 
     # Put active_test to False because we always want to be able to check all appointment types from an invitation.
     # In case the appointment type is archived, we still want old links to work and display with a message telling
     # that it's no longer available.
     appointment_type_ids = fields.Many2many(
-        "appointment.type", string="Appointment Types", context={"active_test": False}
+        comodel_name="appointment.type",
+        string="Appointment Types",
+        context={"active_test": False},
     )
     appointment_type_info_msg = fields.Html(
-        "No User Assigned Message", compute="_compute_appointment_type_info_msg"
+        string="No User Assigned Message",
+        compute="_compute_appointment_type_info_msg",
     )
     appointment_type_count = fields.Integer(
-        "Selected Appointments Count",
+        string="Selected Appointments Count",
         compute="_compute_appointment_type_count",
         store=True,
     )
-    schedule_based_on = fields.Char(
-        "Schedule Based On", compute="_compute_schedule_based_on"
-    )
+    schedule_based_on = fields.Char(compute="_compute_schedule_based_on")
     suggested_resource_ids = fields.Many2many(
-        "appointment.resource",
+        comodel_name="resource.resource",
         related="appointment_type_ids.resource_ids",
         string="Possible resources",
     )
-    suggested_resource_count = fields.Count("suggested_resource_ids", "# Resources")
+    suggested_resource_count = fields.Count(
+        count_of="suggested_resource_ids",
+        string="# Resources",
+    )
     suggested_staff_user_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         related="appointment_type_ids.staff_user_ids",
         string="Possible users",
         help="Get the users linked to the appointment type selected to apply a domain on the users that can be selected",
     )
     suggested_staff_user_count = fields.Count(
-        "suggested_staff_user_ids",
-        "# Staff Users",
+        count_of="suggested_staff_user_ids",
+        string="# Staff Users",
     )
     resources_choice = fields.Selection(
         selection=[
@@ -161,30 +173,31 @@ class AppointmentInvite(models.Model):
         inverse="_inverse_resources_resource_choice",
     )
     resource_ids = fields.Many2many(
-        "appointment.resource",
+        comodel_name="resource.resource",
         string="Resources",
-        domain="[('id', 'in', suggested_resource_ids)]",
         compute="_compute_resource_ids",
         store=True,
         readonly=False,
+        domain="[('id', 'in', suggested_resource_ids)]",
     )
     staff_user_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         string="Users",
-        domain="[('id', 'in', suggested_staff_user_ids)]",
         compute="_compute_staff_user_ids",
         store=True,
         readonly=False,
+        domain="[('id', 'in', suggested_staff_user_ids)]",
     )
 
     calendar_event_ids = fields.One2many(
-        "calendar.event",
-        "appointment_invite_id",
+        comodel_name="calendar.event",
+        inverse_name="appointment_invite_id",
         string="Booked Appointments",
         readonly=True,
     )
     calendar_event_count = fields.Integer(
-        "# Bookings", compute="_compute_calendar_event_count"
+        string="# Bookings",
+        compute="_compute_calendar_event_count",
     )
 
     _short_code_uniq = models.Constraint(
@@ -200,6 +213,7 @@ class AppointmentInvite(models.Model):
         "suggested_staff_user_ids",
         "resources_choice",
     )
+    @api.depends_context("uid")
     def _compute_disable_save_button(self):
         for invite in self:
             conditions = [
@@ -306,7 +320,7 @@ class AppointmentInvite(models.Model):
                 else False
             )
             invite.short_code_unique_warning = not invite.identical_config_id and bool(
-                self.env["appointment.invite"].search_count(
+                self.env["appointment.invite"].search_count(  # noqa: E8507 - one probe per invite, on its own short code
                     [
                         ("id", "!=", invite._origin.id),
                         ("short_code", "=", invite.short_code),
@@ -316,6 +330,7 @@ class AppointmentInvite(models.Model):
             )
 
     @api.depends("appointment_type_ids")
+    @api.depends_context("uid")
     def _compute_resources_choice(self):
         for invite in self:
             if len(invite.appointment_type_ids) != 1:
@@ -338,6 +353,7 @@ class AppointmentInvite(models.Model):
                 invite.resource_ids = False
 
     @api.depends("appointment_type_ids", "resources_choice")
+    @api.depends_context("uid")
     def _compute_staff_user_ids(self):
         for invite in self:
             if (
@@ -348,11 +364,11 @@ class AppointmentInvite(models.Model):
             else:
                 invite.staff_user_ids = False
 
-    def _get_url_params(self):
+    def _prepare_url_params(self):
         return {}
 
     def _compute_book_url_params(self):
-        params = self._get_url_params()
+        params = self._prepare_url_params()
         for invite in self:
             invite.book_url_params = f"?{url_encode(params)}" if params else ""
 

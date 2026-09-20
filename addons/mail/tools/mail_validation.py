@@ -1,8 +1,10 @@
 import logging
 
 from odoo import tools
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _flanker_lib_warning = False
 
@@ -20,6 +22,7 @@ except ImportError:
         global _flanker_lib_warning  # noqa: PLW0603 - one-shot latch so the missing-flanker warning is logged once per process
         if not _flanker_lib_warning:
             _flanker_lib_warning = True
+            _debug.logic("email_validation_fallback", by="email_normalize")
             _logger.info(
                 "The (optional) `flanker` Python module is not installed,"
                 "so email validation will fallback to email_normalize."

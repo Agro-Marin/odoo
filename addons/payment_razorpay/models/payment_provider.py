@@ -17,23 +17,31 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "razorpay_key_secret": "razorpay_key_secret",
+        "razorpay_webhook_secret": "razorpay_webhook_secret",
+        "razorpay_refresh_token": "razorpay_refresh_token",
+        "razorpay_public_token": "razorpay_public_token",
+        "razorpay_access_token": "razorpay_access_token",
+    }
 
     code = fields.Selection(
-        selection_add=[("razorpay", "Razorpay")], ondelete={"razorpay": "set default"}
+        selection_add=[("razorpay", "Razorpay")],
+        ondelete={"razorpay": "set default"},
     )
     razorpay_key_id = fields.Char(
         string="Razorpay Key Id",
-        help="The key solely used to identify the account with Razorpay.",
         copy=False,
+        help="The key solely used to identify the account with Razorpay.",
     )
     razorpay_key_secret = fields.Char(
-        string="Razorpay Key Secret",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     razorpay_webhook_secret = fields.Char(
-        string="Razorpay Webhook Secret",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
 
@@ -44,22 +52,21 @@ class PaymentProvider(models.Model):
         groups="base.group_system",
     )
     razorpay_refresh_token = fields.Char(
-        string="Razorpay Refresh Token",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     razorpay_public_token = fields.Char(
-        string="Razorpay Public Token",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     razorpay_access_token = fields.Char(
-        string="Razorpay Access Token",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     razorpay_access_token_expiry = fields.Datetime(
-        string="Razorpay Access Token Expiry",
         copy=False,
         groups="base.group_system",
     )
@@ -156,10 +163,10 @@ class PaymentProvider(models.Model):
             "target": "self",
         }
 
-    def _get_reset_values(self):
+    def _prepare_credential_reset_vals(self):
         """Override of `payment` to supply the provider-specific credential values to reset."""
         if self.code != "razorpay":
-            return super()._get_reset_values()
+            return super()._prepare_credential_reset_vals()
 
         return {
             "razorpay_account_id": None,
@@ -218,16 +225,16 @@ class PaymentProvider(models.Model):
 
         return 1.0
 
-    def _razorpay_calculate_signature(self, data, is_redirect=True):
+    def _get_razorpay_signature(self, data, is_redirect=True):
         """Compute the signature for the request's data according to the Razorpay documentation.
 
         See https://razorpay.com/docs/webhooks/validate-test#validate-webhooks.
 
-        :param bytes data: The data to sign.
+        :param dict|bytes data: Redirect fields or the raw webhook body to sign.
         :param bool is_redirect: Whether the data should be treated as redirect data or as coming
                                  from a webhook notification.
-        :return: The calculated signature.
-        :rtype: str
+        :return: The signature, or None when the webhook secret is absent.
+        :rtype: str | None
         """
         if is_redirect:
             secret = self.razorpay_key_secret
@@ -321,7 +328,7 @@ class PaymentProvider(models.Model):
                 is_proxy_request=is_proxy_request, **kwargs
             )
 
-        auth = tuple()
+        auth = ()
         if not is_proxy_request and self.razorpay_key_id:
             auth = (self.razorpay_key_id, self.razorpay_key_secret)
         return auth

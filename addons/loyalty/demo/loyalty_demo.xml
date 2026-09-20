@@ -15,10 +15,10 @@
         <field name="portal_point_name">Discount point(s)</field>
         <field
             name="rule_ids"
-            eval="[(5, 0, 0), (0, 0, {             'mode': 'with_code',             'code': '10pc',         })]" />
+            eval="[Command.clear(), Command.create({'mode': 'with_code', 'code': '10pc'})]" />
         <field
             name="reward_ids"
-            eval="[(5, 0, 0), (0, 0, {             'reward_type': 'discount',             'discount': 10,             'discount_mode': 'percent',             'discount_applicability': 'order',         })]" />
+            eval="[Command.clear(), Command.create({'reward_type': 'discount', 'discount': 10, 'discount_mode': 'percent', 'discount_applicability': 'order'})]" />
     </record>
 
     <!-- 3 cabinets + 1 free -->
@@ -31,10 +31,10 @@
         <field name="portal_point_name">Credit(s)</field>
         <field
             name="rule_ids"
-            eval="[(5, 0, 0), (0, 0, {             'minimum_qty': 3,             'reward_point_mode': 'unit',             'reward_point_amount': 1,             'product_ids': [(4, ref('product.product_product_6'))],         })]" />
+            eval="[Command.clear(), Command.create({'minimum_qty': 3, 'reward_point_mode': 'unit', 'reward_point_amount': 1, 'product_ids': [Command.link(ref('product.product_product_6'))]})]" />
         <field
             name="reward_ids"
-            eval="[(5, 0, 0), (0, 0, {             'reward_type': 'product',             'reward_product_id': ref('product.product_product_6'),             'required_points': 3,         })]" />
+            eval="[Command.clear(), Command.create({'reward_type': 'product', 'reward_product_id': ref('product.product_product_6'), 'required_points': 3})]" />
     </record>
 
     <!-- 10 percent coupons -->
@@ -44,13 +44,13 @@
         <field name="applies_on">current</field>
         <field name="trigger">with_code</field>
         <field name="portal_point_name">Coupon points</field>
-        <field name="rule_ids" eval="[(5, 0, 0), (0, 0, {})]" />
+        <field name="rule_ids" eval="[Command.clear(), Command.create({})]" />
         <field
             name="reward_ids"
-            eval="[(5, 0, 0), (0, 0, {             'reward_type': 'discount',             'discount': 10,             'discount_mode': 'percent',             'discount_applicability': 'order',         })]" />
+            eval="[Command.clear(), Command.create({'reward_type': 'discount', 'discount': 10, 'discount_mode': 'percent', 'discount_applicability': 'order'})]" />
         <field
             name="communication_plan_ids"
-            eval="[(5, 0, 0), (0, 0, {             'trigger': 'create',             'mail_template_id': ref('loyalty.mail_template_loyalty_card'),         })]" />
+            eval="[Command.clear(), Command.create({'trigger': 'create', 'mail_template_id': ref('loyalty.mail_template_loyalty_card')})]" />
     </record>
 
 </odoo>

@@ -3,8 +3,10 @@ import datetime
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 DEFAULT_REVEAL_VIEW_WEEKS_VALID = 5
+_debug = DebugLog(__name__)
 
 
 class CrmRevealView(models.Model):
@@ -15,17 +17,22 @@ class CrmRevealView(models.Model):
 
     reveal_ip = fields.Char(string="IP Address")
     reveal_rule_id = fields.Many2one(
-        "crm.reveal.rule", string="Lead Generation Rule", index="btree_not_null"
+        comodel_name="crm.reveal.rule",
+        string="Lead Generation Rule",
+        index="btree_not_null",
     )
     reveal_state = fields.Selection(
-        [("to_process", "To Process"), ("not_found", "Not Found")],
-        default="to_process",
+        selection=[("to_process", "To Process"), ("not_found", "Not Found")],
         string="State",
+        default="to_process",
         index=True,
     )
     create_date = fields.Datetime(index=True)
 
-    _ip_rule_id = models.UniqueIndex("(reveal_rule_id,reveal_ip)")
+    _ip_rule_id = models.UniqueIndex(
+        "(reveal_rule_id, reveal_ip) "
+        "WHERE reveal_rule_id IS NOT NULL AND reveal_ip IS NOT NULL"
+    )
     _state_create_date = models.Index("(reveal_state,create_date)")
 
     @api.model
@@ -38,6 +45,7 @@ class CrmRevealView(models.Model):
         try:
             weeks_valid = int(weeks_valid)
         except ValueError:
+            _debug.logic("reveal_param_rejected", param="view_weeks_valid")
             weeks_valid = DEFAULT_REVEAL_VIEW_WEEKS_VALID
         domain = []
         domain.append(("reveal_state", "=", "not_found"))

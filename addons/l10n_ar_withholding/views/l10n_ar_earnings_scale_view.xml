@@ -56,11 +56,4 @@
         <field name="type">ir.actions.act_window</field>
     </record>
 
-    <menuitem
-        id="menu_action_afip_earnings_table_scale_line"
-        name="Earnings Scale"
-        parent="l10n_ar.menu_afip_config"
-        action="act_afip_earnings_table_scale"
-        sequence="95" />
-
 </odoo>

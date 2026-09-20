@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Inject the wishlist button into the products cards template -->
     <template
         id="website_sale_wishlist.add_to_wishlist"
         name="Wishlist Button"
@@ -105,7 +104,6 @@
                 t-if="is_view_active('website_sale.cta_wrapper_large')"
                 t-set="_button_classes"
                 t-value="_button_classes + ' btn-lg px-lg-0'" />
-            <!-- using A instead of BUTTON so space character works when editing -->
             <a
                 t-if="product_variant"
                 t-att-class="_button_classes"

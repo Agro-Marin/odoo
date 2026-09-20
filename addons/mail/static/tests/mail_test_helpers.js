@@ -4,7 +4,7 @@ import { addBusMessageHandler, busModels } from "@bus/../tests/bus_test_helpers"
 import { CHAT_HUB_KEY } from "@mail/core/common/chat_hub_model";
 import { UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
 import { Network, Rtc } from "@mail/discuss/call/common/rtc_service";
-import { closeStream, mailGlobal } from "@mail/utils/common/misc";
+import { closeStream } from "@mail/utils/common/misc";
 import { after, before, expect, getFixture, registerDebugInfo, test } from "@odoo/hoot";
 import { hover as hootHover, queryFirst, resize } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, microTick } from "@odoo/hoot-mock";
@@ -86,7 +86,6 @@ before(prepareRegistriesWithCleanup);
 export const registryNamesToCloneWithCleanup = [];
 registryNamesToCloneWithCleanup.push("mock_server_callbacks", "discuss.model");
 
-mailGlobal.isInTest = true;
 useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
 
 addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {

@@ -16,10 +16,10 @@
                     <button
                         name="action_view_sponsor"
                         type="object"
-                        class="oe_stat_button"
-                        icon="fa-black-tie"
                         string="Sponsor"
-                        invisible="not sponsor_id">
+                        icon="fa-black-tie"
+                        invisible="not sponsor_id"
+                        class="oe_stat_button">
                     </button>
                 </div>
             </field>

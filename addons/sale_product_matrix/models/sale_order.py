@@ -2,12 +2,18 @@ import json
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    report_grids = fields.Boolean(string="Print Variant Grids", default=True)
+    report_grids = fields.Boolean(
+        string="Print Variant Grids",
+        default=True,
+    )
 
     """ Matrix loading and update: fields and methods :
 
@@ -19,10 +25,16 @@ class SaleOrder(models.Model):
         To force the loading, a 'hack' of the js framework would have been needed...
     """
 
-    grid_product_tmpl_id = fields.Many2one("product.template", store=False)
-    grid_update = fields.Boolean(default=False, store=False)
+    grid_product_tmpl_id = fields.Many2one(
+        comodel_name="product.template",
+        store=False,
+    )
+    grid_update = fields.Boolean(
+        default=False,
+        store=False,
+    )
     grid = fields.Char(
-        "Matrix local storage",
+        string="Matrix local storage",
         store=False,
         help="Technical local storage of grid. "
         "\nIf grid_update, will be loaded on the SO."
@@ -88,6 +100,7 @@ class SaleOrder(models.Model):
                         Therefore, it only raises an Error for now.
                         """
                         if len(order_lines) > 1:
+                            _debug.logic("matrix_qty_refused", lines=order_lines)
                             raise ValidationError(
                                 _(
                                     "You cannot change the quantity of a product present in multiple sale lines."
@@ -115,6 +128,9 @@ class SaleOrder(models.Model):
                             ),
                         )
                     )
+            _debug.pipeline(
+                "matrix_applied", order=self._origin, new_lines=len(new_lines)
+            )
             if new_lines:
                 self.update({"line_ids": new_lines})
 

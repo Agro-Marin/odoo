@@ -9,16 +9,16 @@
         </record>
         <record id="mt_note" model="mail.message.subtype">
             <field name="name">Note</field>
+            <field name="sequence" eval="100" />
             <field name="default" eval="False" />
             <field name="internal" eval="True" />
-            <field name="sequence" eval="100" />
             <field name="track_recipients" eval="True" />
         </record>
         <record id="mt_activities" model="mail.message.subtype">
             <field name="name">Activities</field>
+            <field name="sequence" eval="90" />
             <field name="default" eval="False" />
             <field name="internal" eval="True" />
-            <field name="sequence" eval="90" />
         </record>
     </data>
 

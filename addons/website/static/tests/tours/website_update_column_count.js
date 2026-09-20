@@ -103,8 +103,6 @@ registerWebsitePreviewTour(
             content: "Check that there are still 4 items but on rows of 3 columns",
             trigger: `${columnsSnippetRow}:has(.col-lg-6.col-4:nth-child(4))`,
         },
-        // As there is no practical way to resize the items through the handles,
-        // the next step approximates part of what could be reached.
         {
             content: "Click on the 2nd item",
             trigger: `${columnsSnippetRow} > :nth-child(2)`,
@@ -130,12 +128,8 @@ registerWebsitePreviewTour(
                     (type === "pointermove" ? window : overlayEl).dispatchEvent(event);
                 };
 
-                // Trigger pointer down
                 triggerPointerEvent("pointerdown", 100, 100);
-                // Wait for the mutex/this.next to lock and sizingResolve to be
-                // ready.
                 await new Promise((resolve) => setTimeout(resolve, 0));
-                // Dragging
                 triggerPointerEvent("pointermove", 150, 100);
                 triggerPointerEvent("pointerup", 150, 100);
             },
@@ -211,7 +205,6 @@ registerWebsitePreviewTour(
             groupName: "Content",
         }),
         ...toggleMobilePreview(true),
-        // Add a mobile order to the "Columns" snippet columns.
         ...changeFirstAndSecondColumnsMobileOrder(columnsSnippetRow, "Columns"),
         {
             content: "Check that the mobile order classes and styles are correct",
@@ -220,9 +213,7 @@ registerWebsitePreviewTour(
                 ":has(.order-lg-0[style*='order: 0;']:nth-child(2))" +
                 ":has(.order-lg-0[style*='order: 2;']:nth-child(3))",
         },
-        // Add a mobile order to the "Text-Image" snippet columns.
         ...addMobileOrderToTextImageSnippet,
-        // Test the drag and drop in the same snippet.
         ...toggleMobilePreview(false),
         {
             content: "Drag a 'Text-Image' column and drop it in the same snippet",
@@ -235,10 +226,8 @@ registerWebsitePreviewTour(
             },
         },
         checkIfNoMobileOrder(textImageSnippetRow),
-        // Add again a mobile order to the "Text-Image" snippet columns.
         ...toggleMobilePreview(true),
         ...addMobileOrderToTextImageSnippet,
-        // Test the drag and drop from "Columns" to "Text-Image".
         ...toggleMobilePreview(false),
         {
             content: "Click on the second column of the 'Columns' snippet",

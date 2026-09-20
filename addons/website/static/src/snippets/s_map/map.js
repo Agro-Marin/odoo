@@ -1,16 +1,20 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { generateGMapIframe, generateGMapLink } from "@website/js/utils";
+
+const log = makeLogger("website.snippet.s_map");
 
 export class Map extends Interaction {
     static selector = ".s_map";
 
     start() {
+        log.logic("start", () => ({
+            alreadyEmbedded: !!this.el.querySelector(".s_map_embedded"),
+            hasAddress: !!this.el.dataset.mapAddress,
+        }));
         if (!this.el.querySelector(".s_map_embedded")) {
-            // The iframe is not found inside the snippet. This is probably due
-            // to the sanitization of a field during the save, like in a product
-            // description field. In such cases, reconstruct the iframe.
             const dataset = this.el.dataset;
             if (dataset.mapAddress) {
                 const iframeEl = generateGMapIframe();
@@ -19,6 +23,7 @@ export class Map extends Interaction {
                     iframeEl,
                     generateGMapLink(dataset),
                 );
+                log.lifecycle("iframe inserted, src handed to cookie consent");
             }
         }
     }

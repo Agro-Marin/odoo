@@ -14,8 +14,8 @@
                     string="Hide cancelled lines"
                     domain="[('state', '!=', 'cancel')]" />
                 <filter
-                    string="Status"
                     name="purchase_state"
+                    string="Status"
                     domain="[('state', '=', 'done')]" />
                 <separator />
                 <filter
@@ -37,13 +37,13 @@
                         string="Product"
                         context="{'group_by' : 'product_id'}" />
                     <filter
-                        string="Order Reference"
                         name="order_reference"
+                        string="Order Reference"
                         context="{'group_by' :'order_id'}" />
                     <separator />
                     <filter
-                        string="Order Date"
                         name="group_by_date_order"
+                        string="Order Date"
                         context="{'group_by': 'date_order'}" />
                 </group>
             </search>
@@ -63,8 +63,8 @@
                 <field name="product_qty" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    widget="many2one_uom"
+                    groups="uom.group_uom" />
                 <field name="price_subtotal" widget="monetary" />
                 <field name="currency_id" column_invisible="True" />
                 <field name="date_commitment" />
@@ -77,11 +77,11 @@
         <field name="model">purchase.order.line</field>
         <field name="arch" type="xml">
             <list
-                create="false"
+                type="object"
                 default_order="date_confirmed desc, id desc"
-                decoration-info="order_id == context.get('active_id')"
+                create="false"
                 action="action_view_order"
-                type="object">
+                decoration-info="order_id == context.get('active_id')">
                 <field name="currency_id" column_invisible="True" />
                 <field name="order_id" widget="many2one" />
                 <field name="date_confirmed" />
@@ -96,7 +96,7 @@
                 <field name="price_unit" optional="hide" />
                 <field name="price_unit_product_uom" widget="monetary" />
                 <field name="discount" optional="hide" />
-                <field name="price_subtotal" widget="monetary" string="Total Untaxed" />
+                <field name="price_subtotal" string="Total Untaxed" widget="monetary" />
                 <field name="state" optional="hide" />
             </list>
         </field>
@@ -109,12 +109,12 @@
             <pivot>
                 <field
                     name="price_total"
-                    string="Total purchased amount"
-                    type="measure" />
+                    type="measure"
+                    string="Total purchased amount" />
                 <field
                     name="product_uom_qty"
-                    string="Total Qty purchased"
-                    type="measure" />
+                    type="measure"
+                    string="Total Qty purchased" />
             </pivot>
         </field>
     </record>
@@ -140,7 +140,7 @@
                     <label for="order_id" />
                     <h1>
                         <field name="order_id" class="oe_inline" />
-                        <label string="," for="date_order" invisible="not date_order" />
+                        <label for="date_order" string="," invisible="not date_order" />
                         <field name="date_order" class="oe_inline" />
                     </h1>
                     <label for="partner_id" />
@@ -155,8 +155,8 @@
                                 <field name="product_qty" readonly="1" />
                                 <field
                                     name="product_uom_id"
-                                    readonly="1"
-                                    groups="uom.group_uom" />
+                                    groups="uom.group_uom"
+                                    readonly="1" />
                             </div>
                             <field name="price_unit" />
                         </group>
@@ -168,13 +168,13 @@
                             <field name="date_commitment" readonly="1" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company" />
                             <field
                                 name="analytic_distribution"
                                 widget="analytic_distribution"
-                                groups="analytic.group_analytic_accounting"
-                                options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}" />
+                                options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}"
+                                groups="analytic.group_analytic_accounting" />
                         </group>
                     </group>
                     <field name="name" />

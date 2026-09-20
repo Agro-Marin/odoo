@@ -19,7 +19,7 @@ adaptive difficulty, and smart nudges.
 | Wizards | 2 transient models |
 | Cron jobs | 8 |
 | Test files | 19 (common + 18 test modules) |
-| Total tests | 267 (`--test-tags /gamification`) |
+| Total tests | 269 (`--test-tags /gamification`) |
 | OWL components | 2 (dashboard + notification service) |
 
 ## File Inventory
@@ -115,7 +115,7 @@ Extension points for other modules:
 - Create `gamification.achievement` records for hidden discovery achievements
 - Create `gamification.quest` records for guided onboarding journeys
 - Extend `_selection_origin_models()` to add new karma source models
-- Override `get_gamification_redirection_data()` for rank-reached email buttons
+- Override `prepare_rank_email_links()` for rank-reached email buttons
 
 ## Not wired
 

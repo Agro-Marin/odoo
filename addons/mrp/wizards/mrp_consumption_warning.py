@@ -1,15 +1,18 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpConsumptionWarning(models.TransientModel):
     _name = "mrp.consumption.warning"
     _description = "Wizard in case of consumption in warning/strict and more component has been used for a MO (related to the bom)"
 
-    mrp_production_ids = fields.Many2many("mrp.production")
-    mrp_production_count = fields.Count("mrp_production_ids")
+    mrp_production_ids = fields.Many2many(comodel_name="mrp.production")
+    mrp_production_count = fields.Count(count_of="mrp_production_ids")
 
     consumption = fields.Selection(
-        [
+        selection=[
             ("flexible", "Allowed"),
             ("warning", "Allowed with warning"),
             ("strict", "Blocked"),
@@ -17,7 +20,8 @@ class MrpConsumptionWarning(models.TransientModel):
         compute="_compute_consumption",
     )
     mrp_consumption_warning_line_ids = fields.One2many(
-        "mrp.consumption.warning.line", "mrp_consumption_warning_id"
+        comodel_name="mrp.consumption.warning.line",
+        inverse_name="mrp_consumption_warning_id",
     )
 
     @api.depends("mrp_consumption_warning_line_ids.consumption")
@@ -35,6 +39,12 @@ class MrpConsumptionWarning(models.TransientModel):
     def action_confirm(self):
         ctx = dict(self.env.context)
         ctx.pop("default_mrp_production_ids", None)
+        _debug.logic(
+            "consumption_warning_confirmed",
+            productions=self.mrp_production_ids,
+            consumption=self.consumption,
+            lines=len(self.mrp_consumption_warning_line_ids),
+        )
         return self.mrp_production_ids.with_context(
             ctx, skip_consumption=True
         ).button_mark_done()
@@ -62,7 +72,7 @@ class MrpConsumptionWarning(models.TransientModel):
                     )
                     continue
                 first, rest = matching[0], matching[1:]
-                qty_expected = line.product_uom_id._compute_quantity(
+                qty_expected = line.product_uom_id._get_quantity_in_unit(
                     line.product_expected_qty_uom, first.product_uom_id
                 )
                 if first.product_uom_id.compare(qty_expected, first.quantity) != 0:
@@ -72,6 +82,11 @@ class MrpConsumptionWarning(models.TransientModel):
                         other.quantity = 0
                 matching.picked = True
                 line.product_expected_qty_uom = 0
+        _debug.pipeline(
+            "consumption_warning_qty_set",
+            productions=self.mrp_production_ids,
+            created=len(missing_move_vals),
+        )
         if missing_move_vals:
             self.env["stock.move"].create(missing_move_vals)
         return self.action_confirm()
@@ -93,15 +108,15 @@ class MrpConsumptionWarningLine(models.TransientModel):
     _description = "Line of issue consumption"
 
     mrp_consumption_warning_id = fields.Many2one(
-        "mrp.consumption.warning",
-        "Parent Wizard",
+        comodel_name="mrp.consumption.warning",
+        string="Parent Wizard",
         readonly=True,
         required=True,
         ondelete="cascade",
     )
     mrp_production_id = fields.Many2one(
-        "mrp.production",
-        "Manufacturing Order",
+        comodel_name="mrp.production",
+        string="Manufacturing Order",
         readonly=True,
         required=True,
         ondelete="cascade",
@@ -109,10 +124,21 @@ class MrpConsumptionWarningLine(models.TransientModel):
     consumption = fields.Selection(related="mrp_production_id.consumption")
 
     product_id = fields.Many2one(
-        "product.product", "Product", readonly=True, required=True
+        comodel_name="product.product",
+        readonly=True,
+        required=True,
     )
     product_uom_id = fields.Many2one(
-        "uom.uom", "Unit", related="product_id.uom_id", readonly=True
+        comodel_name="uom.uom",
+        related="product_id.uom_id",
+        string="Unit",
+        readonly=True,
     )
-    product_consumed_qty_uom = fields.Float("Consumed", readonly=True)
-    product_expected_qty_uom = fields.Float("To Consume", readonly=True)
+    product_consumed_qty_uom = fields.Float(
+        string="Consumed",
+        readonly=True,
+    )
+    product_expected_qty_uom = fields.Float(
+        string="To Consume",
+        readonly=True,
+    )

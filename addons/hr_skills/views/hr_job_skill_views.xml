@@ -11,21 +11,21 @@
                         <field name="job_id" invisible="1" />
                         <field
                             name="skill_type_id"
-                            widget="selection_badge"
-                            string="Category" />
+                            string="Category"
+                            widget="selection_badge" />
                         <field
                             name="skill_id"
                             widget="selection_badge"
-                            context="{'default_skill_type_id': skill_type_id}"
                             domain="[('skill_type_id', '=', skill_type_id)]"
+                            context="{'default_skill_type_id': skill_type_id}"
                             invisible="not skill_type_id" />
                         <field
                             name="skill_level_id"
-                            readonly="not skill_id"
                             widget="selection_badge"
-                            invisible="levels_count &lt;= 1"
+                            context="{'default_skill_type_id': skill_type_id}"
                             options="{'no_open': True, 'no_create': True}"
-                            context="{'default_skill_type_id': skill_type_id}" />
+                            invisible="levels_count &lt;= 1"
+                            readonly="not skill_id" />
                     </group>
                 </sheet>
             </form>

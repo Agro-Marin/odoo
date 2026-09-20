@@ -25,5 +25,4 @@
             "website_event_track_live/static/src/xml/**/*",
         ],
     },
-    "installable": True,
 }

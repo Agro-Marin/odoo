@@ -1,9 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
 const { DateTime } = luxon;
+const log = makeLogger("pos.payment");
 
 export class PosPayment extends Base {
     static pythonModel = "pos.payment";
@@ -23,6 +25,12 @@ export class PosPayment extends Base {
 
     setAmount(value) {
         this.pos_order_id.assertEditable();
+        log.logic("setAmount", () => ({
+            payment: this.uuid,
+            order: this.pos_order_id.uuid,
+            from: this.amount,
+            to: value,
+        }));
         this.amount = this.pos_order_id.currency.round(parseFloat(value) || 0);
     }
 
@@ -35,6 +43,12 @@ export class PosPayment extends Base {
     }
 
     setPaymentStatus(value) {
+        log.lifecycle("setPaymentStatus", () => ({
+            payment: this.uuid,
+            order: this.pos_order_id?.uuid,
+            from: this.payment_status,
+            to: value,
+        }));
         this.payment_status = value;
     }
 
@@ -59,6 +73,14 @@ export class PosPayment extends Base {
 
     async pay() {
         this.setPaymentStatus("waiting");
+        const endPay = log.perf("pay");
+        log.pipeline("pay", () => ({
+            payment: this.uuid,
+            order: this.pos_order_id?.uuid,
+            method: this.payment_method_id.id,
+            terminal: this.payment_method_id.use_payment_terminal,
+            amount: this.amount,
+        }));
 
         let response;
         try {
@@ -66,13 +88,20 @@ export class PosPayment extends Base {
                 this.uuid,
             );
         } catch (error) {
+            endPay({ payment: this.uuid, error: error?.message });
             this.setPaymentStatus("retry");
             throw error;
         }
+        endPay({ payment: this.uuid, response });
         return this.handlePaymentResponse(response);
     }
 
     handlePaymentResponse(isPaymentSuccessful) {
+        log.logic("handlePaymentResponse", () => ({
+            payment: this.uuid,
+            successful: Boolean(isPaymentSuccessful),
+            type: this.payment_method_id.payment_method_type,
+        }));
         if (isPaymentSuccessful) {
             this.setPaymentStatus("done");
             if (this.payment_method_id.payment_method_type !== "qr_code") {

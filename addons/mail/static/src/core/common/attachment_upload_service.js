@@ -1,10 +1,21 @@
 // @ts-check
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 
 /** @typedef {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} Upload */
+/**
+ * @typedef {Object} PendingUpload
+ * @property {(() => void)|undefined} abort
+ * @property {{attachments: import("models").Attachment[]}|undefined} composer
+ * @property {Deferred<import("models").Attachment | undefined>} deferred
+ * @property {import("models").Thread} thread
+ * @property {string} tmpUrl
+ */
+
+const log = makeLogger("mail.attachment_upload");
 
 export class AttachmentUploadService {
     /**
@@ -27,12 +38,8 @@ export class AttachmentUploadService {
         this.notificationService = services["notification"];
 
         this.nextId = -1;
-        this.abortByAttachmentId = new Map();
-        this.deferredByAttachmentId = new Map();
-        this.tmpUrlByAttachmentId = new Map();
-        this.uploadingAttachmentIds = new Set();
-        /** @type {Map<number, {composer: {attachments: import("models").Attachment[]}, thread: import("models").Thread}>} */
-        this.targetsByTmpId = new Map();
+        /** @type {Map<number, PendingUpload>} */
+        this.pendingUploads = new Map();
         for (const [event, handler] of /** @type {const} */ ([
             ["FILE_UPLOAD_ADDED", this._onUploadAdded],
             ["FILE_UPLOAD_LOADED", this._onUploadLoaded],
@@ -45,7 +52,7 @@ export class AttachmentUploadService {
                     const tmpId = parseInt(
                         /** @type {string} */ (upload.data.get("temporary_id")),
                     );
-                    if (this.uploadingAttachmentIds.has(tmpId)) {
+                    if (this.pendingUploads.has(tmpId)) {
                         handler.call(this, upload, tmpId);
                     }
                 },
@@ -58,9 +65,15 @@ export class AttachmentUploadService {
      * @param {number} tmpId
      */
     _onUploadAdded(upload, tmpId) {
-        const { thread, composer } = this.targetsByTmpId.get(tmpId);
+        const pending = this.pendingUploads.get(tmpId);
+        const { thread, composer } = pending;
+        log.pipeline("upload added", () => ({
+            tmpId,
+            thread: thread?.localId,
+            composer: Boolean(composer),
+        }));
         const tmpUrl = /** @type {string} */ (upload.data.get("tmp_url"));
-        this.abortByAttachmentId.set(tmpId, upload.xhr.abort.bind(upload.xhr));
+        pending.abort = upload.xhr.abort.bind(upload.xhr);
         const attachment = this.store["ir.attachment"].insert(
             this._makeAttachmentData(
                 upload,
@@ -78,17 +91,12 @@ export class AttachmentUploadService {
      */
     _onUploadLoaded(upload, tmpId) {
         const response = this._parseUploadResponse(upload, tmpId);
+        log.pipeline("upload loaded", () => ({ tmpId, ok: Boolean(response) }));
         if (!response) {
             return;
         }
-        const { thread, composer } = this.targetsByTmpId.get(tmpId);
-        this._processLoaded(
-            thread,
-            composer,
-            response,
-            tmpId,
-            this.deferredByAttachmentId.get(tmpId),
-        );
+        const { thread, composer, deferred } = this.pendingUploads.get(tmpId);
+        this._processLoaded(thread, composer, response, tmpId, deferred);
     }
 
     /**
@@ -96,7 +104,8 @@ export class AttachmentUploadService {
      * @param {number} tmpId
      */
     _onUploadError(upload, tmpId) {
-        this.deferredByAttachmentId.get(tmpId).resolve();
+        log.pipeline("upload error", () => ({ tmpId }));
+        this.pendingUploads.get(tmpId).deferred.resolve();
         this._cleanupUploading(tmpId);
     }
 
@@ -129,8 +138,9 @@ export class AttachmentUploadService {
      * @param {string} message
      */
     _abandonUpload(tmpId, message) {
+        log.logic("upload abandoned", () => ({ tmpId, message }));
         this.notificationService.add(message, { type: "danger" });
-        this.deferredByAttachmentId.get(tmpId).resolve();
+        this.pendingUploads.get(tmpId).deferred.resolve();
         this._cleanupUploading(tmpId);
     }
 
@@ -146,6 +156,12 @@ export class AttachmentUploadService {
         this.store.insert(store_data);
         /** @type {import("models").Attachment} */
         const attachment = this.store["ir.attachment"].get(attachment_id);
+        log.pipeline("upload processed", () => ({
+            tmpId,
+            attachmentId: attachment_id,
+            thread: thread?.localId,
+            composer: Boolean(composer),
+        }));
         if (composer) {
             const index = composer.attachments.findIndex(({ id }) => id === tmpId);
             if (index >= 0) {
@@ -160,14 +176,10 @@ export class AttachmentUploadService {
 
     /** @param {number} tmpId */
     _cleanupUploading(tmpId) {
-        this.abortByAttachmentId.delete(tmpId);
-        this.deferredByAttachmentId.delete(tmpId);
-        this.uploadingAttachmentIds.delete(tmpId);
-        this.targetsByTmpId.delete(tmpId);
-        const tmpUrl = this.tmpUrlByAttachmentId.get(tmpId);
-        if (tmpUrl) {
-            URL.revokeObjectURL(tmpUrl);
-            this.tmpUrlByAttachmentId.delete(tmpId);
+        const pending = this.pendingUploads.get(tmpId);
+        this.pendingUploads.delete(tmpId);
+        if (pending?.tmpUrl) {
+            URL.revokeObjectURL(pending.tmpUrl);
         }
         this.store["ir.attachment"].get(tmpId)?.remove();
     }
@@ -182,12 +194,15 @@ export class AttachmentUploadService {
 
     /** @param {import("models").Attachment} attachment */
     async unlink(attachment) {
-        if (this.uploadingAttachmentIds.has(attachment.id)) {
-            const deferred = this.deferredByAttachmentId.get(attachment.id);
-            const abort = this.abortByAttachmentId.get(attachment.id);
+        const pending = this.pendingUploads.get(attachment.id);
+        log.logic("unlink", () => ({
+            attachmentId: attachment.id,
+            uploading: Boolean(pending),
+        }));
+        if (pending) {
             this._cleanupUploading(attachment.id);
-            deferred?.resolve();
-            abort?.();
+            pending.deferred.resolve();
+            pending.abort?.();
             return;
         }
         await attachment.remove();
@@ -204,6 +219,13 @@ export class AttachmentUploadService {
     async upload(thread, composer, file, options) {
         const tmpId = this.nextId--;
         const tmpURL = URL.createObjectURL(file);
+        log.logic("upload", () => ({
+            tmpId,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            thread: thread?.localId,
+        }));
         return this._upload(thread, composer, file, options, tmpId, tmpURL);
     }
 
@@ -217,12 +239,19 @@ export class AttachmentUploadService {
      * @returns {Promise<import("models").Attachment|undefined>}
      */
     async _upload(thread, composer, file, options, tmpId, tmpURL) {
-        this.targetsByTmpId.set(tmpId, { composer, thread });
-        this.tmpUrlByAttachmentId.set(tmpId, tmpURL);
-        this.uploadingAttachmentIds.add(tmpId);
         /** @type {Deferred<import("models").Attachment | undefined>} */
         const uploadDoneDeferred = new Deferred();
-        this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
+        this.pendingUploads.set(tmpId, {
+            abort: undefined,
+            composer,
+            deferred: uploadDoneDeferred,
+            thread,
+            tmpUrl: tmpURL,
+        });
+        const endUpload = log.perf("upload");
+        uploadDoneDeferred.then((attachment) =>
+            endUpload({ tmpId, attachmentId: attachment?.id, size: file.size }),
+        );
         await this.fileUploadService
             .upload(this.getUploadURL(thread), [file], {
                 /** @param {FormData} formData */
@@ -282,7 +311,6 @@ export class AttachmentUploadService {
             resModel: upload.res_model,
             thread,
             extension: upload.title.split(".").pop(),
-            uploading: true,
             tmpUrl,
         };
         return attachmentData;

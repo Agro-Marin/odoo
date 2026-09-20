@@ -58,11 +58,11 @@
                             title="Work Email" />
                         <field
                             name="work_email"
-                            widget="email"
-                            placeholder="Work Email"
                             string="Work Email"
-                            class="w-75"
-                            readonly="not is_hr_user" />
+                            placeholder="Work Email"
+                            widget="email"
+                            readonly="not is_hr_user"
+                            class="w-75" />
                     </h5>
                     <h5 class="d-flex align-items-baseline mb-0">
                         <i
@@ -70,9 +70,9 @@
                             title="Work Phone" />
                         <field
                             name="phone_ids"
-                            widget="many2many_tags"
-                            placeholder="Work Phone"
                             string="Work Phone"
+                            placeholder="Work Phone"
+                            widget="many2many_tags"
                             class="w-75" />
                     </h5>
                 </xpath>
@@ -100,8 +100,8 @@
                             <span>Your personal information is maintained by HR. Ask for a change and an HR user will review it.</span>
                             <button
                                 name="action_request_information_change"
-                                string="Request a change"
                                 type="object"
+                                string="Request a change"
                                 class="btn-link" />
                         </div>
                         <group>
@@ -113,36 +113,36 @@
                                     <field
                                         name="private_street"
                                         placeholder="Street..."
-                                        class="o_address_street"
-                                        readonly="not is_hr_user" />
+                                        readonly="not is_hr_user"
+                                        class="o_address_street" />
                                     <field
                                         name="private_street2"
                                         placeholder="Street 2..."
-                                        class="o_address_street"
-                                        readonly="not is_hr_user" />
+                                        readonly="not is_hr_user"
+                                        class="o_address_street" />
                                     <field
                                         name="private_city"
                                         placeholder="City"
-                                        class="o_address_city"
-                                        readonly="not is_hr_user" />
+                                        readonly="not is_hr_user"
+                                        class="o_address_city" />
                                     <field
                                         name="private_state_id"
-                                        class="o_address_state"
                                         placeholder="State"
-                                        options="{'no_open': True, 'no_create': True}"
                                         context="{'default_country_id': private_country_id}"
-                                        readonly="not is_hr_user" />
+                                        options="{'no_open': True, 'no_create': True}"
+                                        readonly="not is_hr_user"
+                                        class="o_address_state" />
                                     <field
                                         name="private_zip"
                                         placeholder="ZIP"
-                                        class="o_address_zip"
-                                        readonly="not is_hr_user" />
+                                        readonly="not is_hr_user"
+                                        class="o_address_zip" />
                                     <field
                                         name="private_country_id"
                                         placeholder="Country"
-                                        class="o_address_country"
                                         options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
-                                        readonly="not is_hr_user" />
+                                        readonly="not is_hr_user"
+                                        class="o_address_country" />
                                 </div>
                                 <field
                                     name="private_email"
@@ -150,8 +150,8 @@
                                     readonly="not is_hr_user" />
                                 <field
                                     name="private_phone_ids"
-                                    widget="many2many_tags"
                                     string="Private Phone"
+                                    widget="many2many_tags"
                                     readonly="not is_hr_user" />
                             </group>
                             <group string="Emergency Contact">
@@ -180,15 +180,15 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_view_employees"
-                            class="oe_stat_button"
+                            type="object"
                             icon="fa-users"
-                            invisible="employee_count == 0"
                             context="{'active_test': False}"
-                            type="object">
+                            invisible="employee_count == 0"
+                            class="oe_stat_button">
                             <field
                                 name="employee_count"
-                                widget="statinfo"
-                                string="Employee" />
+                                string="Employee"
+                                widget="statinfo" />
                         </button>
                     </div>
                 </xpath>
@@ -196,10 +196,10 @@
                     <field name="create_employee_id" force_save="1" invisible="1" />
                     <field
                         name="create_employee"
-                        force_save="1"
                         string="Create Employee"
-                        invisible="1"
-                        groups="hr.group_hr_user" />
+                        force_save="1"
+                        groups="hr.group_hr_user"
+                        invisible="1" />
                 </xpath>
             </field>
         </record>
@@ -211,10 +211,10 @@
             <field name="arch" type="xml">
                 <sheet position="after">
                     <footer>
-                        <button string="Save" special="save" class="btn btn-primary" />
+                        <button special="save" string="Save" class="btn btn-primary" />
                         <button
-                            string="Cancel"
                             special="cancel"
+                            string="Cancel"
                             class="btn btn-secondary" />
                     </footer>
                 </sheet>
@@ -238,46 +238,46 @@
                     <field name="employee_ids" invisible="1" />
                     <field name="employee_id" invisible="1" />
                     <button
-                        string="Create employee"
-                        type="object"
                         name="action_create_employee"
-                        invisible="not id or share or employee_id"
-                        groups="hr.group_hr_user" />
+                        type="object"
+                        string="Create employee"
+                        groups="hr.group_hr_user"
+                        invisible="not id or share or employee_id" />
                 </xpath>
                 <xpath expr="//div[@name='button_box']" position="inside">
                     <button
                         name="action_view_employees"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-users"
-                        invisible="employee_count == 0"
                         context="{'active_test': False}"
-                        type="object">
+                        invisible="employee_count == 0"
+                        class="oe_stat_button">
                         <field
                             name="employee_count"
-                            widget="statinfo"
-                            string="Employee" />
+                            string="Employee"
+                            widget="statinfo" />
                     </button>
                     <button
                         name="action_view_related_contact"
-                        class="oe_stat_button"
-                        icon="fa-regular fa-address-card"
                         type="object"
-                        help="Related Contact">
+                        help="Related Contact"
+                        icon="fa-regular fa-address-card"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Contact</span>
                         </div>
                     </button>
                 </xpath>
-                <field name="image_1920" widget="contact_image" position="attributes">
+                <field name="image_1920" position="attributes" widget="contact_image">
                     <attribute name="invisible">employee_id and work_email != login</attribute>
                 </field>
-                <field name="image_1920" widget="contact_image" position="after">
+                <field name="image_1920" position="after" widget="contact_image">
                     <field
                         name="image_1920"
-                        class="o_contact_image_large"
-                        invisible="not employee_id or work_email == login"
                         widget="contact_image"
-                        options="{'preview_image': 'avatar_128', 'img_class': 'rounded-4'}" />
+                        options="{'preview_image': 'avatar_128', 'img_class': 'rounded-4'}"
+                        invisible="not employee_id or work_email == login"
+                        class="o_contact_image_large" />
                 </field>
                 <xpath expr="//h5[@name='h5_email']" position="attributes">
                     <attribute name="invisible">employee_id</attribute>
@@ -308,11 +308,11 @@
                         <field name="email_domain_placeholder" invisible="1" />
                         <field
                             name="work_email"
-                            widget="email"
                             string="Work Email"
-                            class="w-75"
+                            widget="email"
                             options="{'placeholder_field': 'email_domain_placeholder'}"
-                            invisible="login == work_email" />
+                            invisible="login == work_email"
+                            class="w-75" />
                     </h5>
                     <h5
                         class="d-flex align-items-baseline mb-0"
@@ -322,9 +322,9 @@
                             title="Work Phone" />
                         <field
                             name="phone_ids"
-                            widget="many2many_tags"
-                            placeholder="Work Phone"
                             string="Work Phone"
+                            placeholder="Work Phone"
+                            widget="many2many_tags"
                             class="w-75" />
                     </h5>
                 </xpath>

@@ -4,19 +4,21 @@ import typing
 
 import pytest
 
-from odoo.orm.runtime.backend import InMemoryBackend, StorageBackend
+from odoo.orm.runtime._backend_memory import InMemoryBackend
+from odoo.orm.runtime.backend import StorageBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
-_MIXINS_DIR = _ORM_DIR / "models" / "mixins"
-_DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
+_DISPATCH_DIRS = (_ORM_DIR / "models", _ORM_DIR / "fields", _ORM_DIR / "domain")
+# addon models are port callers too (ir.ui.view walks view ancestry, res.users
+# reads password columns, account's sequence tries a value); some name their
+# file-storage backends `backend`, so only the spelled-out `env.backend.` counts
+_ADDON_ROOTS = (
+    _ORM_DIR.parent / "addons",
+    _ORM_DIR.parent.parent / "addons",
+)
 
-_ATTRIBUTE_MEMBERS = {
-    "supports_parent_store",
-    "supports_record_rules",
-    "supports_joined_m2m_read",
-    "supports_column_scan",
-    "supports_translation_terms",
-}
+_CAPABILITY_MEMBERS: frozenset[str] = frozenset()
+_ATTRIBUTE_MEMBERS = _CAPABILITY_MEMBERS | {"sequences", "columns"}
 
 
 def _protocol_methods() -> set[str]:
@@ -38,6 +40,10 @@ def test_every_protocol_method_has_a_dispatch_site():
         for path in directory.rglob("*.py"):
             text = path.read_text()
             dispatched.update(re.findall(r"\bbackend\.([a-z_0-9]+)\(", text))
+    for root in _ADDON_ROOTS:
+        for path in root.rglob("models/*.py"):
+            text = path.read_text()
+            dispatched.update(re.findall(r"\benv\.backend\.([a-z_0-9]+)\(", text))
     methods = _protocol_methods()
     missing_dispatch = methods - dispatched
     unknown_dispatch = dispatched - methods - _ATTRIBUTE_MEMBERS
@@ -50,29 +56,13 @@ def test_every_protocol_method_has_a_dispatch_site():
     )
 
 
-def test_supports_parent_store_is_consulted():
-    consulted = any(
-        "backend.supports_parent_store" in path.read_text()
-        for path in _MIXINS_DIR.rglob("*.py")
-    )
-    assert consulted, "supports_parent_store attribute is no longer consulted"
-
-
-def test_supports_record_rules_is_consulted():
-    consulted = any(
-        "backend.supports_record_rules" in path.read_text()
-        for path in _MIXINS_DIR.rglob("*.py")
-    )
-    assert consulted, "supports_record_rules attribute is never consulted"
-
-
 def test_every_capability_is_consulted_somewhere():
     text = "".join(
         path.read_text()
         for directory in _DISPATCH_DIRS
         for path in directory.rglob("*.py")
     )
-    unread = sorted(m for m in _ATTRIBUTE_MEMBERS if f"backend.{m}" not in text)
+    unread = sorted(m for m in _CAPABILITY_MEMBERS if f"backend.{m}" not in text)
     assert not unread, (
         f"capability flag(s) declared on StorageBackend but consulted nowhere: "
         f"{unread}. Either a site should branch on it, or it should not exist."

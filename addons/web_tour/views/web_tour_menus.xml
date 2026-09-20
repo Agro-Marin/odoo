@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_tour_action"
+        parent="base.menu_user_interface"
+        action="tour_action"
+        sequence="9" />
+
+</odoo>

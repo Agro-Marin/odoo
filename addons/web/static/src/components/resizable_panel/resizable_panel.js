@@ -34,7 +34,7 @@ export class ResizablePanel extends Component {
         useResizable({
             containerRef: "containerRef",
             handleRef: "handleRef",
-            onResize: this.props.onResize,
+            onResize: (width) => this.props.onResize(width),
             getInitialWidth: (props) => props.initialWidth,
             getMinWidth: (props) => props.minWidth,
             getResizeSide: (props) => props.handleSide,

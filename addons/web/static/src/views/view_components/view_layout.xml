@@ -22,6 +22,7 @@
                 </t>
 
                 <t t-set-slot="layout-actions">
+                    <t t-if="hasSlot('layout-actions-start')" t-slot="layout-actions-start"/>
                     <SearchBar t-if="props.searchBar" toggler="props.searchBarToggler" autofocus="props.autofocusSearchBar"/>
                     <t t-if="hasSlot('layout-actions')" t-slot="layout-actions"/>
                 </t>
@@ -39,7 +40,8 @@
                 </t>
 
                 <t t-set-slot="default" t-slot-scope="layout">
-                    <ActionHelper t-if="props.displayNoContent"
+                    <t t-if="hasSlot('no-content')" t-slot="no-content"/>
+                    <ActionHelper t-elif="props.displayNoContent"
                                   noContentHelp="props.noContentHelp"
                                   showRibbon="props.useSampleModel"/>
                     <t t-slot="default" contentRef="layout.contentRef"/>

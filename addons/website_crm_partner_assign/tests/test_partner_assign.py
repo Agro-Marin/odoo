@@ -237,8 +237,8 @@ class TestPartnerLeadPortal(TestCrmCommon, HttpCase):
             )
         )
         opportunity = self.env["crm.lead"].browse(data["id"])
-        salesmanteam = self.env["crm.team"]._get_default_team_id(
-            user_id=self.user_portal.user_id.id
+        salesmanteam = self.env["team.team"]._get_default_team(
+            "sale", user_id=self.user_portal.user_id.id
         )
 
         self.assertEqual(
@@ -460,7 +460,7 @@ class TestPublish(HttpCase):
         cls.group_restricted_editor = cls.env.ref(
             "website.group_website_restricted_editor"
         )
-        cls.group_sale_salesman = cls.env.ref("sales_team.group_sale_salesman")
+        cls.group_sale_salesman = cls.env.ref("sale.group_sale_salesman")
         cls.user_test = new_test_user(cls.env, login="testtest", website_id=False)
 
         grade = cls.env["res.partner.grade"].create(

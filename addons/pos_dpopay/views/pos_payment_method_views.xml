@@ -16,8 +16,8 @@
                                     required="use_payment_terminal == 'dpopay'" />
                                 <field
                                     name="dpopay_client_secret"
-                                    required="use_payment_terminal == 'dpopay'"
-                                    password="1" />
+                                    password="1"
+                                    required="use_payment_terminal == 'dpopay'" />
                                 <field
                                     name="dpopay_mid"
                                     required="use_payment_terminal == 'dpopay'" />
@@ -26,8 +26,8 @@
                                     required="use_payment_terminal == 'dpopay'" />
                                 <field
                                     name="dpopay_chain_id"
-                                    required="use_payment_terminal == 'dpopay'"
-                                    password="1" />
+                                    password="1"
+                                    required="use_payment_terminal == 'dpopay'" />
                             </group>
                             <group>
                                 <field

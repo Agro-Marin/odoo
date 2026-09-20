@@ -4,32 +4,24 @@ import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
 import { generatePdfThumbnail } from "@mail/utils/common/pdf_thumbnail";
 import { FileModelMixin } from "@web/components/file_viewer";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { imageUrl, url } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.attachment");
 export class Attachment extends FileModelMixin(Record) {
     static _name = "ir.attachment";
     static id = "id";
-    /**
-     * @template {typeof Record} T
-     * @this {T}
-     * @param {import("@mail/model/record").RecordData} data
-     * @param {import("@mail/model/record").RecordData} ids
-     * @returns {InstanceType<T>}
-     */
-    static new(data, ids) {
-        /** @type {import("models").Attachment} */
-        const attachment = /** @type {import("models").Attachment} */ (
-            /** @type {unknown} */ (super.new(data, ids))
-        );
-        Record.onChange(attachment, ["extension", "name"], () => {
-            if (!attachment.extension && attachment.name) {
-                attachment.extension = attachment.name.split(".").pop();
+    extension = fields.Attr(undefined, {
+        /** @this {import("models").Attachment} */
+        compute() {
+            if (this.extension || typeof this.name !== "string") {
+                return this.extension;
             }
-        });
-        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (attachment));
-    }
-
+            return this.name.split(".").pop();
+        },
+    });
     composer = fields.One("Composer", { inverse: "attachments" });
     thread = fields.One("Thread", { inverse: "attachments" });
     /** @type {string} */
@@ -50,7 +42,7 @@ export class Attachment extends FileModelMixin(Record) {
                 !this.has_thumbnail &&
                 (this.ownership_token ||
                     ((!this.thread || this.thread.hasWriteAccess) &&
-                        this.store.self_partner?.main_user_id?.share === false))
+                        this.store.selfIsInternalUser))
             ) {
                 this.setPdfThumbnail();
             }
@@ -80,7 +72,7 @@ export class Attachment extends FileModelMixin(Record) {
     }
 
     get isDeletable() {
-        if (this.message && this.store.self_partner?.main_user_id?.share !== false) {
+        if (this.message && !this.store.selfIsInternalUser) {
             return this.message.editable;
         }
         return true;
@@ -105,6 +97,11 @@ export class Attachment extends FileModelMixin(Record) {
     }
 
     async remove() {
+        log.logic("remove", () => ({
+            id: this.id,
+            persisted: this.id > 0,
+            message: this.message?.id,
+        }));
         if (this.id > 0) {
             await rpc(
                 "/mail/attachment/delete",
@@ -128,6 +125,7 @@ export class Attachment extends FileModelMixin(Record) {
                 assignDefined({}, { access_token: this.ownership_token }),
             ),
         );
+        log.logic("setPdfThumbnail", () => ({ id: this.id, isPdfValid }));
         if (isPdfValid) {
             rpc(
                 `/mail/attachment/update_thumbnail`,

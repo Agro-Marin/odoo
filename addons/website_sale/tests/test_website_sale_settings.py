@@ -23,7 +23,6 @@ class TestWebsiteSaleSettings(BaseCommon):
         )
 
     def test_settings_account_on_checkout(self):
-        # only change auth_signup_uninvited if account_on_checkout was changed
         config = self.env["res.config.settings"].with_company(self.company)
         config.create({"account_on_checkout": "mandatory"}).execute()
         self.assertEqual(self.website.auth_signup_uninvited, "b2b")

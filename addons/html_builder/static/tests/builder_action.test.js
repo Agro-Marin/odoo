@@ -260,8 +260,6 @@ describe("isPreviewing is passed to action's apply and clean", () => {
 
         // apply
         await contains(".o_select_menu button").click();
-        await contains(".o_select_menu button").click(); // issue with select menu + builder many2one in tests: does not load on first open
-        await contains(".o_select_menu button").click();
         await contains(".o_select_menu_item[data-choice-index='0']").click();
         expect.verifySteps(["apply true", "apply false"]);
 

@@ -52,10 +52,6 @@ class WebsiteHrRecruitment(WebsiteForm):
         search=None,
         **kwargs,
     ):
-        """This method is returning the job page.
-        It's filtering the jobs by the given parameters and compute the display values for the filters
-        by contaminating the jobs with the other filters.
-        """
 
         def job_filtering_condition(job, filter_to_disable=False):
             country_filter = (
@@ -108,9 +104,6 @@ class WebsiteHrRecruitment(WebsiteForm):
             return counter
 
         def get_filter_snippets_display_values(jobs):
-            """this function is used to compute the display values for the filters
-            by contaminating the jobs with the other filters.
-            """
             counter_by_object_by_field = defaultdict(OrderedDict)
             fields_and_filters = {
                 ("address_id", "count_per_office"),
@@ -221,7 +214,6 @@ class WebsiteHrRecruitment(WebsiteForm):
 
     @http.route("/jobs/add", type="jsonrpc", auth="user", website=True)
     def jobs_add(self, **kwargs):
-        # avoid branding of website_description by setting rendering_bundle in context
         job = (
             request.env["hr.job"]
             .with_context(rendering_bundle=True)

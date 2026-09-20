@@ -4,8 +4,8 @@ from odoo import fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-    def _compute_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
-        price = super()._compute_bom_price(bom, boms_to_recompute, byproduct_bom)
+    def _get_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
+        price = super()._get_bom_price(bom, boms_to_recompute, byproduct_bom)
         if bom and bom.type == "subcontract":
             seller = self._select_seller(
                 quantity=bom.product_qty,
@@ -19,5 +19,7 @@ class ProductProduct(models.Model):
                     (bom.company_id or self.env.company),
                     fields.Date.today(),
                 )
-                price += seller.product_uom_id._compute_price(seller_price, self.uom_id)
+                price += seller.product_uom_id._get_price_in_unit(
+                    seller_price, self.uom_id
+                )
         return price

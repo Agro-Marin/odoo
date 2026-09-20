@@ -1,10 +1,4 @@
 // @odoo-module ignore
-/**
- * Minimal PDFViewer widget for embedded slide/video/document viewing.
- * Not used in the website_slides module directly — called when embedding
- * a slide. Depends on pdf.js and Bootstrap (see website_slides.slide_embed_assets
- * bundle in website_slides_embed.xml).
- */
 document.addEventListener("DOMContentLoaded", function () {
     function debounce(func, timeout = 300) {
         let timer;
@@ -20,12 +14,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const pdfViewerCanvas = document.getElementById("PDFViewerCanvas");
 
     if (pdfViewer && pdfViewerCanvas) {
-        // check if presentation only
         const MIN_ZOOM = 1,
             MAX_ZOOM = 10,
             ZOOM_INCREMENT = 0.5;
 
-        // define embedded viewer (minimal object of the website.slide.PDFViewer widget)
         const EmbeddedViewer = function (viewer) {
             const self = this;
             this.viewer = viewer;
@@ -42,13 +34,6 @@ document.addEventListener("DOMContentLoaded", function () {
             this.hasSuggestions = !!this.viewer.querySelector(
                 ".oe_slides_suggestion_media",
             );
-            // pdf.js is an ES module resolved through the page's import
-            // map ("pdfjs-dist" — a dynamic import() is legal in this
-            // classic script).  Evaluating it assigns globalThis.pdfjsLib,
-            // which PDFSlidesViewer reads; workerSrc makes pdf.js spawn a
-            // real (module) worker instead of the old pattern of eagerly
-            // evaluating the 2.2 MB pdf.worker.js on the main thread as a
-            // fake-worker fallback.
             import("pdfjs-dist")
                 .then(function (pdfjsLib) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -60,16 +45,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
         };
         EmbeddedViewer.prototype.__proto__ = {
-            // querySelector inside the viewer element (like Widget.$)
             $: function (selector) {
                 return this.viewer.querySelector(selector);
             },
-            // post process action (called in '.then()')
             on_loaded_file: function () {
                 this.$("canvas").style.display = "";
                 this.$("#page_count").textContent = this.pdf_viewer.pdf_page_total;
                 this.$("#PDFViewerLoader").style.display = "none";
-                // init first page to display
                 const initpage = this.defaultpage;
                 const pageNum =
                     initpage > 0 && initpage <= this.pdf_viewer.pdf_page_total
@@ -86,7 +68,6 @@ document.addEventListener("DOMContentLoaded", function () {
             on_resize: function () {
                 this.render_page(this.pdf_viewer.pdf_page_current);
             },
-            // page switching
             render_page: function (pageNumber) {
                 this.pdf_viewer
                     .queueRenderPage(pageNumber)
@@ -101,7 +82,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         .then(this.on_rendered_page.bind(this));
                     this.navUpdate(pageAsked);
                 } else {
-                    // if page number out of range, reset the page_counter to the actual page
                     this.$("#page_number").value = this.pdf_viewer.pdf_page_current;
                 }
             },
@@ -119,7 +99,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         self.on_rendered_page(pageNum);
                     } else {
                         if (self.pdf_viewer.pdf) {
-                            // avoid display suggestion when pdf is not loaded yet
                             self.display_suggested_slides();
                         }
                     }
@@ -131,7 +110,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     slideSuggestOverlay &&
                     !slideSuggestOverlay.classList.contains("d-none")
                 ) {
-                    // Hide suggested slide overlay before changing page nb.
                     slideSuggestOverlay.classList.add("d-none");
                     this.$("#next").classList.remove("disabled");
                     if (this.pdf_viewer.pdf_page_total <= 1) {
@@ -203,7 +181,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     this.pdf_viewer.pdf_zoom >= MAX_ZOOM,
                 );
             },
-            // full screen mode
             fullscreen: function () {
                 this.pdf_viewer.toggleFullScreen();
             },
@@ -212,7 +189,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     this.pdf_viewer.toggleFullScreenFooter();
                 }
             },
-            // display suggestion displayed after last slide
             display_suggested_slides: function () {
                 const suggestEl = this.$("#slide_suggest");
                 if (suggestEl) {
@@ -237,10 +213,8 @@ document.addEventListener("DOMContentLoaded", function () {
             },
         };
 
-        // embedded pdf viewer
         const embeddedViewer = new EmbeddedViewer(pdfViewer);
 
-        // bind the actions
         document.getElementById("previous").addEventListener("click", function () {
             embeddedViewer.previous();
         });
@@ -286,7 +260,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 500),
         );
 
-        // switching slide with keyboard
         document.addEventListener("keydown", function (ev) {
             if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
                 embeddedViewer.previous();
@@ -296,7 +269,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
 
-        // display the option panels
         for (const link of document.querySelectorAll(
             ".oe_slide_js_embed_option_link",
         )) {
@@ -304,13 +276,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 ev.preventDefault();
                 const toggleId = this.dataset.slideOptionId;
                 const toggleEl = toggleId ? document.querySelector(toggleId) : null;
-                // Hide other option panels
                 for (const opt of document.querySelectorAll(".oe_slide_embed_option")) {
                     if (opt !== toggleEl) {
                         opt.style.display = "none";
                     }
                 }
-                // Toggle the target panel
                 if (toggleEl) {
                     toggleEl.style.display =
                         toggleEl.style.display === "none" ? "" : "none";
@@ -318,13 +288,11 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        // animation for the suggested slides
         for (const media of document.querySelectorAll(".oe_slides_suggestion_media")) {
             const caption = media.querySelector(".oe_slides_suggestion_caption");
             if (!caption) {
                 continue;
             }
-            // Set up transition styles for slide animation
             caption.style.overflow = "hidden";
             caption.style.transition = "max-height 250ms ease, opacity 250ms ease";
             caption.style.maxHeight = "0";
@@ -346,7 +314,6 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        // Use fetch instead of jQuery AJAX to post data
         const shareBtn = document.querySelector(".oe_slide_js_share_email button");
         if (shareBtn) {
             shareBtn.addEventListener("click", function () {

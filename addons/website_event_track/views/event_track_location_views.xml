@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- EVENTS/CONFIGURATION/EVENT locations -->
     <record id="view_event_location_form" model="ir.ui.view">
         <field name="name">Event Locations</field>
         <field name="model">event.track.location</field>

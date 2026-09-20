@@ -1,5 +1,4 @@
 from dateutil.relativedelta import relativedelta
-from dateutil.rrule import MONTHLY, YEARLY
 from psycopg import IntegrityError
 
 from odoo import fields
@@ -67,7 +66,7 @@ class DateRangeTypeTest(TransactionCase):
             {
                 "name": __name__,
                 "name_expr": "'>%s<' % date_start.strftime('%d%m%Y')",
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "duration_count": 1,
                 # _check_autogeneration_settings requires autogeneration_date_start
                 # when autogeneration_count is set. Set it explicitly to year_start
@@ -75,7 +74,7 @@ class DateRangeTypeTest(TransactionCase):
                 # year_start as the first range) still hold.
                 "autogeneration_date_start": year_start,
                 "autogeneration_count": 1,
-                "autogeneration_unit": str(YEARLY),
+                "autogeneration_unit": "year",
             }
         )
         self.assertEqual(
@@ -115,11 +114,11 @@ class DateRangeTypeTest(TransactionCase):
             {
                 "name": __name__,
                 "name_expr": "'>%s<' % date_start.strftime('%d%m%Y')",
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "duration_count": 1,
                 "autogeneration_date_start": start_date,
                 "autogeneration_count": 1,
-                "autogeneration_unit": str(YEARLY),
+                "autogeneration_unit": "year",
             }
         )
         self.assertFalse(dr_type.date_ranges_exist)
@@ -164,11 +163,11 @@ class DateRangeTypeTest(TransactionCase):
             {
                 "name": __name__,
                 "name_expr": "index",
-                "unit_of_time": str(MONTHLY),
+                "duration_unit": "month",
                 "duration_count": 1,
                 "autogeneration_date_start": start_date,
                 "autogeneration_count": 1,
-                "autogeneration_unit": str(YEARLY),
+                "autogeneration_unit": "year",
             }
         )
         # Inject invalid value

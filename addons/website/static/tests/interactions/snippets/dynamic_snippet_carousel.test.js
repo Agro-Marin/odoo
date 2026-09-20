@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe.current.tags("interaction_dev");
 
-const testTemplate = /* xml */ `
+const testTemplate = `
     <div id="wrapwrap">
         <section data-snippet="s_dynamic_snippet_carousel" class="s_dynamic_snippet_carousel s_dynamic pt32 pb32 o_colored_level" data-custom-template-data="{}" data-name="Dynamic Carousel"
                 data-filter-id="1"
@@ -78,7 +78,6 @@ test("dynamic snippet carousel loads items and displays them through template (d
     const { core } = await startInteractions(testTemplate);
     expect(core.interactions).toHaveLength(6);
     const carouselEl = queryOne(".carousel");
-    // Neutralize carousel automatic sliding.
     carouselEl.dataset.bsRide = "false";
     const itemEls = queryAll(".carousel .s_test_dynamic_carousel_item");
     expect(itemEls[0]).toHaveAttribute("data-test-param", "test1");
@@ -91,17 +90,15 @@ test("dynamic snippet carousel loads items and displays them through template (d
     await animationFrame();
     await click(".carousel-control-next .oi");
     await animationFrame();
-    await advanceTime(1000); // Slide duration.
+    await advanceTime(1000);
     expect(itemEls[3].closest(".carousel-item")).not.toHaveClass("active");
     expect(itemEls[4].closest(".carousel-item")).toHaveClass("active");
-    // Make sure element interactions are started.
     expect(itemEls[0]).toHaveAttribute("data-started", "*test1*");
     expect(itemEls[1]).toHaveAttribute("data-started", "*test2*");
     expect(itemEls[2]).toHaveAttribute("data-started", "*test3*");
     expect(itemEls[3]).toHaveAttribute("data-started", "*test4*");
     expect(itemEls[4]).toHaveAttribute("data-started", "*test5*");
     core.stopInteractions();
-    // Make sure element interactions are stopped.
     expect(core.interactions).toHaveLength(0);
 });
 
@@ -126,7 +123,6 @@ test("dynamic snippet carousel loads items and displays them through template (m
     const { core } = await startInteractions(testTemplate);
     expect(core.interactions).toHaveLength(6);
     const carouselEl = queryOne(".carousel");
-    // Neutralize carousel automatic sliding.
     carouselEl.dataset.bsRide = "false";
     const itemEls = queryAll(".carousel .s_test_dynamic_carousel_item");
     expect(itemEls[0]).toHaveAttribute("data-test-param", "test1");
@@ -139,16 +135,14 @@ test("dynamic snippet carousel loads items and displays them through template (m
     await animationFrame();
     await click(".carousel-control-next .oi");
     await animationFrame();
-    await advanceTime(1000); // Slide duration.
+    await advanceTime(1000);
     expect(itemEls[0].closest(".carousel-item")).not.toHaveClass("active");
     expect(itemEls[1].closest(".carousel-item")).toHaveClass("active");
-    // Make sure element interactions are started.
     expect(itemEls[0]).toHaveAttribute("data-started", "*test1*");
     expect(itemEls[1]).toHaveAttribute("data-started", "*test2*");
     expect(itemEls[2]).toHaveAttribute("data-started", "*test3*");
     expect(itemEls[3]).toHaveAttribute("data-started", "*test4*");
     expect(itemEls[4]).toHaveAttribute("data-started", "*test5*");
     core.stopInteractions();
-    // Make sure element interactions are stopped.
     expect(core.interactions).toHaveLength(0);
 });

@@ -1,11 +1,11 @@
 import logging
 import os
+import pathlib
 import re
 import tempfile
 import time
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial
 from unittest.mock import patch
 
 from lxml import etree
@@ -14,14 +14,15 @@ from markupsafe import Markup
 from psycopg import IntegrityError
 from psycopg.types.json import Json
 
-from odoo import Command
+from odoo import Command, api
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tests import common, tagged
 from odoo.tests.common import get_cache_key_counter
 from odoo.tools import mute_logger, safe_eval, view_validation
 
-from odoo.addons.base.models import ir_ui_view
+from odoo.addons.base.models import ir_ui_view, ir_ui_view_arch
+from odoo.addons.base.models.ir_ui_view_arch import ELEMENT_HANDLERS
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 _logger = logging.getLogger(__name__)
@@ -211,7 +212,7 @@ class TestViewInheritance(ViewCase):
     def setUp(self):
         super().setUp()
 
-        self.patch(self.registry, "_init", False)
+        self.patch(self.registry, "ready", True)
 
         self.model = "ir.ui.view.custom"
         self.view_ids = {}
@@ -304,16 +305,16 @@ class TestViewInheritance(ViewCase):
 
     def test_get_combined_arch_query_count(self):
         self.env.invalidate_all()
-        with self.assertQueryCount(3):
+        with self.assertQueryCount(2):
             self.view_ids["A"].get_combined_arch()
 
     def test_view_validate_button_action_query_count(self):
         _, _, counter = get_cache_key_counter(
-            self.env["ir.model.data"]._get_xmlid_target, "base.action_ui_view"
+            self.env["ir.model.data"]._xmlid_target, "base.action_ui_view"
         )
         hit, miss = counter.hit, counter.miss
 
-        with self.assertQueryCount(10):
+        with self.assertQueryCount(9):
             base_view = self.assertValid("""
                 <form string="View">
                     <header>
@@ -327,7 +328,7 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss + 2)
 
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(4):
             self.assertValid(
                 """
                 <field name="name" position="replace"/>
@@ -339,7 +340,7 @@ class TestViewInheritance(ViewCase):
 
     def test_view_validate_attrs_groups_query_count(self):
         _, _, counter = get_cache_key_counter(
-            self.env["ir.model.data"]._get_xmlid_target, "base.group_system"
+            self.env["ir.model.data"]._xmlid_target, "base.group_system"
         )
         hit, miss = counter.hit, counter.miss
 
@@ -365,6 +366,21 @@ class TestViewInheritance(ViewCase):
             )
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss)
+
+    def test_infer_type_from_arch_db(self):
+        for view_type in ("form", "list", "search"):
+            with self.subTest(view_type=view_type):
+                view = self.View.create(
+                    {
+                        "name": f"arch_db_{view_type}",
+                        "model": "res.partner",
+                        "arch_db": f'<{view_type}><field name="name"/></{view_type}>',
+                    }
+                )
+                _logger.debug(
+                    "Inferred %s from arch_db for view %s", view.type, view.id
+                )
+                self.assertEqual(view.type, view_type)
 
     def test_no_arch(self):
         self.d1._check_xml()
@@ -1183,7 +1199,7 @@ class TestNoModel(ViewCase):
 class TestTemplating(ViewCase):
     def setUp(self):
         super().setUp()
-        self.patch(self.registry, "_init", False)
+        self.patch(self.registry, "ready", True)
 
     def test_render_public_asset_as_a_plain_user(self):
         # The mailing editor and the website builder fetch their templates
@@ -2173,7 +2189,10 @@ class TestViews(ViewCase):
 
     def test_custom_view_validation(self):
         model = "ir.actions.act_url"
-        validate = partial(self.View._has_valid_custom_views, model)
+
+        def validate():
+            views = self.View._get_custom_views([model])
+            return views.with_context(load_all_views=True)._check_xml()
 
         vid = self._insert_view(
             name="base view",
@@ -3248,6 +3267,72 @@ class TestViews(ViewCase):
         self.assertTrue(tree.xpath('//field[@name="company_id"]'))
         self.assertTrue(tree.xpath('//div[@id="foo"]'))
         self.assertTrue(tree.xpath('//div[@id="bar"]'))
+
+    def test_projection_is_shared_by_capability_signature(self):
+        view = self.View.create(
+            {
+                "name": "foo",
+                "model": "res.partner",
+                "arch": """
+                <form>
+                    <field name="name"/>
+                    <field name="company_id" groups="base.group_system"/>
+                </form>
+            """,
+            }
+        )
+        Partner = self.env["res.partner"]
+        demo = Partner.with_user(self.user_demo)
+        admin = Partner.with_user(self.env.ref("base.user_admin"))
+
+        first = demo.get_view(view_id=view.id)
+        second = demo.get_view(view_id=view.id)
+        self.assertIs(first["ir"], second["ir"])
+        self.assertIsNot(first, second)
+        self.assertEqual(first["arch"], second["arch"])
+        with self.assertRaises(NotImplementedError):
+            first["ir"]["kind"] = "mutated"
+
+        other = admin.get_view(view_id=view.id)
+        self.assertIsNot(first["ir"], other["ir"])
+        self.assertFalse(
+            etree.fromstring(first["arch"]).xpath("//field[@name='company_id']")
+        )
+        self.assertTrue(
+            etree.fromstring(other["arch"]).xpath("//field[@name='company_id']")
+        )
+
+    def test_projection_signature_covers_the_kanban_group_by_comodel(self):
+        view = self.View.create(
+            {
+                "name": "foo",
+                "model": "res.partner",
+                "arch": """
+                <kanban default_group_by="user_id">
+                    <templates>
+                        <t t-name="card"><field name="name"/></t>
+                    </templates>
+                </kanban>
+            """,
+            }
+        )
+        Partner = self.env["res.partner"]
+        demo = Partner.with_user(self.user_demo)
+        admin = Partner.with_user(self.env.ref("base.user_admin"))
+        capabilities = Partner._get_view_cache(view.id, "kanban")["capabilities"]
+        self.assertEqual(capabilities[1], (("res.partner", "user_id"),))
+        self.assertIn(
+            "res.users",
+            [entry[0] for entry in demo._view_capability_signature(capabilities)[1]],
+        )
+
+        self.assertFalse(
+            self.env["res.users"].with_user(self.user_demo).has_access("create")
+        )
+        demo_root = etree.fromstring(demo.get_view(view_id=view.id)["arch"])
+        admin_root = etree.fromstring(admin.get_view(view_id=view.id)["arch"])
+        self.assertEqual(demo_root.get("group_create"), "False")
+        self.assertIsNone(admin_root.get("group_create"))
 
     def test_attrs_groups_validation(self):
         def validate(arch, valid=False, parent=False, field="name", model="ir.ui.view"):
@@ -4872,6 +4957,18 @@ class ViewModeField(ViewCase):
         view.write({"inherit_id": base2.id})
         self.assertEqual(view.mode, "primary")
 
+    def test_mode_defaults_per_view_in_a_mixed_batch(self):
+        base1 = self.View.create({"arch": "<qweb/>"})
+        base2 = self.View.create({"arch": "<qweb/>"})
+        fresh = self.View.create({"arch": "<qweb/>"})
+        inheriting = self.View.create(
+            {"mode": "primary", "inherit_id": base1.id, "arch": "<qweb/>"}
+        )
+        (fresh + inheriting).write({"inherit_id": base2.id})
+        self.assertEqual(fresh.mode, "extension")
+        self.assertEqual(inheriting.mode, "primary")
+        self.assertEqual((fresh + inheriting).inherit_id, base2)
+
 
 class TestDefaultView(ViewCase):
     def test_default_view_base(self):
@@ -4973,11 +5070,13 @@ class TestDefaultView(ViewCase):
             self.View._get_default_calendar_view()
 
     def test_get_view_is_readonly(self):
+        View = type(self.env["ir.ui.view"])
         self.assertTrue(
-            type(self.env["ir.ui.view"]).get_view._readonly,
+            api.is_readonly(View, "get_view"),
             "get_view should carry @api.readonly (read/write split)",
         )
-        self.assertTrue(type(self.env["ir.ui.view"]).get_views._readonly)
+        self.assertTrue(api.is_readonly(View, "get_views"))
+        self.assertFalse(api.is_readonly(View, "write"))
 
 
 class TestViewCombined(ViewCase):
@@ -6041,7 +6140,6 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "account_3way_match",
             "account_accountant",
             "account_accountant_batch_payment",
-            "account_asset",
             "account_asset_fleet",
             "account_auto_transfer",
             "account_avatax",
@@ -6053,6 +6151,7 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "account_check_printing",
             "account_consolidation",
             "account_debit_note",
+            "account_depreciation",
             "account_disallowed_expenses",
             "account_edi",
             "account_edi_proxy_client",
@@ -6139,8 +6238,6 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "hr_gamification",
             "hr_holidays",
             "hr_holidays_attendance",
-            "hr_hourly_cost",
-            "hr_maintenance",
             "hr_payroll",
             "hr_payroll_account",
             "hr_payroll_expense",
@@ -6349,7 +6446,6 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "sale_expense",
             "sale_external_tax",
             "sale_loyalty",
-            "sale_management",
             "sale_margin",
             "sale_pdf_quote_builder",
             "sale_planning",
@@ -6361,9 +6457,9 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "sale_stock",
             "sale_stock_renting",
             "sale_subscription",
+            "sale_team",
             "sale_timesheet",
             "sale_timesheet_enterprise",
-            "sales_team",
             "sign",
             "sms",
             "snailmail",
@@ -6491,28 +6587,25 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
 
 class CompRegexTest(common.TransactionCase):
     def test_comp_regex(self):
-        self.assertIsNone(re.search(ir_ui_view.COMP_REGEX, ""))
-        self.assertIsNone(re.search(ir_ui_view.COMP_REGEX, "__comp__2"))
-        self.assertIsNone(re.search(ir_ui_view.COMP_REGEX, "__comp___that"))
-        self.assertIsNone(re.search(ir_ui_view.COMP_REGEX, "a__comp__"))
-
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__ "))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, " __comp__ "))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__.props"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__ .props"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__['props']"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "__comp__ ['props']"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, '__comp__["props"]'))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, '__comp__ ["props"]'))
-        self.assertIsNotNone(
-            re.search(ir_ui_view.COMP_REGEX, '    __comp__     ["props"]    ')
-        )
-        self.assertIsNotNone(
-            re.search(ir_ui_view.COMP_REGEX, "record ? __comp__ : false")
-        )
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "!__comp__.props.resId"))
-        self.assertIsNotNone(re.search(ir_ui_view.COMP_REGEX, "{{ __comp__ }}"))
+        regex = ir_ui_view_arch.COMP_REGEX
+        for expr in ("", "__comp__2", "__comp___that", "a__comp__"):
+            self.assertIsNone(re.search(regex, expr), expr)
+        for expr in (
+            "__comp__",
+            "__comp__ ",
+            " __comp__ ",
+            "__comp__.props",
+            "__comp__ .props",
+            "__comp__['props']",
+            "__comp__ ['props']",
+            '__comp__["props"]',
+            '__comp__ ["props"]',
+            '    __comp__     ["props"]    ',
+            "record ? __comp__ : false",
+            "!__comp__.props.resId",
+            "{{ __comp__ }}",
+        ):
+            self.assertIsNotNone(re.search(regex, expr), expr)
 
 
 @common.tagged("at_install", "modifiers")
@@ -7710,6 +7803,22 @@ class TestViewRevalidation(ViewCase):
             second.with_context(ir_ui_view_loading_records=True).write({"priority": 5})
         self.assertTrue(any("unable to combine" in line for line in log_catcher.output))
 
+    def test_a_refused_recombination_writes_nothing(self):
+        _parent, _first, second = self._tree()
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            try:
+                second.write({"priority": 5})
+            except ValidationError:
+                pass
+            else:
+                self.fail("the reordering was not refused")
+        self.assertEqual(second.priority, 20)
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT priority FROM ir_ui_view WHERE id = %s", [second.id]
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 20)
+
     def test_an_already_broken_tree_stays_writable(self):
         _parent, _first, second = self._tree()
         with mute_logger("odoo.addons.base.models.ir_ui_view"):
@@ -7724,6 +7833,392 @@ class TestViewRevalidation(ViewCase):
         ) as checked:
             first.write({"priority": 11})
         self.assertTrue(checked.called)
+
+
+@tagged("post_install", "-at_install")
+class TestViewWriteContract(ViewCase):
+    def test_write_leaves_the_callers_dict_alone(self):
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="wc p", model="res.partner"
+        )
+        other = self.assertValid(
+            '<form><field name="name"/></form>', name="wc o", model="res.partner"
+        )
+        # the form arch reads as a spec on the other's form, so it stays
+        vals = {"inherit_id": other.id}
+        primary.write(vals)
+        self.assertEqual(vals, {"inherit_id": other.id})
+        self.assertEqual(primary.mode, "extension")
+        vals = {"inherit_id": False}
+        primary.write(vals)
+        self.assertEqual(vals, {"inherit_id": False})
+        self.assertEqual(primary.mode, "primary")
+
+    def test_create_through_arch_base_keeps_the_arch_as_previous(self):
+        arch = '<form><field name="name"/></form>'
+        view = self.View.create(
+            {"name": "ab", "model": "res.partner", "arch_base": arch}
+        )
+        self.assertEqual(view.arch_prev, arch)
+        self.assertEqual(view.arch_db, arch)
+        # and a later write still saves what it overwrites
+        view.write({"arch_base": '<form><field name="email"/></form>'})
+        self.assertEqual(view.arch_prev, arch)
+
+    def test_an_overlay_replacing_the_root_is_validated_whole(self):
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="rr p", model="res.partner"
+        )
+        self.assertInvalid(
+            """
+            <xpath expr="/form" position="replace">
+                <form><field name="name" invisible="not_a_field"/></form>
+            </xpath>
+            """,
+            "not_a_field",
+            inherit_id=primary.id,
+            model="res.partner",
+        )
+
+    def test_a_customization_made_while_loading_is_still_dropped(self):
+        Custom = self.env["ir.ui.view.custom"]
+        with self.env.registry.loading_window():
+            view = self.assertValid(
+                '<form><field name="name"/></form>', name="cl", model="res.partner"
+            )
+            view.write({"priority": 5})  # takes the snapshot
+            custom = Custom.create(
+                {
+                    "ref_id": view.id,
+                    "user_id": self.env.uid,
+                    "arch": '<form><field name="name"/></form>',
+                }
+            )
+            view.write({"arch": '<form><field name="email"/></form>'})
+            self.assertFalse(custom.exists())
+
+    def test_an_overlay_replacing_the_root_with_text_is_refused(self):
+        # the XML combine used to hand back None here, a crash for every
+        # reader of the result; a replace of the root needs one element
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="rt p", model="res.partner"
+        )
+        self.assertInvalid(
+            '<xpath expr="/form" position="replace">just text</xpath>',
+            "needs an element",
+            inherit_id=primary.id,
+            model="res.partner",
+        )
+
+    def test_two_overlays_setting_one_attribute_report_a_conflict(self):
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="cf p", model="res.partner"
+        )
+        for index in range(2):
+            self.assertValid(
+                f"""
+                <field name="name" position="attributes">
+                    <attribute name="string">Label {index}</attribute>
+                </field>
+                """,
+                name=f"cf {index}",
+                inherit_id=primary.id,
+                model="res.partner",
+            )
+        with self.assertLogs(
+            "odoo.debug.logic.base.ir_ui_view", level="DEBUG"
+        ) as log_catcher:
+            arch = primary.get_combined_arch()
+        self.assertIn('string="Label 1"', arch)
+        conflicts = [
+            line
+            for line in log_catcher.output
+            if "event=combine.attribute_conflicts" in line
+        ]
+        self.assertEqual(len(conflicts), 1, log_catcher.output)
+        self.assertIn("attributes=['string']", conflicts[0])
+        self.assertIn("targets=['field:name']", conflicts[0])
+
+
+@tagged("post_install", "-at_install")
+class TestPreloadViews(ViewCase):
+    def test_a_digit_int_refuses_is_a_missing_template_not_a_crash(self):
+        preload = self.View._preload_views(["²", "999999999", "no.such_template"])
+        self.assertIsInstance(preload["²"]["error"], MissingError)
+        self.assertIsInstance(preload["no.such_template"]["error"], MissingError)
+        self.assertIsInstance(preload[999999999]["error"], MissingError)
+
+
+@tagged("post_install", "-at_install")
+class TestAttributeConflicts(ViewCase):
+    def _conflicts(self, view):
+        # assertLogs fails on silence, and no conflict is the point here
+        records = []
+        handler = logging.Handler()
+        handler.emit = records.append
+        logger = logging.getLogger("odoo.debug.logic.base.ir_ui_view")
+        level = logger.level
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+        try:
+            view.get_combined_arch()
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(level)
+        return [
+            record.getMessage()
+            for record in records
+            if "event=combine.attribute_conflicts" in record.getMessage()
+        ]
+
+    def _set_string(self, name, inherit_id, mode, label, priority=16):
+        return self.View.create(
+            {
+                "name": name,
+                "model": "res.partner",
+                "inherit_id": inherit_id,
+                "mode": mode,
+                "priority": priority,
+                "arch": f"""<field name="name" position="attributes">
+                    <attribute name="string">{label}</attribute></field>""",
+            }
+        )
+
+    def test_a_primary_child_overriding_its_base_is_no_conflict(self):
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="ac p", model="res.partner"
+        )
+        self._set_string("ac ext", primary.id, "extension", "Base label")
+        child = self._set_string("ac child", primary.id, "primary", "Child label")
+        self.assertEqual(self._conflicts(child), [])
+        self.assertIn('string="Child label"', child.get_combined_arch())
+
+    def test_an_extension_over_a_primary_child_setting_is_a_conflict(self):
+        primary = self.assertValid(
+            '<form><field name="name"/></form>', name="ac p2", model="res.partner"
+        )
+        child = self._set_string("ac child2", primary.id, "primary", "Child label")
+        self._set_string("ac child ext", child.id, "extension", "Extension label")
+        conflicts = self._conflicts(child)
+        self.assertEqual(len(conflicts), 1, conflicts)
+        self.assertIn("attributes=['string']", conflicts[0])
+
+
+@tagged("post_install", "-at_install")
+class TestCombineBatching(ViewCase):
+    def _tree(self, size):
+        root = self.assertValid(
+            '<form><field name="name"/></form>', name="cb root", model="res.partner"
+        )
+        extensions = self.View.browse()
+        for index in range(size):
+            extensions += self.assertValid(
+                f"""<field name="name" position="attributes">
+                    <attribute name="x{index}">1</attribute></field>""",
+                name=f"cb {index}",
+                inherit_id=root.id,
+                model="res.partner",
+            )
+        return root, extensions
+
+    def _combines(self, fn):
+        with self.assertLogs(
+            "odoo.debug.pipeline.base.ir_ui_view", level="DEBUG"
+        ) as log_catcher:
+            fn()
+        return sum("event=combine " in line for line in log_catcher.output)
+
+    def test_views_under_one_root_are_combined_once_per_check(self):
+        _root, extensions = self._tree(6)
+        self.assertEqual(self._combines(extensions._check_xml), 1)
+
+    def _cache_work(self, fn):
+        clears = []
+        searches = []
+        Custom = type(self.env["ir.ui.view.custom"])
+        original_search = Custom.search
+
+        def counting_search(model, *args, **kwargs):
+            searches.append(args)
+            return original_search(model, *args, **kwargs)
+
+        with (
+            patch.object(
+                type(self.env.registry),
+                "clear_cache",
+                lambda registry, *names: clears.append(names),
+            ),
+            patch.object(Custom, "search", counting_search),
+        ):
+            fn()
+        return len(clears), len(searches)
+
+    def test_an_arch_write_on_many_views_validates_the_tree_once(self):
+        _root, extensions = self._tree(6)
+        self.assertEqual(
+            self._combines(lambda: extensions.write({"arch": "<data/>"})), 1
+        )
+        self.assertEqual(set(extensions.mapped("arch")), {"<data/>"})
+        # and it still validates: a broken arch is refused
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                extensions.write(
+                    {"arch": '<field name="nope" position="after"><div/></field>'}
+                )
+
+    def test_an_arch_write_clears_the_cache_and_drops_customizations_once(self):
+        _root, extensions = self._tree(6)
+        self.assertEqual(
+            self._cache_work(lambda: extensions.write({"arch": "<data/>"})), (1, 1)
+        )
+
+    def test_an_arch_base_write_on_many_views_validates_the_tree_once(self):
+        _root, extensions = self._tree(6)
+        self.assertEqual(
+            self._combines(lambda: extensions.write({"arch_base": "<data/>"})), 1
+        )
+        self.assertEqual(set(extensions.mapped("arch_base")), {"<data/>"})
+        self.assertEqual(
+            self._cache_work(lambda: extensions.write({"arch_base": "<data/>"})),
+            (1, 1),
+        )
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                extensions.write(
+                    {"arch_base": '<field name="nope" position="after"><div/></field>'}
+                )
+
+
+@tagged("post_install", "-at_install")
+class TestSiblingPrimaryCheck(ViewCase):
+    """While loading, the check keeps only loaded siblings; these trees
+    carry no xmlid, so they are what the check sees once the registry is
+    ready."""
+
+    def _tree(self, depth, extensions_per_level=1, primaries=2):
+        root = self.assertValid(
+            '<form><field name="name"/><group name="g0"/></form>',
+            name="sp root",
+            model="res.partner",
+        )
+        parent = root
+        extensions = self.View.browse()
+        for level in range(depth):
+            chain = self.assertValid(
+                f'<group name="g{level}" position="inside">'
+                f'<group name="g{level + 1}"/></group>',
+                name=f"sp ext {level}",
+                inherit_id=parent.id,
+                model="res.partner",
+            )
+            extensions += chain
+            for index in range(1, extensions_per_level):
+                extensions += self.assertValid(
+                    f'<group name="g{level}" position="attributes">'
+                    f'<attribute name="col">{index + 1}</attribute></group>',
+                    name=f"sp ext {level}.{index}",
+                    inherit_id=parent.id,
+                    model="res.partner",
+                )
+            parent = chain
+        for index in range(primaries):
+            self.View.create(
+                {
+                    "name": f"sp primary {index}",
+                    "model": "res.partner",
+                    "mode": "primary",
+                    "inherit_id": extensions[index % depth].id,
+                    "arch": '<field name="name" position="attributes">'
+                    '<attribute name="readonly">1</attribute></field>',
+                }
+            )
+        return root, extensions
+
+    def _sibling_checks(self, fn):
+        with self.assertLogs(
+            "odoo.debug.pipeline.base.ir_ui_view", level="DEBUG"
+        ) as log_catcher:
+            fn()
+        return [
+            line
+            for line in log_catcher.output
+            if "event=sibling_primary_views_checked" in line
+        ]
+
+    def test_the_siblings_of_one_root_are_checked_once_per_batch(self):
+        _root, extensions = self._tree(depth=3, extensions_per_level=2)
+        checks = self._sibling_checks(extensions._check_xml)
+        self.assertEqual(len(checks), 1, checks)
+        self.assertIn("siblings=2", checks[0])
+
+    def test_the_check_finds_primaries_hanging_off_deep_extensions(self):
+        _root, extensions = self._tree(depth=3)
+        checks = self._sibling_checks(extensions[-1]._check_xml)
+        self.assertIn("siblings=2", checks[0])
+        # a broken sibling is what the check is for
+        extensions[-1].write({"arch": '<group name="g2" position="replace"/>'})
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                extensions[0].write({"arch": '<field name="name" position="replace"/>'})
+
+
+@tagged("post_install", "-at_install")
+class TestCustomViews(ViewCase):
+    def test_each_model_under_a_root_keeps_its_latest_custom_view(self):
+        root = self.env.ref("base.view_partner_form")
+        older = self.assertValid(
+            "<data/>", name="c A0", inherit_id=root.id, model="res.partner"
+        )
+        newer = self.assertValid(
+            "<data/>", name="c A1", inherit_id=root.id, model="res.partner"
+        )
+        other_model = self.View.create(
+            {
+                "name": "c B",
+                "model": "res.users",
+                "inherit_id": root.id,
+                "mode": "primary",
+                "arch": "<data/>",
+            }
+        )
+        custom = self.View._get_custom_views()
+        self.assertIn(newer, custom)
+        self.assertIn(other_model, custom)
+        self.assertNotIn(older, custom)
+        self.assertEqual(custom & (older + newer + other_model), newer + other_model)
+        self.assertEqual(
+            self.View._get_custom_views(["res.partner"])
+            & (older + newer + other_model),
+            newer,
+        )
+
+    def test_a_view_of_a_module_the_database_knows_is_shipped(self):
+        root = self.env.ref("base.view_partner_form")
+        shipped = self.assertValid(
+            "<data/>", name="s", inherit_id=root.id, model="res.partner"
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "probe_shipped",
+                "model": "ir.ui.view",
+                "res_id": shipped.id,
+            }
+        )
+        unknown = self.assertValid(
+            "<data/>", name="u", inherit_id=root.id, model="res.partner"
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "no_such_module",
+                "name": "probe_unknown",
+                "model": "ir.ui.view",
+                "res_id": unknown.id,
+            }
+        )
+        custom = self.View._get_custom_views(["res.partner"])
+        self.assertNotIn(shipped, custom)
+        self.assertIn(unknown, custom)
 
 
 @tagged("post_install", "-at_install")
@@ -7948,6 +8443,32 @@ class TestViewArchFileResolution(common.TransactionCase):
         self.assertIn("QUALIFIED", ir_ui_view.get_view_arch_from_file(path, "base.dup"))
         self.assertIn("SHORT", ir_ui_view.get_view_arch_from_file(path, "other.dup"))
 
+    def test_a_rewritten_file_is_read_again_and_the_tree_is_not_edited(self):
+        def record(text):
+            return (
+                '<odoo><record id="v" model="ir.ui.view">'
+                f'<field name="arch" type="xml"><form>{text}</form></field>'
+                "</record></odoo>"
+            )
+
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", suffix=".xml", delete=False
+        ) as handle:
+            handle.write(record("FIRST"))
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+        self.assertIn("FIRST", ir_ui_view.get_view_arch_from_file(path, "base.v"))
+        # the same parse serves the second read
+        with patch.object(
+            ir_ui_view.etree, "parse", wraps=ir_ui_view.etree.parse
+        ) as parse:
+            self.assertIn("FIRST", ir_ui_view.get_view_arch_from_file(path, "base.v"))
+        parse.assert_not_called()
+        # a new version of the file is parsed again
+        time.sleep(0.01)
+        pathlib.Path(path).write_text(record("SECOND"), encoding="utf-8")
+        self.assertIn("SECOND", ir_ui_view.get_view_arch_from_file(path, "base.v"))
+
 
 class TestGroupbyPostprocessTermination(ViewCase):
     def test_a_self_referencing_groupby_does_not_recurse(self):
@@ -8136,13 +8657,13 @@ class TestCombineIsBatched(ViewCase):
         self.assertEqual(looped, batched)
 
 
-class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
-    def test_the_batch_is_declined_while_the_registry_is_loading(self):
-        self.assertTrue(self.env.registry._init, "this must run at install")
-        views = self.View.create(
+class TestCombineBatchingAtInstall(ViewCase):
+    def test_the_batch_resolves_each_view_as_if_alone_while_loading(self):
+        self.assertFalse(self.env.registry.ready, "this must run at install")
+        roots = self.View.create(
             [
                 {
-                    "name": f"declined {index}",
+                    "name": f"batched {index}",
                     "model": "res.partner",
                     "type": "form",
                     "arch": f'<form><field name="name"/><!--{index}--></form>',
@@ -8150,7 +8671,26 @@ class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
                 for index in range(3)
             ]
         )
-        self.assertEqual(views._get_combined_archs_by_id(), {})
+        extensions = self.View.create(
+            [
+                {
+                    "name": f"batched ext {index}",
+                    "model": "res.partner",
+                    "inherit_id": root.id,
+                    "arch": f'<field name="name" position="after"><field name="function"/><!--e{index}--></field>',
+                }
+                for index, root in enumerate(roots)
+            ]
+        )
+        views = roots + extensions
+        batched = views._get_combined_archs_by_id()
+        self.assertEqual(set(batched), set(views.ids))
+        for view in views:
+            self.assertEqual(
+                etree.tostring(batched[view.id]),
+                etree.tostring(view._get_combined_arch()),
+                view.name,
+            )
 
 
 class TestResetArchRejectsAnUnknownMode(ViewCase):
@@ -8433,18 +8973,15 @@ class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
             "</search>",
         )
         seen = []
-        View = type(self.View)
-        original = View._check_view_tag_searchpanel
+        handler = type(ELEMENT_HANDLERS["searchpanel"])
+        original = handler.check
 
-        def counted(v, node, name_manager, node_info):
+        def counted(h, v, node, name_manager, node_info):
             seen.append(node)
-            return original(v, node, name_manager, node_info)
+            return original(h, v, node, name_manager, node_info)
 
-        View._check_view_tag_searchpanel = counted
-        try:
+        with patch.object(handler, "check", counted):
             view._check_view(etree.fromstring(view.arch), "res.partner")
-        finally:
-            View._check_view_tag_searchpanel = original
         self.assertEqual(len(seen), 1, "the searchpanel was validated twice")
 
 
@@ -8518,6 +9055,16 @@ class TestNestedSubviewsAreChecked(ViewCase):
                 </field>
             </form>""",
             "Invalid <list> subview definition",
+        )
+
+    def test_groups_on_nested_lists_are_accepted(self):
+        self.assertValid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list groups="base.group_user"><field name="name"/></list>
+                    <list groups="base.group_system"><field name="model"/></list>
+                </field>
+            </form>"""
         )
 
     def test_no_open_on_a_nested_list_is_accepted(self):

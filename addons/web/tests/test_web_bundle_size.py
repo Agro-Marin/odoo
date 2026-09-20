@@ -74,7 +74,6 @@ class TestWebBundleSize(TransactionCase):
             "mail_bot_hr",
             "microsoft_outlook",
             "mixin_attribute",
-            "mixin_recurrence",
             "mrp",
             "mrp_account",
             "mrp_subcontracting",

@@ -53,7 +53,9 @@ class TestApprovalStudioParity(common.TransactionCase):
         return step
 
     def _request(self, *steps_vals):
-        category = self.env["approval.category"].create({"name": "Parity Category"})
+        category = self.env["approval.category"].create(
+            {"name": "Parity Category", "allow_self_approval": True}
+        )
         steps = self.Step.create(
             [{"category_id": category.id, **vals} for vals in steps_vals]
         )

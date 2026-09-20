@@ -2,10 +2,6 @@
 <odoo>
 
     <template id="s_popup" name="Popup">
-        <!--
-        Note: those popups are saved with the d-none class but this is not part of
-        their XML definition here as that would hurt the drag and drop feature.
-        -->
         <div class="s_popup o_snippet_invisible" data-vcss="001">
             <div
                 class="modal fade s_popup_middle"

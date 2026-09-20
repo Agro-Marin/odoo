@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Revamped agenda : Will need to replace agenda_online from website_event_track in master -->
     <template id="agenda_online" name="Track Online: Agenda">
         <t t-call="website_event.layout">
-            <!-- No tracks -->
             <div t-if="not tracks_by_days" class="container">
                 <div class="row">
                     <div class="col-12 text-center">
@@ -28,24 +26,19 @@
 
             <t t-else="">
                 <div class="container">
-                    <!-- Options -->
                     <t
                         t-set="option_track_wishlist"
                         t-value="not event.is_done and is_view_active('website_event_track.agenda_topbar_wishlist')" />
-                    <!-- Topbar -->
                     <t t-call="website_event_track.agenda_topbar" />
                 </div>
-                <!-- Drag/Drop Area -->
                 <div
                     class="oe_structure oe_empty"
                     id="oe_structure_website_event_track_agenda_1"
                     data-editor-message.translate="Available on all event Agenda pages" />
 
-                <!-- Content -->
                 <div class="o_wevent_online o_weagenda_index mb-3">
                     <t t-call="website_event_track.agenda_main" />
                 </div>
-                <!-- Drag/Drop Area -->
                 <div
                     class="oe_structure oe_empty"
                     id="oe_structure_website_event_track_agenda_2"
@@ -54,10 +47,6 @@
         </t>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- TOPBAR: BASE NAVIGATION -->
-    <!-- ============================================================ -->
-    <!-- Main topbar -->
     <template id="agenda_topbar" name="Agenda Tools">
         <div
             class="o_weagenda_topbar_filters o_wevent_index_topbar_filters d-print-none d-flex flex-wrap align-items-center justify-content-end gap-2 w-100 mt-1 mt-lg-3 mb-3">
@@ -78,7 +67,6 @@
         </div>
     </template>
 
-    <!-- Option: Tracks display: optional favorites -->
     <template
         id="agenda_topbar_wishlist"
         name="Allow Wishlists"
@@ -88,10 +76,6 @@
         </xpath>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- CONTENT: MAIN TEMPLATES -->
-    <!-- ============================================================ -->
-    <!-- Agenda Main Display -->
     <template id="agenda_main" name="Tracks: Main Display">
         <t t-set="event_has_complex_day" t-value="false" />
         <t t-foreach="days" t-as="day">
@@ -102,7 +86,6 @@
         </t>
 
         <section t-foreach="days" t-as="day">
-            <!-- DAY HEADER -->
             <div
                 t-attf-class="{{event_has_complex_day and 'container-fluid' or 'container-xl'}}">
                 <hr t-attf-class="mb-2 {{not day_first and 'mt-5'}}" />
@@ -132,12 +115,10 @@
             </div>
 
             <t t-set="locations" t-value="locations_by_days[day]" />
-            <!-- Day Agenda -->
             <div
                 t-attf-class="{{event_has_complex_day and 'container-fluid' or 'container-xl'}} pe-0">
                 <div class="o_we_online_agenda mb-3">
                     <table id="table_search" class="table table-sm border-0 h-100">
-                        <!--Header-->
                         <tr>
                             <th class="border-0 position-sticky" />
                             <t t-foreach="locations" t-as="location">
@@ -151,7 +132,6 @@
                             </t>
                         </tr>
 
-                        <!-- Time Slots -->
                         <t t-set="used_cells" t-value="[]" />
                         <t t-foreach="time_slots[day]" t-as="time_slot">
                             <t

@@ -1,17 +1,18 @@
 import logging
 from collections import defaultdict
-from collections.abc import Callable
 from typing import Any
 
 from odoo import http
 from odoo.exceptions import AccessDenied, AccessError, MissingError, UserError
 from odoo.http import HTTPException, NotFound, SessionExpiredException, request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.controllers.utils import to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PROPAGATED_BATCH_ERRORS = (
     HTTPException,
@@ -43,27 +44,14 @@ class WebclientController(ThreadController):
         cls, fetch_params: list[str | list], context: dict | None
     ) -> dict:
         cls._update_context_from_client(context)
-        if request.env.cr.readonly:
-            store = Store()
-
-            def answer_whole_batch() -> None:
-                with request.env.cr.savepoint():
-                    request.update_context(mail_fetch_batched=True)
-                    try:
-                        cls._process_request_loop(store, fetch_params)
-                    finally:
-                        request.update_context(mail_fetch_batched=False)
-
-            if cls._absorbing_failure(
-                answer_whole_batch,
-                missing="Batched fetch needed a record that no longer exists; "
-                "answering each param in isolation.",
-                failed="Batched fetch failed; answering each param in isolation.",
-                traceback=False,
-            ):
-                return store.get_result()
         store = Store()
-        cls._process_request_loop(store, fetch_params)
+        with _debug.perf(
+            "fetch_answered",
+            cr=request.env.cr,
+            params=len(fetch_params) if isinstance(fetch_params, (list, tuple)) else 0,
+            readonly=request.env.cr.readonly,
+        ):
+            cls._process_request_loop(store, fetch_params)
         return store.get_result()
 
     @classmethod
@@ -75,13 +63,15 @@ class WebclientController(ThreadController):
         for fetch_param in fetch_params:
             parsed = cls._parse_fetch_param(fetch_param)
             if parsed is None:
+                _debug.logic("fetch_param_malformed", type=type(fetch_param).__name__)
                 _logger.info(
                     "Discarding a malformed fetch param: %s", repr(fetch_param)[:200]
                 )
                 continue
             name, params, data_id = parsed
             store.data_id = data_id
-            cls._process_one_request(store, name, params)
+            with _debug.perf("fetch_param", cr=request.env.cr, name=name):
+                cls._process_one_request(store, name, params)
         store.data_id = None
 
     @staticmethod
@@ -113,40 +103,28 @@ class WebclientController(ThreadController):
         if request.env.user._is_internal():
             cls._process_request_for_internal_user(store, name, params)
 
-    @staticmethod
-    def _absorbing_failure(
-        work: Callable[[], None], *, missing: str, failed: str, traceback: bool
-    ) -> bool:
+    @classmethod
+    def _process_one_request(cls, store: Store, name: str, params: Any) -> None:
         try:
-            work()
+            with request.env.cr.savepoint():
+                cls._dispatch_one_request(store, name, params)
         except PROPAGATED_BATCH_ERRORS:
             raise
         except MissingError:
-            _logger.info(missing)
+            _debug.logic("fetch_absorbed", name=name, error="MissingError")
+            _logger.info(
+                "Discarding fetch param %r: a record it needed no longer exists.",
+                name,
+            )
         except UserError:
             raise
-        except Exception:
-            _logger.log(
-                logging.ERROR if traceback else logging.INFO, failed, exc_info=True
+        except Exception as error:
+            _debug.logic("fetch_absorbed", name=name, error=type(error).__name__)
+            _logger.exception(
+                "Discarding fetch param %r: it failed while the rest of the batch "
+                "is answered normally.",
+                name,
             )
-        else:
-            return True
-        return False
-
-    @classmethod
-    def _process_one_request(cls, store: Store, name: str, params: Any) -> None:
-        def answer_one_param() -> None:
-            with request.env.cr.savepoint():
-                cls._dispatch_one_request(store, name, params)
-
-        cls._absorbing_failure(
-            answer_one_param,
-            missing=f"Discarding fetch param {name!r}: a record it needed no longer "
-            f"exists.",
-            failed=f"Discarding fetch param {name!r}: it failed while the rest of the "
-            f"batch is answered normally.",
-            traceback=True,
-        )
 
     @classmethod
     def _process_request_for_all(cls, store: Store, name: str, params: Any) -> None:

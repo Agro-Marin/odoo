@@ -18,19 +18,22 @@ from odoo.api import ValuesType
 from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import SQL
 from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
 
 if typing.TYPE_CHECKING:
+    from .ir_mail_server import IrMail_Server
     from .mail_mail import MailMail
     from odoo.addons.base.models.ir_actions_act_window import IrActionsAct_Window
     from odoo.addons.base.models.ir_actions_report import IrActionsReport
-    from odoo.addons.base.models.ir_mail_server import IrMail_Server
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 type RenderResults = dict[int, dict[str, Any]]
 
@@ -204,15 +207,15 @@ class MailTemplate(models.Model):
             res["model_id"] = self.env["ir.model"]._get(res.pop("model")).id
         return res
 
-    name = fields.Char("Name", translate=True)
+    name = fields.Char(translate=True)
     description = fields.Text(
-        "Template Description",
+        string="Template Description",
         translate=True,
         help="This field is used for internal description of the template's usage.",
     )
     active = fields.Boolean(default=True)
     template_category = fields.Selection(
-        [
+        selection=[
             ("base_template", "Base Template"),
             ("hidden_template", "Hidden Template"),
             ("custom_template", "Custom Template"),
@@ -221,107 +224,108 @@ class MailTemplate(models.Model):
         search="_search_template_category",
     )
     model_id: IrModel = fields.Many2one(
-        "ir.model",
-        "Applies to",
-        ondelete="cascade",
+        comodel_name="ir.model",
+        string="Applies to",
         domain=[("abstract", "=", False)],
+        ondelete="cascade",
     )
     model = fields.Char(
-        "Related Document Model",
         related="model_id.model",
-        index=True,
-        store=True,
+        string="Related Document Model",
         readonly=True,
     )
     subject = fields.Char(
-        "Subject",
         translate=True,
         prefetch=True,
         help="Subject (placeholders may be used here)",
     )
     email_from = fields.Char(
-        "Send From",
+        string="Send From",
         help="Sender address (placeholders may be used here). If not set, the default "
         "value will be the author's email alias if configured, or email address.",
     )
     user_id: ResUsers = fields.Many2one(
-        "res.users", string="Owner", domain="[('share', '=', False)]"
+        comodel_name="res.users",
+        string="Owner",
+        domain="[('share', '=', False)]",
     )
     use_default_to = fields.Boolean(
-        "Default Recipients",
+        string="Default Recipients",
         default=True,
         help="Default recipients of the record:\n"
         "- partner (using id on a partner or the partner_id field) OR\n"
         "- email (using email_from or email field)",
     )
     email_to = fields.Char(
-        "To (Emails)",
+        string="To (Emails)",
         help="Comma-separated recipient addresses (placeholders may be used here)",
     )
     partner_to = fields.Char(
-        "To (Partners)",
+        string="To (Partners)",
         help="Comma-separated ids of recipient partners (placeholders may be used here)",
     )
     email_cc = fields.Char(
-        "Cc", help="Carbon copy recipients (placeholders may be used here)"
+        string="Cc",
+        help="Carbon copy recipients (placeholders may be used here)",
     )
     reply_to = fields.Char(
-        "Reply To",
-        help="Email address to which replies will be redirected when sending emails in mass; only used when the reply is not logged in the original discussion thread.",
+        help="Email address to which replies will be redirected when sending emails in mass; only used when the reply is not logged in the original discussion thread."
     )
     body_html = fields.Html(
-        "Body",
-        render_engine="qweb",
-        render_options={"post_process": True},
-        prefetch=True,
+        string="Body",
         translate=True,
         sanitize="email_outgoing",
+        prefetch=True,
+        render_engine="qweb",
+        render_options={"post_process": True},
     )
     attachment_ids: IrAttachment = fields.Many2many(
-        "ir.attachment",
-        "email_template_attachment_rel",
-        "email_template_id",
-        "attachment_id",
+        comodel_name="ir.attachment",
+        relation="email_template_attachment_rel",
+        column1="email_template_id",
+        column2="attachment_id",
         string="Attachments",
         bypass_search_access=True,
     )
     report_template_ids: IrActionsReport = fields.Many2many(
-        "ir.actions.report",
+        comodel_name="ir.actions.report",
         relation="mail_template_ir_actions_report_rel",
         column1="mail_template_id",
         column2="ir_actions_report_id",
         string="Dynamic Reports",
         domain="[('model', '=', model)]",
     )
-    email_layout_xmlid = fields.Char("Email Notification Layout", copy=False)
+    email_layout_xmlid = fields.Char(
+        string="Email Notification Layout",
+        copy=False,
+    )
     mail_server_id: IrMail_Server = fields.Many2one(
-        "ir.mail_server",
-        "Outgoing Mail Server",
-        readonly=False,
+        comodel_name="ir.mail_server",
+        string="Outgoing Mail Server",
         index="btree_not_null",
+        readonly=False,
         help="Optional preferred server for outgoing mails. If not set, the highest "
         "priority one will be used.",
     )
     scheduled_date = fields.Char(
-        "Scheduled Date",
-        help="If set, the queue manager will send the email after the date. If not set, the email will be send as soon as possible. You can use dynamic expression.",
+        help="If set, the queue manager will send the email after the date. If not set, the email will be send as soon as possible. You can use dynamic expression."
     )
     auto_delete = fields.Boolean(
-        "Auto Delete",
         default=True,
         help="This option permanently removes any track of email after it's been sent, including from the Technical menu in the Settings, in order to preserve storage space of your Odoo database.",
     )
     ref_ir_act_window: IrActionsAct_Window = fields.Many2one(
-        "ir.actions.act_window",
-        "Sidebar action",
-        readonly=True,
+        comodel_name="ir.actions.act_window",
+        string="Sidebar action",
         copy=False,
+        readonly=True,
         help="Sidebar action to make this template available on records "
         "of the related document model",
     )
 
     can_write = fields.Boolean(
-        compute="_compute_can_write", help="The current user can edit the template."
+        compute="_compute_can_write",
+        help="The current user can edit the template.",
     )
     is_template_editor = fields.Boolean(compute="_compute_is_template_editor")
 
@@ -442,7 +446,7 @@ class MailTemplate(models.Model):
     @api.onchange("model")
     def _onchange_model(self) -> None:
         for template in self.filtered("model"):
-            if upd_values := self._get_model_template_defaults(template.model):
+            if upd_values := self._prepare_model_template_defaults(template.model):
                 template.update(upd_values)
 
     def _get_render_error_label(self) -> str:
@@ -467,9 +471,18 @@ class MailTemplate(models.Model):
             checked_fnames &= set(fnames)
         if not checked_fnames:
             return
+        _debug.pipeline(
+            "check_rendering", templates=self.ids, fields=sorted(checked_fnames)
+        )
         for template in self:
             if failure := template._compile_dynamic_fields(checked_fnames):
                 fname, error = failure
+                _debug.logic(
+                    "compile_failed",
+                    template=template.id,
+                    field=fname,
+                    error=type(error).__name__,
+                )
                 raise template._prepare_rendering_error(fname, error) from error
         self._probe_rendering_samples(checked_fnames, render_options)
 
@@ -479,10 +492,21 @@ class MailTemplate(models.Model):
         samples = self.sudo()._get_rendering_samples()
         if not samples:
             return
-        failure = self.sudo()._render_dynamic_fields(samples, fnames, render_options)
+        with _debug.perf(
+            "probe_samples", cr=self.env.cr, templates=self.ids, samples=len(samples)
+        ):
+            failure = self.sudo()._render_dynamic_fields(
+                samples, fnames, render_options
+            )
         if not failure:
             return
         template_id, fname, error = failure
+        _debug.logic(
+            "probe_failed",
+            template=template_id,
+            field=fname,
+            error=type(error).__name__,
+        )
         _logger.info(
             "mail.template %s: field %s compiles but does not render on sample "
             "%s; saved anyway, sending on records of that shape will fail",
@@ -500,6 +524,9 @@ class MailTemplate(models.Model):
                 continue
             if record := self.env[model].search([], limit=1):  # noqa: E8507  the loop is over distinct models, not records: one sample row per table
                 samples[model] = record
+        _debug.perf.count(
+            "rendering_samples", templates=self.ids, models=sorted(samples)
+        )
         return samples
 
     def _compile_dynamic_fields(
@@ -610,6 +637,9 @@ class MailTemplate(models.Model):
             raise
         finally:
             hooks.remove(watch)
+            _debug.logic(
+                "probe_isolation_closed", templates=self.ids, rolled_back=modified
+            )
             savepoint.close(rollback=modified)
 
     def _render_dynamic_fields(
@@ -668,12 +698,18 @@ class MailTemplate(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(records),
+            models=sorted({vals.get("model") or "" for vals in vals_list}),
+        )
         records._check_rendering(fnames={fname for vals in vals_list for fname in vals})
         records._update_attachment_ownership(self._get_linked_attachment_ids(vals_list))
         return records
 
     def write(self, vals: ValuesType) -> Literal[True]:
         super().write(vals)
+        _debug.lifecycle("write", templates=self.ids, fields=list(vals))
         self._check_rendering(
             fnames=None if not {"model", "model_id"}.isdisjoint(vals) else vals.keys()
         )
@@ -682,6 +718,7 @@ class MailTemplate(models.Model):
         return True
 
     def unlink(self) -> Literal[True]:
+        _debug.lifecycle("unlink", templates=self.ids)
         self.unlink_action()
         return super().unlink()
 
@@ -743,6 +780,7 @@ class MailTemplate(models.Model):
         )
         for template, action in zip(self, actions, strict=True):
             template.ref_ir_act_window = action
+        _debug.lifecycle("actions_created", templates=self.ids, actions=actions.ids)
         return True
 
     def action_view_mail_preview(self) -> dict:
@@ -764,6 +802,13 @@ class MailTemplate(models.Model):
 
         if report.report_type in ("qweb-html", "qweb-pdf"):
             batched_streams = self._get_report_streams_batch(report, res_ids)
+            _debug.logic(
+                "report_render_strategy",
+                template=self.id,
+                report=report.id,
+                records=len(res_ids),
+                by="batch" if batched_streams is not None else "per_record",
+            )
             if batched_streams is not None:
                 return {
                     res_id: (stream.getvalue(), "pdf")
@@ -832,7 +877,14 @@ class MailTemplate(models.Model):
                     record.id: record for record in self._get_records(res_ids)
                 }
                 for report in self.report_template_ids:
-                    rendered = self._render_report_per_record(report, res_ids)
+                    with _debug.perf(
+                        "report_rendered",
+                        cr=self.env.cr,
+                        template=self.id,
+                        report=report.id,
+                        records=len(res_ids),
+                    ):
+                        rendered = self._render_report_per_record(report, res_ids)
                     for res_id, (report_content, report_format) in rendered.items():
                         report_name = self._get_report_attachment_name(
                             report, records_by_id[res_id], report_format
@@ -931,6 +983,15 @@ class MailTemplate(models.Model):
 
         self._update_partner_to(partner_to_by_res_id, contribution)
 
+        _debug.logic(
+            "recipients_prepared",
+            template=self.id,
+            records=len(res_ids),
+            by="default_to" if self.use_default_to and self.model else "fields",
+            suggested=allow_suggested,
+            find_or_create=find_or_create_partners,
+            partner_to=len(partner_to_by_res_id),
+        )
         return _merge_render_results(
             {} if render_results is None else render_results, contribution
         )
@@ -971,9 +1032,15 @@ class MailTemplate(models.Model):
             records_emails[record] = tools.email_split(
                 emails.get("email_to", "")
             ) + tools.email_split(emails.get("email_cc", ""))
-        for res_id, partners in records._partner_get_or_create_from_emails(
-            records_emails
-        ).items():
+        resolved = records._partner_get_or_create_from_emails(records_emails)
+        _debug.logic(
+            "recipient_partners_resolved",
+            template=self.id,
+            records=len(records),
+            emails=sum(len(emails) for emails in records_emails.values()),
+            partners=sum(len(partners) for partners in resolved.values()),
+        )
+        for res_id, partners in resolved.items():
             contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(
                 partners.ids
             )
@@ -995,6 +1062,12 @@ class MailTemplate(models.Model):
             .browse(list(set().union(*(map(set, parsed.values())))))
             .exists()
             ._ids
+        )
+        _debug.logic(
+            "partner_to_resolved",
+            template=self.id,
+            records=len(parsed),
+            existing=len(existing_pids),
         )
         for res_id, pids in parsed.items():
             contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(
@@ -1062,9 +1135,15 @@ class MailTemplate(models.Model):
         fields_torender = render_fields_set - TEMPLATE_SPECIFIC_FIELD_NAMES
 
         render_results: RenderResults = {}
-        for template, template_res_ids in self._classify_per_lang(
-            res_ids, res_ids_lang=res_ids_lang
-        ).values():
+        per_lang = self._classify_per_lang(res_ids, res_ids_lang=res_ids_lang)
+        _debug.pipeline(
+            "prepare_mail_vals",
+            template=self.id,
+            records=len(res_ids),
+            fields=sorted(fields_torender),
+            langs=len(per_lang),
+        )
+        for template, template_res_ids in per_lang.values():
             for field in fields_torender:
                 generated_field_values = template._render_field(field, template_res_ids)
                 _merge_render_results(
@@ -1175,10 +1254,20 @@ class MailTemplate(models.Model):
 
         mails_sudo = self.env["mail.mail"].sudo()
         batch_size = self.env["mail.mail"]._get_send_batch_size()
-        for res_ids_chunk in batched(res_ids, batch_size, strict=False):
-            mails_sudo += self._send_chunk(
-                list(res_ids_chunk), layout_xmlid, email_values
-            )
+        with _debug.perf(
+            "send_mail_batch",
+            cr=self.env.cr,
+            template=self.id,
+            records=len(res_ids),
+            batch_size=batch_size,
+            layout=layout_xmlid or None,
+            force_send=force_send,
+        ) as span:
+            for res_ids_chunk in batched(res_ids, batch_size, strict=False):
+                mails_sudo += self._send_chunk(
+                    list(res_ids_chunk), layout_xmlid, email_values
+                )
+            span.set(mails=len(mails_sudo))
 
         if force_send:
             mails_sudo.send(raise_exception=raise_exception)
@@ -1215,6 +1304,14 @@ class MailTemplate(models.Model):
             )
 
         mails = self.env["mail.mail"].sudo().create(values_list)
+        _debug.pipeline(
+            "send_chunk",
+            template=self.id,
+            records=len(res_ids),
+            mails=len(mails),
+            langs=len(set(res_ids_lang.values())),
+            attachments=sum(len(a) for a in attachments_list),
+        )
         self._attach_rendered_reports(mails, attachments_list)
         return mails
 
@@ -1281,14 +1378,36 @@ class MailTemplate(models.Model):
             .with_context(default_type=None)
             .create(attachment_vals)
         )
-        commands_per_mail: dict[int, list] = {}
-        for mail, attachment in zip(owners, created, strict=True):
-            commands_per_mail.setdefault(mail.id, []).append(
-                Command.link(attachment.id)
+        messages = (
+            self.env["mail.message"]
+            .sudo()
+            .browse([mail.mail_message_id.id for mail in owners])
+        )
+        relation = self.env["mail.message"]._fields["attachment_ids"]
+        self.env.execute_query(
+            SQL(
+                """
+                INSERT INTO %(table)s (%(column1)s, %(column2)s)
+                     SELECT * FROM unnest(%(message_ids)s::int[], %(attachment_ids)s::int[])
+                ON CONFLICT DO NOTHING
+                """,
+                table=SQL.identifier(relation.relation),
+                column1=SQL.identifier(relation.column1),
+                column2=SQL.identifier(relation.column2),
+                message_ids=messages.ids,
+                attachment_ids=created.ids,
             )
-        for mail in mails:
-            if commands := commands_per_mail.get(mail.id):
-                mail.with_context(default_type=None).write({"attachment_ids": commands})
+        )
+        touched = self.env["mail.message"].sudo().browse(set(messages.ids))
+        touched.invalidate_recordset(["attachment_ids"])
+        mails.invalidate_recordset(["attachment_ids"])
+        touched.modified(["attachment_ids"])
+        _debug.lifecycle(
+            "reports_attached",
+            template=self.id,
+            mails=len(set(messages.ids)),
+            attachments=len(created),
+        )
 
     def _has_unsafe_expression_template_qweb(
         self, template_src: str, model: str, fname: str | None = None
@@ -1313,10 +1432,10 @@ class MailTemplate(models.Model):
     ) -> bool:
         if not fname or not model:
             return False
-        return source == self._get_model_template_defaults(model).get(fname)
+        return source == self._prepare_model_template_defaults(model).get(fname)
 
     @api.model
-    def _get_model_template_defaults(self, model: str) -> dict:
+    def _prepare_model_template_defaults(self, model: str) -> dict:
         if model not in self.env:
             return {}
         defaults = getattr(self.env[model], "_mail_template_default_values", None)

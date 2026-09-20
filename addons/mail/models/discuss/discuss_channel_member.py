@@ -15,6 +15,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, format_list, html_escape
 
 from ...tools import discuss, jwt
@@ -32,6 +33,7 @@ if typing.TYPE_CHECKING:
     from .mail_guest import MailGuest
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 SFU_MODE_THRESHOLD = 3
 AVATAR_CARD_FIELDS = ["avatar_128", "im_status", "name"]
 
@@ -48,86 +50,83 @@ class DiscussChannelMember(models.Model):
     _bypass_create_check = {}
 
     partner_id: ResPartner = fields.Many2one(
-        "res.partner",
-        "Partner",
-        ondelete="cascade",
+        comodel_name="res.partner",
         index=True,
+        ondelete="cascade",
     )
     guest_id: MailGuest = fields.Many2one(
-        "mail.guest",
-        "Guest",
-        ondelete="cascade",
+        comodel_name="mail.guest",
         index=True,
+        ondelete="cascade",
     )
     is_self = fields.Boolean(
         compute="_compute_is_self",
         search="_search_is_self",
     )
     channel_id: DiscussChannel = fields.Many2one(
-        "discuss.channel",
-        "Channel",
-        ondelete="cascade",
+        comodel_name="discuss.channel",
         required=True,
+        ondelete="cascade",
         bypass_search_access=True,
     )
-    custom_channel_name = fields.Char("Custom channel name")
+    custom_channel_name = fields.Char(string="Custom channel name")
     fetched_message_id: MailMessage = fields.Many2one(
-        "mail.message",
+        comodel_name="mail.message",
         string="Last Fetched",
         index="btree_not_null",
     )
     seen_message_id: MailMessage = fields.Many2one(
-        "mail.message",
+        comodel_name="mail.message",
         string="Last Seen",
         index="btree_not_null",
     )
     new_message_separator = fields.Integer(
-        help="Message id before which the separator should be displayed",
         default=0,
         required=True,
+        help="Message id before which the separator should be displayed",
     )
     message_unread_counter = fields.Integer(
-        "Unread Messages Counter",
+        string="Unread Messages Counter",
         compute="_compute_message_unread_counter",
         compute_sudo=True,
     )
     custom_notifications = fields.Selection(
-        [
+        selection=[
             ("all", "All Messages"),
             ("mentions", "Mentions Only"),
             ("no_notif", "Nothing"),
         ],
-        "Customized Notifications",
+        string="Customized Notifications",
         help="Use default from user settings if not specified. This setting will only be applied to channels.",
     )
     mute_until_dt = fields.Datetime(
-        "Mute notifications until",
+        string="Mute notifications until",
         help="If set, the member will not receive notifications from the channel until this date.",
     )
     is_pinned = fields.Boolean(
-        "Is pinned on the interface",
+        string="Is pinned on the interface",
         compute="_compute_is_pinned",
         search="_search_is_pinned",
     )
     unpin_dt = fields.Datetime(
-        "Unpin date",
+        string="Unpin date",
         index=True,
         help="Contains the date and time when the channel was unpinned by the user.",
     )
     last_interest_dt = fields.Datetime(
-        "Last Interest",
+        string="Last Interest",
         default=lambda self: fields.Datetime.now() - timedelta(seconds=1),
         index=True,
         help="Contains the date and time of the last interesting event that happened in this channel for this user. This includes: creating, joining, pinning",
     )
-    last_seen_dt = fields.Datetime("Last seen date")
+    last_seen_dt = fields.Datetime(string="Last seen date")
     rtc_session_ids: DiscussChannelRtcSession = fields.One2many(
-        string="RTC Sessions",
         comodel_name="discuss.channel.rtc.session",
         inverse_name="channel_member_id",
+        string="RTC Sessions",
     )
     rtc_inviting_session_id: DiscussChannelRtcSession = fields.Many2one(
-        "discuss.channel.rtc.session",
+        comodel_name="discuss.channel.rtc.session",
         string="Ringing session",
     )
 
@@ -166,6 +165,7 @@ class DiscussChannelMember(models.Model):
             ],
         )
         members.unpin_dt = fields.Datetime.now()
+        _debug.lifecycle("gc_sub_channels_unpinned", members=len(members))
         for member in members:
             Store(bus_channel=member._bus_channel()).add(
                 member.channel_id, {"close_chat_window": True}
@@ -334,6 +334,13 @@ class DiscussChannelMember(models.Model):
         for member in res:
             if parent := member.channel_id.parent_channel_id:
                 members_by_parent[parent] |= member
+        _debug.lifecycle(
+            "create",
+            count=len(res),
+            channels=len(added_by_channel),
+            parents=len(members_by_parent),
+            sudo=self.env.su,
+        )
         for parent, members in members_by_parent.items():
             parent._add_members(partners=members.partner_id, guests=members.guest_id)
         for channel, members in name_members_by_channel.items():
@@ -357,6 +364,12 @@ class DiscussChannelMember(models.Model):
 
         sync_field_names, old_vals = self._prepare_sync_snapshot(vals)
         result = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            members=self.ids,
+            fields=list(vals),
+            synced=sorted(str(name) for name in sync_field_names),
+        )
         self._notify_sync_diffs(sync_field_names, old_vals)
         return result
 
@@ -432,6 +445,9 @@ class DiscussChannelMember(models.Model):
         name_members_by_channel = {
             channel: channel.channel_name_member_ids for channel in self.channel_id
         }
+        _debug.lifecycle(
+            "unlink", members=self.ids, channels=len(name_members_by_channel)
+        )
         res = super().unlink()
         for channel, members in name_members_by_channel.items():
             channel_sudo = channel.sudo()
@@ -545,6 +561,16 @@ class DiscussChannelMember(models.Model):
         current_rtc_sessions, outdated_rtc_sessions = self._rtc_sync_sessions(
             check_rtc_session_ids=check_rtc_session_ids
         )
+        _debug.lifecycle(
+            "rtc_joined",
+            member=self.id,
+            channel=self.channel_id.id,
+            session=rtc_session.id,
+            previous_sessions=len(user_sessions),
+            current=len(current_rtc_sessions),
+            outdated=len(outdated_rtc_sessions),
+            camera=camera,
+        )
         ice_servers = self.env["mail.ice.server"]._get_ice_servers()
         self._join_sfu(ice_servers)
         if store:
@@ -574,6 +600,9 @@ class DiscussChannelMember(models.Model):
     def _join_sfu(self, ice_servers: list | None = None, force: bool = False) -> None:
         if len(self.channel_id.rtc_session_ids) < SFU_MODE_THRESHOLD and not force:
             if self.channel_id.sfu_channel_uuid:
+                _debug.logic(
+                    "sfu_released", channel=self.channel_id.id, reason="below_threshold"
+                )
                 self.channel_id.sfu_channel_uuid = None
                 self.channel_id.sfu_server_url = None
             return
@@ -581,21 +610,29 @@ class DiscussChannelMember(models.Model):
             return
         sfu_server_url = discuss.get_sfu_url(self.env)
         if not sfu_server_url:
+            _debug.logic("sfu_skipped", channel=self.channel_id.id, reason="no_url")
             return
         sfu_key = discuss.get_sfu_key(self.env)
         if not sfu_key:
+            _debug.logic("sfu_skipped", channel=self.channel_id.id, reason="no_key")
             _logger.warning(
                 "An SFU server URL is configured without an SFU key, user will stay in p2p"
             )
             return
-        sfu_local_key = (
-            self.env["ir.config_parameter"].sudo().get_param("mail.sfu_local_key")
-        )
+        credentials = self.env["credential.credential"]
+        sfu_local_key = credentials._get_system_secret("mail.sfu_local_key")
         if not sfu_local_key:
+            if not credentials._is_encryption_key_configured():
+                _debug.logic(
+                    "sfu_skipped", channel=self.channel_id.id, reason="no_vault_key"
+                )
+                _logger.warning(
+                    "An SFU server is configured but ODOO_API_ENCRYPTION_KEY is not "
+                    "set, so no session signing key can be stored: user will stay in p2p"
+                )
+                return
             sfu_local_key = str(uuid.uuid4())
-            self.env["ir.config_parameter"].sudo().set_param(
-                "mail.sfu_local_key", sfu_local_key
-            )
+            credentials._set_system_secret("mail.sfu_local_key", sfu_local_key)
         json_web_token = jwt.sign(
             {
                 "iss": f"{self.get_base_url()}:channel:{self.channel_id.id}",
@@ -606,13 +643,23 @@ class DiscussChannelMember(models.Model):
             algorithm=jwt.Algorithm.HS256,
         )
         try:
-            response = requests.get(
-                sfu_server_url + "/v1/channel",
-                headers={"Authorization": "jwt " + json_web_token},
-                timeout=3,
-            )
-            response.raise_for_status()
+            with _debug.perf("sfu_channel_requested", channel=self.channel_id.id):
+                response = self.env["ir.egress"].request(
+                    "GET",
+                    sfu_server_url + "/v1/channel",
+                    purpose="discuss_sfu",
+                    policy="private",
+                    headers={"Authorization": "jwt " + json_web_token},
+                    timeout=3,
+                )
+                response.raise_for_status()
         except requests.exceptions.RequestException as error:
+            _debug.logic(
+                "sfu_skipped",
+                channel=self.channel_id.id,
+                reason="request_failed",
+                error=type(error).__name__,
+            )
             _logger.warning(
                 "Failed to obtain a channel from the SFU server, user will stay in p2p: %s",
                 error,
@@ -621,6 +668,12 @@ class DiscussChannelMember(models.Model):
         response_dict = response.json()
         self.channel_id.sfu_channel_uuid = response_dict["uuid"]
         self.channel_id.sfu_server_url = response_dict["url"]
+        _debug.lifecycle(
+            "sfu_joined",
+            channel=self.channel_id.id,
+            sessions=len(self.channel_id.rtc_session_ids),
+            forced=force,
+        )
         for session in self.channel_id.rtc_session_ids:
             session._bus_send(
                 "discuss.channel.rtc.session/sfu_hot_swap",
@@ -642,7 +695,9 @@ class DiscussChannelMember(models.Model):
         if not sfu_channel_uuid or not sfu_server_url:
             return None
         if not key:
-            key = self.env["ir.config_parameter"].sudo().get_param("mail.sfu_local_key")
+            key = self.env["credential.credential"]._get_system_secret(
+                "mail.sfu_local_key"
+            )
         claims = {
             "session_id": rtc_session.id,
             "ice_servers": ice_servers,
@@ -658,6 +713,13 @@ class DiscussChannelMember(models.Model):
 
     def _rtc_leave_call(self, session_id: int | None = None) -> None:
         self.check_singleton()
+        _debug.lifecycle(
+            "rtc_left",
+            member=self.id,
+            channel=self.channel_id.id,
+            session=session_id,
+            sessions=len(self.rtc_session_ids),
+        )
         if self.rtc_session_ids:
             if session_id:
                 self.rtc_session_ids.filtered(lambda rec: rec.id == session_id).unlink()
@@ -711,6 +773,13 @@ class DiscussChannelMember(models.Model):
         members = self.env["discuss.channel.member"].search(
             self._get_domain_rtc_invite_members(member_ids)
         )
+        _debug.lifecycle(
+            "rtc_invited",
+            member=self.id,
+            channel=self.channel_id.id,
+            asked=len(member_ids or ()),
+            invited=len(members),
+        )
         if members:
             members.rtc_inviting_session_id = self.rtc_session_ids.id
             Store(bus_channel=self.channel_id).add(
@@ -734,6 +803,9 @@ class DiscussChannelMember(models.Model):
                 )
             )
             if devices:
+                _debug.pipeline(
+                    "rtc_invite_push", channel=self.channel_id.id, devices=len(devices)
+                )
                 icon = f"/web/image/discuss.channel/{self.channel_id.id}/avatar_128"
                 if self.channel_id._channel_type_policy().push_icon_is_sender:
                     if guest := self.env["mail.guest"]._get_guest_from_context():
@@ -805,6 +877,14 @@ class DiscussChannelMember(models.Model):
             )
         if self.new_message_separator != message.id + 1:
             vals["new_message_separator"] = message.id + 1
+        _debug.lifecycle(
+            "message_read",
+            member=self.id,
+            message=message.id,
+            seen_changed=seen_changed,
+            fields=list(vals),
+            notify=notify,
+        )
         if vals:
             self.write(vals)
         if not notify:

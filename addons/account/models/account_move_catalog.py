@@ -2,12 +2,17 @@ from collections import defaultdict
 
 from odoo import models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    @_debug.perf.timed
     def action_add_from_catalog(self):
+        _debug.lifecycle("action_add_from_catalog", records=self)
         res = super().action_add_from_catalog()
         res["search_view_id"] = [
             self.env.ref("account.product_view_search_catalog").id,
@@ -15,8 +20,8 @@ class AccountMove(models.Model):
         ]
         return res
 
-    def _get_action_add_from_catalog_extra_context(self):
-        res = super()._get_action_add_from_catalog_extra_context()
+    def _prepare_catalog_extra_context(self):
+        res = super()._prepare_catalog_extra_context()
         if self.is_purchase_document() and self.partner_id:
             res["search_default_seller_ids"] = self.partner_id.name
 
@@ -36,8 +41,8 @@ class AccountMove(models.Model):
         else:
             return domain
 
-    def _default_order_line_values(self, child_field=False):
-        default_data = super()._default_order_line_values(child_field)
+    def _get_order_line_values(self, child_field=False):
+        default_data = super()._get_order_line_values(child_field)
         new_default_data = self.env[
             "account.move.line"
         ]._get_product_catalog_lines_data()
@@ -67,6 +72,12 @@ class AccountMove(models.Model):
                 params={"order_id": self},
             )
             if seller:
+                _debug.logic(
+                    "catalog_price_from_seller",
+                    move=self,
+                    product=product,
+                    seller=seller,
+                )
                 product_infos.update(
                     price=seller.price,
                     min_qty=seller.min_qty,
@@ -90,8 +101,15 @@ class AccountMove(models.Model):
                 and line.product_id.id in product_ids
             ):
                 grouped_lines[line.product_id] |= line
+        _debug.pipeline(
+            "catalog_lines_grouped",
+            move=self,
+            section_id=section_id,
+            product_count=len(grouped_lines),
+        )
         return grouped_lines
 
+    @_debug.perf.timed
     def _update_order_line_info(
         self,
         product_id,
@@ -107,6 +125,14 @@ class AccountMove(models.Model):
                 and line.get_line_parent_section().id == section_id
             ),
         )[:1]
+        _debug.logic(
+            "catalog_line_matched",
+            move=self,
+            product=product_id,
+            section=section_id,
+            line=move_line,
+            quantity=quantity,
+        )
         if move_line:
             if quantity != 0:
                 move_line.quantity = quantity
@@ -114,6 +140,7 @@ class AccountMove(models.Model):
                 price_unit = self._get_product_price_and_data(move_line.product_id)[
                     "price"
                 ]
+                _debug.logic("catalog_line_removed", move=self, line=move_line)
                 move_line.unlink()
                 return price_unit
             else:
@@ -127,6 +154,7 @@ class AccountMove(models.Model):
                     "sequence": self._get_new_line_sequence(child_field, section_id),
                 }
             )
+            _debug.pipeline("catalog_line_created", move=self, line=move_line)
         else:
             return 0.0
         return move_line.price_unit

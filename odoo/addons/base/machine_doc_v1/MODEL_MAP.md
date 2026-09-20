@@ -11,15 +11,19 @@ file per type, each inheriting `ir.actions.actions`.
 
 ### models/ir_actions_actions.py
 
-#### IrActions — `ir.actions.actions` (`_name`, `_table = ir_actions`)
+#### IrActions — `ir.actions.actions` (`_name`, `_table = ir_actions`, inherits `mixin.table.inheritance.root`)
 
-Base action model. All action types inherit from this.
+Base action model. All action types inherit from this, each with its own
+PostgreSQL table `INHERITS (ir_actions)`, created by the ORM from
+`_table_inheritance_root`. The root table itself is sealed by a
+`CHECK (false) NO INHERIT` constraint at init, after any row still sitting in
+it is moved to the table its `type` names.
 
 **Fields:**
 - `name` (Char, required, translatable)
 - `type` (Char, required) — Action type discriminator
 - `xml_id` (Char, computed) — External identifier
-- `path` (Char) — URL path (unique constraint)
+- `path` (Char) — URL path; uniqueness lives in `ir.actions.path`
 - `help` (Html, translatable) — Empty list help text
 - `binding_model_id` (Many2one → ir.model) — Model to bind action to
 - `binding_type` (Selection) — `action` or `report`
@@ -28,8 +32,10 @@ Base action model. All action types inherit from this.
 **Key Methods:**
 - `get_bindings(model_name)` — Retrieve bound actions for a model
 - `_get_action_dict_by_xml_id(full_xml_id)` — Read the action with this XML ID as a client-ready dict
-- `_get_action_dict()` — Return action data dict for webclient
+- `_get_action_dict()` — Return action data dict for webclient; `type` is the concrete model, not the stored column
 - `_get_fields_readable()` — Fields safe for web access
+- `_get_field_target_model()` / `_get_field_groups()` — Per kind of action: the field naming the model it opens, the field holding the groups it is restricted to; empty on the root. The root asks these instead of probing its leaves' field names
+- `_get_fields_binding_extra()` — Per kind: what a binding ships beyond `_BINDING_READ_FIELDS`; an addon extends it through `super()` on the leaf it adds a column to
 
 ### models/ir_actions_path.py
 
@@ -89,9 +95,10 @@ View ordering within a window action.
 
 ### models/ir_actions_act_window_close.py
 
-#### IrActionsAct_Window_Close — `ir.actions.act_window_close` (`_name`, inherits actions)
+#### IrActionsAct_Window_Close — `ir.actions.act_window_close` (`_name`, `_table = ir_act_window_close`, inherits actions)
 
-Close window action. Minimal — just inherits type.
+Close window action. Minimal — just inherits type. Almost always returned as a
+dict from Python rather than stored; its table exists so the root stays empty.
 
 ### models/ir_actions_act_url.py
 
@@ -133,7 +140,9 @@ Client-side action — triggers a JS component.
 
 #### IrActionsReport — `ir.actions.report` (`_name`, inherits actions)
 
-Report actions — renders QWeb templates to PDF/HTML/text via WeasyPrint.
+Report actions — the action type, its bindings, and the QWeb HTML and text
+renders. The PDF path (WeasyPrint engine, layouts, attachments) is `web`'s
+`_inherit` of this model; `base` alone renders no PDF.
 
 **Fields:**
 - `model` (Char, required) — Target model name
@@ -147,13 +156,14 @@ Report actions — renders QWeb templates to PDF/HTML/text via WeasyPrint.
 - `attachment` (Char) — Save prefix expression
 
 **Key Methods:**
-- `_get_attachment(record)` — Get cached report attachment
+- `_get_attachments(records, filenames)` — Cached report attachments per record
 - `get_paperformat()` — Get paper format (self or company default)
-- `_render_html_to_pdf(bodies, report_ref, landscape, ...)` — WeasyPrint PDF rendering
-- `_render_html_to_image(bodies, width, height, ...)` — WeasyPrint PNG rendering
-- `_render_qweb_html(docids, data)` — Render QWeb to HTML
-- `_render_qweb_pdf(docids, data)` — Render QWeb to PDF
-- `_render_qweb_text(docids, data)` — Render QWeb to text
+- `_get_report(report_ref)` — Resolve id, name or record to the sudo report
+- `_render_qweb_html(report_ref, docids, data)` — Render QWeb to HTML
+- `_render_qweb_text(report_ref, docids, data)` — Render QWeb to text
+- `_render(report_ref, res_ids, data)` — Dispatch on `report_type` (`_render_qweb_pdf` arrives with `web`)
+- `prepare_barcode(barcode_type, value, **kwargs)` — Barcode PNG, also the QWeb barcode field's backend
+- `_merge_pdfs(streams)` — pypdf merge with a per-stream error policy
 - `report_action(docids, data, config)` — Return action dict for webclient
 
 ---
@@ -162,7 +172,10 @@ Report actions — renders QWeb templates to PDF/HTML/text via WeasyPrint.
 
 #### IrActionsServer — `ir.actions.server` (`_name`, inherits actions)
 
-Automated server actions — execute code, CRUD operations, or webhooks.
+Automated server actions — execute code, CRUD operations, or webhooks. The
+webhook HTTP delivery, target scrubbing and log target live in
+`odoo/libs/webhook.py` (Odoo-agnostic); the model schedules the delivery on
+commit and logs the scheduling and the rollback.
 
 **Fields:**
 - `state` (Selection, required) — `object_write`, `object_create`, `object_copy`, `code`, `webhook`, `multi`
@@ -563,12 +576,12 @@ Asset compilation engine — concatenates, minifies, and bundles JS/CSS/SCSS.
 QWeb template engine — compiles XML templates to Python functions, renders to Markup.
 
 **Key Methods:**
-- `_render(template, values, ...)` — Main render entry point → Markup string
-- `_compile(template, options, ...)` — Compile template to Python function (ormcache)
-- `_compile_node(node, options, indent, ...)` — Recursively compile XML node
+- `_render(template, values, **options)` — Main render entry point → Markup string; `_render_batch` shares one prepared environment across many value dicts
+- `_compile(template)` — Compile a template to its Python functions (ormcache `templates`, keyed by `_get_template_cache_signature()`)
+- `_compile_node(el, compile_context, level)` — Recursively compile an XML node
 - `_compile_directive_if()`, `_compile_directive_foreach()`, `_compile_directive_set()`, `_compile_directive_call()`, `_compile_directive_out()`, `_compile_directive_field()` — Directive handlers
-- `_get_field(...)` — Get field value with widget formatting
-- `_eval_expr(expr, values)` — Evaluate Python expression safely
+- `_compile_expr(expr, raise_on_missing)` — Rewrite a template expression into sandboxed Python (`_SAFE_QWEB_OPCODES`)
+- `_get_field(record, field_name, expression, tag_name, field_options, values)` — Field value through its `ir.qweb.field.*` converter; merges the converter's attributes into the node
 
 ### models/ir_qweb_fields.py
 
@@ -632,7 +645,7 @@ being retried on every request.
 
 ### models/ir_cron.py
 
-#### IrCron — `ir.cron` (`_name`, `_inherits = {'ir.actions.server': 'ir_actions_server_id'}`)
+#### IrCron — `ir.cron` (`_name`, `_inherit = ['mixin.recurrence.interval']`, `_inherits = {'ir.actions.server': 'ir_actions_server_id'}`)
 
 Scheduled jobs — executes server actions on a recurring schedule.
 
@@ -641,7 +654,7 @@ Scheduled jobs — executes server actions on a recurring schedule.
 - `cron_name` (Char, computed/stored)
 - `user_id` (Many2one → res.users, required)
 - `active` (Boolean, default=True)
-- `interval_number` (Integer, default=1), `interval_type` (Selection) — minutes/hours/days/weeks/months
+- `repeat_interval` (Integer, default=1, required), `repeat_unit` (Selection, default=month) — from `mixin.recurrence.interval`, widened with minute/hour; next run computed by `odoo.tools.date_utils.next_after`
 - `nextcall` (Datetime, required), `lastcall` (Datetime)
 - `priority` (Integer, default=5)
 - `failure_count` (Integer), `first_failure_date` (Datetime)
@@ -654,7 +667,7 @@ Scheduled jobs — executes server actions on a recurring schedule.
 - `_acquire_job(cr, job_id, include_not_ready)` — Lock job for execution (SELECT FOR UPDATE)
 - `_run_server_action(cron_name, server_action_id)` — Run the server action
 - `_trigger(at)`, `_add_triggers(at_list)` — Schedule immediate execution
-- `_notify_trigger_channel()` — Wake cron workers via pg_notify
+- `_notify_after_commit(cr)` — Wake cron workers via pg_notify once the transaction commits
 - `method_direct_trigger()` — Run cron immediately (UI button)
 - `toggle(model, domain)` — Toggle active state conditionally
 
@@ -708,7 +721,7 @@ cascade-cancelled (transitively) when a dependency fails or is cancelled.
 - `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail + cascade-cancel dependents
 - `_release_dependents(cr, job_id)` / `_cancel_dependents(cr, job_ids)` / `_release_ready_dependents(cr)` — graph resolution (inline fast path + repair sweep for unlocked enqueue races)
 - `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
-- `_notifydb()` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
+- `_notify_after_commit(cr)` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
 - `_notify_failed(cr, job, exc)` — hook on permanent failure (no-op in base; override per DB, cf. `IrCron._notify_admin`)
 - `action_run_now()` — execute a pending job inline in the current transaction (ignores eta/capacity, like cron's direct trigger)
 - `action_requeue()` (recomputes wait_deps vs pending), `action_cancel()` (wait_deps/pending; cascades) — UI/state actions
@@ -734,8 +747,8 @@ Per-channel concurrency capacity (cluster-wide, enforced by the claim query).
 File storage with pluggable backends (see `ir_attachment_storage.py`:
 `AttachmentStorage` / `DbStorage` / `FileStorage`, `@register_storage`).
 Two dispatch axes: `ir_attachment.location` selects where NEW content is
-written (`_storage_backend()`); existing content follows its store key,
-resolved by URI scheme via `_backend_for_key()` (plain sharded keys →
+written (`_get_storage_backend()`); existing content follows its store key,
+resolved by URI scheme via `_get_storage_backend_for_key()` (plain sharded keys →
 local filestore). The `_file_*` methods are local-filestore primitives.
 
 Filestore keys are **algorithm-tagged**: `b3/<shard>/<digest>` for the
@@ -760,11 +773,11 @@ no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
 - `index_content` (Text) — Extracted text for full-text search
 
 **Key Methods:**
-- `_storage()` — Configured location name (`file`, `db`, or custom)
-- `_storage_backend()` — Write-side backend for the configured location
-- `_backend_for_key(fname)` — Read-side backend owning a store key
+- `_get_storage_location()` — Configured location name (`file`, `db`, or custom)
+- `_get_storage_backend()` — Write-side backend for the configured location
+- `_get_storage_backend_for_key(fname)` — Read-side backend owning a store key
 - `_storage_delete(fname)` — Key-dispatched content deletion
-- `_filestore()` — Filestore directory path
+- `_get_filestore()` — Filestore directory path
 - `_file_read(fname, size)`, `_file_write(bin_value, checksum)`, `_file_delete(fname)`
 - `_gc_file_store()` — Autovacuum: runs every backend's `autovacuum()`
 - `_gc_rehash_legacy_keys(limit)` — Autovacuum: opt-in re-keying of rows
@@ -824,6 +837,25 @@ File streaming helpers for download/image endpoints.
 - `_get_stream_from(record, field_name, filename, ...)` — Create download stream
 - `_get_image_stream_from(record, field_name, ...)` — Image stream with resizing
 - `_get_placeholder_stream(path)` — Placeholder image stream
+
+---
+
+### models/ir_egress.py
+
+#### IrEgress — `ir.egress` (AbstractModel)
+
+The one outbound HTTP pipeline. Every address a request reaches is classified by
+`odoo/libs/netguard.py` and checked against a policy (`public` or `private`,
+widened by the `base.egress_allowed_networks` system parameter); the connection is
+pinned to the checked address, every redirect hop is checked again, and responses
+are capped in bytes and seconds by `odoo/libs/guarded_http.py`.
+
+**Key Methods:**
+- `check_url(url, policy)` — Resolve and check a URL, raising `DestinationRefused`
+- `session(purpose, policy, timeout, max_bytes, max_seconds, max_redirects)` — A guarded `requests.Session`
+- `request(method, url, purpose, policy, ...)` — One request through a guarded session
+- `_prepare_session(session, purpose, policy)` — Extension hook for addons that add logging, credentials or rate limits
+- `_get_policy(policy)` — The policy with the configured extra networks
 
 ---
 
@@ -906,22 +938,6 @@ Saved search filters.
 - `get_filters(model, action_id, embedded_action_id, ...)` — Retrieve user's filters
 - `create_filter(vals)` — Create filter with validation
 
-### models/ir_exports.py
-
-#### IrExports — `ir.exports` (`_name`)
-
-Saved export field presets.
-
-**Fields:**
-- `name` (Char), `resource` (Char, indexed)
-- `export_fields` (One2many → ir.exports.line)
-
-#### IrExportsLine — `ir.exports.line` (`_name`)
-
-**Fields:** `name` (Char), `export_id` (Many2one → ir.exports, cascade)
-
----
-
 ## HTTP and Routing
 
 ### models/ir_http.py
@@ -946,36 +962,30 @@ HTTP routing, authentication, and request dispatch.
 
 ---
 
-## Mail
+## Module System
 
-### models/ir_mail_server.py
+### models/mixin_table_inheritance_root.py
 
-#### IrMail_Server — `ir.mail_server` (`_name`)
+#### MixinTableInheritanceRoot — `mixin.table.inheritance.root` (AbstractModel)
 
-SMTP server configuration and email sending.
+The machinery a PostgreSQL table-inheritance tree needs (`ir.actions.actions`,
+`resource.asset`): the concrete model of a row from its `tableoid`, root-level
+`write`/`unlink` dispatched to the concrete models, `ondelete` enforced in Python
+because no foreign key can target an inherited row, and a check at `init` that
+every subtype table really inherits the root.
 
-**Fields:**
-- `name` (Char, required), `from_filter` (Char) — Domain/email filters
-- `smtp_host`, `smtp_port` (Char, Integer)
-- `smtp_authentication` (Selection) — `login`, `certificate`, `cli`
-- `smtp_user`, `smtp_pass` (Char, groups=system)
-- `smtp_encryption` (Selection) — `none`, `starttls`, `ssl` (with variants)
-- `smtp_ssl_certificate`, `smtp_ssl_private_key` (Binary)
-- `smtp_debug` (Boolean), `max_email_size` (Float)
-- `sequence` (Integer, default=10), `active` (Boolean, default=True)
+The leaves' own many2ones *are* real foreign keys, and a cascading one deletes a
+leaf row inside PostgreSQL, behind that Python `ondelete`. The registry indexes
+those cascades (`cascades_into_inheritance_trees`, direct or through plain
+models, as dotted paths) and `BaseModel.unlink` unlinks the rows they would
+reach through the ORM first; `ir.model.unlink` does so before it drops tables.
 
 **Key Methods:**
-- `_connect__(host, port, user, password, encryption, ...)` — Open an SMTP connection (thin socket I/O)
-- `_prepare_smtp_transport(mail_server, *, host, port, ...)` — Assembles the transport value object (host/port/auth/encryption/SSL context) from the record, or from CLI/config/params; socket-free and unit-testable
-- `_open_smtp_connection(transport, smtp_from)` — Open/secure/authenticate a socket for a resolved `_SmtpTransport`
-- `_build_email__(email_from, email_to, subject, body, ...)` — Build RFC2822 EmailMessage (`headers` override singleton headers via del-then-set)
-- `send_email(message, mail_server_id, ...)` — Send email via SMTP
-- `_find_mail_server(email_from, mail_servers)` — Find server by FROM address
-- `test_smtp_connection(autodetect_max_email_size)` — Test connection; maps low-level errors via `_prepare_connection_test_error`
-
----
-
-## Module System
+- `_get_concrete()` — The record re-browsed on its concrete model
+- `_get_model_names_concrete()` — Concrete model per id, from `tableoid` cross-checked with the type column
+- `_check_table_inheritance()` — Raise at init when the table does not inherit the declared root
+- `_constrain_type_to_table()` — `CHECK (type = '<model>')` on each leaf table one model owns; skipped, with an error, while rows naming another model remain
+- `_apply_ondelete_unenforced()` — Cascade / set null / restrict for every relation the database cannot enforce
 
 ### models/mixin_module_link.py
 
@@ -1110,6 +1120,18 @@ Data import type conversion — converts external data formats to ORM field valu
 
 ## Embedded Actions
 
+### models/ir_actions_server_history.py
+
+#### IrActionsServerHistory — `ir.actions.server.history` (`_name`)
+
+One row per saved version of a server action's `code`, written by
+`ir.actions.server.write`; `_gc_histories` trims each action to its most
+recent versions.
+
+**Fields:**
+- `action_id` (Many2one → ir.actions.server, required, cascade)
+- `code` (Text)
+
 ### models/ir_actions_embedded.py
 
 #### IrEmbeddedActions — `ir.embedded.actions` (`_name`)
@@ -1184,7 +1206,8 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - Address fields: `street`, `street2`, `zip`, `city`, `state_id`, `country_id`
 - `partner_latitude`, `partner_longitude` (Float)
 - `email`, `email_formatted` (Char), `phone_ids` (Many2many → phone.number)
-- `main_phone_id`, `main_mobile_id` (Many2one → phone.number, computed, stored)
+- `preferred_phone_id` (Many2one → phone.number, editable, stored) — contact-owned priority; unlinking the number clears it. `_phone_get_number()` selects active numbers using this preference, then the shared number order.
+- `main_phone_id`, `main_mobile_id` (Many2one → phone.number, computed, stored) — typed selections from that same contact order.
 - `main_bank_id` (Many2one → res.partner.bank, computed, stored)
 - `is_company` (Boolean)
 - `company_id` (Many2one → res.company)
@@ -1436,7 +1459,6 @@ Company hierarchy with branch support.
 - `currency_id` (Many2one → res.currency, required)
 - `user_ids` (Many2many → res.users)
 - Address fields (computed from partner with inverses)
-- Report styling: `font`, `primary_color`, `secondary_color`, `layout_background`
 - `paperformat_id` (Many2one → report.paperformat)
 
 **Key Methods:**
@@ -1637,7 +1659,7 @@ SVG avatar generation from name initials.
 
 **Key Methods:**
 - `_compute_avatar(avatar_field, image_field)` — Use image or generate SVG
-- `_avatar_generate_svg()` — Generate SVG with initials and HSL color
+- `_prepare_avatar_svg()` — Generate SVG with initials and HSL color
 
 ### models/properties_base_definition.py / mixin_properties_base_definition.py
 
@@ -1669,13 +1691,9 @@ the `phone` and `mobile` columns on partners, users and companies.
 `_rec_name` is `number`; `_rec_names_search` also covers `sanitized` and `label`.
 **Key Fields:** `number`, `sanitized` (computed), `type`, `country_id`,
 `primary`, `label`, `partner_ids`
-**Key Methods:** `_sanitize_number(number, country)`, `_get_phone_country()`
+**Key Methods:** `_normalize_number(number, country)`, `_get_phone_country()`
 
-### models/report_layout.py / report_paperformat.py
-
-#### ReportLayout — `report.layout` (`_name`)
-
-**Fields:** `view_id` (Many2one → ir.ui.view, required), `image`, `pdf` (Char), `sequence` (Integer)
+### models/report_paperformat.py
 
 #### ReportPaperformat — `report.paperformat` (`_name`)
 
@@ -1698,6 +1716,27 @@ value would let two rows collide in `en_US` while differing in one translation.
 **Module-level helpers:**
 - `name_uniq_index(*scope, message=, nulls_distinct=, where=)` — Rebuild the index scoped to more columns (per company, per parent) or filtered
 - `no_name_uniq_index()` — Opt out entirely, for an inheritor whose names are not unique
+
+### models/mixin_lifecycle.py
+
+#### MixinLifecycle — `mixin.lifecycle` (AbstractModel)
+
+A document that moves through declared states: the part of an order's lifecycle
+that has nothing to do with lines, partners or invoices. The adopter declares its
+own `state` selection and `_STATE_TRANSITIONS`, and implements
+`_prepare_confirmation_values`.
+
+**Fields:** `locked` (Boolean, tracked)
+
+**Guards:** every `write` runs `_get_check_write_guards` — a locked record keeps
+all but `_LOCKED_WRITABLE_FIELDS`, `_get_fields_state_frozen` freezes fields per
+state, and a `state` outside `_STATE_TRANSITIONS` is refused. A record past draft
+and not cancelled is not deleted. `action_confirm` and `action_cancel` run their
+check registries (`_get_confirm_validation_methods`, `_get_cancel_validation_methods`)
+before writing; `action_draft`, `action_lock` and `action_unlock` write directly.
+
+Adopters: `mixin.order` (base_order), `maintenance.order` through
+`mixin.approval.lifecycle` (approval).
 
 ### models/mixin_color.py
 
@@ -1782,8 +1821,6 @@ the per-user form.
 
 **Fields:** `is_favorite` (Boolean)
 
-**Key Methods:** `action_toggle_favorite()`
-
 ### models/mixin_user_favorite.py
 
 #### MixinUserFavorite — `mixin.user.favorite` (AbstractModel)
@@ -1827,6 +1864,36 @@ Contract for anything that publishes a KPI summary.
 **Key Methods:** `get_kpi_summary()` — Override to return this provider's KPIs
 
 ---
+
+### models/mixin_recurrence_interval.py
+
+#### MixinRecurrenceInterval — `mixin.recurrence.interval` (AbstractModel)
+
+Every N units. `repeat_interval` (Integer, default 1, positive), `repeat_unit` (Selection day/week/month/year; consumers widen it with `selection_add`). `_get_recurrence_delta()`, `_get_next_recurrence_after(start, after, tz)` over `odoo.tools.date_utils.next_after`. Taken by `ir.cron`, `account.move`, `account.transfer.model`, `fleet.vehicle.log.contract`, `sale.subscription.plan` and the rule mixin.
+
+### models/mixin_recurrence_anchored.py
+
+#### MixinRecurrenceAnchored — `mixin.recurrence.anchored` (AbstractModel)
+
+Fixed points inside a period rather than every N units: `repeat_unit` (day/week/month/year), `repeat_weekday` (MON..SUN), `repeat_day` and `repeat_month` (string Selections, the day clamped to the month), and with `repeat_twice` a second `repeat_second_day`/`repeat_second_month`. `_get_next_anchor(after)` is strictly after, `_get_previous_anchor(on)` on or before, over `odoo.tools.date_utils.next_anchor`/`previous_anchor`, which clamp a day past a short month's end instead of skipping the month. An occurrence is a boundary: the period it closes ends as that day starts. A day of `last` is the one exception to how a day is named. Its boundary is the first of the next month, so its period is the calendar month, and `_get_anchor_day(boundary)` returns the last day it names. Taken by `hr.leave.accrual.level`, which credits an end-of-period accrual on that named day. Owns `WEEKDAY_SELECTION`, which the rrule mixin imports.
+
+### models/mixin_recurrence_rule.py
+
+#### MixinRecurrenceRule — `mixin.recurrence.rule` (AbstractModel, `_inherit = ['mixin.recurrence.interval']`)
+
+Adds the end policy `repeat_type` (forever/until); `REPEAT_TYPE_COUNT` is `selection_add`-ed only by consumers that can stop on a count.
+
+### models/mixin_recurrence_rrule.py
+
+#### MixinRecurrenceRrule — `mixin.recurrence.rrule` (AbstractModel, `_inherit = ['mixin.recurrence.rule']`)
+
+The iCalendar half: weekday set, `month_by`, `day`, `weekday`, `byday`, timezone, `repeat_number`, `repeat_until` and the serialised `rrule`, with parse/serialise and occurrence enumeration capped at `MAX_RECURRENT_OCCURRENCES`.
+
+### models/mixin_recurrence_occurrence.py
+
+#### MixinRecurrenceOccurrence — `mixin.recurrence.occurrence` (AbstractModel)
+
+`recurrence_update` (this/subsequent/all, not stored): which occurrences an edit or deletion applies to.
 
 ## Config
 
@@ -1909,34 +1976,12 @@ Create menu item for custom model.
 
 ---
 
-## Reports
-
-### reports/report_base_report_irmodulereference.py
-
-#### ReportBaseReport_Irmodulereference — `report.base.report_irmodulereference` (AbstractModel)
-
-Backs the Module Reference report: for each selected `ir.module.module`, the
-models and fields that module owns, resolved through `ir.model.data`.
-
-**Key Methods:**
-- `_get_models_by_module(modules)` — `ir.model` records per module, via `ir.model.data`
-- `_get_field_names_by_model(modules)` — module → model → field names, same route
-- `_get_field_descriptions(model_name, field_names)` — `fields_get` for those fields
-- `_get_report_values(docids, data)` — the report entry point
-
-**Gotcha:** every lookup goes through `ir.model.data` and then `.exists()`, because
-a module may own an `ir.model.data` row whose target was dropped by a later
-migration. `_get_field_descriptions` also swallows a failing `fields_get` and logs
-it, so one unresolvable model degrades that model's field list instead of failing
-the whole report.
-
 ## Model Index
 
 Quick lookup — file → model → primary role:
 
 | File | Model(s) | Role |
 |------|----------|------|
-| `report_base_report_irmodulereference.py` | report.base.report_irmodulereference | Module Reference report values |
 | `ir_actions_actions.py` | ir.actions.actions | Base action model, bindings, path |
 | `ir_actions_path.py` | ir.actions.path | Side table making an action path unique |
 | `ir_actions_act_window.py` | ir.actions.act_window | Window action (opens views on a model) |
@@ -1946,7 +1991,8 @@ Quick lookup — file → model → primary role:
 | `ir_actions_client.py` | ir.actions.client | Client-side action (JS component) |
 | `ir_actions_todo.py` | ir.actions.todo | Configuration wizard queue |
 | `ir_actions_report.py` | ir.actions.report | PDF/HTML report rendering (WeasyPrint) |
-| `ir_actions_server.py` | ir.actions.server, .server.history, server.action.history.wizard | Automated actions (code/CRUD/webhook) |
+| `ir_actions_server.py` | ir.actions.server | Automated actions (code/CRUD/webhook); delivery in `odoo/libs/webhook.py` |
+| `ir_actions_server_history.py` | ir.actions.server.history | Code versions of a server action |
 | `ir_asset.py` | ir.asset | Asset bundle management |
 | `ir_asset_paths.py` | AssetPaths, BundleWalk (non-ORM) | Asset directive walk |
 | `ir_attachment.py` | ir.attachment | File storage (DB/filestore) |
@@ -1954,19 +2000,18 @@ Quick lookup — file → model → primary role:
 | `ir_attachment_storage.py` | AttachmentStorage, DbStorage, FileStorage (non-ORM) | Storage backends |
 | `ir_autovacuum.py` | ir.autovacuum | GC framework (@api.autovacuum) |
 | `ir_binary.py` | ir.binary | File/image streaming helpers |
+| `ir_egress.py` | ir.egress | Outbound HTTP pipeline (address policy, pinning, caps) |
 | `ir_config_parameter.py` | ir.config_parameter | System key-value parameters |
 | `ir_cron.py` | ir.cron, .cron.trigger, .cron.progress | Scheduled jobs + triggers |
 | `ir_default.py` | ir.default | Field default values |
 | `ir_demo.py` | ir.demo | Demo data installation |
 | `ir_demo_failure.py` | ir.demo_failure, .demo_failure.wizard | Demo failure tracking |
 | `ir_actions_embedded.py` | ir.embedded.actions | Embedded view actions |
-| `ir_exports.py` | ir.exports, ir.exports.line | Export presets |
 | `ir_fields.py` | ir.fields.converter | Import type converters |
 | `ir_filters.py` | ir.filters | Saved search filters |
 | `ir_job.py` | ir.job, ir.job.channel | Background job queue + channels |
 | `ir_http.py` | ir.http | HTTP routing/auth/dispatch |
 | `ir_logging.py` | ir.logging | Server/client logs |
-| `ir_mail_server.py` | ir.mail_server | SMTP configuration/sending |
 | `ir_model.py` | ir.model, ir.model.inherit | Model registry + inheritance |
 | `ir_model_access.py` | ir.model.access | Model-level ACL |
 | `ir_model_reflection.py` | ir.model.constraint, ir.model.relation | DB constraint/relation tracking for uninstall |
@@ -1994,6 +2039,7 @@ Quick lookup — file → model → primary role:
 | `mixin_avatar.py` | mixin.avatar | SVG avatar generation |
 | `mixin_band.py` | mixin.band | Numeric band / range mixin |
 | `mixin_catalog.py` | mixin.catalog | Unique translated name, archivable |
+| `mixin_lifecycle.py` | mixin.lifecycle | Declared state transitions, locking, confirm/cancel checks |
 | `mixin_color.py` | mixin.color | Shared color defaults, validation, and palette conversion |
 | `mixin_favorite.py` | mixin.favorite | Per-record favourite flag |
 | `mixin_user_favorite.py` | mixin.user.favorite | Per-user favourite flag |
@@ -2007,7 +2053,6 @@ Quick lookup — file → model → primary role:
 | `properties_base_definition.py` | properties.base.definition | Properties definitions |
 | `mixin_properties_base_definition.py` | mixin.properties.base.definition | Properties mixin |
 | `phone_number.py` | phone.number | Shared phone numbers |
-| `report_layout.py` | report.layout | Report templates |
 | `report_paperformat.py` | report.paperformat | Paper format config |
 | `res_bank.py` | res.bank, res.partner.bank | Banks + accounts |
 | `res_company.py` | res.company | Company hierarchy |

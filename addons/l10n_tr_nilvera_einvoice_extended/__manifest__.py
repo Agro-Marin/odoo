@@ -1,5 +1,5 @@
 {
-    "name": "T\u00fcrkiye - Nilvera E-Invoice Extended",
+    "name": "Türkiye - Nilvera E-Invoice Extended",
     "version": "1.0",
     "category": "Accounting/Accounting",
     "description": """
@@ -30,11 +30,11 @@ Features include:
         "views/account_tax_views.xml",
         "views/product_views.xml",
         "views/res_config_settings_views.xml",
+        "views/l10n_tr_nilvera_einvoice_extended_menus.xml",
     ],
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "auto_install": [
         "l10n_tr_nilvera_einvoice",
     ],

@@ -12,35 +12,35 @@
                 <field
                     name="health_status"
                     widget="badge"
-                    decoration-success="health_status == 'healthy'"
+                    decoration-danger="health_status == 'critical'"
                     decoration-info="health_status == 'attention'"
-                    decoration-warning="health_status == 'warning'"
-                    decoration-danger="health_status == 'critical'" />
+                    decoration-success="health_status == 'healthy'"
+                    decoration-warning="health_status == 'warning'" />
                 <field
                     name="last_update_status"
                     string="Status"
                     widget="project_state_selection" />
                 <field
                     name="task_completion_percentage"
-                    widget="progressbar"
-                    string="Progress" />
+                    string="Progress"
+                    widget="progressbar" />
                 <field name="wip_count" string="WIP" />
                 <field name="throughput_week" string="Tasks/wk" optional="show" />
                 <field
                     name="avg_lead_time"
-                    widget="float_time"
                     string="Lead Time"
+                    widget="float_time"
                     optional="show" />
                 <field
                     name="avg_cycle_time"
-                    widget="float_time"
                     string="Cycle Time"
+                    widget="float_time"
                     optional="show" />
                 <field name="risk_count" string="Risks" optional="show" />
                 <field
                     name="deadline_compliance_pct"
-                    widget="percentage"
                     string="DL Compliance"
+                    widget="percentage"
                     optional="show" />
                 <field name="date_start" string="Start" optional="hide" />
                 <field name="date" string="End" optional="hide" />
@@ -58,41 +58,41 @@
                 <field name="tag_ids" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Not Templates"
                     name="not_templates"
+                    string="Not Templates"
                     domain="[('is_template', '=', False)]" />
                 <filter
-                    string="At Risk or Worse"
                     name="at_risk"
+                    string="At Risk or Worse"
                     domain="[('last_update_status', 'in', ['at_risk', 'off_track'])]" />
                 <filter
-                    string="Has Risks"
                     name="has_risks"
+                    string="Has Risks"
                     domain="[('risk_ids', '!=', False)]" />
                 <filter
-                    string="Strategic"
                     name="strategic"
+                    string="Strategic"
                     domain="[('tag_ids.is_strategic', '=', True)]" />
                 <group>
                     <filter
-                        string="Status"
                         name="group_status"
+                        string="Status"
                         context="{'group_by': 'last_update_status'}" />
                     <filter
-                        string="Project Manager"
                         name="group_pm"
+                        string="Project Manager"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Phase"
                         name="group_phase"
+                        string="Phase"
                         context="{'group_by': 'phase_id'}" />
                     <filter
-                        string="Strategic Objective"
                         name="group_strategic"
+                        string="Strategic Objective"
                         context="{'group_by': 'tag_ids'}" />
                 </group>
             </search>

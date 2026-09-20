@@ -26,11 +26,9 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
     setup() {
         super.setup();
         if (this.props.resizable) {
-            // Event listener added on template.
             this.onResizerMouseDown = useResizer("content");
         }
         const form = this.props.textareaEl.closest("form");
-        // Prevent form submission behavior of buttons inside the form
         onMounted(() =>
             form
                 .querySelectorAll(".o-wysiwyg button")
@@ -49,16 +47,11 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
             const clearSelection = () =>
                 this.editor.shared.selection.setCursorStart(this.editor.editable);
 
-            // On post reply, the discard button simply hides the editable.
-            // Clear the selection to close any overlay dependent on an uncollapsed
-            // selection (like the toolbar).
             const discardButton = postReplyWrapper.querySelector(
                 ".o_wforum_discard_btn",
             );
             useExternalListener(discardButton, "click", clearSelection);
 
-            // Expanding to full view changes the editable's position.
-            // Clear the selection to close overlays.
             const toggleExpandButton = postReplyWrapper.querySelector(
                 ".o_wforum_expand_toggle",
             );
@@ -87,7 +80,6 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
     }
 
     cleanImageClasses(root) {
-        // float-start class messes up the post layout OPW 769721
         const classNames = ["o_we_selected_image", "float-start"];
         root.querySelectorAll("img").forEach((img) => removeClass(img, ...classNames));
     }

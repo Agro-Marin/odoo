@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.db.schema import create_index
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import (
+    TransactionMemo,
     float_compare,
     float_round,
     frozendict,
@@ -12,6 +13,14 @@ from odoo.tools import (
 )
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+
+RELEVANT_PLANS = TransactionMemo(
+    "get_relevant_plans",
+    invalidated_by={
+        "account.analytic.plan": ("default_applicability",),
+        "account.analytic.applicability": (),
+    },
+)
 
 
 class AccountAnalyticPlan(models.Model):
@@ -23,57 +32,52 @@ class AccountAnalyticPlan(models.Model):
     _order = "sequence asc, id"
 
     name = fields.Char(
-        required=True,
         translate=True,
         inverse="_inverse_name",
+        required=True,
     )
-    description = fields.Text(string="Description")
+    description = fields.Text()
     parent_id = fields.Many2one(
-        "account.analytic.plan",
-        string="Parent",
+        comodel_name="account.analytic.plan",
         inverse="_inverse_parent_id",
         index="btree_not_null",
-        ondelete="cascade",
         domain="['!', ('id', 'child_of', id)]",
+        ondelete="cascade",
     )
     parent_path = fields.Char(index="btree")
     root_id = fields.Many2one(
-        "account.analytic.plan",
+        comodel_name="account.analytic.plan",
         compute="_compute_root_id",
         search="_search_root_id",
     )
     children_ids = fields.One2many(
-        "account.analytic.plan",
-        "parent_id",
+        comodel_name="account.analytic.plan",
+        inverse_name="parent_id",
         string="Childrens",
     )
     children_count = fields.Count(
-        "children_ids",
-        "Children Plans Count",
+        count_of="children_ids",
+        string="Children Plans Count",
     )
     complete_name = fields.Char(
-        "Complete Name",
         compute="_compute_complete_name",
         recursive=True,
         store=True,
     )
     account_ids = fields.One2many(
-        "account.analytic.account",
-        "plan_id",
+        comodel_name="account.analytic.account",
+        inverse_name="plan_id",
         string="Accounts",
     )
     account_count = fields.Count(
-        "account_ids",
-        "Analytic Accounts Count",
+        count_of="account_ids",
+        string="Analytic Accounts Count",
     )
     all_account_count = fields.Integer(
-        "All Analytic Accounts Count",
+        string="All Analytic Accounts Count",
         compute="_compute_all_account_count",
     )
-    color = fields.Integer(
-        "Color",
-        default=lambda self: self._default_color(),
-    )
+    color = fields.Integer(default=lambda self: self._default_color())
     sequence = fields.Integer(default=10)
 
     default_applicability = fields.Selection(
@@ -82,14 +86,12 @@ class AccountAnalyticPlan(models.Model):
             ("mandatory", "Mandatory"),
             ("unavailable", "Unavailable"),
         ],
-        string="Default Applicability",
         readonly=False,
         company_dependent=True,
     )
     applicability_ids = fields.One2many(
-        "account.analytic.applicability",
-        "analytic_plan_id",
-        string="Applicability",
+        comodel_name="account.analytic.applicability",
+        inverse_name="analytic_plan_id",
         domain="[('company_id', '=', current_company_id)]",
     )
 
@@ -246,7 +248,7 @@ class AccountAnalyticPlan(models.Model):
     def get_relevant_plans(self, **kwargs):
         """Returns the list of plans that should be available.
         This list is computed based on the applicabilities of root plans."""
-        cache = self.env.cr.cache.setdefault("get_relevant_plans", {})
+        cache = RELEVANT_PLANS(self.env)
         # `default_applicability` is `company_dependent`, so the result also
         # depends on the active company even when `kwargs` doesn't carry a
         # `company_id` — key the cache on it too, or two calls for different
@@ -317,7 +319,6 @@ class AccountAnalyticPlan(models.Model):
         res = super().unlink()
         related_fields.filtered(lambda f: not self._is_subplan_field_used(f)).unlink()
         self.env.registry.clear_cache("stable")
-        self.env.cr.cache.pop("get_relevant_plans", None)
         return res
 
     def _hierarchy_name(self):
@@ -444,14 +445,7 @@ class AccountAnalyticPlan(models.Model):
         if self.children_ids:
             self.children_ids._sync_plan_column(model)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        self.env.cr.cache.pop("get_relevant_plans", None)
-        return super().create(vals_list)
-
     def write(self, vals):
-        if "default_applicability" in vals:
-            self.env.cr.cache.pop("get_relevant_plans", None)
         new_parent = self.env["account.analytic.plan"].browse(vals.get("parent_id"))
         plan2previous_parent = {plan: plan.parent_id for plan in self if plan.parent_id}
         if "parent_id" in vals and new_parent:
@@ -460,7 +454,7 @@ class AccountAnalyticPlan(models.Model):
                 self.env["account.analytic.account"]._update_accounts_in_analytic_lines(
                     new_fname=new_parent._column_name(),
                     current_fname=plan._column_name(),
-                    accounts=self.env["account.analytic.account"].search(
+                    accounts=self.env["account.analytic.account"].search(  # noqa: E8507 - one query per plan: the plan names the column to move
                         [("plan_id", "child_of", plan.id)]
                     ),
                 )
@@ -473,7 +467,7 @@ class AccountAnalyticPlan(models.Model):
                 self.env["account.analytic.account"]._update_accounts_in_analytic_lines(
                     new_fname=plan._column_name(),
                     current_fname=previous_parent._column_name(),
-                    accounts=self.env["account.analytic.account"].search(
+                    accounts=self.env["account.analytic.account"].search(  # noqa: E8507 - one query per plan: the plan names the column to move
                         [("plan_id", "child_of", plan.id)]
                     ),
                 )
@@ -530,41 +524,29 @@ class AccountAnalyticApplicability(models.Model):
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
 
-    analytic_plan_id = fields.Many2one("account.analytic.plan", index="btree_not_null")
+    analytic_plan_id = fields.Many2one(
+        comodel_name="account.analytic.plan",
+        index="btree_not_null",
+    )
     business_domain = fields.Selection(
         selection=[
             ("general", "Miscellaneous"),
         ],
-        required=True,
         string="Domain",
+        required=True,
     )
     applicability = fields.Selection(
-        [
+        selection=[
             ("optional", "Optional"),
             ("mandatory", "Mandatory"),
             ("unavailable", "Unavailable"),
         ],
         required=True,
-        string="Applicability",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
     )
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        self.env.cr.cache.pop("get_relevant_plans", None)
-        return super().create(vals_list)
-
-    def write(self, vals):
-        self.env.cr.cache.pop("get_relevant_plans", None)
-        return super().write(vals)
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_clear_cache(self):
-        self.env.cr.cache.pop("get_relevant_plans", None)
 
     def _get_score(self, **kwargs):
         """Gives the score of an applicability with the parameters of kwargs"""

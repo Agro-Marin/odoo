@@ -5,9 +5,12 @@ import psycopg
 
 from odoo import api, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+
+_debug = DebugLog(__name__)
 
 
 class AccountMoveLine(models.Model):
@@ -18,6 +21,7 @@ class AccountMoveLine(models.Model):
         return {"fr": "french"}.get(lang, "english")
 
     @api.model
+    @_debug.perf.timed
     def _prepare_predictive_query(self, move_id, additional_domain=None, partner=None):
         move_query = self.env["account.move"]._search(
             [
@@ -41,6 +45,13 @@ class AccountMoveLine(models.Model):
                 "100",
             )
         )
+        _debug.pipeline(
+            "predictive_history_scoped",
+            move=move_id,
+            partner=partner,
+            history_limit=move_query.limit,
+            extra_terms=len(additional_domain or []),
+        )
         return self.env["account.move.line"]._search(
             [
                 ("move_id", "in", move_query),
@@ -51,6 +62,7 @@ class AccountMoveLine(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _predicted_field(
         self, move_id, name, partner_id, field, query=None, additional_queries=None
     ):
@@ -117,11 +129,19 @@ class AccountMoveLine(models.Model):
                     )
                 )
                 result = self.env.cr.dictfetchall()
+            _debug.logic(
+                "predict_partner",
+                code=field.code,
+                partner_id=partner_id,
+                parsed_description=parsed_description[:60],
+                result=result,
+            )
             if result:
                 if (
                     len(result) > 1
                     and result[0]["ranking"] < 1.1 * result[1]["ranking"]
                 ):
+                    _debug.logic("predict_ambiguous_ranking_no_prediction")
                     return False
                 return result[0]["prediction"]
         except psycopg.Error:
@@ -151,6 +171,7 @@ class AccountMoveLine(models.Model):
         predicted_tax_ids = self._predicted_field(
             self.move_id, self.name, self.partner_id, field, query
         )
+        _debug.logic("taxes_predicted", line=self, tax_ids=predicted_tax_ids)
         if predicted_tax_ids == [None]:
             return False
         if predicted_tax_ids is not False and set(predicted_tax_ids) != set(
@@ -160,6 +181,7 @@ class AccountMoveLine(models.Model):
         return False
 
     @api.model
+    @_debug.perf.timed
     def _predict_specific_tax(
         self, move, name, partner, amount_type, amount, type_tax_use
     ):
@@ -194,6 +216,14 @@ class AccountMoveLine(models.Model):
                 amount,
             ),
         )
+        _debug.pipeline(
+            "tax_prediction_query",
+            move=move,
+            partner=partner,
+            amount_type=amount_type,
+            type_tax_use=type_tax_use,
+            amount=amount,
+        )
         return self._predicted_field(move, name, partner, field, query)
 
     @api.model
@@ -227,12 +257,16 @@ class AccountMoveLine(models.Model):
         return False
 
     @api.model
+    @_debug.perf.timed
     def _predict_specific_account(self, move, name, partner):
         field = SQL("account_move_line.account_id")
         if move.is_purchase_document(True):
             excluded_group = "income"
         else:
             excluded_group = "expense"
+        _debug.logic(
+            "prediction_account_group_excluded", move=move, excluded=excluded_group
+        )
         account_query = self.env["account.account"]._search(
             [
                 *self.env["account.account"]._check_company_domain(
@@ -262,6 +296,12 @@ class AccountMoveLine(models.Model):
         query = self._prepare_predictive_query(
             move, [("account_id", "in", account_query)], partner=partner
         )
+        _debug.pipeline(
+            "account_prediction_query",
+            move=move,
+            partner=partner,
+            lang=psql_lang,
+        )
         return self._predicted_field(
             move, name, partner, field, query, additional_queries
         )
@@ -287,6 +327,11 @@ class AccountMoveLine(models.Model):
             predicted_deductible_amount = self._predicted_field(
                 self.move_id, self.name, self.partner_id, field, query
             )
+            _debug.logic(
+                "deductible_amount_predicted",
+                line=self,
+                amount=predicted_deductible_amount,
+            )
             if (
                 predicted_deductible_amount
                 and predicted_deductible_amount != self.deductible_amount
@@ -304,6 +349,9 @@ class AccountMoveLine(models.Model):
         ):
             if not self.product_id:
                 predicted_product_id = self._predict_product()
+                _debug.logic(
+                    "product_predicted", line=self, product_id=predicted_product_id
+                )
                 if predicted_product_id:
                     protected_fields = ["price_unit", "tax_ids", "name"]
                     to_protect = [
@@ -314,6 +362,9 @@ class AccountMoveLine(models.Model):
 
             if not self.product_id:
                 predicted_account_id = self._predict_account()
+                _debug.logic(
+                    "account_predicted", line=self, account_id=predicted_account_id
+                )
                 if predicted_account_id:
                     self.account_id = predicted_account_id
 

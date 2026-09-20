@@ -326,6 +326,44 @@ class TestChannelInternals(MailCommon, HttpCase):
             )
         self.assertEqual(chat.last_interest_dt, post_time)
 
+    def test_a_channel_broadcast_carries_the_schedule_it_was_posted_with(self):
+        """The broadcast's store is built from the post's values rather than a
+        search of mail.message.schedule, so the scheduled date must still reach
+        the payload for a message posted with one."""
+        chat = (
+            self.env["discuss.channel"]
+            .with_user(self.user_admin)
+            ._get_or_create_chat(
+                (self.partner_employee | self.user_admin.partner_id).ids
+            )
+        )
+        later = fields.Datetime.now() + timedelta(days=1)
+
+        def broadcast_message(**kwargs):
+            with self.mock_bus():
+                message = chat.message_post(
+                    body="Test",
+                    message_type="comment",
+                    subtype_xmlid="mail.mt_comment",
+                    **kwargs,
+                )
+            payloads = [
+                json.loads(notif.message)["payload"]
+                for notif in self._new_bus_notifs
+                if json.loads(notif.message)["type"] == "discuss.channel/new_message"
+            ]
+            self.assertEqual(len(payloads), 1)
+            [stored] = [
+                m for m in payloads[0]["data"]["mail.message"] if m["id"] == message.id
+            ]
+            return stored
+
+        self.assertEqual(broadcast_message()["scheduledDatetime"], False)
+        self.assertEqual(
+            broadcast_message(scheduled_date=later)["scheduledDatetime"],
+            fields.Datetime.to_string(later),
+        )
+
     @users("employee")
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_channel_recipients_channel(self):

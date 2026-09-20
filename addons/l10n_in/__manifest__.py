@@ -1,6 +1,6 @@
 {
     "name": "Indian - Accounting",
-    "version": "2.0",
+    "version": "2.1",
     "category": "Accounting/Localizations/Account Charts",
     "description": """
 Indian Accounting: Chart of Account.
@@ -68,6 +68,7 @@ Sheet, now only Vertical format has been permitted Which is Supported By Odoo.
         "views/res_partner_views.xml",
         "views/account_tax_views.xml",
         "views/uom_uom_views.xml",
+        "views/l10n_in_menus.xml",
     ],
     "demo": [
         "demo/product_demo.xml",

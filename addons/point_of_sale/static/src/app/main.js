@@ -3,6 +3,7 @@ import { mount, reactive, whenReady } from "@odoo/owl";
 import { Loader } from "@point_of_sale/app/components/loader/loader";
 import { Chrome } from "@point_of_sale/app/pos_app";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { localization } from "@web/core/l10n/localization";
 import { publishOdooInfo } from "@web/core/odoo_info";
 import { getTemplate } from "@web/core/templates";
@@ -11,6 +12,7 @@ import { SUPERUSER_ID, user } from "@web/core/user";
 import { mountComponent } from "@web/env";
 
 const loader = reactive({ isShown: true, error: false });
+const log = makeLogger("pos.boot");
 whenReady(() => {
     mount(Loader, document.body, {
         getTemplate,
@@ -23,12 +25,25 @@ whenReady(() => {
 (async function startPosApp() {
     publishOdooInfo();
     await whenReady();
+    const endBoot = log.perf("startPosApp");
+    log.lifecycle("startPosApp", () => ({
+        config: odoo.pos_config_id,
+        session: odoo.pos_session_id,
+        debug: odoo.debug,
+        fromBackend: Boolean(odoo.from_backend),
+    }));
     try {
         const app = await mountComponent(Chrome, document.body, {
             name: "Odoo Point of Sale",
             props: { disableLoader: () => (loader.isShown = false) },
         });
+        endBoot({ services: Object.keys(app.env.services).length });
         window.addEventListener("beforeunload", function (event) {
+            log.lifecycle("[beforeunload]", () => ({
+                offline: app.env.services.pos_data.network.offline,
+                unsyncedPaid:
+                    app.env.services.pos_data.localUnsyncedPaidOrderUuids.size,
+            }));
             if (app.env.services.pos_data.network.offline) {
                 const confirmationMessage = _t(
                     "You are currently offline. Reloading the page may cause you to lose unsaved data.",
@@ -59,6 +74,7 @@ whenReady(() => {
 
         registerServiceWorker();
     } catch (e) {
+        endBoot({ error: e?.constructor?.name, message: e?.message });
         loader.error = e;
         throw e;
     }
@@ -67,10 +83,17 @@ whenReady(() => {
 function registerServiceWorker() {
     const urlsToCache = JSON.parse(odoo.urls_to_cache);
     urlsToCache.push("/web/static/lib/zxing-library/zxing-library.js");
+    log.lifecycle("registerServiceWorker", () => ({
+        supported: Boolean(navigator.serviceWorker),
+        urlsToCache: urlsToCache.length,
+    }));
 
     navigator.serviceWorker?.register("/pos/service-worker.js").then((registration) => {
         const worker =
             registration.installing || registration.waiting || registration.active;
+        log.lifecycle("registerServiceWorker: registered", () => ({
+            state: worker?.state,
+        }));
         worker.postMessage({ urlsToCache });
     });
 }

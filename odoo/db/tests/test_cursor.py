@@ -1,9 +1,14 @@
+import logging
+import os
 import subprocess
 import threading
+import typing
 import unittest
+from typing import Any
 
 from odoo.db import metrics
 from odoo.db.cursor import BaseCursor
+from odoo.db.errors import CURSOR_LOGGER_NAME
 from odoo.db.savepoint import Savepoint, _FlushingSavepoint
 from odoo.libs.sql import SQL
 
@@ -402,7 +407,10 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
 
 
 class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
-    DBNAME = "test_cursor_pipeline_sync_cost"
+    # Per process: two Tier-2 runs at once (peer sessions, the pre-push hook)
+    # would otherwise race on one name, and a killed run's leftover would
+    # skip every later one.
+    DBNAME = f"test_cursor_pipeline_sync_cost_{os.getpid()}"
 
     @classmethod
     def setUpClass(cls):
@@ -430,35 +438,200 @@ class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
             f"measuring: {dropped.stderr.strip()}"
         )
 
-    def test_pipelined_execute_values_accounts_for_almost_all_wall_time(self):
-        import time
-
+    def _timed_cursor(self):
         import odoo.tools.config  # noqa: F401  installs the pool settings source
         from odoo.db import db_connect
 
         thread = threading.current_thread()
-        thread.query_count = 0
-        thread.query_time = 0.0
+        # The cursor accumulates onto the running thread, which declares neither
+        # attribute -- that is the contract `_record_metrics` relies on.
+        thread.query_count = 0  # type: ignore[attr-defined]
+        thread.query_time = 0.0  # type: ignore[attr-defined]
+        return thread, db_connect(self.DBNAME).cursor()
 
-        db = db_connect(self.DBNAME)
-        with db.cursor() as cr:
-            cr.execute("CREATE TABLE t_pipeline_sync(id serial primary key, a int)")
-            cr.commit()
+    def test_pipelined_execute_values_accounts_for_server_wait(self):
+        import time
 
-            rows = [(i,) for i in range(20000)]
-            before_time = thread.query_time
+        thread, cr = self._timed_cursor()
+        with cr:
+            cr.execute("CREATE TABLE t_pipeline_sync(a int)")
+            before_time = thread.query_time  # type: ignore[attr-defined]
             t0 = time.monotonic()
+            # Two batches each wait on the server. Unlike a wall-time ratio for
+            # cheap inserts, this lower bound excludes Python and logging costs.
             cr.execute_values(
-                "INSERT INTO t_pipeline_sync (a) VALUES %s", rows, page_size=200
+                "INSERT INTO t_pipeline_sync "
+                "SELECT column1 FROM (VALUES %s) AS batch "
+                "CROSS JOIN (SELECT pg_sleep(0.05)) AS delay",
+                [(1,), (2,), (3,), (4,)],
+                page_size=2,
             )
             wall = time.monotonic() - t0
-            recorded = thread.query_time - before_time
+            recorded = thread.query_time - before_time  # type: ignore[attr-defined]
+            logging.getLogger(__name__).debug(
+                "pipeline server waits: recorded=%fs wall=%fs", recorded, wall
+            )
+            cr.execute("SELECT count(*) FROM t_pipeline_sync")
+            self.assertEqual(cr.fetchone(), (4,))
+
+        self.assertGreaterEqual(
+            recorded,
+            0.09,
+            f"only {recorded:.4f}s was accounted for two 50ms server waits "
+            "-- the pipeline sync/flush cost is going untimed again",
+        )
+
+    def test_python_time_inside_the_block_is_not_query_time(self):
+        import time
+
+        thread, cr = self._timed_cursor()
+        with cr:
+            before_time = thread.query_time  # type: ignore[attr-defined]
+            t0 = time.monotonic()
+            with cr.pipeline():
+                cr.execute("SELECT 1")
+                cr.execute("SELECT 2")
+                time.sleep(0.05)
+                cr.execute("SELECT 3")
+            wall = time.monotonic() - t0
+            recorded = thread.query_time - before_time  # type: ignore[attr-defined]
             cr.rollback()
 
-        self.assertGreater(wall, 0)
+        self.assertGreater(recorded, 0.0)
+        self.assertLess(
+            recorded / wall,
+            0.2,
+            f"{recorded:.4f}s of {wall:.4f}s was booked as query time, but the "
+            f"block was 50 ms of sleep: wall-minus-statements is not a sync cost",
+        )
+
+    def test_a_fetch_inside_the_block_is_the_wait_it_is(self):
+        import time
+
+        thread, cr = self._timed_cursor()
+        with cr:
+            before_time = thread.query_time  # type: ignore[attr-defined]
+            t0 = time.monotonic()
+            with cr.pipeline():
+                cr.execute("SELECT pg_sleep(0.02)")
+                cr.execute("SELECT pg_sleep(0.02)")
+                cr.execute("SELECT 3")
+                rows = cr.fetchall()
+            wall = time.monotonic() - t0
+            recorded = thread.query_time - before_time  # type: ignore[attr-defined]
+            cr.rollback()
+
+        self.assertEqual(rows, [(3,)])
         self.assertGreater(
             recorded / wall,
             0.9,
-            f"only {recorded:.4f}s of {wall:.4f}s wall time was accounted for "
-            f"-- the pipeline sync/flush cost is going untimed again",
+            f"only {recorded:.4f}s of {wall:.4f}s: psycopg syncs on the first "
+            f"fetch, so that fetch is where the server wait lands",
         )
+
+    def test_rowcount_inside_the_block_is_the_statements_own(self):
+        _, cr = self._timed_cursor()
+        with cr:
+            cr.execute("CREATE TABLE t_pipeline_rowcount(id int)")
+            cr.execute("INSERT INTO t_pipeline_rowcount SELECT generate_series(1, 7)")
+            with cr.pipeline():
+                cr.execute("UPDATE t_pipeline_rowcount SET id = id WHERE id <= 3")
+                self.assertEqual(cr.rowcount, 3)
+                cr.execute("UPDATE t_pipeline_rowcount SET id = id WHERE id <= 5")
+                self.assertTrue(cr.in_pipeline)
+                self.assertEqual(cr.rowcount, 5)
+                cr.execute("DELETE FROM t_pipeline_rowcount WHERE id > 100")
+                self.assertEqual(cr.rowcount, 0)
+                cr.execute("SELECT id FROM t_pipeline_rowcount ORDER BY id")
+                self.assertEqual([c.name for c in cr.description], ["id"])
+                self.assertEqual(cr.fetchone(), (1,))
+                # executemany keeps no pgresult at all after its sync, so the
+                # cursor tracks "queued since the last sync" itself.
+                cr.executemany(
+                    "INSERT INTO t_pipeline_rowcount VALUES (%s)", [(8,), (9,)]
+                )
+                self.assertEqual(cr.rowcount, 2)
+                self.assertEqual(cr.rowcount, 2)
+                cr.executemany(
+                    "INSERT INTO t_pipeline_rowcount VALUES (%s) RETURNING id",
+                    [(10,), (11,)],
+                    returning=True,
+                )
+                self.assertEqual(cr.fetchone(), (10,))
+                self.assertTrue(cr.nextset(), "nextset syncs like a fetch does")
+                self.assertEqual(cr.fetchone(), (11,))
+            cr.rollback()
+
+
+class TestEnableLogging(unittest.TestCase):
+    """`_enable_logging` is the aid a failed `assertQueryCount` reaches for.
+
+    It went missing in the odoo/db split -- `addons/test_discuss_full`'s performance
+    test still called it, so the warm branch of that test raised AttributeError
+    instead of showing the queries it had just counted. Restored with this test, so
+    the next split notices.
+    """
+
+    class _Metered(metrics._MetricsMixin):
+        pass
+
+    def _cursor(self):
+        cursor = self._Metered()
+        cursor._init_metrics_state()
+        return cursor
+
+    def test_the_block_logs_at_debug_and_the_level_comes_back(self):
+        logger = logging.getLogger(CURSOR_LOGGER_NAME)
+        logger.setLevel(logging.WARNING)
+        try:
+            with self._cursor()._enable_logging():
+                self.assertTrue(logger.isEnabledFor(logging.DEBUG))
+            self.assertEqual(logger.level, logging.WARNING)
+        finally:
+            logger.setLevel(logging.NOTSET)
+
+    def test_the_level_comes_back_even_when_the_block_raises(self):
+        logger = logging.getLogger(CURSOR_LOGGER_NAME)
+        logger.setLevel(logging.WARNING)
+        try:
+            with self.assertRaises(ValueError), self._cursor()._enable_logging():
+                raise ValueError("the block failed")
+            self.assertEqual(logger.level, logging.WARNING)
+        finally:
+            logger.setLevel(logging.NOTSET)
+
+
+class TestConnectionRecord(unittest.TestCase):
+    class _Pool:
+        readonly = False
+
+        def __init__(self):
+            self.borrowed: list = []
+
+        def borrow(self, dsn, key=None, **kw):
+            self.borrowed.append((dsn, key))
+            raise RuntimeError("stop before a real connection")
+
+    def test_dsn_strips_the_password_and_expands_a_uri(self):
+        from odoo.db.cursor import Connection
+
+        conn = Connection(
+            typing.cast("Any", self._Pool()),
+            "dbz",
+            {"dsn": "postgresql://u:s3cret@h/dbz"},
+        )
+        self.assertEqual(conn.dbname, "dbz")
+        self.assertEqual(conn.dsn, {"user": "u", "host": "h", "dbname": "dbz"})
+
+    def test_cursor_borrows_with_the_key_computed_once(self):
+        from odoo.db.cursor import Connection
+        from odoo.db.dsn import _get_dsn_key
+
+        pool = self._Pool()
+        info = {"dbname": "x", "host": "h", "password": "hunter2"}
+        conn = Connection(typing.cast("Any", pool), "x", info)
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, "stop before"):
+                conn.cursor()
+        self.assertEqual(pool.borrowed, [(info, _get_dsn_key(info))] * 2)
+        self.assertNotIn("hunter2", str(sorted(pool.borrowed[0][1])))

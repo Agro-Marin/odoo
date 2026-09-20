@@ -22,7 +22,8 @@ class Widget(models.Model):
 
 @pytest.fixture
 def env():
-    with model_test_env(Widget) as e:
+    # the tests plant cache values: no cache-against-rows check at the end
+    with model_test_env(Widget, check_cache=False) as e:
         yield e
 
 
@@ -30,7 +31,7 @@ def _dirty_record(env):
     record = env["x.widget"].create({"name": "before", "qty": 1})
     env.flush_all()
     record.name = "pending"
-    assert env._core.has_dirty_field(env["x.widget"]._fields["name"])
+    assert env.core.has_dirty_field(env["x.widget"]._fields["name"])
     return record
 
 

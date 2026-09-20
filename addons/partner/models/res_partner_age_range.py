@@ -16,12 +16,8 @@ class ResPartnerAgeRange(models.Model):
     _description = "Partner Age Range"
     _order = "min_value, id"
 
-    name = fields.Char(
-        required=True,
-    )
-    active = fields.Boolean(
-        default=True,
-    )
+    name = fields.Char(required=True)
+    active = fields.Boolean(default=True)
     min_value = fields.Float(
         string="From year",
         digits=(16, 0),

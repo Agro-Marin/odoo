@@ -24,5 +24,4 @@ E-Transport implementation for Romania
             "l10n_ro_edi_stock/static/src/components/**/*",
         ],
     },
-    "installable": True,
 }

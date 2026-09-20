@@ -3,8 +3,11 @@ import { Component, onMounted, useState } from "@odoo/owl";
 import { QuantityButtons } from "@point_of_sale/app/components/buttons/quantity_buttons/quantity_buttons";
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.combo");
 export class ComboConfiguratorPopup extends Component {
     static template = "point_of_sale.ComboConfiguratorPopup";
     static components = { ProductCard, Dialog, QuantityButtons };
@@ -16,6 +19,7 @@ export class ComboConfiguratorPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
 
@@ -63,9 +67,25 @@ export class ComboConfiguratorPopup extends Component {
             ),
         });
 
+        log.lifecycle("opened", () => ({
+            template: this.props.productTemplate.id,
+            line: this.props.line?.uuid,
+            combos: this.props.productTemplate.combo_ids.map((c) => ({
+                combo: c.id,
+                items: c.combo_item_ids.length,
+                qtyFree: c.qty_free,
+                qtyMax: c.qty_max,
+            })),
+        }));
         onMounted(() => {
             this.autoSelectSingleChoices();
-            if (!this.hasMultipleChoices()) {
+            const multiple = this.hasMultipleChoices();
+            log.logic("mounted: auto confirm", () => ({
+                template: this.props.productTemplate.id,
+                hasMultipleChoices: multiple,
+                autoConfirm: !multiple,
+            }));
+            if (!multiple) {
                 this.confirm();
             }
         });
@@ -159,6 +179,15 @@ export class ComboConfiguratorPopup extends Component {
     async onClickProduct(product, combo_item) {
         const productTmpl = product.product_tmpl_id;
         const combo = combo_item.combo_id;
+        log.logic("onClickProduct", () => ({
+            product: product.id,
+            item: combo_item.id,
+            combo: combo.id,
+            configure: productTmpl.needToConfigure(),
+            current: this.state.qty[combo.id][combo_item.id],
+            total: this.totalQuantityForCombo(combo.id),
+            qtyMax: combo.qty_max,
+        }));
         if (productTmpl.needToConfigure()) {
             this.onClickConfigurableProduct(product, combo_item, combo);
         } else {
@@ -202,6 +231,11 @@ export class ComboConfiguratorPopup extends Component {
                     },
                 );
 
+                log.logic("onClickConfigurableProduct: payload", () => ({
+                    item: combo_item.id,
+                    cancelled: !payload,
+                    attributeValues: payload?.attribute_value_ids,
+                }));
                 if (payload) {
                     this.resetSingleQtyMaxCombo(combo);
                     this.state.configuration[combo_item.id] = payload;
@@ -212,7 +246,13 @@ export class ComboConfiguratorPopup extends Component {
     }
 
     confirm() {
-        this.props.getPayload(this.getSelectedComboItems());
+        const [included, extra] = this.getSelectedComboItems();
+        log.pipeline("confirm", () => ({
+            template: this.props.productTemplate.id,
+            included: included.map((i) => ({ item: i.combo_item_id.id, qty: i.qty })),
+            extra: extra.map((i) => ({ item: i.combo_item_id.id, qty: i.qty })),
+        }));
+        this.props.getPayload([included, extra]);
         this.props.close();
     }
 
@@ -229,8 +269,14 @@ export class ComboConfiguratorPopup extends Component {
             combo_id.qty_max -
             this.totalQuantityForCombo(combo_id.id) +
             this.state.qty[combo_id.id][combo_item.id];
-        quantity = Math.max(0, Math.min(quantity, maxQtyAvailable));
-        this.state.qty[combo_id.id][combo_item.id] = quantity;
+        const clamped = Math.max(0, Math.min(quantity, maxQtyAvailable));
+        log.logic("setQuantity", () => ({
+            item: combo_item.id,
+            requested: quantity,
+            maxQtyAvailable,
+            applied: clamped,
+        }));
+        this.state.qty[combo_id.id][combo_item.id] = clamped;
     }
 
     totalQuantityForCombo(comboId) {

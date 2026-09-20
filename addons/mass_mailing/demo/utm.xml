@@ -10,7 +10,7 @@
             <field name="name">Newsletter</field>
             <field name="stage_id" ref="utm.campaign_stage_1" />
             <field name="user_id" ref="base.user_admin" />
-            <field name="tag_ids" eval="[(6,0,[ref('utm.utm_tag_1')])]" />
+            <field name="tag_ids" eval="[Command.set([ref('utm.utm_tag_1')])]" />
         </record>
     </data>
 

@@ -1,6 +1,15 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.store.pending");
 
 export function addPendingOrder(pos, orderIds, remove = false) {
+    log.lifecycle("addPendingOrder", () => ({
+        orderIds,
+        remove,
+        create: pos.pendingOrder.create.size,
+        write: pos.pendingOrder.write.size,
+        delete: pos.pendingOrder.delete.size,
+    }));
     if (remove) {
         for (const id of orderIds) {
             pos.pendingOrder["create"].delete(id);
@@ -39,6 +48,12 @@ export function getPendingOrder(pos) {
         .readMany(Array.from(pos.pendingOrder.delete))
         .filter(Boolean);
 
+    log.logic("getPendingOrder", () => ({
+        create: orderToCreate.map((o) => o.uuid),
+        update: orderToUpdate.map((o) => o.uuid),
+        delete: orderToDelete.map((o) => o.uuid),
+        createSkipped: pos.pendingOrder.create.size - orderToCreate.length,
+    }));
     return {
         orderToDelete,
         orderToCreate,
@@ -58,6 +73,7 @@ export function getOrderIdsToDelete(pos) {
 }
 
 export function removePendingOrder(pos, order) {
+    log.lifecycle("removePendingOrder", () => ({ order: order.uuid, id: order.id }));
     pos.pendingOrder["create"].delete(order.id);
     pos.pendingOrder["write"].delete(order.id);
     pos.pendingOrder["delete"].delete(order.id);
@@ -65,6 +81,11 @@ export function removePendingOrder(pos, order) {
 }
 
 export function clearPendingOrder(pos) {
+    log.lifecycle("clearPendingOrder", () => ({
+        create: pos.pendingOrder.create.size,
+        write: pos.pendingOrder.write.size,
+        delete: pos.pendingOrder.delete.size,
+    }));
     pos.pendingOrder = {
         create: new Set(),
         write: new Set(),

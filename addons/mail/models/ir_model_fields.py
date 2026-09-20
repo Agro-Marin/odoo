@@ -1,7 +1,10 @@
 from typing import Literal
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import groupby
+
+_debug = DebugLog(__name__)
 
 
 class IrModelFields(models.Model):
@@ -33,6 +36,11 @@ class IrModelFields(models.Model):
         if tracked:
             tracking_values = self.env["mail.tracking.value"].search(
                 [("field_id", "in", tracked.ids)]
+            )
+            _debug.lifecycle(
+                "tracking_values_detached",
+                fields=tracked.ids,
+                values=len(tracking_values),
             )
             field_to_trackings = groupby(tracking_values, lambda track: track.field_id)
             for field, trackings in field_to_trackings:

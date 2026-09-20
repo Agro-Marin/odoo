@@ -31,12 +31,12 @@
                     column_invisible="not parent.is_gs1_nomenclature" />
                 <field
                     name="gs1_decimal_usage"
-                    column_invisible="not parent.is_gs1_nomenclature"
-                    invisible="gs1_content_type != 'measure'" />
+                    invisible="gs1_content_type != 'measure'"
+                    column_invisible="not parent.is_gs1_nomenclature" />
                 <field
                     name="associated_uom_id"
-                    column_invisible="not parent.is_gs1_nomenclature"
-                    invisible="gs1_content_type != 'measure'" />
+                    invisible="gs1_content_type != 'measure'"
+                    column_invisible="not parent.is_gs1_nomenclature" />
             </xpath>
         </field>
     </record>

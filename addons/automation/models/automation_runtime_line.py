@@ -1,7 +1,10 @@
 import logging
+from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+from .workflow_edge import EVENT_CONDITIONS, SETTLED_STATES
 
 _logger = logging.getLogger(__name__)
 
@@ -14,9 +17,9 @@ class AutomationRuntimeLine(models.Model):
     runtime_id = fields.Many2one(
         comodel_name="automation.runtime",
         string="Workflow Runtime",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     action_id = fields.Many2one(
         comodel_name="ir.actions.server",
@@ -37,17 +40,19 @@ class AutomationRuntimeLine(models.Model):
     state = fields.Selection(
         selection=[
             ("waiting", "Waiting"),
+            ("scheduled", "Scheduled"),
             ("ready", "Ready"),
             ("paused", "Paused"),
             ("in_progress", "In Progress"),
             ("done", "Done"),
+            ("skipped", "Skipped"),
             ("cancel", "Cancelled"),
             ("error", "Error"),
         ],
         default="waiting",
-        required=True,
-        readonly=True,
         copy=False,
+        readonly=True,
+        required=True,
         help="Action execution state",
     )
     activity_ids = fields.One2many(
@@ -58,9 +63,33 @@ class AutomationRuntimeLine(models.Model):
     )
     date_resume = fields.Datetime(
         string="Resumes At",
-        readonly=True,
         copy=False,
-        help="When a paused Wait step becomes ready again",
+        readonly=True,
+        help="When a scheduled step becomes ready, or a paused Wait step completes",
+    )
+    date_ready = fields.Datetime(
+        string="Ready Since",
+        copy=False,
+        readonly=True,
+        help="When the step became ready; its validity counts from here",
+    )
+    date_settled = fields.Datetime(
+        string="Settled At",
+        copy=False,
+        readonly=True,
+        help="When the step finished, failed, was skipped or was cancelled; "
+        "a delayed edge out of it counts from here",
+    )
+    skip_reason = fields.Selection(
+        selection=[
+            ("branch", "Branch not taken"),
+            ("revoked", "Revoked by an exclusive event"),
+            ("expired", "Validity passed"),
+            ("filtered", "Filtered out"),
+            ("cancelled", "Cancelled"),
+        ],
+        copy=False,
+        readonly=True,
     )
     error_message = fields.Text(
         string="Error Details",
@@ -84,8 +113,8 @@ class AutomationRuntimeLine(models.Model):
     )
 
     created_record_ref = fields.Reference(
-        string="Created Record",
         selection="_selection_created_record_models",
+        string="Created Record",
         readonly=True,
         help="Record created or modified by this action",
     )
@@ -106,32 +135,152 @@ class AutomationRuntimeLine(models.Model):
     def _get_successors(self):
         return self.edge_out_ids.target_line_id
 
-    def action_mark_ready(self):
-        self.write({"state": "ready", "error_message": False})
+    def action_mark_ready(self, due=None):
+        self.write(
+            {
+                "state": "ready",
+                "date_ready": self.env.cr.now(),
+                "date_resume": due or False,
+                "error_message": False,
+            }
+        )
+
+    def _is_expired(self):
+        self.check_singleton()
+        action = self.action_id
+        return bool(
+            action.validity_delay
+            and self.date_ready
+            and self.date_ready + action._get_validity_delta() < self.env.cr.now()
+        )
 
     def action_cancel(self):
-        for line in self:
-            if line.state in ["done", "cancel"]:
-                continue
-
-            line.state = "cancel"
-
-            if (
-                line.created_record_ref
-                and line.created_record_ref._name == "automation.runtime"
-            ):
+        lines = self.filtered(
+            lambda line: line.state not in ("done", "skipped", "cancel"),
+        )
+        lines.write({"state": "cancel", "date_settled": self.env.cr.now()})
+        for line in lines.filtered("created_record_ref"):
+            if line.created_record_ref._name == "automation.runtime":
                 line.created_record_ref.action_cancel()
 
     def _activate_successors(self):
+        self.edge_out_ids.target_line_id.filtered(
+            lambda successor: successor.state in ("waiting", "scheduled"),
+        )._settle_readiness()
+
+    def _settle_readiness(self):
+        if not self:
+            return
+        now = self.env.cr.now()
+        edges = self.edge_in_ids
+        edges.fetch(
+            [
+                "source_line_id",
+                "condition",
+                "condition_expr",
+                "event_code",
+                "delay",
+                "delay_unit",
+                "date_event",
+                "revoked",
+            ]
+        )
+        edges.source_line_id.fetch(["state", "date_settled"])
+        decided = defaultdict(self.browse)
+        for line in self:
+            decision = line._readiness_decision(now)
+            if decision:
+                decided[decision] |= line
+        for (kind, value), lines in decided.items():
+            if kind == "skip":
+                lines._skip(reason=value)
+            elif kind == "wait":
+                lines.write({"state": "waiting", "date_resume": False})
+            elif kind == "schedule":
+                lines._schedule(value)
+            else:
+                lines.action_mark_ready(due=value)
+
+    def _readiness_decision(self, now):
         self.check_singleton()
-        for successor in self._get_successors():
-            if successor.state == "waiting" and successor._predecessors_satisfied():
-                successor.action_mark_ready()
-                _logger.info(
-                    "Action '%s' (#%d) is now ready",
-                    successor.name,
-                    successor.id,
-                )
+        edges = self.edge_in_ids
+        if not edges:
+            due = self._start_due()
+            return ("schedule", due) if due and due > now else ("ready", due)
+        if any(edge.source_line_id.state not in SETTLED_STATES for edge in edges):
+            return None
+        live = edges.filtered(lambda edge: edge.source_line_id.state != "skipped")
+        verdicts = [edge._verdict(now) for edge in live]
+        if not live or any(satisfied is False for satisfied, _due in verdicts):
+            return ("skip", "revoked" if any(live.mapped("revoked")) else "branch")
+        if any(satisfied is None for satisfied, _due in verdicts):
+            return ("wait", None) if self.state == "scheduled" else None
+        due = max((due for _satisfied, due in verdicts if due), default=None)
+        return ("schedule", due) if due and due > now else ("ready", due)
+
+    def _start_due(self):
+        self.check_singleton()
+        action = self.action_id
+        if not action.start_delay:
+            return None
+        return (self.create_date or self.env.cr.now()) + action._get_start_delta()
+
+    def _skip(self, reason="branch", message=False):
+        self.write(
+            {
+                "state": "skipped",
+                "skip_reason": reason,
+                "date_resume": False,
+                "date_settled": self.env.cr.now(),
+                "error_message": message,
+            }
+        )
+        self._activate_successors()
+
+    def _schedule(self, due):
+        self.write({"state": "scheduled", "date_resume": due})
+        self._trigger_resume_at(due)
+
+    def _trigger_resume_at(self, due):
+        triggered = self.env.cr.precommit.data.setdefault(
+            "automation.resume_triggers", set()
+        )
+        if due in triggered:
+            return
+        triggered.add(due)
+        self.env.ref("automation.ir_cron_data_automation_resume")._trigger(at=due)
+
+    def _awaits_event(self):
+        self.check_singleton()
+        return any(
+            edge.condition == "event"
+            and not edge.date_event
+            and not edge.revoked
+            and edge.source_line_id.state in ("done", "error", "cancel")
+            for edge in self.edge_in_ids
+        )
+
+    def _receive_event(self, code, exclusive=False):
+        now = self.env.cr.now()
+        for line in self:
+            edges = line.edge_out_ids
+            received = edges.filtered(
+                lambda edge: (
+                    edge.condition in EVENT_CONDITIONS
+                    and edge.event_code == code
+                    and not edge.date_event
+                ),
+            )
+            if not received and not exclusive:
+                continue
+            received.date_event = now
+            if exclusive:
+                (edges - received).revoked = True
+            runtime = line.runtime_id
+            if runtime.state not in ("in_progress", "waiting_resume"):
+                continue
+            line._activate_successors()
+            runtime._advance()
 
     def _has_error_handler(self):
         self.check_singleton()
@@ -139,11 +288,19 @@ class AutomationRuntimeLine(models.Model):
             edge.condition in ("on_error", "always") for edge in self.edge_out_ids
         )
 
+    def _contains_its_error(self):
+        self.check_singleton()
+        return (
+            self._has_error_handler()
+            or self.runtime_id.automation_id.step_error_policy == "close_branch"
+        )
+
     def action_pause(self):
         resume_at = self.env.cr.now() + self.action_id._get_wait_delta()
         self.write(
             {"state": "paused", "date_resume": resume_at, "error_message": False}
         )
+        self._trigger_resume_at(resume_at)
         _logger.info(
             "Step '%s' (#%d) paused until %s",
             self.name,
@@ -199,8 +356,7 @@ class AutomationRuntimeLine(models.Model):
                 "created_record_ref": f"automation.runtime,{child.id}",
             }
         )
-        child.action_start()
-        child.action_run_all()
+        child._launch()
         return True
 
     def action_refuse_approval(self, reason=False):
@@ -211,8 +367,8 @@ class AutomationRuntimeLine(models.Model):
                 runtime.state = "in_progress"
             line.action_mark_error(reason or _("Approval was refused."))
             activities.unlink()
-            if line._has_error_handler():
-                runtime.action_run_all()
+            if line._contains_its_error():
+                runtime._advance()
             else:
                 runtime.action_error()
 
@@ -230,8 +386,8 @@ class AutomationRuntimeLine(models.Model):
             line.action_mark_error(
                 _("The approval activity was removed before anyone acted on it."),
             )
-            if line._has_error_handler():
-                runtime.action_run_all()
+            if line._contains_its_error():
+                runtime._advance()
             else:
                 runtime.action_error()
 
@@ -248,34 +404,59 @@ class AutomationRuntimeLine(models.Model):
             if runtime.state == "waiting_resume":
                 runtime.state = "in_progress"
             line.action_resume()
-            runtime.action_run_all()
+            runtime._advance()
 
     def action_resume(self):
-        for line in self.filtered(lambda step: step.state == "paused"):
-            line.write({"state": "done", "date_resume": False})
-            line._activate_successors()
+        paused = self.filtered(lambda step: step.state == "paused")
+        paused.write(
+            {
+                "state": "done",
+                "date_resume": False,
+                "date_settled": self.env.cr.now(),
+            }
+        )
+        paused._activate_successors()
 
     def action_mark_done(self):
-        self.write({"state": "done", "error_message": False})
-        self._activate_successors()
-
-        incomplete = self.runtime_id.line_ids.filtered(
-            lambda l: l.state not in ["done", "cancel", "error"],
+        self.write(
+            {"state": "done", "date_settled": self.env.cr.now(), "error_message": False}
         )
-
-        if not incomplete:
-            self.runtime_id.action_done()
+        self._activate_successors()
+        self.runtime_id._finish_if_settled()
 
     def action_mark_error(self, error_msg):
-        self.write({"state": "error", "error_message": error_msg})
-        for line in self:
-            line._activate_successors()
+        self.write(
+            {
+                "state": "error",
+                "date_settled": self.env.cr.now(),
+                "error_message": error_msg,
+            }
+        )
+        self.filtered(lambda line: line._contains_its_error())._activate_successors()
 
     def action_execute(self):
         self.check_singleton()
 
         if self.state not in ("ready", "in_progress"):
             raise UserError(_("Action is not ready to execute"))
+
+        if self._is_expired():
+            action = self.action_id
+            units = dict(
+                action._fields["validity_unit"]._description_selection(self.env)
+            )
+            self._skip(
+                reason="expired",
+                message=_(
+                    "Skipped: it became ready at %(ready)s, and its validity of "
+                    "%(delay)s %(unit)s had passed when it came to run.",
+                    ready=self.date_ready,
+                    delay=action.validity_delay,
+                    unit=units.get(action.validity_unit, action.validity_unit),
+                ),
+            )
+            self.runtime_id._finish_if_settled()
+            return False
 
         if self.action_id.node_type == "wait":
             return self.action_pause()
@@ -337,7 +518,7 @@ class AutomationRuntimeLine(models.Model):
             )
 
             self.action_mark_error(error_msg)
-            if not self._has_error_handler():
+            if not self._contains_its_error():
                 self.runtime_id.action_error()
             return False
 

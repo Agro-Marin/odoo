@@ -3,8 +3,12 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import DOMAIN_PREDICATES
 
-from odoo.addons.stock.const import PY_OPERATORS, QUANTITY_FIELDS
+from odoo.addons.stock.const import QUANTITY_FIELDS
+
+_debug = DebugLog(__name__)
 
 
 class ProductProduct(models.Model):
@@ -15,14 +19,14 @@ class ProductProduct(models.Model):
     _mrp_bom_field = "variant_bom_ids"
 
     variant_bom_ids = fields.One2many(
-        "mrp.bom",
-        "product_id",
-        "BOM Product Variants",
+        comodel_name="mrp.bom",
+        inverse_name="product_id",
+        string="BOM Product Variants",
     )
     bom_line_ids = fields.One2many(
-        "mrp.bom.line",
-        "product_id",
-        "BoM Components",
+        comodel_name="mrp.bom.line",
+        inverse_name="product_id",
+        string="BoM Components",
     )
 
     product_catalog_product_is_in_bom = fields.Boolean(
@@ -38,6 +42,7 @@ class ProductProduct(models.Model):
     def _get_mrp_variants(self):
         return self
 
+    @api.depends("product_tmpl_id")
     def _compute_bom_count(self):
         bom_ids_by_product = collections.defaultdict(set)
         bom_ids_by_template = collections.defaultdict(set)
@@ -84,6 +89,12 @@ class ProductProduct(models.Model):
                 kit_product_ids.add(product.id)
             else:
                 kit_template_ids.add(template.id)
+        _debug.perf.count(
+            "is_kit_computed",
+            products=self,
+            kit_products=len(kit_product_ids),
+            kit_templates=len(kit_template_ids),
+        )
         for product in self:
             product.is_kit = (
                 product.id in kit_product_ids
@@ -105,6 +116,7 @@ class ProductProduct(models.Model):
 
     def action_archive(self):
         still_used = self._get_still_used_bom_lines()
+        _debug.logic("product_archive", products=self, still_used=len(still_used))
         res = super().action_archive()
         return still_used._prepare_action_still_used_warning() or res
 
@@ -164,6 +176,7 @@ class ProductProduct(models.Model):
             )
         )
 
+    @api.depends("uom_id")
     def _compute_mrp_product_qty(self):
         date_from = fields.Datetime.to_string(
             fields.Datetime.now() - timedelta(days=365)
@@ -181,7 +194,7 @@ class ProductProduct(models.Model):
         mapped_data = collections.defaultdict(float)
         for product, uom, qty in read_group_res:
             if uom != product.uom_id:
-                qty = uom._compute_quantity_estimate(qty, product.uom_id)
+                qty = uom._get_quantity_estimate(qty, product.uom_id)
             mapped_data[product.id] += qty
         for product in self:
             product.mrp_product_qty = product.uom_id.round(
@@ -246,7 +259,7 @@ class ProductProduct(models.Model):
                     bom_line_data["qty"]
                 ):
                     continue
-                qty_per_bom += bom_line.product_uom_id._compute_quantity_estimate(
+                qty_per_bom += bom_line.product_uom_id._get_quantity_estimate(
                     bom_line_data["qty"] / bom_line_data["original_qty"],
                     bom_line.product_id.uom_id,
                     round=False,
@@ -257,7 +270,20 @@ class ProductProduct(models.Model):
             for field in QUANTITY_FIELDS:
                 ratios[field].append(component_vals[field] / qty_per_bom)
         if not ratios:
+            _debug.logic(
+                "kit_quantities",
+                product=self.id,
+                bom=bom_kit.id,
+                by="no_storable_component",
+            )
             return dict.fromkeys(QUANTITY_FIELDS, 0)
+        _debug.logic(
+            "kit_quantities",
+            product=self.id,
+            bom=bom_kit.id,
+            by="min_ratio",
+            components=len(lines_by_component),
+        )
         return {
             field: self.uom_id.round(
                 min(values) * bom_kit.product_qty, rounding_method="DOWN"
@@ -322,7 +348,7 @@ class ProductProduct(models.Model):
         )
 
     def _get_product_ids_from_quants(self, operator, value, filters=None):
-        op = PY_OPERATORS.get(operator)
+        op = DOMAIN_PREDICATES.get(operator)
         if not op:
             return NotImplemented
         product_ids = super()._get_product_ids_from_quants(operator, value, filters)

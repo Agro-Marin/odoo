@@ -98,10 +98,6 @@
             ),
             (
                 "remove",
-                "web/static/src/webclient/mobile/pivot_renderer_mobile.xml",
-            ),
-            (
-                "remove",
                 "web/static/src/webclient/settings_form_view/res_config_edition.xml",
             ),
             (

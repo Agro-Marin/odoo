@@ -1,11 +1,27 @@
 import unittest
 from time import monotonic
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import psycopg
 
+from odoo.db import settings as pool_settings
 from odoo.db.dsn import _get_dsn_key
-from odoo.db.pool import ConnectionPool
+from odoo.db.pool import ConnectionPool, PoolError
+from odoo.db.settings import PoolSettings
+
+# ConnectionPool() reads the settings slot; run alone, nothing has provided
+# one (in the full suite an earlier import of odoo.tools does). Install a
+# default for this module so its tests do not depend on collection order.
+_settings = pool_settings.installed(PoolSettings())
+
+
+def setUpModule():
+    _settings.__enter__()
+
+
+def tearDownModule():
+    _settings.__exit__(None, None, None)
 
 
 class _FakePool:
@@ -36,11 +52,16 @@ def _fake_pool_factory(*_a, **_k):
     return _FakePool()
 
 
+def _record(calls: list, args: tuple, answer: bool = True) -> bool:
+    calls.append(args)
+    return answer
+
+
 class TestReachabilityProof(unittest.TestCase):
     def _pool_with_probe_counter(self, **kw):
         pool = ConnectionPool(maxconn=2, **kw)
-        calls = []
-        pool._probe.probe_connectable = lambda *a, **k: calls.append(a)  # type: ignore[method-assign]
+        calls: list[tuple] = []
+        pool._probe.probe_connectable = lambda *a, **k: _record(calls, a)  # type: ignore[method-assign]
         return pool, calls
 
     def test_first_cold_start_probes(self):
@@ -238,3 +259,160 @@ class TestLeaderRemovalAndCompletionAreAtomic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailFast(unittest.TestCase):
+    def _pool(self, connected):
+        pool = ConnectionPool(maxconn=2)
+        pool._probe.probe_connectable = lambda *a, **k: connected  # type: ignore[method-assign, return-value]
+        return pool
+
+    def test_a_transient_probe_failure_ends_a_fail_fast_borrow_at_once(self):
+        pool = self._pool(False)
+        key = _get_dsn_key({"dbname": "d"})
+        with (
+            patch("odoo.db.pool._PsycopgPool", _fake_pool_factory),
+            self.assertRaisesRegex(PoolError, "fail_fast"),
+        ):
+            pool._get_or_create_pool(key, {"dbname": "d"}, fail_fast=True)
+        self.assertEqual(pool._pools, {}, "no pool is built for a refused connect")
+
+    def test_without_fail_fast_the_same_failure_still_builds_the_pool(self):
+        pool = self._pool(False)
+        key = _get_dsn_key({"dbname": "d"})
+        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
+            pool._get_or_create_pool(key, {"dbname": "d"})
+        self.assertIn(key, pool._pools, "the primary waits its budget out")
+
+    def test_a_proven_key_never_fails_fast(self):
+        pool = self._pool(False)
+        key = _get_dsn_key({"dbname": "d"})
+        pool._probe.mark_proven(key)
+        with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
+            pool._get_or_create_pool(key, {"dbname": "d"}, fail_fast=True)
+        self.assertIn(key, pool._pools)
+
+    def test_a_connected_answer_is_handed_back_as_is(self):
+        pool = self._pool(True)
+        key = _get_dsn_key({"dbname": "d"})
+        self.assertTrue(pool._probe.check_connectable(key, "", {"dbname": "d"}))
+
+    def test_a_follower_learns_the_leaders_answer(self):
+        import threading
+
+        pool = ConnectionPool(maxconn=2)
+        release = threading.Event()
+
+        def slow_refused(*a, **k):
+            release.wait(2.0)
+            return False
+
+        pool._probe.probe_connectable = slow_refused  # type: ignore[method-assign]
+        key = _get_dsn_key({"dbname": "d"})
+        answers = []
+        threads = [
+            threading.Thread(
+                target=lambda: answers.append(
+                    pool._probe.check_connectable(key, "", {"dbname": "d"})
+                )
+            )
+            for _ in range(3)
+        ]
+        for t in threads:
+            t.start()
+        release.set()
+        for t in threads:
+            t.join(3.0)
+        self.assertEqual(answers, [False, False, False])
+
+
+class TestFailFastOnASurvivingPool(unittest.TestCase):
+    def test_an_unproven_pool_with_nothing_idle_is_probed_again(self):
+        pool = ConnectionPool(maxconn=2)
+        pool._probe.probe_connectable = lambda *a, **k: False  # type: ignore[method-assign]
+        key = _get_dsn_key({"dbname": "d"})
+        pool._pools[key] = _FakePool(size=2, available=0)
+        with self.assertRaisesRegex(PoolError, "fail_fast"):
+            pool._get_or_create_pool(key, {"dbname": "d"}, fail_fast=True)
+
+    def test_a_proven_pool_or_one_with_an_idle_connection_is_handed_out(self):
+        for proven, available in ((True, 0), (False, 1)):
+            with self.subTest(proven=proven, available=available):
+                pool = ConnectionPool(maxconn=2)
+                pool._probe.probe_connectable = lambda *a, **k: False  # type: ignore[method-assign]
+                key = _get_dsn_key({"dbname": "d"})
+                if proven:
+                    pool._probe.mark_proven(key)
+                fake = _FakePool(size=2, available=available)
+                pool._pools[key] = fake
+                self.assertIs(
+                    pool._get_or_create_pool(key, {"dbname": "d"}, fail_fast=True),
+                    fake,
+                )
+
+    def test_without_fail_fast_a_surviving_pool_is_never_probed(self):
+        pool = ConnectionPool(maxconn=2)
+        calls: list[tuple] = []
+        pool._probe.probe_connectable = lambda *a, **k: _record(calls, a, False)  # type: ignore[method-assign]
+        key = _get_dsn_key({"dbname": "d"})
+        fake = _FakePool(size=2, available=0)
+        pool._pools[key] = fake
+        self.assertIs(pool._get_or_create_pool(key, {"dbname": "d"}), fake)
+        self.assertEqual(calls, [])
+
+
+class TestAuthenticationIsClassifiedWithoutTheMessage(unittest.TestCase):
+    # lc_messages translates every word of a connect failure; libpq's
+    # needs_password/used_password do not.
+    def _error(self, *, needs=False, used=False, pgconn=True):
+        conn = SimpleNamespace(needs_password=needs, used_password=used)
+        return psycopg.OperationalError(
+            "FATAL: <translated, unreadable>", pgconn=conn if pgconn else None
+        )
+
+    def _probe(self, maintenance):
+        pool = ConnectionPool(maxconn=2)
+        pool._probe.ask_maintenance_db = lambda *a, **k: maintenance  # type: ignore[method-assign]
+        return pool._probe
+
+    def _connect_raising(self, exc):
+        return patch("odoo.db.probe.psycopg.connect", side_effect=exc)
+
+    def test_a_server_that_wanted_a_password_we_lacked_is_permanent(self):
+        probe = self._probe("unknown")
+        with (
+            self._connect_raising(self._error(needs=True)),
+            self.assertRaises(psycopg.errors.InvalidAuthorizationSpecification),
+        ):
+            probe.probe_connectable("", {"dbname": "d"})
+
+    def test_a_password_the_server_rejected_twice_is_permanent(self):
+        probe = self._probe("auth_failed")
+        with (
+            self._connect_raising(self._error(used=True)),
+            self.assertRaises(psycopg.errors.InvalidAuthorizationSpecification),
+        ):
+            probe.probe_connectable("", {"dbname": "d"})
+
+    def test_a_missing_database_behind_a_good_password_stays_a_missing_database(self):
+        probe = self._probe("absent")
+        with (
+            self._connect_raising(self._error(used=True)),
+            self.assertRaises(psycopg.errors.InvalidCatalogName),
+        ):
+            probe.probe_connectable("", {"dbname": "d"})
+
+    def test_a_refusal_before_the_password_stage_is_transient(self):
+        probe = self._probe("unknown")
+        with self._connect_raising(self._error()):
+            self.assertFalse(probe.probe_connectable("", {"dbname": "d"}))
+
+    def test_a_used_password_with_a_reachable_present_database_is_transient(self):
+        probe = self._probe("present")
+        with self._connect_raising(self._error(used=True)):
+            self.assertFalse(probe.probe_connectable("", {"dbname": "d"}))
+
+    def test_an_error_without_a_pgconn_falls_back_to_transient(self):
+        probe = self._probe("unknown")
+        with self._connect_raising(self._error(needs=True, pgconn=False)):
+            self.assertFalse(probe.probe_connectable("", {"dbname": "d"}))

@@ -83,7 +83,7 @@ class PaymentPortal(portal.CustomerPortal):
 
         # Raise an HTTP 404 if a partner is provided with an invalid access token
         if partner_id:
-            if not payment_utils.check_access_token(
+            if not payment_utils.is_access_token_valid(
                 access_token, partner_id, amount, currency_id
             ):
                 raise NotFound  # Don't leak information about ids.
@@ -169,7 +169,7 @@ class PaymentPortal(portal.CustomerPortal):
             "partner_is_different": partner_is_different,
         }
         payment_form_values = {
-            "show_tokenize_input_mapping": self._compute_show_tokenize_input_mapping(
+            "show_tokenize_input_mapping": self._get_show_tokenize_input_mapping(
                 providers_sudo, **kwargs
             ),
         }
@@ -190,7 +190,7 @@ class PaymentPortal(portal.CustomerPortal):
             **portal_page_values,
             **payment_form_values,
             **payment_context,
-            **self._get_extra_payment_form_values(
+            **self._prepare_extra_payment_form_context(
                 **payment_context, currency_id=currency.id, **kwargs
             ),  # Pass the payment context to allow overriding modules to check document access.
         }
@@ -199,7 +199,7 @@ class PaymentPortal(portal.CustomerPortal):
         )
 
     @staticmethod
-    def _compute_show_tokenize_input_mapping(providers_sudo, **kwargs):
+    def _get_show_tokenize_input_mapping(providers_sudo, **kwargs):
         """Determine for each provider whether the tokenization input should be shown or not.
 
         :param recordset providers_sudo: The providers for which to determine whether the
@@ -285,11 +285,11 @@ class PaymentPortal(portal.CustomerPortal):
         rendering_context = {
             **payment_form_values,
             **payment_context,
-            **self._get_extra_payment_form_values(**kwargs),
+            **self._prepare_extra_payment_form_context(**kwargs),
         }
         return request.render("payment.payment_methods", rendering_context)
 
-    def _get_extra_payment_form_values(self, **kwargs):
+    def _prepare_extra_payment_form_context(self, **kwargs):
         """Return a dict of extra payment form values to include in the rendering context.
 
         :param dict kwargs: Optional data. This parameter is not used here.
@@ -319,7 +319,7 @@ class PaymentPortal(portal.CustomerPortal):
         amount = amount and float(
             amount
         )  # Cast as float in case the JS stripped the '.0'
-        if not payment_utils.check_access_token(
+        if not payment_utils.is_access_token_valid(
             access_token, partner_id, amount, currency_id
         ):
             raise Forbidden
@@ -333,7 +333,7 @@ class PaymentPortal(portal.CustomerPortal):
         self._update_landing_route(
             tx_sudo, access_token
         )  # Add the required params to the route.
-        return tx_sudo._get_processing_values()
+        return tx_sudo._prepare_processing_values()
 
     def _create_transaction(
         self,
@@ -405,7 +405,7 @@ class PaymentPortal(portal.CustomerPortal):
 
             payment_method_id = token_sudo.payment_method_id.id
 
-        reference = request.env["payment.transaction"]._compute_reference(
+        reference = request.env["payment.transaction"]._get_unique_reference(
             provider_sudo.code,
             prefix=reference_prefix,
             **(custom_create_values or {}),
@@ -498,7 +498,7 @@ class PaymentPortal(portal.CustomerPortal):
             tx_sudo = request.env["payment.transaction"].sudo().browse(tx_id)
 
             # Raise an HTTP 404 if the access token is invalid
-            if not payment_utils.check_access_token(
+            if not payment_utils.is_access_token_valid(
                 access_token,
                 tx_sudo.partner_id.id,
                 tx_sudo.amount,

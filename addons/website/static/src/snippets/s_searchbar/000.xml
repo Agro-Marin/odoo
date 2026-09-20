@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
 
-<!-- Search Bar autocomplete item -->
 <div t-name="website.s_searchbar.autocomplete"
     class="o_dropdown_menu show position-absolute w-100">
     <t t-if="fuzzySearch and results.length">

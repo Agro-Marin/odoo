@@ -9,13 +9,13 @@
                 <field name="company_id" invisible="1" />
                 <field name="account_peppol_edi_user" invisible="1" />
                 <div invisible="account_peppol_proxy_state != 'sender'">
-                    You are sending your e-invoices via Odoo with this Peppol ID <field name="account_peppol_edi_identification" class="oe_inline o_form_label" readonly="1" />.
+                    You are sending your e-invoices via Odoo with this Peppol ID <field name="account_peppol_edi_identification" readonly="1" class="oe_inline o_form_label" />.
                 </div>
                 <div invisible="account_peppol_proxy_state != 'smp_registration'">
                     Your Peppol registration is being processed, it should be active within a day.
                 </div>
                 <div invisible="account_peppol_proxy_state != 'receiver'">
-                    You are sending and receiving your e-invoices via Odoo with this Peppol ID <field name="account_peppol_edi_identification" class="oe_inline o_form_label" readonly="1" />.
+                    You are sending and receiving your e-invoices via Odoo with this Peppol ID <field name="account_peppol_edi_identification" readonly="1" class="oe_inline o_form_label" />.
                 </div>
                 <group string="Company information">
                     <label for="account_peppol_contact_email" class="text-nowrap" />
@@ -54,15 +54,15 @@
                     <div colspan="2">
                         <field
                             name="service_info"
-                            role="status"
+                            invisible="not service_info"
                             class="o_field_html alert alert-info"
-                            invisible="not service_info" />
+                            role="status" />
                         <field
                             name="service_ids"
-                            nolabel="1"
                             widget="one2many"
+                            nolabel="1"
                             columns="2">
-                            <list create="false" delete="false" edit="true">
+                            <list create="false" edit="true" delete="false">
                                 <field name="wizard_id" column_invisible="1" />
                                 <field name="document_name" readonly="1" />
                                 <field name="document_identifier" invisible="1" />
@@ -75,37 +75,37 @@
                     string="Danger zone"
                     invisible="account_peppol_proxy_state not in ('sender', 'smp_registration', 'receiver')">
                     <button
-                        string="Remove from Peppol"
                         name="button_peppol_unregister"
                         type="object"
-                        class="btn btn-danger text-nowrap"
-                        confirm="This will delete your Peppol registration." />
+                        string="Remove from Peppol"
+                        confirm="This will delete your Peppol registration."
+                        class="btn btn-danger text-nowrap" />
 
                         <button
-                            string="Enable reception"
                             name="button_peppol_register_sender_as_receiver"
                             type="object"
-                            class="btn-secondary"
-                            invisible="account_peppol_proxy_state != 'sender'" />
+                            string="Enable reception"
+                            invisible="account_peppol_proxy_state != 'sender'"
+                            class="btn-secondary" />
 
                         <button
-                            string="Disable the reception."
                             name="button_peppol_reset_to_sender"
                             type="object"
-                            class="btn-secondary"
-                            invisible="account_peppol_proxy_state not in ('smp_registration', 'receiver')" />
+                            string="Disable the reception."
+                            invisible="account_peppol_proxy_state not in ('smp_registration', 'receiver')"
+                            class="btn-secondary" />
                 </group>
                 <footer>
                     <button
-                        string="Save"
                         name="button_sync_form_with_peppol_proxy"
                         type="object"
+                        string="Save"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

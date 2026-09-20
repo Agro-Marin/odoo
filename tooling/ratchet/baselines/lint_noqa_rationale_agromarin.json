@@ -1,6 +1,0 @@
-{
-  "count": 21,
-  "measured_at": "d2054a34a4797f4272fdf5ffc818e817c237cb67",
-  "measured_root": "agromarin",
-  "note": "RE-STAMPED AFTER THE 2026-09-07 SYNCS, NUMBER UNCHANGED. The first of the day replayed agromarin onto origin, so the stamped commit c4e07c06d ceased to exist and this floor read ORPHANED-BASE, which makes the architecture lane exit 2 asking to be re-measured rather than comparing. Re-measured in a clean detached worktree of d2054a34a, laid out beside a clean odoo worktree as that lane lays it out, and it reads what the floor already said.\n\nWorth recording because the count held for a reason rather than by luck: the same commit adds six noqa directives to agro_base, approval_account and approval_stock, and every one carries its reason after the code. A waiver with a written rationale is exactly what this gate exists to require, so six new waivers move it by zero. Bare, they would have taken it to 27."
-}

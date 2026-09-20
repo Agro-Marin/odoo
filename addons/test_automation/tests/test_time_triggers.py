@@ -132,7 +132,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
                 "model_id": self.model_lead.id,
                 "trigger": "on_time_updated",
                 "trg_date_range": 30,
-                "trg_date_range_type": "minutes",
+                "trg_date_range_type": "minute",
             }
         )
 
@@ -150,13 +150,13 @@ class TestTimeBasedTriggers(common.TransactionCase):
         # Verify automation created correctly
         self.assertEqual(automation.trigger, "on_time_updated")
         self.assertEqual(automation.trg_date_range, 30)
-        self.assertEqual(automation.trg_date_range_type, "minutes")
+        self.assertEqual(automation.trg_date_range_type, "minute")
 
     def test_time_trigger_all_range_types(self):
         """Test all date range types for time triggers."""
         _logger.info("Testing all time range types")
 
-        for range_type in ["minutes", "hour", "day", "month"]:
+        for range_type in ["minute", "hour", "day", "month"]:
             automation = self.Automation.create(
                 {
                     "name": f"Time Trigger {range_type}",

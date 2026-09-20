@@ -15,8 +15,8 @@
                     domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Creation Period"
                         name="group_create_date"
+                        string="Creation Period"
                         context="{'group_by': 'create_date'}" />
                 </group>
             </search>
@@ -48,13 +48,13 @@
                 <header>
                     <button
                         name="action_send_mailing"
-                        string="Send Mailing"
                         type="object"
+                        string="Send Mailing"
                         class="btn btn-primary" />
                     <button
                         name="action_view_import"
-                        string="Import Contacts"
                         type="object"
+                        string="Import Contacts"
                         class="btn btn-secondary" />
                 </header>
                 <sheet>
@@ -86,8 +86,8 @@
                             class="oe_stat_button">
                             <field
                                 name="contact_pct_bounce"
-                                widget="statinfo"
-                                string="% Bounce" />
+                                string="% Bounce"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_view_contacts_opt_out"
@@ -96,8 +96,8 @@
                             class="oe_stat_button">
                             <field
                                 name="contact_pct_opt_out"
-                                widget="statinfo"
-                                string="% Opt-out" />
+                                string="% Opt-out"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_view_contacts_blacklisted"
@@ -106,22 +106,22 @@
                             class="oe_stat_button">
                             <field
                                 name="contact_pct_blacklisted"
-                                widget="statinfo"
-                                string="% Blacklist" />
+                                string="% Blacklist"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" />
                         <h1>
                             <field
                                 name="name"
-                                class="text-break"
-                                placeholder="e.g. Consumer Newsletter" />
+                                placeholder="e.g. Consumer Newsletter"
+                                class="text-break" />
                         </h1>
                     </div>
                     <group>
@@ -156,7 +156,7 @@
         <field name="name">mailing.list.view.kanban</field>
         <field name="model">mailing.list</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile o_kanban_mailing_list" sample="1">
+            <kanban sample="1" class="o_kanban_mobile o_kanban_mailing_list">
                 <field name="active" />
                 <templates>
                     <t t-name="card">
@@ -249,15 +249,15 @@
                                 class="order-3 order-lg-4 col-5 col-lg-2 py-0 my-auto d-none d-md-flex flex-wrap justify-content-end gap-1">
                                 <button
                                     name="action_view_import"
-                                    string="Import Contacts"
                                     type="object"
+                                    string="Import Contacts"
                                     class="btn btn-secondary text-nowrap">
                                     Import Contacts
                                 </button>
                                 <button
                                     name="action_send_mailing"
-                                    string="Send Mailing"
                                     type="object"
+                                    string="Send Mailing"
                                     class="btn btn-secondary text-nowrap">
                                     Send Mailing
                                 </button>

@@ -6,9 +6,9 @@ class AccountJournal(models.Model):
 
     l10n_hr_business_premises_label = fields.Char(
         string="Business premises label",
+        size=20,
         default="1",
         required=True,
-        size=20,
         help="Must contain at least one character and a maximum of 20 numeric (0-9) and/or alphabetic (a-z, A-Z) characters.",
     )
     l10n_hr_issuing_device_label = fields.Char(
@@ -19,9 +19,9 @@ class AccountJournal(models.Model):
     )
     l10n_hr_business_premises_label_refund = fields.Char(
         string="Business premises label (refund approval)",
+        size=20,
         default="1",
         required=True,
-        size=20,
         help="Must contain at least one character and a maximum of 20 numeric (0-9) and/or alphabetic (a-z, A-Z) characters.",
     )
     l10n_hr_issuing_device_label_refund = fields.Char(
@@ -53,4 +53,4 @@ class AccountJournal(models.Model):
         self.company_id._l10n_hr_mer_get_new_documents(undelivered_only=False)
 
     def l10n_hr_mer_get_message_status(self):
-        self.company_id._l10n_hr_mer_fetch_document_status_company()
+        self.company_id._l10n_hr_mer_update_document_status_company()

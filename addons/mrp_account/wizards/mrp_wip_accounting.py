@@ -5,25 +5,34 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpAccountWipAccountingLine(models.TransientModel):
     _name = "mrp.account.wip.accounting.line"
     _description = "Account move line to be created when posting WIP account move"
 
-    account_id = fields.Many2one("account.account", "Account")
-    label = fields.Char("Label")
+    account_id = fields.Many2one(comodel_name="account.account")
+    label = fields.Char()
     debit = fields.Monetary(
-        "Debit", compute="_compute_debit", store=True, readonly=False
+        compute="_compute_debit",
+        store=True,
+        readonly=False,
     )
     credit = fields.Monetary(
-        "Credit", compute="_compute_credit", store=True, readonly=False
+        compute="_compute_credit",
+        store=True,
+        readonly=False,
     )
     currency_id = fields.Many2one(
-        "res.currency", "Currency", default=lambda self: self.env.company.currency_id
+        comodel_name="res.currency",
+        default=lambda self: self.env.company.currency_id,
     )
     wip_accounting_id = fields.Many2one(
-        "mrp.account.wip.accounting", "WIP accounting wizard"
+        comodel_name="mrp.account.wip.accounting",
+        string="WIP accounting wizard",
     )
 
     _check_debit_credit = models.Constraint(
@@ -74,26 +83,28 @@ class MrpAccountWipAccounting(models.TransientModel):
             res["mo_ids"] = [Command.set(productions.ids)]
         return res
 
-    date = fields.Date("Date", default=fields.Date.context_today)
+    date = fields.Date(default=fields.Date.context_today)
     reversal_date = fields.Date(
-        "Reversal Date",
         compute="_compute_reversal_date",
-        required=True,
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        required=True,
     )
-    journal_id = fields.Many2one("account.journal", "Journal", required=True)
-    reference = fields.Char("Reference")
+    journal_id = fields.Many2one(
+        comodel_name="account.journal",
+        required=True,
+    )
+    reference = fields.Char()
     line_ids = fields.One2many(
-        "mrp.account.wip.accounting.line",
-        "wip_accounting_id",
-        "WIP accounting lines",
+        comodel_name="mrp.account.wip.accounting.line",
+        inverse_name="wip_accounting_id",
+        string="WIP accounting lines",
         compute="_compute_line_ids",
         store=True,
         readonly=False,
     )
-    mo_ids = fields.Many2many("mrp.production")
+    mo_ids = fields.Many2many(comodel_name="mrp.production")
 
     def _get_overhead_account(self):
         overhead_account = self.env.company.account_production_wip_overhead_account_id
@@ -133,6 +144,12 @@ class MrpAccountWipAccounting(models.TransientModel):
             )
         )
         overhead_value = productions.workorder_ids._get_cost(date)
+        _debug.logic(
+            "wip_line_values",
+            productions=productions,
+            components=compo_value,
+            overhead=overhead_value,
+        )
         sval_acc = (
             self.env["product.category"]
             ._fields["property_stock_valuation_account_id"]
@@ -183,6 +200,7 @@ class MrpAccountWipAccounting(models.TransientModel):
     def action_confirm(self):
         self.check_singleton()
         if len(self.mo_ids.company_id) > 1:
+            _debug.logic("wip_refused", reason="multi_company", productions=self.mo_ids)
             raise UserError(
                 _(
                     "Post one WIP entry per company: the selected orders belong "
@@ -191,6 +209,7 @@ class MrpAccountWipAccounting(models.TransientModel):
                 )
             )
         if unaccounted := self.line_ids.filtered(lambda line: not line.account_id):
+            _debug.logic("wip_refused", reason="no_account", lines=len(unaccounted))
             raise UserError(
                 _(
                     "No account is configured for: %(labels)s. Set the WIP accounts "
@@ -205,12 +224,14 @@ class MrpAccountWipAccounting(models.TransientModel):
             )
             != 0
         ):
+            _debug.logic("wip_refused", reason="unbalanced", lines=len(self.line_ids))
             raise UserError(
                 _(
                     "Please make sure the total credit amount equals the total debit amount."
                 )
             )
         if self.reversal_date <= self.date:
+            _debug.logic("wip_refused", reason="reversal_before_posting")
             raise UserError(_("Reversal date must be after the posting date."))
         move = (
             self.env["account.move"]
@@ -235,6 +256,12 @@ class MrpAccountWipAccounting(models.TransientModel):
                     ],
                 }
             )
+        )
+        _debug.lifecycle(
+            "wip_entry_posted",
+            move=move.id,
+            productions=self.mo_ids,
+            lines=len(self.line_ids),
         )
         move._post()
         move._reverse_moves(

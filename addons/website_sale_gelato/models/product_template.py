@@ -1,11 +1,12 @@
 from odoo import _, api, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
     _inherit = "product.template"
-
-    # === CONSTRAINT METHODS === #
 
     @api.constrains("is_published")
     def _check_print_images_are_set_before_publishing(self):
@@ -17,20 +18,19 @@ class ProductTemplate(models.Model):
                     )
                 )
 
-    # === ACTION METHODS === #
-
     def action_sync_gelato_template_info(self):
-        """Override of `sale_gelato` to unpublish products for which the synchronization with
-        Gelato led to new print images being created."""
         image_count_before_sync = len(self.gelato_image_ids)
         res = super().action_sync_gelato_template_info()
         if image_count_before_sync < len(self.gelato_image_ids):
+            _debug.lifecycle(
+                "unpublished_after_gelato_sync",
+                product=self,
+                before=image_count_before_sync,
+                after=len(self.gelato_image_ids),
+            )
             self.is_published = False
         return res
 
-    # === BUSINESS METHODS === #
-
     def _create_attributes_from_gelato_info(self, template_info):
-        """Override of `sale_gelato` to set the eCommerce description."""
         self.description_ecommerce = template_info["description"]
         return super()._create_attributes_from_gelato_info(template_info)

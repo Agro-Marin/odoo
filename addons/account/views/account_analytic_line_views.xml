@@ -18,8 +18,8 @@
                     <group />                    <group name="accounting" string="Accounting">
                         <field
                             name="move_line_id"
-                            options="{'no_create': True}"
-                            widget="line_open_move_widget" />
+                            widget="line_open_move_widget"
+                            options="{'no_create': True}" />
                         <field name="general_account_id" readonly="move_line_id" />
                     </group>
                 </group>
@@ -36,8 +36,8 @@
                 <xpath expr="//field[@name='account_id']" position="after">
                     <field
                         name="ref"
-                        column_invisible="context.get('to_invoice', False)"
-                        optional="hide" />
+                        optional="hide"
+                        column_invisible="context.get('to_invoice', False)" />
                     <field name="general_account_id" optional="hide" />
                     <field
                         name="move_line_id"
@@ -77,20 +77,20 @@
                     <filter name="account_id" context="{'group_by': 'account_id'}" />
                     <separator />
                     <filter
-                        string="Financial Account"
                         name="group_by_financial_account"
+                        string="Financial Account"
                         context="{'group_by':'general_account_id'}" />
                     <filter
-                        string="Category"
                         name="category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                     <filter
-                        string="Product"
                         name="product"
+                        string="Product"
                         context="{'group_by':'product_id'}" />
                     <filter
-                        string="Partner"
                         name="partner"
+                        string="Partner"
                         context="{'group_by':'partner_id'}" />
                 </xpath>
             </data>

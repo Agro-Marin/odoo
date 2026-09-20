@@ -13,8 +13,8 @@
                     <field name="nbr_certification" column_invisible="True" />
                     <field
                         name="survey_certification_success"
-                        invisible="nbr_certification == 0"
-                        optional="hide" />
+                        optional="hide"
+                        invisible="nbr_certification == 0" />
                 </xpath>
             </field>
         </record>
@@ -27,8 +27,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//filter[@name='filter_completed']" position="after">
                     <filter
-                        string="Certified"
                         name="filter_certified"
+                        string="Certified"
                         domain="[('survey_certification_success', '=', True)]" />
                 </xpath>
             </field>

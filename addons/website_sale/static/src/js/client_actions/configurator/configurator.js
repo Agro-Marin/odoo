@@ -15,7 +15,7 @@ ROUTES.productPageSelectionScreen = 55;
 
 patch(ApplyConfiguratorScreen.prototype, {
     /**
-     * @override to include eCommerce pages style configuration.
+     * @override
      */
     getConfigurationData() {
         const data = super.getConfigurationData(...arguments);
@@ -28,7 +28,7 @@ patch(ApplyConfiguratorScreen.prototype, {
 
 patch(FeaturesSelectionScreen, {
     /**
-     * @override to redirect to the shop page selection screen.
+     * @override
      */
     nextStep() {
         return ROUTES.shopPageSelectionScreen;
@@ -45,7 +45,7 @@ patch(Configurator, {
 
 patch(Configurator.prototype, {
     /**
-     * @override to include eCommerce's selection screen components.
+     * @override
      */
     get currentComponent() {
         if (this.state.currentStep === ROUTES.shopPageSelectionScreen) {
@@ -58,7 +58,7 @@ patch(Configurator.prototype, {
     },
 
     /**
-     * @override to include eCommerce's initial page style values.
+     * @override
      */
     async getInitialState() {
         const initState = await super.getInitialState(...arguments);

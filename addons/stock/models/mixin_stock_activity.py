@@ -3,6 +3,8 @@ from datetime import date
 from odoo import models
 from odoo.tools import groupby
 
+from ..tools import debug_log as dbg
+
 
 class MixinStockActivity(models.AbstractModel):
     _name = "mixin.stock.activity"
@@ -75,6 +77,11 @@ class MixinStockActivity(models.AbstractModel):
 
     def _log_activity(self, render_method, documents):
         for (parent, responsible), rendering_context in documents.items():
+            dbg.lifecycle.debug(
+                "_log_activity: warning activity on %s for user %s",
+                dbg.rec(parent),
+                responsible.id,
+            )
             note = render_method(rendering_context)
             parent.sudo().activity_schedule(
                 "mail.mail_activity_data_warning",

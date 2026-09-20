@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.translate import _
 
@@ -17,6 +18,8 @@ if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
     from .res_partner import ResPartner
 
+_debug = DebugLog(__name__)
+
 
 class MailNotification(models.Model):
     _name = "mail.notification"
@@ -26,30 +29,37 @@ class MailNotification(models.Model):
     _description = "Message Notifications"
 
     author_id: ResPartner = fields.Many2one(
-        "res.partner", "Author", ondelete="set null"
+        comodel_name="res.partner",
+        ondelete="set null",
     )
     mail_message_id: MailMessage = fields.Many2one(
-        "mail.message", "Message", index=True, ondelete="cascade", required=True
+        comodel_name="mail.message",
+        string="Message",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     mail_mail_id: MailMail = fields.Many2one(
-        "mail.mail",
-        "Mail",
+        comodel_name="mail.mail",
+        string="Mail",
         index=True,
         help="Optional mail_mail ID. Used mainly to optimize searches.",
     )
     res_partner_id: ResPartner = fields.Many2one(
-        "res.partner", "Recipient", index=True, ondelete="cascade"
+        comodel_name="res.partner",
+        string="Recipient",
+        index=True,
+        ondelete="cascade",
     )
     mail_email_address = fields.Char(help="Recipient email address")
     notification_type = fields.Selection(
-        [("inbox", "Inbox"), ("email", "Email")],
-        string="Notification Type",
+        selection=[("inbox", "Inbox"), ("email", "Email")],
         default="inbox",
         index=True,
         required=True,
     )
     notification_status = fields.Selection(
-        [
+        selection=[
             ("ready", "Ready to Send"),
             ("process", "Processing"),
             (
@@ -65,13 +75,16 @@ class MailNotification(models.Model):
         default="ready",
         index=True,
     )
-    is_read = fields.Boolean("Is Read", index=True)
-    read_date = fields.Datetime("Read Date", copy=False)
+    is_read = fields.Boolean(index=True)
+    read_date = fields.Datetime(copy=False)
     failure_type = fields.Selection(
         selection=DELIVERY_FAILURE_TYPES,
         string="Failure type",
     )
-    failure_reason = fields.Text("Failure reason", copy=False)
+    failure_reason = fields.Text(
+        string="Failure reason",
+        copy=False,
+    )
 
     _notification_partner_required = models.Constraint(
         "CHECK(notification_type != 'inbox' OR res_partner_id IS NOT NULL)",
@@ -101,6 +114,15 @@ class MailNotification(models.Model):
             if vals.get("is_read"):
                 vals["read_date"] = fields.Datetime.now()
         notifications = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(notifications),
+            messages=len(messages),
+            types=sorted({vals.get("notification_type") or "" for vals in vals_list}),
+            statuses=sorted(
+                {vals.get("notification_status") or "" for vals in vals_list}
+            ),
+        )
         notifications.mail_message_id._invalidate_notification_state()
         return notifications
 
@@ -114,6 +136,13 @@ class MailNotification(models.Model):
         if vals.get("is_read"):
             vals["read_date"] = fields.Datetime.now()
         res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            status=vals.get("notification_status"),
+            failure_type=vals.get("failure_type"),
+        )
         if vals.keys() & {
             "is_read",
             "notification_status",
@@ -135,6 +164,9 @@ class MailNotification(models.Model):
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
+        _debug.lifecycle(
+            "gc_notifications", removed=len(records), max_age_days=max_age_days
+        )
         records.unlink()
         return len(records), len(records) == GC_UNLINK_LIMIT
 

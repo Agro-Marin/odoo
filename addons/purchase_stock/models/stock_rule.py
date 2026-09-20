@@ -128,9 +128,9 @@ class StockRule(models.Model):
             lambda s: not s.company_id or s.company_id == company_id,
         )[:1]
 
-    def _get_message_dict(self):
-        message_dict = super()._get_message_dict()
-        __, destination, __, __ = self._get_message_values()
+    def _get_action_messages(self):
+        message_dict = super()._get_action_messages()
+        __, destination, __, __ = self._get_message_labels()
         message_dict.update(
             {
                 "buy": _(
@@ -375,7 +375,7 @@ class StockRule(models.Model):
         for domain, procurements_rules in procurements_by_po_domain.items():
             procurements, rules = zip(*procurements_rules, strict=False)
             origins = {p.origin for p in procurements if p.origin}
-            po = self.env["purchase.order"].sudo().search(list(domain), limit=1)
+            po = self.env["purchase.order"].sudo().search(list(domain), limit=1)  # noqa: E8507 - one probe per distinct purchase-order domain; procurements sharing one were merged above
             company_id = rules[0].company_id or procurements[0].company_id
             if not po:
                 positive_values = [
@@ -487,7 +487,7 @@ class StockRule(models.Model):
             if routes and routes._has_buy_rule():
                 company = procurement.company_id
                 if company not in wh_by_comp:
-                    wh_by_comp[company] = self.env["stock.warehouse"].search(
+                    wh_by_comp[company] = self.env["stock.warehouse"].search(  # noqa: E8507 - one lookup per company, cached across procurements
                         [("company_id", "=", company.id)],
                     )
                 wh = wh_by_comp[company]
@@ -504,7 +504,7 @@ class StockRule(models.Model):
         line,
     ):
         partner = values["supplier"].partner_id
-        procurement_uom_po_qty = product_uom_id._compute_quantity(
+        procurement_uom_po_qty = product_uom_id._get_quantity_in_unit(
             product_qty,
             line.product_uom_id,
             rounding_method="HALF-UP",
@@ -530,7 +530,7 @@ class StockRule(models.Model):
             and seller.product_uom_id != line.product_uom_id
             and not values.get("force_uom")
         ):
-            res["product_qty"] = line.product_uom_id._compute_quantity(
+            res["product_qty"] = line.product_uom_id._get_quantity_in_unit(
                 res["product_qty"],
                 seller.product_uom_id,
                 rounding_method="HALF-UP",

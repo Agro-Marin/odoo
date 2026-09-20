@@ -61,7 +61,7 @@ class MrpBomLine(models.Model):
     _inherit = "mrp.bom.line"
 
     cost_share = fields.Float(
-        "Cost Share (%)",
+        string="Cost Share (%)",
         digits=0,
         help="The percentage of the component repartition cost when purchasing a kit."
         "The total of all components' cost have to be equal to 100.",

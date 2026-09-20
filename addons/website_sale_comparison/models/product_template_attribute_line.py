@@ -7,15 +7,6 @@ class ProductTemplateAttributeLine(models.Model):
     _inherit = "product.template.attribute.line"
 
     def _prepare_categories_for_display(self):
-        """On the product page group together the attribute lines that concern
-        attributes that are in the same category.
-
-        The returned categories are ordered following their default order.
-
-        :return: OrderedDict [{
-            product.attribute.category: [product.template.attribute.line]
-        }]
-        """
         attributes = self.attribute_id
         categories = OrderedDict(
             [
@@ -24,7 +15,6 @@ class ProductTemplateAttributeLine(models.Model):
             ]
         )
         if any(not pa.category_id for pa in attributes):
-            # category_id is not required and the mapped does not return empty
             categories[self.env["product.attribute.category"]] = self.env[
                 "product.template.attribute.line"
             ]

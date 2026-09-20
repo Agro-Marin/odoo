@@ -2,12 +2,15 @@
 
 import {
     __debug__,
+    after,
     definePreset,
     defineTags,
     describe,
     isHootReady,
     start,
+    test,
 } from "@odoo/hoot";
+import { bindCleanupHook } from "@web/../tests/helpers/cleanup";
 
 import { patchBrowserLocation, patchBrowserStorage } from "./mock_browser.hoot.js";
 import { isolateLocalizationCache } from "./mock_localization_cache.hoot.js";
@@ -17,6 +20,8 @@ import { setupTestEnvironment } from "./module_set.hoot.js";
  * @param {string} value
  * @returns {string}
  */
+bindCleanupHook(after);
+
 function _hashJobId(value) {
     let hash = 0;
     for (let i = 0; i < value.length; i++) {
@@ -102,19 +107,26 @@ function _selectTestSpecifiers(testSpecifiers) {
     if (!REQUESTED_IDS.size) {
         return testSpecifiers;
     }
+    const unresolvedIds = new Set(REQUESTED_IDS);
     const isSelected = (/** @type {any} */ specifier) => {
         if (!specifier.endsWith(".test")) {
             return true;
         }
         const parts = _suiteNameFromSpecifier(specifier).split("/");
-        return parts.some((_, i) =>
-            REQUESTED_IDS.has(_hashJobId(parts.slice(0, i + 1).join("/"))),
-        );
+        let selected = false;
+        for (let i = 0; i < parts.length; i++) {
+            const id = _hashJobId(parts.slice(0, i + 1).join("/"));
+            if (REQUESTED_IDS.has(id)) {
+                unresolvedIds.delete(id);
+                selected = true;
+            }
+        }
+        return selected;
     };
     const selected = testSpecifiers.filter(isSelected);
-    return selected.some((specifier) => specifier.endsWith(".test"))
-        ? selected
-        : testSpecifiers;
+    // Individual test IDs become known only after import. A recognized suite ID
+    // must not prevent another requested test's module from being imported.
+    return unresolvedIds.size ? testSpecifiers : selected;
 }
 
 /** @param {...any} parts */
@@ -170,6 +182,13 @@ async function _importInFileSuite(specifier) {
     _runner.suiteStack.push(fileSuite);
     try {
         return await import(specifier);
+    } catch (reason) {
+        // a file that does not import registers no test, and a run that only
+        // counts registered tests would report it green: it fails as one
+        test("module imports", () => {
+            throw reason;
+        });
+        throw reason;
     } finally {
         _runner.suiteStack.pop();
     }

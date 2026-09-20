@@ -10,8 +10,8 @@
                 <field name="module_type" />
             </xpath>
             <xpath expr="//button[@name='button_immediate_install']" position="after">
-                <button type="object" class="btn btn-primary btn-sm" name="button_immediate_install_app" invisible="state != 'uninstalled' or module_type in ('official', False)" groups="base.group_system" context="{'module_name':name}">Activate</button>
-                <button type="object" class="btn btn-primary btn-sm" name="button_immediate_install_app" invisible="state == 'uninstalled' or module_type in ('official', False)" groups="base.group_system" context="{'module_name':name}">Upgrade</button>
+                <button name="button_immediate_install_app" type="object" context="{'module_name':name}" groups="base.group_system" invisible="state != 'uninstalled' or module_type in ('official', False)" class="btn btn-primary btn-sm">Activate</button>
+                <button name="button_immediate_install_app" type="object" context="{'module_name':name}" groups="base.group_system" invisible="state == 'uninstalled' or module_type in ('official', False)" class="btn btn-primary btn-sm">Upgrade</button>
             </xpath>
             <xpath
                 expr="//button[@name='button_immediate_install']"
@@ -59,8 +59,8 @@
                 <attribute name="invisible">module_type != 'official'</attribute>
             </xpath>
             <xpath expr="//button[@name='button_immediate_install']" position="after">
-                <button type="object" class="btn btn-primary me-1" name="button_immediate_install_app" invisible="state != 'uninstalled' or module_type in ('official', False)" groups="base.group_system">Activate</button>
-                <button type="object" class="btn btn-primary me-1" name="button_immediate_install_app" invisible="state == 'uninstalled' or module_type in ('official', False)" groups="base.group_system">Upgrade</button>
+                <button name="button_immediate_install_app" type="object" groups="base.group_system" invisible="state != 'uninstalled' or module_type in ('official', False)" class="btn btn-primary me-1">Activate</button>
+                <button name="button_immediate_install_app" type="object" groups="base.group_system" invisible="state == 'uninstalled' or module_type in ('official', False)" class="btn btn-primary me-1">Upgrade</button>
             </xpath>
             <xpath
                 expr="//button[@name='button_immediate_install']"

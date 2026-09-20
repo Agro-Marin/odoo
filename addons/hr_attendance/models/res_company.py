@@ -7,21 +7,15 @@ from odoo.libs.web import urljoin as url_join
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    def _default_company_token(self):
+    def _get_new_attendance_kiosk_key(self):
         # `.hex` to match the field default and `_regenerate_attendance_kiosk_key`;
         # a company whose key is back-filled at column-init must not end up with a
         # differently shaped token from every other company's.
         return uuid.uuid4().hex
 
-    overtime_company_threshold = fields.Integer(
-        string="Tolerance Time In Favor Of Company", default=0
-    )
-    overtime_employee_threshold = fields.Integer(
-        string="Tolerance Time In Favor Of Employee", default=0
-    )
     hr_attendance_display_overtime = fields.Boolean(string="Display Extra Hours")
     attendance_kiosk_mode = fields.Selection(
-        [
+        selection=[
             ("barcode", "Barcode / RFID"),
             ("barcode_manual", "Barcode / RFID and Manual Selection"),
             ("manual", "Manual Selection"),
@@ -30,7 +24,7 @@ class ResCompany(models.Model):
         default="barcode_manual",
     )
     attendance_barcode_source = fields.Selection(
-        [
+        selection=[
             ("scanner", "Scanner"),
             ("front", "Front Camera"),
             ("back", "Back Camera"),
@@ -42,26 +36,32 @@ class ResCompany(models.Model):
     attendance_kiosk_key = fields.Char(
         default=lambda s: uuid.uuid4().hex,
         copy=False,
+        required=True,
         groups="hr_attendance.group_hr_attendance_user",
     )
     attendance_kiosk_url = fields.Char(compute="_compute_attendance_kiosk_url")
     attendance_kiosk_use_pin = fields.Boolean(string="Employee PIN Identification")
-    attendance_from_systray = fields.Boolean(
-        string="Attendance From Systray", default=False
-    )
+    attendance_from_systray = fields.Boolean(default=False)
     attendance_overtime_validation = fields.Selection(
-        [
+        selection=[
             ("no_validation", "Automatically Approved"),
             ("by_manager", "Approved by Manager"),
         ],
         string="Extra Hours Validation",
         default="no_validation",
     )
-    auto_check_out = fields.Boolean(string="Automatic Check Out", default=False)
-    auto_check_out_tolerance = fields.Float(default=2, export_string_translation=False)
-    absence_management = fields.Boolean(string="Absence Management", default=False)
+    auto_check_out = fields.Boolean(
+        string="Automatic Check Out",
+        default=False,
+    )
+    auto_check_out_tolerance = fields.Float(
+        export_string_translation=False,
+        default=2,
+    )
+    absence_management = fields.Boolean(default=False)
     attendance_device_tracking = fields.Boolean(
-        string="Device & Location Tracking", default=False
+        string="Device & Location Tracking",
+        default=False,
     )
 
     @api.depends("attendance_kiosk_key")
@@ -81,7 +81,7 @@ class ResCompany(models.Model):
             )
             attendance_ids = self.env.cr.dictfetchall()
             values_args = [
-                (attendance_id["id"], self._default_company_token())
+                (attendance_id["id"], self._get_new_attendance_kiosk_key())
                 for attendance_id in attendance_ids
             ]
             query = f"""
@@ -91,6 +91,11 @@ class ResCompany(models.Model):
                 WHERE {self._table}.id = vals.id
             """
             self.env.cr.execute_values(query, values_args)
+
+    _attendance_kiosk_key_unique = models.Constraint(
+        "UNIQUE(attendance_kiosk_key)",
+        "Two companies cannot share a kiosk key.",
+    )
 
     def _regenerate_attendance_kiosk_key(self):
         self.check_singleton()

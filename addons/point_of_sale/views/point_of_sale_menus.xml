@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_point_root"
+        name="Point of Sale"
+        sequence="50"
+        groups="group_pos_manager,group_pos_user"
+        web_icon="point_of_sale,static/description/icon.png"
+        web_keywords="pos, cash register, till, counter, shop, session" />
+
+    <menuitem
+        id="menu_point_of_sale"
+        name="Orders"
+        parent="menu_point_root"
+        sequence="10" />
+
+    <menuitem
+        id="menu_point_of_sale_customer"
+        name="Customers"
+        parent="menu_point_of_sale"
+        action="account.res_partner_action_customer"
+        sequence="110" />
+
+    <menuitem
+        id="menu_point_rep"
+        name="Reporting"
+        parent="menu_point_root"
+        sequence="90" />
+
+    <menuitem
+        id="menu_report_daily_details"
+        name="Session Report"
+        parent="menu_point_rep"
+        action="action_report_pos_daily_sales_reports"
+        sequence="5" />
+
+    <menuitem
+        id="menu_point_config_product"
+        name="Configuration"
+        parent="menu_point_root"
+        sequence="100"
+        groups="group_pos_manager" />
+
+    <menuitem
+        id="pos_menu_products_configuration"
+        name="Products"
+        parent="menu_point_config_product"
+        sequence="12" />
+
+    <menuitem
+        id="menu_pos_global_settings"
+        name="Settings"
+        parent="menu_point_config_product"
+        action="action_pos_configuration"
+        sequence="0"
+        groups="base.group_system" />
+
+    <menuitem
+        id="menu_pos_note_model"
+        parent="menu_point_config_product"
+        action="action_pos_note_model"
+        sequence="11" />
+
+    <menuitem
+        id="menu_point_ofsale"
+        parent="menu_point_of_sale"
+        action="action_pos_pos_form"
+        sequence="2"
+        groups="group_pos_manager,group_pos_user" />
+
+    <menuitem
+        id="pos_config_menu_catalog"
+        name="Products"
+        parent="point_of_sale.menu_point_root"
+        sequence="20" />
+
+    <menuitem
+        id="menu_pos_products"
+        parent="point_of_sale.pos_config_menu_catalog"
+        action="product_template_action_pos_product"
+        sequence="5" />
+
+    <menuitem
+        id="pos_config_menu_action_product_product"
+        name="Product Variants"
+        parent="point_of_sale.pos_config_menu_catalog"
+        action="product_product_action"
+        sequence="10"
+        groups="product.group_product_variant" />
+
+    <menuitem
+        id="point_of_sale.menu_product_combo"
+        name="Combo Choices"
+        parent="point_of_sale.pos_config_menu_catalog"
+        action="product.action_product_combo"
+        sequence="15" />
+
+    <menuitem
+        id="pos_config_menu_action_product_pricelist"
+        parent="point_of_sale.pos_config_menu_catalog"
+        action="product.action_product_pricelist_2"
+        sequence="20"
+        groups="product.group_product_pricelist" />
+
+    <menuitem
+        id="menu_action_tax_form_open"
+        parent="point_of_sale.menu_point_config_product"
+        action="account.action_tax_form"
+        sequence="40"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_pos_payment_method"
+        parent="menu_point_config_product"
+        action="action_pos_payment_method_form"
+        sequence="3"
+        groups="group_pos_manager,group_pos_user" />
+
+    <menuitem
+        id="menu_pos_payment"
+        parent="menu_point_of_sale"
+        action="action_pos_payment_form"
+        sequence="13"
+        groups="group_pos_manager,group_pos_user" />
+
+    <menuitem
+        id="menu_products_pos_category"
+        parent="point_of_sale.pos_menu_products_configuration"
+        action="point_of_sale.product_pos_category_action"
+        sequence="1" />
+
+    <menuitem
+        id="pos_menu_products_attribute_action"
+        parent="point_of_sale.pos_menu_products_configuration"
+        action="product.action_product_attribute"
+        sequence="2"
+        groups="product.group_product_variant" />
+
+    <menuitem
+        id="menu_pos_dashboard"
+        name="Dashboard"
+        parent="menu_point_root"
+        action="action_pos_config_kanban"
+        sequence="1" />
+
+    <menuitem
+        id="menu_point_of_sale_list"
+        name="Point of Sales"
+        parent="menu_point_config_product"
+        action="action_pos_config_tree"
+        sequence="10" />
+
+    <menuitem
+        id="menu_pos_bill"
+        name="Coins/Bills"
+        parent="menu_point_config_product"
+        action="action_pos_bill"
+        sequence="9"
+        groups="group_pos_manager" />
+
+    <menuitem
+        id="menu_pos_session_all"
+        parent="menu_point_of_sale"
+        action="action_pos_session"
+        sequence="3"
+        groups="group_pos_manager" />
+
+    <record id="action_client_pos_menu" model="ir.actions.client">
+        <field name="name">Reload POS Menu</field>
+        <field name="tag">reload</field>
+        <field name="params" eval="{'menu_id': ref('menu_point_root')}" />
+    </record>
+
+    <record id="action_client_product_menu" model="ir.actions.client">
+        <field name="name">Load Product Menu</field>
+        <field name="tag">reload</field>
+        <field
+            name="params"
+            eval="{'menu_id': ref('point_of_sale.menu_pos_products')}" />
+    </record>
+
+    <menuitem
+        id="menu_report_pos_order_all"
+        name="Orders"
+        parent="menu_point_rep"
+        action="action_report_pos_order_all"
+        sequence="3" />
+
+    <menuitem
+        id="menu_report_order_details"
+        name="Sales Details"
+        parent="menu_point_rep"
+        action="action_report_pos_details"
+        sequence="4" />
+
+    <menuitem
+        id="menu_pos_preset"
+        parent="menu_point_config_product"
+        action="action_pos_preset_form"
+        sequence="4"
+        groups="group_pos_preset" />
+
+    <menuitem
+        id="point_of_sale.menu_pos_preparation_printer"
+        name="Preparation Printers"
+        parent="point_of_sale.menu_point_of_sale"
+        action="action_pos_printer_form"
+        sequence="99" />
+
+    <menuitem
+        id="pos_menu_products_tag_action"
+        parent="point_of_sale.pos_menu_products_configuration"
+        action="product.action_product_tag"
+        sequence="3" />
+
+</odoo>

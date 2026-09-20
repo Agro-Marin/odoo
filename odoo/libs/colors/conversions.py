@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 __all__ = [
+    "get_brightness",
     "get_hsl_from_seed",
     "get_lightness",
+    "get_palette_color",
     "get_saturation",
     "hex_to_rgb",
     "lighten_hex",
@@ -41,6 +43,21 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
 def rgb_to_hex(rgb: Sequence[int]) -> str:
     r, g, b = rgb
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def get_brightness(color: str) -> float:
+    red, green, blue = hex_to_rgb(color)
+    return (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+
+
+def get_palette_color(index: int, palette: Sequence[str], *, wrap: bool = False) -> str:
+    if wrap:
+        if not palette:
+            raise ValueError("a color palette cannot be empty")
+        index %= len(palette)
+    if not 0 <= index < len(palette):
+        raise IndexError(index)
+    return palette[index]
 
 
 def get_hsl_from_seed(seed: str) -> str:

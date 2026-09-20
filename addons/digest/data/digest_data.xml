@@ -324,7 +324,7 @@
                                                                 t-att-href="top_button_url"
                                                                 target="_blank">
                                                                 <span
-                                                                    t-esc="top_button_label"
+                                                                    t-out="top_button_label"
                                                                     class="button"
                                                                     id="button_connect" />
                                                             </a>
@@ -340,8 +340,8 @@
                                             class="p0"
                                             colspan="2">
                                             <div class="header_title">
-                                                <p t-esc="title" />
-                                                <p t-if="sub_title" t-esc="sub_title" />
+                                                <p t-out="title" />
+                                                <p t-if="sub_title" t-out="sub_title" />
                                             </div>
                                         </td>
                                     </tr>
@@ -351,7 +351,7 @@
                                             class="p0"
                                             colspan="2">
                                             <span
-                                                t-esc="formatted_date"
+                                                t-out="formatted_date"
                                                 class="header_date" />
                                         </td>
                                     </tr>
@@ -412,7 +412,7 @@
                                                                     style="padding: 0px 0px 5px 0px;">
                                                                     <span
                                                                         style="text-transform: uppercase;"
-                                                                        t-esc="kpi_info['kpi_fullname']" />
+                                                                        t-out="kpi_info['kpi_fullname']" />
                                                                 </td>
                                                                 <td
                                                                     t-if="kpi_info['kpi_action']"
@@ -552,7 +552,7 @@
                                         <div id="footer">
                                             <p
                                                 style="font-weight: bold;"
-                                                t-esc="company.name" />
+                                                t-out="company.name" />
                                             <p class="by_odoo" id="powered">
                                                 Powered by <a href="https://www.odoo.com" target="_blank" class="odoo_link">
                                                     <span class="odoo_link_text">Odoo</span></a>
@@ -626,11 +626,11 @@
         <!-- KPI DISPLAY -->
         <template id="digest_tool_kpi">
             <span
-                t-esc="kpi_value"
+                t-out="kpi_value"
                 style="color: #374151;text-decoration: none;"
                 class="kpi_value kpi_border_col" />
             <br />
-            <span t-esc="kpi_subtitle" class="kpi_value_label" />
+            <span t-out="kpi_subtitle" class="kpi_value_label" />
             <table
                 t-if="kpi_margin"
                 class="kpi_margin_margin"
@@ -643,13 +643,13 @@
                         t-if="kpi_margin &gt; 0.0"
                         class="kpi_margin positive_kpi_margin"
                         style="padding: 3px 10px;font-size: 12px;text-decoration: none;border-radius: 50px;border: 1px solid #c4ecd7;border-radius: 5px; background-color: #c4ecd7;color: #17613a;">
-                        ⬆ <t t-esc="'%.2f' % kpi_margin" /> %
+                        ⬆ <t t-out="'%.2f' % kpi_margin" /> %
                     </td>
                     <td
                         t-elif="kpi_margin &lt; 0.0"
                         class="kpi_margin negative_kpi_margin"
                         style="padding: 3px 10px;font-size: 12px;text-decoration: none;border-radius: 50px;border: 1px solid #f4cfce;background-color: #f7dddc;color: #712b29;">
-                        ⬇ <t t-esc="'%.2f' % kpi_margin" /> %
+                        ⬇ <t t-out="'%.2f' % kpi_margin" /> %
                     </td>
                 </tr>
             </table>

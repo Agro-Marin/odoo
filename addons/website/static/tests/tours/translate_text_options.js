@@ -57,7 +57,6 @@ registerWebsitePreviewTour(
             trigger: ".modal-footer .btn-secondary",
             run: "click",
         },
-        // Select the highlighted text content and check highlight options were displayed.
         selectFullText(
             "snippet highlighted text content",
             "#wrap .s_text_block p:last .o_text_highlight",
@@ -83,7 +82,6 @@ registerWebsitePreviewTour(
             trigger: ".o_popover .o_text_highlight_jagged",
             run: "click",
         },
-        // Select the animated text content and check animate options were displayed.
         selectFullText("animated text content", "#wrap .s_text_block p:first span"),
         {
             content: "Expand the toolbar for more buttons",
@@ -94,7 +92,6 @@ registerWebsitePreviewTour(
             content: "Check that the animate options were displayed",
             trigger: ".o-we-toolbar button[title='Animate Text'].active",
         },
-        // Select a text content without any option.
         selectFullText(
             "text content without any option",
             "footer .s_text_block p:first span",

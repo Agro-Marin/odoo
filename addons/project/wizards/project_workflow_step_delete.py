@@ -2,31 +2,34 @@ from typing import Any
 
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectWorkflowStepDeleteWizard(models.TransientModel):
     _name = "project.workflow.step.delete.wizard"
     _description = "Workflow Step Delete Wizard"
 
     project_ids = fields.Many2many(
-        "project.project",
-        domain="['|', ('active', '=', False), ('active', '=', True)]",
+        comodel_name="project.project",
         string="Projects",
-        ondelete="cascade",
         export_string_translation=False,
+        domain="['|', ('active', '=', False), ('active', '=', True)]",
+        ondelete="cascade",
     )
     step_ids = fields.Many2many(
-        "project.workflow.step",
+        comodel_name="project.workflow.step",
         string="Steps To Delete",
-        ondelete="cascade",
         export_string_translation=False,
+        ondelete="cascade",
     )
     tasks_count = fields.Integer(
-        "Number of Tasks",
-        compute="_compute_tasks_count",
+        string="Number of Tasks",
         export_string_translation=False,
+        compute="_compute_tasks_count",
     )
     steps_active = fields.Boolean(
-        compute="_compute_steps_active", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_steps_active",
     )
 
     @api.depends("step_ids")
@@ -51,6 +54,13 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
             wizard.steps_active = all(wizard.step_ids.mapped("active"))
 
     def action_archive(self) -> dict[str, Any]:
+        dbg.logic.debug(
+            "project.workflow.step.delete.wizard.action_archive: steps %s shared by "
+            "%d projects -> %s",
+            dbg.rec(self.step_ids),
+            len(self.project_ids),
+            "confirm" if len(self.project_ids) <= 1 else "ask",
+        )
         if len(self.project_ids) <= 1:
             return self.action_confirm()
 
@@ -78,6 +88,10 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
             .with_context(active_test=False)
             .search([("active", "=", False), ("step_id", "in", self.step_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.workflow.step.delete.wizard.action_unarchive_task: %s",
+            dbg.rec(inactive_tasks),
+        )
         inactive_tasks.action_unarchive()
 
     def action_confirm(self) -> dict[str, Any]:
@@ -86,11 +100,21 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
             .env["project.task"]
             .search([("step_id", "in", self.step_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.workflow.step.delete.wizard.action_confirm: archiving steps %s "
+            "and tasks %s",
+            dbg.rec(self.step_ids),
+            dbg.rec(tasks),
+        )
         tasks.write({"active": False})
         self.step_ids.write({"active": False})
         return self._prepare_action_close()
 
     def action_unlink(self) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.workflow.step.delete.wizard.action_unlink: %s",
+            dbg.rec(self.step_ids),
+        )
         self.step_ids.unlink()
         return self._prepare_action_close()
 

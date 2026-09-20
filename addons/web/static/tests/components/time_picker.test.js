@@ -11,9 +11,14 @@ import {
     runAllTimers,
 } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
-import { Component, useState, xml } from "@odoo/owl";
-import { defineParams, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { Component, onRendered, useState, xml } from "@odoo/owl";
+import {
+    defineParams,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TimePicker } from "@web/components/time_picker/time_picker";
 
 /** @param {any} value */
@@ -694,4 +699,38 @@ test("typing supersedes a browsed suggestion", async () => {
     await edit("11:45", { confirm: "enter" });
     await animationFrame();
     expect.verifySteps(["change 11:45"]);
+});
+
+test("typing with the menu open renders neither the picker nor its 96 options", async () => {
+    let pickerRenders = 0;
+    let itemRenders = 0;
+    class Probe extends TimePicker {
+        setup() {
+            super.setup();
+            onRendered(() => pickerRenders++);
+        }
+    }
+    patchWithCleanup(DropdownItem.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => itemRenders++);
+        },
+    });
+    await mountWithCleanup(Probe, { props: { value: "12:00" } });
+    await click(".o_time_picker_input");
+    await animationFrame();
+    expect(".o_time_picker_option").toHaveCount(96);
+
+    pickerRenders = 0;
+    itemRenders = 0;
+    await edit("12:1", { confirm: false });
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("12:1");
+    expect(pickerRenders).toBe(0);
+    expect(itemRenders).toBe(0);
+
+    await press("ArrowDown");
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("12:15");
+    expect(pickerRenders).toBe(0);
 });

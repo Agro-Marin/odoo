@@ -13,7 +13,7 @@
                                 height="24px"
                                 class="img-fluid"
                                 t-att-src="app.icon" />
-                            <t t-esc="app.shortdesc" />
+                            <t t-out="app.shortdesc" />
                         </div>
                     </li>
                 </t>

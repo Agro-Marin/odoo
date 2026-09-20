@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.text_input");
 export class TextInputPopup extends Component {
     static template = "point_of_sale.TextInputPopup";
     static components = { Dialog };
@@ -32,6 +34,11 @@ export class TextInputPopup extends Component {
         this.inputRef.el.select();
     }
     confirm() {
+        log.logic("confirm", () => ({
+            title: this.props.title,
+            length: this.state.inputValue.length,
+            changed: this.state.inputValue !== this.props.startingValue,
+        }));
         this.props.getPayload(this.state.inputValue);
         this.props.close();
     }

@@ -1,5 +1,5 @@
 {
-    "name": "S\u00e9n\u00e9gal - Accounting",
+    "name": "Sénégal - Accounting",
     "category": "Accounting/Localizations/Account Charts",
     "description": """
 This module implements the taxes for Sénégal.

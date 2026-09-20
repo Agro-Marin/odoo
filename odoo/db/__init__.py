@@ -1,12 +1,15 @@
 import atexit
-import logging
 
+from odoo.libs.debug_log import DebugLog
+
+from . import metrics as _metrics
 from . import settings as pool_settings
 from .budget import ConnectionBudget
-from .cursor import BaseCursor, Cursor, Savepoint
+from .cursor import BaseCursor, Connection, Cursor, Savepoint
 from .endpoints import EndpointRegistry, get_endpoint_key
 from .metrics import classify_query
-from .pool import Connection, ConnectionPool, PoolError
+from .pool import ConnectionPool, PoolError
+from .replica import get_replica_health
 from .savepoint import get_or_create_row
 from .settings import PoolSettings
 from .schema import FunctionStatus, get_unaccent_status, has_trigram
@@ -24,6 +27,7 @@ __all__ = [
     "PoolError",
     "PoolSettings",
     "Savepoint",
+    "cancel_queries_of",
     "classify_query",
     "close_all",
     "close_db",
@@ -33,6 +37,7 @@ __all__ = [
     "get_connection_info_for_database",
     "get_or_create_row",
     "get_pool_health",
+    "get_replica_health",
     "get_unaccent_status",
     "has_trigram",
     "is_maintenance_db",
@@ -40,7 +45,7 @@ __all__ = [
     "sql_counter",  # noqa: F822  served by the module-level __getattr__ below
 ]
 
-_logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 registry = EndpointRegistry()
 
@@ -51,6 +56,7 @@ def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Conn
     if not allow_uri and db != to:
         msg = "URI connections not allowed"
         raise ValueError(msg)
+    _debug.logic("db.connect", db=db, readonly=readonly, uri=db != to)
     return Connection(
         registry.get_pool_at_endpoint(
             get_endpoint_key(info, settings), readonly, settings
@@ -69,19 +75,28 @@ def get_pool_health() -> dict:
 
 
 def close_db(db_name: str) -> None:
-    registry.close_db(db_name)
+    with _debug.perf("db.close_db", db=db_name):
+        registry.close_db(db_name)
 
 
 def close_all() -> None:
-    registry.close_all()
+    with _debug.perf("db.close_all"):
+        registry.close_all()
 
 
 def drain_db(db_name: str) -> None:
-    registry.drain_db(db_name)
+    with _debug.perf("db.drain_db", db=db_name):
+        registry.drain_db(db_name)
 
 
 def drain_all() -> None:
-    registry.drain_all()
+    with _debug.perf("db.drain_all"):
+        registry.drain_all()
+
+
+def cancel_queries_of(thread_name: str) -> int:
+    with _debug.perf("db.cancel_queries_of", thread=thread_name):
+        return registry.cancel_queries_of(thread_name)
 
 
 atexit.register(close_all)
@@ -89,7 +104,5 @@ atexit.register(close_all)
 
 def __getattr__(name: str) -> int:
     if name == "sql_counter":
-        from . import metrics
-
-        return metrics.sql_counter
+        return _metrics.sql_counter
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

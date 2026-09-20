@@ -1,6 +1,8 @@
 from odoo import models
 from odoo.api import ValuesType
 
+from ..tools import debug_log as dbg
+
 
 class MixinProjectPm(models.AbstractModel):
     _name = "mixin.project.pm"
@@ -8,6 +10,11 @@ class MixinProjectPm(models.AbstractModel):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
+        dbg.lifecycle.debug(
+            "mixin.project.pm.copy_data %s: default=%s",
+            dbg.rec(self),
+            dbg.keys(default or {}),
+        )
         return [
             dict(vals, name=self.env._("%s (copy)", record.name))
             for record, vals in zip(self, vals_list, strict=True)

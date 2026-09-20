@@ -16,10 +16,10 @@ class AccountAnalyticAccount(models.Model):
 
     name = fields.Char(
         string="Analytic Account",
+        translate=True,
         index="trigram",
         required=True,
         tracking=True,
-        translate=True,
     )
     code = fields.Char(
         string="Reference",
@@ -27,62 +27,50 @@ class AccountAnalyticAccount(models.Model):
         tracking=True,
     )
     active = fields.Boolean(
-        "Active",
-        help="Deactivate the account.",
         default=True,
         tracking=True,
+        help="Deactivate the account.",
     )
     plan_id = fields.Many2one(
-        "account.analytic.plan",
-        string="Plan",
-        required=True,
+        comodel_name="account.analytic.plan",
         index=True,
+        required=True,
     )
-    root_plan_id = fields.Many2one(
-        "account.analytic.plan",
-        string="Root Plan",
+    root_plan_id = fields.Many2one(  # noqa: E8529  plan_id.root_id is a non-stored compute over parent_path: there is no column to join
+        comodel_name="account.analytic.plan",
         related="plan_id.root_id",
+        string="Root Plan",
         store=True,
     )
     color = fields.Integer(
-        "Color Index",
         related="plan_id.color",
+        string="Color Index",
     )
 
     line_ids = fields.One2many(
-        "account.analytic.line",
-        "auto_account_id",  # magic link to the right column (plan) by using the context in the view
+        comodel_name="account.analytic.line",
+        inverse_name="auto_account_id",  # magic link to the right column (plan) by using the context in the view
         string="Analytic Lines",
     )
 
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
     )
 
     partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Customer",
+        index="btree_not_null",
+        check_company=True,
         # use bypass_search_access to speed up name_search call
         bypass_search_access=True,
         tracking=True,
-        check_company=True,
-        index="btree_not_null",
     )
 
-    balance = fields.Monetary(
-        compute="_compute_debit_credit_balance",
-        string="Balance",
-    )
-    debit = fields.Monetary(
-        compute="_compute_debit_credit_balance",
-        string="Debit",
-    )
-    credit = fields.Monetary(
-        compute="_compute_debit_credit_balance",
-        string="Credit",
-    )
+    balance = fields.Monetary(compute="_compute_debit_credit_balance")
+    debit = fields.Monetary(compute="_compute_debit_credit_balance")
+    credit = fields.Monetary(compute="_compute_debit_credit_balance")
 
     currency_id = fields.Many2one(
         related="company_id.currency_id",
@@ -92,7 +80,7 @@ class AccountAnalyticAccount(models.Model):
     @api.constrains("company_id")
     def _check_company_consistency(self):
         for company, accounts in groupby(self, lambda account: account.company_id):
-            if company and self.env["account.analytic.line"].sudo().search_count(
+            if company and self.env["account.analytic.line"].sudo().search_count(  # noqa: E8507 - one query per company; accounts sharing one were merged above
                 [
                     ("auto_account_id", "in", [account.id for account in accounts]),
                     "!",
@@ -139,48 +127,6 @@ class AccountAnalyticAccount(models.Model):
             self_context = self.with_context(analytic_plan_id=self.plan_id.id)
         return super(AccountAnalyticAccount, self_context).web_read(specification)
 
-    def _read_group_select(self, aggregate_spec, query):
-        # flag balance/debit/credit as aggregatable, and manually sum the values
-        # from the records in the group
-        if aggregate_spec in (
-            "balance:sum",
-            "balance:sum_currency",
-            "debit:sum",
-            "debit:sum_currency",
-            "credit:sum",
-            "credit:sum_currency",
-        ):
-            return super()._read_group_select("id:recordset", query)
-        return super()._read_group_select(aggregate_spec, query)
-
-    def _read_group_postprocess_aggregate(self, aggregate_spec, raw_values):
-        if aggregate_spec in (
-            "balance:sum",
-            "balance:sum_currency",
-            "debit:sum",
-            "debit:sum_currency",
-            "credit:sum",
-            "credit:sum_currency",
-        ):
-            field_name, op = aggregate_spec.split(":")
-            column = super()._read_group_postprocess_aggregate(
-                "id:recordset", raw_values
-            )
-            if op == "sum":
-                return (sum(records.mapped(field_name)) for records in column)
-            if op == "sum_currency":
-                return (
-                    sum(
-                        record.currency_id._convert(
-                            from_amount=record[field_name],
-                            to_currency=self.env.company.currency_id,
-                        )
-                        for record in records
-                    )
-                    for records in column
-                )
-        return super()._read_group_postprocess_aggregate(aggregate_spec, raw_values)
-
     @api.depends("line_ids.amount")
     def _compute_debit_credit_balance(self):
         def convert(amount, from_currency):
@@ -201,7 +147,7 @@ class AccountAnalyticAccount(models.Model):
             if not plan:
                 accounts.debit = accounts.credit = accounts.balance = 0
                 continue
-            credit_groups = self.env["account.analytic.line"]._read_group(
+            credit_groups = self.env["account.analytic.line"]._read_group(  # noqa: E8507 - one query per plan: the plan names the column to group on
                 domain=domain
                 + [(plan._column_name(), "in", self.ids), ("amount", ">=", 0.0)],
                 groupby=[plan._column_name(), "currency_id"],
@@ -211,7 +157,7 @@ class AccountAnalyticAccount(models.Model):
             for account, currency, amount_sum in credit_groups:
                 data_credit[account.id] += convert(amount_sum, currency)
 
-            debit_groups = self.env["account.analytic.line"]._read_group(
+            debit_groups = self.env["account.analytic.line"]._read_group(  # noqa: E8507 - one query per plan: the plan names the column to group on
                 domain=domain
                 + [(plan._column_name(), "in", self.ids), ("amount", "<", 0.0)],
                 groupby=[plan._column_name(), "currency_id"],

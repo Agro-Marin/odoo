@@ -63,22 +63,24 @@ export const DocumentsRendererMixin = (component) =>
                 },
             );
 
-            const { hover, invalid } = this.constructor.dropHoverClasses;
-            useDraggableDocuments({
-                ref: this.root,
-                model: this.env.model,
-                targetSelector: this.constructor.dropTargetSelector,
-                elements: this.constructor.recordSelector,
-                preventDrag: () =>
-                    this.env.searchModel.getSelectedFolderId() === "TRASH" ||
-                    this.getIsDomainSelected(),
-                onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
-                    addClass(target, isInvalid ? invalid : hover);
-                },
-                onTargetPointerLeave: ({ removeClass, target }) => {
-                    removeClass(target, invalid, hover);
-                },
-            });
+            if (this.constructor.recordSelector) {
+                const { hover, invalid } = this.constructor.dropHoverClasses;
+                useDraggableDocuments({
+                    ref: this.root,
+                    model: this.env.model,
+                    targetSelector: this.constructor.dropTargetSelector,
+                    elements: this.constructor.recordSelector,
+                    preventDrag: () =>
+                        this.env.searchModel.getSelectedFolderId() === "TRASH" ||
+                        this.getIsDomainSelected(),
+                    onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
+                        addClass(target, isInvalid ? invalid : hover);
+                    },
+                    onTargetPointerLeave: ({ removeClass, target }) => {
+                        removeClass(target, invalid, hover);
+                    },
+                });
+            }
 
             this.documentService.focusRecord(
                 this.selection?.[0] || this.getContainerRecord(),

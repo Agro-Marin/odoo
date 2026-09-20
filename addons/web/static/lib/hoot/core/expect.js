@@ -678,6 +678,25 @@ export function makeExpect(params) {
         return !currentResultInErrorState;
     }
 
+    /**
+     * A test that outlives its timeout fails on its own result, so the run's
+     * verdict counts it; the runner's global error is the log line, not the
+     * failure.
+     *
+     * @param {number} timeout
+     */
+    function onTimeout(timeout) {
+        if (!currentResult) {
+            return false;
+        }
+        currentResult.registerEvent("assertion", {
+            label: "timeout",
+            pass: false,
+            reportMessage: [r`test timed out after`, timeout, r`milliseconds`],
+        });
+        return true;
+    }
+
     /** @param {CustomEvent<InteractionDetails>} event */
     function onInteraction({ detail, type }) {
         if (!currentResult) {
@@ -826,6 +845,7 @@ export function makeExpect(params) {
         after: afterTest,
         before: beforeTest,
         error: onError,
+        timeout: onTimeout,
     };
 
     /** @type {CaseResult | null} */

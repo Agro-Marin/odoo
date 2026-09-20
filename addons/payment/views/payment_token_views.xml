@@ -10,18 +10,18 @@
                     <field name="active" invisible="1" />
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
                             name="%(action_payment_transaction_linked_to_token)d"
                             type="action"
+                            string="Payments"
                             icon="fa-money"
-                            string="Payments">
+                            class="oe_stat_button">
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group name="general_information">
                             <field name="payment_details" />
@@ -53,8 +53,8 @@
                 <field name="provider_ref" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -67,21 +67,21 @@
                 <field name="partner_id" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Provider"
                         name="provider_id"
+                        string="Provider"
                         context="{'group_by': 'provider_id'}" />
                     <filter
-                        string="Partner"
                         name="partner_id"
+                        string="Partner"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>

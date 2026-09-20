@@ -17,41 +17,38 @@ class GamificationMentorship(models.Model):
     _rec_name = "display_name"
 
     mentor_id = fields.Many2one(
-        "res.users",
-        string="Mentor",
-        required=True,
+        comodel_name="res.users",
         index=True,
+        required=True,
         ondelete="cascade",
         tracking=True,
     )
     mentee_id = fields.Many2one(
-        "res.users",
-        string="Mentee",
-        required=True,
+        comodel_name="res.users",
         index=True,
+        required=True,
         ondelete="cascade",
         tracking=True,
     )
     state = fields.Selection(
-        [
+        selection=[
             ("pending", "Awaiting Confirmation"),
             ("active", "Active"),
             ("completed", "Completed"),
             ("cancelled", "Cancelled"),
         ],
         default="pending",
+        index=True,
         required=True,
         tracking=True,
-        index=True,
     )
     start_date = fields.Date(
-        "Start Date",
         default=fields.Date.today,
         readonly=True,
     )
-    end_date = fields.Date("End Date", tracking=True)
+    end_date = fields.Date(tracking=True)
     description = fields.Text(
-        "Goals",
+        string="Goals",
         help="What the mentor and mentee aim to achieve together.",
     )
 
@@ -70,25 +67,25 @@ class GamificationMentorship(models.Model):
     # a mentorship starts ``pending`` and pays nothing until the counterparty
     # confirms it -- see ``_check_may_accept``.
     mentor_karma_per_milestone = fields.Integer(
-        "Mentor Karma per Milestone",
+        string="Mentor Karma per Milestone",
         default=25,
         groups="base.group_erp_manager",
         help="Karma granted to the mentor when the mentee reaches a new rank.",
     )
     mentor_karma_on_completion = fields.Integer(
-        "Mentor Karma on Completion",
+        string="Mentor Karma on Completion",
         default=100,
         groups="base.group_erp_manager",
         help="Karma bonus for the mentor when the mentorship is completed.",
     )
     mentee_milestones_reached = fields.Integer(
-        "Milestones Reached",
+        string="Milestones Reached",
         default=0,
         readonly=True,
         help="Number of rank-ups the mentee achieved during this mentorship.",
     )
     total_mentor_karma = fields.Integer(
-        "Total Mentor Karma Earned",
+        string="Total Mentor Karma Earned",
         default=0,
         readonly=True,
     )
@@ -97,8 +94,7 @@ class GamificationMentorship(models.Model):
     # badge is granted via ``sudo()``, which bypasses the badge model's own
     # "you can not grant a badge to yourself" guard.
     completion_badge_id = fields.Many2one(
-        "gamification.badge",
-        string="Completion Badge",
+        comodel_name="gamification.badge",
         groups="base.group_erp_manager",
         help="Badge granted to both mentor and mentee on completion.",
     )

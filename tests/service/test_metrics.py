@@ -6,6 +6,8 @@ import pytest
 
 from odoo.service import _process_state
 
+from .conftest import common_server, prefork_server, threaded_server, websocket_server
+
 
 @pytest.fixture(scope="module")
 def mod():
@@ -76,18 +78,20 @@ class TestServiceMetrics:
     @staticmethod
     def _prefork(pid):
         """A real PreforkServer, since it is the one that answers now."""
-        from odoo.service._prefork import PreforkServer
+        from odoo.service._census import WorkerCensus
 
-        server = object.__new__(PreforkServer)
-        server.workers = {1: object(), 2: object()}
-        server.workers_http = {1: object(), 2: object()}
-        server.workers_cron = {3: object()}
-        server.workers_job = {}
-        server.population = 4
-        server.generation = 17
-        server.long_polling_pid = 999
-        server.pid = pid
-        return server
+        return prefork_server(
+            workers={1: object(), 2: object()},
+            workers_http={1: object(), 2: object()},
+            workers_cron={3: object()},
+            workers_job={},
+            population=4,
+            generation=17,
+            _exits={"clean": 2, "crash": 1},
+            long_polling_pid=999,
+            pid=pid,
+            _census=WorkerCensus(pid),
+        )
 
     def test_prefork_reports_worker_counts(self, mod):
         server = self._prefork(os.getpid())
@@ -98,7 +102,22 @@ class TestServiceMetrics:
         assert out["workers"] == {"http": 2, "cron": 1, "job": 0}
         assert out["worker_population"] == 4
         assert out["worker_generation"] == 17
+        assert out["worker_exits"] == {"clean": 2, "crash": 1}
         assert out["long_polling_alive"] is True
+
+    def test_worker_exits_render_as_one_counter_family_by_outcome(self, mod):
+        server = self._prefork(os.getpid())
+        with patch.object(_process_state, "server", server):
+            text = mod.render_prometheus_exposition()
+        assert "# TYPE odoo_worker_exits_total counter" in text
+        assert re.search(
+            r'odoo_worker_exits_total\{[^}]*outcome="clean"[^}]*\} 2', text
+        )
+        assert re.search(
+            r'odoo_worker_exits_total\{[^}]*outcome="crash"[^}]*\} 1', text
+        )
+        _, errors = parse_exposition(text)
+        assert not errors, errors
 
     def test_forked_worker_omits_the_master_only_gauges(self, mod):
         server = self._prefork(os.getpid() + 1)
@@ -110,6 +129,7 @@ class TestServiceMetrics:
             "workers",
             "worker_population",
             "worker_generation",
+            "worker_exits",
             "long_polling_alive",
         ):
             assert key not in out, f"{key} is master-only but a worker emitted it"
@@ -120,6 +140,7 @@ class TestServiceMetrics:
             "odoo_workers",
             "odoo_worker_population",
             "odoo_worker_generation",
+            "odoo_worker_exits_total",
             "odoo_long_polling_alive",
         ):
             assert family not in text
@@ -129,11 +150,10 @@ class TestServiceMetrics:
     def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod, monkeypatch):
         import threading
 
-        from odoo.service._threaded import ThreadedServer
-
-        server = object.__new__(ThreadedServer)
+        server = threaded_server()
         server.httpd = MagicMock(max_http_threads=31)
         server.limits_reached_threads = set()
+        server._overrun_start_times = {}
 
         monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
         with patch.object(_process_state, "server", server):
@@ -142,6 +162,7 @@ class TestServiceMetrics:
         assert out["flavor"] == "threaded"
         assert out["http_threads_max"] == 31
         assert out["threads"]["http"] >= 1
+        assert out["overruns_cancelled"] == 0
         assert set(out["threads"]) == {"http", "cron", "job", "websocket"}, (
             "websocket threads are long-lived and hold a thread and a "
             "connection each; they are exempt from check_limits, not from "
@@ -152,13 +173,26 @@ class TestServiceMetrics:
 class TestEveryServerAnswersForItself:
     """`get_service_metrics` asks the server; it no longer recognises one."""
 
+    def test_threaded_counts_the_overruns_it_cancelled(self, mod):
+        server = threaded_server()
+        server.httpd = MagicMock(max_http_threads=31)
+        server.limits_reached_threads = set()
+        server._overrun_start_times = {}
+        server._overruns_cancelled = 5
+        with patch.object(_process_state, "server", server):
+            text = mod.render_prometheus_exposition()
+        assert "# TYPE odoo_overruns_cancelled_total counter" in text
+        assert "odoo_overruns_cancelled_total{" in text
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+
     def test_each_flavour_names_itself(self):
         from odoo.service._prefork import PreforkServer
-        from odoo.service._threaded import EventServer, ThreadedServer
+        from odoo.service._threaded import ThreadedServer, WebsocketServer
 
         assert PreforkServer.flavor == "prefork"
         assert ThreadedServer.flavor == "threaded"
-        assert EventServer.flavor == "evented"
+        assert WebsocketServer.flavor == "evented"
 
     def test_the_base_answers_unknown_rather_than_a_class_name(self):
         from odoo.service._base_server import CommonServer
@@ -169,9 +203,7 @@ class TestEveryServerAnswersForItself:
         )
 
     def test_a_flavour_that_declares_nothing_still_renders(self, mod):
-        from odoo.service._base_server import CommonServer
-
-        server = object.__new__(CommonServer)
+        server = common_server()
         with patch.object(_process_state, "server", server):
             out = mod.get_service_metrics()
             text = mod.render_prometheus_exposition()
@@ -179,18 +211,19 @@ class TestEveryServerAnswersForItself:
         _, errors = parse_exposition(text)
         assert not errors, errors
 
-    def test_the_evented_server_does_not_claim_thread_metrics(self, mod):
-        from odoo.service._threaded import EventServer
-
-        server = object.__new__(EventServer)
+    def test_the_evented_server_reports_its_pool_but_no_time_limits(self, mod):
+        """It runs the same threaded HTTP server as --workers 0, so its
+        threads are real; it has no limit monitor, so that count is not."""
+        server = websocket_server()
         with patch.object(_process_state, "server", server):
             out = mod.get_service_metrics()
         assert out["flavor"] == "evented"
-        for key in ("threads", "http_threads_max", "limits_reached_threads"):
-            assert key not in out, (
-                f"the evented server has no {key}; reporting one as zero is a "
-                f"number an operator can act on and should not"
-            )
+        assert set(out["threads"]) == {"http", "cron", "job", "websocket"}
+        assert "http_threads_max" in out
+        assert "limits_reached_threads" not in out, (
+            "the evented server has no limit monitor; reporting its count as "
+            "zero is a number an operator can act on and should not"
+        )
 
 
 class TestPrometheusExposition:
@@ -274,16 +307,45 @@ class TestPrometheusExposition:
             "its own exclusion"
         )
 
-    def test_booleans_render_as_one_and_zero(self, mod):
-        from odoo.service._prefork import PreforkServer
+    def test_replica_routers_render_one_family_per_database(self, mod, pooled_db):
+        health = {
+            "prod": {
+                "lag": {
+                    "enabled": True,
+                    "max_lag_seconds": 1.0,
+                    "last_lag_seconds": float("inf"),
+                    "lagging": True,
+                },
+                "breaker": {
+                    "closed": False,
+                    "failures": 2,
+                    "trips": 1,
+                    "failure_threshold": 1,
+                    "failure_window_seconds": None,
+                    "cooldown_seconds": 30.0,
+                    "cooldown_remaining_seconds": 12.5,
+                },
+                "write_pins": 3,
+            }
+        }
+        with patch.object(pooled_db, "get_replica_health", return_value=health):
+            text = mod.render_prometheus_exposition()
+        declared, errors = parse_exposition(text)
+        assert not errors, errors
+        pid = os.getpid()
+        label = f'{{pid="{pid}",database="prod"}}'
+        assert f"odoo_replica_breaker_closed{label} 0" in text
+        assert f"odoo_replica_breaker_cooldown_remaining_seconds{label} 12.5" in text
+        assert f"odoo_replica_lag_seconds{label} +Inf" in text
+        assert f"odoo_replica_lagging{label} 1" in text
+        assert f"odoo_replica_write_pins{label} 3" in text
+        assert "odoo_replica_breaker_failure_window_seconds" not in text, (
+            "None is configuration, not a sample"
+        )
+        assert declared["odoo_replica_breaker_trips"] == "gauge"
 
-        server = object.__new__(PreforkServer)
-        server.workers = {}
-        server.workers_http = server.workers_cron = server.workers_job = {}
-        server.population = 0
-        server.generation = 0
-        server.long_polling_pid = None
-        server.pid = os.getpid()
+    def test_booleans_render_as_one_and_zero(self, mod):
+        server = prefork_server(population=0)
 
         with patch.object(_process_state, "server", server):
             text = mod.render_prometheus_exposition()
@@ -409,11 +471,10 @@ class TestReportingAndRecyclingAreDifferentQuestions:
     def test_websocket_threads_are_counted(self, mod):
         import threading
 
-        from odoo.service._threaded import ThreadedServer
-
-        server = object.__new__(ThreadedServer)
+        server = threaded_server()
         server.httpd = None
         server.limits_reached_threads = set()
+        server._overrun_start_times = {}
 
         stop = threading.Event()
         ws = threading.Thread(target=stop.wait, args=(10,), daemon=True)
@@ -424,6 +485,23 @@ class TestReportingAndRecyclingAreDifferentQuestions:
         finally:
             stop.set()
             ws.join()
+
+    def test_the_evented_port_counts_its_threads_too(self, mod):
+        import threading
+
+        server = websocket_server(httpd=MagicMock(max_http_threads=7))
+        stop = threading.Event()
+        ws = threading.Thread(target=stop.wait, args=(10,), daemon=True)
+        ws.type = "websocket"
+        ws.start()
+        try:
+            out = server.get_metrics()
+        finally:
+            stop.set()
+            ws.join()
+        assert out["threads"]["websocket"] >= 1
+        assert out["http_threads_max"] == 7
+        assert "limits_reached_threads" not in out
 
     def test_websocket_threads_are_never_time_limited(self):
         from odoo.service import _threaded

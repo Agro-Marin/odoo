@@ -13,20 +13,20 @@
                 <group id="job_skills">
                     <field
                         name="current_job_skill_ids"
+                        string="Expected Skills"
                         widget="many2many_tags"
                         options="{'color_field': 'color'}"
-                        readonly="True"
-                        string="Expected Skills"
-                        groups="!hr.group_hr_user" />
+                        groups="!hr.group_hr_user"
+                        readonly="True" />
                 </group>
             </div>
             <div name="recruitment_target" position="after">
                 <field
                     name="current_job_skill_ids"
-                    mode="list"
+                    string="Expected Skills"
                     widget="many2one_tags_skills"
-                    context="{'default_job_id': id}"
-                    string="Expected Skills">
+                    mode="list"
+                    context="{'default_job_id': id}">
                     <list>
                         <field name="skill_id" />
                         <field name="skill_level_id" />

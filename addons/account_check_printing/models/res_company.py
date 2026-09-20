@@ -7,10 +7,10 @@ class ResCompany(models.Model):
     # This field needs to be overridden with `selection_add` in the modules which intends to add report layouts.
     # The xmlID of all the report actions which are actually Check Layouts has to be kept as key of the selection.
     account_check_printing_layout = fields.Selection(
-        string="Check Layout",
         selection=[
             ("disabled", "None"),
         ],
+        string="Check Layout",
         default="disabled",
         help="Select the format corresponding to the check paper you will be printing your checks on.\n"
         "In order to disable the printing feature, select 'None'.",

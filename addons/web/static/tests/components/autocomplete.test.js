@@ -20,8 +20,12 @@ import {
     queryRect,
     runAllTimers,
 } from "@odoo/hoot-dom";
-import { Component, useState, xml } from "@odoo/owl";
-import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { Component, onRendered, useState, xml } from "@odoo/owl";
+import {
+    contains,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 
 /**
@@ -238,6 +242,29 @@ test("pending debounced input is cancelled on close (no reopen after escape)", a
     expect(loadCount).toBe(loadsAfterOpen);
 });
 
+test("clicking the input while typing is pending still searches what was typed", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static props = [];
+        sources = buildSources((/** @type {string} */ request) =>
+            [item("World"), item("Hello")].filter((option) =>
+                option.label.startsWith(request),
+            ),
+        );
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(queryAllTexts(".o-autocomplete--dropdown-item")).toEqual(["World", "Hello"]);
+
+    await contains(".o-autocomplete input").edit("Wor", { confirm: false });
+    await contains(".o-autocomplete input").click();
+    await runAllTimers();
+    await animationFrame();
+    expect(queryAllTexts(".o-autocomplete--dropdown-item")).toEqual(["World"]);
+});
+
 test("select input text on first focus", async () => {
     class Parent extends Component {
         static components = { AutoComplete };
@@ -280,6 +307,62 @@ test("scroll outside should cancel result", async () => {
     await contains(".autocomplete_container").scroll({ top: 10 });
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
     expect(".o-autocomplete input").toHaveValue("Hello");
+});
+
+test("a scroll that did not move the input does not cancel the result", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <div class="autocomplete_container overflow-auto" style="max-height: 100px;">
+                <div style="height: 1000px;">
+                    <AutoComplete value="'Hello'" sources="sources" autoSelect="true"/>
+                </div>
+            </div>
+        `;
+        static props = [];
+
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await contains(".o-autocomplete input").edit("H", { confirm: false });
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+
+    queryOne(".autocomplete_container").dispatchEvent(new Event("scroll"));
+    await animationFrame();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    expect(".o-autocomplete input").toHaveValue("H");
+});
+
+test("arrow navigation does not scroll an ancestor of the fixed menu", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = [];
+        static template = xml`
+            <div class="autocomplete_container overflow-auto" style="height: 60px;">
+                <div style="height: 1000px;">
+                    <AutoComplete sources="sources"/>
+                </div>
+            </div>`;
+        sources = buildSources(() => [
+            item("First"),
+            item("Second", () => expect.step("Second")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").focus();
+    await press("ArrowDown");
+    await animationFrame();
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".autocomplete_container").toHaveProperty("scrollTop", 0);
+    expect(".o-autocomplete--dropdown-menu").toHaveCount(1);
+    expect(".ui-state-active").toHaveText("Second");
+    await press("Enter");
+    await animationFrame();
+    expect.verifySteps(["Second"]);
 });
 
 test("a page-level scroll does not cancel the result", async () => {
@@ -1694,4 +1777,77 @@ test("an inline list is reachable by tab", async () => {
     expect(document.activeElement).toBe(
         queryOne(".o-autocomplete--dropdown-item:first-child a"),
     );
+});
+
+test("typing does not render the component until the debounced search opens the list", async () => {
+    let renders = 0;
+    patchWithCleanup(AutoComplete.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        },
+    });
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="'Hello'" sources="sources"/>`;
+        static props = [];
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+    await mountWithCleanup(Parent);
+    expect(".o-autocomplete input").toHaveValue("Hello");
+    const mounted = renders;
+
+    await contains(".o-autocomplete input").fill("abc", { confirm: false });
+    await animationFrame();
+    expect(renders).toBe(mounted, {
+        message: "three keystrokes render nothing: the input owns its value",
+    });
+    expect(".o-autocomplete input").toHaveValue("abc");
+
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    expect(renders).toBe(mounted + 1, {
+        message: "the debounced search renders once, with the loaded options",
+    });
+});
+
+for (const outcome of ["resolve", "reject"]) {
+    test(`destroying autocomplete completes a pending open before its source can ${outcome}`, async () => {
+        const loaded = new Deferred();
+        const autocomplete = await mountWithCleanup(AutoComplete, {
+            props: { sources: [{ options: () => loaded }] },
+        });
+        patchWithCleanup(autocomplete, {
+            reportSourceError: () => expect.step("late error"),
+        });
+        let finished = false;
+        autocomplete.open().then(() => {
+            finished = true;
+        });
+        autocomplete.__owl__.app.destroy();
+        await animationFrame();
+        expect(finished).toBe(true);
+        if (outcome === "resolve") {
+            loaded.resolve([{ label: "Late option" }]);
+        } else {
+            loaded.reject(new Error("late source failure"));
+        }
+        await animationFrame();
+        expect.verifySteps([]);
+    });
+}
+
+test("waiting for current options does not focus an input destroyed during the wait", async () => {
+    const autocomplete = await mountWithCleanup(AutoComplete, {
+        props: { sources: [] },
+    });
+    const loaded = new Deferred();
+    autocomplete._loadedRequest = "old";
+    autocomplete.inputRef.el.value = "new";
+    autocomplete.loadingPromise = loaded;
+    const clicked = autocomplete.onOptionClick({});
+    autocomplete.__owl__.app.destroy();
+    loaded.resolve();
+    await clicked;
+    expect(autocomplete.inputRef.el).toBe(null);
 });

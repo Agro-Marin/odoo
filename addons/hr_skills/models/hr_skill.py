@@ -6,12 +6,24 @@ class HrSkill(models.Model):
     _description = "Skill"
     _order = "sequence, name, id"
 
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     sequence = fields.Integer(default=10)
     skill_type_id = fields.Many2one(
-        "hr.skill.type", required=True, index=True, ondelete="cascade"
+        comodel_name="hr.skill.type",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     color = fields.Integer(related="skill_type_id.color")
+
+    @api.constrains("skill_type_id")
+    def _check_skill_type_id(self):
+        self.env["mixin.hr.individual.skill"]._check_library_type_matches_rows(
+            self, "skill_id"
+        )
 
     @api.depends("skill_type_id")
     @api.depends_context("from_skill_dropdown")

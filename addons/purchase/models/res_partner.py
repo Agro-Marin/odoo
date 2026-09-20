@@ -10,8 +10,8 @@ class ResPartner(models.Model):
         string="Buyer",
         compute="_compute_user_purchase_id",
         precompute=True,
-        readonly=False,
         store=True,
+        readonly=False,
         tracking=True,
         help="The internal user in charge of purchases from this contact.",
     )
@@ -24,10 +24,8 @@ class ResPartner(models.Model):
     purchase_order_ids = fields.One2many(
         comodel_name="purchase.order",
         inverse_name="partner_id",
-        string="Purchase Order",
     )
     purchase_order_count = fields.Integer(
-        string="Purchase Order Count",
         compute="_compute_purchase_order_count",
         groups="purchase.group_purchase_user",
     )
@@ -55,7 +53,7 @@ class ResPartner(models.Model):
             partner.user_purchase_id = partner.parent_id.user_purchase_id
 
     def _compute_purchase_order_count(self):
-        self._compute_order_count(
+        self._update_order_count(
             "purchase.order",
             "purchase_order_count",
             "purchase.group_purchase_user",

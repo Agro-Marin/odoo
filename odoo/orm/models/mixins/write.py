@@ -3,8 +3,9 @@ from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
-from odoo.libs.sql import SQL
+from odoo.libs.debug_log import DebugLog
+from odoo.libs.profiling import _OrmProfile
+from odoo.tools.cache import TransactionMemo
 from odoo.tools.translate import _
 
 from ..._typing import ValuesType
@@ -13,6 +14,8 @@ from ._crud_common import (
     get_forbidden_field_names,
 )
 from ._model_stubs import _ModelStubs
+
+_debug = DebugLog(__name__)
 
 
 class _WriteFieldPlan(typing.NamedTuple):
@@ -36,39 +39,24 @@ class WriteMixin(_ModelStubs):
                     f"_increment_fields_skiplock: field {field!r} is not an integer"
                 )
 
-        cr = self.env.cr
-        tablename = self._table
-        cr.execute(
-            SQL(
-                """
-            UPDATE %s
-               SET %s
-             WHERE id IN (SELECT id FROM %s WHERE id = ANY(%s) FOR UPDATE SKIP LOCKED)
-            """,
-                SQL.identifier(tablename),
-                SQL(", ").join(
-                    SQL(
-                        "%s = COALESCE(%s, 0) + 1",
-                        SQL.identifier(field),
-                        SQL.identifier(field),
-                    )
-                    for field in fields
-                ),
-                SQL.identifier(tablename),
-                self.ids,
-            )
+        # a pending write of a counter lands before the increment, and the
+        # cache drops the counters after it: a read in the same transaction
+        # answers the incremented value, not the one written or fetched before
+        self.flush_recordset(fields)
+        updated = self.env.backend.increment_columns_skip_locked(self, fields, self.ids)
+        self._invalidate_cache(fields, self._ids, flush=False)
+        _debug.logic(
+            "write.increment_skiplock",
+            model=self._name,
+            fields=list(fields),
+            records=len(self),
+            updated=updated,
         )
-        return bool(cr.rowcount)
+        return bool(updated)
 
     def _write_check_field_access(self, vals: ValuesType) -> None:
         self.check_access("write")
-        for field_name in vals:
-            try:
-                self._check_field_access(self._fields[field_name], "write")
-            except KeyError as e:
-                raise ValueError(
-                    f"Invalid field {field_name!r} in {self._name!r}"
-                ) from e
+        self._check_fields_write_access(vals)
 
     def _write_classify_fields(self, vals: ValuesType) -> _WriteFieldPlan:
         plan = _WriteFieldPlan([], defaultdict(list), [], set(), [])
@@ -105,6 +93,14 @@ class WriteMixin(_ModelStubs):
                 for field in plan.protected
                 if field.compute and field.name not in vals
             ]
+            _debug.logic(
+                "write.protected_settled",
+                model=self._name,
+                records=len(self),
+                protected=len(plan.protected),
+                x2many_inverses=len(plan.x2m_inverse_fnames),
+                to_compute=len(to_compute),
+            )
             if to_compute:
                 self._recompute_recordset(to_compute)
 
@@ -112,19 +108,37 @@ class WriteMixin(_ModelStubs):
         self, inverses_by_hook: dict, real_recs: Self, vals: ValuesType
     ) -> None:
         for fields in inverses_by_hook.values():
+            dirty_marked = 0  # debuglog
             for field in fields:
                 if (
                     not field.store
                     and (not field.inherited or not field.is_x2many)
                     and any(field._iter_cache_missing_ids(real_recs))
                 ):
+                    dirty_marked += 1  # debuglog
                     field.mark_dirty(real_recs, vals[field.name])
 
+            _debug.pipeline(
+                "write.inverse_hook",
+                model=self._name,
+                field=fields[0].name,
+                fields=len(fields),
+                records=len(real_recs),
+                dirty_marked=dirty_marked,
+            )
             try:
                 fields[0].apply_inverse(real_recs)
             except AccessError as e:
+                _debug.logic(
+                    "write.inverse_access_error",
+                    model=self._name,
+                    field=fields[0].name,
+                    inherited=fields[0].inherited,
+                )
                 if fields[0].inherited:
-                    description = self.env["ir.model"]._get(self._name).name
+                    description = self.env.registry.metaschema.model_description(
+                        self.env, self._name
+                    )
                     raise AccessError(
                         _(
                             "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
@@ -139,15 +153,26 @@ class WriteMixin(_ModelStubs):
         if not self:
             return True
 
+        TransactionMemo.discard_for_model(self.env, self._name, vals)
         prof = _OrmProfile(_orm_crud)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record("write", self._name, len(self), frozenset(vals))
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
+                "write", self._name, len(self), frozenset(vals)
+            )
 
         self._write_check_field_access(vals)
         prof.mark("acl")
         env = self.env
 
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "write.records",
+                model=self._name,
+                records=len(self),
+                uid=env.uid,
+                fields=sorted(vals),
+            )
         bad_names = get_forbidden_field_names(self)
         vals = {key: val for key, val in vals.items() if key not in bad_names}
         if self._log_access:
@@ -158,6 +183,16 @@ class WriteMixin(_ModelStubs):
         field_values = plan.field_values
         inverses_by_hook = plan.inverses_by_hook
         protected = plan.protected
+        _debug.pipeline(
+            "write.classified",
+            model=self._name,
+            records=len(self),
+            fields=len(field_values),
+            inverse_hooks=len(inverses_by_hook),
+            modifying_relations=len(plan.fnames_modifying_relations),
+            protected=len(protected),
+            x2many_inverses=len(plan.x2m_inverse_fnames),
+        )
         self._write_settle_protected(plan, vals)
         prof.mark("classify")
 
@@ -171,17 +206,35 @@ class WriteMixin(_ModelStubs):
                 real_recs = self
             else:
                 real_recs = self.filtered("id")
+                if _debug.logic.enabled and len(real_recs) < len(self):
+                    _debug.logic(
+                        "write.new_records_skipped",
+                        model=self._name,
+                        records=len(self),
+                        real=len(real_recs),
+                    )
 
             if len(field_values) > 1:
                 field_values.sort(key=lambda item: item[0].write_sequence)
             for field, value in field_values:
                 field.mark_dirty(self, value)
+            if real_recs:
+                written_names = [field.name for field, _value in field_values]
+                real_recs._evict_x2many_scopes_reading_through(written_names)
+                if self._table_inheritance_root:
+                    real_recs._invalidate_table_inheritance_siblings(written_names)
             prof.mark("dirty")
 
             self.modified(vals)
             prof.mark("after")
 
             if self._parent_store and self._parent_name in vals:
+                _debug.pipeline(
+                    "write.parent_flushed",
+                    model=self._name,
+                    records=len(self),
+                    parent_field=self._parent_name,
+                )
                 self.flush_model([self._parent_name])
 
             inverse_fields = [f.name for fs in inverses_by_hook.values() for f in fs]
@@ -193,6 +246,12 @@ class WriteMixin(_ModelStubs):
             real_recs._check_fields(inverse_fields)
 
         if self._check_company_auto:
+            _debug.pipeline(
+                "write.check_company",
+                model=self._name,
+                records=len(real_recs),
+                fields=len(vals),
+            )
             self._check_company(list(vals))
 
         prof.stop("inverse")
@@ -203,8 +262,10 @@ class WriteMixin(_ModelStubs):
             prof.report(
                 _orm_crud, "write %s: %d records, %s", self._name, len(self), _fnames
             )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("write", self._name, len(self), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "write", self._name, len(self), prof.elapsed
+            )
 
         return True
 
@@ -248,9 +309,23 @@ class WriteMixin(_ModelStubs):
             for fnames, rows in updates.items():
                 self._execute_update(fnames, rows)
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "write.multi_updated",
+                model=self._name,
+                records=len(self),
+                column_groups=len(updates),
+                log_only=sum(len(ids) for ids in log_only_ids.values()),
+                parent_changed=len(parent_records) if parent_records else 0,
+            )
         self._sync_log_access_cache(log_vals, log_only_ids)
 
         if parent_records:
+            _debug.logic(
+                "write.parent_path_changed",
+                model=self._name,
+                records=len(parent_records),
+            )
             parent_records._update_parent_path_on_write()
 
         prof.stop()
@@ -276,14 +351,15 @@ class WriteMixin(_ModelStubs):
             )
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
+        _debug.pipeline(
+            "write.execute_update",
+            model=self._name,
+            columns=len(fnames),
+            rows=len(rows),
+        )
         self.env.backend.update_rows(self, fnames, rows)
 
     def _get_records_with_parent_changed(self, vals_list: list[ValuesType]) -> Self:
-        if not self._parent_store:
-            return self.browse()
-        if not self.env.backend.supports_parent_store:
-            return self.browse()
-
         parent_to_ids = defaultdict(list)
         for id_, vals in zip(self._ids, vals_list, strict=True):
             if self._parent_name in vals:
@@ -294,28 +370,15 @@ class WriteMixin(_ModelStubs):
 
         self.flush_recordset([self._parent_name])
 
-        sql_parent = SQL.identifier(self._parent_name)
-        conditions = []
-        for parent_id, ids in parent_to_ids.items():
-            if parent_id:
-                condition = SQL(
-                    "(%s != %s OR %s IS NULL)",
-                    sql_parent,
-                    parent_id,
-                    sql_parent,
-                )
-            else:
-                condition = SQL("%s IS NOT NULL", sql_parent)
-            conditions.append(SQL('("id" = ANY(%s) AND %s)', list(ids), condition))
-
-        rows = self.env.execute_query(
-            SQL(
-                "SELECT id FROM %s WHERE %s ORDER BY id",
-                SQL.identifier(self._table),
-                SQL(" OR ").join(conditions),
-            )
+        changed = self.env.backend.records_with_parent_changed(self, parent_to_ids)
+        _debug.logic(
+            "write.parent_candidates_probed",
+            model=self._name,
+            parents=len(parent_to_ids),
+            candidates=sum(len(ids) for ids in parent_to_ids.values()),
+            changed=len(changed),
         )
-        return self.browse(row[0] for row in rows)
+        return self.browse(changed)
 
     def _update_parent_path_on_write(self) -> None:
         for parent, records in self.grouped(self._parent_name).items():
@@ -324,25 +387,22 @@ class WriteMixin(_ModelStubs):
             if prefix:
                 parent_ids = {int(label) for label in prefix.split("/")[:-1]}
                 if not parent_ids.isdisjoint(records._ids):
+                    _debug.logic(
+                        "write.parent_path_recursion",
+                        model=self._name,
+                        parent=parent.id,
+                        records=len(records),
+                    )
                     raise UserError(_("Recursion Detected."))
 
-            updated = dict(
-                self.env.execute_query(
-                    SQL(
-                        """ UPDATE %(table)s child
-                    SET parent_path = concat(%(prefix)s::text, substr(child.parent_path,
-                            length(node.parent_path) - length(node.id || '/') + 1))
-                    FROM %(table)s node
-                    WHERE node.id IN %(ids)s
-                    AND child.parent_path LIKE concat(node.parent_path, %(wildcard)s::text)
-                    RETURNING child.id, child.parent_path """,
-                        table=SQL.identifier(self._table),
-                        prefix=prefix,
-                        ids=tuple(records.ids),
-                        wildcard="%",
-                    )
-                )
-            )
+            updated = self.env.backend.move_parent_paths(self, records.ids, prefix)
 
+            _debug.perf.count(
+                "write.parent_path_rewritten",
+                model=self._name,
+                parent=parent.id,
+                records=len(records),
+                descendants=len(updated),
+            )
             self._fields["parent_path"]._update_cache_items(self.env, updated.items())
             self.browse(updated).modified(["parent_path"])

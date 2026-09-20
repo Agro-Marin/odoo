@@ -23,12 +23,16 @@ class ProjectTask(models.Model):
     )
     pricing_type = fields.Selection(related="project_id.pricing_type")
     is_project_map_empty = fields.Boolean(
-        "Is Project map empty", compute="_compute_is_project_map_empty"
+        string="Is Project map empty",
+        compute="_compute_is_project_map_empty",
     )
-    has_multi_sol = fields.Boolean(compute="_compute_has_multi_sol", compute_sudo=True)
+    has_multi_sol = fields.Boolean(
+        compute="_compute_has_multi_sol",
+        compute_sudo=True,
+    )
     timesheet_product_id = fields.Many2one(related="project_id.timesheet_product_id")
     remaining_hours_so = fields.Float(
-        "Time Remaining on SO",
+        string="Time Remaining on SO",
         compute="_compute_remaining_hours_so",
         search="_search_remaining_hours_so",
         compute_sudo=True,
@@ -37,7 +41,8 @@ class ProjectTask(models.Model):
         related="sale_line_id.remaining_hours_available"
     )
     last_sol_of_customer = fields.Many2one(
-        "sale.order.line", compute="_compute_last_sol_of_customer"
+        comodel_name="sale.order.line",
+        compute="_compute_last_sol_of_customer",
     )
 
     @property
@@ -70,7 +75,7 @@ class ProjectTask(models.Model):
                 delta -= timesheet.unit_amount
             if delta:
                 mapped_remaining_hours[timesheet.task_id._origin.id] += (
-                    timesheet.product_uom_id._compute_quantity(
+                    timesheet.product_uom_id._get_quantity_in_unit(
                         delta, uom_hour, raise_if_failure=False
                     )
                 )
@@ -90,7 +95,7 @@ class ProjectTask(models.Model):
                 task.last_sol_of_customer = False
                 continue
             if domain not in sol_per_domain:
-                sol_per_domain[domain] = self.env["sale.order.line"].search(
+                sol_per_domain[domain] = self.env["sale.order.line"].search(  # noqa: E8507 - one query per distinct domain, cached across tasks
                     domain, limit=1
                 )
             task.last_sol_of_customer = sol_per_domain[domain]

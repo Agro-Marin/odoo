@@ -14,14 +14,14 @@
                     <h3 colspan="2">Body</h3>
                     <field
                         name="body_html"
-                        nolabel="1"
+                        widget="html_mail"
                         colspan="2"
-                        widget="html_mail" />
+                        nolabel="1" />
                     <field
                         name="attachment_ids"
-                        nolabel="1"
+                        widget="many2many_binary"
                         colspan="2"
-                        widget="many2many_binary" />
+                        nolabel="1" />
                 </group>
             </form>
         </field>

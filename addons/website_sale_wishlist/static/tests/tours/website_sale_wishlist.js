@@ -129,7 +129,6 @@ registry.category("web_tour.tours").add("shop_wishlist", {
             content: "check that wishlist is empty and no more visible",
             trigger: ":not(:has(.my_wish_quantity:visible))",
         },
-        // Test dynamic attributes
         {
             content: "Create a product with dynamic attribute and its values.",
             trigger: "body",
@@ -293,7 +292,6 @@ registry.category("web_tour.tours").add("shop_wishlist", {
             },
             expectUnloadPage: true,
         },
-        // Test one impossible combination while other combinations are possible
         {
             content: "Archive the first variant",
             trigger: 'header#top:contains("Mitchell Admin")',
@@ -375,7 +373,6 @@ registry.category("web_tour.tours").add("shop_wishlist", {
             },
             expectUnloadPage: true,
         },
-        // test when all combinations are impossible
         {
             content: "Archive all variants",
             trigger: 'header#top:contains("Mitchell Admin")',
@@ -418,7 +415,6 @@ registry.category("web_tour.tours").add("shop_wishlist", {
             content: "Check that there is no wishlist button from /product",
             trigger: "#product_detail:not(:has(.o_add_wishlist_dyn))",
         },
-        // Test if the wishlist button is active or not in /shop
         {
             content: "Go to '/shop?search=Customizable Desk'",
             trigger: "body",

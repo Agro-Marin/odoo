@@ -9,16 +9,16 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Purchase"
-                    string="Purchase"
                     name="purchase"
-                    groups="purchase.group_purchase_manager">
+                    string="Purchase"
+                    groups="purchase.group_purchase_manager"
+                    data-string="Purchase">
                     <field name="order_lock_po" invisible="1" />
-                    <block title="Orders" name="purchase_setting_container">
+                    <block name="purchase_setting_container" title="Orders">
                         <setting
                             id="po_quotation_validity_days"
-                            company_dependent="1"
-                            help="Default number of days a quotation remains valid">
+                            help="Default number of days a quotation remains valid"
+                            company_dependent="1">
                             <label for="po_quotation_validity_days" />
                             <span class="o_row">
                                 <field name="po_quotation_validity_days" />
@@ -30,8 +30,8 @@
                         </setting>
                         <setting
                             id="automatic_lock_confirmed_orders"
-                            company_dependent="1"
-                            help="Automatically lock purchase orders once confirmed to prevent modifications">
+                            help="Automatically lock purchase orders once confirmed to prevent modifications"
+                            company_dependent="1">
                             <field name="lock_confirmed_po" />
                             <div
                                 class="content-group mt16"
@@ -56,8 +56,8 @@
                         <setting
                             id="manage_purchase_agreements"
                             title="A blanket purchase order is a purchase agreement between a buyer and a supplier to deliver goods or services to the buyer at a preset price for a period of time."
-                            documentation="/applications/inventory_and_mrp/purchase/manage_deals/agreements.html"
-                            help="Manage blanket orders and purchase templates">
+                            help="Manage blanket orders and purchase templates"
+                            documentation="/applications/inventory_and_mrp/purchase/manage_deals/agreements.html">
                             <field name="module_purchase_requisition" />
                             <div
                                 class="content-group"
@@ -71,19 +71,19 @@
                             <field name="group_send_reminder" />
                         </setting>
                     </block>
-                    <block title="Invoicing" name="invoicing_settings_container">
+                    <block name="invoicing_settings_container" title="Invoicing">
                         <setting
                             id="three_way_matching"
                             title="If enabled, activates 3-way matching on vendor bills : the items must be received in order to pay the invoice."
-                            documentation="/applications/inventory_and_mrp/purchase/manage_deals/control_bills.html"
-                            help="Make sure you only pay bills for which you received the goods you ordered">
+                            help="Make sure you only pay bills for which you received the goods you ordered"
+                            documentation="/applications/inventory_and_mrp/purchase/manage_deals/control_bills.html">
                             <field
                                 name="module_account_3way_match"
                                 string="3-way matching"
                                 widget="upgrade_boolean" />
                         </setting>
                     </block>
-                    <block title="Products" name="matrix_setting_container">
+                    <block name="matrix_setting_container" title="Products">
                         <setting
                             id="variant_options"
                             help="Purchase variants of a product using attributes (size, color, etc.)"
@@ -95,17 +95,17 @@
                                 <div class="mt8">
                                     <button
                                         name="%(product.action_product_attribute)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Attributes"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                             </div>
                         </setting>
                         <setting
                             id="product_matrix"
-                            title="If installed, the product variants will be added to purchase orders through a grid entry."
                             string="Variant Grid Entry"
+                            title="If installed, the product variants will be added to purchase orders through a grid entry."
                             help="Add several variants to the purchase order from a grid">
                             <field name="module_purchase_product_matrix" />
                         </setting>
@@ -118,9 +118,9 @@
                                 <div class="mt8" invisible="not group_uom">
                                     <button
                                         name="%(uom.action_uom_uom)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Units &amp; Packagings"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                             </div>

@@ -1,5 +1,6 @@
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import {
+    animationFrame,
     manuallyDispatchProgrammaticEvent,
     queryOne,
     queryRect,
@@ -15,18 +16,15 @@ setupInteractionWhiteList("website.bottom_fixed_element");
 describe.current.tags("interaction_dev");
 
 const scrollTo = async function (el, scrollTarget, bottomFixedElement) {
-    // Simulate the scroll event
     await scroll(el, { y: scrollTarget });
-    // Replace the bottomFixedElement at the bottom of the page
     bottomFixedElement.style.position = "absolute";
     bottomFixedElement.style.top = scrollTarget + "px";
     bottomFixedElement.style.left = `calc(50% - ${queryRect(bottomFixedElement).width / 2}px)`;
-    // Dispatch the scroll event
     await manuallyDispatchProgrammaticEvent(document, "scroll");
+    await animationFrame();
 };
 
 const scrollToMiddle = async function (el, bottomFixedElement) {
-    // 2550 = headerHeight + mainHeight + footerHeight
     await scrollTo(
         el,
         2550 / 2 - queryRect(bottomFixedElement).height,
@@ -35,7 +33,6 @@ const scrollToMiddle = async function (el, bottomFixedElement) {
 };
 
 const scrollToBottom = async function (el, bottomFixedElement) {
-    // 2550 = headerHeight + mainHeight + footerHeight
     await scrollTo(el, 2550 - queryRect(bottomFixedElement).height, bottomFixedElement);
 };
 

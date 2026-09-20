@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Chart } from "@website/snippets/s_chart/chart";
+
+const log = makeLogger("website.snippet.s_chart.edit");
 
 const ChartEdit = (I) =>
     class extends I {
@@ -13,6 +16,7 @@ const ChartEdit = (I) =>
             super.start();
             this.websiteEditService = this.services.website_edit;
             this.websiteEditService.callShared("builderOverlay", "refreshOverlays");
+            log.lifecycle("start: overlays refreshed");
         }
     };
 

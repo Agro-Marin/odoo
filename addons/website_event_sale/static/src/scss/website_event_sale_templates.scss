@@ -1,6 +1,6 @@
 #o_wevent_tickets .o_pricelist_dropdown {
     .dropdown-toggle {
-        color: $gray-600; // text-muted
+        color: $gray-600;
         font-style: italic;
     }
     .dropdown-toggle:focus {
@@ -12,7 +12,6 @@
     }
 }
 
-// Match the record cover style of website_event
 .o_wevent_sale_event {
     .o_record_cover_container {
         overflow: hidden;
@@ -24,7 +23,6 @@
         &.o_wevent_event_main_cover {
             min-height: 12rem;
         }
-        // We want the cover to be clickable but without the default link style
         a,
         a:hover {
             color: inherit;

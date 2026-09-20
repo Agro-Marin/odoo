@@ -9,26 +9,26 @@
             <button name="toggle_prod_environment" position="attributes">
                 <attribute
                     name="invisible"
-                    separator=" or "
-                    add="delivery_type == 'gelato'" />
+                    add="delivery_type == 'gelato'"
+                    separator=" or " />
             </button>
             <button name="toggle_debug" position="attributes">
                 <attribute
                     name="invisible"
-                    separator=" or "
-                    add="delivery_type == 'gelato'" />
+                    add="delivery_type == 'gelato'"
+                    separator=" or " />
             </button>
             <field name="integration_level" position="attributes">
                 <attribute
                     name="invisible"
-                    separator=" or "
-                    add="delivery_type == 'gelato'" />
+                    add="delivery_type == 'gelato'"
+                    separator=" or " />
             </field>
             <group name="content" position="attributes">
                 <attribute
                     name="invisible"
-                    separator=" or "
-                    add="delivery_type == 'gelato'" />
+                    add="delivery_type == 'gelato'"
+                    separator=" or " />
             </group>
         </field>
     </record>

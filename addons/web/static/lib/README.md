@@ -44,7 +44,7 @@ commit as the files it describes.
 | `luxon/` | 3.7.2 | `luxon` | Reached only through the `@web/core/l10n/luxon` facade. 1 `AgroMarin:` marker (`luxon.js:8135`). **Fork-modified**. |
 | `odoo_ui_icons/` | 1.2 | — | IcoMoon build over Carbon + Material; see `Read Me.txt`. |
 | `owl/` | 2.8.3 | `@odoo/owl` | Upstream `dist/owl.es.js` verbatim — a published release, **not** an in-tree fork. |
-| `pdfjs/` | 6.1.200 | `pdfjs-dist` | Largest vendored library. 12 `AgroMarin:` markers, all in `web/viewer.js`. **Fork-modified** — see below. Lazy (`@web/core/utils/pdfjs`). |
+| `pdfjs/` | 6.1.200 | `pdfjs-dist` | Largest vendored library. 13 `AgroMarin:` markers, 12 in `web/viewer.js` and 1 in `web/viewer.html`. **Fork-modified** — see below. Lazy (`@web/core/utils/pdfjs`). |
 | `popper_compat/` | generated | — | **Not a third-party library.** Self-contained build of `@web/libs/popper_compat`, which replaced Popper. See below. |
 | `prismjs/` | 1.30.0 | `prismjs` | Custom download with a fixed language set; keep the set when bumping. |
 | `signature_pad/` | 5.1.3 | `signature_pad` | |
@@ -93,7 +93,7 @@ ships the method natively satisfies any runtime check whatever build is vendored
 `tooling/vendored/mechanise_pdfjs.sh <unzipped-dir>`
 reshapes it (`.mjs` to `.js`, source-map references stripped, scripting sandbox and
 sample assets dropped), and its header explains each choice. Run it first, then
-re-apply the 12 `AgroMarin:` markers in `web/viewer.js`.
+re-apply the 12 `AgroMarin:` markers in `web/viewer.js` and the one in `web/viewer.html`.
 
 The reshape is deliberately blind to webpack's build-provenance comments
 (`;// ./node_modules/...`), which name the source module rather than a shipped file.

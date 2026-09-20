@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { descendants } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { memoize } from "@web/core/utils/functions";
+
+const log = makeLogger("website.utils.highlight_utils");
 
 export const textHighlightFactory = {
     underline: (params) => drawPath({ ...params, mode: "line" }),
@@ -259,17 +262,13 @@ export const textHighlightFactory = {
 };
 
 /**
- * Divides the content of a text container into multiple
- * `.o_text_highlight_item` units, and applies the highlight
- * on each unit.
- *
  * @param {HTMLElement} highlightEl
  * @param {String} highlightID
  */
 export function makeHighlightSvgs(highlightEl, highlightID) {
+    const endSvgs = log.perf("makeHighlightSvgs", () => ({ highlightID }));
     const style = window.getComputedStyle(highlightEl);
     if (!style.getPropertyValue("--text-highlight-width")) {
-        // The default value for `--text-highlight-width` is 0.1em.
         highlightEl.style.setProperty(
             "--text-highlight-width",
             `${Math.round(parseFloat(style.fontSize) * 0.1)}px`,
@@ -294,8 +293,6 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
     const numberOfCharPerWidth = memoize((width) => Math.round(width / sizePerChar()));
 
     const containerRect = highlightEl.getBoundingClientRect();
-    // Note: We cannot use `getClientRects()` as we want to be able to draw
-    // text highlights in the snippet/page dialogs where iframe is scaled.
     const inPreviewIframe =
         highlightEl.ownerDocument.documentElement.classList.contains(
             "o_add_snippets_preview",
@@ -317,7 +314,6 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
         svg.style.top = `${(rects.y - firstRect.y) * scale}px`;
         svg.style.bottom = `0px`;
         if (rtl) {
-            // Position from the right instead of left and mirror the SVG
             svg.style.right = `${(firstRect.right - rects.right) * scale}px`;
             svg.dataset.rtlIntendedRightPosition = rects.right;
             svg.style.transform = "scale(-1, 1)";
@@ -326,10 +322,22 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
             svg.style.right = "0px";
         }
     }
+    endSvgs(() => ({
+        textNodes: textNodes.length,
+        rects: rects.length,
+        lines: finalRects.length,
+        svgs: svgs.length,
+        inPreviewIframe,
+        rtl,
+    }));
     return svgs;
 }
 export function applyTextHighlight(highlightEl, highlightID) {
     const svgs = makeHighlightSvgs(highlightEl, highlightID);
+    log.pipeline("applyTextHighlight: appending svgs", () => ({
+        highlightID,
+        svgs: svgs.length,
+    }));
     for (const svg of svgs) {
         highlightEl.appendChild(svg);
         adaptHighlightPosition(highlightEl, svg);
@@ -337,14 +345,10 @@ export function applyTextHighlight(highlightEl, highlightID) {
 }
 
 /**
- * Fix highlight position after highlight insertion
- *
  * @param {HTMLElement} highlightEl
  * @param {HTMLElement} svg
  */
 export function adaptHighlightPosition(highlightEl, svg) {
-    // Reposition element in RTL to what was intended because
-    // safari positionning work differently than other browsers
     if ("rtlIntendedRightPosition" in svg.dataset) {
         const rightPositionDelta =
             svg.getBoundingClientRect().right -
@@ -354,19 +358,18 @@ export function adaptHighlightPosition(highlightEl, svg) {
 }
 
 /**
- * Deactivates a text highlight effect by removing its SVGs.
- *
  * @param {HTMLElement} highlightEl
  */
 export function removeTextHighlight(highlightEl) {
+    log.pipeline("removeTextHighlight", () => ({
+        svgs: highlightEl.querySelectorAll(":scope svg").length,
+    }));
     for (const svg of highlightEl.querySelectorAll(":scope svg")) {
         svg.remove();
     }
 }
 
 /**
- * Returns a new highlight SVG adapted to the text container.
- *
  * @param {HTMLElement} textEl
  * @param {String} highlightID
  */
@@ -375,31 +378,21 @@ export function makeHighlightSvg(highlightID, params) {
     svg.setAttribute("fill", "none");
     svg.classList.add(
         "o_text_highlight_svg",
-        // Identifies DOM content that should not be merged by the editor, even
-        // on identical parents.
         "o_content_no_merge",
         "position-absolute",
         "overflow-visible",
         "pe-none",
     );
     textHighlightFactory[highlightID](params).forEach((pathEl) => {
-        // pathEl.classList.add(`o_text_highlight_path_${highlightID}`);
         svg.appendChild(pathEl);
     });
     return svg;
 }
 
 /**
- * Draws one or many SVG paths using templates of path shape commands.
- *
  * @param {HTMLElement} textEl
- * @param {String} options.mode Specifies how to draw the path:
- * - "pattern": repeat the template along the horizontal axis.
- * - "line": draw a simple line (we specify the width & position).
- * - "free": draw the path shape using the template only.
- * - "fill": used for irregular shapes that do not follow the "stroke" design.
- * @param {Function} options.template Returns a list of SVG path
- * commands adapted to the container's size.
+ * @param {String} options.mode
+ * @param {Function} options.template
  * @returns {String[]}
  */
 function drawPath(options) {
@@ -425,10 +418,6 @@ function drawPath(options) {
     return buildPath(options.template(width, height), options);
 }
 /**
- * Used to build the SVG <path/>, it should mainly adapt it to take into
- * consideration some cases where the shape is a "filled path" instead
- * of a single line stroke.
- *
  * @param {String[]} templates
  * @param {Object} options
  * @returns {Element[]}
@@ -456,9 +445,6 @@ function buildPath(templates, options) {
     });
 }
 /**
- * Used to get the current text highlight id from the top `.o_text_highlight`
- * container class.
- *
  * @param {HTMLElement} el
  * @returns {String}
  */
@@ -481,9 +467,6 @@ function rectToBatch(rects) {
     let lastHeight = rects[0].height;
     let lineIndex2 = 0;
     for (const rect of rects) {
-        // 90% of the previous rectangle height is the tolerance value used
-        // to determine whether two rectangles belong to the same line based
-        // on their vertical position.
         if (rect.x <= lastX || rect.y - lastY > lastHeight * 0.9) {
             lineIndex2++;
         }
@@ -527,12 +510,8 @@ function getTextnodeRects(el) {
 }
 
 /**
- * Returns the closest ancestor element that should be observed for adapting
- * highlight effects.
- *
  * @param {HTMLElement} el
- * @param {HTMLElement} topEl The upper boundary element to observe (defaults
- * to document body).
+ * @param {HTMLElement} topEl
  * @returns {HTMLElement}
  */
 export function closestToObserve(el, topEl = el.ownerDocument.body) {

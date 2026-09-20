@@ -8,7 +8,7 @@ from lxml import etree as ET
 from lxml import html
 from lxml.html import builder as h
 
-from odoo.exceptions import MissingError, UserError
+from odoo.exceptions import MissingError, UserError, ValidationError
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
 from odoo.tests import HttpCase, common, tagged
 
@@ -363,7 +363,8 @@ class TestViewSaving(TestViewSavingCommon):
         self.assertEqual(company.website, "+00 00 000 00 0 000")
 
     @unittest.skip(
-        "save conflict for embedded (saved by third party or previous version in page) not implemented"
+        "save conflict for embedded (saved by third party or previous version in "
+        "page) not implemented - tracked in task 32036"
     )
     def test_embedded_conflict(self):
         e1 = h.SPAN("My Company", attrs(model="res.company", id=1, field="name"))
@@ -599,6 +600,44 @@ class TestViewSaving(TestViewSavingCommon):
         View = self.env["ir.ui.view"]
         View.browse(company_id).save(value=node)
         self.assertEqual(company.name, "Acme Corporation")
+
+    def test_cow_of_a_parentless_primary_given_a_parent_is_an_extension(self):
+        View = self.env["ir.ui.view"]
+        website = self.env.ref("website.default_website")
+        base = View.create(
+            {
+                "name": "cow mode base",
+                "type": "qweb",
+                "key": "website.cow_mode_base",
+                "arch": "<t t-name='website.cow_mode_base'><div/></t>",
+            }
+        )
+        fresh = View.create(
+            {
+                "name": "cow mode fresh",
+                "type": "qweb",
+                "key": "website.cow_mode_fresh",
+                "arch": "<data/>",
+            }
+        )
+        child = View.create(
+            {
+                "name": "cow mode child",
+                "type": "qweb",
+                "key": "website.cow_mode_child",
+                "mode": "primary",
+                "inherit_id": fresh.id,
+                "arch": "<data/>",
+            }
+        )
+        (fresh + child).with_context(website_id=website.id).write(
+            {"inherit_id": base.id}
+        )
+        specific = View.search([("website_id", "=", website.id)])
+        by_key = {view.key: view for view in specific}
+        self.assertEqual(by_key["website.cow_mode_fresh"].mode, "extension")
+        self.assertEqual(by_key["website.cow_mode_child"].mode, "primary")
+        self.assertEqual(fresh.mode, "primary", "the generic is untouched")
 
     def test_field_tail(self):
         replacement = ET.tostring(
@@ -1480,8 +1519,8 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
 
         v1.with_context(website_id=1).write({"name": "Extension Specific"})
 
-        original_pool_init = View.pool._init
-        View.pool._init = True
+        original_ready = View.pool.ready
+        View.pool.ready = False
 
         try:
             View._load_records(
@@ -1499,7 +1538,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
                 ]
             )
         finally:
-            View.pool._init = original_pool_init
+            View.pool.ready = original_ready
 
     def test_specific_view_translation(self):
         self.env["res.lang"]._activate_lang("fr_BE")
@@ -1636,36 +1675,42 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         )
         base_footer.with_context(website_id=1).write({"active": True})
         specific_footer = base_footer._get_views_specific()
-        specific_footer.with_context(lang="en_US").arch_db = "<div>hello</div>"
+        # the specific view is an extension of website.layout and validates
+        # against it, website context or not: its arch is a spec
+        footer = '<xpath expr="//div[@id=\'footer\']" position="replace">%s</xpath>'
+        specific_footer.with_context(lang="en_US").arch_db = footer % "<div>hello</div>"
         specific_footer.update_field_translations(
             "arch_db", {"fr_BE": {"hello": "bonjour"}}
         )
 
         self.assertEqual(
-            specific_footer.with_context(lang="en_US").arch, "<div>hello</div>"
+            specific_footer.with_context(lang="en_US").arch, footer % "<div>hello</div>"
         )
         self.assertEqual(
-            specific_footer.with_context(lang="fr_BE").arch, "<div>bonjour</div>"
+            specific_footer.with_context(lang="fr_BE").arch,
+            footer % "<div>bonjour</div>",
         )
 
-        specific_footer.with_context(
-            delay_translations=True, lang="en_US"
-        ).arch_db = "<h1>hello</h1>"
+        specific_footer.with_context(delay_translations=True, lang="en_US").arch_db = (
+            footer % "<h1>hello</h1>"
+        )
 
         self.assertEqual(
-            specific_footer.with_context(lang="en_US").arch, "<h1>hello</h1>"
+            specific_footer.with_context(lang="en_US").arch, footer % "<h1>hello</h1>"
         )
         self.assertEqual(
-            specific_footer.with_context(lang="fr_BE").arch, "<div>bonjour</div>"
+            specific_footer.with_context(lang="fr_BE").arch,
+            footer % "<div>bonjour</div>",
         )
 
         self.env["ir.module.module"]._load_module_terms(["website"], ["en_US", "fr_BE"])
 
         self.assertEqual(
-            specific_footer.with_context(lang="en_US").arch, "<h1>hello</h1>"
+            specific_footer.with_context(lang="en_US").arch, footer % "<h1>hello</h1>"
         )
         self.assertEqual(
-            specific_footer.with_context(lang="fr_BE").arch, "<div>bonjour</div>"
+            specific_footer.with_context(lang="fr_BE").arch,
+            footer % "<div>bonjour</div>",
         )
 
     def test_soc_complete_flow(self):
@@ -2048,7 +2093,7 @@ class Crawler(HttpCase):
                 "name": "Child View W1",
                 "mode": "extension",
                 "inherit_id": main_view.id,
-                "arch": '<xpath expr="//body" position="replace">It is really not relevant!</xpath>',
+                "arch": '<xpath expr="//body" position="replace"><body>It is really not relevant!</body></xpath>',
                 "key": "_website_sale.child_view_w1",
                 "website_id": website_1.id,
                 "active": False,
@@ -2074,7 +2119,7 @@ class Crawler(HttpCase):
                 "name": "Products Theme Kea",
                 "mode": "extension",
                 "inherit_id": main_view.id,
-                "arch": '<xpath expr="//body" position="replace">Really really not important for this test</xpath>',
+                "arch": '<xpath expr="//body" position="replace"><body>Really really not important for this test</body></xpath>',
                 "key": "_theme_kea_sale.products",
                 "website_id": website_2.id,
                 "customize_show": True,
@@ -2149,7 +2194,10 @@ class Crawler(HttpCase):
             }
         )
         view_from_theme_view_on_w2.write(
-            {"arch": '<t t-call="_theme_kea_sale.t_called_view"/>'}
+            {
+                "arch": '<xpath expr="//body" position="inside">'
+                '<t t-call="_theme_kea_sale.t_called_view"/></xpath>'
+            }
         )
 
         views = View.with_context(website_id=website_1.id).get_related_views(
@@ -2323,15 +2371,6 @@ class TestThemeViews(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFirstPageIdBatchCost(common.TransactionCase):
-    """`first_page_id` is a column of the Website > Pages list.
-
-    It used to run `website.page.search(..., limit=1)` once per view, so opening
-    that list cost a query per row on screen. The assertion is on the MARGINAL
-    cost between two sizes: an absolute query count at one size cannot tell a
-    flat cost from a linear one, and it breaks on every unrelated query added
-    elsewhere.
-    """
-
     def test_first_page_id_does_not_query_per_view(self):
         website = self.env["website"].search([], limit=1)
         pages = self.env["website.page"].create(
@@ -2358,11 +2397,6 @@ class TestFirstPageIdBatchCost(common.TransactionCase):
         views = pages.view_id
 
         def queries_for(count):
-            # Read through the field, not by calling the compute directly: a
-            # direct call runs outside `Field.compute_value`'s `env.protecting`,
-            # so assigning re-enters `__get__` per record and the compute is
-            # invoked once per view on top of the batch. That is an artefact of
-            # the measurement, and it hides what opening the list actually costs.
             self.env.invalidate_all()
             before = self.env.cr.sql_statement_count
             views[:count].mapped("first_page_id")
@@ -2377,3 +2411,47 @@ class TestFirstPageIdBatchCost(common.TransactionCase):
             f"{small} for 2: it is searching per view. Two sizes rather than one, "
             f"and 2 rather than 1 so a warm cache cannot make it vacuous.",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSpecificViewResolution(common.TransactionCase):
+    """A website-specific view is combined in its own website when the
+    context names none: outside one, the generic domain dropped it from its
+    own tree, so it resolved without itself and was written unvalidated."""
+
+    def setUp(self):
+        super().setUp()
+        View = self.env["ir.ui.view"]
+        self.base = View.create(
+            {
+                "name": "resolution base",
+                "type": "qweb",
+                "key": "website.probe_resolution_base",
+                "arch": "<div><span>base</span></div>",
+            }
+        )
+        self.specific = View.create(
+            {
+                "name": "resolution specific",
+                "type": "qweb",
+                "key": "website.probe_resolution_specific",
+                "inherit_id": self.base.id,
+                "website_id": self.env.ref("website.default_website").id,
+                "arch": '<xpath expr="//span" position="after"><b>specific</b></xpath>',
+            }
+        )
+
+    def test_a_specific_view_resolves_in_its_own_website(self):
+        self.assertIn("<b>specific</b>", self.specific.get_combined_arch())
+        self.assertNotIn("<b>specific</b>", self.base.get_combined_arch())
+
+    def test_a_generic_resolution_pays_no_query_for_the_website(self):
+        self.env.invalidate_all()
+        with self.assertQueryCount(2):
+            self.base.get_combined_arch()
+
+    def test_a_specific_view_is_validated_against_its_tree(self):
+        with self.assertRaises(ValidationError):
+            self.specific.write(
+                {"arch": '<xpath expr="//nope" position="after"><b/></xpath>'}
+            )

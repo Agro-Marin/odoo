@@ -9,6 +9,7 @@ from odoo.libs.numbers import float_is_zero
 from odoo.tools.misc import OrderedSet, groupby
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.tools.reservation import ReservationLedger
 
 _logger = logging.getLogger(__name__)
@@ -23,7 +24,11 @@ class _ReservationOutcome(typing.NamedTuple):
 class StockMoveReservation(models.Model):
     _inherit = "stock.move"
 
+    @dbg.timed
     def _action_assign(self, force_qty=False):
+        dbg.pipeline.debug(
+            "_action_assign start on %s force_qty=%s", dbg.rec(self), force_qty
+        )
         assigned_moves_ids = OrderedSet()
         partially_available_moves_ids = OrderedSet()
         reserved_by_this_run = OrderedSet()
@@ -44,10 +49,14 @@ class StockMoveReservation(models.Model):
                 reserved_availability[move.id],
             )
             if missing_reserved_quantity is None:
+                dbg.logic.debug(
+                    "[move:%s] _action_assign: nothing missing, assigned", move.id
+                )
                 assigned_moves_ids.add(move.id)
                 reserved_by_this_run.add(move.id)
                 continue
-            if move._is_reservation_bypass_required():
+            bypass = move._is_reservation_bypass_required()
+            if bypass:
                 outcome = move._update_reserved_bypass(
                     missing_reserved_quantity,
                     ledger,
@@ -59,6 +68,13 @@ class StockMoveReservation(models.Model):
                     force_qty,
                     reserved_by_this_run,
                 )
+            dbg.logic.debug(
+                "[move:%s] _action_assign: missing=%s bypass=%s -> %s",
+                move.id,
+                missing_reserved_quantity,
+                bypass,
+                outcome,
+            )
             if outcome.state == "assigned":
                 assigned_moves_ids.add(move.id)
                 reserved_by_this_run.add(move.id)
@@ -96,6 +112,11 @@ class StockMoveReservation(models.Model):
             moves_needing_reservation.location_id,
         )
         moves_to_assign._prefetch_origin_chain()
+        dbg.performance.debug(
+            "_prepare_reservation_run: quants cache for %d products x %d locations",
+            len(moves_needing_reservation.product_id),
+            len(moves_needing_reservation.location_id),
+        )
         _logger.debug(
             "_action_assign: %s move(s), %s reserving against quants",
             len(moves_to_assign),
@@ -113,6 +134,11 @@ class StockMoveReservation(models.Model):
             return
         siblings = chained.move_orig_ids.move_dest_ids
         chain = siblings | siblings.move_orig_ids
+        dbg.performance.debug(
+            "_prefetch_origin_chain: %d chained moves, %d in chain",
+            len(chained),
+            len(chain),
+        )
         chain.fetch(["state"])
         chain.move_line_ids.fetch(
             [
@@ -137,7 +163,7 @@ class StockMoveReservation(models.Model):
             missing_uom_quantity = self.product_uom_qty - reserved_uom_qty
         if self.product_uom_id.compare(missing_uom_quantity, 0) <= 0:
             return None
-        return self.product_uom_id._compute_quantity_stored(
+        return self.product_uom_id._get_quantity_stored(
             missing_uom_quantity,
             self.product_id.uom_id,
         )
@@ -169,6 +195,12 @@ class StockMoveReservation(models.Model):
             len(assigned_moves_ids),
             len(partially_available_moves_ids),
         )
+        dbg.lifecycle.debug(
+            "_action_assign: %s -> partially_available, %s -> assigned, redirect %s",
+            list(partially_available_moves_ids),
+            list(assigned_moves_ids),
+            list(moves_to_redirect),
+        )
         StockMove.browse(partially_available_moves_ids).write(
             {"state": "partially_available"},
         )
@@ -196,6 +228,13 @@ class StockMoveReservation(models.Model):
             precision_rounding=self.product_uom_id._conversion_rounding(
                 self.product_id.uom_id
             ),
+        )
+        dbg.logic.debug(
+            "[move:%s] _update_reserved_bypass: still_missing=%s qty=%s tracking=%s",
+            self.id,
+            still_missing,
+            missing_reserved_quantity,
+            self.product_id.tracking,
         )
         if (
             still_missing
@@ -226,7 +265,7 @@ class StockMoveReservation(models.Model):
                 ),
             )
             if to_update:
-                to_update[0].quantity += self.product_id.uom_id._compute_quantity(
+                to_update[0].quantity += self.product_id.uom_id._get_quantity_in_unit(
                     missing_reserved_quantity,
                     self.product_uom_id,
                     rounding_method="HALF-UP",
@@ -268,6 +307,14 @@ class StockMoveReservation(models.Model):
             )
             ledger.add_move_line_vals([move_line_vals])
             missing_reserved_quantity -= qty_added
+            dbg.logic.debug(
+                "[move:%s] bypassed origin line: %s from location %s lot %s, missing %s",
+                self.id,
+                qty_added,
+                location_id.id,
+                lot_id.id,
+                missing_reserved_quantity,
+            )
             if self.product_id.uom_id.is_zero(missing_reserved_quantity):
                 break
         return missing_reserved_quantity
@@ -280,6 +327,7 @@ class StockMoveReservation(models.Model):
     ):
         self.check_singleton()
         if self.product_uom_id.is_zero(self.product_uom_qty) and not force_qty:
+            dbg.logic.debug("[move:%s] zero demand, assigned without stock", self.id)
             return _ReservationOutcome(state="assigned")
         if not self.move_orig_ids:
             return self._update_reserved_from_quants(missing_reserved_quantity)
@@ -301,6 +349,13 @@ class StockMoveReservation(models.Model):
             self.location_id,
             strict=False,
         )
+        dbg.logic.debug(
+            "[move:%s] _update_reserved_from_quants: need=%s taken=%s at %s",
+            self.id,
+            need,
+            taken_quantity,
+            self.location_id.id,
+        )
         if uom.is_zero(taken_quantity):
             return _ReservationOutcome(reserved=False)
         short = uom.compare(need, taken_quantity) != 0
@@ -319,6 +374,7 @@ class StockMoveReservation(models.Model):
         uom = self.product_id.uom_id
         available_move_lines = self._get_available_move_lines(reserved_by_this_run)
         if not available_move_lines:
+            dbg.logic.debug("[move:%s] no available origin lines", self.id)
             return _ReservationOutcome(reserved=False)
         self._deduct_own_lines(available_move_lines)
 
@@ -356,6 +412,13 @@ class StockMoveReservation(models.Model):
         elif all_move_line_vals:
             self.env["stock.move.line"].create(all_move_line_vals)
 
+        dbg.logic.debug(
+            "[move:%s] _update_reserved_from_origins: target=%s taken=%s from %d places",
+            self.id,
+            target_qty,
+            taken_qty_total,
+            len(available_move_lines),
+        )
         if uom.is_zero(taken_qty_total):
             return _ReservationOutcome()
         short = uom.compare(target_qty - taken_qty_total, 0) > 0
@@ -378,7 +441,9 @@ class StockMoveReservation(models.Model):
             if available_move_lines.get(key):
                 available_move_lines[key] -= move_line.quantity_product_uom
 
+    @dbg.timed
     def _unreserve(self, force=False):
+        dbg.pipeline.debug("_unreserve on %s force=%s", dbg.rec(self), force)
         moves_to_unreserve = OrderedSet()
         for move in self:
             if (
@@ -404,6 +469,12 @@ class StockMoveReservation(models.Model):
         ml_to_unlink = self.env["stock.move.line"].browse(ml_to_unlink)
         moves_not_to_recompute = self.env["stock.move"].browse(moves_not_to_recompute)
 
+        dbg.logic.debug(
+            "_unreserve: moves=%s unlink lines=%s keep picked on=%s",
+            dbg.rec(moves_to_unreserve),
+            dbg.rec(ml_to_unlink),
+            dbg.rec(moves_not_to_recompute),
+        )
         ml_to_unlink.unlink()
         (moves_to_unreserve - moves_not_to_recompute)._recompute_state()
         return True
@@ -489,7 +560,7 @@ class StockMoveReservation(models.Model):
                 env["res.partner"].browse(vals.get("owner_id") or ()),
             )
             line_uom = env["uom.uom"].browse(vals["product_uom_id"])
-            pending[key] += line_uom._compute_quantity(
+            pending[key] += line_uom._get_quantity_in_unit(
                 vals.get("quantity", 0.0), product_uom, rounding_method="HALF-UP"
             )
         return pending
@@ -506,10 +577,12 @@ class StockMoveReservation(models.Model):
         uom = self.product_id.uom_id
         return {k: v for k, v in available_move_lines.items() if uom.compare(v, 0) > 0}
 
+    @dbg.timed
     def _trigger_assign(self):
         if not self or self.env["ir.config_parameter"].sudo().get_param(
             "stock.picking_no_auto_reserve",
         ):
+            dbg.logic.debug("_trigger_assign: skipped (empty or no_auto_reserve)")
             return
 
         product_domains = Domain.OR(
@@ -535,17 +608,18 @@ class StockMoveReservation(models.Model):
             key=lambda m: not self_reference_ids.isdisjoint(m.reference_ids.ids),
             reverse=True,
         )
+        dbg.pipeline.debug(
+            "_trigger_assign from %s -> _action_assign %s",
+            dbg.rec(self),
+            dbg.rec(moves_to_reserve),
+        )
         moves_to_reserve._action_assign()
-
-    def _update_candidate_moves_list(self, candidate_moves_set):
-        for picking in self.mapped("picking_id"):
-            candidate_moves_set.add(picking.move_ids)
 
     def _prepare_quantity_done_vals(self, qty):
         self.check_singleton()
         res = []
         consumed_quant = set()
-        total_qty = self.product_uom_id._compute_quantity(
+        total_qty = self.product_uom_id._get_quantity_in_unit(
             qty,
             self.product_id.uom_id,
             round=False,
@@ -567,7 +641,7 @@ class StockMoveReservation(models.Model):
             return qty
         ml_qty = ml.quantity
         if ml.product_uom_id != self.product_id.uom_id:
-            ml_qty = ml.product_uom_id._compute_quantity(
+            ml_qty = ml.product_uom_id._get_quantity_in_unit(
                 ml_qty,
                 self.product_id.uom_id,
                 round=False,
@@ -580,7 +654,7 @@ class StockMoveReservation(models.Model):
         if ml.product_id.uom_id.compare(ml_qty, qty) > 0:
             line_qty = qty
             if ml.product_uom_id != self.product_id.uom_id:
-                line_qty = ml.product_id.uom_id._compute_quantity(
+                line_qty = ml.product_id.uom_id._get_quantity_in_unit(
                     qty,
                     ml.product_uom_id,
                     round=False,
@@ -630,7 +704,7 @@ class StockMoveReservation(models.Model):
         qty -= avail_qty
         line_qty = avail_qty + ml_qty
         if ml.product_uom_id != self.product_id.uom_id:
-            line_qty = ml.product_id.uom_id._compute_quantity(
+            line_qty = ml.product_id.uom_id._get_quantity_in_unit(
                 line_qty,
                 ml.product_uom_id,
                 round=False,
@@ -691,9 +765,29 @@ class StockMoveReservation(models.Model):
             res.append(Command.create(vals))
 
     def _update_quantity_done(self, qty):
-        existing_smls = self.move_line_ids
-        self.move_line_ids = self._prepare_quantity_done_vals(qty)
-        (self.move_line_ids - existing_smls)._apply_putaway_strategy()
+        self._apply_quantity_done_vals({self: self._prepare_quantity_done_vals(qty)})
+
+    def _apply_quantity_done_vals(self, commands_by_move):
+        # the updates and deletions go through each move's lines; the new
+        # lines of every move are created together, so reservation, linking
+        # and the state recomputation run once over the batch
+        new_line_vals = []
+        for move, commands in commands_by_move.items():
+            move.move_line_ids = [
+                command for command in commands if command[0] != Command.CREATE
+            ]
+            new_line_vals.extend(
+                dict(command[2], move_id=move.id)
+                for command in commands
+                if command[0] == Command.CREATE
+            )
+        new_lines = self.env["stock.move.line"].create(new_line_vals)
+        dbg.logic.debug(
+            "_apply_quantity_done_vals on %s: new lines %s",
+            dbg.rec(self.browse(move.id for move in commands_by_move)),
+            dbg.rec(new_lines),
+        )
+        new_lines._apply_putaway_strategy()
 
     def _update_reserved_quantity(
         self,
@@ -762,6 +856,17 @@ class StockMoveReservation(models.Model):
                 quantity,
                 candidate_lines,
             )
+        dbg.logic.debug(
+            "[move:%s] _update_reserved_quantity_vals: need=%s strict=%s at %s -> "
+            "%d quants, taken=%s, %d new line vals",
+            self.id,
+            need,
+            strict,
+            location_id.id,
+            len(quants),
+            taken_quantity,
+            len(move_line_vals),
+        )
         return move_line_vals, taken_quantity
 
     def _get_candidate_lines_by_place(self):

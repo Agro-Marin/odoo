@@ -23,13 +23,16 @@ class MixinHrLeaveApproval(models.AbstractModel):
     _description = "Time Off Approval Workflow"
 
     can_approve = fields.Boolean(
-        compute="_compute_approval_rights", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_approval_rights",
     )
     can_validate = fields.Boolean(
-        compute="_compute_approval_rights", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_approval_rights",
     )
     can_refuse = fields.Boolean(
-        compute="_compute_approval_rights", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_approval_rights",
     )
 
     @api.depends("state", "employee_id.leave_manager_id", "validation_type")
@@ -53,6 +56,10 @@ class MixinHrLeaveApproval(models.AbstractModel):
 
     def _get_next_states_by_state(self):
         raise NotImplementedError
+
+    def _state_labels(self):
+        """The Status selection as ``{value: translated label}``."""
+        return dict(self._fields["state"]._description_selection(self.env))
 
     def _get_approval_precheck_error(self, state):
         return ""

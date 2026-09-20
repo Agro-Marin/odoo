@@ -4,10 +4,13 @@ from typing import Any
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
     from .res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailThreadBlacklist(models.AbstractModel):
@@ -27,16 +30,16 @@ class MixinMailThreadBlacklist(models.AbstractModel):
     is_blacklisted = fields.Boolean(
         string="Blacklist",
         compute="_compute_is_blacklisted",
+        search="_search_is_blacklisted",
         compute_sudo=True,
         store=False,
-        search="_search_is_blacklisted",
         groups="base.group_user",
         help="If the email address is on the blacklist, the contact won't receive mass mailing anymore, from any list",
     )
     message_bounce = fields.Integer(
-        "Bounce",
-        help="Counter of the number of bounced emails for this contact",
+        string="Bounce",
         default=0,
+        help="Counter of the number of bounced emails for this contact",
     )
 
     @api.depends(lambda self: [self._primary_email])
@@ -106,11 +109,17 @@ class MixinMailThreadBlacklist(models.AbstractModel):
 
     def _message_receive_bounce(self, email: str, partner: ResPartner) -> None:
         super()._message_receive_bounce(email, partner)
+        _debug.lifecycle(
+            "bounce_counted", model=self._name, records=self.ids, email=email
+        )
         for bounce, records in self.grouped("message_bounce").items():
             records.write({"message_bounce": bounce + 1})
 
     def _message_reset_bounce(self, email: str) -> None:
         super()._message_reset_bounce(email)
+        _debug.lifecycle(
+            "bounce_reset", model=self._name, records=self.ids, email=email
+        )
         self.write({"message_bounce": 0})
 
     def mail_action_blacklist_remove(self) -> dict:

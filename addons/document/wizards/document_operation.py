@@ -1,8 +1,11 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.document.tools import UserFolder
+
+_debug = DebugLog(__name__)
 
 
 class DocumentsOperation(models.TransientModel):
@@ -21,6 +24,7 @@ class DocumentsOperation(models.TransientModel):
                     result["destination"] = str(first_folder[0]["id"])
                     result["display_name"] = first_folder[0]["display_name"]
                 else:
+                    _debug.logic("operation_refused", reason="no_editable_folder")
                     raise UserError(
                         self.env._("You do not have editor access to any folder.")
                     )
@@ -30,7 +34,7 @@ class DocumentsOperation(models.TransientModel):
         return result
 
     operation = fields.Selection(
-        [
+        selection=[
             ("move", "Move"),
             ("shortcut", "Create shortcuts"),
             ("copy", "Duplicate to"),
@@ -38,12 +42,15 @@ class DocumentsOperation(models.TransientModel):
         ],
         required=True,
     )
-    document_ids = fields.Many2many("document.document", string="Documents")
-    attachment_id = fields.Many2one("ir.attachment", string="Attachment")
+    document_ids = fields.Many2many(
+        comodel_name="document.document",
+        string="Documents",
+    )
+    attachment_id = fields.Many2one(comodel_name="ir.attachment")
 
-    destination = fields.Char(string="Destination", required=True)
+    destination = fields.Char(required=True)
     destination_children_ids = fields.One2many(
-        "document.document",
+        comodel_name="document.document",
         string="Siblings",
         compute="_compute_destination_children_ids",
     )
@@ -51,10 +58,12 @@ class DocumentsOperation(models.TransientModel):
     # Destination-related fields updated by the client for the client - do not use in the backend. No need
     # for compute/search because all is already fetched for the searchpanel and must be kept locally consistent
     display_name = fields.Char(
-        string="Destination Display Name", compute=None, search=None
+        string="Destination Display Name",
+        compute=None,
+        search=None,
     )
     user_permission = fields.Selection(
-        [("edit", "Editor"), ("view", "Viewer"), ("none", "None")],
+        selection=[("edit", "Editor"), ("view", "Viewer"), ("none", "None")],
         string="Destination User Permission",
         default="edit",
         required=True,
@@ -113,16 +122,28 @@ class DocumentsOperation(models.TransientModel):
     def action_confirm(self) -> None:
         """Execute the selected operation on the documents."""
         self.check_singleton()
+        _debug.pipeline(
+            "operation",
+            by=self.operation,
+            documents=self.document_ids,
+            destination=self.destination,
+        )
         if self.operation == "move":
             self.document_ids.user_folder_id = self.destination
         elif self.operation == "copy":
             self.document_ids.copy({"user_folder_id": self.destination})
         elif self.operation == "add":
             if not self.attachment_id:
+                _debug.logic("operation_refused", reason="no_attachment")
                 raise UserError(self.env._("No attachment to add."))
             if self.attachment_id.type not in dict(
                 self.env["document.document"]._fields["type"].selection
             ):
+                _debug.logic(
+                    "operation_refused",
+                    reason="bad_attachment_type",
+                    type=self.attachment_id.type,
+                )
                 raise UserError(
                     self.env._(
                         "Unsupported attachment type: %s", self.attachment_id.type
@@ -131,18 +152,31 @@ class DocumentsOperation(models.TransientModel):
             attachment_copy = self.attachment_id.copy(
                 {"res_model": False, "res_id": False}
             )
-            self.env["document.document"].create(
-                {
-                    "attachment_id": attachment_copy.id,
-                    "type": attachment_copy.type,
-                    "user_folder_id": self.destination,
-                }
-            )
+            values = {
+                "attachment_id": attachment_copy.id,
+                "type": attachment_copy.type,
+                "user_folder_id": self.destination,
+            }
+            if attachment_copy.type == "url":
+                # A `document.document` of type url keeps its address in its OWN
+                # `url` field; an `ir.attachment` keeps it in the attachment's.
+                # Copying only the type produced a url document with no url --
+                # `_is_safe_redirect_url(False)` is False, so `/documents/content`
+                # answered 404 and the entry pointed nowhere, silently.
+                #
+                # Carrying it also re-imposes `_check_url`, which is the point
+                # rather than a side effect: a document url must be complete, so
+                # an attachment holding a relative one (`/web/content/42`, which
+                # is how Odoo links its own files) is now refused with that
+                # constraint's own message instead of becoming a broken entry.
+                values["url"] = attachment_copy.url
+            self.env["document.document"].create(values)
         elif self.operation == "shortcut":
             self.document_ids.action_create_shortcut(
                 location_user_folder_id=self.destination
             )
         else:
+            _debug.logic("operation_refused", reason="unknown", by=self.operation)
             raise UserError(self.env._("Invalid operation"))
 
     @api.readonly

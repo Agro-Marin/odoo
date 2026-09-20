@@ -38,11 +38,6 @@ export class CartNotification extends Component {
         onMounted(() => setTimeout(this.props.close, AUTOCLOSE_DELAY));
     }
 
-    /**
-     * Get the top position (in px) of the notification based on the navbar height.
-     *
-     * This prevents the notification from being shown in front of the navbar.
-     */
     get positionOffset() {
         return (
             (document.querySelector("header.o_top_fixed_element")?.offsetHeight || 0) +

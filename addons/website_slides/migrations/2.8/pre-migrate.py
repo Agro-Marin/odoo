@@ -1,14 +1,3 @@
-"""Migrate slide.question / slide.answer → survey.question / survey.question.answer.
-
-Quiz slides now use survey.survey to store their questions, unifying the data
-model with certifications. This pre-migration creates survey records for each
-quiz slide that has slide_question rows, copies questions and answers into
-survey models, remaps XML IDs, and cleans up.
-
-Uses temporary columns (_marin_from_*) for guaranteed correct ID mapping
-instead of fragile ROW_NUMBER approaches.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -18,7 +7,6 @@ def migrate(cr, version):
     if not version:
         return
 
-    # Check if old tables exist (they won't on fresh installs)
     cr.execute("""
         SELECT EXISTS (
             SELECT FROM information_schema.tables
@@ -39,7 +27,6 @@ def migrate(cr, version):
         "Migrating %d slide.question records to survey.question", question_count
     )
 
-    # Step 1: Add temp columns for safe ID mapping
     cr.execute(
         "ALTER TABLE survey_survey ADD COLUMN IF NOT EXISTS _marin_from_slide_id INTEGER"
     )
@@ -50,7 +37,6 @@ def migrate(cr, version):
         "ALTER TABLE survey_question_answer ADD COLUMN IF NOT EXISTS _marin_from_slide_answer_id INTEGER"
     )
 
-    # Step 2: Create survey.survey records for quiz slides that have questions but no survey
     cr.execute("""
         INSERT INTO survey_survey (
             title, survey_type, access_token, scoring_type, scoring_success_min,
@@ -66,19 +52,23 @@ def migrate(cr, version):
             100.0,
             'one_page',
             'all',
-            'public',
+            -- A channel restricted to its enrolled attendees ('members')
+            -- should not give its quiz survey a public/link-only access
+            -- mode; every other visibility (public/connected/link) maps to
+            -- the survey's own "public" (i.e. "anyone with the link").
+            CASE WHEN sc.visibility = 'members' THEN 'token' ELSE 'public' END,
             false,
             true,
             ss.id,
             ss.create_uid, NOW(), ss.write_uid, NOW()
         FROM slide_slide ss
         JOIN slide_question sq ON sq.slide_id = ss.id
+        LEFT JOIN slide_channel sc ON sc.id = ss.channel_id
         WHERE ss.survey_id IS NULL
     """)
     surveys_created = cr.rowcount
     _logger.info("Created %d survey.survey records for quiz slides", surveys_created)
 
-    # Link surveys to slides
     cr.execute("""
         UPDATE slide_slide ss
         SET survey_id = sv.id
@@ -87,9 +77,6 @@ def migrate(cr, version):
           AND ss.survey_id IS NULL
     """)
 
-    # Step 3: Copy slide_question → survey_question
-    # Only migrate questions for slides whose survey was just created (step 2),
-    # not certification slides that already had their own survey with questions.
     cr.execute("""
         INSERT INTO survey_question (
             survey_id, title, sequence, question_type, is_page,
@@ -108,7 +95,6 @@ def migrate(cr, version):
     questions_migrated = cr.rowcount
     _logger.info("Migrated %d slide_question → survey_question", questions_migrated)
 
-    # Step 4: Copy slide_answer → survey_question_answer
     cr.execute("""
         INSERT INTO survey_question_answer (
             question_id, value, sequence, is_correct, answer_score, comment,
@@ -128,7 +114,6 @@ def migrate(cr, version):
     answers_migrated = cr.rowcount
     _logger.info("Migrated %d slide_answer → survey_question_answer", answers_migrated)
 
-    # Step 5: Remap XML IDs for demo/data records
     cr.execute("""
         UPDATE ir_model_data imd
         SET model = 'survey.question', res_id = sq.id
@@ -144,12 +129,36 @@ def migrate(cr, version):
           AND sqa._marin_from_slide_answer_id = imd.res_id
     """)
 
+    # Guard: step 3 only migrates questions for slides whose survey THIS
+    # migration created (`sv._marin_from_slide_id IS NOT NULL`) -- a slide
+    # that already had its own survey_id before this ran (e.g. a
+    # certification slide with pre-existing questions) is skipped there, so
+    # its slide_question rows are never copied. The cleanup below would
+    # orphan them (their model registration disappears even though the
+    # rows themselves are never dropped). Abort loudly rather than silently
+    # losing that content.
+    cr.execute("""
+        SELECT COUNT(*)
+        FROM slide_question sq
+        JOIN slide_slide ss ON sq.slide_id = ss.id
+        LEFT JOIN survey_survey sv
+            ON ss.survey_id = sv.id AND sv._marin_from_slide_id IS NOT NULL
+        WHERE sv.id IS NULL
+    """)
+    orphaned_question_count = cr.fetchone()[0]
+    if orphaned_question_count:
+        raise RuntimeError(
+            f"Quiz migration would orphan {orphaned_question_count} "
+            "slide_question row(s) belonging to a slide that already had "
+            "its own survey_id before this migration ran. Migrate those "
+            "rows into their existing survey manually before re-running."
+        )
+
     # Clean up remaining XML IDs that weren't remapped
     cr.execute(
         "DELETE FROM ir_model_data WHERE model IN ('slide.question', 'slide.answer')"
     )
 
-    # Step 6: Clean up ir_model and ir_model_fields
     cr.execute("DELETE FROM ir_model WHERE model IN ('slide.question', 'slide.answer')")
     cr.execute(
         "DELETE FROM ir_model_fields WHERE model IN ('slide.question', 'slide.answer')"
@@ -161,7 +170,6 @@ def migrate(cr, version):
         "UPDATE ir_model_fields SET relation = 'survey.question.answer' WHERE relation = 'slide.answer'"
     )
 
-    # Step 7: Drop temp columns and advance sequences
     cr.execute("ALTER TABLE survey_survey DROP COLUMN IF EXISTS _marin_from_slide_id")
     cr.execute(
         "ALTER TABLE survey_question DROP COLUMN IF EXISTS _marin_from_slide_question_id"

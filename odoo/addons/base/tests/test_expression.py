@@ -262,6 +262,59 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         self.assertEqual(p3, p)
 
+    def test_09_hierarchy_without_parent_store_is_one_query(self):
+        Partner = self.env["res.partner"]
+        root = Partner.create({"name": "root"})
+        kids = Partner.create(
+            [{"name": f"kid {i}", "parent_id": root.id} for i in range(3)]
+        )
+        grandkid = Partner.create({"name": "grandkid", "parent_id": kids[0].id})
+        Partner.create({"name": "other"})
+        self.env.flush_all()
+        self.assertFalse(Partner._parent_store)
+        # the closure is a subquery of the search, not a query of its own
+        with self.assertQueryCount(1):
+            found = Partner.search([("id", "child_of", root.id)])
+        self.assertEqual(found, root + kids + grandkid)
+        with self.assertQueryCount(1):
+            found = Partner.search(
+                [("parent_id", "child_of", root.id), ("name", "like", "kid")]
+            )
+        self.assertEqual(found, kids + grandkid)
+
+    def test_10_hierarchy_in_m2m_roots_answered_from_the_cache(self):
+        Partner = self.env["res.partner"].sudo()
+        Category = self.env["res.partner.tag"].sudo()
+        root = Category.create({"name": "root tag"})
+        child = Category.create({"name": "child tag", "parent_id": root.id})
+        partner = Partner.create({"name": "tagged", "tag_ids": [(6, 0, child.ids)]})
+        other = Partner.create({"name": "untagged"})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        (root + child).mapped("name")
+        (root + child).mapped("parent_path")
+        (partner + other).mapped("tag_ids")
+        # the roots of a many2many hierarchy are known rows: no search
+        # confirms them, and the search itself is the only statement
+        with self.assertQueryCount(1):
+            found = Partner.search(
+                [("tag_ids", "child_of", root.id), ("id", "in", (partner + other).ids)]
+            )
+        self.assertEqual(found, partner)
+        with self.assertQueryCount(0):
+            self.assertEqual(
+                (partner + other).filtered_domain([("tag_ids", "child_of", root.id)]),
+                partner,
+            )
+        root.active = False
+        self.env.flush_all()
+        with self.assertQueryCount(1):
+            self.assertFalse(
+                Partner.search(
+                    [("tag_ids", "child_of", root.id), ("id", "in", partner.ids)]
+                )
+            )
+
     def test_10_hierarchy_in_m2m(self):
         Partner = self.env["res.partner"]
         Category = self.env["res.partner.tag"]
@@ -2141,7 +2194,7 @@ class TestQueries(TransactionCase):
             SELECT "res_partner"."id"
             FROM "res_partner"
             WHERE ("res_partner"."active" IS TRUE AND "res_partner"."name" LIKE %s)
-            ORDER BY "res_partner"."company_id"
+            ORDER BY "res_partner"."company_id", "res_partner"."id"
         """
             ]
         ):
@@ -2153,7 +2206,7 @@ class TestQueries(TransactionCase):
             SELECT "res_partner"."id"
             FROM "res_partner"
             WHERE ("res_partner"."active" IS TRUE AND "res_partner"."name" LIKE %s)
-            ORDER BY "res_partner"."company_id" DESC
+            ORDER BY "res_partner"."company_id" DESC, "res_partner"."id"
         """
             ]
         ):
@@ -2252,7 +2305,7 @@ class TestQueries(TransactionCase):
                 ("res_users"."partner_id" = "res_users__partner_id"."id")
             WHERE "res_users"."active" IS TRUE
             AND ("res_users"."id" IN (%s) AND "res_users"."partner_id" IN (%s))
-            ORDER BY "res_users__partner_id"."name", "res_users"."login"
+            ORDER BY "res_users__partner_id"."name", "res_users"."login", "res_users"."id"
         """
             ]
         ):
@@ -2425,7 +2478,7 @@ class TestQueries(TransactionCase):
                 "ir_model"."model" ILIKE %s
                 OR "ir_model"."name"->>%s ILIKE %s
             )
-            ORDER BY "ir_model"."model"
+            ORDER BY "ir_model"."model", "ir_model"."id"
             LIMIT %s
         """
             ]
@@ -2441,7 +2494,7 @@ class TestQueries(TransactionCase):
                 "ir_model"."model" NOT ILIKE %s
                 AND "ir_model"."name"->>%s NOT ILIKE %s
             )
-            ORDER BY "ir_model"."model"
+            ORDER BY "ir_model"."model", "ir_model"."id"
             LIMIT %s
         """
             ]
@@ -2466,7 +2519,7 @@ class TestMany2one(TransactionCase):
             LEFT JOIN "res_partner" AS "res_users__partner_id" ON
                 ("res_users"."partner_id" = "res_users__partner_id"."id")
             WHERE "res_users__partner_id"."name" LIKE %s
-            ORDER BY "res_users__partner_id"."name", "res_users"."login"
+            ORDER BY "res_users__partner_id"."name", "res_users"."login", "res_users"."id"
         """
             ]
         ):
@@ -2480,7 +2533,7 @@ class TestMany2one(TransactionCase):
             LEFT JOIN "res_partner" AS "res_users__partner_id" ON
                 ("res_users"."partner_id" = "res_users__partner_id"."id")
             WHERE "res_users__partner_id"."name" LIKE %s
-            ORDER BY "res_users__partner_id"."name", "res_users"."login"
+            ORDER BY "res_users__partner_id"."name", "res_users"."login", "res_users"."id"
         """
             ]
         ):
@@ -2861,6 +2914,9 @@ class TestMany2one(TransactionCase):
 class TestOne2many(TransactionCase):
     def setUp(self):
         super().setUp()
+        self.env["ir.rule"].search(
+            [("model_id.model", "=", "res.partner.bank")]
+        ).active = False
         self.Partner = self.env["res.partner"].with_context(active_test=False)
         self.partner = self.Partner.create(
             {
@@ -2919,8 +2975,7 @@ class TestOne2many(TransactionCase):
                 SELECT "res_partner"."parent_id" AS __inverse
                 FROM "res_partner"
                 WHERE (
-                    "res_partner"."active" IS TRUE
-                    AND EXISTS (SELECT FROM (
+                    EXISTS (SELECT FROM (
                         SELECT "res_partner_bank"."partner_id" AS __inverse
                         FROM "res_partner_bank"
                         WHERE "res_partner_bank"."sanitized_acc_number" LIKE %s
@@ -3010,8 +3065,7 @@ class TestOne2many(TransactionCase):
                 SELECT "res_partner"."parent_id" AS __inverse
                 FROM "res_partner"
                 WHERE (
-                    "res_partner"."active" IS TRUE
-                    AND EXISTS (SELECT FROM (
+                    EXISTS (SELECT FROM (
                         SELECT "res_partner_bank"."partner_id" AS __inverse
                         FROM "res_partner_bank"
                         WHERE "res_partner_bank"."sanitized_acc_number" LIKE %s
@@ -3090,8 +3144,7 @@ class TestOne2many(TransactionCase):
                 LEFT JOIN "res_country" AS "res_partner__state_id__country_id"
                     ON ("res_partner__state_id"."country_id" = "res_partner__state_id__country_id"."id")
                 WHERE (
-                    "res_partner"."active" IS TRUE
-                    AND "res_partner"."parent_id" IS NOT NULL
+                    "res_partner"."parent_id" IS NOT NULL
                     AND ("res_partner"."state_id" IS NOT NULL AND "res_partner__state_id__country_id"."code" LIKE %s)
                 )
             ) AS __sub WHERE __inverse = "res_partner"."id")
@@ -3341,7 +3394,7 @@ class TestMany2many(TransactionCase):
                     SELECT "res_groups"."id" FROM "res_groups" WHERE "res_groups"."name"->>%s IN (%s)
                 )
             )
-            ORDER BY "res_users__partner_id"."name"  , "res_users"."login"
+            ORDER BY "res_users__partner_id"."name"  , "res_users"."login", "res_users"."id"
         """
             ]
         ):

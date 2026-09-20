@@ -25,8 +25,6 @@ registerWebsitePreviewTour(
             "Show Message and keep countdown",
         ),
         changeOption("Countdown", "previewEndMessage"),
-        // The next two steps check that the end message does not disappear when
-        // a widgets_start_request is triggered.
         {
             content: "Hover an option which has a preview",
             trigger: "[data-action-param='o_half_screen_height']",
@@ -36,14 +34,6 @@ registerWebsitePreviewTour(
             content: "Check that the countdown message is still displayed",
             trigger: ":iframe .s_countdown .s_picture",
             run() {
-                // Just a visibility check
-
-                // Also make sure the mouseout and mouseleave are triggered so
-                // that next steps make sense.
-                // TODO the next steps are not actually testing anything without
-                // it and the mouseout and mouseleave make sense but really it
-                // should not be *necessary* to simulate those for the editor
-                // flow to make some sense.
                 const previousAnchor = document.querySelector(
                     "[data-action-param='o_half_screen_height']",
                 );
@@ -51,8 +41,6 @@ registerWebsitePreviewTour(
                 previousAnchor.dispatchEvent(new Event("mouseleave"));
             },
         },
-        // Next, we change the end action to message and no countdown while the
-        // edit message toggle is still activated. It should hide the countdown.
         ...changeOptionInPopover(
             "Countdown",
             "At The End",

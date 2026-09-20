@@ -66,15 +66,15 @@ class AccountTax(models.Model):
     _inherit = "account.tax"
 
     l10n_hu_tax_type = fields.Selection(
-        _SELECTION_TAX_TYPE,
+        selection=_SELECTION_TAX_TYPE,
         string="NAV VAT Tax Type",
         help="Precise identification of the VAT tax for the Hungarian authority.",
     )
     l10n_hu_tax_reason = fields.Char(
         string="NAV VAT Tax Exemption Reason",
-        help="May be used to provide support for the use of a VAT-exempt VAT tax type.",
         compute="_compute_l10n_hu_tax_reason",
         readonly=False,
+        help="May be used to provide support for the use of a VAT-exempt VAT tax type.",
     )
 
     @api.depends("l10n_hu_tax_type")

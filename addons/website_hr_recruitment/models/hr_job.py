@@ -32,35 +32,41 @@ class HrJob(models.Model):
         """)
 
     description = fields.Html(
-        "Job Description",
+        string="Job Description",
         translate=html_translate,
-        prefetch=False,
         sanitize_overridable=True,
         sanitize_attributes=False,
         sanitize_form=False,
+        prefetch=False,
     )
     website_published = fields.Boolean(
-        help="Set if the application is published on the website of the company.",
         tracking=True,
+        help="Set if the application is published on the website of the company.",
     )
     website_description = fields.Html(
-        "Website description",
+        string="Website description",
         translate=html_translate,
-        default=_default_website_description,
-        prefetch=False,
         sanitize_overridable=True,
         sanitize_attributes=False,
         sanitize_form=False,
+        default=_default_website_description,
+        prefetch=False,
     )
     job_details = fields.Html(
-        "Process Details",
+        string="Process Details",
         translate=True,
-        help="Complementary information that will appear on the job submission page",
         sanitize_attributes=False,
         default=_default_job_details,
+        help="Complementary information that will appear on the job submission page",
     )
-    published_date = fields.Date(compute="_compute_published_date", store=True)
-    full_url = fields.Char("job URL", compute="_compute_full_url")
+    published_date = fields.Date(
+        compute="_compute_published_date",
+        store=True,
+    )
+    full_url = fields.Char(
+        string="job URL",
+        compute="_compute_full_url",
+    )
 
     @api.depends("website_url")
     def _compute_full_url(self):
@@ -82,7 +88,6 @@ class HrJob(models.Model):
     def _compute_website_url(self):
         super()._compute_website_url()
         for job in self:
-            # _slug call will fail with newId records.
             if not job.id:
                 continue
             job.website_url = f"/jobs/{self.env['ir.http']._slug(job)}"
@@ -126,7 +131,6 @@ class HrJob(models.Model):
         if requires_sudo and not self.env.user.has_group(
             "hr_recruitment.group_hr_recruitment_user"
         ):
-            # Rule must be reinforced because of sudo.
             domain.append([("website_published", "=", True)])
 
         search_fields = ["name"]

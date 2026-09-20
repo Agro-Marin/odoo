@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <form string="Scheduled Message" duplicate="0">
                 <header>
-                    <button name="force_send" string="Force Send" type="object" />
+                    <button name="force_send" type="object" string="Force Send" />
                 </header>
                 <sheet>
                     <group>

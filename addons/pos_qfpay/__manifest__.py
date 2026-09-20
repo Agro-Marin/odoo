@@ -1,6 +1,6 @@
 {
     "name": "POS QFPay",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Integrate your POS with the QFPay terminal in Hong Kong",
@@ -8,6 +8,7 @@
     "license": "LGPL-3",
     "depends": [
         "point_of_sale",
+        "integration",
     ],
     "data": [
         "views/pos_payment_method_views.xml",
@@ -21,5 +22,4 @@
             "pos_qfpay/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
 }

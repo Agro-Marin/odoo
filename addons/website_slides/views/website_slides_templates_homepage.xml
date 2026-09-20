@@ -6,7 +6,6 @@
             <div class="container o_wslides_home_main">
                 <div class="row">
                     <t t-set="has_side_column" t-value="not is_public_user" />
-                    <!-- To do: remove in Master since it’s no longer shown. -->
                     <t t-if="is_public_user">
                         <div t-if="has_side_column">
                             <div class="row">
@@ -128,7 +127,6 @@
                 </div>
             </div>
         </template>
-        <!-- Channels home template -->
         <template id="courses_home" name="Odoo Courses Homepage">
             <t t-set="body_classname" t-value="'o_wslides_body'" />
             <t t-set="has_side_column" t-value="not is_public_user" />
@@ -209,7 +207,6 @@
                         </div>
                     </div>
                     <t t-call="website_slides.courses_footer" />
-                    <!-- Off canvas filters on mobile -->
                     <div
                         id="o_wslides_index_offcanvas"
                         class="o_website_offcanvas offcanvas offcanvas-end d-lg-none p-0 overflow-visible">
@@ -223,7 +220,6 @@
                         </div>
                         <div class="offcanvas-body p-0">
                             <div class="accordion accordion-flush">
-                                <!-- Tag Groups Filters -->
                                 <div
                                     class="accordion-item"
                                     t-foreach="tag_groups"
@@ -281,7 +277,6 @@
                             <a href="/slides" class="btn btn-light">Clear Filters</a>
                         </div>
                     </div>
-                    <!-- Search Modal for Mobile -->
                     <div
                         id="o_wslides_search_modal"
                         class="modal fade css_editable_mode_hidden"
@@ -326,11 +321,9 @@
             </t>
         </template>
         <template id="courses_search_bar">
-            <!-- Navbar dynamically composed using displayed channel tag groups. -->
             <div class="d-flex flex-wrap align-items-md-center gap-2 mt-4 mb-3">
                 <h1 class="h4 mb-0 me-auto">Courses</h1>
                 <div class="d-flex gap-2 flex-grow-1 flex-md-grow-0 align-items-start">
-                    <!-- Desktop tag groups -->
                     <div id="navbarTagGroups" class="d-none d-lg-block">
                         <t
                             t-set="search_tag_groups"
@@ -368,7 +361,6 @@
                         <t t-call="website.website_search_box_input">
                             <t t-set="_classes" t-valuef="d-none d-md-flex" />
                             <t t-set="search_type" t-valuef="slides" />
-                            <!-- No action: remain on same URL -->
                             <t t-set="display_description" t-valuef="true" />
                             <t t-set="display_detail" t-valuef="false" />
                             <t t-set="placeholder">Search courses</t>
@@ -386,7 +378,6 @@
                                 t-att-value="search_slide_category" />
                             <input type="hidden" name="prevent_redirect" value="True" />
                         </t>
-                        <!-- Mobile Search button -->
                         <a
                             class="btn o_not_editable d-md-none btn-light"
                             data-bs-target="#o_wslides_search_modal"
@@ -396,7 +387,6 @@
                             href="#">
                             <i class="oi oi-search" role="img" />
                         </a>
-                        <!-- Mobile Filter button -->
                         <button
                             class="o_not_editable btn btn-light position-relative d-lg-none"
                             data-bs-toggle="offcanvas"

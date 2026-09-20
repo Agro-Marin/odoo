@@ -11,27 +11,27 @@
                 <field name="user_id" />
                 <field name="is_auto_campaign" />
                 <filter
-                    string="My Campaigns"
                     name="filter_assigned_to_me"
-                    domain="[('user_id', '=', uid)]"
-                    help="Campaigns that are assigned to me" />
+                    string="My Campaigns"
+                    help="Campaigns that are assigned to me"
+                    domain="[('user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="filter_inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Stage"
                         name="group_stage_id"
+                        string="Stage"
                         context="{'group_by': 'stage_id'}" />
                     <filter
-                        string="Responsible"
                         name="group_user_id"
+                        string="Responsible"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Tags"
                         name="group_tags_id"
+                        string="Tags"
                         context="{'group_by': 'tag_ids'}" />
                 </group>
             </search>
@@ -57,15 +57,15 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group id="top-group">
                         <field name="active" invisible="1" />
                         <field
-                            class="text-break"
                             name="title"
                             string="Campaign Name"
-                            placeholder="e.g. Black Friday" />
+                            placeholder="e.g. Black Friday"
+                            class="text-break" />
                         <field name="name" invisible="1" />
                         <field
                             name="user_id"
@@ -109,10 +109,10 @@
                 <group>
                     <field name="name" invisible="1" />
                     <field
-                        class="o_text_overflow"
                         name="title"
                         string="Campaign Name"
-                        placeholder="e.g. Black Friday" />
+                        placeholder="e.g. Black Friday"
+                        class="o_text_overflow" />
                     <field
                         name="user_id"
                         widget="many2one_avatar_user"
@@ -120,8 +120,8 @@
                     <field
                         name="tag_ids"
                         widget="many2many_tags"
-                        class="o_field_highlight"
-                        options="{'color_field': 'color', 'no_create_edit': True}" />
+                        options="{'color_field': 'color', 'no_create_edit': True}"
+                        class="o_field_highlight" />
                 </group>
             </form>
         </field>
@@ -132,13 +132,13 @@
         <field name="model">utm.campaign</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
                 default_group_by="stage_id"
+                sample="1"
                 class="o_utm_kanban"
-                on_create="quick_create"
-                quick_create_view="utm.utm_campaign_view_form_quick_create"
                 examples="utm_campaign"
-                sample="1">
+                highlight_color="color"
+                on_create="quick_create"
+                quick_create_view="utm.utm_campaign_view_form_quick_create">
                 <field name="user_id" />
                 <field name="stage_id" />
                 <field name="active" />

@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("mail.composer.service");
 const HTML_ENABLED_KEY = "mail.html_composer.enabled";
 
 export class ComposerService {
@@ -21,6 +24,9 @@ export class ComposerService {
             /** @param {CustomEvent<{key: string}>} ev */ ({ detail }) => {
                 if (detail.key === HTML_ENABLED_KEY) {
                     this.htmlEnabled = this.readHtmlEnabled();
+                    log.logic("htmlEnabled synced from another tab", () => ({
+                        htmlEnabled: this.htmlEnabled,
+                    }));
                 }
             },
         );
@@ -43,6 +49,7 @@ export class ComposerService {
         if (this.htmlEnabled === htmlEnabled) {
             return;
         }
+        log.logic("setHtmlEnabled", () => ({ htmlEnabled }));
         this.htmlEnabled = htmlEnabled;
         this.multiTab.setSharedValue(HTML_ENABLED_KEY, htmlEnabled);
     }

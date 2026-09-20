@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_hr_attendance_root"
+        name="Attendances"
+        sequence="205"
+        groups="hr_attendance.group_hr_attendance_officer"
+        web_icon="hr_attendance,static/description/icon.png" />
+
+    <menuitem
+        id="menu_action_view_form"
+        name="Kiosk Mode"
+        parent="menu_hr_attendance_root"
+        action="open_kiosk_url"
+        sequence="10"
+        groups="hr_attendance.group_hr_attendance_user" />
+
+    <menuitem
+        id="menu_hr_attendance_reporting"
+        name="Reporting"
+        parent="menu_hr_attendance_root"
+        sequence="15"
+        groups="hr_attendance.group_hr_attendance_officer" />
+
+    <menuitem
+        id="menu_hr_attendance_attendance_reporting"
+        name="Attendances"
+        parent="menu_hr_attendance_reporting"
+        action="hr_attendance_reporting"
+        sequence="10" />
+
+    <menuitem
+        id="menu_hr_attendance_overview"
+        name="Overview"
+        parent="menu_hr_attendance_root"
+        sequence="5"
+        groups="hr_attendance.group_hr_attendance_officer" />
+
+    <menuitem
+        id="menu_hr_attendance_view_dashboard"
+        name="Dashboard"
+        parent="menu_hr_attendance_overview"
+        action="hr_attendance_action"
+        sequence="1" />
+
+    <menuitem
+        id="menu_hr_attendance_employee"
+        name="Employees"
+        parent="menu_hr_attendance_overview"
+        action="hr.open_view_employee_list_my"
+        sequence="2"
+        groups="hr_attendance.group_hr_attendance_officer" />
+
+    <menuitem
+        id="menu_hr_attendance_view_attendances_management"
+        name="Management"
+        parent="menu_hr_attendance_root"
+        action="hr_attendance_management_action"
+        sequence="6"
+        groups="hr_attendance.group_hr_attendance_officer" />
+
+    <menuitem
+        id="menu_hr_attendance_configuration"
+        name="Configuration"
+        parent="menu_hr_attendance_root"
+        sequence="99"
+        groups="hr_attendance.group_hr_attendance_manager" />
+
+    <menuitem
+        id="menu_hr_attendance_onboarding"
+        name="Onboarding"
+        parent="menu_hr_attendance_configuration"
+        action="action_try_kiosk"
+        sequence="100"
+        groups="hr.group_hr_user" />
+
+    <menuitem
+        id="menu_hr_attendance_settings"
+        name="Settings"
+        parent="menu_hr_attendance_configuration"
+        action="action_hr_attendance_settings"
+        sequence="10"
+        groups="hr_attendance.group_hr_attendance_manager" />
+
+    <menuitem
+        id="menu_hr_attendance_overtime_rulesets"
+        name="Overtime Rulesets"
+        parent="hr_attendance.menu_hr_attendance_configuration"
+        action="hr_attendance_overtime_ruleset_action"
+        sequence="300"
+        groups="hr_attendance.group_hr_attendance_manager" />
+
+</odoo>

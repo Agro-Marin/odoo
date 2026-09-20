@@ -9,9 +9,6 @@ patch(CourseJoinBehavior.prototype, {
     },
 
     /**
-     * When the user joins the course, if it's set as "on payment" and the
-     * user is logged in, we redirect to the shop page for this course.
-     *
      * @param {MouseEvent} ev
      * @override
      */
@@ -22,9 +19,6 @@ patch(CourseJoinBehavior.prototype, {
             this.beforeJoin().then(() => {
                 this.host.services.cart.add(
                     {
-                        // TODO VCR Ensure productTemplateId is always provided to `addToCart`.
-                        // Currently, this works because the product configurator check is bypassed
-                        // when the `isBuyNow` option is `True`.
                         productTemplateId: false,
                         productId: this.productId,
                     },

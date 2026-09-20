@@ -12,12 +12,12 @@
                 </group>
                 <footer>
                     <button
-                        string="Cancel Invoice"
                         name="button_request_cancel"
                         type="object"
+                        string="Cancel Invoice"
                         default_focus="1"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" />
+                    <button special="cancel" string="Close" />
                 </footer>
             </form>
         </field>

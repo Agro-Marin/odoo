@@ -1,8 +1,11 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.sale_gelato import utils
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
@@ -19,11 +22,11 @@ class ProductTemplate(models.Model):
         readonly=True,
     )
     gelato_image_ids = fields.One2many(
-        string="Gelato Print Images",
         comodel_name="document.document",
         inverse_name="res_id",
-        domain=[("is_gelato", "=", True)],
+        string="Gelato Print Images",
         readonly=True,
+        domain=[("is_gelato", "=", True)],
     )
     gelato_missing_images = fields.Boolean(
         string="Missing Print Images",
@@ -55,6 +58,7 @@ class ProductTemplate(models.Model):
                 method="GET",
             )
         except UserError as e:
+            _debug.logic("gelato_template_sync_failed", template=self, error=str(e))
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -66,6 +70,11 @@ class ProductTemplate(models.Model):
                 },
             }
 
+        _debug.pipeline(
+            "gelato_template_synced",
+            template=self,
+            variants=len(template_info["variants"]),
+        )
         self._create_attributes_from_gelato_info(template_info)
         self._create_print_images_from_gelato_info(template_info)
 
@@ -85,12 +94,13 @@ class ProductTemplate(models.Model):
 
     def _create_attributes_from_gelato_info(self, template_info):
         if len(template_info["variants"]) == 1:
+            _debug.logic("gelato_single_variant", template=self)
             self.gelato_product_uid = template_info["variants"][0]["productUid"]
         else:
             for variant_data in template_info["variants"]:
                 current_variant_pavs = self.env["product.attribute.value"]
                 for attribute_data in variant_data["variantOptions"]:
-                    attribute = self.env["product.attribute"].search(
+                    attribute = self.env["product.attribute"].search(  # noqa: E8507 - one lookup per Gelato attribute; the record may have been created by an earlier pass
                         [
                             ("name", "=", attribute_data["name"]),
                             ("create_variant", "=", "always"),
@@ -102,7 +112,7 @@ class ProductTemplate(models.Model):
                             {"name": attribute_data["name"]}
                         )
 
-                    attribute_value = self.env["product.attribute.value"].search(
+                    attribute_value = self.env["product.attribute.value"].search(  # noqa: E8507 - one lookup per Gelato attribute; the record may have been created by an earlier pass
                         [
                             ("name", "=", attribute_data["value"]),
                             ("attribute_id", "=", attribute.id),
@@ -118,7 +128,7 @@ class ProductTemplate(models.Model):
                         )
                     current_variant_pavs += attribute_value
 
-                    ptal = self.env["product.template.attribute.line"].search(
+                    ptal = self.env["product.template.attribute.line"].search(  # noqa: E8507 - one lookup per Gelato attribute; the record may have been created by an earlier pass
                         [
                             ("product_tmpl_id", "=", self.id),
                             ("attribute_id", "=", attribute.id),
@@ -154,7 +164,7 @@ class ProductTemplate(models.Model):
                 print_image_data["printArea"] = "default"
 
             print_image_found = bool(
-                self.env["document.document"].search_count(
+                self.env["document.document"].search_count(  # noqa: E8507 - one lookup per Gelato attribute; the record may have been created by an earlier pass
                     [
                         ("name", "ilike", print_image_data["printArea"]),
                         ("res_id", "=", self.id),

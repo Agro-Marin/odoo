@@ -31,16 +31,18 @@ class LoyaltyProgram(models.Model):
                 )
         return defaults
 
-    name = fields.Char(string="Program Name", translate=True, required=True)
+    name = fields.Char(
+        string="Program Name",
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(default=True)
     sequence = fields.Integer(copy=False)
     company_id = fields.Many2one(
-        string="Company",
         comodel_name="res.company",
         default=lambda self: self.env.company,
     )
     currency_id = fields.Many2one(
-        string="Currency",
         comodel_name="res.currency",
         compute="_compute_currency_id",
         precompute=True,
@@ -50,64 +52,66 @@ class LoyaltyProgram(models.Model):
     )
     currency_symbol = fields.Char(related="currency_id.symbol")
     pricelist_ids = fields.Many2many(
-        string="Pricelist",
-        help="This program is specific to this pricelist set.",
         comodel_name="product.pricelist",
         domain="[('currency_id', '=', currency_id)]",
+        help="This program is specific to this pricelist set.",
     )
 
-    total_order_count = fields.Integer(
-        string="Total Order Count", compute="_compute_total_order_count"
-    )
+    total_order_count = fields.Integer(compute="_compute_total_order_count")
 
     rule_ids = fields.One2many(
-        string="Conditional rules",
         comodel_name="loyalty.rule",
         inverse_name="program_id",
+        string="Conditional rules",
         compute="_compute_from_program_type",
         store=True,
-        readonly=False,
         copy=True,
+        readonly=False,
     )
     reward_ids = fields.One2many(
-        string="Rewards",
         comodel_name="loyalty.reward",
         inverse_name="program_id",
+        string="Rewards",
         compute="_compute_from_program_type",
         store=True,
-        readonly=False,
         copy=True,
+        readonly=False,
     )
     communication_plan_ids = fields.One2many(
         comodel_name="loyalty.mail",
         inverse_name="program_id",
         compute="_compute_from_program_type",
         store=True,
-        readonly=False,
         copy=True,
+        readonly=False,
     )
 
     # These fields are used for the simplified view of gift_card and ewallet
     mail_template_id = fields.Many2one(
-        string="Email template",
         comodel_name="mail.template",
+        string="Email template",
         compute="_compute_mail_template_id",
         inverse="_inverse_mail_template_id",
         readonly=False,
     )
     trigger_product_ids = fields.Many2many(
-        related="rule_ids.product_ids", readonly=False
+        related="rule_ids.product_ids",
+        readonly=False,
     )
 
-    coupon_ids = fields.One2many(comodel_name="loyalty.card", inverse_name="program_id")
+    coupon_ids = fields.One2many(
+        comodel_name="loyalty.card",
+        inverse_name="program_id",
+    )
     coupon_count = fields.Integer(compute="_compute_coupon_count")
     coupon_count_label = fields.Char(
         string="Items Name",
-        help="What this program's cards are called: coupons, gift cards, eWallets...",
         compute="_compute_coupon_count_label",
+        help="What this program's cards are called: coupons, gift cards, eWallets...",
     )
     coupon_count_display = fields.Char(
-        string="Items", compute="_compute_coupon_count_display"
+        string="Items",
+        compute="_compute_coupon_count_display",
     )
 
     program_type = fields.Selection(
@@ -121,8 +125,8 @@ class LoyaltyProgram(models.Model):
             ("buy_x_get_y", "Buy X Get Y"),
             ("next_order_coupons", "Next Order Coupons"),
         ],
-        required=True,
         default="promotion",
+        required=True,
     )
     date_from = fields.Date(
         string="Start Date",
@@ -132,7 +136,7 @@ class LoyaltyProgram(models.Model):
         string="End date",
         help="The end date is included in the validity period of this program",
     )
-    limit_usage = fields.Boolean(string="Limit Usage")
+    limit_usage = fields.Boolean()
     max_usage = fields.Integer()
     # Dictates when the points can be used:
     # current: if the order gives enough points on that order, the reward may directly be claimed, points lost otherwise
@@ -145,27 +149,27 @@ class LoyaltyProgram(models.Model):
             ("both", "Current & Future orders"),
         ],
         compute="_compute_from_program_type",
+        default="current",
         store=True,
         readonly=False,
         required=True,
-        default="current",
     )
     trigger = fields.Selection(
-        help="""
-        Automatic: Customers will be eligible for a reward automatically in their cart.
-        Use a code: Customers will be eligible for a reward if they enter a code.
-        """,
         selection=[("auto", "Automatic"), ("with_code", "Use a code")],
         compute="_compute_from_program_type",
         store=True,
         readonly=False,
+        help="""
+        Automatic: Customers will be eligible for a reward automatically in their cart.
+        Use a code: Customers will be eligible for a reward if they enter a code.
+        """,
     )
     portal_visible = fields.Boolean(
+        default=False,
         help="""
         Show in web portal, PoS customer ticket, eCommerce checkout, the number of points available
          and used by reward.
         """,
-        default=False,
     )
     portal_point_name = fields.Char(
         translate=True,
@@ -174,26 +178,25 @@ class LoyaltyProgram(models.Model):
         readonly=False,
     )
     is_nominative = fields.Boolean(
-        help="Whether this program's points accumulate on a card held by a customer,"
-        " rather than being spent on the order that earned them.",
         compute="_compute_is_nominative",
         search="_search_is_nominative",
+        help="Whether this program's points accumulate on a card held by a customer,"
+        " rather than being spent on the order that earned them.",
     )
     is_payment_program = fields.Boolean(compute="_compute_is_payment_program")
 
     payment_program_discount_product_id = fields.Many2one(
-        string="Discount Product",
-        help="Product used in the sales order to apply the discount.",
         comodel_name="product.product",
+        string="Discount Product",
         compute="_compute_payment_program_discount_product_id",
         readonly=True,
+        help="Product used in the sales order to apply the discount.",
     )
 
     # Technical field used for a label
     available_on = fields.Boolean(
-        string="Available On",
-        help="Manage where your program should be available for use.",
         store=False,
+        help="Manage where your program should be available for use.",
     )
 
     _check_max_usage = models.Constraint(
@@ -944,7 +947,7 @@ class LoyaltyProgram(models.Model):
 
         :return: an action opening the new program, or False for an unknown template.
         """
-        template_values = self._get_template_values()
+        template_values = self._prepare_program_template_vals()
         if template_id not in template_values:
             return False
         program = self.create(template_values[template_id])
@@ -965,7 +968,7 @@ class LoyaltyProgram(models.Model):
         return action
 
     @api.model
-    def _get_template_values(self):
+    def _prepare_program_template_vals(self):
         """Return the creation values of each `get_program_templates` key."""
         program_type_defaults = self._program_type_default_values()
         # For programs that require a product get the first sellable.

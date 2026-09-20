@@ -97,16 +97,16 @@ class TestBudgetReport(TestAccountReportsCommon):
         )
         items = []
         for account_id, amount in amount_per_account_ids.items():
-            for item_date in date_utils.date_range(date_from, date_to):
-                items.append(  # noqa: PERF401
-                    Command.create(
-                        {
-                            "amount": amount,
-                            "account_id": account_id,
-                            "date": date_utils.start_of(item_date, "month"),
-                        }
-                    )
+            items.extend(
+                Command.create(
+                    {
+                        "amount": amount,
+                        "account_id": account_id,
+                        "date": date_utils.start_of(item_date, "month"),
+                    }
                 )
+                for item_date in date_utils.date_range(date_from, date_to)
+            )
 
         return cls.env["account.report.budget"].create(
             {
@@ -799,7 +799,7 @@ class TestBudgetReport(TestAccountReportsCommon):
 
         # Ensure level header colspan is 3 for top header, 2 for the columns + 1 selected budget
         self.assertEqual(
-            self.report._get_column_headers_render_data(options),
+            self.report._prepare_column_headers_render_data(options),
             {
                 "level_colspan": [3, 2],
                 "level_repetitions": [1, 2],
@@ -919,7 +919,7 @@ class TestBudgetReport(TestAccountReportsCommon):
         )
 
         self.assertEqual(
-            self.report._get_column_headers_render_data(options),
+            self.report._prepare_column_headers_render_data(options),
             {
                 "level_colspan": [9, 3, 1],
                 "level_repetitions": [1, 1, 2],

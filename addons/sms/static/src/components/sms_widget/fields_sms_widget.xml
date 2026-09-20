@@ -2,7 +2,7 @@
 
 <templates xml:space="preserve">
     <t t-name="sms.SmsWidget" t-inherit="mail.EmojisTextField" t-inherit-mode="primary">
-        <xpath expr="//div[hasclass('o_field_input_buttons')]/button[hasclass('fa-magic')]" position="replace"/>
+        <xpath expr="//div[hasclass('o_field_input_buttons')]/button[hasclass('fa-wand-magic-sparkles')]" position="replace"/>
         <xpath expr="/*[last()]/*[last()]" position="after">
             <div class="o_sms_container mt-3">
                 <span class="text-muted o_sms_count me-1">

@@ -7,14 +7,14 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <block id="restaurant_section" position="after">
-                <block title="Mobile self-order &amp; Kiosk" id="self_ordering_section">
+            <block position="after" id="restaurant_section">
+                <block id="self_ordering_section" title="Mobile self-order &amp; Kiosk">
                     <setting string="QR menu &amp; Kiosk activation" help="Let your customers order using their mobile or a kiosk.">a
                         <div class="content-group row">
                             <label
                                 for="pos_self_ordering_mode"
-                                class="col-lg-4"
-                                string="Self Ordering" />
+                                string="Self Ordering"
+                                class="col-lg-4" />
                             <field
                                 name="pos_self_ordering_mode"
                                 invisible="not pos_config_id" />
@@ -23,54 +23,54 @@
                             class="d-flex flex-column align-items-start w-50"
                             invisible="pos_self_ordering_mode == 'nothing'">
                             <button
-                                class="btn-link p-0"
-                                icon="oi-arrow-right"
                                 name="preview_self_order_app"
                                 type="object"
-                                string="Preview Web interface" />
-                            <button
-                                class="btn-link p-0"
+                                string="Preview Web interface"
                                 icon="oi-arrow-right"
+                                class="btn-link p-0" />
+                            <button
                                 name="custom_link_action"
                                 type="object"
-                                string="Home buttons" />
-                            <button
-                                class="btn-link p-0"
+                                string="Home buttons"
                                 icon="oi-arrow-right"
+                                class="btn-link p-0" />
+                            <button
                                 name="generate_qr_codes_page"
                                 type="object"
                                 string="Print QR Codes"
-                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']" />
-                            <button
-                                class="btn-link p-0"
                                 icon="oi-arrow-right"
+                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']"
+                                class="btn-link p-0" />
+                            <button
                                 name="generate_qr_codes_zip"
                                 type="object"
                                 string="Download QR Codes"
-                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']" />
-                            <button
-                                class="btn-link p-0"
                                 icon="oi-arrow-right"
+                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']"
+                                class="btn-link p-0" />
+                            <button
                                 name="get_pos_qr_stands"
                                 type="object"
                                 string="Free Metal / Wood Stands"
-                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']" />
-                            <button
-                                groups="base.group_no_one"
-                                class="btn-link p-0"
                                 icon="oi-arrow-right"
+                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']"
+                                class="btn-link p-0" />
+                            <button
                                 name="update_access_tokens"
                                 type="object"
                                 string="Reset QR Codes"
-                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']" />
+                                icon="oi-arrow-right"
+                                groups="base.group_no_one"
+                                invisible="not pos_self_ordering_mode in ['consultation', 'mobile']"
+                                class="btn-link p-0" />
                         </div>
                         <div
                             class="content-group row mt-4"
                             invisible="not pos_self_ordering_mode in ['kiosk', 'mobile']">
                             <label
                                 for="pos_self_ordering_service_mode"
-                                class="col-lg-4"
-                                string="Service at" />
+                                string="Service at"
+                                class="col-lg-4" />
                             <field
                                 name="pos_self_ordering_service_mode"
                                 readonly="not pos_module_pos_restaurant and pos_self_ordering_mode != 'kiosk'" />
@@ -81,8 +81,8 @@
                             invisible="pos_self_ordering_mode == 'nothing'">
                             <label
                                 for="pos_self_ordering_default_user_id"
-                                class="col-lg-4"
-                                string="Default User" />
+                                string="Default User"
+                                class="col-lg-4" />
                             <field name="pos_self_ordering_default_user_id" />
                         </div>
                         <div
@@ -90,13 +90,13 @@
                             class="content-group row"
                             invisible="not pos_self_ordering_mode in ['kiosk', 'mobile']">
                             <label
-                                string="Pay after"
                                 for="pos_self_ordering_pay_after"
+                                string="Pay after"
                                 class="col-lg-4" />
                             <field
                                 name="pos_self_ordering_pay_after"
-                                readonly="pos_self_ordering_mode == 'kiosk' or (pos_self_ordering_service_mode == 'counter' and pos_self_ordering_mode == 'mobile')"
-                                widget="upgrade_selection" />
+                                widget="upgrade_selection"
+                                readonly="pos_self_ordering_mode == 'kiosk' or (pos_self_ordering_service_mode == 'counter' and pos_self_ordering_mode == 'mobile')" />
                         </div>
                     </setting>
                     <setting
@@ -105,8 +105,8 @@
                         invisible="pos_self_ordering_mode == 'nothing'">
                         <field
                             name="pos_self_ordering_image_home_ids"
-                            class="w-100"
-                            widget="many2many_binary" />
+                            widget="many2many_binary"
+                            class="w-100" />
                     </setting>
                     <setting
                         string="Language"
@@ -116,8 +116,8 @@
                             <div class="row">
                                 <label
                                     for="pos_self_ordering_default_language_id"
-                                    class="col-lg-3"
-                                    string="Default" />
+                                    string="Default"
+                                    class="col-lg-3" />
                                 <field
                                     name="pos_self_ordering_default_language_id"
                                     options="{'no_create': True}" />
@@ -125,8 +125,8 @@
                             <div class="row">
                                 <label
                                     for="pos_self_ordering_available_language_ids"
-                                    class="col-lg-3"
-                                    string="Available" />
+                                    string="Available"
+                                    class="col-lg-3" />
                                 <field
                                     name="pos_self_ordering_available_language_ids"
                                     widget="many2many_tags"
@@ -136,9 +136,9 @@
                         <div>
                             <button
                                 name="%(base.action_view_base_language_install)d"
-                                icon="oi-arrow-right"
                                 type="action"
                                 string="Add Languages"
+                                icon="oi-arrow-right"
                                 class="btn-link" />
                         </div>
                     </setting>
@@ -148,26 +148,26 @@
                         invisible="pos_self_ordering_mode == 'nothing'">
                         <field
                             name="pos_self_ordering_image_background_ids"
-                            class="w-100"
                             widget="many2many_binary"
-                            options="{'accepted_file_extensions': 'image/*', 'number_of_files': 1}" />
+                            options="{'accepted_file_extensions': 'image/*', 'number_of_files': 1}"
+                            class="w-100" />
                     </setting>
                 </block>
             </block>
 
-            <block id="pos_interface_section" position="attributes">
+            <block position="attributes" id="pos_interface_section">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </block>
 
-            <setting id="customer_display" position="attributes">
+            <setting position="attributes" id="customer_display">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="manual_discount" position="attributes">
+            <setting position="attributes" id="manual_discount">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="price_control" position="attributes">
+            <setting position="attributes" id="price_control">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
@@ -181,59 +181,59 @@
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </xpath>
 
-            <setting id="margin_and_cost" position="attributes">
+            <setting position="attributes" id="margin_and_cost">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="flexible_taxes" position="attributes">
+            <setting position="attributes" id="flexible_taxes">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="multiple_prices_setting" position="attributes">
+            <setting position="attributes" id="multiple_prices_setting">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="is_restaurant" position="attributes">
+            <setting position="attributes" id="is_restaurant">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="set_maximum_difference" position="attributes">
+            <setting position="attributes" id="set_maximum_difference">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="order_edit_tracking" position="attributes">
+            <setting position="attributes" id="order_edit_tracking">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="pos-avatax" position="attributes">
+            <setting position="attributes" id="pos-avatax">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="pos_global_discount" position="attributes">
+            <setting position="attributes" id="pos_global_discount">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="pos_pricer" position="attributes">
+            <setting position="attributes" id="pos_pricer">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="pos-loyalty" position="attributes">
+            <setting position="attributes" id="pos-loyalty">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="basic_receipt" position="attributes">
+            <setting position="attributes" id="basic_receipt">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="iface_orderline_notes" position="attributes">
+            <setting position="attributes" id="iface_orderline_notes">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="ship_later" position="attributes">
+            <setting position="attributes" id="ship_later">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
 
-            <setting id="barcode_scanner" position="attributes">
+            <setting position="attributes" id="barcode_scanner">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
         </field>

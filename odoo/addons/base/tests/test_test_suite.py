@@ -32,7 +32,7 @@ from odoo.tests.common import (
     users,
     warmup,
 )
-from odoo.tests.cursor import TestCursor
+from odoo.tests.cursor import TestCursor, _release_foreign_acquisition
 from odoo.tests.form import O2MValue
 from odoo.tests.result import OdooTestResult, Stat
 from odoo.tests.suite import OdooSuite
@@ -41,7 +41,6 @@ from odoo.tests.transaction_case import (
     _DELEGATING_STATEMENTS,
     _STATEMENT_RECORDERS,
     RegistryRLock,
-    _release_foreign_acquisition,
 )
 from odoo.tests.utils import (
     InfrastructureUnavailable,
@@ -102,6 +101,11 @@ class TestRunnerLoggingCommon(TransactionCase):
                 extra=None,
                 sinfo=None,
             ):
+                # The odoo.debug.* channels (odoo/libs/debug_log.py) are an
+                # orthogonal stream, off by default; what this pins is the
+                # runner's own report lines, so they stay out of the capture.
+                if name.startswith("odoo.debug."):
+                    return
                 log_records.append(
                     {
                         "logger": logger,
@@ -990,7 +994,7 @@ class TestAStrandedCursorIsRecoverableAcrossThreads(BaseCase):
         self.assertTrue(taken.wait(5))
         thread.join(5)
 
-        with self.assertLogs("odoo.tests.transaction_case", "WARNING") as logged:
+        with self.assertLogs("odoo.tests.cursor", "WARNING") as logged:
             _release_foreign_acquisition(lock)
         self.assertIn(
             "exposes no owner to adopt",
@@ -1088,11 +1092,6 @@ class TestBrowserIsStoppedBeforeTheLockIsTakenBack(BaseCase):
         stops = [
             i for i, line in enumerate(lines) if "atexit.callback(browser.stop)" in line
         ]
-        allow = next(
-            i
-            for i, line in enumerate(lines)
-            if "self.allow_requests(browser=browser)" in line
-        )
         drain = next(
             i
             for i, line in enumerate(lines)
@@ -1100,19 +1099,12 @@ class TestBrowserIsStoppedBeforeTheLockIsTakenBack(BaseCase):
         )
         self.assertEqual(
             len(stops),
-            2,
-            "browser.stop is registered twice on purpose: once before "
-            "allow_requests as the safety net, once after the drain so it "
-            "actually runs first",
-        )
-        self.assertLess(
-            stops[0],
-            allow,
-            "the safety-net registration must precede allow_requests, or a "
-            "failure entering it leaks the chrome process",
+            1,
+            "browser.stop is registered once, after the drain, so it runs "
+            "first; a second registration would stop the browser twice",
         )
         self.assertGreater(
-            stops[-1],
+            stops[0],
             drain,
             "an ExitStack unwinds last-registered-first, so stopping the "
             "browser must be registered AFTER the drain to run BEFORE it -- "

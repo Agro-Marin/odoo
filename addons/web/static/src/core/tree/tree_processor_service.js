@@ -429,6 +429,8 @@ class TreeProcessorService {
             case "in":
             case "not in":
                 addParenthesis = !values.length;
+                join = _t("or");
+                break;
             default:
                 join = _t("or");
         }

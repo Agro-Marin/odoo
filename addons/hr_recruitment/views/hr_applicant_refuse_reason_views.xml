@@ -10,9 +10,9 @@
                     <sheet>
                         <widget
                             name="web_ribbon"
-                            text="Archived"
+                            invisible="active"
                             bg_color="text-bg-danger"
-                            invisible="active" />
+                            text="Archived" />
                         <div class="oe_title">
                             <div class="oe_edit_only">
                                 <label for="name" />

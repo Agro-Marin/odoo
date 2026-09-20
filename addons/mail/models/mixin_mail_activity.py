@@ -7,7 +7,8 @@ from typing import Any, Literal
 
 from odoo import api, fields, models
 from odoo.api import DomainType, ValuesType
-from odoo.fields import Domain
+from odoo.fields import Domain, Field
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, partition
 
 if typing.TYPE_CHECKING:
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _DEADLINE_LAST = date.max
 
@@ -24,36 +26,37 @@ class MixinMailActivity(models.AbstractModel):
     _name = "mixin.mail.activity"
     _description = "Activity Mixin"
 
-    def _default_activity_type(self) -> MailActivityType:
+    def _get_default_activity_type(self) -> MailActivityType:
         return self.env["mail.activity"]._default_activity_type_for_model(self._name)
 
     activity_ids: MailActivity = fields.One2many(
-        "mail.activity",
-        "res_id",
-        "Activities",
+        comodel_name="mail.activity",
+        inverse_name="res_id",
+        string="Activities",
         bypass_search_access=True,
         groups="base.group_user",
     )
     activity_state = fields.Selection(
-        [("overdue", "Overdue"), ("today", "Today"), ("planned", "Planned")],
-        string="Activity State",
+        selection=[("overdue", "Overdue"), ("today", "Today"), ("planned", "Planned")],
         compute="_compute_activity_state",
         search="_search_activity_state",
+        group_by_sql="_activity_state_group_sql",
+        order_by_sql="_activity_order_sql",
         groups="base.group_user",
         help="Status based on activities\nOverdue: Due date is already passed\n"
         "Today: Activity date is today\nPlanned: Future activities.",
     )
     activity_user_id: ResUsers = fields.Many2one(
-        "res.users",
-        "Responsible User",
+        comodel_name="res.users",
+        string="Responsible User",
         compute="_compute_activity_user_id",
-        readonly=True,
         search="_search_activity_user_id",
+        readonly=True,
         groups="base.group_user",
     )
     activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type",
-        "Next Activity Type",
+        comodel_name="mail.activity.type",
+        string="Next Activity Type",
         compute="_compute_activity_next",
         inverse="_inverse_activity_type_id",
         search="_search_activity_type_id",
@@ -61,26 +64,27 @@ class MixinMailActivity(models.AbstractModel):
         groups="base.group_user",
     )
     activity_type_icon = fields.Char(
-        "Activity Type Icon",
         compute="_compute_activity_next",
         groups="base.group_user",
     )
     activity_date_deadline = fields.Date(
-        "Next Activity Deadline",
+        string="Next Activity Deadline",
         compute="_compute_activity_date_deadline",
         search="_search_activity_date_deadline",
         readonly=True,
+        order_by_sql="_activity_order_sql",
         groups="base.group_user",
     )
     my_activity_date_deadline = fields.Date(
-        "My Activity Deadline",
+        string="My Activity Deadline",
         compute="_compute_my_activity_date_deadline",
         search="_search_my_activity_date_deadline",
         readonly=True,
+        order_by_sql="_activity_order_sql",
         groups="base.group_user",
     )
     activity_summary = fields.Char(
-        "Next Activity Summary",
+        string="Next Activity Summary",
         compute="_compute_activity_next",
         inverse="_inverse_activity_summary",
         search="_search_activity_summary",
@@ -88,17 +92,17 @@ class MixinMailActivity(models.AbstractModel):
         groups="base.group_user",
     )
     activity_exception_decoration = fields.Selection(
-        [("warning", "Alert"), ("danger", "Error")],
+        selection=[("warning", "Alert"), ("danger", "Error")],
         compute="_compute_activity_exception_type",
         search="_search_activity_exception_decoration",
         groups="base.group_user",
         help="Type of the exception activity on record.",
     )
     activity_exception_icon = fields.Char(
-        "Icon",
-        help="Icon to indicate an exception activity.",
+        string="Icon",
         compute="_compute_activity_exception_type",
         groups="base.group_user",
+        help="Icon to indicate an exception activity.",
     )
 
     ACTIVITY_STATE_URGENCY = ("overdue", "today", "planned")
@@ -383,6 +387,12 @@ class MixinMailActivity(models.AbstractModel):
         result = super().write(vals)
         if not self._display_name_field_names().isdisjoint(vals):
             activities = self.sudo().with_context(active_test=False).activity_ids
+            _debug.logic(
+                "res_name_recompute_queued",
+                model=self._name,
+                records=len(self),
+                activities=len(activities),
+            )
             if activities:
                 self.env.add_to_compute(
                     self.env["mail.activity"]._fields["res_name"], activities
@@ -414,11 +424,7 @@ class MixinMailActivity(models.AbstractModel):
     def _activity_state_join(self, alias: str, query: Query) -> SQL:
         return SQL.identifier(self._activity_aggregate_join(alias, query), "state")
 
-    def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
-        if groupby_spec != "activity_state":
-            return super()._read_group_groupby(alias, groupby_spec, query)
-        self._check_field_access(self._fields["activity_state"], "read")
-
+    def _activity_state_group_sql(self, field: Field, alias: str, query: Query) -> SQL:
         return SQL(
             """CASE %s
                     WHEN -1 THEN 'overdue'
@@ -428,40 +434,21 @@ class MixinMailActivity(models.AbstractModel):
             self._activity_state_join(alias, query),
         )
 
-    def _order_field_to_sql(
-        self, alias: str, field_name: str, direction: SQL, nulls: SQL, query: Query
+    def _activity_order_sql(
+        self, field: Field, alias: str, direction: SQL, nulls: SQL, query: Query
     ) -> SQL:
-        if field_name not in (
-            "activity_date_deadline",
-            "my_activity_date_deadline",
-            "activity_state",
-        ):
-            return super()._order_field_to_sql(
-                alias, field_name, direction, nulls, query
-            )
-        if not self._has_field_access(self._fields[field_name], "read"):
-            return SQL.EMPTY
-
-        if field_name == "activity_state":
+        if field.name == "activity_state":
             sql_value = self._activity_state_join(alias, query)
         else:
             join_alias = self._activity_aggregate_join(
                 alias,
                 query,
-                user_id=self.env.uid if field_name.startswith("my_") else None,
+                user_id=self.env.uid if field.name.startswith("my_") else None,
             )
             sql_value = SQL.identifier(join_alias, "date_deadline")
-
-        if query._any_value_orderby:
-            sql_value = SQL("ANY_VALUE(%s)", sql_value)
-        elif query._collect_order_groupby:
-            query._order_groupby.append(sql_value)
-
-        return SQL(
-            "%s %s %s",
-            sql_value,
-            direction,
-            nulls if nulls.code else SQL("NULLS LAST"),
+        # a record with no activity sorts last whichever way the deadline goes
+        return self._order_value_to_sql(
+            sql_value, direction, nulls if nulls.code else SQL("NULLS LAST"), query
         )
 
     def _my_next_activity(self) -> MailActivity:
@@ -506,10 +493,19 @@ class MixinMailActivity(models.AbstractModel):
         only_automated: bool = True,
     ) -> MailActivity:
         if self.env.context.get("mail_activity_automation_skip"):
+            _debug.logic(
+                "activity_search_skipped", model=self._name, reason="automation_skip"
+            )
             return self.env["mail.activity"]
 
         activity_types_ids = self._get_activity_type_ids(act_type_xmlids)
         if not activity_types_ids:
+            _debug.logic(
+                "activity_search_skipped",
+                model=self._name,
+                reason="no_type",
+                xmlids=list(act_type_xmlids),
+            )
             return self.env["mail.activity"]
 
         domain = Domain(
@@ -554,6 +550,12 @@ class MixinMailActivity(models.AbstractModel):
         if act_type_xmlid:
             activity_type = self._activity_type_from_xmlid(act_type_xmlid)
             if not activity_type:
+                _debug.logic(
+                    "activity_type_fallback",
+                    model=self._name,
+                    xmlid=act_type_xmlid,
+                    reason="unknown_xmlid",
+                )
                 _logger.warning(
                     "Unknown activity type xml id %s on %s, falling back on the "
                     "model's default type",
@@ -565,6 +567,12 @@ class MixinMailActivity(models.AbstractModel):
                 act_values.get("activity_type_id") or ()
             )
         if activity_type.res_model and activity_type.res_model != self._name:
+            _debug.logic(
+                "activity_type_fallback",
+                model=self._name,
+                xmlid=act_type_xmlid or None,
+                reason="model_mismatch",
+            )
             _logger.warning(
                 "Invalid activity type model %s used on %s (tried with xml id "
                 "%s), falling back on the model's default type",
@@ -573,7 +581,7 @@ class MixinMailActivity(models.AbstractModel):
                 act_type_xmlid or "",
             )
             activity_type = self.env["mail.activity.type"]
-        return activity_type or self._default_activity_type()
+        return activity_type or self._get_default_activity_type()
 
     def _activity_create(
         self,
@@ -590,6 +598,7 @@ class MixinMailActivity(models.AbstractModel):
         if not date_deadline:
             date_deadline = self.env["mail.activity"]._today_for(assignee)
         if isinstance(date_deadline, datetime):
+            _debug.logic("deadline_is_datetime", model=self._name)
             _logger.warning(
                 "Scheduled deadline should be a date (got %s)", date_deadline
             )
@@ -604,6 +613,14 @@ class MixinMailActivity(models.AbstractModel):
         if assignee and not shared.get("user_id"):
             shared["user_id"] = assignee.id
         default_note = activity_type.default_note
+        _debug.lifecycle(
+            "activity_scheduled",
+            model=self._name,
+            records=len(self),
+            activity_type=activity_type.id,
+            user=shared.get("user_id"),
+            deadline=date_deadline,
+        )
         return self.env["mail.activity"].create(
             [
                 {
@@ -666,6 +683,12 @@ class MixinMailActivity(models.AbstractModel):
             write_vals["date_deadline"] = date_deadline
         if new_user_id:
             write_vals["user_id"] = new_user_id
+        _debug.lifecycle(
+            "activity_rescheduled",
+            model=self._name,
+            activities=len(activities),
+            fields=list(write_vals),
+        )
         if activities and write_vals:
             activities.write(write_vals)
         return activities
@@ -681,6 +704,9 @@ class MixinMailActivity(models.AbstractModel):
         activities = self.activity_search(
             act_type_xmlids, user_id=user_id, only_automated=only_automated
         )
+        _debug.lifecycle(
+            "activity_feedback", model=self._name, activities=len(activities)
+        )
         if activities:
             activities.action_feedback(feedback=feedback, attachment_ids=attachment_ids)
         return activities
@@ -693,6 +719,9 @@ class MixinMailActivity(models.AbstractModel):
     ) -> MailActivity:
         activities = self.activity_search(
             act_type_xmlids, user_id=user_id, only_automated=only_automated
+        )
+        _debug.lifecycle(
+            "activity_unlinked", model=self._name, activities=len(activities)
         )
         activities.unlink()
         return activities

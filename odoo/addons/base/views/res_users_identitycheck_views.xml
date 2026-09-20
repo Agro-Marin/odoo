@@ -12,12 +12,12 @@
                         </h3>
                         <div>
                             <field
-                                class="o_field_highlight col-10 col-md-6 px-0"
                                 name="password"
-                                autocomplete="current-password"
-                                required="auth_method == 'password'"
+                                placeholder="Enter your password"
                                 password="True"
-                                placeholder="Enter your password" />
+                                required="auth_method == 'password'"
+                                class="o_field_highlight col-10 col-md-6 px-0"
+                                autocomplete="current-password" />
                         </div>
                         <a href="/web/reset_password/" class="btn btn-link ps-0" role="button">Forgot
                             password?</a>
@@ -25,19 +25,19 @@
                 </sheet>
                 <footer>
                     <button
-                        string="Confirm Password"
+                        name="run_check"
                         id="password_confirm"
                         type="object"
-                        name="run_check"
-                        class="btn btn-primary"
-                        data-hotkey="q"
+                        string="Confirm Password"
+                        context="{'password': password}"
                         invisible="auth_method != 'password'"
-                        context="{'password': password}" />
+                        class="btn btn-primary"
+                        data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="z"
-                        class="btn btn-secondary" />
+                        string="Discard"
+                        class="btn btn-secondary"
+                        data-hotkey="z" />
                 </footer>
             </form>
         </field>

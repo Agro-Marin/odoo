@@ -1,5 +1,6 @@
+import random
 from ast import literal_eval
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -9,7 +10,7 @@ from odoo.fields import Datetime
 from odoo.addons.crm.models.crm_lead import PARTNER_ADDRESS_FIELDS_TO_SYNC
 from odoo.addons.mail.tests.common import MailCase, mail_new_test_user
 from odoo.addons.phone_validation.tools import phone_validation
-from odoo.addons.sales_team.tests.common import TestSalesCommon
+from odoo.addons.sale_team.tests.common import TestSalesCommon
 
 INCOMING_EMAIL = """Return-Path: {return_path}
 X-Original-To: {to}
@@ -43,7 +44,30 @@ Cheers,
 Somebody."""
 
 
+class _WarmUp(Exception):
+    pass
+
+
 class TestCrmCommon(TestSalesCommon, MailCase):
+    def assertQueryCountWarm(self, fn, **budgets):
+        """Count the queries of ``fn`` after one rolled-back rehearsal.
+
+        The rehearsal fills the registry caches the operation reads (record
+        rules, group membership, defaults), which a fresh process fills on
+        first use with ten to twenty queries that belong to no code under
+        test and vary with the installed module set. The random state is
+        restored so a seeded draw in ``fn`` is the one the test asserts.
+        """
+        state = random.getstate()
+        self.env.flush_all()
+        with suppress(_WarmUp), self.env.cr.savepoint():
+            fn()
+            raise _WarmUp
+        self.env.invalidate_all()
+        random.setstate(state)
+        with self.assertQueryCount(**budgets):
+            return fn()
+
     FIELDS_FIRST_SET = [
         "name",
         "partner_id",
@@ -83,22 +107,22 @@ class TestCrmCommon(TestSalesCommon, MailCase):
 
         cls.sales_team_1.write(
             {
-                "alias_name": "sales.test",
+                "lead_alias_name": "sales.test",
                 "use_leads": True,
                 "use_opportunities": True,
-                "assignment_domain": False,
+                "lead_assignment_domain": False,
             }
         )
         cls.sales_team_1_m1.write(
             {
-                "assignment_max": 45,
-                "assignment_domain": False,
+                "lead_assignment_max": 45,
+                "lead_assignment_domain": False,
             }
         )
         cls.sales_team_1_m2.write(
             {
-                "assignment_max": 15,
-                "assignment_domain": False,
+                "lead_assignment_max": 15,
+                "lead_assignment_domain": False,
             }
         )
 
@@ -323,29 +347,31 @@ class TestCrmCommon(TestSalesCommon, MailCase):
             company_ids=[(4, cls.company_main.id), (4, cls.company_2.id)],
             email="user.sales.manager.mc@test.example.com",
             login="user_sales_manager_mc",
-            groups="sales_team.group_sale_manager,base.group_partner_manager",
+            groups="sale.group_sale_manager,base.group_partner_manager",
             name="Myrddin Sales Manager",
             notification_type="inbox",
         )
-        cls.team_company2 = cls.env["crm.team"].create(
+        cls.team_company2 = cls.env["team.team"].create(
             {
+                "use_sale": True,
                 "company_id": cls.company_2.id,
                 "name": "C2 Team",
                 "sequence": 10,
                 "user_id": False,
             }
         )
-        cls.team_company2_m1 = cls.env["crm.team.member"].create(
+        cls.team_company2_m1 = cls.env["team.member"].create(
             {
-                "crm_team_id": cls.team_company2.id,
+                "team_id": cls.team_company2.id,
                 "user_id": cls.user_sales_manager_mc.id,
-                "assignment_max": 30,
-                "assignment_domain": False,
+                "lead_assignment_max": 30,
+                "lead_assignment_domain": False,
             }
         )
 
-        cls.team_company1 = cls.env["crm.team"].create(
+        cls.team_company1 = cls.env["team.team"].create(
             {
+                "use_sale": True,
                 "company_id": cls.company_main.id,
                 "name": "MainCompany Team",
                 "sequence": 50,
@@ -600,24 +626,25 @@ class TestLeadConvertCommon(TestCrmCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.sales_team_convert = cls.env["crm.team"].create(
+        cls.sales_team_convert = cls.env["team.team"].create(
             {
+                "use_sale": True,
                 "name": "Convert Sales Team",
                 "sequence": 10,
-                "alias_name": False,
+                "lead_alias_name": False,
                 "use_leads": True,
                 "use_opportunities": True,
                 "company_id": False,
                 "user_id": cls.user_sales_manager.id,
-                "assignment_domain": [("priority", "in", ["1", "2", "3"])],
+                "lead_assignment_domain": [("priority", "in", ["1", "2", "3"])],
             }
         )
-        cls.sales_team_convert_m1 = cls.env["crm.team.member"].create(
+        cls.sales_team_convert_m1 = cls.env["team.member"].create(
             {
                 "user_id": cls.user_sales_salesman.id,
-                "crm_team_id": cls.sales_team_convert.id,
-                "assignment_max": 30,
-                "assignment_domain": False,
+                "team_id": cls.sales_team_convert.id,
+                "lead_assignment_max": 30,
+                "lead_assignment_domain": False,
             }
         )
         cls.stage_team_convert_1 = cls.env["crm.stage"].create(
@@ -639,35 +666,38 @@ class TestLeadConvertCommon(TestCrmCommon):
     def _switch_to_multi_membership(cls):
         cls.sales_team_1_m1.write(
             {
-                "assignment_max": 45,
-                "assignment_domain": False,
+                "lead_assignment_max": 45,
+                "lead_assignment_domain": False,
             }
         )
         cls.sales_team_1_m2.write(
             {
-                "assignment_max": 15,
-                "assignment_domain": [("probability", ">=", 10)],
+                "lead_assignment_max": 15,
+                "lead_assignment_domain": [("probability", ">=", 10)],
             }
         )
 
-        cls.env["ir.config_parameter"].set_param("sales_team.membership_multi", True)
-        cls.sales_team_1_m3 = cls.env["crm.team.member"].create(
+        cls.env["ir.config_parameter"].set_param("sale_team.membership_multi", True)
+        cls.sales_team_1_m3 = cls.env["team.member"].create(
             {
                 "user_id": cls.user_sales_salesman.id,
-                "crm_team_id": cls.sales_team_1.id,
-                "assignment_max": 15,
-                "assignment_domain": [("probability", ">=", 20)],
+                "team_id": cls.sales_team_1.id,
+                "lead_assignment_max": 15,
+                "lead_assignment_domain": [("probability", ">=", 20)],
             }
         )
         cls.sales_team_convert_m1.write(
-            {"assignment_max": 30, "assignment_domain": [("probability", ">=", 20)]}
+            {
+                "lead_assignment_max": 30,
+                "lead_assignment_domain": [("probability", ">=", 20)],
+            }
         )
-        cls.sales_team_convert_m2 = cls.env["crm.team.member"].create(
+        cls.sales_team_convert_m2 = cls.env["team.member"].create(
             {
                 "user_id": cls.user_sales_manager.id,
-                "crm_team_id": cls.sales_team_convert.id,
-                "assignment_max": 60,
-                "assignment_domain": False,
+                "team_id": cls.sales_team_convert.id,
+                "lead_assignment_max": 60,
+                "lead_assignment_domain": False,
             }
         )
 
@@ -678,8 +708,8 @@ class TestLeadConvertCommon(TestCrmCommon):
         cls.assign_cron.update(
             {
                 "active": True,
-                "interval_type": "days",
-                "interval_number": 1,
+                "repeat_unit": "day",
+                "repeat_interval": 1,
             }
         )
 
@@ -688,14 +718,16 @@ class TestLeadConvertCommon(TestCrmCommon):
         member_leads = self.env["crm.lead"].search(
             [
                 ("user_id", "=", member.user_id.id),
-                ("team_id", "=", member.crm_team_id.id),
+                ("team_id", "=", member.team_id.id),
                 ("date_open", ">=", Datetime.now() - timedelta(hours=24)),
             ]
         )
         self.assertEqual(len(member_leads), count)
-        if member.assignment_domain:
+        if member.lead_assignment_domain:
             self.assertEqual(
-                member_leads.filtered_domain(literal_eval(member.assignment_domain)),
+                member_leads.filtered_domain(
+                    literal_eval(member.lead_assignment_domain)
+                ),
                 member_leads,
             )
 
@@ -712,12 +744,12 @@ class TestLeadConvertMassCommon(TestLeadConvertCommon):
             email="crm_leads_2@test.example.com",
             company_id=cls.env.ref("base.main_company").id,
             notification_type="inbox",
-            groups="sales_team.group_sale_salesman_all_leads,base.group_partner_manager,crm.group_use_lead",
+            groups="sale.group_sale_salesman_all_leads,base.group_partner_manager,crm.group_use_lead",
         )
-        cls.sales_team_convert_m2 = cls.env["crm.team.member"].create(
+        cls.sales_team_convert_m2 = cls.env["team.member"].create(
             {
                 "user_id": cls.user_sales_leads_convert.id,
-                "crm_team_id": cls.sales_team_convert.id,
+                "team_id": cls.sales_team_convert.id,
             }
         )
 

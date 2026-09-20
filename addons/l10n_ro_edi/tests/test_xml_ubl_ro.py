@@ -364,7 +364,7 @@ class TestUBLRO(TestUBLROCommon):
     ####################################################
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_bill_found(self):
@@ -379,13 +379,13 @@ class TestUBLRO(TestUBLROCommon):
         document_count = len(bill.l10n_ro_edi_document_ids)
         message_count = len(bill.message_ids)
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(len(bill.l10n_ro_edi_document_ids), document_count)
         self.assertEqual(len(bill.message_ids), message_count)
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_bill_update_index(self):
@@ -399,13 +399,13 @@ class TestUBLRO(TestUBLROCommon):
         self.assertEqual(bill.l10n_ro_edi_index, False)
         self.assertEqual(bill.l10n_ro_edi_state, False)
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(bill.l10n_ro_edi_index, "5020704741")
         self.assertEqual(bill.l10n_ro_edi_state, "invoice_validated")
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_bill_creation(self):
@@ -418,7 +418,7 @@ class TestUBLRO(TestUBLROCommon):
         )
         self.assertEqual(len(bills), 0)
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         bills = self.env["account.move"].search(
             [
@@ -438,7 +438,7 @@ class TestUBLRO(TestUBLROCommon):
     ####################################################
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_validation(self):
@@ -455,13 +455,13 @@ class TestUBLRO(TestUBLROCommon):
         )
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_validated")
         self.assertEqual(len(invoice.l10n_ro_edi_document_ids), 1)
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_validation_error(self):
@@ -479,7 +479,7 @@ class TestUBLRO(TestUBLROCommon):
         )
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
@@ -490,7 +490,7 @@ class TestUBLRO(TestUBLROCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_validation_without_index(self):
@@ -511,14 +511,14 @@ class TestUBLRO(TestUBLROCommon):
         invoice.l10n_ro_edi_index = False
         invoice.l10n_ro_edi_state = "invoice_not_indexed"
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_index, "5019882651")
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_validated")
         self.assertEqual(len(invoice.l10n_ro_edi_document_ids), 1)
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_index_not_in_messages(self):
@@ -532,12 +532,12 @@ class TestUBLRO(TestUBLROCommon):
         )
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_refusal(self):
@@ -554,13 +554,13 @@ class TestUBLRO(TestUBLROCommon):
         )
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_sent")
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_refused")
         self.assertEqual(len(invoice.l10n_ro_edi_document_ids), 1)
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_refusal_held_non_indexed(self):
@@ -578,16 +578,16 @@ class TestUBLRO(TestUBLROCommon):
         self.assertEqual(invoice.l10n_ro_edi_index, False)
 
         with freeze_time(invoice.create_date + relativedelta(days=HOLDING_DAYS + 1)):
-            self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+            self.env["account.move"]._l10n_ro_edi_import_invoices()
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_not_indexed")
 
         with freeze_time(invoice.create_date + relativedelta(days=HOLDING_DAYS + 2)):
-            self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+            self.env["account.move"]._l10n_ro_edi_import_invoices()
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_refused")
         self.assertEqual(len(invoice.l10n_ro_edi_document_ids), 1)
 
     @patch(
-        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_synchronize_invoices",
+        "odoo.addons.l10n_ro_edi.models.account_move._request_ciusro_sync_invoices",
         new=_patch_request_ciusro_synchronize_invoices,
     )
     def test_ciusro_synchronize_invoices_not_indexed_with_duplicate_name(self):
@@ -605,7 +605,7 @@ class TestUBLRO(TestUBLROCommon):
         )
         invoice.l10n_ro_edi_state = "invoice_not_indexed"
 
-        self.env["account.move"]._l10n_ro_edi_fetch_invoices()
+        self.env["account.move"]._l10n_ro_edi_import_invoices()
 
         self.assertEqual(invoice.l10n_ro_edi_state, "invoice_validated")
         self.assertEqual(len(invoice.l10n_ro_edi_document_ids), 2)

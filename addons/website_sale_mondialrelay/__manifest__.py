@@ -2,7 +2,7 @@
     "name": "eCommerce Mondialrelay Delivery",
     "version": "0.1",
     "category": "Website/Website",
-    "summary": "Let's choose Point Relais\u00ae on your ecommerce",
+    "summary": "Let's choose Point Relais® on your ecommerce",
     "description": """
 This module allow your customer to choose a Point Relais® and use it as shipping address.
     """,

@@ -7,15 +7,15 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="website.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="livechat" position="inside">
+            <setting position="inside" id="livechat">
                 <div
                     class="content-group mt16"
                     groups="im_livechat.im_livechat_group_manager">
                     <div class="row">
                         <label
-                            class="col-lg-3 o_light_label"
+                            for="channel_id"
                             string="Channel"
-                            for="channel_id" />
+                            class="col-lg-3 o_light_label" />
                         <field name="channel_id" class="oe_inline" />
                     </div>
                 </div>

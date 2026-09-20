@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class PosCategory(models.Model):
     _name = "pos.category"
@@ -15,20 +17,41 @@ class PosCategory(models.Model):
 
     _color_default_indices = tuple(range(11))
 
-    name = fields.Char(string="Category Name", required=True, translate=True)
-    parent_id = fields.Many2one("pos.category", string="Parent Category", index=True)
+    display_name = fields.Char(recursive=True)
+
+    name = fields.Char(
+        string="Category Name",
+        translate=True,
+        required=True,
+    )
+    parent_id = fields.Many2one(
+        comodel_name="pos.category",
+        string="Parent Category",
+        index=True,
+    )
     child_ids = fields.One2many(
-        "pos.category", "parent_id", string="Children Categories"
+        comodel_name="pos.category",
+        inverse_name="parent_id",
+        string="Children Categories",
     )
     sequence = fields.Integer(
         help="Gives the sequence order when displaying a list of product categories."
     )
-    image_512 = fields.Image("Image", max_width=512, max_height=512)
+    image_512 = fields.Image(
+        string="Image",
+        max_width=512,
+        max_height=512,
+    )
     image_128 = fields.Image(
-        "Image 128", related="image_512", max_width=128, max_height=128, store=True
+        related="image_512",
+        string="Image 128",
+        max_width=128,
+        max_height=128,
+        store=True,
     )
     color = fields.Integer(
-        "Color", required=False, default=lambda self: self._default_color()
+        default=lambda self: self._default_color(),
+        required=False,
     )
     hour_until = fields.Float(
         string="Availability Until",
@@ -61,6 +84,11 @@ class PosCategory(models.Model):
                     + config.iface_available_categ_ids.ids,
                 )
             ]
+            dbg.logic.debug(
+                "[load:pos.category] limited: %d printer + %d config categories",
+                len(flattened_preparation_categories),
+                len(config.iface_available_categ_ids),
+            )
         return domain
 
     @api.model
@@ -78,16 +106,16 @@ class PosCategory(models.Model):
             "hour_after",
         ]
 
-    def _get_hierarchy(self) -> list[str]:
-        self.check_singleton()
-        return (self.parent_id._get_hierarchy() if self.parent_id else []) + [
-            (self.name or "")
-        ]
-
-    @api.depends("parent_id")
+    @api.depends("name", "parent_id.display_name")
+    @api.depends_context("lang")
     def _compute_display_name(self):
+        super()._compute_display_name()
         for cat in self:
-            cat.display_name = " / ".join(cat._get_hierarchy())
+            cat.display_name = " / ".join(
+                [cat.parent_id.display_name, cat.name or ""]
+                if cat.parent_id
+                else [cat.name or ""]
+            )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_session_open(self):
@@ -108,6 +136,11 @@ class PosCategory(models.Model):
             )
         )
         if blocking_session:
+            dbg.logic.debug(
+                "pos.category unlink of %s refused by open %s",
+                dbg.rec(self),
+                dbg.rec(blocking_session),
+            )
             raise UserError(
                 _(
                     "You cannot delete a point of sale category while the session"
@@ -121,13 +154,6 @@ class PosCategory(models.Model):
     def _compute_has_image(self):
         for category in self:
             category.has_image = bool(category.image_128)
-
-    def _get_descendants(self):
-        available_categories = self
-        for child in self.child_ids:
-            available_categories |= child
-            available_categories |= child._get_descendants()
-        return available_categories
 
     @api.constrains("hour_until", "hour_after")
     def _check_hour(self):

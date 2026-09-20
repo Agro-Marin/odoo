@@ -5,12 +5,14 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_alias import MailAlias
     from .mail_alias_domain import MailAliasDomain
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MixinMailAliasMixinOptional(models.AbstractModel):
@@ -25,18 +27,30 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
     ]
 
     alias_id: MailAlias = fields.Many2one(
-        "mail.alias", string="Alias", ondelete="restrict", required=False, copy=False
+        comodel_name="mail.alias",
+        copy=False,
+        required=False,
+        ondelete="restrict",
     )
-    alias_name = fields.Char(related="alias_id.alias_name", readonly=False)
-    alias_domain_id: MailAliasDomain = fields.Many2one(
-        "mail.alias.domain",
-        string="Alias Domain",
-        related="alias_id.alias_domain_id",
+    alias_name = fields.Char(
+        related="alias_id.alias_name",
         readonly=False,
     )
-    alias_domain = fields.Char("Alias Domain Name", related="alias_id.alias_domain")
+    alias_domain_id: MailAliasDomain = fields.Many2one(
+        comodel_name="mail.alias.domain",
+        related="alias_id.alias_domain_id",
+        string="Alias Domain",
+        readonly=False,
+    )
+    alias_domain = fields.Char(
+        related="alias_id.alias_domain",
+        string="Alias Domain Name",
+    )
     alias_defaults = fields.Text(related="alias_id.alias_defaults")
-    alias_email = fields.Char("Email Alias", related="alias_id.alias_full_name")
+    alias_email = fields.Char(
+        related="alias_id.alias_full_name",
+        string="Email Alias",
+    )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -98,6 +112,13 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                 valid_vals_list.append(vals)
 
         records = super().create(valid_vals_list)
+        _debug.lifecycle(
+            "create",
+            model=self._name,
+            count=len(records),
+            aliases_created=len(alias_vals_list),
+            overrides=len(overrides_by_index),
+        )
 
         for index, record in enumerate(records):
             if not record.alias_id:
@@ -122,6 +143,11 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                 for record in self.filtered(lambda rec: not rec.alias_id)
             ]
             if alias_create_values:
+                _debug.lifecycle(
+                    "aliases_created_on_write",
+                    model=self._name,
+                    records=len(alias_create_values),
+                )
                 aliases = self.env["mail.alias"].sudo().create(alias_create_values)
                 for record, alias in zip(
                     self.filtered(lambda rec: not rec.alias_id), aliases, strict=False
@@ -143,12 +169,21 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
         if alias_vals:
             if not record_vals:
                 self.check_access("write")
+            _debug.lifecycle(
+                "alias_written",
+                model=self._name,
+                records=self.ids,
+                fields=list(alias_vals),
+            )
             self.mapped("alias_id").sudo().write(alias_vals)
 
         return True
 
     def unlink(self) -> Literal[True]:
         aliases = self.mapped("alias_id")
+        _debug.lifecycle(
+            "unlink", model=self._name, records=self.ids, aliases=len(aliases)
+        )
         res = super().unlink()
         aliases.sudo().unlink()
         return res
@@ -180,11 +215,11 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
             )
         return alias_domain_values
 
-    def _get_alias_defaults(self) -> dict:
+    def _prepare_alias_defaults(self) -> dict:
         if not self:
             return {}
         self.check_singleton()
-        return self.alias_id._get_alias_defaults() if self.alias_id else {}
+        return self.alias_id._prepare_alias_defaults() if self.alias_id else {}
 
     def _alias_get_creation_values(self) -> dict:
         values = {

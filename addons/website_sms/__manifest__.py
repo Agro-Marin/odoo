@@ -14,6 +14,5 @@
     "data": [
         "views/website_visitor_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

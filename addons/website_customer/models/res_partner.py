@@ -5,10 +5,10 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     website_tag_ids = fields.Many2many(
-        "res.partner.website.tag",
-        "res_partner_res_partner_website_tag_rel",
-        "partner_id",
-        "tag_id",
+        comodel_name="res.partner.website.tag",
+        relation="res_partner_res_partner_website_tag_rel",
+        column1="partner_id",
+        column2="tag_id",
         string="Website tags",
         help="Filter published customers on the .../customers website page",
     )
@@ -24,26 +24,30 @@ class ResPartnerWebsiteTag(models.Model):
     _inherit = ["mixin.website.published"]
 
     @api.model
-    def get_selection_class(self):
+    def _selection_classname(self):
         classname = ["info", "primary", "success", "warning", "danger"]
         return [(x, str.title(x)) for x in classname]
 
-    name = fields.Char("Tag Name", required=True, translate=True)
+    name = fields.Char(
+        string="Tag Name",
+        translate=True,
+        required=True,
+    )
     partner_ids = fields.Many2many(
-        "res.partner",
-        "res_partner_res_partner_website_tag_rel",
-        "tag_id",
-        "partner_id",
+        comodel_name="res.partner",
+        relation="res_partner_res_partner_website_tag_rel",
+        column1="tag_id",
+        column2="partner_id",
         string="Partners",
     )
     classname = fields.Selection(
-        "get_selection_class",
-        "Class",
+        selection="_selection_classname",
+        string="Class",
         default="info",
-        help="Bootstrap class to customize the color",
         required=True,
+        help="Bootstrap class to customize the color",
     )
-    active = fields.Boolean("Active", default=True)
+    active = fields.Boolean(default=True)
 
     def _default_is_published(self):
         return True

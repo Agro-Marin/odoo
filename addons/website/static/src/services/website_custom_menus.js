@@ -1,16 +1,13 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { EditMenuDialog } from "@website/components/dialog/edit_menu";
 import { PagePropertiesDialog } from "@website/components/dialog/page_properties";
 import { OptimizeSEODialog } from "@website/components/dialog/seo";
 
-/**
- * This service displays contextual menus, depending of the state of the
- * website. These menus are defined in xml with the "website_preview" action,
- * which is overriden here for displaying dialogs, or regular components that
- * are not client actions.
- */
+const log = makeLogger("website.service.custom_menus");
+
 export const websiteCustomMenus = {
     dependencies: ["website", "orm", "dialog", "ui"],
     start(env, { website, orm, dialog, ui }) {
@@ -21,15 +18,27 @@ export const websiteCustomMenus = {
             },
             async open(customMenu) {
                 const menuConfig = this.get(customMenu.xmlid);
+                log.logic("open", () => ({
+                    xmlid: customMenu.xmlid,
+                    openWidget: !!menuConfig.openWidget,
+                    getProps: !!menuConfig.getProps,
+                    dynamicProps: customMenu.dynamicProps,
+                }));
                 if (menuConfig.openWidget) {
                     return menuConfig.openWidget(services);
                 }
+                const endProps = log.perf("open getProps", () => ({
+                    xmlid: customMenu.xmlid,
+                }));
                 const menuProps = {
                     ...(menuConfig.getProps && (await menuConfig.getProps(services))),
-                    // Values on 'dynamicProps' are retrieved after the content is loaded (e.g. id of
-                    // the content menu to be edited).
                     ...customMenu.dynamicProps,
                 };
+                endProps();
+                log.lifecycle("open dialog", () => ({
+                    xmlid: customMenu.xmlid,
+                    component: menuConfig.Component?.name,
+                }));
                 return dialog.add(menuConfig.Component, menuProps);
             },
             addCustomMenus(sections) {
@@ -46,17 +55,12 @@ export const websiteCustomMenus = {
                             subSections = this.addCustomMenus(section.childrenTree);
                         }
                         if (section.xmlid === "website.custom_menu_edit_menu") {
-                            // Hack: this code will simulate an XML pre-configured navbar menuitem to edit each
-                            // content menu found on the current page by duplicating one menuitem with
-                            // different data (name, dialog props...). this will prevent breaking the current
-                            // 'navbar menus' display system.
                             filteredSections.push(
                                 ...website.currentWebsite.metadata.contentMenus.map(
                                     (menu, index) => ({
                                         ...section,
                                         name: _t("Edit %s", menu[0]),
                                         dynamicProps: { rootID: parseInt(menu[1], 10) },
-                                        // Prevent a 't-foreach' duplicate key on menus template.
                                         id: `${section.id}-${index}`,
                                     }),
                                 ),
@@ -72,7 +76,6 @@ export const websiteCustomMenus = {
                 }
                 for (const section of filteredSections) {
                     section.childrenTree = section.childrenTree.filter(
-                        // Exclude non-leaf node having no visible sub-element.
                         (tree) => !(tree.children.length && !tree.childrenTree.length),
                     );
                 }
@@ -117,15 +120,15 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             ? "website.page.properties"
             : "website.page.properties.base";
         const websiteId = website.currentWebsite.id;
-        // Do not rely on window.location.pathname: while the editor boots it can
-        // still be "/web" or even empty, which would give the dialog a wrong URL.
-        // website.currentLocation already tracks the actual page (without the
-        // language prefix), so we reuse it and fall back to the metadata path,
-        // forcing a leading '/' for extra safety. This keeps the wizard working
-        // even if the user opens it as soon as the builder loads.
         const getNormalizedPath = () => {
             let path = website.currentLocation;
             if (!path) {
+                log.logic(
+                    "page properties: no current location, fall back to metadata path",
+                    () => ({
+                        metadataPath: website.currentWebsite.metadata.path,
+                    }),
+                );
                 try {
                     path = new URL(website.currentWebsite.metadata.path).pathname;
                 } catch {
@@ -137,6 +140,12 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             }
             return path || "/";
         };
+        log.logic("page properties getProps", () => ({
+            model,
+            isPage,
+            mainObject,
+            websiteId,
+        }));
         const recordValues = isPage
             ? {
                   target_model_id: mainObject.id,
@@ -151,6 +160,9 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             resId: await orm.call(model, "create", [recordValues]),
             resModel: model,
             onRecordSaved: async (record) => {
+                const endSaved = log.perf("page properties onRecordSaved", () => ({
+                    isPage,
+                }));
                 const page = isPage
                     ? (
                           await orm.read(
@@ -160,6 +172,7 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
                           )
                       )[0]
                     : undefined;
+                endSaved(() => ({ page }));
                 return website.goToWebsite({
                     websiteId: page?.website_id?.[0] ?? website.currentWebsite.id,
                     path: page?.url ?? website.currentWebsite.metadata.path,
@@ -170,9 +183,6 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
 });
 registry.category("website_custom_menus").add("website.custom_menu_edit_menu", {
     Component: EditMenuDialog,
-    // 'isDisplayed' === true => at least 1 content menu was found on the page. This
-    // menuitem will be cloned (in 'addCustomMenus()') to edit every content menu using
-    // the 'EditMenuDialog' component.
     isDisplayed: (env) =>
         env.services.website.currentWebsite &&
         env.services.website.currentWebsite.metadata.contentMenus &&

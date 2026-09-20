@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from odoo.addons.resource.models.utils import filter_domain_leaf
 
 
@@ -12,13 +13,23 @@ class ProjectCFDReport(models.AbstractModel):
     _description = "Cumulative Flow Diagram"
     _auto = False
     _order = "date"
+    _search_visibility_fields = ()
 
-    date = fields.Datetime("Date", readonly=True)
-    date_assign = fields.Datetime(string="Assignment Date", readonly=True)
-    date_end = fields.Date(string="Deadline", readonly=True)
-    date_last_status_change = fields.Date(string="Last Status Change", readonly=True)
+    date = fields.Datetime(readonly=True)
+    date_assign = fields.Datetime(
+        string="Assignment Date",
+        readonly=True,
+    )
+    date_end = fields.Date(
+        string="Deadline",
+        readonly=True,
+    )
+    date_last_status_change = fields.Date(
+        string="Last Status Change",
+        readonly=True,
+    )
     state = fields.Selection(
-        [
+        selection=[
             ("todo", "To Do"),
             ("in_progress", "In Progress"),
             ("changes_requested", "Changes Requested"),
@@ -27,16 +38,28 @@ class ProjectCFDReport(models.AbstractModel):
             ("canceled", "Cancelled"),
             ("blocked", "Waiting"),
         ],
-        string="State",
         readonly=True,
     )
-    milestone_id = fields.Many2one("project.milestone", readonly=True)
-    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
-    project_id = fields.Many2one("project.project", readonly=True)
-    step_id = fields.Many2one("project.workflow.step", readonly=True)
-    task_count = fields.Integer("Task Count", readonly=True)
+    milestone_id = fields.Many2one(
+        comodel_name="project.milestone",
+        readonly=True,
+    )
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Customer",
+        readonly=True,
+    )
+    project_id = fields.Many2one(
+        comodel_name="project.project",
+        readonly=True,
+    )
+    step_id = fields.Many2one(
+        comodel_name="project.workflow.step",
+        readonly=True,
+    )
+    task_count = fields.Integer(readonly=True)
     tag_ids = fields.Many2many(
-        "project.tags",
+        comodel_name="project.tags",
         relation="project_tags_project_task_rel",
         column1="project_task_id",
         column2="project_tags_id",
@@ -44,7 +67,7 @@ class ProjectCFDReport(models.AbstractModel):
         readonly=True,
     )
     user_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         relation="project_task_user_rel",
         column1="task_id",
         column2="user_id",
@@ -67,6 +90,7 @@ class ProjectCFDReport(models.AbstractModel):
             "user_ids",
         ]
 
+    @dbg.timed
     @api.model
     def _search(
         self,
@@ -90,6 +114,11 @@ class ProjectCFDReport(models.AbstractModel):
         project_task_query = self.env["project.task"]._search(
             task_specific_domain, **kwargs
         )
+        dbg.pipeline.debug(
+            "[report:project_cfd_report] _search: report domain=%s task domain=%s",
+            cfd_specific_domain,
+            task_specific_domain,
+        )
         self.env.flush_query(project_task_query.subselect())
 
         field_id = (
@@ -107,6 +136,12 @@ class ProjectCFDReport(models.AbstractModel):
 
         interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
+        dbg.logic.debug(
+            "[report:project_cfd_report] groupby=%s -> interval %r (series step %r)",
+            groupby,
+            interval,
+            sql_interval,
+        )
 
         simple_date_groupby_sql = self._read_group_groupby(
             "project_cfd_report",
@@ -252,6 +287,7 @@ class ProjectCFDReport(models.AbstractModel):
             return SQL("SUM(%s)", SQL.identifier(self._table, "task_count"))
         return super()._read_group_select(aggregate_spec, query)
 
+    @dbg.timed
     def _read_group(
         self,
         domain: list,
@@ -263,6 +299,12 @@ class ProjectCFDReport(models.AbstractModel):
         order: str | None = None,
     ) -> list:
         self._check_group_by(groupby)
+        dbg.pipeline.debug(
+            "[report:project_cfd_report] _read_group: domain=%s groupby=%s aggregates=%s",
+            domain,
+            list(groupby),
+            list(aggregates),
+        )
         self = self.with_context(project_cfd_report_groupby=groupby)
 
         return super()._read_group(

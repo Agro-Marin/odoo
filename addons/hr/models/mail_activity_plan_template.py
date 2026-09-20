@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class MailActivityPlanTemplate(models.Model):
     _inherit = "mail.activity.plan.template"
@@ -30,6 +32,13 @@ class MailActivityPlanTemplate(models.Model):
         responsible_parent = responsible
         viewed_responsible = [employee]
         while True:
+            dbg.logic.debug(
+                "[employee:%s] responsible walk: at %s, user=%s, seen %d",
+                employee.id,
+                responsible_parent.id,
+                responsible_parent.user_id.id,
+                len(viewed_responsible),
+            )
             if not responsible_parent:
                 return {
                     "error": False,
@@ -62,8 +71,20 @@ class MailActivityPlanTemplate(models.Model):
             "manager",
             "employee",
         }:
-            return super()._get_responsible_and_complaints(on_demand_responsible, employee)
+            return super()._get_responsible_and_complaints(
+                on_demand_responsible, employee
+            )
         result = {"error": "", "warning": "", "responsible": False}
+        dbg.logic.debug(
+            "[template:%s] responsible_type=%s for employee %s (coach=%s manager=%s "
+            "user=%s)",
+            self.id,
+            self.responsible_type,
+            employee.id,
+            employee.coach_id.id,
+            employee.parent_id.id,
+            employee.user_id.id,
+        )
         if self.responsible_type == "coach":
             if not employee.coach_id:
                 result["error"] = self.env._(
@@ -105,4 +126,13 @@ class MailActivityPlanTemplate(models.Model):
                     ),
                 )
 
+        dbg.logic.debug(
+            "[template:%s] responsible for employee %s -> user %s (error=%s "
+            "warning=%s)",
+            self.id,
+            employee.id,
+            result["responsible"] and result["responsible"].id,
+            bool(result["error"]),
+            bool(result["warning"]),
+        )
         return result

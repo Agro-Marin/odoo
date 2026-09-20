@@ -12,7 +12,6 @@
     "data": [
         "data/dashboards.xml",
     ],
-    "installable": True,
     "auto_install": [
         "stock_account",
     ],

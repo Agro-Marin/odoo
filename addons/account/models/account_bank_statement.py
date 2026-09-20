@@ -1,7 +1,10 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.misc import formatLang
+
+_debug = DebugLog(__name__)
 
 _RUNNING_BALANCE_TRIGGERS = frozenset(
     {"balance_start", "first_line_index", "journal_id", "line_ids"}
@@ -19,8 +22,8 @@ class AccountBankStatement(models.Model):
         string="Reference",
         compute="_compute_name",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
 
     reference = fields.Char(
@@ -63,7 +66,6 @@ class AccountBankStatement(models.Model):
     company_id = fields.Many2one(
         comodel_name="res.company",
         related="journal_id.company_id",
-        store=True,
     )
 
     currency_id = fields.Many2one(
@@ -96,12 +98,10 @@ class AccountBankStatement(models.Model):
     )
 
     journal_has_invalid_statements = fields.Boolean(
-        related="journal_id.has_invalid_statements",
+        related="journal_id.has_invalid_statements"
     )
 
-    problem_description = fields.Text(
-        compute="_compute_problem_description",
-    )
+    problem_description = fields.Text(compute="_compute_problem_description")
 
     attachment_ids = fields.Many2many(
         comodel_name="ir.attachment",
@@ -140,6 +140,7 @@ class AccountBankStatement(models.Model):
         self.check_singleton()
         return self.line_ids.filtered("internal_index").sorted("internal_index")
 
+    @_debug.perf.timed
     def _get_balance_start(self, stmt):
         journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
         previous_line_with_statement = self.env["account.bank.statement.line"].search(
@@ -170,6 +171,14 @@ class AccountBankStatement(models.Model):
 
         [(amount_in_between,)] = self.env["account.bank.statement.line"]._read_group(
             lines_in_between_domain, aggregates=["amount:sum"]
+        )
+        _debug.pipeline(
+            "balance_start_computed",
+            statement=stmt,
+            journal=journal_id,
+            previous_line=previous_line_with_statement,
+            balance_start=balance_start,
+            amount_in_between=amount_in_between,
         )
         return balance_start + (amount_in_between or 0.0)
 
@@ -240,6 +249,7 @@ class AccountBankStatement(models.Model):
                 )
             stmt.problem_description = description
 
+    @_debug.perf.timed
     def _search_is_valid(self, operator, value):
         if operator != "in":
             return NotImplemented
@@ -265,13 +275,15 @@ class AccountBankStatement(models.Model):
             == 0
         )
 
+    @_debug.perf.timed
     def _get_invalid_statement_ids(self, all_statements=None):
         self.env["account.bank.statement.line"].flush_model(
             ["statement_id", "internal_index"]
         )
         self.env["account.bank.statement"].flush_model(
-            ["balance_start", "balance_end_real", "first_line_index"]
+            ["balance_start", "balance_end_real", "first_line_index", "journal_id"]
         )
+        self.env["account.journal"].flush_model(["company_id", "currency_id"])
 
         self.env.cr.execute(
             SQL(
@@ -290,8 +302,8 @@ class AccountBankStatement(models.Model):
                                 -- silently reported as valid.
                                 COALESCE(currency.decimal_places, 2) AS decimal_places
                            FROM account_bank_statement st
-                      LEFT JOIN res_company co ON st.company_id = co.id
                       LEFT JOIN account_journal j ON st.journal_id = j.id
+                      LEFT JOIN res_company co ON j.company_id = co.id
                       LEFT JOIN res_currency currency
                              ON COALESCE(j.currency_id, co.currency_id) = currency.id
                           WHERE st.first_line_index IS NOT NULL
@@ -310,10 +322,19 @@ class AccountBankStatement(models.Model):
                 SQL() if all_statements else SQL("AND id = ANY(%s)", self.ids),
             )
         )
-        return [statement_id for (statement_id,) in self.env.cr.fetchall()]
+        invalid_ids = [statement_id for (statement_id,) in self.env.cr.fetchall()]
+        _debug.logic(
+            "_get_invalid_statement_ids",
+            all=bool(all_statements),
+            records=self,
+            invalid_ids=invalid_ids[:8],
+        )
+        return invalid_ids
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields):
+        _debug.lifecycle("default_get", records=self)
         defaults = super().default_get(fields)
 
         if "line_ids" not in fields:
@@ -370,6 +391,13 @@ class AccountBankStatement(models.Model):
                 )
             lines |= canceled_lines
 
+        _debug.logic(
+            "statement_lines_source_chosen",
+            split_line=context_split_line_id,
+            stline=context_st_line_id,
+            active_count=len(active_ids),
+            lines=lines,
+        )
         if lines:
             defaults["line_ids"] = [Command.set(lines.ids)]
 
@@ -394,14 +422,24 @@ class AccountBankStatement(models.Model):
             attachments.write({"res_id": stmt.id, "res_model": stmt._name})
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         attachments_list = self._get_attachments(vals_list)
         stmts = super().create(vals_list)
         self._reparent_attachments(stmts, attachments_list)
         self.env["account.bank.statement.line"]._invalidate_running_balance()
         return stmts
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         if len(self) != 1 and "attachment_ids" in vals:
             vals = {
                 key: value for key, value in vals.items() if key != "attachment_ids"
@@ -414,7 +452,9 @@ class AccountBankStatement(models.Model):
             self.env["account.bank.statement.line"]._invalidate_running_balance()
         return res
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         res = super().unlink()
         self.env["account.bank.statement.line"]._invalidate_running_balance()
         return res

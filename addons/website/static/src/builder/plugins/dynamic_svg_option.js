@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { dynamicSVGSelector } from "@html_builder/plugins/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.option.dynamic_svg_option");
 
 export class DynamicSvgOption extends BaseOptionComponent {
     static template = "website.DynamicSvgOption";
@@ -9,6 +13,7 @@ export class DynamicSvgOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.title = {
             c1: _t("Change primary color"),
             c2: _t("Change secondary color"),

@@ -4,14 +4,33 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
+
+
+def _get_pos_stock_group_key(product, attributes):
+    return (
+        product.id,
+        frozenset(
+            value.id
+            for value in attributes
+            if value.attribute_id.create_variant == "no_variant"
+        ),
+    )
 
 
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    pos_session_id = fields.Many2one("pos.session", index="btree_not_null")
-    pos_order_id = fields.Many2one("pos.order", index="btree_not_null")
+    pos_session_id = fields.Many2one(
+        comodel_name="pos.session",
+        index="btree_not_null",
+    )
+    pos_order_id = fields.Many2one(
+        comodel_name="pos.order",
+        index="btree_not_null",
+    )
 
     def _prepare_picking_vals(
         self, partner, picking_type, location_id, location_dest_id
@@ -27,6 +46,7 @@ class StockPicking(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _create_picking_from_pos_order_lines(
         self,
         location_dest_id,
@@ -44,11 +64,25 @@ class StockPicking(models.Model):
             )
         )
         if not stockable_lines:
+            dbg.logic.debug(
+                "[picking] origin=%s: no stockable line among %s",
+                origin,
+                dbg.rec(lines),
+            )
             return self.browse()
 
         outgoing_lines = stockable_lines.filtered(lambda line: line.qty > 0)
         incoming_lines = stockable_lines - outgoing_lines
         pickings = self.browse()
+        dbg.pipeline.debug(
+            "[picking] origin=%s type=%s dest=%s: %d outgoing, %d incoming of %d lines",
+            origin,
+            dbg.rec(picking_type),
+            location_dest_id,
+            len(outgoing_lines),
+            len(incoming_lines),
+            len(lines),
+        )
 
         identity_vals = self._prepare_pos_identity_vals(pos_order, pos_session, origin)
         if outgoing_lines:
@@ -67,6 +101,13 @@ class StockPicking(models.Model):
             else:
                 return_picking_type = picking_type
                 return_location_id = picking_type.default_location_src_id.id
+            dbg.logic.debug(
+                "[picking] origin=%s return type=%s (dedicated=%s) location=%s",
+                origin,
+                dbg.rec(return_picking_type),
+                bool(picking_type.return_picking_type_id),
+                return_location_id,
+            )
             pickings |= self._create_one_picking_from_pos_order_lines(
                 incoming_lines,
                 return_picking_type,
@@ -97,10 +138,19 @@ class StockPicking(models.Model):
         )
         picking._create_move_from_pos_order_lines(lines)
         try:
-            with self.env.cr.savepoint():
+            with (
+                dbg.timer(self.env, "[picking] %s _action_done", dbg.rec(picking)),
+                self.env.cr.savepoint(),
+            ):
                 picking._action_done()
         except (UserError, ValidationError) as error:
             picking._report_pos_validation_failure(lines, error)
+        dbg.lifecycle.debug(
+            "[picking] %s state=%s moves=%d",
+            dbg.rec(picking),
+            picking.state,
+            len(picking.move_ids),
+        )
         return picking
 
     def _report_pos_validation_failure(self, lines, error):
@@ -135,9 +185,8 @@ class StockPicking(models.Model):
     def _create_move_from_pos_order_lines(self, lines):
         self.check_singleton()
         lines_by_product_and_attributes = lines.grouped(
-            lambda line: (
-                line.product_id.id,
-                tuple(sorted(line.attribute_value_ids.ids)),
+            lambda line: _get_pos_stock_group_key(
+                line.product_id, line.attribute_value_ids
             )
         )
         moves = self.env["stock.move"].create(
@@ -145,6 +194,12 @@ class StockPicking(models.Model):
                 self._prepare_stock_move_vals(grouped_lines)
                 for grouped_lines in lines_by_product_and_attributes.values()
             ]
+        )
+        dbg.pipeline.debug(
+            "[picking] %s: %d lines grouped into %s",
+            dbg.rec(self),
+            len(lines),
+            dbg.rec(moves),
         )
         confirmed_moves = moves._action_confirm()
         confirmed_moves._add_move_lines_from_pos_order_lines(
@@ -156,6 +211,11 @@ class StockPicking(models.Model):
     def _link_owner_on_return_picking(self, lines):
         owned_quantities = self._get_refunded_owner_quantities(lines)
         if owned_quantities:
+            dbg.logic.debug(
+                "[picking] %s: owner quantities from refunded orders %s",
+                dbg.rec(self),
+                owned_quantities,
+            )
             self._update_move_line_owners(owned_quantities)
 
     def _get_refunded_owner_quantities(self, lines):
@@ -217,6 +277,11 @@ class StockPicking(models.Model):
             if uom.compare(remaining, 0) > 0:
                 split_move_line_vals.append({**base_vals, "quantity": remaining})
         if split_move_line_vals:
+            dbg.logic.debug(
+                "[picking] %s: %d move lines split for owners",
+                dbg.rec(self),
+                len(split_move_line_vals),
+            )
             self.env["stock.move.line"].create(split_move_line_vals)
 
     def _prepare_split_move_line_vals(self, move_line):
@@ -302,6 +367,7 @@ class StockMove(models.Model):
         self._check_company()
         moves = self.filtered(lambda move: move.picking_type_id.use_existing_lots)
         if not moves:
+            dbg.logic.debug("[lots] no move uses existing lots: %s", dbg.rec(self))
             return self.env["stock.lot"]
 
         move_product_ids = set(moves.product_id.ids)
@@ -346,6 +412,13 @@ class StockMove(models.Model):
         found_lots = self.env["stock.lot"].browse(
             lot.id for lot in lot_by_product_and_name.values()
         )
+        dbg.logic.debug(
+            "[lots] wanted=%d found=%s created=%s (creatable products=%s)",
+            len(wanted),
+            dbg.rec(found_lots),
+            dbg.rec(new_lots),
+            sorted(creating_product_ids),
+        )
         return found_lots + new_lots
 
     def _check_uom_conversion_keeps_quantity(self):
@@ -355,7 +428,7 @@ class StockMove(models.Model):
                 for move in self
                 if move.product_uom_qty
                 and move.product_uom_id != move.product_id.uom_id
-                and not move.product_uom_id._compute_quantity(
+                and not move.product_uom_id._get_quantity_in_unit(
                     move.product_uom_qty,
                     move.product_id.uom_id,
                     rounding_method="HALF-UP",
@@ -387,10 +460,17 @@ class StockMove(models.Model):
     def _add_move_lines_from_pos_order_lines(
         self, order_lines, are_quantities_done=True
     ):
-        order_lines_by_product = order_lines.grouped(lambda line: line.product_id.id)
+        order_lines_by_group = order_lines.grouped(
+            lambda line: _get_pos_stock_group_key(
+                line.product_id, line.attribute_value_ids
+            )
+        )
         untracked_moves = self.filtered(
             lambda move: (
-                move.product_id.id not in order_lines_by_product
+                _get_pos_stock_group_key(
+                    move.product_id, move.never_product_template_attribute_value_ids
+                )
+                not in order_lines_by_group
                 or move.product_id.tracking == "none"
                 or not (
                     move.picking_type_id.use_existing_lots
@@ -403,23 +483,35 @@ class StockMove(models.Model):
             move.quantity = move.product_uom_qty
 
         tracked_moves = self - untracked_moves
+        dbg.pipeline.debug(
+            "[moves] from pos lines: %s untracked, %s tracked, done=%s",
+            dbg.rec(untracked_moves),
+            dbg.rec(tracked_moves),
+            are_quantities_done,
+        )
         lots = tracked_moves._get_or_create_lots_for_pos_order_lines(order_lines)
         if are_quantities_done:
             tracked_moves._create_move_lines_for_pos_order_lines(
-                order_lines_by_product, lots
+                order_lines_by_group, lots
             )
         else:
-            tracked_moves._reserve_lots_for_pos_order_lines(
-                order_lines_by_product, lots
-            )
+            tracked_moves._reserve_lots_for_pos_order_lines(order_lines_by_group, lots)
 
-    def _create_move_lines_for_pos_order_lines(self, order_lines_by_product, lots):
+    def _create_move_lines_for_pos_order_lines(self, order_lines_by_group, lots):
         lot_by_product_and_name = {(lot.product_id.id, lot.name): lot for lot in lots}
         quants_by_lot = self._get_pos_source_quants_by_lot(lots)
         self.move_line_ids.unlink()
+        remaining_by_quant = {
+            quant.id: quant.quantity
+            for quants in quants_by_lot.values()
+            for quant in quants
+        }
         move_line_vals = []
         for move in self:
-            for order_line in order_lines_by_product[move.product_id.id]:
+            key = _get_pos_stock_group_key(
+                move.product_id, move.never_product_template_attribute_value_ids
+            )
+            for order_line in order_lines_by_group[key]:
                 for pack_lot in order_line.pack_lot_ids.filtered("lot_name"):
                     remaining = self._get_pos_lot_quantity(order_line)
                     lot = lot_by_product_and_name.get(
@@ -441,7 +533,10 @@ class StockMove(models.Model):
                             move.location_id.parent_path
                         ):
                             continue
-                        taken = min(remaining, quant.quantity)
+                        taken = min(remaining, remaining_by_quant[quant.id])
+                        if uom.compare(taken, 0) <= 0:
+                            continue
+                        remaining_by_quant[quant.id] -= taken
                         remaining -= taken
                         move_line_vals.append(
                             {
@@ -450,6 +545,12 @@ class StockMove(models.Model):
                             }
                         )
                     if uom.compare(remaining, 0) > 0:
+                        dbg.logic.debug(
+                            "[lots] %s lot %s: %s left unsourced by quants",
+                            dbg.rec(move),
+                            lot.name,
+                            remaining,
+                        )
                         move_line_vals.append(
                             {
                                 **move._prepare_move_line_vals(remaining),
@@ -457,12 +558,18 @@ class StockMove(models.Model):
                                 "lot_name": lot.name,
                             }
                         )
+        dbg.pipeline.debug(
+            "[moves] %s: %d move lines from lots", dbg.rec(self), len(move_line_vals)
+        )
         self.env["stock.move.line"].create(move_line_vals)
 
-    def _reserve_lots_for_pos_order_lines(self, order_lines_by_product, lots):
+    def _reserve_lots_for_pos_order_lines(self, order_lines_by_group, lots):
         lot_by_product_and_name = {(lot.product_id.id, lot.name): lot for lot in lots}
         for move in self:
-            for order_line in order_lines_by_product[move.product_id.id]:
+            key = _get_pos_stock_group_key(
+                move.product_id, move.never_product_template_attribute_value_ids
+            )
+            for order_line in order_lines_by_group[key]:
                 for pack_lot in order_line.pack_lot_ids.filtered("lot_name"):
                     lot = lot_by_product_and_name.get(
                         (order_line.product_id.id, pack_lot.lot_name)

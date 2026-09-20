@@ -1,6 +1,9 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import unquote
+
+_debug = DebugLog(__name__)
 
 
 class ProjectSaleLineEmployeeMap(models.Model):
@@ -19,50 +22,52 @@ class ProjectSaleLineEmployeeMap(models.Model):
         )
 
     project_id = fields.Many2one(
-        "project.project",
-        "Project",
-        domain=[("is_template", "=", False)],
-        required=True,
+        comodel_name="project.project",
         index=True,
+        required=True,
+        domain=[("is_template", "=", False)],
     )
     employee_id = fields.Many2one(
-        "hr.employee",
-        "Employee",
+        comodel_name="hr.employee",
         required=True,
         domain="[('id', 'not in', existing_employee_ids)]",
     )
     existing_employee_ids = fields.Many2many(
-        "hr.employee",
-        compute="_compute_existing_employee_ids",
+        comodel_name="hr.employee",
         export_string_translation=False,
+        compute="_compute_existing_employee_ids",
         compute_sudo=True,
     )
     sale_line_id = fields.Many2one(
-        "sale.order.line",
-        "Sales Order Item",
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
         compute="_compute_sale_line_id",
         store=True,
         readonly=False,
         domain=lambda self: str(self._domain_sale_line_id()),
     )
     sale_order_id = fields.Many2one(
-        related="project_id.sale_order_id", export_string_translation=False
+        related="project_id.sale_order_id",
+        export_string_translation=False,
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         related="project_id.company_id",
+        string="Company",
         export_string_translation=False,
     )
     partner_id = fields.Many2one(
-        related="project_id.partner_id", export_string_translation=False
+        related="project_id.partner_id",
+        export_string_translation=False,
     )
     price_unit = fields.Float(
-        "Unit Price", compute="_compute_price_unit", store=True, readonly=True
+        string="Unit Price",
+        compute="_compute_price_unit",
+        store=True,
+        readonly=True,
     )
     currency_id = fields.Many2one(
-        "res.currency",
-        string="Currency",
+        comodel_name="res.currency",
         compute="_compute_currency_id",
         store=True,
         readonly=False,
@@ -75,24 +80,24 @@ class ProjectSaleLineEmployeeMap(models.Model):
         help="This cost overrides the employee's default employee hourly wage in employee's HR Settings",
     )
     display_cost = fields.Monetary(
+        string="Hourly Cost",
         currency_field="cost_currency_id",
         compute="_compute_display_cost",
         inverse="_inverse_display_cost",
-        string="Hourly Cost",
         groups="project.group_project_manager,hr.group_hr_user",
     )
     cost_currency_id = fields.Many2one(
-        "res.currency",
-        string="Cost Currency",
+        comodel_name="res.currency",
         related="employee_id.currency_id",
-        readonly=True,
+        string="Cost Currency",
         export_string_translation=False,
+        readonly=True,
     )
     is_cost_changed = fields.Boolean(
-        "Is Cost Manually Changed",
+        string="Is Cost Manually Changed",
+        export_string_translation=False,
         compute="_compute_is_cost_changed",
         store=True,
-        export_string_translation=False,
     )
 
     _uniqueness_employee = models.Constraint(
@@ -142,7 +147,13 @@ class ProjectSaleLineEmployeeMap(models.Model):
         self.env.remove_to_compute(self._fields["is_cost_changed"], self)
         for map_entry in self:
             if not map_entry.is_cost_changed:
-                map_entry.cost = map_entry.employee_id.hourly_cost or 0.0
+                map_entry.cost = map_entry.employee_id.hourly_cost
+                _debug.logic(
+                    "map_cost_from_employee",
+                    entry=map_entry,
+                    employee=map_entry.employee_id,
+                    cost=map_entry.cost,
+                )
 
     def _get_working_hours_per_calendar(self, is_uom_day=False):
         resource_calendar_per_hours = {}
@@ -204,11 +215,13 @@ class ProjectSaleLineEmployeeMap(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         maps = super().create(vals_list)
+        _debug.lifecycle("create", entries=maps, rows=len(vals_list))
         maps._update_project_timesheet()
         return maps
 
     def write(self, vals):
         res = super().write(vals)
+        _debug.lifecycle("write", entries=self, fields=list(vals))
         self._update_project_timesheet()
         return res
 

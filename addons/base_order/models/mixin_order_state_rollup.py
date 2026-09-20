@@ -1,10 +1,13 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 
 STATE_NOTHING = "no"
 STATE_TODO = "to do"
 STATE_PARTIAL = "partial"
 STATE_DONE = "done"
 STATE_OVER_DONE = "over done"
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderStateRollup(models.AbstractModel):
@@ -17,7 +20,7 @@ class MixinOrderStateRollup(models.AbstractModel):
             ("display_type", "=", False),
         ]
 
-    def _get_rollup_pending_lines_domain(self, state_field):
+    def _get_domain_rollup_pending_lines(self, state_field):
         return []
 
     def _rollup_line_states(self, state_field, nothing_may_be_pending=False):
@@ -43,7 +46,7 @@ class MixinOrderStateRollup(models.AbstractModel):
                 order.id
                 for (order,) in lines._read_group(
                     lines_domain
-                    + self._get_rollup_pending_lines_domain(state_field)
+                    + self._get_domain_rollup_pending_lines(state_field)
                     + [
                         ("order_id", "in", ambiguous_ids),
                         (state_field, "=", STATE_NOTHING),
@@ -52,4 +55,12 @@ class MixinOrderStateRollup(models.AbstractModel):
                     ["order_id"],
                 )
             }
+        _debug.perf.count(
+            "line_states_rolled_up",
+            model=self._name,
+            field=state_field,
+            orders=len(states_per_order),
+            ambiguous=len(ambiguous_ids),
+            pending=len(pending_ids),
+        )
         return states_per_order, pending_ids

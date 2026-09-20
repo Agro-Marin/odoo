@@ -17,9 +17,6 @@ from odoo.addons.test_mail.data.test_mail_data import (
     MAIL_TEMPLATE_EXTRA_HTML,
 )
 
-#: A mail forwarding a supplier invoice as ``.eml`` -- the way an invoice
-#: actually reaches a Documents folder alias. The file people mean is the one
-#: *inside* the forward.
 MAIL_FORWARDED_ATTACHMENT = """Subject: {subject}
 From: {email_from}
 To: {to}
@@ -87,13 +84,6 @@ class TestMailGateway(MailCommon):
         cls.pre_existing_partner = cls.env["res.partner"].get_or_create(
             "existing@test.com"
         )
-        # `MAIL_EML_ATTACHMENT` carries exactly one file: the embedded
-        # `original_msg.eml`. The second name this used to list, "attachment",
-        # was never a file anyone sent -- it was the embedded message's own
-        # `text/plain` body, which the pre-2026-08 walk-based parser filed as an
-        # attachment under the default name. A mail that really does carry a
-        # file inside a forward is covered by
-        # `test_forwarded_attachment_becomes_its_own_document`.
         cls.email_filenames = ["original_msg.eml"]
         cls.document = (
             cls.env["document.document"]

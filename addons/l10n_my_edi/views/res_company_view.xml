@@ -22,9 +22,9 @@
                             </span>
                         </div>
                         <field
-                            class="w-50"
                             name="l10n_my_edi_industrial_classification"
-                            options="{&quot;no_open&quot;: True}" />
+                            options="{&quot;no_open&quot;: True}"
+                            class="w-50" />
                     </group>
                 </group>
             </xpath>

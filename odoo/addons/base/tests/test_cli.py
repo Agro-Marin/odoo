@@ -279,7 +279,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
                 mock.patch.object(
-                    dbmod, "_drop_database", lambda db: calls.append("drop") or True
+                    dbmod, "drop_database", lambda db: calls.append("drop") or True
                 ),
                 mock.patch.object(
                     dbmod, "restore_db", lambda **kw: calls.append("restore")
@@ -305,7 +305,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(dbmod, "exp_db_exist", lambda db: True),
                 mock.patch.object(
-                    dbmod, "_drop_database", lambda db: calls.append("drop") or True
+                    dbmod, "drop_database", lambda db: calls.append("drop") or True
                 ),
                 mock.patch.object(
                     dbmod, "restore_db", lambda **kw: calls.append("restore")
@@ -322,11 +322,11 @@ class TestCommand(BaseCase):
         with (
             mock.patch.object(dbmod, "exp_db_exist", lambda db: db != "missing_src"),
             mock.patch.object(
-                dbmod, "_drop_database", lambda db: calls.append("drop") or True
+                dbmod, "drop_database", lambda db: calls.append("drop") or True
             ),
             mock.patch.object(
                 dbmod,
-                "_duplicate_database",
+                "duplicate_database",
                 lambda *a, **k: calls.append("duplicate"),
             ),
         ):
@@ -338,14 +338,14 @@ class TestCommand(BaseCase):
     def test_db_drop_calls_drop_database_not_exp_drop(self):
         from odoo.cli import db as dbmod
 
-        with mock.patch.object(dbmod, "_drop_database", return_value=True) as drop_mock:
+        with mock.patch.object(dbmod, "drop_database", return_value=True) as drop_mock:
             dbmod.Db().drop(mock.Mock(database="mydb"))
         drop_mock.assert_called_once_with("mydb")
 
     def test_db_drop_reports_missing_database(self):
         from odoo.cli import db as dbmod
 
-        with mock.patch.object(dbmod, "_drop_database", return_value=False):
+        with mock.patch.object(dbmod, "drop_database", return_value=False):
             with self.assertRaises(SystemExit) as ctx:
                 dbmod.Db().drop(mock.Mock(database="missing"))
         self.assertIn("missing", str(ctx.exception.code))
@@ -430,6 +430,56 @@ class TestCommand(BaseCase):
             )
         self.assertIsNotNone(deploy.session.get.call_args.kwargs.get("timeout"))
         self.assertIsNotNone(deploy.session.post.call_args.kwargs.get("timeout"))
+
+    def test_deploy_reports_the_server_reason_on_a_refused_upload(self):
+        from odoo.cli.deploy import Deploy
+
+        deploy = Deploy()
+        deploy.session = mock.MagicMock()
+        deploy.session.post.return_value = mock.MagicMock(
+            ok=False, status_code=403, reason="FORBIDDEN", text="Access Denied\n"
+        )
+        with (
+            tempfile.NamedTemporaryFile(suffix=".zip") as tmp,
+            self.assertRaises(Exception) as caught,
+        ):
+            deploy.login_upload_module(
+                module_file=tmp.name,
+                url="http://localhost:8069",
+                login="admin",
+                password="wrong",
+                db="",
+            )
+        self.assertIn("403 FORBIDDEN", str(caught.exception))
+        self.assertIn("Access Denied", str(caught.exception))
+
+    def test_module_install_skips_modules_already_installed(self):
+        from types import SimpleNamespace
+
+        from odoo.cli.module import Module
+
+        class Records(list):
+            def filtered(self, predicate):
+                return Records(record for record in self if predicate(record))
+
+            def mapped(self, field):
+                return [getattr(record, field) for record in self]
+
+            def __sub__(self, other):
+                return Records(record for record in self if record not in other)
+
+        records = Records(
+            SimpleNamespace(name=name, state=state)
+            for name, state in (
+                ("base", "installed"),
+                ("web", "installed"),
+                ("foo", "uninstalled"),
+                ("bar", "to install"),
+            )
+        )
+        already, to_install = Module._split_installed(records)
+        self.assertEqual(already.mapped("name"), ["base", "web"])
+        self.assertEqual(to_install.mapped("name"), ["foo", "bar"])
 
     def test_deploy_zip_compressed_and_pruned(self):
         import zipfile as zipfile_mod
@@ -673,6 +723,12 @@ class TestCommand(BaseCase):
         non_comment = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
         self.assertIn("starts_with(table_name, 'ir_')", non_comment)
         self.assertNotIn("LIKE 'ir_%'", non_comment)
+
+    def test_obfuscate_catalog_reads_base_tables_only(self):
+        from odoo.cli.obfuscate import Obfuscate
+
+        self.assertIn("table_type = 'BASE TABLE'", Obfuscate._CATALOG_COLUMNS)
+        self.assertIn("information_schema.tables", Obfuscate._CATALOG_COLUMNS)
 
     def test_dotted_command_name_no_traceback(self):
         for name in ("db.init", "x.y", ".", ".."):
@@ -930,10 +986,10 @@ class TestCommand(BaseCase):
         protected = ["postgres", "template0", "template1", config["db_template"]]
         with (
             mock.patch.object(dbmod, "exp_db_exist", return_value=True),
-            mock.patch.object(dbmod, "_drop_database") as drop_mock,
+            mock.patch.object(dbmod, "drop_database") as drop_mock,
             mock.patch.object(dbmod, "exp_create_database") as create_mock,
-            mock.patch.object(dbmod, "_rename_database") as rename_mock,
-            mock.patch.object(dbmod, "_duplicate_database") as duplicate_mock,
+            mock.patch.object(dbmod, "rename_database") as rename_mock,
+            mock.patch.object(dbmod, "duplicate_database") as duplicate_mock,
         ):
             for name in protected:
                 with self.assertRaises(SystemExit, msg=f"drop {name} not refused"):

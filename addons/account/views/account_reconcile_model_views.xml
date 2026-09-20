@@ -11,8 +11,8 @@
                 <field name="trigger" />
                 <field
                     name="match_journal_ids"
-                    optional="hide"
-                    widget="many2many_tags" />
+                    widget="many2many_tags"
+                    optional="hide" />
             </list>
         </field>
     </record>
@@ -32,11 +32,11 @@
                         data-hotkey="y" />
                     <button
                         name="action_set_auto_reconcile"
-                        string="Automate"
-                        class="oe_highlight"
                         type="object"
-                        data-hotkey="q"
-                        invisible="trigger == 'auto_reconcile'" />
+                        string="Automate"
+                        invisible="trigger == 'auto_reconcile'"
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <field name="trigger" widget="statusbar" />
                 </header>
                 <field name="active" invisible="1" />
@@ -44,11 +44,11 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            type="object"
                             name="action_reconcile_stat"
+                            type="object"
                             string="Journal Entries"
-                            class="oe_stat_button"
-                            icon="fa-book">
+                            icon="fa-book"
+                            class="oe_stat_button">
                         </button>
                     </div>
                     <div class="oe_title">
@@ -66,9 +66,9 @@
                                 options="{'no_create': True}" />
                             <field
                                 name="match_partner_ids"
+                                placeholder="All partners"
                                 widget="many2many_tags"
-                                options="{'no_quick_create': True}"
-                                placeholder="All partners" />
+                                options="{'no_quick_create': True}" />
                             <label for="match_amount" />
                             <div class="d-flex gap-2">
                                 <field name="match_amount" placeholder="Any amount" />
@@ -87,9 +87,9 @@
                                 <field name="match_label" placeholder="Any label" />
                                 <field
                                     name="match_label_param"
+                                    placeholder="BRT *([\d,\.]+)"
                                     invisible="not match_label"
-                                    required="match_label"
-                                    placeholder="BRT *([\d,\.]+)" />
+                                    required="match_label" />
                             </div>
                         </group>
                         <group id="counterpart_entry_right_column" class="col-6">
@@ -100,14 +100,14 @@
                     </group>
                     <notebook>
                         <page
+                            name="counterpart_items"
                             id="counterpart_items_tab"
-                            string="Counterpart Items"
-                            name="counterpart_items">
+                            string="Counterpart Items">
                             <group class="oe_inline">
                                 <field
                                     name="line_ids"
-                                    default="{'default_model_id': self, 'default_company_id': self.company_id}"
-                                    nolabel="1">
+                                    nolabel="1"
+                                    default="{'default_model_id': self, 'default_company_id': self.company_id}">
                                     <list editable="bottom">
                                         <field
                                             name="company_id"
@@ -126,10 +126,10 @@
                                             optional="hide" />
                                         <field
                                             name="analytic_distribution"
-                                            widget="analytic_distribution"
                                             string="Analytic"
-                                            groups="analytic.group_analytic_accounting"
-                                            options="{'account_field': 'account_id', 'business_domain': 'general'}" />
+                                            widget="analytic_distribution"
+                                            options="{'account_field': 'account_id', 'business_domain': 'general'}"
+                                            groups="analytic.group_analytic_accounting" />
                                         <field name="label" />
                                     </list>
                                 </field>
@@ -152,13 +152,13 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Automated"
                     name="auto_validate"
+                    string="Automated"
                     domain="[('trigger', '=', 'auto_reconcile')]" />
                 <separator />
                 <filter
-                    string="With tax"
                     name="withtax"
+                    string="With tax"
                     domain="[('line_ids.tax_ids', '!=', False)]" />
                 <separator />
                 <filter
@@ -167,12 +167,12 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Journals Availability"
                         name="group_by_journal"
+                        string="Journals Availability"
                         context="{'group_by': 'match_journal_ids'}" />
                     <filter
-                        string="Automation"
                         name="group_by_auto_validate"
+                        string="Automation"
                         context="{'group_by': 'trigger'}" />
                 </group>
             </search>

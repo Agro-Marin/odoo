@@ -42,6 +42,10 @@ class _FakeRegistry(_RegistryFieldsMixin):
         self.models = models
         self.model_graph = ModelGraph()
 
+    @property
+    def model_names_by_inheritance_root(self):
+        return {}
+
 
 def _registry_with(*, extra_trigger=False):
     a = _FakeField("a", "m")

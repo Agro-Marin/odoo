@@ -21,57 +21,66 @@ class AccountSaleClosing(models.Model):
     _order = "date_closing_stop desc, sequence_number desc"
     _description = "Sale Closing"
 
-    name = fields.Char(help="Frequency and unique sequence number", required=True)
+    name = fields.Char(
+        required=True,
+        help="Frequency and unique sequence number",
+    )
     company_id = fields.Many2one(
-        "res.company", string="Company", readonly=True, required=True
+        comodel_name="res.company",
+        readonly=True,
+        required=True,
     )
     date_closing_stop = fields.Datetime(
         string="Closing Date",
-        help="Date to which the values are computed",
         readonly=True,
         required=True,
+        help="Date to which the values are computed",
     )
     date_closing_start = fields.Datetime(
         string="Starting Date",
-        help="Date from which the total interval is computed",
         readonly=True,
         required=True,
+        help="Date from which the total interval is computed",
     )
     frequency = fields.Selection(
-        string="Closing Type",
         selection=[("daily", "Daily"), ("monthly", "Monthly"), ("annually", "Annual")],
+        string="Closing Type",
         readonly=True,
         required=True,
     )
     total_interval = fields.Monetary(
         string="Period Total",
-        help="Total in receivable accounts during the interval, excluding overlapping periods",
         readonly=True,
         required=True,
+        help="Total in receivable accounts during the interval, excluding overlapping periods",
     )
     cumulative_total = fields.Monetary(
         string="Cumulative Grand Total",
+        readonly=True,
+        required=True,
         help="Total in receivable accounts since the beginnig of times",
+    )
+    sequence_number = fields.Integer(
+        string="Sequence #",
         readonly=True,
         required=True,
     )
-    sequence_number = fields.Integer("Sequence #", readonly=True, required=True)
     last_order_id = fields.Many2one(
-        "pos.order",
+        comodel_name="pos.order",
         string="Last Pos Order",
-        help="Last Pos order included in the grand total",
         readonly=True,
+        help="Last Pos order included in the grand total",
     )
     last_order_hash = fields.Char(
-        string="Last Order entry's inalteralbility hash", readonly=True
+        string="Last Order entry's inalteralbility hash",
+        readonly=True,
     )
     currency_id = fields.Many2one(
-        "res.currency",
-        string="Currency",
-        help="The company's currency",
-        readonly=True,
+        comodel_name="res.currency",
         related="company_id.currency_id",
-        store=True,
+        string="Currency",
+        readonly=True,
+        help="The company's currency",
     )
 
     def _query_for_aml(self, company, first_move_sequence_number, date_start):
@@ -109,7 +118,7 @@ class AccountSaleClosing(models.Model):
         self.env.cr.execute(query, params)
         return self.env.cr.dictfetchall()[0]
 
-    def _compute_amounts(self, frequency, company):
+    def _prepare_closing_vals(self, frequency, company):
         """
         Method used to compute all the business data of the new object.
         It will search for previous closings of the same frequency to infer the move from which
@@ -227,7 +236,7 @@ class AccountSaleClosing(models.Model):
         account_closings = self.env["account.sale.closing"]
         for company in res_company.filtered(lambda c: c._is_accounting_unalterable()):
             new_sequence_number = company.l10n_fr_closing_sequence_id.next_by_id()
-            values = self._compute_amounts(frequency, company)
+            values = self._prepare_closing_vals(frequency, company)
             values["frequency"] = frequency
             values["company_id"] = company.id
             values["sequence_number"] = new_sequence_number

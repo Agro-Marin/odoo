@@ -10,36 +10,36 @@
                 <header>
                     <button
                         name="%(loyalty_generate_wizard_action)d"
+                        type="action"
                         string="Generate Coupons"
-                        class="btn-primary"
-                        type="action"
-                        invisible="program_type != 'coupons'" />
+                        invisible="program_type != 'coupons'"
+                        class="btn-primary" />
                     <button
                         name="%(loyalty_generate_wizard_action)d"
+                        type="action"
                         string="Generate Gift Cards"
-                        class="btn-primary"
-                        type="action"
-                        invisible="program_type != 'gift_card'" />
+                        invisible="program_type != 'gift_card'"
+                        class="btn-primary" />
                     <button
                         name="%(loyalty_generate_wizard_action)d"
-                        string="Generate eWallet"
-                        class="btn-primary"
                         type="action"
+                        string="Generate eWallet"
+                        context="{'default_mode': 'selected'}"
                         invisible="program_type != 'ewallet'"
-                        context="{'default_mode': 'selected'}" />
+                        class="btn-primary" />
                 </header>
                 <sheet>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
-                            type="object"
                             name="action_view_loyalty_cards"
-                            icon="fa-tags">
+                            type="object"
+                            icon="fa-tags"
+                            class="oe_stat_button">
                             <div class="o_form_field o_stat_info">
                                 <span class="o_stat_value">
                                     <field name="coupon_count" />
@@ -69,8 +69,8 @@
                                 <field
                                     name="program_type"
                                     widget="filterable_selection"
-                                    readonly="coupon_count != 0"
-                                    options="{'blacklisted_values': ['gift_card', 'ewallet']}" />
+                                    options="{'blacklisted_values': ['gift_card', 'ewallet']}"
+                                    readonly="coupon_count != 0" />
                                 <p
                                     class="text-muted"
                                     invisible="program_type != 'coupons'"
@@ -131,13 +131,13 @@
                                 </p>
                             </div>
                             <label
+                                for="trigger_product_ids"
                                 string="Gift Card Products"
-                                invisible="program_type != 'gift_card'"
-                                for="trigger_product_ids" />
+                                invisible="program_type != 'gift_card'" />
                             <label
+                                for="trigger_product_ids"
                                 string="eWallet Products"
-                                invisible="program_type != 'ewallet'"
-                                for="trigger_product_ids" />
+                                invisible="program_type != 'ewallet'" />
                             <div
                                 id="trigger_products"
                                 invisible="program_type not in ['gift_card', 'ewallet']">
@@ -158,37 +158,37 @@
                             <field
                                 name="pricelist_ids"
                                 widget="many2many_tags"
-                                invisible="program_type in ('gift_card', 'ewallet')"
-                                groups="product.group_product_pricelist" />
+                                groups="product.group_product_pricelist"
+                                invisible="program_type in ('gift_card', 'ewallet')" />
                             <field
                                 name="portal_point_name"
-                                invisible="program_type in ('loyalty', 'gift_card', 'ewallet')"
                                 string="Points Unit"
-                                groups="base.group_no_one" />
+                                groups="base.group_no_one"
+                                invisible="program_type in ('loyalty', 'gift_card', 'ewallet')" />
                             <field
                                 name="portal_point_name"
-                                invisible="program_type in ('gift_card', 'ewallet') or program_type != 'loyalty'"
-                                string="Points Unit" />
+                                string="Points Unit"
+                                invisible="program_type in ('gift_card', 'ewallet') or program_type != 'loyalty'" />
                             <field name="portal_visible" invisible="1" />
                             <field
                                 name="portal_visible"
-                                groups="base.group_no_one"
                                 string="Show points Unit"
+                                groups="base.group_no_one"
                                 invisible="program_type in ('gift_card', 'ewallet')" />
                             <field name="trigger" invisible="1" />
                             <field
                                 name="trigger"
                                 string="Program trigger"
-                                groups="base.group_no_one"
                                 widget="selection"
-                                readonly="1"
-                                force_save="1" />
+                                force_save="1"
+                                groups="base.group_no_one"
+                                readonly="1" />
                             <field
                                 name="applies_on"
                                 string="Use points on"
-                                groups="base.group_no_one"
                                 widget="radio"
                                 force_save="1"
+                                groups="base.group_no_one"
                                 readonly="program_type != 'loyalty'" />
                         </group>
                         <group>
@@ -205,80 +205,80 @@
                                 <field name="limit_usage" class="oe_inline" />
                                 <span invisible="not limit_usage">
                                     to <field name="max_usage" class="oe_inline" /> usages
-                                    <span class="text-muted">(<field name="total_order_count" class="oe_inline" readonly="1" /> used)</span>
+                                    <span class="text-muted">(<field name="total_order_count" readonly="1" class="oe_inline" /> used)</span>
                                 </span>
                             </span>
                             <field name="company_id" invisible="1" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                             <field name="available_on" invisible="1" />
                             <label
-                                class="o_form_label"
                                 for="available_on"
                                 string="Available On"
-                                invisible="1" />
+                                invisible="1"
+                                class="o_form_label" />
                             <div id="o_loyalty_program_availabilities" invisible="1" />
                             <field
                                 name="portal_point_name"
-                                invisible="program_type not in ('gift_card', 'ewallet')"
                                 string="Displayed as"
-                                groups="base.group_no_one" />
+                                groups="base.group_no_one"
+                                invisible="program_type not in ('gift_card', 'ewallet')" />
                         </group>
                     </group>
                     <notebook>
                         <page
-                            string="Rules &amp; Rewards"
                             name="rules_rewards"
+                            string="Rules &amp; Rewards"
                             invisible="program_type in ('gift_card', 'ewallet')">
                             <group>
                                 <group>
                                     <field
                                         name="rule_ids"
-                                        colspan="2"
-                                        mode="kanban"
-                                        nolabel="1"
-                                        add-label="Add a rule"
-                                        class="o_loyalty_kanban_inline"
                                         widget="loyalty_one2many"
-                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}" />
+                                        mode="kanban"
+                                        colspan="2"
+                                        nolabel="1"
+                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}"
+                                        class="o_loyalty_kanban_inline"
+                                        add-label="Add a rule" />
                                 </group>
                                 <group>
                                     <field
                                         name="reward_ids"
-                                        colspan="2"
-                                        mode="kanban"
-                                        nolabel="1"
-                                        add-label="Add a reward"
-                                        class="o_loyalty_kanban_inline"
                                         widget="loyalty_one2many"
-                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}" />
+                                        mode="kanban"
+                                        colspan="2"
+                                        nolabel="1"
+                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}"
+                                        class="o_loyalty_kanban_inline"
+                                        add-label="Add a reward" />
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Rewards"
                             name="rewards"
+                            string="Rewards"
                             groups="base.group_no_one"
                             invisible="program_type not in ('gift_card', 'ewallet')">
                             <group>
                                 <group groups="base.group_no_one">
                                     <field
                                         name="reward_ids"
-                                        colspan="2"
-                                        mode="kanban"
-                                        nolabel="1"
-                                        add-label="Add a reward"
-                                        class="o_loyalty_kanban_inline"
                                         widget="loyalty_one2many"
-                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}" />
+                                        mode="kanban"
+                                        colspan="2"
+                                        nolabel="1"
+                                        context="{'currency_symbol': currency_symbol, 'program_type': program_type}"
+                                        class="o_loyalty_kanban_inline"
+                                        add-label="Add a reward" />
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Communications"
                             name="communications"
+                            string="Communications"
                             invisible="applies_on == 'current' or program_type in ('gift_card', 'ewallet')">
                             <field name="communication_plan_ids" mode="list" />
                         </page>
@@ -310,8 +310,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

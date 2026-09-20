@@ -23,15 +23,15 @@
                 </group>
                 <footer>
                     <button
-                        string="Create Transfers"
                         name="action_create_payments"
                         type="object"
+                        string="Create Transfers"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

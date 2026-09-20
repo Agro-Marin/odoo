@@ -13,7 +13,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
     @classmethod
     def get_default_groups(cls):
         groups = super().get_default_groups()
-        return groups | cls.quick_ref("sales_team.group_sale_manager")
+        return groups | cls.quick_ref("sale.group_sale_manager")
 
     @classmethod
     def setUpClass(cls):
@@ -321,7 +321,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         for line in po_line_vals:
             line_product = self.env["product.product"].browse(line["product_id"])
             product_uom_id = self.env["uom.uom"].browse(line["product_uom_id"])
-            line["price_unit"] = line_product.uom_id._compute_price(
+            line["price_unit"] = line_product.uom_id._get_price_in_unit(
                 line_product.list_price, product_uom_id
             )
 

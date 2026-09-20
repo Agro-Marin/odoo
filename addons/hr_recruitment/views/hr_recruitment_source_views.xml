@@ -12,15 +12,15 @@
                     <field
                         name="source_id"
                         placeholder="e.g. LinkedIn"
-                        decoration-bf="1"
+                        optional="show"
                         readonly="id"
-                        optional="show" />
+                        decoration-bf="1" />
                     <field name="medium_id" optional="show" />
                     <field
                         name="email"
                         widget="RecruitmentCopyClipboardChar"
-                        invisible="not has_domain"
-                        options="{'content_generation_function_name': 'create_and_get_alias', 'displayed_value': 'Email'}" />
+                        options="{'content_generation_function_name': 'create_and_get_alias', 'displayed_value': 'Email'}"
+                        invisible="not has_domain" />
                 </list>
             </field>
         </record>

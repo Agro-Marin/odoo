@@ -1,4 +1,7 @@
 from odoo import _, models, modules
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockPicking(models.Model):
@@ -7,12 +10,13 @@ class StockPicking(models.Model):
     def _pre_action_done_hook(self):
         res = super()._pre_action_done_hook()
         if res is True and not self.env.context.get("skip_sms"):
-            pickings_to_warn_sms = self._check_warn_sms()
+            pickings_to_warn_sms = self._get_pickings_to_warn_sms()
             if pickings_to_warn_sms:
                 return pickings_to_warn_sms._action_generate_warn_sms_wizard()
         return res
 
-    def _check_warn_sms(self):
+    def _get_pickings_to_warn_sms(self):
+        _debug.logic("sms_warn_check", pickings=self)
         warn_sms_pickings = self.browse()
         for picking in self:
             is_delivery = (
@@ -30,6 +34,7 @@ class StockPicking(models.Model):
         return warn_sms_pickings
 
     def _action_generate_warn_sms_wizard(self):
+        _debug.pipeline("sms_warn_wizard_open", pickings=self)
         view = self.env.ref("stock_sms.view_confirm_stock_sms")
         wiz = self.env["confirm.stock.sms"].create(
             {"pick_ids": [(4, p.id) for p in self]}
@@ -47,6 +52,7 @@ class StockPicking(models.Model):
         }
 
     def _send_confirmation_email(self):
+        _debug.pipeline("sms_confirmation_send", pickings=self)
         super()._send_confirmation_email()
         if not self.env.context.get("skip_sms") and not modules.module.current_test:
             pickings = self.filtered(

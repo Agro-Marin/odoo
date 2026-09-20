@@ -14,48 +14,48 @@
                 position="attributes">
                 <attribute
                     name="invisible"
-                    separator="or"
-                    add="authorized_transaction_ids" />
+                    add="authorized_transaction_ids"
+                    separator="or" />
             </xpath>
             <xpath
                 expr="//button[@id='account_invoice_payment_secondary_btn']"
                 position="attributes">
                 <attribute
                     name="invisible"
-                    separator="or"
-                    add="authorized_transaction_ids" />
+                    add="authorized_transaction_ids"
+                    separator="or" />
             </xpath>
             <xpath expr="//button[@id='account_invoice_payment_btn']" position="after">
                 <field name="authorized_transaction_ids" invisible="1" />
                 <button
                     name="payment_action_capture"
                     type="object"
-                    groups="account.group_account_invoice"
                     string="Capture Transaction"
+                    groups="account.group_account_invoice"
+                    invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') or state != 'posted' or not authorized_transaction_ids"
                     class="oe_highlight"
-                    data-hotkey="shift+g"
-                    invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') or state != 'posted' or not authorized_transaction_ids" />
+                    data-hotkey="shift+g" />
                 <button
                     name="payment_action_void"
                     type="object"
-                    groups="account.group_account_invoice"
                     string="Void Transaction"
-                    data-hotkey="shift+v"
                     confirm="Are you sure you want to void the authorized transaction? This action can't be undone."
-                    invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') or state != 'posted' or not authorized_transaction_ids" />
+                    groups="account.group_account_invoice"
+                    invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') or state != 'posted' or not authorized_transaction_ids"
+                    data-hotkey="shift+v" />
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
                     name="action_view_payment_transactions"
                     type="object"
-                    groups="account.group_account_invoice"
-                    class="oe_stat_button"
                     icon="fa-money"
-                    invisible="transaction_count == 0">
+                    groups="account.group_account_invoice"
+                    invisible="transaction_count == 0"
+                    class="oe_stat_button">
                     <field
                         name="transaction_count"
-                        widget="statinfo"
-                        string="Payment Transaction" />
+                        string="Payment Transaction"
+                        widget="statinfo" />
                 </button>
             </xpath>
         </field>

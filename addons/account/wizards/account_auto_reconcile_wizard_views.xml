@@ -27,12 +27,12 @@
                 </group>
                 <footer>
                     <button
-                        string="Reconcile"
-                        class="btn-primary"
                         name="auto_reconcile"
                         type="object"
+                        string="Reconcile"
+                        class="btn-primary"
                         data-hotkey="v" />
-                    <button string="Discard" special="cancel" data-hotkey="z" />
+                    <button special="cancel" string="Discard" data-hotkey="z" />
                 </footer>
             </form>
         </field>

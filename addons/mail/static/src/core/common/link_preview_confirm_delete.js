@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.link_preview");
 /**
  * @typedef {Object} Props
  * @property {import("models").MessageLinkPreview} linkPreview
@@ -27,11 +30,16 @@ export class LinkPreviewConfirmDelete extends Component {
     }
 
     onClickOk() {
+        log.logic("delete link preview", () => ({
+            linkPreviewId: this.props.linkPreview.id,
+            messageId: this.message?.id,
+        }));
         this.props.delete();
         this.props.close();
     }
 
     onClickDeleteAll() {
+        log.logic("delete all link previews", () => ({ messageId: this.message?.id }));
         this.props.deleteAll?.();
         this.props.close();
     }

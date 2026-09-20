@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- TAG VIEWS -->
         <record id="forum_tag_view_list" model="ir.ui.view">
             <field name="name">forum.tag.view.list</field>
             <field name="model">forum.tag</field>

@@ -24,7 +24,6 @@ test("turnstile captcha gets added to form snippets", async () => {
     expect(core.interactions).toHaveLength(1);
     expect(queryAll("form script.s_turnstile")).toHaveLength(1);
     core.stopInteractions();
-    // Make sure element interactions are stopped.
     expect(core.interactions).toHaveLength(0);
     expect(queryAll("form script.s_turnstile")).toHaveLength(0);
 });

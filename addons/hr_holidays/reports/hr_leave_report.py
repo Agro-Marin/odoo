@@ -9,24 +9,49 @@ class HrLeaveReport(models.Model):
     _auto = False
     _order = "date_from DESC, employee_id"
 
-    leave_id = fields.Many2one("hr.leave", string="Time Off Request", readonly=True)
-    allocation_id = fields.Many2one(
-        "hr.leave.allocation", string="Allocation Request", readonly=True
+    leave_id = fields.Many2one(
+        comodel_name="hr.leave",
+        string="Time Off Request",
+        readonly=True,
     )
-    name = fields.Char("Description", readonly=True)
-    number_of_days = fields.Float("Number of Days", readonly=True)
-    number_of_hours = fields.Float("Number of Hours", readonly=True)
+    allocation_id = fields.Many2one(
+        comodel_name="hr.leave.allocation",
+        string="Allocation Request",
+        readonly=True,
+    )
+    name = fields.Char(
+        string="Description",
+        readonly=True,
+        groups="hr_holidays.group_hr_holidays_user",
+        help="A request's description is its private_name, which hr.leave "
+        "itself masks as ***** for anyone but an officer, the employee or "
+        "their approver. This view reads that column straight, so the field "
+        "carries the restriction the view cannot.",
+    )
+    number_of_days = fields.Float(
+        string="Number of Days",
+        readonly=True,
+    )
+    number_of_hours = fields.Float(
+        string="Number of Hours",
+        readonly=True,
+    )
     leave_type = fields.Selection(
-        [("allocation", "Allocation"), ("request", "Time Off")],
+        selection=[("allocation", "Allocation"), ("request", "Time Off")],
         string="Request Type",
         readonly=True,
     )
-    department_id = fields.Many2one("hr.department", string="Department", readonly=True)
+    department_id = fields.Many2one(
+        comodel_name="hr.department",
+        readonly=True,
+    )
     holiday_status_id = fields.Many2one(
-        "hr.leave.type", string="Time Off Type", readonly=True
+        comodel_name="hr.leave.type",
+        string="Time Off Type",
+        readonly=True,
     )
     state = fields.Selection(
-        [
+        selection=[
             ("cancel", "Cancelled"),
             ("confirm", "To Approve"),
             ("refuse", "Refused"),
@@ -36,9 +61,18 @@ class HrLeaveReport(models.Model):
         string="Status",
         readonly=True,
     )
-    date_from = fields.Datetime("Start Date", readonly=True)
-    date_to = fields.Datetime("End Date", readonly=True)
-    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    date_from = fields.Datetime(
+        string="Start Date",
+        readonly=True,
+    )
+    date_to = fields.Datetime(
+        string="End Date",
+        readonly=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
 
     def init(self):
         drop_view_if_exists(self.env.cr, "hr_leave_report")
@@ -68,7 +102,7 @@ class HrLeaveReport(models.Model):
                     allocation.date_from as date_from,
                     allocation.date_to as date_to,
                     'allocation' as leave_type,
-                    allocation.employee_company_id as company_id
+                    employee.company_id as company_id
                 from hr_leave_allocation as allocation
                 inner join hr_employee as employee on (allocation.employee_id = employee.id)
                 LEFT JOIN hr_version v ON v.id = employee.current_version_id
@@ -92,7 +126,7 @@ class HrLeaveReport(models.Model):
                     request.date_from as date_from,
                     request.date_to as date_to,
                     'request' as leave_type,
-                    request.employee_company_id as company_id
+                    employee.company_id as company_id
                 from hr_leave as request
                 inner join hr_employee as employee on (request.employee_id = employee.id)
                 LEFT JOIN hr_version v ON v.id = employee.current_version_id

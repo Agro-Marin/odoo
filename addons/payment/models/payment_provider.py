@@ -8,6 +8,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools.mail import is_html_empty
 
+from odoo.addons.integration.tools.connection_gate import ConnectionUnavailable
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.const import REPORT_REASONS_MAPPING, SENSITIVE_KEYS
 from odoo.addons.payment.logging import get_payment_logger
@@ -18,10 +19,13 @@ _logger = get_payment_logger(__name__, sensitive_keys=SENSITIVE_KEYS)
 
 class PaymentProvider(models.Model):
     _name = "payment.provider"
+    _inherit = ["mixin.credential.holder", "mixin.integration.connected"]
     _description = "Payment Provider"
     _order = "module_state, state desc, sequence, name"
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
+    _credential_holder_field = "provider_credential_id"
+    _credential_purpose = "payment:provider"
 
     def _is_valid_field_parameter(self, field, name):
         return name == "required_if_provider" or super()._is_valid_field_parameter(
@@ -29,49 +33,57 @@ class PaymentProvider(models.Model):
         )
 
     # Configuration fields
-    name = fields.Char(string="Name", required=True, translate=True)
-    sequence = fields.Integer(string="Sequence", help="Define the display order")
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(help="Define the display order")
+    provider_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds this provider's secrets.",
+    )
     code = fields.Selection(
-        string="Code",
-        help="The technical code of this payment provider.",
         selection=[("none", "No Provider Set")],
         default="none",
         required=True,
+        help="The technical code of this payment provider.",
     )
     state = fields.Selection(
-        string="State",
-        help="In test mode, a fake payment is processed through a test payment interface.\n"
-        "This mode is advised when setting up the provider.",
         selection=[
             ("disabled", "Disabled"),
             ("enabled", "Enabled"),
             ("test", "Test Mode"),
         ],
         default="disabled",
-        required=True,
         copy=False,
+        required=True,
+        help="In test mode, a fake payment is processed through a test payment interface.\n"
+        "This mode is advised when setting up the provider.",
     )
     is_published = fields.Boolean(
         string="Published",
+        copy=False,
         help="Whether the provider is visible on the website or not. Tokens remain functional but "
         "are only visible on manage forms.",
-        copy=False,
     )
-    company_id = (
-        fields.Many2one(  # Indexed to speed-up ORM searches (from ir_rule or others)
-            string="Company",
-            comodel_name="res.company",
-            default=lambda self: self.env.company.id,
-            required=True,
-            index=True,
-        )
+    company_id = fields.Many2one(
+        # Indexed to speed-up ORM searches (from ir_rule or others)
+        comodel_name="res.company",
+        default=lambda self: self.env.company.id,
+        index=True,
+        required=True,
     )
     main_currency_id = fields.Many2one(
         related="company_id.currency_id",
         help="The main currency of the company, used to display monetary fields.",
     )
     payment_method_ids = fields.Many2many(
-        string="Supported Payment Methods", comodel_name="payment.method"
+        comodel_name="payment.method",
+        string="Supported Payment Methods",
     )
     allow_tokenization = fields.Boolean(
         string="Allow Saving Payment Methods",
@@ -86,144 +98,150 @@ class PaymentProvider(models.Model):
         "you are sure you can ship the goods to them.",
     )
     allow_express_checkout = fields.Boolean(
-        string="Allow Express Checkout",
         help="This controls whether customers can use express payment methods. Express checkout "
         "enables customers to pay with Google Pay and Apple Pay from which address "
-        "information is collected at payment.",
+        "information is collected at payment."
     )
     redirect_form_view_id = fields.Many2one(
-        string="Redirect Form Template",
         comodel_name="ir.ui.view",
-        help="The template rendering a form submitted to redirect the user when making a payment",
+        string="Redirect Form Template",
         domain=[("type", "=", "qweb")],
         ondelete="restrict",
+        help="The template rendering a form submitted to redirect the user when making a payment",
     )
     inline_form_view_id = fields.Many2one(
-        string="Inline Form Template",
         comodel_name="ir.ui.view",
-        help="The template rendering the inline payment form when making a direct payment",
+        string="Inline Form Template",
         domain=[("type", "=", "qweb")],
         ondelete="restrict",
+        help="The template rendering the inline payment form when making a direct payment",
     )
     token_inline_form_view_id = fields.Many2one(
-        string="Token Inline Form Template",
         comodel_name="ir.ui.view",
-        help="The template rendering the inline payment form when making a payment by token.",
+        string="Token Inline Form Template",
         domain=[("type", "=", "qweb")],
         ondelete="restrict",
+        help="The template rendering the inline payment form when making a payment by token.",
     )
     express_checkout_form_view_id = fields.Many2one(
-        string="Express Checkout Form Template",
         comodel_name="ir.ui.view",
-        help="The template rendering the express payment methods' form.",
+        string="Express Checkout Form Template",
         domain=[("type", "=", "qweb")],
         ondelete="restrict",
+        help="The template rendering the express payment methods' form.",
     )
 
     # Availability fields
     available_country_ids = fields.Many2many(
-        string="Countries",
         comodel_name="res.country",
-        help="The countries in which this payment provider is available. Leave blank to make it "
-        "available in all countries.",
         relation="payment_country_rel",
         column1="payment_id",
         column2="country_id",
+        string="Countries",
+        help="The countries in which this payment provider is available. Leave blank to make it "
+        "available in all countries.",
     )
     available_currency_ids = fields.Many2many(
-        string="Currencies",
-        help="The currencies available with this payment provider. Leave empty not to restrict "
-        "any.",
         comodel_name="res.currency",
         relation="payment_currency_rel",
         column1="payment_provider_id",
         column2="currency_id",
+        string="Currencies",
         compute="_compute_available_currency_ids",
         store=True,
         readonly=False,
         context={"active_test": False},
+        help="The currencies available with this payment provider. Leave empty not to restrict "
+        "any.",
     )
     maximum_amount = fields.Monetary(
-        string="Maximum Amount",
+        currency_field="main_currency_id",
         help="The maximum payment amount that this payment provider is available for. Leave blank "
         "to make it available for any payment amount.",
-        currency_field="main_currency_id",
     )
 
     # Message fields
     pre_msg = fields.Html(
         string="Help Message",
-        help="The message displayed to explain and help the payment process",
         translate=True,
+        help="The message displayed to explain and help the payment process",
     )
     pending_msg = fields.Html(
         string="Pending Message",
-        help="The message displayed if the order pending after the payment process",
+        translate=True,
         default=lambda self: _(
             "Your payment has been processed but is waiting for approval."
         ),
-        translate=True,
+        help="The message displayed if the order pending after the payment process",
     )
     auth_msg = fields.Html(
         string="Authorize Message",
-        help="The message displayed if payment is authorized",
-        default=lambda self: _("Your payment has been authorized."),
         translate=True,
+        default=lambda self: _("Your payment has been authorized."),
+        help="The message displayed if payment is authorized",
     )
     done_msg = fields.Html(
         string="Done Message",
-        help="The message displayed if the order is successfully done after the payment process",
-        default=lambda self: _("Your payment has been processed."),
         translate=True,
+        default=lambda self: _("Your payment has been processed."),
+        help="The message displayed if the order is successfully done after the payment process",
     )
     cancel_msg = fields.Html(
         string="Cancelled Message",
-        help="The message displayed if the order is cancelled during the payment process",
-        default=lambda self: _("Your payment has been cancelled."),
         translate=True,
+        default=lambda self: _("Your payment has been cancelled."),
+        help="The message displayed if the order is cancelled during the payment process",
     )
 
     # Feature support fields
     support_tokenization = fields.Boolean(
-        string="Tokenization", compute="_compute_feature_support_fields"
+        string="Tokenization",
+        compute="_compute_feature_support_fields",
     )
     support_manual_capture = fields.Selection(
-        string="Manual Capture Supported",
         selection=[("full_only", "Full Only"), ("partial", "Partial")],
+        string="Manual Capture Supported",
         compute="_compute_feature_support_fields",
     )
     support_express_checkout = fields.Boolean(
-        string="Express Checkout", compute="_compute_feature_support_fields"
+        string="Express Checkout",
+        compute="_compute_feature_support_fields",
     )
     support_refund = fields.Selection(
-        string="Refund",
-        help="Refund is a feature allowing to refund customers directly from the payment in Odoo.",
         selection=[
             ("none", "Unsupported"),
             ("full_only", "Full Only"),
             ("partial", "Full & Partial"),
         ],
+        string="Refund",
         compute="_compute_feature_support_fields",
+        help="Refund is a feature allowing to refund customers directly from the payment in Odoo.",
     )
 
     # Kanban view fields
-    image_128 = fields.Image(string="Image", max_width=128, max_height=128)
+    image_128 = fields.Image(
+        string="Image",
+        max_width=128,
+        max_height=128,
+    )
     color = fields.Integer(
-        string="Color",
-        help="The color of the card in kanban view",
         compute="_compute_color",
         store=True,
+        help="The color of the card in kanban view",
     )
 
     # Module-related fields
     module_id = fields.Many2one(
-        string="Corresponding Module", comodel_name="ir.module.module"
+        comodel_name="ir.module.module",
+        string="Corresponding Module",
     )
     module_state = fields.Selection(
-        string="Installation State", related="module_id.state"
+        related="module_id.state",
+        string="Installation State",
     )
     module_to_buy = fields.Boolean(
-        string="Odoo Enterprise Module", related="module_id.to_buy"
+        related="module_id.to_buy",
+        string="Odoo Enterprise Module",
     )
 
     # === COMPUTE METHODS === #
@@ -577,11 +595,11 @@ class PaymentProvider(models.Model):
             {
                 "state": "disabled",
                 "is_published": False,
-                **self._get_reset_values(),
+                **self._prepare_credential_reset_vals(),
             }
         )
 
-    def _get_reset_values(self):
+    def _prepare_credential_reset_vals(self):
         """Return the values to reset the credentials of the provider.
 
         Providers can override this to supply their own credential fields to reset.
@@ -845,6 +863,13 @@ class PaymentProvider(models.Model):
 
     # === REQUEST HELPERS === #
 
+    def _integration_connection_service(self) -> tuple[str, str, str]:
+        self.check_singleton()
+        label = dict(self._fields["code"]._description_selection(self.env)).get(
+            self.code, self.code
+        )
+        return f"payment_{self.code}", self.env._("Payments: %s", label), "payment"
+
     def _send_api_request(
         self,
         method,
@@ -890,9 +915,10 @@ class PaymentProvider(models.Model):
 
         # Send the request.
         try:
-            response = requests.request(
+            response = self._get_integration_connection()._egress_request(
                 method,
                 url,
+                purpose=f"payment_{self.code}",
                 params=params,
                 data=data,
                 json=json,
@@ -900,7 +926,13 @@ class PaymentProvider(models.Model):
                 auth=auth,
                 timeout=timeout,
             )
-        except requests.exceptions.ConnectionError, requests.exceptions.Timeout:
+        except ConnectionUnavailable as error:
+            raise ValidationError(str(error)) from None
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.InvalidURL,
+        ):
             raise ValidationError(
                 _("Could not establish the connection to the payment provider.")
             ) from None
@@ -1112,7 +1144,7 @@ class PaymentProvider(models.Model):
         :return: None
         """
         providers = self.search(self._get_domain_provider(provider_code, **kwargs))
-        providers.write(self._get_removal_values())
+        providers.write(self._prepare_removal_values())
 
     @api.model
     def _get_domain_provider(self, provider_code, **kwargs):
@@ -1125,7 +1157,7 @@ class PaymentProvider(models.Model):
         """
         return [("code", "=", provider_code)]
 
-    def _get_removal_values(self):
+    def _prepare_removal_values(self):
         """Return the values to update a provider with when its module is uninstalled.
 
         For a module to specify additional removal values, it must override this method and complete

@@ -5,9 +5,12 @@ import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.rtc.media");
 
 const SCREEN_CONFIG = {
     width: { max: 1920 },
@@ -227,6 +230,13 @@ export class LocalMediaController {
     async _setVideo(track, type, options) {
         const settings = this.hooks.getSettings();
         const { activateVideo, env, refreshStream } = this._getSetVideoOptions(options);
+        log.pipeline("setVideo", () => ({
+            type,
+            activateVideo,
+            refreshStream,
+            hadTrack: Boolean(track),
+            useBlur: settings.useBlur,
+        }));
         if (!activateVideo) {
             if (type === "screen") {
                 this.hooks.playSound("screen-sharing");
@@ -239,6 +249,7 @@ export class LocalMediaController {
             return;
         }
         let sourceStream;
+        const endAcquire = log.perf("acquireVideoStream");
         try {
             sourceStream = await this._acquireVideoStream(
                 type,
@@ -246,7 +257,9 @@ export class LocalMediaController {
                 env,
                 refreshStream,
             );
+            endAcquire({ type });
         } catch {
+            endAcquire({ type, failed: true });
             this.hooks.onMediaUnavailable({
                 camera: type === "camera",
                 screen: type === "screen",
@@ -255,6 +268,7 @@ export class LocalMediaController {
             return;
         }
         if (!this.hooks.getSelfSession()) {
+            log.logic("setVideo discards stream: no self session", () => ({ type }));
             closeStream(sourceStream);
             return;
         }
@@ -264,6 +278,7 @@ export class LocalMediaController {
             : undefined;
         if (outputTrack) {
             outputTrack.addEventListener("ended", async () => {
+                log.lifecycle("video track ended", () => ({ type }));
                 await this.hooks.toggleVideo(type, { force: false });
             });
             if (type === "camera" && isMobileOS()) {
@@ -328,6 +343,12 @@ export class LocalMediaController {
      */
     async resetMicAudioTrack({ force = false, unmute = true } = {}) {
         const wasMuted = Boolean(this.hooks.getLocalSession()?.is_muted);
+        log.pipeline("resetMicAudioTrack", () => ({
+            force,
+            unmute,
+            wasMuted,
+            hadTrack: Boolean(this.state.micAudioTrack),
+        }));
         this.state.micAudioTrack?.stop();
         this.state.micAudioTrack = undefined;
         if (
@@ -354,15 +375,18 @@ export class LocalMediaController {
                     await this.hooks.setMute(unmute ? false : wasMuted);
                 }
             } catch {
+                log.logic("microphone unavailable");
                 this.hooks.onMediaUnavailable({ microphone: true });
                 await this.updateAudioTrack();
                 return;
             }
             if (!this.hooks.getLocalSession()) {
+                log.logic("mic track discarded: no local session");
                 micAudioTrack.stop();
                 return;
             }
             micAudioTrack.addEventListener("ended", async () => {
+                log.lifecycle("mic track ended");
                 await this.resetMicAudioTrack({ force: false });
                 await this.hooks.setMute(true);
             });
@@ -384,6 +408,10 @@ export class LocalMediaController {
             const settings = this.hooks.getSettings();
             const micAudioTrack = this.state.micAudioTrack;
             if (settings.use_push_to_talk || !this.state.channel || !micAudioTrack) {
+                log.logic("voice activation off", () => ({
+                    pushToTalk: settings.use_push_to_talk,
+                    hasTrack: Boolean(micAudioTrack),
+                }));
                 session.isTalking = false;
                 await this.hooks.updateMicAudioStatus();
                 return;
@@ -402,6 +430,7 @@ export class LocalMediaController {
                 }
                 this.state.disconnectAudioMonitor = disconnect;
             } catch {
+                log.logic("voice activation unsupported");
                 this.hooks.notify(_t("Your browser does not support voice activation"));
                 session.isTalking = true;
             }
@@ -410,6 +439,7 @@ export class LocalMediaController {
     }
 
     dispose() {
+        log.lifecycle("dispose");
         this.linkVoiceActivationDebounce?.cancel?.();
         this.state.disconnectAudioMonitor?.();
         this.state.micAudioTrack?.stop();

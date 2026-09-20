@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
 
 
@@ -11,21 +12,33 @@ class ProjectSprint(models.Model):
     _order = "date_start desc, id desc"
     _inherit = ["mixin.mail.thread"]
 
-    name = fields.Char("Sprint Name", required=True, tracking=True)
+    name = fields.Char(
+        string="Sprint Name",
+        required=True,
+        tracking=True,
+    )
     project_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
-    date_start = fields.Date("Start Date", required=True, tracking=True)
-    date_end = fields.Date("End Date", required=True, tracking=True)
+    date_start = fields.Date(
+        string="Start Date",
+        required=True,
+        tracking=True,
+    )
+    date_end = fields.Date(
+        string="End Date",
+        required=True,
+        tracking=True,
+    )
     goal = fields.Text(
-        "Sprint Goal",
+        string="Sprint Goal",
         help="One-sentence description of what this sprint aims to achieve.",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("planning", "Planning"),
             ("active", "Active"),
             ("review", "Review"),
@@ -36,69 +49,64 @@ class ProjectSprint(models.Model):
         tracking=True,
     )
     capacity_hours = fields.Float(
-        "Team Capacity (hours)",
+        string="Team Capacity (hours)",
         help="Total team hours available for this sprint.",
     )
     task_ids = fields.One2many(
-        "project.task",
-        "sprint_id",
+        comodel_name="project.task",
+        inverse_name="sprint_id",
         string="Sprint Tasks",
     )
     task_count = fields.Integer(
-        "Tasks",
-        compute="_compute_task_metrics",
+        string="Tasks",
         export_string_translation=False,
+        compute="_compute_task_metrics",
     )
     completed_count = fields.Integer(
-        "Completed",
-        compute="_compute_task_metrics",
+        string="Completed",
         export_string_translation=False,
+        compute="_compute_task_metrics",
     )
     completion_pct = fields.Float(
-        "Completion %",
-        compute="_compute_task_metrics",
+        string="Completion %",
         export_string_translation=False,
+        compute="_compute_task_metrics",
     )
     committed_hours = fields.Float(
-        "Committed Hours",
+        export_string_translation=False,
         compute="_compute_task_metrics",
         help="Sum of planned_hours for all sprint tasks (PMI scope baseline).",
-        export_string_translation=False,
     )
     velocity = fields.Float(
-        "Velocity (hours)",
+        string="Velocity (hours)",
+        export_string_translation=False,
         compute="_compute_task_metrics",
         help="Sum of planned_hours for completed sprint tasks.",
-        export_string_translation=False,
     )
     story_points_committed = fields.Float(
-        "Story Points Committed",
-        compute="_compute_task_metrics",
         export_string_translation=False,
+        compute="_compute_task_metrics",
     )
     story_points_completed = fields.Float(
-        "Story Points Completed",
-        compute="_compute_task_metrics",
         export_string_translation=False,
+        compute="_compute_task_metrics",
     )
     carried_over_count = fields.Integer(
-        "Carried Over",
-        readonly=True,
+        string="Carried Over",
         copy=False,
+        readonly=True,
         help="Tasks still unfinished when this sprint closed, returned to the "
         "backlog. Counted in the sprint's commitment, not in its velocity.",
     )
     carried_over_hours = fields.Float(
-        "Carried Over Hours",
-        readonly=True,
-        copy=False,
         export_string_translation=False,
+        copy=False,
+        readonly=True,
     )
     carried_over_story_points = fields.Float(
-        "Carried Over Story Points",
-        readonly=True,
-        copy=False,
         export_string_translation=False,
+        copy=False,
+        readonly=True,
     )
 
     _sprint_date_check = models.Constraint(
@@ -120,6 +128,7 @@ class ProjectSprint(models.Model):
         "carried_over_hours",
         "carried_over_story_points",
     )
+    @dbg.timed
     def _compute_task_metrics(self) -> None:
         for sprint in self:
             tasks = sprint.task_ids
@@ -138,9 +147,25 @@ class ProjectSprint(models.Model):
                 sum(tasks.mapped("story_points")) + sprint.carried_over_story_points
             )
             sprint.story_points_completed = sum(closed.mapped("story_points"))
+            dbg.logic.debug(
+                "sprint metrics [sprint:%s]: tasks=%d closed=%d carried=%d "
+                "committed=%.1f velocity=%.1f",
+                sprint.id,
+                sprint.task_count,
+                sprint.completed_count,
+                carried,
+                sprint.committed_hours,
+                sprint.velocity,
+            )
 
     def action_start(self) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "project.sprint.action_start [sprint:%s] project %s: %s -> active",
+            self.id,
+            self.project_id.id,
+            self.state,
+        )
         active_sprints = self.search(
             [
                 ("project_id", "=", self.project_id.id),
@@ -161,6 +186,12 @@ class ProjectSprint(models.Model):
     def action_close(self) -> None:
         self.check_singleton()
         incomplete = self.task_ids.filtered(lambda t: t.state not in CLOSED_STATES)
+        dbg.lifecycle.debug(
+            "project.sprint.action_close [sprint:%s]: %s -> closed, carrying over %s",
+            self.id,
+            self.state,
+            dbg.rec(incomplete),
+        )
         self.write(
             {
                 "carried_over_count": len(incomplete),

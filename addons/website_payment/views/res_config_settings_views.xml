@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="website.res_config_settings_view_form" />
         <field name="priority" eval="20" />
         <field name="arch" type="xml">
-            <setting id="website_creation_settings" position="after">
+            <setting position="after" id="website_creation_settings">
                 <setting
                     id="website_payment_settings"
                     type="header"
@@ -23,8 +23,8 @@
                             invisible="not onboarding_payment_module"
                             class="d-flex align-self-baseline oe_inline px-0">
                             <button
-                                type="object"
                                 name="action_w_payment_start_payment_onboarding"
+                                type="object"
                                 class="btn btn-link px-1">
                                 Activate
                                 <field name="onboarding_payment_module" nolabel="1" />
@@ -41,9 +41,9 @@
                         </div>
                         <span class="oe_inline px-0">or</span>
                         <button
-                            string="Find another provider"
-                            type="action"
                             name="%(payment.action_payment_provider)d"
+                            type="action"
+                            string="Find another provider"
                             class="btn btn-link oe_inline px-1" />
                     </div>
                     <div
@@ -51,8 +51,8 @@
                         invisible="not active_provider_id">
                         <span>Enable a payment provider to accept online payments.</span>
                         <button
-                            type="object"
                             name="action_view_active_provider"
+                            type="object"
                             class="btn btn-link px-1">
                             Configure
                             <field
@@ -62,18 +62,18 @@
                         </button>
                         <span>or</span>
                         <button
-                            string="Find another provider"
-                            type="action"
                             name="%(payment.action_payment_provider)d"
+                            type="action"
+                            string="Find another provider"
                             class="btn btn-link px-1" />
                     </div>
                 </setting>
             </setting>
-            <block id="website_info_settings" position="after">
-                <block title="Payments" id="website_payment_block">
+            <block position="after" id="website_info_settings">
+                <block id="website_payment_block" title="Payments">
                     <setting
-                        string="Configure Payment Methods"
                         id="website_payment_setting"
+                        string="Configure Payment Methods"
                         help="Visa, Mastercard, Maestro, Google Pay, Apple Pay, etc. as well as recurring charges."
                         documentation="/applications/finance/payment_providers.html">
                         <div class="content-group">
@@ -82,8 +82,8 @@
                                     invisible="not onboarding_payment_module"
                                     class="oe_inline pe-0">
                                     <button
-                                        type="object"
                                         name="action_w_payment_start_payment_onboarding"
+                                        type="object"
                                         class="btn btn-primary">
                                         Activate
                                         <field
@@ -102,30 +102,30 @@
                                         disabled="" />
                                 </div>
                                 <button
-                                    string="Find a Payment Provider"
-                                    type="action"
                                     name="%(payment.action_payment_provider)d"
-                                    class="btn btn-link oe_inline"
-                                    icon="oi-arrow-right" />
+                                    type="action"
+                                    string="Find a Payment Provider"
+                                    icon="oi-arrow-right"
+                                    class="btn btn-link oe_inline" />
                             </div>
                             <div invisible="not active_provider_id">
                                 <button
-                                    type="object"
                                     name="action_view_active_provider"
+                                    type="object"
                                     class="btn btn-primary">
                                     Configure
                                     <field
                                         name="active_provider_id"
-                                        options="{'no_open': True}"
                                         nolabel="1"
+                                        options="{'no_open': True}"
                                         class="oe_inline" />
                                 </button>
                                 <button
-                                    string="Find a Payment Provider"
-                                    type="action"
                                     name="%(payment.action_payment_provider)d"
-                                    class="btn btn-link"
-                                    icon="oi-arrow-right" />
+                                    type="action"
+                                    string="Find a Payment Provider"
+                                    icon="oi-arrow-right"
+                                    class="btn btn-link" />
                             </div>
                         </div>
                     </setting>

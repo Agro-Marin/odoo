@@ -13,15 +13,15 @@
                         required="code == 'adyen' and state != 'disabled'" />
                     <field
                         name="adyen_api_key"
-                        required="code == 'adyen' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'adyen' and state != 'disabled'" />
                     <field
                         name="adyen_client_key"
                         required="code == 'adyen' and state != 'disabled'" />
                     <field
                         name="adyen_hmac_key"
-                        required="code == 'adyen' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'adyen' and state != 'disabled'" />
                     <field
                         name="adyen_api_url_prefix"
                         required="code == 'adyen' and state != 'disabled'" />
@@ -36,8 +36,8 @@
                     the Capture Delay to manual on your Adyen account settings.                    
                     <widget
                         name="documentation_link"
-                        path="/applications/finance/payment_providers/adyen.html#place-a-hold-on-a-card"
-                        label="Learn More" />
+                        label="Learn More"
+                        path="/applications/finance/payment_providers/adyen.html#place-a-hold-on-a-card" />
                 </div>
             </group>
         </field>

@@ -9,7 +9,7 @@
             ref="stock.view_stock_view_stock_warehouse_orderpoint_search_report" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='product_category_id']" position="after">
-                <field string="Vendor" name="effective_vendor_id" />
+                <field name="effective_vendor_id" string="Vendor" />
                 <field name="available_vendor" />
             </xpath>
         </field>

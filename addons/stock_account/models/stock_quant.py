@@ -1,30 +1,30 @@
 from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import groupby
 
 from odoo.addons.stock_account.models.constants import COST_METHOD_SELECTION
+
+_debug = DebugLog(__name__)
 
 
 class StockQuant(models.Model):
     _inherit = "stock.quant"
 
     value = fields.Monetary(
-        "Value",
         compute="_compute_value",
         groups="stock.group_stock_manager",
     )
     currency_id = fields.Many2one(
-        "res.currency",
+        comodel_name="res.currency",
         related="company_id.currency_id",
         groups="stock.group_stock_manager",
     )
     accounting_date = fields.Date(
-        "Accounting Date",
         help="Date at which the accounting entries will be created"
         " in case of automated inventory valuation."
-        " If empty, the inventory date will be used.",
+        " If empty, the inventory date will be used."
     )
     cost_method = fields.Selection(
-        string="Cost Method",
         selection=COST_METHOD_SELECTION,
         compute="_compute_cost_method",
     )
@@ -46,6 +46,7 @@ class StockQuant(models.Model):
 
     @api.depends("company_id", "location_id", "owner_id", "product_id", "quantity")
     def _compute_value(self):
+        _debug.perf.count("quant_value_compute", quants=self)
         self.fetch(
             [
                 "company_id",
@@ -112,6 +113,7 @@ class StockQuant(models.Model):
         return super()._read_group_postprocess_aggregate(aggregate_spec, raw_values)
 
     def _apply_inventory(self, date=None):
+        _debug.pipeline("inventory_applied", quants=self, date=date)
         for accounting_date, inventory_ids in groupby(
             self, key=lambda q: q.accounting_date
         ):

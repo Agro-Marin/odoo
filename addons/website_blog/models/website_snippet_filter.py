@@ -53,7 +53,6 @@ class WebsiteSnippetFilter(models.Model):
                     "website_url": "",
                 },
             ]
-            # merge the sample and data definitions position-wise, cycling the shorter one
             samples = [
                 {**samples[index % len(samples)], **data[index % len(data)]}
                 for index in range(max(len(samples), len(data)))

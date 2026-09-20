@@ -6,7 +6,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     l10n_cl_sii_taxpayer_type = fields.Selection(
-        [
+        selection=[
             ("1", "VAT Affected (1st Category)"),
             ("2", "Fees Receipt Issuer (2nd category)"),
             ("3", "End Consumer"),
@@ -20,7 +20,8 @@ class ResPartner(models.Model):
         "4 - Foreigner",
     )
     l10n_cl_activity_description = fields.Char(
-        string="Activity Description", help="Chile: Economic activity."
+        string="Activity Description",
+        help="Chile: Economic activity.",
     )
 
     @api.model

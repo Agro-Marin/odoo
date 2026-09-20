@@ -33,14 +33,12 @@ class TestForumCommon(common.TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # default base data
         cls.base_website = cls.env.ref("website.default_website")
         cls.base_forum = cls.env.ref("website_forum.forum_help")
 
         Forum = cls.env["forum.forum"]
         Post = cls.env["forum.post"]
 
-        # Test users
         TestUsersEnv = cls.env["res.users"].with_context({"no_reset_password": True})
         group_employee_id = cls.env.ref("base.group_user").id
         group_portal_id = cls.env.ref("base.group_portal").id
@@ -83,7 +81,6 @@ class TestForumCommon(common.TransactionCase):
         )
         cls.user_admin = cls.env.ref("base.user_admin")
 
-        # Test forum
         cls.forum = Forum.create(
             {
                 "name": "TestForum",

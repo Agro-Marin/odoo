@@ -1,6 +1,9 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderLineMatch(models.AbstractModel):
@@ -33,8 +36,8 @@ class MixinOrderLineMatch(models.AbstractModel):
         readonly=True,
     )
     product_uom_id = fields.Many2one(
-        related="product_id.uom_id",
         comodel_name="uom.uom",
+        related="product_id.uom_id",
     )
 
     order_line_id = fields.Many2one(
@@ -54,41 +57,31 @@ class MixinOrderLineMatch(models.AbstractModel):
         readonly=True,
     )
 
-    state = fields.Char(
-        readonly=True,
-    )
-    reference = fields.Char(
-        compute="_compute_reference",
-    )
+    state = fields.Char(readonly=True)
+    reference = fields.Char(compute="_compute_reference")
 
     line_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         readonly=True,
     )
-    line_qty = fields.Float(
-        readonly=True,
-    )
-    qty_invoiced = fields.Float(
-        readonly=True,
-    )
+    line_qty = fields.Float(readonly=True)
+    qty_invoiced = fields.Float(readonly=True)
     qty_to_invoice = fields.Float(
         string="Qty to invoice",
         readonly=True,
     )
     product_uom_qty = fields.Float(
         compute="_compute_product_uom_qty",
-        readonly=False,
         inverse="_inverse_product_uom_qty",
+        readonly=False,
     )
 
     product_uom_price = fields.Float(
         compute="_compute_product_uom_price",
-        readonly=False,
         inverse="_inverse_product_uom_price",
+        readonly=False,
     )
-    line_amount_taxexc = fields.Monetary(
-        readonly=True,
-    )
+    line_amount_taxexc = fields.Monetary(readonly=True)
     invoiced_amount_taxexc = fields.Monetary(
         currency_field="currency_id",
         compute="_compute_amount_untaxed_fields",
@@ -98,6 +91,7 @@ class MixinOrderLineMatch(models.AbstractModel):
         compute="_compute_amount_untaxed_fields",
     )
 
+    @api.depends("line_amount_taxexc", "account_move_id", "order_id")
     def _compute_amount_untaxed_fields(self):
         for line in self:
             line.invoiced_amount_taxexc = (
@@ -107,12 +101,14 @@ class MixinOrderLineMatch(models.AbstractModel):
                 line.line_amount_taxexc if line.order_id else False
             )
 
+    @api.depends("order_id.display_name", "account_move_id.display_name")
     def _compute_reference(self):
         for line in self:
             line.reference = (
                 line.order_id.display_name or line.account_move_id.display_name
             )
 
+    @api.depends("product_id.display_name", "aml_id.name", "order_line_id.name")
     def _compute_display_name(self):
         for line in self:
             line.display_name = (
@@ -121,10 +117,11 @@ class MixinOrderLineMatch(models.AbstractModel):
                 or line.order_line_id.name
             )
 
+    @api.depends("product_id", "line_uom_id", "line_qty", "product_uom_id")
     def _compute_product_uom_qty(self):
         for line in self:
             if line.product_id:
-                line.product_uom_qty = line.line_uom_id._compute_quantity(
+                line.product_uom_qty = line.line_uom_id._get_quantity_in_unit(
                     line.line_qty, line.product_uom_id
                 )
             else:
@@ -141,16 +138,24 @@ class MixinOrderLineMatch(models.AbstractModel):
     def _inverse_product_uom_price(self):
         for line in self:
             if line.aml_id:
+                _debug.lifecycle("match_price_written", target="aml", line=line.aml_id)
                 line.aml_id.price_unit = line.product_uom_price
             else:
+                _debug.lifecycle(
+                    "match_price_written", target="order_line", line=line.order_line_id
+                )
                 line.order_line_id.price_unit = line.product_uom_price
 
     @api.onchange("product_uom_qty")
     def _inverse_product_uom_qty(self):
         for line in self:
             if line.aml_id:
+                _debug.lifecycle("match_qty_written", target="aml", line=line.aml_id)
                 line.aml_id.quantity = line.product_uom_qty
             else:
+                _debug.lifecycle(
+                    "match_qty_written", target="order_line", line=line.order_line_id
+                )
                 previous_price_unit = line.order_line_id.price_unit
                 line.order_line_id.product_qty = line.product_uom_qty
                 line.order_line_id.price_unit = previous_price_unit
@@ -184,6 +189,12 @@ class MixinOrderLineMatch(models.AbstractModel):
             }
         )
         move._add_order_lines(order_lines)
+        _debug.lifecycle(
+            "invoice_created_from_order_lines",
+            partner=partner,
+            order_lines=order_lines,
+            move=move,
+        )
         return move._get_records_action()
 
     def _get_no_order_line_message(self):
@@ -200,11 +211,18 @@ class MixinOrderLineMatch(models.AbstractModel):
     def _action_add_to_order(self):
         messages = self._get_add_to_order_messages()
         if not self or not self.aml_id:
+            _debug.logic("add_to_order_refused", reason="no_invoice_line")
             raise UserError(messages["no_invoice_line"])
         partner = self.mapped("partner_id.commercial_partner_id")
         if len(partner) > 1:
+            _debug.logic(
+                "add_to_order_refused", reason="multiple_partners", partners=partner
+            )
             raise UserError(messages["multi_partner"])
         if len(self.order_id) > 1:
+            _debug.logic(
+                "add_to_order_refused", reason="multiple_orders", orders=self.order_id
+            )
             raise UserError(messages["multi_order"])
         context = {
             "default_partner_id": partner.id,
@@ -224,8 +242,10 @@ class MixinOrderLineMatch(models.AbstractModel):
 
     def action_match_lines(self):
         if not self.order_line_id:
+            _debug.logic("match_refused", reason="no_order_line")
             raise UserError(self._get_no_order_line_message())
         if not self.aml_id:
+            _debug.logic("match_creates_invoice", order_lines=self.order_line_id)
             return self._action_create_invoice_from_order_lines(
                 self.partner_id, self.order_line_id
             )
@@ -242,6 +262,12 @@ class MixinOrderLineMatch(models.AbstractModel):
 
             if len(order_lines) <= 1:
                 order_line = order_lines[0]
+                _debug.logic(
+                    "lines_matched",
+                    by="single_order_line",
+                    product=product,
+                    aml=matching_invoice_lines,
+                )
                 matching_invoice_lines[self._link_field] = [Command.link(order_line.id)]
                 residual_order_lines -= order_line
                 residual_account_move_lines -= matching_invoice_lines
@@ -262,6 +288,12 @@ class MixinOrderLineMatch(models.AbstractModel):
                             )
                             == 0
                         ):
+                            _debug.logic(
+                                "lines_matched",
+                                by="equal_price_unit",
+                                order_line=order_line,
+                                aml=aml,
+                            )
                             aml[self._link_field] = [Command.link(order_line.id)]
                             residual_order_lines -= order_line
                             residual_account_move_lines -= aml
@@ -277,8 +309,16 @@ class MixinOrderLineMatch(models.AbstractModel):
 
         if len(residual_move := self.aml_id.move_id) == 1:
             if residual_account_move_lines:
+                _debug.lifecycle(
+                    "unmatched_invoice_lines_removed", lines=residual_account_move_lines
+                )
                 residual_account_move_lines.unlink()
 
+            _debug.pipeline(
+                "residual_order_lines_added",
+                move=residual_move,
+                order_lines=residual_order_lines,
+            )
             residual_move._add_order_lines(residual_order_lines)
         return None
 
@@ -313,7 +353,7 @@ class MixinOrderLineMatch(models.AbstractModel):
             ol.id,
             ol.id AS order_line_id,
             NULL::INTEGER AS aml_id,
-            ol.company_id,
+            o.company_id,
             ol.partner_id,
             ol.product_id,
             ol.product_qty AS line_qty,

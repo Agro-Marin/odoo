@@ -8,6 +8,7 @@ import {
     getActiveHotkey,
     MODIFIERS,
 } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import {
     getDeepActiveElement,
@@ -33,6 +34,8 @@ export { getActiveHotkey };
  * getScope: () => Document | HTMLElement,
  * }} HotkeyRegistration
  */
+
+const log = makeLogger("web.hotkeys");
 
 export class HotkeyService {
     /**
@@ -187,6 +190,13 @@ export class HotkeyService {
             );
 
         let winner = candidates.shift();
+        log.logic("dispatch", () => ({
+            hotkey,
+            registrations: allRegistrations.length,
+            candidates: candidates.length + 1,
+            isRepeated,
+            shouldProtectEditable,
+        }));
         if (winner?.area) {
             for (const candidate of candidates) {
                 if (candidate.area && winner?.area?.contains(candidate.area)) {
@@ -384,6 +394,12 @@ export class HotkeyService {
             );
         }
         sameHotkeyRegistrations.add(registration);
+        log.lifecycle("register", () => ({
+            hotkey,
+            token,
+            global: Boolean(options.global),
+            total: this.registrations.size,
+        }));
         return token;
     }
 

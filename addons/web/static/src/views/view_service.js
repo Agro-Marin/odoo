@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation, UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
@@ -23,7 +24,8 @@ import { registry } from "@web/core/registry";
 
 /**
  * @typedef {Object} ViewDescription
- * @property {string} arch
+ * @property {string} [arch] only when loaded with `{ arch: true }`
+ * @property {import("@web/views/ir/view_ir_schema").ViewIRNode} [ir]
  * @property {number|false} id
  * @property {number|null} [custom_view_id]
  * @property {Object} [actionMenus]
@@ -59,6 +61,8 @@ const GET_VIEWS_MODELS = [
     "ir.actions.server",
     "ir.model.fields",
 ];
+
+const log = makeLogger("web.view");
 
 class ViewService {
     /**
@@ -103,6 +107,7 @@ class ViewService {
             embedded_parent_res_id: embeddedParentResId || false,
             load_filters: loadIrFilters || false,
             toolbar: (!context?.disable_toolbar && loadActionMenus) || false,
+            arch: false,
             ...forwardedOptions,
         };
         if (this.env.isSmall) {
@@ -117,14 +122,26 @@ class ViewService {
             ),
         );
 
-        const result = await this.orm
-            .cache({ type: "disk" })
-            .retry(1)
-            .call(resModel, "get_views", [], {
-                context: filteredContext,
-                views,
-                options: loadViewsOptions,
-            });
+        const endViews = log.perf(`get_views ${resModel}`);
+        let result;
+        try {
+            result = await this.orm
+                .cache({ type: "disk" })
+                .retry(1)
+                .call(resModel, "get_views", [], {
+                    context: filteredContext,
+                    views,
+                    options: loadViewsOptions,
+                });
+        } catch (error) {
+            endViews({ views, options: loadViewsOptions, failed: true });
+            throw error;
+        }
+        endViews({
+            views,
+            models: Object.keys(result.models).length,
+            options: loadViewsOptions,
+        });
         /** @type {any} */
         const viewDescriptions = {
             fields: result.models[resModel].fields,
@@ -132,9 +149,9 @@ class ViewService {
             views: {},
         };
         for (const viewType of Object.keys(result.views)) {
-            const { arch, toolbar, id, filters, custom_view_id } =
+            const { arch, ir, toolbar, id, filters, custom_view_id } =
                 result.views[viewType];
-            const viewDescription = { arch, id, custom_view_id };
+            const viewDescription = { arch, ir, id, custom_view_id };
             if (toolbar) {
                 viewDescription.actionMenus = toolbar;
             }

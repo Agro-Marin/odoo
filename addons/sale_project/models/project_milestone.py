@@ -1,4 +1,7 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProjectMilestone(models.Model):
@@ -28,37 +31,42 @@ class ProjectMilestone(models.Model):
         )
 
     allow_billable = fields.Boolean(
-        related="project_id.allow_billable", export_string_translation=False
+        related="project_id.allow_billable",
+        export_string_translation=False,
     )
     project_partner_id = fields.Many2one(
-        related="project_id.partner_id", export_string_translation=False
+        related="project_id.partner_id",
+        export_string_translation=False,
     )
 
     sale_line_id = fields.Many2one(
-        "sale.order.line",
-        "Sales Order Item",
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
         default=_default_sale_line_id,
-        help="Sales Order Item that will be updated once the milestone is reached.",
         index="btree_not_null",
         domain="[('partner_id', '=?', project_partner_id), ('qty_transferred_method', '=', 'milestones')]",
+        help="Sales Order Item that will be updated once the milestone is reached.",
     )
     quantity_percentage = fields.Float(
-        "Quantity (%)",
+        string="Quantity (%)",
         compute="_compute_quantity_percentage",
         store=True,
         help="Percentage of the ordered quantity that will automatically be delivered once the milestone is reached.",
     )
 
     sale_line_display_name = fields.Char(
-        "Sale Line Display Name",
         related="sale_line_id.display_name",
+        string="Sale Line Display Name",
         export_string_translation=False,
     )
     product_uom_id = fields.Many2one(
-        related="sale_line_id.product_uom_id", export_string_translation=False
+        related="sale_line_id.product_uom_id",
+        export_string_translation=False,
     )
     product_uom_qty = fields.Float(
-        "Quantity", compute="_compute_product_uom_qty", readonly=False
+        string="Quantity",
+        compute="_compute_product_uom_qty",
+        readonly=False,
     )
 
     @api.depends("sale_line_id.product_qty", "product_uom_qty")
@@ -76,8 +84,10 @@ class ProjectMilestone(models.Model):
                 milestone.product_uom_qty = (
                     milestone.quantity_percentage * milestone.sale_line_id.product_qty
                 )
+                _debug.logic("milestone_qty", milestone=milestone, by="percentage")
             else:
                 milestone.product_uom_qty = milestone.sale_line_id.product_qty
+                _debug.logic("milestone_qty", milestone=milestone, by="full_line_qty")
 
     @api.model
     def _get_fields_to_export(self):

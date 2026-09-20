@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { KanbanController } from "@web/views/kanban";
+import { AppointmentTemplatePickerDialog } from "@calendar/booking/components/appointment_template_picker_dialog/appointment_template_picker_dialog";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AppointmentTemplatePickerDialog } from "@calendar/booking/components/appointment_template_picker_dialog/appointment_template_picker_dialog";
+import { KanbanController } from "@web/views/kanban";
 
 export class AppointmentTypeKanbanController extends KanbanController {
     setup() {

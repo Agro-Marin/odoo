@@ -11,7 +11,10 @@ class UtmTag(models.Model):
     _description = "UTM Tag"
     _order = "name"
 
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     color = fields.Integer(
         string="Color Index",
         default=lambda self: self._default_color(),

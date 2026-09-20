@@ -1,5 +1,5 @@
 {
-    "name": "T\u00fcrkiye - Nilvera/Base VAT",
+    "name": "Türkiye - Nilvera/Base VAT",
     "version": "1.0",
     "category": "Accounting/Accounting",
     "description": "Bridge module for Nilvera and Base VAT integration.",

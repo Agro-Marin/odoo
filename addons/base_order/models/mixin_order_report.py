@@ -1,5 +1,8 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderReport(models.AbstractModel):
@@ -9,7 +12,7 @@ class MixinOrderReport(models.AbstractModel):
     _auto = False
     _rec_name = "date_order"
 
-    currency_id = fields.Many2one("res.currency")
+    currency_id = fields.Many2one(comodel_name="res.currency")
 
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -25,15 +28,30 @@ class MixinOrderReport(models.AbstractModel):
     )
     product_category_id = fields.Many2one(
         comodel_name="product.category",
-        string="Product Category",
         readonly=True,
     )
-    product_uom_qty = fields.Float(string="Qty Ordered", readonly=True)
-    price_unit = fields.Float(string="Unit Price", aggregator="avg", readonly=True)
-    price_subtotal = fields.Monetary(string="Untaxed Total", readonly=True)
-    price_total = fields.Monetary(string="Total", readonly=True)
-    weight = fields.Float(string="Gross Weight", readonly=True)
-    volume = fields.Float(string="Volume", readonly=True)
+    product_uom_qty = fields.Float(
+        string="Qty Ordered",
+        readonly=True,
+    )
+    price_unit = fields.Float(
+        string="Unit Price",
+        readonly=True,
+        aggregator="avg",
+    )
+    price_subtotal = fields.Monetary(
+        string="Untaxed Total",
+        readonly=True,
+    )
+    price_total = fields.Monetary(
+        string="Total",
+        readonly=True,
+    )
+    weight = fields.Float(
+        string="Gross Weight",
+        readonly=True,
+    )
+    volume = fields.Float(readonly=True)
 
     @api.readonly
     def action_view_order(self):
@@ -53,6 +71,7 @@ class MixinOrderReport(models.AbstractModel):
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
+        _debug.logic("price_average_weighted", model=self._name)
         return SQL(
             "SUM(%(f_price)s * %(f_qty)s) / NULLIF(SUM(%(f_qty)s), 0.0)",
             f_qty=self._field_to_sql(self._table, "product_uom_qty", query),

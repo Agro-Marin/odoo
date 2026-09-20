@@ -24,7 +24,7 @@ class _Registry:
     def get_descendants(self, model_names, *_kinds):
         return OrderedSet(model_names)
 
-    def _setup_models__(self, _cr, _model_names, skip_if_clean=False):
+    def setup_models(self, _cr, _model_names, skip_if_clean=False):
         return None
 
     def init_models(self, _cr, model_names, context, _install=True):

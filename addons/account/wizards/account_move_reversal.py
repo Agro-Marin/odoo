@@ -1,8 +1,11 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
+_debug = DebugLog(__name__)
 
 
 class AccountMoveReversal(models.TransientModel):
@@ -11,35 +14,48 @@ class AccountMoveReversal(models.TransientModel):
     _check_company_auto = True
 
     move_ids = fields.Many2many(
-        "account.move",
-        "account_move_reversal_move",
-        "reversal_id",
-        "move_id",
+        comodel_name="account.move",
+        relation="account_move_reversal_move",
+        column1="reversal_id",
+        column2="move_id",
         domain=[("state", "=", "posted")],
     )
     new_move_ids = fields.Many2many(
-        "account.move", "account_move_reversal_new_move", "reversal_id", "new_move_id"
+        comodel_name="account.move",
+        relation="account_move_reversal_new_move",
+        column1="reversal_id",
+        column2="new_move_id",
     )
-    date = fields.Date(string="Reversal date", default=fields.Date.context_today)
+    date = fields.Date(
+        string="Reversal date",
+        default=fields.Date.context_today,
+    )
     reason = fields.Char(string="Reason displayed on Credit Note")
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Journal",
-        required=True,
         compute="_compute_journal_id",
-        readonly=False,
         store=True,
+        readonly=False,
+        required=True,
         check_company=True,
         help="If empty, uses the journal of the journal entry to be reversed.",
     )
-    company_id = fields.Many2one("res.company", required=True, readonly=True)
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+        required=True,
+    )
     available_journal_ids = fields.Many2many(
-        "account.journal", compute="_compute_available_journal_ids"
+        comodel_name="account.journal",
+        compute="_compute_available_journal_ids",
     )
     country_code = fields.Char(related="company_id.country_id.code")
 
     residual = fields.Monetary(compute="_compute_from_moves")
-    currency_id = fields.Many2one("res.currency", compute="_compute_from_moves")
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        compute="_compute_from_moves",
+    )
     move_type = fields.Char(compute="_compute_from_moves")
 
     @api.depends("move_ids")
@@ -67,6 +83,7 @@ class AccountMoveReversal(models.TransientModel):
             record.available_journal_ids = allowed
 
     @api.constrains("journal_id", "move_ids")
+    @_debug.perf.timed
     def _check_journal_type(self):
         for record in self:
             if record.journal_id.type not in record.move_ids.journal_id.mapped("type"):
@@ -75,7 +92,9 @@ class AccountMoveReversal(models.TransientModel):
                 )
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields_list):
+        _debug.lifecycle("default_get", records=self)
         res = super().default_get(fields_list)
         move_ids = (
             self.env["account.move"].browse(self.env.context.get("active_ids"))
@@ -84,11 +103,17 @@ class AccountMoveReversal(models.TransientModel):
         )
 
         if len(move_ids.company_id) > 1:
+            _debug.logic(
+                "reversal_defaults_rejected", move=move_ids, reason="multi_company"
+            )
             raise UserError(
                 _("All selected moves for reversal must belong to the same company.")
             )
 
         if any(move.state != "posted" for move in move_ids):
+            _debug.logic(
+                "reversal_defaults_rejected", move=move_ids, reason="not_posted"
+            )
             raise UserError(_("To reverse a journal entry, it has to be posted first."))
         if "company_id" in fields_list:
             res["company_id"] = move_ids.company_id.id or self.env.company.id
@@ -97,6 +122,7 @@ class AccountMoveReversal(models.TransientModel):
         return res
 
     @api.depends("move_ids")
+    @_debug.perf.timed
     def _compute_from_moves(self):
         for record in self:
             move_ids = record.move_ids._origin
@@ -119,6 +145,7 @@ class AccountMoveReversal(models.TransientModel):
                 )
             )
 
+    @_debug.perf.timed
     def _prepare_default_reversal(self, move):
         reverse_date = self.date
         mixed_payment_term = (
@@ -184,6 +211,11 @@ class AccountMoveReversal(models.TransientModel):
             "type": "ir.actions.act_window",
             "res_model": "account.move",
         }
+        _debug.logic(
+            "reversal_redirect_chosen",
+            move=moves_to_redirect,
+            single_form=len(moves_to_redirect) == 1,
+        )
         if len(moves_to_redirect) == 1:
             action.update(
                 {
@@ -205,6 +237,7 @@ class AccountMoveReversal(models.TransientModel):
                 }
         return action
 
+    @_debug.perf.timed
     def reverse_moves(self, is_modify=False):
         self.check_singleton()
         moves = self.move_ids
@@ -217,9 +250,22 @@ class AccountMoveReversal(models.TransientModel):
             for move in moves
         ]
         batches = self._get_reversal_batches(moves, default_values_list, is_modify)
+        _debug.pipeline(
+            "reverse_moves",
+            reversal=self,
+            moves=moves,
+            modify=is_modify,
+            batches_count=len(batches),
+        )
 
         moves_to_redirect = self.env["account.move"]
         for batch_moves, batch_default_values, is_cancel_needed in batches:
+            _debug.logic(
+                "batch",
+                reversal=self,
+                batch_moves=batch_moves,
+                cancel=is_cancel_needed,
+            )
             new_moves = batch_moves._reverse_moves(
                 batch_default_values, cancel=is_cancel_needed
             )

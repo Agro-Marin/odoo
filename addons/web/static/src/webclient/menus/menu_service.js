@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
@@ -140,6 +141,8 @@ class MenuTree {
     }
 }
 
+const log = makeLogger("web.menu");
+
 class MenuService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -149,30 +152,19 @@ class MenuService {
         this.env = env;
         this.action = action;
         this.fetchGeneration = 0;
-        const {
-            menus: cachedMenus,
-            raw: storedRaw,
-            hash: storedHash,
-        } = menuStorage.read();
-        this.cachedMenus = cachedMenus;
-        this.storedRaw = storedRaw;
-        this.storedHash = storedHash;
-        this.tree = new MenuTree(cachedMenus || EMPTY_MENUS);
-    }
-
-    /**
-     * @param {Object} menus
-     * @param {string} [hash]
-     */
-    _persist(menus, hash) {
-        this.storedRaw = menuStorage.write(menus, hash);
-        this.storedHash = hash;
+        this.stored = menuStorage.read();
+        this.tree = new MenuTree(this.stored.menus || EMPTY_MENUS);
     }
 
     async load() {
-        if (this.cachedMenus) {
+        const { menus: cachedMenus, raw: storedRaw, hash: storedHash } = this.stored;
+        log.pipeline("load", () => ({
+            cached: Boolean(cachedMenus),
+            hash: storedHash,
+        }));
+        if (cachedMenus) {
             const generation = ++this.fetchGeneration;
-            fetchMenus(false, this.storedHash)
+            fetchMenus(false, storedHash)
                 .then((res) => {
                     if (generation !== this.fetchGeneration) {
                         return;
@@ -181,11 +173,12 @@ class MenuService {
                         return;
                     }
                     const changed =
-                        res.hash && this.storedHash
-                            ? res.hash !== this.storedHash
-                            : JSON.stringify(res.menus) !== this.storedRaw;
+                        res.hash && storedHash
+                            ? res.hash !== storedHash
+                            : JSON.stringify(res.menus) !== storedRaw;
+                    log.logic("revalidate", () => ({ changed, hash: res.hash }));
                     if (changed) {
-                        this._persist(res.menus, res.hash);
+                        menuStorage.write(res.menus, res.hash);
                         this.tree.setData(res.menus);
                         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     }
@@ -201,9 +194,9 @@ class MenuService {
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            this._persist(res.menus, res.hash);
-        } else if (this.storedRaw) {
-            this.tree.setData(menuStorage.parse(this.storedRaw) || EMPTY_MENUS);
+            menuStorage.write(res.menus, res.hash);
+        } else if (storedRaw) {
+            this.tree.setData(menuStorage.parse(storedRaw) || EMPTY_MENUS);
         }
     }
 
@@ -242,6 +235,11 @@ class MenuService {
     setCurrentMenu(menu) {
         menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
         if (menu && menu.appID !== this.tree.currentAppId) {
+            log.logic("setCurrentMenu", () => ({
+                menuId: menu.id,
+                appID: menu.appID,
+                from: this.tree.currentAppId,
+            }));
             this.tree.currentAppId = menu.appID;
             menuStorage.writeCurrentApp(menu.appID);
             this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
@@ -251,6 +249,11 @@ class MenuService {
     /** @param {Object|number} menu */
     async selectMenu(menu) {
         menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
+        log.logic("selectMenu", () => ({
+            menuId: menu?.id,
+            actionID: menu?.actionID,
+            xmlid: menu?.xmlid,
+        }));
         if (!menu || !menu.actionID) {
             return;
         }
@@ -271,7 +274,7 @@ class MenuService {
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            this._persist(res.menus, res.hash);
+            menuStorage.write(res.menus, res.hash);
         }
         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
     }

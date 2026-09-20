@@ -7,6 +7,7 @@ from typing import cast
 
 from . import _trigger_trees
 from ._field_access import _fallback as _field_access
+from .debug_log import DebugLog
 
 try:
     import odoo_rust as _native
@@ -14,6 +15,7 @@ except ImportError:
     _native = None
 
 NATIVE = _native is not None
+_debug = DebugLog(__name__)
 
 __all__ = [
     "NATIVE",
@@ -70,6 +72,7 @@ def origin_ids_python(ids: Iterable) -> tuple[int, ...]:
 
 
 def _pick[F](name: str, python: F) -> F:
+    _debug.lifecycle("accel.pick", function=name, native=_native is not None)
     return getattr(_native, name) if _native is not None else python
 
 

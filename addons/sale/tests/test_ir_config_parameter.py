@@ -19,8 +19,8 @@ class TestIrConfigParameter(TransactionCase):
                 "state": "code",
                 "code": "",
                 "user_id": cls.env.uid,
-                "interval_number": 1,
-                "interval_type": "days",
+                "repeat_interval": 1,
+                "repeat_unit": "day",
                 "active": False,
             }
         )

@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { SIZES, utils as uiUtils } from "@web/ui/viewport";
+
+const log = makeLogger("website.interaction.popup");
 
 export class Popup extends Interaction {
     static selector = ".s_popup:not(#website_cookies_bar)";
@@ -24,20 +27,20 @@ export class Popup extends Interaction {
             "t-on-hashchange": this.onHashChange,
         },
         ".modal:not(.s_popup_no_backdrop)": {
-            // Here, bootstrap's data-bs-backdrop attribute is not used and
-            // we use a custom click handler instead to dismiss the popup on
-            // click outside as we do not use bootstrap native backdrop.
-            // See MODAL_BACKDROP_WEBSITE.
             "t-on-click": this.onBackdropModalClick,
         },
     };
 
     setup() {
+        log.lifecycle("Popup setup", () => ({ id: this.el.id }));
         this.cookieValue = true;
         this.modalEl = this.el.querySelector(".modal");
         /** @type {import("bootstrap").Modal} */
         this.bsModal = Modal.getOrCreateInstance(this.modalEl);
         this.registerCleanup(() => {
+            for (const el of [this.bsModal._dialog, this.bsModal._element]) {
+                el?.dispatchEvent(new Event("transitionend"));
+            }
             this.bsModal.dispose();
         });
 
@@ -48,21 +51,22 @@ export class Popup extends Interaction {
             this.showModalBtnEl = document.querySelector(
                 `[href="#${this.modalShownOnClickEl.id}"]`,
             );
-            // Check if a hash exists and if the modal needs to be opened when
-            // the page loads (e.g. The user has clicked a button on the
-            // "Contact us" page to open a popup on the homepage).
+            log.logic("Popup setup: onClick display", () => ({
+                modalId: this.modalShownOnClickEl.id,
+                hasShowBtn: !!this.showModalBtnEl,
+            }));
             this.showPopupOnClick();
             return;
         }
 
         this.popupAlreadyShown = !!cookie.get(this.el.id);
+        log.logic("Popup setup: cookie", () => ({
+            id: this.el.id,
+            popupAlreadyShown: this.popupAlreadyShown,
+        }));
     }
 
     start() {
-        // Check if every child element of the popup is conditionally hidden,
-        // and if so, never show an empty popup.
-        // config.device.isMobile is true if the device is <= SM, but the device
-        // visibility option uses < LG to hide on mobile. So compute it here.
         const isMobile = uiUtils.getSize() < SIZES.LG;
         const emptyPopup = [
             ...this.el.querySelectorAll(".oe_structure > *:not(.s_popup_close)"),
@@ -76,6 +80,13 @@ export class Popup extends Interaction {
                 deviceInvisible
             );
         });
+        log.pipeline("Popup start: bind decision", () => ({
+            id: this.el.id,
+            isMobile,
+            emptyPopup,
+            popupAlreadyShown: this.popupAlreadyShown,
+            bind: !this.popupAlreadyShown && !emptyPopup,
+        }));
         if (!this.popupAlreadyShown && !emptyPopup) {
             this.bindPopup();
         }
@@ -92,6 +103,12 @@ export class Popup extends Interaction {
             }
         }
 
+        log.pipeline("Popup bindPopup: trigger", () => ({
+            id: this.el.id,
+            configuredDisplay: this.modalEl.dataset.display,
+            display,
+            delay,
+        }));
         if (display === "afterDelay") {
             this.waitForTimeout(this.showPopup, delay);
         } else if (display === "mouseExit") {
@@ -104,20 +121,21 @@ export class Popup extends Interaction {
     }
 
     hidePopup() {
+        log.lifecycle("Popup hide", () => ({ id: this.el.id }));
         this.bsModal.hide();
     }
 
     showPopup() {
         if (this.popupAlreadyShown || !this.canShowPopup()) {
+            log.logic("Popup showPopup: skipped", () => ({
+                id: this.el.id,
+                popupAlreadyShown: this.popupAlreadyShown,
+            }));
             return;
         }
+        log.lifecycle("Popup show", () => ({ id: this.el.id }));
         this.bsModal.show();
         this.registerCleanup(() => {
-            // Do not call .hide() directly, because it is queued whereas
-            // .dispose() is not, making it crash. As we don't have to wait for
-            // animations here, bypass the issue with ._hideModal().
-            // Additionally, .hide() triggers `hide.bs.modal`, which triggers
-            // onHideModal() and sets a cookie: we don't want that on destroy.
             this.modalEl.classList.remove("show");
             this.bsModal._hideModal();
         });
@@ -127,21 +145,15 @@ export class Popup extends Interaction {
      * @param {String} [hash]
      */
     showPopupOnClick(hash = browser.location.hash) {
-        // If a hash exists in the URL and it corresponds to the ID of the modal,
-        // then we open the modal.
         if (hash && hash.substring(1) === this.modalShownOnClickEl.id) {
-            // We remove the hash from the URL because otherwise the popup
-            // cannot open again after being closed.
             const urlWithoutHash = browser.location.href.replace(hash, "");
             browser.history.replaceState(null, null, urlWithoutHash);
+            log.logic("Popup showPopupOnClick: hash matched", () => ({ hash }));
             this.showPopup();
         }
     }
 
     /**
-     * Checks if the given primary button should allow or not to close the
-     * modal.
-     *
      * @param {HTMLElement} primaryBtnEl
      */
     canBtnPrimaryClosePopup(primaryBtnEl) {
@@ -152,10 +164,7 @@ export class Popup extends Interaction {
     }
 
     /**
-     * Traps the focus within the modal.
-     *
-     * @returns {Function} refocuses the element that was focused before the
-     * modal opened.
+     * @returns {Function}
      */
     trapFocus() {
         let tabableEls = getTabableElements(this.el);
@@ -171,8 +180,11 @@ export class Popup extends Interaction {
         } else {
             this.el.focus();
         }
-        // The focus should stay free for no backdrop popups.
         if (this.el.querySelector(".s_popup_no_backdrop")) {
+            log.logic("Popup trapFocus: no backdrop, focus restore only", () => ({
+                id: this.el.id,
+                tabable: tabableEls.length,
+            }));
             this.addListener(
                 this.el,
                 "hide.bs.modal",
@@ -187,7 +199,6 @@ export class Popup extends Interaction {
             if (ev.key !== "Tab") {
                 return;
             }
-            // Update tabableEls: they might have changed in the meantime.
             tabableEls = getTabableElements(this.el);
             if (!tabableEls.length) {
                 ev.preventDefault();
@@ -231,6 +242,12 @@ export class Popup extends Interaction {
         const nbDays = this.modalEl.dataset.consentsDuration;
         cookie.set(this.el.id, this.cookieValue, nbDays * 24 * 60 * 60, "required");
         this.popupAlreadyShown = !this.modalShownOnClickEl;
+        log.logic("Popup onHideModal: cookie set", () => ({
+            id: this.el.id,
+            cookieValue: this.cookieValue,
+            nbDays,
+            popupAlreadyShown: this.popupAlreadyShown,
+        }));
     }
 
     /**
@@ -238,17 +255,11 @@ export class Popup extends Interaction {
      */
     onHashChange(ev) {
         if (this.modalShownOnClickEl) {
-            // Keep the new hash from the event to avoid conflict with the eCommerce
-            // hash attributes managing.
-            // TODO : it should not have been a hash at all for ecommerce, but a
-            // query string parameter
             this.showPopupOnClick(new URL(ev.newURL).hash);
         }
     }
 
     /**
-     * Handles clicks outside the popup to dismiss it.
-     *
      * @param {MouseEvent} ev
      */
     onBackdropModalClick(ev) {

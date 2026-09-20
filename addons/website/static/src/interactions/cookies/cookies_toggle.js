@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 import { onceAllImagesLoaded } from "@website/utils/images";
+
+const log = makeLogger("website.interaction.cookies_toggle");
 
 export class CookiesToggle extends Interaction {
     static selector = ".o_cookies_bar_toggle";
@@ -24,6 +27,9 @@ export class CookiesToggle extends Interaction {
 
     setup() {
         this.cookiesModalEl = this.el.nextElementSibling.querySelector(".modal");
+        log.lifecycle("CookiesToggle setup", () => ({
+            hasModal: !!this.cookiesModalEl,
+        }));
     }
 
     isModalShown() {
@@ -44,21 +50,22 @@ export class CookiesToggle extends Interaction {
             this.services.website_cookies.bus.trigger("cookiesBar.toggle");
         }
 
-        // Changing the property cannot be done in "t-att-style" in
-        // dynamicContent as it relies on async code.
         if (
             !this.isModalShown() ||
             !this.cookiesModalEl.classList.contains("s_popup_bottom")
         ) {
+            log.logic("CookiesToggle onClick: reset inset", () => ({
+                shown: this.isModalShown(),
+                fromToggle: ev.currentTarget === this.el,
+            }));
             this.el.style.removeProperty("--cookies-bar-toggle-inset-block-end");
         } else {
-            // Lazy-loaded images don't have a height yet. We need to await them
+            const endImages = log.perf("CookiesToggle onClick: wait bar images");
             await this.waitFor(onceAllImagesLoaded(this.cookiesModalEl));
+            endImages();
             const popupHeight =
                 this.cookiesModalEl.querySelector(".modal-content").offsetHeight;
             const toggleMargin = 8;
-            // Avoid having the toggle over another button, but if the cookies
-            // bar is too tall, place it at the bottom anyway.
             const bottom =
                 document.body.offsetHeight >
                 popupHeight + this.el.offsetHeight + toggleMargin
@@ -71,6 +78,10 @@ export class CookiesToggle extends Interaction {
                     + ${popupHeight + toggleMargin}px
                 )`
                     : "";
+            log.logic("CookiesToggle onClick: bottom bar, set inset", () => ({
+                popupHeight,
+                bottom,
+            }));
             this.el.style.setProperty("--cookies-bar-toggle-inset-block-end", bottom);
         }
     }

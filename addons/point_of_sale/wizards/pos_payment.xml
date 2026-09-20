@@ -17,15 +17,15 @@
                 <footer>
                     <button
                         name="action_make_payment"
-                        string="Make Payment"
                         type="object"
+                        string="Make Payment"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

@@ -19,17 +19,17 @@
                                     invisible="discount_type != 'amount'" />
                                 <field
                                     name="discount_amount"
-                                    invisible="discount_type != 'amount'"
-                                    nolabel="1" />
+                                    nolabel="1"
+                                    invisible="discount_type != 'amount'" />
                                 <label
                                     for="discount_percentage"
                                     string="Discount"
                                     invisible="discount_type not in ('so_discount', 'sol_discount')" />
                                 <field
                                     name="discount_percentage"
-                                    invisible="discount_type not in ('so_discount', 'sol_discount')"
                                     widget="percentage"
-                                    nolabel="1" />
+                                    nolabel="1"
+                                    invisible="discount_type not in ('so_discount', 'sol_discount')" />
                             </group>
                         </div>
                         <div class="col-sm-7 col-md-8 col-lg-8 col-8">
@@ -39,9 +39,9 @@
                 </sheet>
                 <footer>
                     <button
+                        name="action_apply_discount"
                         type="object"
                         string="Apply"
-                        name="action_apply_discount"
                         class="btn btn-primary"
                         data-hotkey="q" />
                     <button

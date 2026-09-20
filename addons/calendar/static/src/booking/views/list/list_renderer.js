@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { AppointmentTypeActionHelper } from "@calendar/booking/components/appointment_type_action_helper/appointment_type_action_helper";
-import { ListRenderer } from "@web/views/list";
-import { user } from "@web/core/user";
-
 import { onWillStart } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { ListRenderer } from "@web/views/list";
 
 export class AppointmentBookingListRenderer extends ListRenderer {
     static template = "calendar.booking.AppointmentBookingListRenderer";

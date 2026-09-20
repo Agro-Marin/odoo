@@ -65,18 +65,18 @@
                         name="action_view_productions">
                         <field name="name" class="fw-bold fs-4" />
                     </a>
-                    <field t-if="selection_mode" name="name" class="fw-bold fs-4" />
+                    <field name="name" class="fw-bold fs-4" t-if="selection_mode" />
                     <field
                         name="warehouse_id"
-                        class="d-block"
-                        groups="stock.group_stock_multi_warehouses" />
+                        groups="stock.group_stock_multi_warehouses"
+                        class="d-block" />
                     <div t-if="!selection_mode" class="row mt-3">
                         <div class="col-6">
                             <button
-                                class="btn btn-primary"
                                 name="%(mrp_production_action_picking_deshboard)d"
                                 type="action"
-                                context="{'search_default_filter_confirmed': 1, 'default_picking_type_id': id}">
+                                context="{'search_default_filter_confirmed': 1, 'default_picking_type_id': id}"
+                                class="btn btn-primary">
                                 <span t-if="record.count_mo_todo.raw_value &gt; 0">
                                     <field name="count_mo_todo" /> To Manufacture
                                 </span>
@@ -95,8 +95,8 @@
                                     <div class="row">
                                         <span class="col-6">Waiting</span>
                                         <field
-                                            class="col-2 text-end"
-                                            name="count_mo_waiting" />
+                                            name="count_mo_waiting"
+                                            class="col-2 text-end" />
                                     </div>
                                 </a>
                             </div>
@@ -111,8 +111,8 @@
                                     <div class="row">
                                         <span class="col-6">Late</span>
                                         <field
-                                            class="col-2 text-end"
-                                            name="count_mo_late" />
+                                            name="count_mo_late"
+                                            class="col-2 text-end" />
                                     </div>
                                 </a>
                             </div>
@@ -127,8 +127,8 @@
                                     <div class="row">
                                         <span class="col-6">In Progress</span>
                                         <field
-                                            class="col-2 text-end"
-                                            name="count_mo_in_progress" />
+                                            name="count_mo_in_progress"
+                                            class="col-2 text-end" />
                                     </div>
                                 </a>
                             </div>
@@ -143,19 +143,19 @@
                                     <div class="row">
                                         <span class="col-6">To Close</span>
                                         <field
-                                            class="col-2 text-end"
-                                            name="count_mo_to_close" />
+                                            name="count_mo_to_close"
+                                            class="col-2 text-end" />
                                     </div>
                                 </a>
                             </div>
                         </div>
                     </div>
                     <field
-                        t-if="!selection_mode"
                         name="kanban_dashboard_graph"
+                        widget="picking_type_dashboard_graph"
                         class="mt-auto"
                         graph_type="bar"
-                        widget="picking_type_dashboard_graph" />
+                        t-if="!selection_mode" />
                 </div>
             </xpath>
         </field>
@@ -170,12 +170,12 @@
                 expr="//button[@name='action_view_reception_report']"
                 position="after">
                 <button
-                    class="oe_stat_button"
                     name="action_view_mrp_production"
                     type="object"
                     icon="fa-wrench"
+                    groups="mrp.group_mrp_user"
                     invisible="not production_count"
-                    groups="mrp.group_mrp_user">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value"><field name="production_count" /></span>
                         <span class="o_stat_text">Manufacturing</span>
@@ -192,17 +192,17 @@
         <field name="arch" type="xml">
             <xpath expr="//group[@name='stock_picking_type_lot']" position="after">
                 <group
-                    invisible="code != 'mrp_operation'"
                     string="Traceability"
-                    groups="stock.group_production_lot">
+                    groups="stock.group_production_lot"
+                    invisible="code != 'mrp_operation'">
                     <field name="use_create_components_lots" />
                 </group>
             </xpath>
             <field name="auto_show_reception_report" position="after">
                 <field
                     name="auto_show_reception_report"
-                    invisible="code != 'mrp_operation'"
-                    groups="mrp.group_mrp_reception_report" />
+                    groups="mrp.group_mrp_reception_report"
+                    invisible="code != 'mrp_operation'" />
             </field>
             <xpath expr="//page[@name='hardware']" position="after">
                 <page
@@ -263,9 +263,9 @@
                                 barcode operator and configure the routing of the reports.
                                 <widget
                                     name="documentation_link"
-                                    path="/applications/productivity/iot/devices/printer.html"
+                                    icon="fa-arrow-right"
                                     label="Documentation"
-                                    icon="fa-arrow-right" />
+                                    path="/applications/productivity/iot/devices/printer.html" />
                             </div>
                         </group>
                         <group

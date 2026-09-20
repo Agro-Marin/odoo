@@ -22,12 +22,12 @@
                 </group>
                 <group>
                     <filter
-                        string="Location: When arrives to"
                         name="location_in"
+                        string="Location: When arrives to"
                         context="{'group_by':'location_in_id'}" />
                     <filter
-                        string="Location: Store to"
                         name="location_out"
+                        string="Location: Store to"
                         context="{'group_by':'location_out_id'}" />
                 </group>
             </search>
@@ -53,51 +53,51 @@
                 <field
                     name="product_id"
                     string="Product"
-                    options="{'no_create': True, 'no_open': True}"
-                    readonly="context.get('single_product', False) or category_id"
                     placeholder="All Products"
-                    force_save="1" />
+                    force_save="1"
+                    options="{'no_create': True, 'no_open': True}"
+                    readonly="context.get('single_product', False) or category_id" />
                 <field
                     name="category_id"
                     string="Product Category"
-                    options="{'no_create': True, 'no_open': True}"
-                    readonly="context.get('fixed_category', False) or product_id"
                     placeholder="All Categories"
-                    force_save="1" />
+                    force_save="1"
+                    options="{'no_create': True, 'no_open': True}"
+                    readonly="context.get('fixed_category', False) or product_id" />
                 <field
                     name="package_type_ids"
                     string="Package type"
-                    options="{'no_create': True, 'no_open': True}"
-                    groups="stock.group_tracking_lot"
                     widget="many2many_tags"
-                    optional="show" />
+                    optional="show"
+                    options="{'no_create': True, 'no_open': True}"
+                    groups="stock.group_tracking_lot" />
                 <field
                     name="location_out_id"
                     string="Store to"
-                    readonly="not location_in_id"
+                    optional="show"
                     options="{'no_create': True}"
-                    optional="show" />
+                    readonly="not location_in_id" />
                 <field
                     name="sublocation"
                     optional="show"
-                    required="True"
-                    force_save="1" />
+                    force_save="1"
+                    required="True" />
                 <field
                     name="storage_category_id"
                     string="Having Category"
-                    groups="stock.group_stock_multi_locations"
-                    options="{'no_create': True}"
-                    required="sublocation == 'closest_location'"
-                    readonly="sublocation == 'no'"
                     placeholder="Any Category"
-                    optional="show" />
+                    optional="show"
+                    options="{'no_create': True}"
+                    groups="stock.group_stock_multi_locations"
+                    readonly="sublocation == 'no'"
+                    required="sublocation == 'closest_location'" />
                 <field
                     name="company_id"
-                    groups="stock.group_stock_multi_locations"
+                    optional="show"
                     force_save="1"
-                    readonly="context.get('fixed_location', False)"
                     options="{'no_create': True}"
-                    optional="show" />
+                    groups="stock.group_stock_multi_locations"
+                    readonly="context.get('fixed_location', False)" />
             </list>
         </field>
     </record>

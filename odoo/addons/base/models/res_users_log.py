@@ -1,8 +1,10 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ResUsersLog(models.Model):
@@ -11,10 +13,10 @@ class ResUsersLog(models.Model):
     _description = "Users Log"
 
     create_uid = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Created by",
-        readonly=True,
         index=True,
+        readonly=True,
         ondelete="cascade",
     )
 
@@ -31,3 +33,4 @@ class ResUsersLog(models.Model):
             )
         """)
         _logger.info("GC'd %d user log entries", self.env.cr.rowcount)
+        _debug.lifecycle("gc_user_logs", count=self.env.cr.rowcount)

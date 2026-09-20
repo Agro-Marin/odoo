@@ -100,11 +100,11 @@
             <field name="report_name">l10n_ar_stock.report_delivery_guide</field>
             <field name="report_file">l10n_ar_stock.report_delivery_guide</field>
             <field
+                name="print_report_name">'Remito - %s' % (object.l10n_ar_delivery_guide_number or 's/n')</field>
+            <field
                 name="attachment">'Remito - %s.pdf' % (object.l10n_ar_delivery_guide_number or 's/n')</field>
             <field name="binding_model_id" ref="model_stock_picking" />
             <field name="binding_type">report</field>
-            <field
-                name="print_report_name">'Remito - %s' % (object.l10n_ar_delivery_guide_number or 's/n')</field>
         </record>
     </data>
 

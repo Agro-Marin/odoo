@@ -48,8 +48,8 @@
                         <field name="questions_selection" invisible="1" />
                     </div>
                     <group
-                        class="o_label_nowrap"
-                        invisible="not is_page or questions_selection == 'all'">
+                        invisible="not is_page or questions_selection == 'all'"
+                        class="o_label_nowrap">
                         <field name="random_questions_count" />
                     </group>
                     <group invisible="is_page">
@@ -336,8 +336,8 @@
                     </group>
                     <notebook>
                         <page
-                            string="Answers"
                             name="answers"
+                            string="Answers"
                             invisible="is_page or question_type == 'text_box' or scoring_type == 'no_scoring' and question_type in ['numerical_box', 'date', 'datetime']">
                             <group>
                                 <group invisible="question_type != 'scale'">
@@ -364,21 +364,21 @@
                                     <field
                                         name="answer_numerical_box"
                                         string="Correct Answer"
-                                        class="oe_inline"
                                         invisible="question_type != 'numerical_box'"
-                                        required="is_scored_question and question_type == 'numerical_box'" />
+                                        required="is_scored_question and question_type == 'numerical_box'"
+                                        class="oe_inline" />
                                     <field
                                         name="answer_date"
                                         string="Correct Answer"
-                                        class="oe_inline"
                                         invisible="question_type != 'date'"
-                                        required="is_scored_question and question_type == 'date'" />
+                                        required="is_scored_question and question_type == 'date'"
+                                        class="oe_inline" />
                                     <field
                                         name="answer_datetime"
                                         string="Correct Answer"
-                                        class="oe_inline"
                                         invisible="question_type != 'datetime'"
-                                        required="is_scored_question and question_type == 'datetime'" />
+                                        required="is_scored_question and question_type == 'datetime'"
+                                        class="oe_inline" />
 
                                     <field
                                         name="validation_email"
@@ -398,9 +398,9 @@
                                         <field name="is_scored_question" nolabel="1" />
                                         <field
                                             name="answer_score"
-                                            class="w-50 mx-2"
+                                            nolabel="1"
                                             invisible="not is_scored_question"
-                                            nolabel="1" />
+                                            class="w-50 mx-2" />
                                         <span invisible="not is_scored_question">Points</span>
                                     </div>
                                 </group>
@@ -444,14 +444,14 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Description" name="survey_description">
+                        <page name="survey_description" string="Description">
                             <field
                                 name="description"
+                                placeholder="e.g. Guidelines, instructions, picture, ... to help attendees answer"
                                 widget="html"
-                                options="{'embedded_components': false}"
-                                placeholder="e.g. Guidelines, instructions, picture, ... to help attendees answer" />
+                                options="{'embedded_components': false}" />
                         </page>
-                        <page string="Options" name="options" invisible="is_page">
+                        <page name="options" string="Options" invisible="is_page">
                             <group>
                                 <group
                                     string="Answers"
@@ -467,28 +467,28 @@
                                         <!-- Minima -->
                                         <field
                                             name="validation_length_min"
-                                            class="o_survey_question_validation_inline"
-                                            nolabel="1"
                                             placeholder="Minimum"
+                                            nolabel="1"
                                             invisible="question_type != 'char_box'"
-                                            required="validation_required and question_type == 'char_box'" />
+                                            required="validation_required and question_type == 'char_box'"
+                                            class="o_survey_question_validation_inline" />
                                         <field
                                             name="validation_min_float_value"
-                                            class="o_survey_question_validation_inline"
-                                            nolabel="1"
                                             placeholder="Minimum"
+                                            nolabel="1"
                                             invisible="question_type != 'numerical_box'"
-                                            required="validation_required and question_type == 'numerical_box'" />
+                                            required="validation_required and question_type == 'numerical_box'"
+                                            class="o_survey_question_validation_inline" />
                                         <field
                                             name="validation_min_date"
-                                            nolabel="1"
                                             placeholder="Minimum"
+                                            nolabel="1"
                                             invisible="question_type != 'date'"
                                             required="validation_required and question_type == 'date' and not validation_max_date" />
                                         <field
                                             name="validation_min_datetime"
-                                            nolabel="1"
                                             placeholder="Minimum"
+                                            nolabel="1"
                                             invisible="question_type != 'datetime'"
                                             required="validation_required and question_type == 'datetime' and not validation_max_datetime" />
 
@@ -499,35 +499,35 @@
                                         <!-- Maxima -->
                                         <field
                                             name="validation_length_max"
-                                            class="o_survey_question_validation_inline"
-                                            nolabel="1"
                                             placeholder="Maximum"
+                                            nolabel="1"
                                             invisible="question_type != 'char_box'"
-                                            required="validation_required and question_type == 'char_box'" />
+                                            required="validation_required and question_type == 'char_box'"
+                                            class="o_survey_question_validation_inline" />
                                         <field
                                             name="validation_max_float_value"
-                                            class="o_survey_question_validation_inline"
-                                            nolabel="1"
                                             placeholder="Maximum"
+                                            nolabel="1"
                                             invisible="question_type != 'numerical_box'"
-                                            required="validation_required and question_type == 'numerical_box'" />
+                                            required="validation_required and question_type == 'numerical_box'"
+                                            class="o_survey_question_validation_inline" />
                                         <field
                                             name="validation_max_date"
-                                            nolabel="1"
                                             placeholder="Maximum"
+                                            nolabel="1"
                                             invisible="question_type != 'date'"
                                             required="validation_required and question_type == 'date' and not validation_min_date" />
                                         <field
                                             name="validation_max_datetime"
-                                            nolabel="1"
                                             placeholder="Maximum"
+                                            nolabel="1"
                                             invisible="question_type != 'datetime'"
                                             required="validation_required and question_type == 'datetime' and not validation_min_datetime" />
                                     </div>
                                     <field
                                         name="validation_error_msg"
-                                        invisible="not validation_required"
-                                        placeholder="Displayed when the answer entered is not valid." />
+                                        placeholder="Displayed when the answer entered is not valid."
+                                        invisible="not validation_required" />
 
                                     <field
                                         name="matrix_subtype"
@@ -535,15 +535,15 @@
                                         required="question_type == 'matrix'" />
                                     <field
                                         name="question_placeholder"
-                                        invisible="question_type not in ['text_box', 'char_box', 'date', 'datetime', 'numerical_box']"
-                                        placeholder="Help Participants know what to write" />
+                                        placeholder="Help Participants know what to write"
+                                        invisible="question_type not in ['text_box', 'char_box', 'date', 'datetime', 'numerical_box']" />
                                     <field
                                         name="comments_allowed"
                                         invisible="question_type not in ['simple_choice', 'multiple_choice', 'matrix']" />
                                     <field
                                         name="comments_message"
-                                        invisible="question_type not in ['simple_choice', 'multiple_choice', 'matrix'] or not comments_allowed"
-                                        placeholder="If other, please specify:" />
+                                        placeholder="If other, please specify:"
+                                        invisible="question_type not in ['simple_choice', 'multiple_choice', 'matrix'] or not comments_allowed" />
                                     <field
                                         name="comment_count_as_answer"
                                         invisible="question_type not in ['simple_choice', 'multiple_choice', 'matrix'] or not comments_allowed" />
@@ -596,11 +596,11 @@
                                         invisible="1" />
                                     <field
                                         name="triggering_answer_ids"
+                                        placeholder="Optional previous answers required"
                                         widget="many2many_tags"
-                                        options="{'no_open': True, 'no_create': True}"
                                         domain="[('question_id', 'in', allowed_triggering_question_ids)]"
-                                        invisible="questions_selection == 'random'"
-                                        placeholder="Optional previous answers required" />
+                                        options="{'no_open': True, 'no_create': True}"
+                                        invisible="questions_selection == 'random'" />
                                 </group>
                             </group>
                             <group>
@@ -610,8 +610,8 @@
                                         string="Mandatory Answer" />
                                     <field
                                         name="constr_error_msg"
-                                        invisible="not constr_mandatory"
-                                        placeholder="This question requires an answer." />
+                                        placeholder="This question requires an answer."
+                                        invisible="not constr_mandatory" />
                                 </group>
                                 <group string="Live Sessions">
                                     <field name="is_time_customized" invisible="True" />
@@ -629,19 +629,19 @@
                                     <div invisible="not session_available">
                                         <field
                                             name="is_time_limited"
-                                            nolabel="1"
-                                            class="oe_inline"
                                             widget="boolean_update_flag"
+                                            nolabel="1"
+                                            context="{'referenceValue': survey_session_speed_rating}"
                                             options="{'flagFieldName': 'is_time_customized'}"
-                                            context="{'referenceValue': survey_session_speed_rating}" />
+                                            class="oe_inline" />
                                         <field
                                             name="time_limit"
-                                            nolabel="1"
-                                            class="oe_inline"
                                             widget="integer_update_flag"
-                                            options="{'flagFieldName': 'is_time_customized'}"
+                                            nolabel="1"
                                             context="{'referenceValue': survey_session_speed_rating_time_limit}"
-                                            invisible="not is_time_limited" />
+                                            options="{'flagFieldName': 'is_time_customized'}"
+                                            invisible="not is_time_limited"
+                                            class="oe_inline" />
                                     </div>
                                 </group>
                             </group>
@@ -710,7 +710,7 @@
         <field name="name">survey.question.answer.view.list</field>
         <field name="model">survey.question.answer</field>
         <field name="arch" type="xml">
-            <list string="Survey Label" create="false" default_order="question_id">
+            <list string="Survey Label" default_order="question_id" create="false">
                 <field name="sequence" widget="handle" />
                 <field name="question_id" />
                 <field name="value" string="Answer" />

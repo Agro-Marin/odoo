@@ -74,8 +74,6 @@ const checkSlides = (number, position) => {
         content: `Check if there are ${number} slides and if the ${position} is active`,
         trigger: `${carouselInnerSelector}${hasNSlide(number)} ${activeSlide(position)}`,
         async run() {
-            // When continue the tour directly, slide menu can disappears or
-            // action can not be done.
             await delay(500);
         },
     };
@@ -90,13 +88,10 @@ registerWebsitePreviewTour(
     () => [
         ...insertSnippet({ id: "s_carousel", name: "Carousel", groupName: "Intro" }),
         ...clickOnSnippet(".carousel .carousel-item.active"),
-        // Slide to the right.
         changeOption("Slide (1/3)", "[aria-label='Move Forward']"),
         checkSlides(3, 2),
-        // Add a slide (with the "CarouselItem" option).
         changeOption("Slide (2/3)", "button[aria-label='Add Slide']"),
         checkSlides(4, 3),
-        // Remove a slide.
         changeOption("Slide (3/4)", "button[aria-label='Remove Slide']"),
         checkSlides(3, 2),
         {
@@ -105,25 +100,18 @@ registerWebsitePreviewTour(
             run: "click",
         },
         checkSlides(3, 1),
-        // Add a slide (with the "Carousel" option).
         changeOption("Carousel", "[data-action-id='addSlide']"),
         checkSlides(4, 2),
         {
             content: "Check if the slide indicator was correctly updated",
             trigger: ".options-container span:contains(' (2/4)')",
         },
-        // Check if we can still remove a slide.
         changeOption("Slide (2/4)", "button[aria-label='Remove Slide']"),
         checkSlides(3, 1),
-        // Slide to the left.
         changeOption("Slide (1/3)", "[aria-label='Move Backward']"),
         checkSlides(3, 3),
-        // Reorder the slides and make it the second one.
         changeOption("Slide (3/3)", "[data-action-value='prev']"),
         checkSlides(3, 2),
-        // Ensure quickly adding/removing slides doesn’t give a traceback
-        // (Includes delays to better simulate real user interactions and
-        // expose potential race conditions.)
         {
             content: "Add a slide",
             trigger: "button.btn.btn-success[aria-label='Add Slide']",
@@ -149,7 +137,6 @@ registerWebsitePreviewTour(
             },
         },
         ...clickOnSave(),
-        // Check that saving always sets the first slide as active.
         checkSlides(4, 1),
     ],
 );
@@ -183,7 +170,6 @@ registerWebsitePreviewTour(
         ...insertSnippet({ id: "s_carousel", name: "Carousel", groupName: "Intro" }),
         ...clickOnSnippet(".carousel .carousel-item.active"),
 
-        // Make the Slide clickable
         changeOption("Slide (1/3)", "[data-action-id='makeSlideClickable'] input"),
 
         {
@@ -198,7 +184,6 @@ registerWebsitePreviewTour(
                 ":iframe .carousel-item.active.clickable-slide a.slide-link[href='/contactus-thank-you']:not(:visible)",
         },
 
-        // Enable the option to open the link in a new tab
         changeOption(
             "Slide (1/3)",
             "[data-label='Open in New Tab'] [data-attribute-action='target'] input",
@@ -235,12 +220,10 @@ registerWebsitePreviewTour(
         },
         ...setSlideUrl("/contactus", "/contactus-thank-you"),
 
-        // Turn off the 'Make Slide Clickable' option
         changeOption("Slide (1/3)", "[data-action-id='makeSlideClickable'] input"),
 
         checkSlideNotClickable(),
 
-        // Make the slide clickable again
         changeOption("Slide (1/3)", "[data-action-id='makeSlideClickable'] input"),
 
         ...clickOnSave(),

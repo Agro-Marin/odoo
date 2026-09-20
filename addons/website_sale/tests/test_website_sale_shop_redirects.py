@@ -17,7 +17,6 @@ class TestWebsiteSaleShopRedirects(HttpCase, WebsiteSaleCommon):
                 "website_published": True,
             }
         )
-        # Add a different published product to category B so that it is accessible to public users
         self._create_product(
             website_published=True, public_categ_ids=[Command.link(category_b.id)]
         )
@@ -65,7 +64,6 @@ class TestWebsiteSaleShopRedirects(HttpCase, WebsiteSaleCommon):
         )
 
     def test_ecommerce_product_page_url_unpublished_product(self):
-        # Unpublished products should be hidden and return a 404.
         accessory_product = self.env["product.template"].create(
             {
                 "name": "Access Product",
@@ -85,14 +83,12 @@ class TestWebsiteSaleShopRedirects(HttpCase, WebsiteSaleCommon):
         )
 
     def test_ecommerce_category_page_url_invalid_category(self):
-        # Invalid category should return a 404.
         url = f"{SHOP_PATH}/category/999999"
         res = self.url_open(url)
 
         self.assertEqual(res.status_code, 404, "Invalid category should return a 404.")
 
     def test_ecommerce_product_page_url_invalid_category(self):
-        # Invalid category should redirect to the canonical product page.
         accessory_product = self.env["product.template"].create(
             {
                 "name": "Access Product",
@@ -116,13 +112,11 @@ class TestWebsiteSaleShopRedirects(HttpCase, WebsiteSaleCommon):
         self.assertURLEqual(res.url, good_url)
 
     def test_ecommerce_category_page_url_unpublished_product(self):
-        # Unpublished product should redirect to the canonical category page (if category provided).
         category = self.env["product.public.category"].create(
             {
                 "name": "Test Category",
             }
         )
-        # Add a different published product to category so that it is accessible to public users
         self.env["product.template"].create(
             {
                 "name": "Test Product",

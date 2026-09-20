@@ -16,23 +16,23 @@
                         <!-- Info in case of sender. -->
                         <div
                             invisible="peppol_use_parent_company or account_peppol_proxy_state != 'sender'">
-                            Your Peppol ID <field name="account_peppol_edi_identification" class="oe_inline o_form_label" readonly="1" />.
+                            Your Peppol ID <field name="account_peppol_edi_identification" readonly="1" class="oe_inline o_form_label" />.
                             <span
                                 class="ps-2"
                                 invisible="account_peppol_edi_mode == 'prod'">
-                                (<field class="oe_inline o_form_label text-uppercase" name="account_peppol_edi_mode" />)
+                                (<field name="account_peppol_edi_mode" class="oe_inline o_form_label text-uppercase" />)
                             </span>
                             <br />
-                            But you are receiving your e-invoices via this Access Point: <field name="peppol_external_provider" class="oe_inline o_form_label" readonly="1" />.
+                            But you are receiving your e-invoices via this Access Point: <field name="peppol_external_provider" readonly="1" class="oe_inline o_form_label" />.
                         </div>
                         <!-- Info in case of receiver/smp_registration. -->
                         <div
                             invisible="peppol_use_parent_company or account_peppol_proxy_state not in ('receiver', 'smp_registration')">
-                            Your Peppol ID <field name="account_peppol_edi_identification" class="oe_inline o_form_label" readonly="1" />.
+                            Your Peppol ID <field name="account_peppol_edi_identification" readonly="1" class="oe_inline o_form_label" />.
                             <span
                                 class="ps-2"
                                 invisible="account_peppol_edi_mode == 'prod'">
-                                (<field class="oe_inline o_form_label text-uppercase" name="account_peppol_edi_mode" />)
+                                (<field name="account_peppol_edi_mode" class="oe_inline o_form_label text-uppercase" />)
                             </span>
                             <div
                                 invisible="account_peppol_proxy_state != 'smp_registration'">
@@ -43,8 +43,8 @@
                             class="row mt-1"
                             invisible="peppol_use_parent_company or account_peppol_proxy_state == 'not_registered'">
                             <label
-                                string="Peppol Contact Email"
                                 for="account_peppol_contact_email"
+                                string="Peppol Contact Email"
                                 class="col-lg-5 o_light_label" />
                             <field
                                 name="account_peppol_contact_email"
@@ -58,8 +58,8 @@
                             <div class="mb-2">
                                 <span class="o_form_label">
                                     <label
-                                        string="Peppol Participation Role"
-                                        for="peppol_participation_role" />
+                                        for="peppol_participation_role"
+                                        string="Peppol Participation Role" />
                                 </span>
                             </div>
                             <field name="peppol_participation_role" widget="radio" />
@@ -72,7 +72,7 @@
                         </div>
                         <!-- Info in case of a branch company using the active peppol connection from their parent. -->
                         <div invisible="not peppol_use_parent_company">
-                            You are sending from <field name="peppol_parent_company_name" class="oe_inline o_form_label" readonly="1" />.
+                            You are sending from <field name="peppol_parent_company_name" readonly="1" class="oe_inline o_form_label" />.
                         </div>
 
                         <div
@@ -80,16 +80,16 @@
                             invisible="peppol_use_parent_company or account_peppol_proxy_state not in ('sender', 'smp_registration', 'receiver')">
                             <!-- Deprecated button for advanced configuration -->
                             <button
-                                string="Advanced Configuration"
-                                icon="oi-arrow-right"
                                 name="button_open_peppol_config_wizard"
                                 type="object"
-                                class="btn-link"
-                                invisible="True" />
+                                string="Advanced Configuration"
+                                icon="oi-arrow-right"
+                                invisible="True"
+                                class="btn-link" />
                             <button
-                                string="Disconnect Peppol"
                                 name="button_peppol_deregister"
                                 type="object"
+                                string="Disconnect Peppol"
                                 class="btn-primary me-1" />
                         </div>
                         <div class="d-flex gap-1 action_buttons" colspan="3">
@@ -108,18 +108,18 @@
                             <!-- deprecated Registered on Peppol -->
                             <div invisible="True" class="mt-3">
                                 <button
-                                    string="Register with Odoo"
                                     name="button_peppol_register_sender_as_receiver"
                                     type="object"
-                                    class="btn-primary me-1"
-                                    invisible="account_peppol_proxy_state != 'sender'" />
+                                    string="Register with Odoo"
+                                    invisible="account_peppol_proxy_state != 'sender'"
+                                    class="btn-primary me-1" />
                             </div>
                             <!--Branch company connected to parent's active peppol connection.-->
                             <div invisible="not peppol_use_parent_company" class="mt-2">
                                 <button
-                                    string="Disconnect"
                                     name="button_peppol_disconnect_branch_from_parent"
                                     type="object"
+                                    string="Disconnect"
                                     class="btn-secondary me-1" />
                             </div>
                         </div>
@@ -149,14 +149,14 @@
                                     name="button_reconnect_this_database"
                                     type="object"
                                     string="Reconnect this database"
-                                    class="btn btn-primary"
-                                    icon="fa-refresh" />
+                                    icon="fa-refresh"
+                                    class="btn btn-primary" />
                                 <button
                                     name="button_disconnect_this_database"
                                     type="object"
                                     string="Disconnect this database"
-                                    class="btn btn-danger"
-                                    icon="fa-unlink" />
+                                    icon="fa-unlink"
+                                    class="btn btn-danger" />
                             </div>
                         </div>
                     </div>
@@ -165,13 +165,13 @@
                     invisible="account_is_token_out_of_sync or peppol_use_parent_company or peppol_participation_role != 'sending_and_receiving'">
                     <div class="row" name="peppol_journal_config">
                         <label
-                            string="Incoming Accounting Journal"
                             for="account_peppol_purchase_journal_id"
+                            string="Incoming Accounting Journal"
                             class="col-lg-5" />
                         <field
                             name="account_peppol_purchase_journal_id"
-                            class="col-lg-7"
-                            required="account_peppol_proxy_state in ('smp_registration', 'receiver')                                         and peppol_participation_role != 'sending_only'" />
+                            required="account_peppol_proxy_state in ('smp_registration', 'receiver')                                         and peppol_participation_role != 'sending_only'"
+                            class="col-lg-7" />
                     </div>
                 </setting>
             </xpath>

@@ -5,8 +5,8 @@ class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     deletion_delay = fields.Integer(
-        config_parameter="document.deletion_delay",
         default=30,
+        config_parameter="document.deletion_delay",
         help="Delay after permanent deletion of the document in the trash (days)",
     )
 

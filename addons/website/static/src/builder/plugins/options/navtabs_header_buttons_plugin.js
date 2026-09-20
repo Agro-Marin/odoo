@@ -2,10 +2,13 @@
 import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { getElementsWithOption } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 
 import { NavTabsHeaderMiddleButtons } from "./navtabs_header_buttons.js";
+
+const log = makeLogger("website.builder.plugin.nav_tabs_option");
 
 const tabsSectionSelector = "section.s_tabs, section.s_tabs_images";
 
@@ -44,12 +47,10 @@ class NavTabsOptionPlugin extends Plugin {
     }
 
     showTab(navLinkEl, paneEl) {
-        // Must come from the edited document's realm — see `bootstrap_realm`.
         const Tab = getBootstrapComponent(this.window, "Tab");
         if (Tab) {
             Tab.getOrCreateInstance(navLinkEl).show();
         }
-        // Immediately show the pane so the history remains consistent.
         paneEl.classList.add("show");
     }
 
@@ -57,33 +58,41 @@ class NavTabsOptionPlugin extends Plugin {
         const activeNavItemEl = this.getActiveLinkEl(editingElement).parentElement;
         const activePaneEl = this.getActivePaneEl(editingElement);
 
+        const endClone = log.perf("NavTabsOptionPlugin addItem clone pane");
         const newPaneEl = await this.dependencies.clone.cloneElement(activePaneEl);
+        endClone();
         const newNavItemEl = activeNavItemEl.cloneNode(true);
         activeNavItemEl.after(newNavItemEl);
-        // To make sure the DOM is clean and correct, leave it to Bootstrap to
-        // update it. We leave `.active` only on the former active elements.
         newPaneEl.classList.remove("active", "show");
         newNavItemEl.firstElementChild.classList.remove("active");
         this.generateUniqueIDs(editingElement);
+        log.pipeline("NavTabsOptionPlugin addItem", () => ({
+            tabs: this.getNavLinkEls(editingElement).length,
+        }));
         this.showTab(newNavItemEl.querySelector(".nav-link"), newPaneEl);
     }
 
     removeItem(editingElement) {
         const activeLinkEl = this.getActiveLinkEl(editingElement);
         const activePaneEl = this.getActivePaneEl(editingElement);
-        // Show the next tab.
         const navLinkEls = [...this.getNavLinkEls(editingElement)];
         const index = (navLinkEls.indexOf(activeLinkEl) + 1) % navLinkEls.length;
         const nextActiveLinkEl = navLinkEls[index];
         const nextActivePaneEl = [...this.getPaneEls(editingElement)][index];
+        log.pipeline("NavTabsOptionPlugin removeItem", () => ({
+            tabs: navLinkEls.length,
+            nextIndex: index,
+        }));
         this.showTab(nextActiveLinkEl, nextActivePaneEl);
-        // Remove the tab.
         activeLinkEl.parentElement.remove();
         activePaneEl.remove();
     }
 
     onSnippetDropped({ snippetEl }) {
         const tabsEls = getElementsWithOption(snippetEl, tabsSectionSelector);
+        log.pipeline("NavTabsOptionPlugin onSnippetDropped", () => ({
+            tabsSections: tabsEls.length,
+        }));
         for (const tabsEl of tabsEls) {
             this.generateUniqueIDs(tabsEl);
         }
@@ -91,6 +100,9 @@ class NavTabsOptionPlugin extends Plugin {
 
     onCloned({ cloneEl }) {
         const tabsEls = getElementsWithOption(cloneEl, tabsSectionSelector);
+        log.pipeline("NavTabsOptionPlugin onCloned", () => ({
+            tabsSections: tabsEls.length,
+        }));
         for (const tabsEl of tabsEls) {
             this.generateUniqueIDs(tabsEl);
         }

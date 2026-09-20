@@ -1,54 +1,62 @@
-from odoo import Command, _, fields, models
+from odoo import Command, _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
     manufacture_to_resupply = fields.Boolean(
-        "Manufacture to Resupply",
+        string="Manufacture to Resupply",
         compute="_compute_manufacture_to_resupply",
         inverse="_inverse_manufacture_to_resupply",
         default=True,
         help="When products are manufactured, they can be manufactured in this warehouse.",
     )
-    manufacture_pull_id = fields.Many2one("stock.rule", "Manufacture Rule", copy=False)
+    manufacture_pull_id = fields.Many2one(
+        comodel_name="stock.rule",
+        string="Manufacture Rule",
+        copy=False,
+    )
     manufacture_mto_pull_id = fields.Many2one(
-        "stock.rule", "Manufacture MTO Rule", copy=False
+        comodel_name="stock.rule",
+        string="Manufacture MTO Rule",
+        copy=False,
     )
     pbm_mto_pull_id = fields.Many2one(
-        "stock.rule", "Picking Before Manufacturing MTO Rule", copy=False
-    )
-    sam_rule_id = fields.Many2one(
-        "stock.rule", "Stock After Manufacturing Rule", copy=False
+        comodel_name="stock.rule",
+        string="Picking Before Manufacturing MTO Rule",
+        copy=False,
     )
     manu_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Manufacturing Operation Type",
+        comodel_name="stock.picking.type",
+        string="Manufacturing Operation Type",
+        copy=False,
         domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
         check_company=True,
-        copy=False,
     )
 
     pbm_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Picking Before Manufacturing Operation Type",
-        check_company=True,
+        comodel_name="stock.picking.type",
+        string="Picking Before Manufacturing Operation Type",
         copy=False,
+        check_company=True,
     )
     sam_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Stock After Manufacturing Operation Type",
-        check_company=True,
+        comodel_name="stock.picking.type",
+        string="Stock After Manufacturing Operation Type",
         copy=False,
+        check_company=True,
     )
 
     manufacture_steps = fields.Selection(
-        [
+        selection=[
             ("mrp_one_step", "Manufacture (1 step)"),
             ("pbm", "Pick components then manufacture (2 steps)"),
             ("pbm_sam", "Pick components, manufacture, then store products (3 steps)"),
         ],
-        "Manufacture",
+        string="Manufacture",
         default="mrp_one_step",
         required=True,
         help="1 Step: Consume components from stock and produce.\n\
@@ -57,25 +65,26 @@ class StockWarehouse(models.Model):
     )
 
     pbm_route_id = fields.Many2one(
-        "stock.route",
-        "Picking Before Manufacturing Route",
-        ondelete="restrict",
+        comodel_name="stock.route",
+        string="Picking Before Manufacturing Route",
         copy=False,
+        ondelete="restrict",
     )
 
     pbm_loc_id = fields.Many2one(
-        "stock.location",
-        "Picking before Manufacturing Location",
+        comodel_name="stock.location",
+        string="Picking before Manufacturing Location",
         copy=False,
         check_company=True,
     )
     sam_loc_id = fields.Many2one(
-        "stock.location",
-        "Stock after Manufacturing Location",
+        comodel_name="stock.location",
+        string="Stock after Manufacturing Location",
         copy=False,
         check_company=True,
     )
 
+    @api.depends("manufacture_pull_id")
     def _compute_manufacture_to_resupply(self):
         for warehouse in self:
             manufacture_route = warehouse.manufacture_pull_id.route_id
@@ -84,21 +93,34 @@ class StockWarehouse(models.Model):
             )
 
     def _inverse_manufacture_to_resupply(self):
+        without_pull = self.filtered(lambda wh: not wh.manufacture_pull_id.route_id)
+        rules_by_warehouse = {}
+        if without_pull:
+            rules_by_warehouse = (
+                self.env["stock.rule"]
+                .search(
+                    [
+                        ("action", "=", "manufacture"),
+                        ("warehouse_id", "in", without_pull.ids),
+                    ]
+                )
+                .grouped("warehouse_id")
+            )
         for warehouse in self:
             manufacture_route = warehouse.manufacture_pull_id.route_id
             if not manufacture_route:
-                manufacture_route = (
-                    self.env["stock.rule"]
-                    .search(
-                        [
-                            ("action", "=", "manufacture"),
-                            ("warehouse_id", "=", warehouse.id),
-                        ]
-                    )
-                    .route_id
-                )
+                manufacture_route = rules_by_warehouse.get(
+                    warehouse, self.env["stock.rule"]
+                ).route_id
             if not manufacture_route:
+                _debug.logic("manufacture_route_absent", warehouse=warehouse.id)
                 continue
+            _debug.lifecycle(
+                "manufacture_resupply_set",
+                warehouse=warehouse.id,
+                route=manufacture_route.id,
+                enabled=warehouse.manufacture_to_resupply,
+            )
             if warehouse.manufacture_to_resupply:
                 manufacture_route.warehouse_ids = [Command.link(warehouse.id)]
             else:
@@ -113,8 +135,8 @@ class StockWarehouse(models.Model):
                 manufacture_route.warehouse_ids = [Command.link(warehouse.id)]
         return super()._create_or_update_route()
 
-    def _get_rules_dict(self):
-        result = super()._get_rules_dict()
+    def _prepare_rule_routings(self):
+        result = super()._prepare_rule_routings()
         production_location_id = self._get_production_location()
         for warehouse in self:
             result[warehouse.id].update(
@@ -156,7 +178,9 @@ class StockWarehouse(models.Model):
                     ],
                 }
             )
-            result[warehouse.id].update(warehouse._get_receive_rules_dict())
+            result[warehouse.id].update(
+                warehouse._prepare_internal_reception_routings()
+            )
         return result
 
     def _prepare_route_vals(self):
@@ -387,18 +411,27 @@ class StockWarehouse(models.Model):
 
     def _create_missing_locations(self, vals):
         super()._create_missing_locations(vals)
-        for company_id in self.company_id:
-            location = self.env["stock.location"].search(
-                [("usage", "=", "production"), ("company_id", "=", company_id.id)],
-                limit=1,
+        companies_with_production_location = {
+            company
+            for [company] in self.env["stock.location"]._read_group(
+                [
+                    ("usage", "=", "production"),
+                    ("company_id", "in", self.company_id.ids),
+                ],
+                ["company_id"],
             )
-            if not location:
+        }
+        for company_id in self.company_id:
+            if company_id not in companies_with_production_location:
                 company_id._create_production_location()
 
     def write(self, vals):
         if any(
             field in vals for field in ("manufacture_steps", "manufacture_to_resupply")
         ):
+            _debug.lifecycle(
+                "manufacture_steps_written", warehouses=self, fields=list(vals)
+            )
             for warehouse in self:
                 warehouse._update_location_manufacture(
                     vals.get("manufacture_steps", warehouse.manufacture_steps)
@@ -421,6 +454,11 @@ class StockWarehouse(models.Model):
         return routes
 
     def _update_location_manufacture(self, new_manufacture_step):
+        _debug.pipeline(
+            "manufacture_locations_toggled",
+            warehouses=self,
+            step=new_manufacture_step,
+        )
         self.mapped("pbm_loc_id").write(
             {"active": new_manufacture_step != "mrp_one_step"}
         )

@@ -5,8 +5,14 @@ class L10n_ArEarningsScale(models.Model):
     _name = "l10n_ar.earnings.scale"
     _description = "l10n_ar.earnings.scale"
 
-    name = fields.Char(required=True, translate=True)
-    line_ids = fields.One2many("l10n_ar.earnings.scale.line", "scale_id")
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    line_ids = fields.One2many(
+        comodel_name="l10n_ar.earnings.scale.line",
+        inverse_name="scale_id",
+    )
 
 
 class L10n_ArEarningsScaleLine(models.Model):
@@ -15,16 +21,20 @@ class L10n_ArEarningsScaleLine(models.Model):
     _order = "to_amount"
 
     scale_id = fields.Many2one(
-        "l10n_ar.earnings.scale",
+        comodel_name="l10n_ar.earnings.scale",
         required=True,
         ondelete="cascade",
         help="Calculation of the withholding amount: From the taxable amount (tax base + tax bases applied this month to same tax and partner - non-taxable minimum) subtract the immediately previous amount of the column 'S/ Exceeding $' to detect which row to work with and apply the percentage of said row to the result of the subtraction. Then add to this amount the amount of the '$' column.",
     )
     currency_id = fields.Many2one(
-        "res.currency", default=lambda self: self.env.ref("base.ARS"), store=False
+        comodel_name="res.currency",
+        default=lambda self: self.env.ref("base.ARS"),
+        store=False,
     )
     from_amount = fields.Monetary(
-        string="From $", currency_field="currency_id", compute="_compute_from_amount"
+        string="From $",
+        currency_field="currency_id",
+        compute="_compute_from_amount",
     )
     to_amount = fields.Monetary(
         string="To $",

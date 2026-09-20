@@ -1,10 +1,30 @@
 from datetime import datetime, time, timedelta
 
+from odoo import fields
+
 from odoo.addons.event.tests.common import EventCase
 from odoo.addons.mail.tests.common import mail_new_test_user
 
 
-class OnlineEventCase(EventCase):
+class DefaultEventMixin:
+    """Shared factory for the begin+1d/end+15d event window this test
+    suite standardizes on, to avoid re-typing it in every test method."""
+
+    def _create_default_event(self, **vals):
+        vals = {
+            "name": "Test Event",
+            "date_begin": fields.Datetime.to_string(
+                datetime.today() + timedelta(days=1)
+            ),
+            "date_end": fields.Datetime.to_string(
+                datetime.today() + timedelta(days=15)
+            ),
+            **vals,
+        }
+        return self.env["event.event"].create(vals)
+
+
+class OnlineEventCase(DefaultEventMixin, EventCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -41,11 +61,11 @@ class OnlineEventCase(EventCase):
 
         if menus_in is None:
             menus_in = list(self._get_menus())
+        if menus_out is None:
+            menus_out = [name for name in self._get_menus() if name not in menus_in]
 
         menus = self.env["website.menu"].search([("parent_id", "=", event.menu_id.id)])
-        menus |= (
-            menus.child_id
-        )  # add child menus to simplify checks, containing notably talks submenus
+        menus |= menus.child_id
         self.assertTrue(len(menus) >= len(menus_in))
         self.assertTrue(
             all(menu_name in menus.mapped("name") for menu_name in menus_in)
@@ -67,11 +87,9 @@ class TestEventOnlineCommon(OnlineEventCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Mock dates to have reproducible computed fields based on time
         cls.reference_now = datetime(2020, 7, 6, 10, 0, 0)
         cls.reference_today = datetime(2020, 7, 6)
 
-        # event if 8-18 in Europe/Brussels (DST) (first day: begins at 9, last day: ends at 15)
         cls.event_0 = cls.env["event.event"].create(
             {
                 "name": "TestEvent",

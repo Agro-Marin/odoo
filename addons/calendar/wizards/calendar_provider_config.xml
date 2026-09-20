@@ -18,8 +18,8 @@
                     <span class="me-1 o_form_label">Google Calendar</span>
                     <widget
                         name="documentation_link"
-                        path="/applications/productivity/calendar/google.html"
-                        icon="fa-question-circle" />
+                        icon="fa-question-circle"
+                        path="/applications/productivity/calendar/google.html" />
                     <div class="text-muted mt-2">
                         Synchronize your calendar with Google Calendar
                     </div>
@@ -44,8 +44,8 @@
                     <span class="me-1 o_form_label">Outlook Calendar</span>
                     <widget
                         name="documentation_link"
-                        path="/applications/productivity/calendar/outlook.html"
-                        icon="fa-question-circle" />
+                        icon="fa-question-circle"
+                        path="/applications/productivity/calendar/outlook.html" />
                     <div class="text-muted mt-2">
                         Synchronize your calendar with Outlook
                     </div>
@@ -65,9 +65,9 @@
                 <footer>
                     <widget name="calendar_connect_provider" />
                     <button
+                        special="cancel"
                         string="Cancel"
-                        class="btn btn-secondary"
-                        special="cancel" />
+                        class="btn btn-secondary" />
                 </footer>
             </form>
         </field>

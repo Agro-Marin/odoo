@@ -13,7 +13,6 @@ class TestWebsiteSaleDeliveryController(PaymentCommon, WebsiteSaleCommon):
         super().setUp()
         self.Controller = Delivery()
 
-    # test that changing the carrier while there is a pending transaction raises an error
     def test_controller_change_carrier_when_transaction(self):
         website = self.website.with_env(self.env)
         self.empty_cart.transaction_ids = self._create_transaction(
@@ -28,7 +27,6 @@ class TestWebsiteSaleDeliveryController(PaymentCommon, WebsiteSaleCommon):
             request.cart = self.empty_cart
             self.Controller.shop_set_delivery_method(dm_id=self.free_delivery.id)
 
-    # test that changing the carrier while there is a draft transaction doesn't raise an error
     def test_controller_change_carrier_when_draft_transaction(self):
         website = self.website.with_env(self.env)
         self.empty_cart.transaction_ids = self._create_transaction(

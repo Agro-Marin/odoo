@@ -153,7 +153,7 @@ class TestORM(TransactionCase):
 
     def test_lock_for_update(self):
         partner = self.env["res.partner"]
-        p1, p2 = partner.search([], limit=2)
+        p1, p2 = partner.search([("name", "!=", False)], limit=2)
 
         p1.lock_for_update(allow_referencing=True)
         p1.lock_for_update(allow_referencing=False)
@@ -375,7 +375,7 @@ class TestCompanyDependent(TransactionCase):
         partner = self.env["res.partner"].create({"name": "Flat", "barcode": "BC-1"})
         field = partner._fields["barcode"]
         self.assertTrue(field.company_dependent, "barcode must be company_dependent")
-        core = self.env._core
+        core = self.env.core
 
         core.get_field_data(field).clear()
         core.set_value(field, partner.id, "BC-1")

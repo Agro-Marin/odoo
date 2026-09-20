@@ -7,7 +7,10 @@ from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtex
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    nemhandel_message_uuid = fields.Char(string="Nemhandel message ID", copy=False)
+    nemhandel_message_uuid = fields.Char(
+        string="Nemhandel message ID",
+        copy=False,
+    )
     nemhandel_move_state = fields.Selection(
         selection=[
             ("ready", "Ready to send"),
@@ -16,9 +19,9 @@ class AccountMove(models.Model):
             ("done", "Done"),
             ("error", "Error"),
         ],
+        string="Nemhandel status",
         compute="_compute_nemhandel_move_state",
         store=True,
-        string="Nemhandel status",
         copy=False,
     )
 
@@ -71,11 +74,11 @@ class AccountMove(models.Model):
             )
         return super().action_send_and_print()
 
-    def _need_ubl_cii_xml(self, ubl_cii_format):
+    def _is_ubl_cii_xml_required(self, ubl_cii_format):
         if ubl_cii_format == "oioubl_21" and (
             not self.partner_id.vat
             or self.partner_id._get_nemhandel_verification_state(ubl_cii_format)
             != "valid"
         ):
             return False
-        return super()._need_ubl_cii_xml(ubl_cii_format)
+        return super()._is_ubl_cii_xml_required(ubl_cii_format)

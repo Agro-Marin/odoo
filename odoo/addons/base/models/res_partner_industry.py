@@ -6,6 +6,9 @@ class ResPartnerIndustry(models.Model):
     _description = "Industry"
     _order = "name, id"
 
-    name = fields.Char("Name", required=True, translate=True)
-    full_name = fields.Char("Full Name", translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    full_name = fields.Char(translate=True)
     active = fields.Boolean(default=True)

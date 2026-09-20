@@ -6,18 +6,14 @@ const MAX_COMPARISON_PRODUCTS = 4;
 const COMPARISON_EVENT = "comparison_products_changed";
 
 /**
- * Get the IDs of the products to compare from the cookie.
- *
- * @return {Array<number>} The IDs of the products to compare.
+ * @return {Array<number>}
  */
 function getComparisonProductIds() {
     return JSON.parse(cookie.get(COMPARISON_PRODUCT_IDS_COOKIE_NAME) || "[]");
 }
 
 /**
- * Set the IDs of the products to compare in the cookie.
- *
- * @param {ArrayLike<number>} productIds The IDs of the products to compare.
+ * @param {ArrayLike<number>} productIds
  * @param {EventBus} bus
  */
 function setComparisonProductIds(productIds, bus) {
@@ -29,8 +25,6 @@ function setComparisonProductIds(productIds, bus) {
 }
 
 /**
- * Add the specified product to the comparison.
- *
  * @param {number} productId
  * @param {EventBus} bus
  */
@@ -41,8 +35,6 @@ function addComparisonProduct(productId, bus) {
 }
 
 /**
- * Remove the specified product from the comparison.
- *
  * @param {number} productId
  * @param {EventBus} bus
  */
@@ -53,8 +45,6 @@ function removeComparisonProduct(productId, bus) {
 }
 
 /**
- * Clear all products in comparison list
- *
  * @param {EventBus} bus
  */
 function clearComparisonProducts(bus) {
@@ -65,8 +55,6 @@ function clearComparisonProducts(bus) {
 }
 
 /**
- * Notify comparison listeners using an event bus that the values of productshave changed
- *
  * @param {EventBus} bus
  */
 function notifyComparisonListeners(bus) {
@@ -76,19 +64,14 @@ function notifyComparisonListeners(bus) {
 }
 
 /**
- * Update the disabled/enabled state of an element.
- *
- * @param {Element} el The element to disable/enable.
- * @param {boolean} isDisabled Whether the element should be disabled.
+ * @param {Element} el
+ * @param {boolean} isDisabled
  */
 function updateDisabled(el, isDisabled) {
     el.disabled = isDisabled;
     el.classList.toggle("disabled", isDisabled);
 }
 
-/**
- * After removing products from comparison, update the disabled button
- */
 function enableDisabledProducts(productIds) {
     for (const productId of productIds) {
         const productCompareButton = document.querySelector(

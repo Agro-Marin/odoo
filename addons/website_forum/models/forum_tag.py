@@ -11,20 +11,29 @@ class ForumTag(models.Model):
         "mixin.website.seo.metadata",
     ]
 
-    name = fields.Char("Name", required=True)
-    color = fields.Integer("Color")
-    forum_id = fields.Many2one("forum.forum", string="Forum", required=True, index=True)
+    name = fields.Char(required=True)
+    color = fields.Integer()
+    forum_id = fields.Many2one(
+        comodel_name="forum.forum",
+        index=True,
+        required=True,
+    )
     post_ids = fields.Many2many(
-        "forum.post",
-        "forum_tag_rel",
-        "forum_tag_id",
-        "forum_post_id",
+        comodel_name="forum.post",
+        relation="forum_tag_rel",
+        column1="forum_tag_id",
+        column2="forum_post_id",
         string="Posts",
         domain=[("state", "=", "active")],
     )
-    posts_count = fields.Count("post_ids", "Number of Posts", store=True)
+    posts_count = fields.Count(
+        count_of="post_ids",
+        string="Number of Posts",
+        store=True,
+    )
     website_url = fields.Char(
-        "Link to questions with the tag", compute="_compute_website_url"
+        string="Link to questions with the tag",
+        compute="_compute_website_url",
     )
     _name_uniq = models.Constraint(
         "unique (name, forum_id)",
@@ -48,10 +57,6 @@ class ForumTag(models.Model):
             ForumTag,
             self.with_context(mail_create_nolog=True, mail_create_nosubscribe=True),
         ).create(vals_list)
-
-    # ----------------------------------------------------------------------
-    # WEBSITE
-    # ----------------------------------------------------------------------
 
     @api.model
     def _search_get_detail(self, website, order, options):

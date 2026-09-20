@@ -12,6 +12,8 @@ import {
 } from "@odoo/owl";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -25,6 +27,8 @@ import {
 import { onceAllImagesLoaded } from "@website/utils/images";
 
 const NO_OP = () => {};
+
+const log = makeLogger("website.dialog.add_page");
 
 export class AddPageConfirmDialog extends Component {
     static template = "website.AddPageConfirmDialog";
@@ -42,6 +46,7 @@ export class AddPageConfirmDialog extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         useAutofocus();
 
         this.state = useState({
@@ -53,10 +58,16 @@ export class AddPageConfirmDialog extends Component {
     }
 
     onChangeAddMenu(value) {
+        log.logic("AddPageConfirmDialog addMenu", { value });
         this.state.addMenu = value;
     }
 
     async addPage() {
+        log.pipeline("AddPageConfirmDialog confirm", () => ({
+            name: this.state.name,
+            addMenu: this.state.addMenu,
+            templateId: this.state.templateId,
+        }));
         await this.props.createPage(
             this.state.sectionsArch,
             this.state.name,
@@ -76,6 +87,7 @@ class AddPageTemplateBlank extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.holderRef = useRef("holder");
 
         onMounted(async () => {
@@ -84,6 +96,7 @@ class AddPageTemplateBlank extends Component {
     }
 
     select() {
+        log.logic("AddPageTemplateBlank select");
         this.env.addPage();
     }
 }
@@ -105,6 +118,7 @@ class AddPageTemplatePreview extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.iframeRef = useRef("iframe");
         this.previewRef = useRef("preview");
         this.holderRef = useRef("holder");
@@ -116,10 +130,10 @@ class AddPageTemplatePreview extends Component {
                 applyTextHighlight(targetEl);
             }
         });
-        // The observer is otherwise only disconnected in select(); a preview
-        // that is never selected (dialog closed / tab switched) leaks it and the
-        // retained iframe DOM. Also stop the adjustHeight poll on teardown.
         onWillUnmount(() => {
+            log.lifecycle("AddPageTemplatePreview observer disconnected", () => ({
+                key: this.props.template.key,
+            }));
             this.resizeObserver.disconnect();
             clearTimeout(this._adjustHeightTimeout);
         });
@@ -128,20 +142,22 @@ class AddPageTemplatePreview extends Component {
             const holderEl = this.holderRef.el;
             holderEl.classList.add("o_loading");
             if (!this.props.template.key) {
+                log.logic("AddPageTemplatePreview skip: placeholder template");
                 return;
             }
+            const endPreview = log.perf("AddPageTemplatePreview render", () => ({
+                key: this.props.template.key,
+                isCustom: this.props.isCustom,
+            }));
             const previewEl = this.previewRef.el;
             const iframeEl = this.iframeRef.el;
-            // Firefox replaces the built content with about:blank.
             const isFirefox = isBrowserFirefox();
             if (isFirefox) {
-                // Make sure empty preview iframe is loaded.
-                // This event is never triggered on Chrome.
+                log.logic("AddPageTemplatePreview firefox: wait iframe body load");
                 await new Promise((resolve) => {
                     iframeEl.contentDocument.body.onload = resolve;
                 });
             }
-            // Apply styles.
             for (const cssLinkEl of await this.env.getCssLinkEls()) {
                 const preloadLinkEl = document.createElement("link");
                 preloadLinkEl.setAttribute("rel", "preload");
@@ -150,9 +166,7 @@ class AddPageTemplatePreview extends Component {
                 iframeEl.contentDocument.head.appendChild(preloadLinkEl);
                 iframeEl.contentDocument.head.appendChild(cssLinkEl.cloneNode(true));
             }
-            // Adjust styles.
             const styleEl = document.createElement("style");
-            // Prevent successive resizes.
             const fullHeight = getComputedStyle(
                 document.querySelector(".o_action_manager"),
             ).height;
@@ -203,9 +217,6 @@ class AddPageTemplatePreview extends Component {
             const cssText = document.createTextNode(css);
             styleEl.appendChild(cssText);
             iframeEl.contentDocument.head.appendChild(styleEl);
-            // Put blocks.
-            // To preserve styles, the whole #wrapwrap > main > #wrap
-            // nesting must be reproduced.
             const mainEl = document.createElement("main");
             const wrapwrapEl = document.createElement("div");
             wrapwrapEl.id = "wrapwrap";
@@ -217,32 +228,35 @@ class AddPageTemplatePreview extends Component {
             );
             const wrapEl = templateDocument.getElementById("wrap");
             mainEl.appendChild(wrapEl);
-            // Make image loading eager.
             const lazyLoadedImgEls = wrapEl.querySelectorAll("img[loading=lazy]");
+            log.pipeline("AddPageTemplatePreview template injected", () => ({
+                key: this.props.template.key,
+                lazyImages: lazyLoadedImgEls.length,
+                sections: wrapEl.children.length,
+            }));
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "eager");
             }
-            mainEl.appendChild(wrapEl);
+            const endImages = log.perf("AddPageTemplatePreview images loaded");
             // A single broken image must not reject and abort the rest of the
             // setup (fonts.ready, o_loading removal, adjustHeight), which would
             // leave the preview stuck loading.
             await onceAllImagesLoaded(wrapEl).catch(() => {});
-            // Restore image lazy loading.
+            endImages();
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "lazy");
             }
             if (!this.previewRef.el) {
-                // Stop the process when preview is removed
+                log.logic("AddPageTemplatePreview unmounted while loading images");
                 return;
             }
-            // Wait for fonts.
             await iframeEl.contentDocument.fonts.ready;
+            endPreview();
             holderEl.classList.remove("o_loading");
             let lastHeight = -1;
             let stableCount = 0;
             const adjustHeight = () => {
                 if (!this.previewRef.el) {
-                    // Stop ajusting height when preview is removed.
                     return;
                 }
                 const outerWidth = parseInt(window.getComputedStyle(previewEl).width);
@@ -256,9 +270,6 @@ class AddPageTemplatePreview extends Component {
                     `${Math.round(innerHeight * ratio)}px`,
                 );
                 holderEl.classList.add("o_ready");
-                // Sometimes the final height is not ready yet, so keep polling —
-                // but stop once it has settled instead of running 20×/s forever
-                // for the whole life of the dialog (per visible preview).
                 stableCount = rounded === lastHeight ? stableCount + 1 : 0;
                 lastHeight = rounded;
                 if (stableCount < 5) {
@@ -267,8 +278,14 @@ class AddPageTemplatePreview extends Component {
             };
             adjustHeight();
             if (this.props.isCustom) {
+                log.logic("AddPageTemplatePreview adapt custom template");
                 this.adaptCustomTemplate(wrapEl);
             }
+            log.pipeline("AddPageTemplatePreview observe text highlights", () => ({
+                highlights:
+                    iframeEl.contentDocument?.querySelectorAll(".o_text_highlight")
+                        .length || 0,
+            }));
             for (const textEl of iframeEl.contentDocument?.querySelectorAll(
                 ".o_text_highlight",
             ) || []) {
@@ -285,6 +302,10 @@ class AddPageTemplatePreview extends Component {
         )) {
             const style = window.getComputedStyle(sectionEl);
             if (!style.height || style.display === "none") {
+                log.logic("adaptCustomTemplate dynamic section: no preview", () => ({
+                    snippet: sectionEl.dataset.snippet,
+                    name: sectionEl.dataset.name,
+                }));
                 const messageEl = renderToElement(
                     "website.AddPageTemplatePreviewDynamicMessage",
                     {
@@ -301,6 +322,7 @@ class AddPageTemplatePreview extends Component {
 
     select() {
         if (this.holderRef.el.classList.contains("o_loading")) {
+            log.logic("AddPageTemplatePreview select ignored: still loading");
             return;
         }
         const wrapEl = this.iframeRef.el.contentDocument
@@ -313,11 +335,13 @@ class AddPageTemplatePreview extends Component {
             previewEl.remove();
         }
         this.resizeObserver.disconnect();
-        // Remove highlighted text content from the cloned page. The full
-        // highlight structure will be restored on page load.
         for (const textHighlightEl of wrapEl.querySelectorAll(".o_text_highlight")) {
             removeTextHighlight(textHighlightEl);
         }
+        log.pipeline("AddPageTemplatePreview select", () => ({
+            templateId,
+            sections: wrapEl.children.length,
+        }));
         this.env.addPage(
             wrapEl.innerHTML,
             this.props.template.name && _t("Copy of %s", this.props.template.name),
@@ -345,6 +369,7 @@ class AddPageTemplatePreviews extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
     }
 
     get columns() {
@@ -369,6 +394,7 @@ class AddPageTemplates extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.website = useService("website");
         this.tabsRef = useRef("tabs");
         this.panesRef = useRef("panes");
@@ -383,7 +409,6 @@ class AddPageTemplates extends Component {
                     props: {
                         id: "basic",
                         title: _t("Basic"),
-                        // Blank and 5 preloading boxes.
                         templates: [{ isBlank: true }, {}, {}, {}, {}, {}],
                     },
                 },
@@ -393,33 +418,37 @@ class AddPageTemplates extends Component {
 
         onWillStart(() => {
             this.preparePages().then((pages) => {
+                log.pipeline("AddPageTemplates pages ready", () => ({
+                    pages: pages.length,
+                }));
                 this.state.pages = pages;
             });
         });
     }
 
     async preparePages() {
-        // Fetch templates without client-side caching to reflect recent changes
-        // to custom templates within the same session.
         const loadTemplates = rpc(
             "/website/get_new_page_templates",
             { context: { website_id: this.website.currentWebsiteId } },
             { silent: true },
         );
 
-        // Forces the correct website if needed before fetching the templates.
-        // Displaying the correct images in the previews also relies on the
-        // website id having been forced.
+        const endCss = log.perf("AddPageTemplates await css links");
         await this.env.getCssLinkEls();
+        endCss();
         if (status(this) === "destroyed") {
+            log.logic("preparePages abort: destroyed");
             return new Promise(() => {});
         }
 
         if (this.pages) {
+            log.logic("preparePages cached");
             return this.pages;
         }
 
+        const endTemplates = log.perf("get_new_page_templates");
         const newPageTemplates = await loadTemplates;
+        endTemplates(() => ({ groups: newPageTemplates.length }));
         newPageTemplates[0].templates.unshift({
             isBlank: true,
         });
@@ -433,10 +462,15 @@ class AddPageTemplates extends Component {
             });
         }
         this.pages = pages;
+        log.pipeline("preparePages built", () => ({
+            pages: pages.length,
+            templates: newPageTemplates.reduce((n, t) => n + t.templates.length, 0),
+        }));
         return pages;
     }
 
     onTabListBtnClick(id) {
+        log.logic("AddPageTemplates tab", { id });
         for (const page of this.state.pages) {
             if (page.id === id) {
                 page.isAccessed = true;
@@ -447,7 +481,7 @@ class AddPageTemplates extends Component {
         activeTabEl?.classList?.remove("active");
         activeTabEl?.setAttribute("tabIndex", "-1");
         activePaneEl?.classList?.remove("active");
-        activePaneEl?.setAttribute("inert", "inert"); // Make sure trapFocus() works.
+        activePaneEl?.setAttribute("inert", "inert");
         const tabEl = this.tabsRef.el.querySelector(`[data-id=${id}]`);
         const paneEl = this.panesRef.el.querySelector(`[data-id=${id}]`);
         tabEl.classList.add("active");
@@ -511,6 +545,7 @@ export class AddPageDialog extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         useAutofocus();
 
         this.primaryTitle = _t("Create");
@@ -535,10 +570,12 @@ export class AddPageDialog extends Component {
     }
 
     async addPage(sectionsArch, name, templateId) {
+        log.logic("addPage", () => ({
+            forcedURL: this.props.forcedURL,
+            templateId,
+            blank: !sectionsArch,
+        }));
         if (this.props.forcedURL) {
-            // We also skip the possibility to choose to add in menu in that
-            // case (e.g. in creation from 404 page button). The user can still
-            // create its menu afterwards if needed.
             await this.createPage(
                 sectionsArch,
                 this.props.forcedURL,
@@ -556,13 +593,17 @@ export class AddPageDialog extends Component {
     }
 
     async createPage(sectionsArch, name = "", addMenu = false, pageTitle = "") {
-        // Remove any leading slash.
+        log.logic("createPage", () => ({
+            name,
+            addMenu,
+            pageTitle,
+            sections: Boolean(sectionsArch),
+        }));
         const pageName = name.replace(/^\/*/, "") || _t("New Page");
+        const endPost = log.perf("createPage /website/add", { pageName });
         const data = await this.http.post(
             `/website/add/${encodeURIComponent(pageName)}`,
             {
-                // Needed to be passed as a (falsy) string because false would be
-                // converted to 'false' with a POST.
                 sections_arch: sectionsArch || "",
                 add_menu: addMenu || "",
 
@@ -571,6 +612,11 @@ export class AddPageDialog extends Component {
                 page_title: pageTitle,
             },
         );
+        endPost(() => ({ url: data.url, viewId: data.view_id }));
+        log.logic("createPage after create", () => ({
+            openViewForm: Boolean(data.view_id),
+            goToPage: this.props.goToPage,
+        }));
         if (data.view_id) {
             this.action.doAction({
                 res_model: "ir.ui.view",
@@ -600,17 +646,21 @@ export class AddPageDialog extends Component {
                     'iframe:not([src="/website/iframefallback"])',
                 );
                 if (iframe?.contentDocument.body.getAttribute("is-ready") === "true") {
-                    // If there is a fully loaded website preview, use it.
+                    log.logic("getCssLinkEls from preview iframe");
                     resolve(
                         iframe.contentDocument.head.querySelectorAll(
                             "link[type='text/css']",
                         ),
                     );
                 } else {
-                    // If there is no website preview or it was not ready yet, fetch page.
+                    log.logic("getCssLinkEls fetch homepage", () => ({
+                        iframe: Boolean(iframe),
+                    }));
+                    const endFetch = log.perf("getCssLinkEls fetch /website/force");
                     this.http
                         .get(`/website/force/${this.props.websiteId}?path=/`, "text")
                         .then((html) => {
+                            endFetch(() => ({ bytes: html.length }));
                             const doc = new DOMParser().parseFromString(
                                 html,
                                 "text/html",

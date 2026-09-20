@@ -4,6 +4,10 @@ import reprlib
 from collections.abc import Iterable
 from typing import Any, Self
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 shortener = reprlib.Repr()
 shortener.maxstring = 150
 shorten = shortener.repr
@@ -32,14 +36,19 @@ class Speedscope:
         self.profiles: list[dict[str, Any]] = []
 
     def add(self, key: str, profile: list[_Entry]) -> None:
+        queries = 0  # debuglog
         for entry in profile:
             self.caller_frame = self.init_caller_frame
             self.convert_stack(entry["stack"] or [])
             if "query" in entry:
+                queries += 1  # debuglog
                 query = entry["query"]
                 full_query = entry["full_query"]
                 entry["stack"].append((f"sql({shorten(query)})", full_query, None))
         self.profiles_raw[key] = profile
+        _debug.lifecycle(
+            "speedscope.profile_added", key=key, entries=len(profile), queries=queries
+        )
 
     def convert_stack(self, stack: list[_Frame]) -> None:
         for index, frame in enumerate(stack):
@@ -205,66 +214,75 @@ class Speedscope:
         entry_end = previous_end = None
         if not entries:
             return []
-        events: list[dict] = []
-        current_stack_ids: list[int] = []
-        frames_start = entries[0]["start"]
+        with _debug.perf(
+            "speedscope.process",
+            entries=len(entries),
+            continuous=continuous,
+            hide_gaps=hide_gaps,
+            constant_time=constant_time,
+            aggregate_sql=aggregate_sql,
+        ) as span:
+            events: list[dict] = []
+            current_stack_ids: list[int] = []
+            frames_start = entries[0]["start"]
 
-        last_entry = entries[-1]
-        if last_entry["stack"]:
-            entries.append(
-                {
-                    "stack": [],
-                    "start": last_entry["start"] + last_entry.get("time", 0),
-                }
-            )
+            last_entry = entries[-1]
+            if last_entry["stack"]:
+                entries.append(
+                    {
+                        "stack": [],
+                        "start": last_entry["start"] + last_entry.get("time", 0),
+                    }
+                )
 
-        for index, entry in enumerate(entries):
-            if constant_time:
-                entry_start = close_time = index
-            else:
-                previous_end = entry_end
-                if hide_gaps and previous_end:
-                    entry_start = previous_end
+            for index, entry in enumerate(entries):
+                if constant_time:
+                    entry_start = close_time = index
                 else:
-                    entry_start = entry["start"] - frames_start
+                    previous_end = entry_end
+                    if hide_gaps and previous_end:
+                        entry_start = previous_end
+                    else:
+                        entry_start = entry["start"] - frames_start
 
-                if previous_end and previous_end > entry_start:
-                    continue
+                    if previous_end and previous_end > entry_start:
+                        continue
 
-                if previous_end:
-                    close_time = min(entry_start, previous_end)
-                else:
-                    close_time = entry_start
+                    if previous_end:
+                        close_time = min(entry_start, previous_end)
+                    else:
+                        close_time = entry_start
 
-                entry_time = entry.get("time")
-                entry_end = None if entry_time is None else entry_start + entry_time
+                    entry_time = entry.get("time")
+                    entry_end = None if entry_time is None else entry_start + entry_time
 
-            entry_stack_ids = self.stack_to_ids(
-                entry["stack"] or [],
-                use_context and entry.get("exec_context"),
-                aggregate_sql,
-                self.init_stack_trace_level,
-            )
-            level = 0
-            if continuous:
-                level = -1
-                for current, new in zip(
-                    current_stack_ids, entry_stack_ids, strict=False
-                ):
-                    level += 1
-                    if current != new:
-                        break
-                else:
-                    level += 1
+                entry_stack_ids = self.stack_to_ids(
+                    entry["stack"] or [],
+                    use_context and entry.get("exec_context"),
+                    aggregate_sql,
+                    self.init_stack_trace_level,
+                )
+                level = 0
+                if continuous:
+                    level = -1
+                    for current, new in zip(
+                        current_stack_ids, entry_stack_ids, strict=False
+                    ):
+                        level += 1
+                        if current != new:
+                            break
+                    else:
+                        level += 1
 
-            events.extend(
-                {"type": "C", "frame": frame, "at": close_time}
-                for frame in reversed(current_stack_ids[level:])
-            )
-            events.extend(
-                {"type": "O", "frame": frame, "at": entry_start}
-                for frame in entry_stack_ids[level:]
-            )
-            current_stack_ids = entry_stack_ids
+                events.extend(
+                    {"type": "C", "frame": frame, "at": close_time}
+                    for frame in reversed(current_stack_ids[level:])
+                )
+                events.extend(
+                    {"type": "O", "frame": frame, "at": entry_start}
+                    for frame in entry_stack_ids[level:]
+                )
+                current_stack_ids = entry_stack_ids
 
-        return events
+            span.set(events=len(events))
+            return events

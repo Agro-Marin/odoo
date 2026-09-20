@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountTax(models.Model):
     _name = "account.tax"
@@ -18,6 +20,11 @@ class AccountTax(models.Model):
             "is_base_affected",
         }
         if forbidden_fields & set(vals.keys()) and self.ids:
+            dbg.logic.debug(
+                "account.tax.write %s touches %s: checking open pos sessions",
+                dbg.rec(self),
+                sorted(forbidden_fields & set(vals)),
+            )
             self.env["pos.order.line"].flush_model(["tax_ids"])
             self.env.cr.execute(
                 """
@@ -56,6 +63,11 @@ class AccountTax(models.Model):
                 [list(remaining_ids)],
             )
             used_taxes.update(tax[0] for tax in self.env.cr.fetchall())
+            dbg.logic.debug(
+                "account.tax used check: %d unresolved by account, %d used by pos lines",
+                len(remaining_ids),
+                len(used_taxes),
+            )
         return used_taxes
 
     @api.model

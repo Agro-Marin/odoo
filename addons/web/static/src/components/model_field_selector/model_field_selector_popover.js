@@ -2,6 +2,8 @@
 /** @odoo-module native */
 
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
@@ -9,6 +11,9 @@ import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("web.components.model_field_selector");
+
 class Page {
     /**
      * @param {string} resModel
@@ -146,6 +151,7 @@ export class ModelFieldSelectorPopover extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.fieldService = useService("field");
         this.state = useState({ page: null });
         this.keepLast = new KeepLast({ rejectSuperseded: true });
@@ -374,6 +380,7 @@ export class ModelFieldSelectorPopover extends Component {
 
     /** @param {Page} page */
     openPage(page) {
+        log.logic("openPage", () => ({ resModel: page.resModel, path: page.path }));
         this.dropPendingSearch();
         this.state.page = page;
         this.state.page.searchFields();
@@ -388,6 +395,7 @@ export class ModelFieldSelectorPopover extends Component {
 
     /** @param {Object} field */
     selectField(field) {
+        log.logic("selectField", () => ({ name: field.name, type: field.type }));
         if (field.type === "properties") {
             return this.followRelation(field);
         }

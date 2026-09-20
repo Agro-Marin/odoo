@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="website_livechat_visitor_menu"
+        name="Visitors"
+        parent="im_livechat.menu_livechat_root"
+        action="website.website_visitors_action"
+        sequence="15"
+        groups="im_livechat.im_livechat_group_user" />
+
+</odoo>

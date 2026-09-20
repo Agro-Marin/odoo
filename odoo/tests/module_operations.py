@@ -12,6 +12,7 @@ from unittest import SkipTest
 
 import odoo.tests.loader
 from odoo import api
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import init_logger
 from odoo.modules.registry import Registry
@@ -20,6 +21,7 @@ from odoo.tests import standalone_tests
 from odoo.tools import config, profiler, topological_sort, unique
 
 _logger = logging.getLogger("odoo.tests.module_operations")
+_debug = DebugLog(__name__)
 
 BLACKLIST = {
     "auth_ldap",
@@ -29,7 +31,10 @@ IGNORE = ("hw_", "theme_", "l10n_", "test_")
 
 
 def install(db_name: str, module_id: int, module_name: str) -> None:
-    with Registry(db_name).cursor() as cr:
+    with (
+        Registry(db_name).cursor() as cr,
+        _debug.perf("test.modules.install", cr=cr, module=module_name, db=db_name),
+    ):
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
         module.button_immediate_install()
@@ -37,7 +42,10 @@ def install(db_name: str, module_id: int, module_name: str) -> None:
 
 
 def uninstall(db_name: str, module_id: int, module_name: str) -> None:
-    with Registry(db_name).cursor() as cr:
+    with (
+        Registry(db_name).cursor() as cr,
+        _debug.perf("test.modules.uninstall", cr=cr, module=module_name, db=db_name),
+    ):
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
         module.button_immediate_uninstall()
@@ -45,8 +53,11 @@ def uninstall(db_name: str, module_id: int, module_name: str) -> None:
 
 
 def cycle(db_name: str, module_id: int, module_name: str) -> None:
+    _debug.pipeline("test.modules.cycle", module=module_name, stage="install")
     install(db_name, module_id, module_name)
+    _debug.pipeline("test.modules.cycle", module=module_name, stage="uninstall")
     uninstall(db_name, module_id, module_name)
+    _debug.pipeline("test.modules.cycle", module=module_name, stage="reinstall")
     install(db_name, module_id, module_name)
 
 
@@ -196,6 +207,7 @@ def test_cycle(args: argparse.Namespace) -> None:
 
     resume = args.resume_at
     if resume and resume not in {name for _, name in modules_todo}:
+        _debug.logic("test.modules.resume_unknown", module=resume)
         _logger.error(
             "unknown --resume-at module: %s; known modules: %s",
             resume,
@@ -203,13 +215,29 @@ def test_cycle(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
     skip = set(args.skip.split(",")) if args.skip else set()
+    _debug.pipeline(
+        "test.modules.cycle_plan",
+        db=args.database,
+        modules=len(modules_todo),
+        skip=len(skip),
+        resume=resume,
+    )
     for module_id, module_name in modules_todo:
         if module_name == resume:
             resume = None
 
         if resume or module_name in skip:
+            _debug.logic(
+                "test.modules.cycle_decision",
+                module=module_name,
+                action="install",
+                reason="resume" if resume else "skip",
+            )
             install(args.database, module_id, module_name)
         else:
+            _debug.logic(
+                "test.modules.cycle_decision", module=module_name, action="cycle"
+            )
             cycle(args.database, module_id, module_name)
 
 
@@ -220,6 +248,12 @@ def test_uninstall(args: argparse.Namespace) -> None:
             module = env["ir.module.module"].search([("name", "=", module_name)])
             module_id, module_state = module.id, module.state
 
+        _debug.logic(
+            "test.modules.uninstall_state",
+            module=module_name,
+            state=module_state or None,
+            reinstall=args.reinstall,
+        )
         if module_state == "installed":
             uninstall(args.database, module_id, module_name)
             if args.reinstall:
@@ -236,7 +270,15 @@ def test_standalone(args: argparse.Namespace) -> None:
         odoo.tests.loader.get_test_modules(module_name)
 
     requested = [tag.strip() for tag in args.standalone.split(",") if tag.strip()]
+    _debug.pipeline(
+        "test.modules.standalone_plan",
+        db=args.database,
+        loaded_modules=len(registry.loaded_modules),
+        requested=requested,
+        registered=len(standalone_tests["all"]),
+    )
     if unknown := [tag for tag in requested if tag not in standalone_tests]:
+        _debug.logic("test.modules.standalone_unknown", unknown=unknown)
         _logger.error(
             "unknown standalone tag(s): %s; registered: %s",
             ", ".join(sorted(unknown)),
@@ -257,7 +299,12 @@ def test_standalone(args: argparse.Namespace) -> None:
             len(funcs),
         )
         try:
-            with Registry(args.database).cursor() as cr:
+            with (
+                _debug.perf(
+                    "test.modules.standalone", func=func.__qualname__, index=index
+                ),
+                Registry(args.database).cursor() as cr,
+            ):
                 env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
                 func(env)
         except SkipTest as exc:
@@ -328,6 +375,14 @@ if __name__ == "__main__":
         }
     )
 
+    _debug.lifecycle(
+        "test.modules.main",
+        command=args.func.__name__,
+        db=args.database,
+        addons_path=bool(args.addons_path),
+        data_dir=bool(args.data_dir),
+        profile=bool(os.environ.get("ODOO_PROFILE_PRELOAD")),
+    )
     prof: contextlib.AbstractContextManager = contextlib.nullcontext()
     if os.environ.get("ODOO_PROFILE_PRELOAD"):
         interval = float(os.environ.get("ODOO_PROFILE_PRELOAD_INTERVAL", "0.1"))

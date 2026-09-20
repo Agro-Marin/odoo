@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { Component, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.fullscreen");
 const DEFAULT_ID = Symbol("default");
 
 export class MailFullscreen extends Component {
@@ -30,6 +33,9 @@ export class MailFullscreenService {
                 document.webkitFullscreenElement || document.fullscreenElement,
             );
             if (!isFullscreen) {
+                log.lifecycle("fullscreenchange exits", () => ({
+                    id: String(this.id),
+                }));
                 this.exit();
             }
         });
@@ -48,6 +54,12 @@ export class MailFullscreenService {
         component,
         { keepBrowserHeader = false, props, rootId, id = DEFAULT_ID } = {},
     ) {
+        log.lifecycle("enter", () => ({
+            id: String(id),
+            component: component?.name,
+            keepBrowserHeader,
+            replaced: Boolean(this.closeOverlay),
+        }));
         this.closeOverlay?.();
         this.id = id;
         this.closeOverlay = this.env.services.overlay.add(
@@ -75,6 +87,7 @@ export class MailFullscreenService {
         if (!id || id !== this.id) {
             return;
         }
+        log.lifecycle("exit", () => ({ id: String(id) }));
         this.closeOverlay?.();
         this.id = undefined;
         this.closeOverlay = undefined;

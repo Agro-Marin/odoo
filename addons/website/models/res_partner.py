@@ -1,19 +1,27 @@
 from urllib.parse import urlencode
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartner(models.Model):
     _name = "res.partner"
     _inherit = ["res.partner", "mixin.website.published.multi"]
 
-    visitor_ids = fields.One2many("website.visitor", "partner_id", string="Visitors")
+    visitor_ids = fields.One2many(
+        comodel_name="website.visitor",
+        inverse_name="partner_id",
+        string="Visitors",
+    )
 
     def google_map_img(self, zoom=8, width=298, height=298):
         google_maps_api_key = (
             self.env["website"].get_current_website().google_maps_api_key
         )
         if not google_maps_api_key:
+            _debug.logic("google_map_unavailable", reason="no_api_key")
             return False
         params = {
             "center": "%s, %s %s, %s"

@@ -4,7 +4,7 @@
 import { Component, useState, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 export class FieldWidgetsDialog extends Component {
     static components = { Dialog };

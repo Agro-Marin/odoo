@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class StockLot(models.Model):
@@ -12,10 +12,11 @@ class StockLot(models.Model):
         compute="_compute_purchase_order_ids",
     )
     purchase_order_count = fields.Count(
-        "purchase_order_ids",
+        count_of="purchase_order_ids",
         string="Purchase order count",
     )
 
+    @api.depends("quant_ids")
     def _compute_purchase_order_ids(self):
         purchase_orders = defaultdict(lambda: self.env["purchase.order"])
         for move_line in self.env["stock.move.line"].search(

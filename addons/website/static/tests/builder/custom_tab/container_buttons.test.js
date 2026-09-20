@@ -122,7 +122,6 @@ test("Use the sidebar 'save snippet' buttons", async () => {
 
     onRpc("ir.ui.view", "save_snippet", ({ kwargs }) => {
         let { name, arch, snippet_key, thumbnail_url } = kwargs;
-        // Add `data-snippet` if it is missing.
         if (!arch.includes("data-snippet")) {
             const spaceIndex = arch.indexOf(" ") + 1;
             arch =
@@ -143,7 +142,6 @@ test("Use the sidebar 'save snippet' buttons", async () => {
     const saveButtonSelector =
         ".o_customize_tab .options-container > div:contains('Button') button.oe_snippet_save";
 
-    // Check that there is no custom section.
     const customGroupSelector =
         ".o-snippets-menu #snippet_groups .o_snippet[data-snippet-group='custom'] .o_snippet_thumbnail_area";
     expect(".o-snippets-menu div:contains('Custom Inner Content')").toHaveCount(0);
@@ -155,7 +153,6 @@ test("Use the sidebar 'save snippet' buttons", async () => {
     expect(saveColumnSelector).toHaveCount(0);
     expect(saveButtonSelector).toHaveCount(1);
 
-    // Save the snippets.
     await contains(saveButtonSelector).click();
     await contains(".o_dialog .btn:contains('Save')").click();
     expect(".o_notification_manager .o_notification_content").toHaveCount(1);
@@ -165,7 +162,6 @@ test("Use the sidebar 'save snippet' buttons", async () => {
     await contains(".o_dialog .btn:contains('Save')").click();
     expect(".o_notification_manager .o_notification_content").toHaveCount(1);
 
-    // Check that the custom sections appeared.
     await contains(
         ".o-website-builder_sidebar .o-snippets-tabs button:contains(Blocks)",
     ).click();
@@ -201,7 +197,6 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     const notificationEditSelector =
         ".o_notification_manager .o_notification_buttons button";
 
-    // Section with title should have the title as anchor.
     await contains(":iframe section.first").click();
     await animationFrame();
     expect(anchorSelector).toHaveCount(1);
@@ -212,7 +207,6 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     expect(":iframe section.first").toHaveAttribute("id", "Anchor-test");
     expect(":iframe section.first").toHaveAttribute("data-anchor", "true");
 
-    // Section without title should have the `data-name` as anchor.
     await contains(":iframe section.second").click();
     await animationFrame();
     await contains(anchorSelector).click();
@@ -221,14 +215,12 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     await contains(notificationCloseSelector).click();
     expect(":iframe section.second").toHaveAttribute("id", "Dummy-Section");
 
-    // Same data-name should be suffixed by a number.
     await contains(":iframe section.third").click();
     await animationFrame();
     await contains(anchorSelector).click();
     expect(queryText(notificationContentSelector)).toInclude("#Dummy-Section2");
     expect(":iframe section.third").toHaveAttribute("id", "Dummy-Section2");
 
-    // Edit anchor.
     await contains(notificationEditSelector).click();
     expect(".o_dialog").toHaveCount(1);
     await contains(".o_dialog input").edit("Dummy-Section");
@@ -239,7 +231,6 @@ test("Use the sidebar 'create anchor' buttons", async () => {
     expect(".o_dialog").toHaveCount(0);
     expect(":iframe section.third").toHaveAttribute("id", "new-anchor-name");
 
-    // Delete anchor
     await contains(anchorSelector).click();
     await contains(notificationEditSelector).click();
     await contains(".o_dialog button:contains('Remove')").click();

@@ -1,6 +1,8 @@
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, cast
 
+from odoo.libs.debug_log import DebugLog
+
 from ._protocols import FieldKey
 from .cache import _MISSING, FieldCache
 from .compute import ComputeEngine
@@ -8,6 +10,8 @@ from .recompute import RecomputeScheduler
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Mapping
+
+_debug = DebugLog(__name__)
 
 
 class OrmCore[F: FieldKey = FieldKey]:
@@ -100,9 +104,21 @@ class OrmCore[F: FieldKey = FieldKey]:
             if not dirty_ids:
                 continue
             if ids is None:
+                _debug.logic(
+                    "core.pending_write_found",
+                    field=str(field),
+                    dirty=len(dirty_ids),
+                    scoped=False,
+                )
                 return field, sorted(dirty_ids)
             overlap = sorted(dirty_ids.intersection(ids))
             if overlap:
+                _debug.logic(
+                    "core.pending_write_found",
+                    field=str(field),
+                    dirty=len(overlap),
+                    scoped=True,
+                )
                 return field, overlap
         return None
 

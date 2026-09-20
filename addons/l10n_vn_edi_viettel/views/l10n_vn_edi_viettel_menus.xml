@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="l10n_vn_edi_sinvoice_menu"
+        name="SInvoice"
+        parent="account.menu_finance_configuration"
+        sequence="99"
+        groups="account.group_account_manager">
+        <menuitem
+            id="l10n_vn_edi_sinvoice_templates"
+            action="action_sinvoice_template" />
+        <menuitem id="l10n_vn_edi_sinvoice_symbols" action="action_sinvoice_symbol" />
+    </menuitem>
+
+</odoo>

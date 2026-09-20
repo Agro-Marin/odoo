@@ -4,7 +4,10 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _, clean_context
+
+_debug = DebugLog(__name__)
 
 
 def sanitize_account_number(acc_number: str | bool) -> str | bool:
@@ -25,23 +28,26 @@ class ResBank(models.Model):
     zip = fields.Char()
     city = fields.Char()
     state = fields.Many2one(
-        "res.country.state",
-        "Fed. State",
+        comodel_name="res.country.state",
+        string="Fed. State",
         domain="[('country_id', '=?', country)]",
     )
-    country = fields.Many2one("res.country")
-    country_code = fields.Char(related="country.code", string="Country Code")
+    country = fields.Many2one(comodel_name="res.country")
+    country_code = fields.Char(
+        related="country.code",
+        string="Country Code",
+    )
     email = fields.Char()
     phone_ids = fields.Many2many(
-        "phone.number",
-        "res_bank_phone_number_rel",
-        "bank_id",
-        "phone_number_id",
+        comodel_name="phone.number",
+        relation="res_bank_phone_number_rel",
+        column1="bank_id",
+        column2="phone_number_id",
         string="Phone Numbers",
     )
     active = fields.Boolean(default=True)
     bic = fields.Char(
-        "Bank Identifier Code",
+        string="Bank Identifier Code",
         index=True,
         help="Sometimes called BIC or Swift.",
     )
@@ -62,24 +68,32 @@ class ResBank(models.Model):
             ]
             if operator == "not ilike":
                 domain = ["!", *domain]
+            _debug.logic("bank_name_search", operator=operator, by="bic_or_name")
             return domain
         return super()._search_display_name(operator, value)
 
-    def _sanitize_vals(self, vals: ValuesType) -> ValuesType:
+    def _normalize_vals(self, vals: ValuesType) -> ValuesType:
         if bic := vals.get("bic"):
-            vals["bic"] = bic.upper()
+            return {**vals, "bic": bic.upper()}
         return vals
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        return super().create([self._sanitize_vals(vals) for vals in vals_list])
+        _debug.lifecycle("bank_create", count=len(vals_list))
+        return super().create([self._normalize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
-        return super().write(self._sanitize_vals(vals))
+        _debug.lifecycle("bank_write", count=len(self), fields=list(vals))
+        return super().write(self._normalize_vals(vals))
 
     @api.onchange("country")
     def _onchange_country(self) -> None:
         if self.country and self.country != self.state.country_id:
+            _debug.logic(
+                "state_cleared_on_country_change",
+                country=self.country.id,
+                state=self.state.id,
+            )
             self.state = False
 
     @api.onchange("state")
@@ -102,60 +116,72 @@ class ResPartnerBank(models.Model):
     active = fields.Boolean(default=True)
     acc_type = fields.Selection(
         selection=lambda x: x.env["res.partner.bank"]._get_account_types_supported(),
-        compute="_compute_acc_type",
         string="Type",
+        compute="_compute_acc_type",
         help="Bank account type: Normal or IBAN. Inferred from the bank account number.",
     )
     acc_number = fields.Char(
-        "Account Number", required=True, search="_search_acc_number"
+        string="Account Number",
+        search="_search_acc_number",
+        required=True,
     )
-    clearing_number = fields.Char("Clearing Number")
+    clearing_number = fields.Char()
     sanitized_acc_number = fields.Char(
-        compute="_compute_sanitized_acc_number",
         string="Sanitized Account Number",
-        readonly=True,
+        compute="_compute_sanitized_acc_number",
         store=True,
+        readonly=True,
     )
     acc_holder_name = fields.Char(
         string="Account Holder Name",
-        help="Account holder name, in case it is different than the name of the Account Holder",
         compute="_compute_acc_holder_name",
-        readonly=False,
         store=True,
+        readonly=False,
+        help="Account holder name, in case it is different than the name of the Account Holder",
     )
     partner_id = fields.Many2one(
-        "res.partner",
-        "Account Holder",
-        ondelete="cascade",
+        comodel_name="res.partner",
+        string="Account Holder",
         index=True,
-        domain=["|", ("is_company", "=", True), ("parent_id", "=", False)],
         required=True,
+        domain=["|", ("is_company", "=", True), ("parent_id", "=", False)],
+        ondelete="cascade",
     )
     allow_out_payment = fields.Boolean(
-        "Send Money",
-        help="This account can be used for outgoing payments",
+        string="Send Money",
         default=False,
         copy=False,
         readonly=False,
+        help="This account can be used for outgoing payments",
     )
-    bank_id = fields.Many2one("res.bank", string="Bank")
-    bank_name = fields.Char(related="bank_id.name", readonly=False)
-    bank_bic = fields.Char(related="bank_id.bic", readonly=False)
+    bank_id = fields.Many2one(comodel_name="res.bank")
+    bank_name = fields.Char(
+        related="bank_id.name",
+        readonly=False,
+    )
+    bank_bic = fields.Char(
+        related="bank_id.bic",
+        readonly=False,
+    )
     sequence = fields.Integer(default=10)
-    currency_id = fields.Many2one("res.currency", string="Currency")
-    company_id = fields.Many2one(
-        "res.company",
-        "Company",
+    currency_id = fields.Many2one(comodel_name="res.currency")
+    company_id = fields.Many2one(  # noqa: E8529  UNIQUE (sanitized_acc_number, company_id) partial
+        comodel_name="res.company",
         related="partner_id.company_id",
+        string="Company",
         store=True,
         readonly=True,
     )
-    country_code = fields.Char(related="partner_id.country_code", string="Country Code")
-    note = fields.Text("Notes")
+    country_code = fields.Char(
+        related="partner_id.country_code",
+        string="Country Code",
+    )
+    note = fields.Text(string="Notes")
     color = fields.Integer(compute="_compute_color")
 
-    _unique_number = models.Constraint(
-        "unique(sanitized_acc_number, company_id)",
+    _unique_number = models.UniqueIndex(
+        "(sanitized_acc_number, company_id) "
+        "WHERE sanitized_acc_number IS NOT NULL AND company_id IS NOT NULL",
         "An account number names one account, so a company records it once. "
         "This number is already held by another contact in the same company.",
     )
@@ -170,6 +196,11 @@ class ResPartnerBank(models.Model):
             value = [sanitize_account_number(i) for i in value]
         else:
             value = sanitize_account_number(value)
+        _debug.logic(
+            "acc_number_search",
+            operator=operator,
+            values=len(value) if isinstance(value, list) else 1,
+        )
         return [("sanitized_acc_number", operator, value)]
 
     def _can_user_trust(self):
@@ -197,19 +228,32 @@ class ResPartnerBank(models.Model):
                 ]
             )
         )
+        _debug.logic(
+            "bank_account_lookup",
+            partner=partner.id,
+            found=len(bank_account),
+            active=len(bank_account.filtered("active")),
+        )
         if (
             revive_archived_match
             and bank_account
             and not bank_account.filtered("active")
         ):
-            bank_account.filtered(lambda b: b.partner_id == partner).sudo(
-                False
-            ).action_unarchive()
+            revived = bank_account.filtered(lambda b: b.partner_id == partner)
+            _debug.lifecycle(
+                "bank_account_revived", partner=partner.id, accounts=revived.ids
+            )
+            revived.sudo(False).action_unarchive()
         if not bank_account:
             if (
                 not allow_company_account_creation
                 and partner.id in self.env["res.company"]._get_company_partner_ids()
             ):
+                _debug.logic(
+                    "bank_account_creation_refused",
+                    partner=partner.id,
+                    reason="company_partner",
+                )
                 raise UserError(
                     _(
                         "Please add your own bank account manually: %(account_number)s (%(partner)s)",
@@ -229,16 +273,23 @@ class ResPartnerBank(models.Model):
                     }
                 )
             )
-        return (
-            bank_account.filtered_domain(
-                [
-                    *self.env["res.partner.bank"]._check_company_domain(company),
-                    ("active", "=", True),
-                ]
+            _debug.lifecycle(
+                "bank_account_created", partner=partner.id, account=bank_account.id
             )
-            .sorted(lambda b: b.partner_id != partner)
-            .sudo(False)[:1]
+        usable = bank_account.filtered_domain(
+            [
+                *self.env["res.partner.bank"]._check_company_domain(company),
+                ("active", "=", True),
+            ]
         )
+        _debug.logic(
+            "bank_account_resolved",
+            partner=partner.id,
+            company=company.id if company else False,
+            candidates=len(bank_account),
+            usable=len(usable),
+        )
+        return usable.sorted(lambda b: b.partner_id != partner).sudo(False)[:1]
 
     @api.depends("acc_number")
     def _compute_acc_type(self) -> None:
@@ -267,25 +318,38 @@ class ResPartnerBank(models.Model):
         for bank in self:
             bank.color = 10 if bank.allow_out_payment else 1
 
-    def _sanitize_vals(self, vals: ValuesType) -> ValuesType:
+    def _normalize_vals(self, vals: ValuesType) -> ValuesType:
         if "acc_number" not in vals and "sanitized_acc_number" in vals:
+            _debug.logic("acc_number_taken_from_sanitized")
+            vals = dict(vals)
             vals["acc_number"] = vals.pop("sanitized_acc_number")
         if "acc_number" in vals:
-            vals["sanitized_acc_number"] = sanitize_account_number(vals["acc_number"])
+            vals = {
+                **vals,
+                "sanitized_acc_number": sanitize_account_number(vals["acc_number"]),
+            }
         return vals
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        return super().create([self._sanitize_vals(vals) for vals in vals_list])
+        _debug.lifecycle(
+            "bank_account_create",
+            count=len(vals_list),
+            partners=sorted({vals.get("partner_id") or 0 for vals in vals_list}),
+        )
+        return super().create([self._normalize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
-        return super().write(self._sanitize_vals(vals))
+        _debug.lifecycle("bank_account_write", count=len(self), fields=list(vals))
+        return super().write(self._normalize_vals(vals))
 
     def action_archive_bank(self) -> dict[str, str]:
         self.check_singleton()
+        _debug.lifecycle("bank_account_archived", account=self.id, by="action")
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def unlink(self) -> bool:
+        _debug.lifecycle("bank_account_archived", accounts=self.ids, by="unlink")
         self.action_archive()
         return True

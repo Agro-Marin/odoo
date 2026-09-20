@@ -11,9 +11,9 @@
                 <xpath expr="//field[@name='tz']" position="after">
                     <field
                         name="calendar_default_privacy"
-                        readonly="0"
                         string="Privacy"
-                        invisible="share" />
+                        invisible="share"
+                        readonly="0" />
                 </xpath>
             </field>
         </record>
@@ -31,9 +31,9 @@
                         editable only to fail silently looking on save. -->
                     <field
                         name="calendar_default_privacy"
-                        readonly="id != uid"
                         string="Privacy"
-                        invisible="share" />
+                        invisible="share"
+                        readonly="id != uid" />
                 </xpath>
             </field>
         </record>

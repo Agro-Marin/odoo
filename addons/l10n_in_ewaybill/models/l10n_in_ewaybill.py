@@ -20,78 +20,93 @@ class L10nInEwaybill(models.Model):
     _check_company_auto = True
 
     # Ewaybill details generated from the API
-    name = fields.Char("e-Waybill Number", copy=False, readonly=True, tracking=True)
+    name = fields.Char(
+        string="e-Waybill Number",
+        copy=False,
+        readonly=True,
+        tracking=True,
+    )
     ewaybill_date = fields.Date(
-        "e-Waybill Date", copy=False, readonly=True, tracking=True
+        string="e-Waybill Date",
+        copy=False,
+        readonly=True,
+        tracking=True,
     )
     ewaybill_expiry_date = fields.Date(
-        "e-Waybill Valid Upto", copy=False, readonly=True, tracking=True
+        string="e-Waybill Valid Upto",
+        copy=False,
+        readonly=True,
+        tracking=True,
     )
 
     state = fields.Selection(
-        string="Status",
         selection=[
             ("pending", "Pending"),
             ("generated", "Generated"),
             ("cancel", "Cancelled"),
         ],
-        required=True,
-        readonly=True,
-        copy=False,
-        tracking=True,
+        string="Status",
         default="pending",
+        copy=False,
+        readonly=True,
+        required=True,
+        tracking=True,
     )
 
     # Account Move details
-    account_move_id = fields.Many2one("account.move", copy=False, readonly=True)
+    account_move_id = fields.Many2one(
+        comodel_name="account.move",
+        copy=False,
+        readonly=True,
+    )
 
     # Document details
-    document_date = fields.Datetime(
-        "Document Date", compute="_compute_ewaybill_document_details"
-    )
+    document_date = fields.Datetime(compute="_compute_ewaybill_document_details")
     document_number = fields.Char(
-        "Document", compute="_compute_ewaybill_document_details"
+        string="Document",
+        compute="_compute_ewaybill_document_details",
     )
     company_id = fields.Many2one(
-        "res.company", compute="_compute_ewaybill_company", store=True
+        comodel_name="res.company",
+        compute="_compute_ewaybill_company",
+        store=True,
     )
     company_currency_id = fields.Many2one(related="company_id.currency_id")
     supply_type = fields.Selection(
-        string="Supply Type",
         selection=[("O", "Outward"), ("I", "Inward")],
         compute="_compute_supply_type",
     )
     partner_bill_from_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Bill From",
         compute="_compute_document_partners_details",
-        check_company=True,
         store=True,
         readonly=False,
+        check_company=True,
     )
     partner_bill_to_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Bill To",
         compute="_compute_document_partners_details",
-        check_company=True,
         store=True,
         readonly=False,
+        check_company=True,
     )
     partner_ship_from_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Dispatch From",
         compute="_compute_document_partners_details",
-        check_company=True,
         store=True,
         readonly=False,
+        check_company=True,
     )
     partner_ship_to_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Ship To",
         compute="_compute_document_partners_details",
-        check_company=True,
         store=True,
         readonly=False,
+        check_company=True,
     )
 
     # Fields to determine which partner details are editable
@@ -101,56 +116,71 @@ class L10nInEwaybill(models.Model):
     is_ship_from_editable = fields.Boolean(compute="_compute_is_editable")
 
     # E-waybill Document Type
-    type_id = fields.Many2one("l10n.in.ewaybill.type", "Document Type", tracking=True)
+    type_id = fields.Many2one(
+        comodel_name="l10n.in.ewaybill.type",
+        string="Document Type",
+        tracking=True,
+    )
     sub_type_code = fields.Char(related="type_id.sub_type_code")
 
     # Transportation details
-    distance = fields.Integer("Distance", tracking=True)
+    distance = fields.Integer(tracking=True)
     mode = fields.Selection(
-        [
+        selection=[
             ("1", "By Road"),
             ("2", "Rail"),
             ("3", "Air"),
             ("4", "Ship or Ship Cum Road/Rail"),
         ],
         string="Transportation Mode",
+        default="1",
         copy=False,
         tracking=True,
-        default="1",
     )
 
     # Vehicle Number and Type required when transportation mode is By Road.
-    vehicle_no = fields.Char("Vehicle Number", copy=False, tracking=True)
+    vehicle_no = fields.Char(
+        string="Vehicle Number",
+        copy=False,
+        tracking=True,
+    )
     vehicle_type = fields.Selection(
-        [("R", "Regular"), ("O", "Over Dimensional Cargo")],
-        string="Vehicle Type",
+        selection=[("R", "Regular"), ("O", "Over Dimensional Cargo")],
         compute="_compute_vehicle_type",
         store=True,
         copy=False,
-        tracking=True,
         readonly=False,
+        tracking=True,
     )
 
     # Document number and date required in case of transportation mode is Rail, Air or Ship.
     transportation_doc_no = fields.Char(
-        string="Transporter Doc No", copy=False, tracking=True
+        string="Transporter Doc No",
+        copy=False,
+        tracking=True,
     )
     transportation_doc_date = fields.Date(
-        string="Transporter Doc Date", copy=False, tracking=True
+        string="Transporter Doc Date",
+        copy=False,
+        tracking=True,
     )
 
     transporter_id = fields.Many2one(
-        "res.partner", "Transporter", copy=False, tracking=True
+        comodel_name="res.partner",
+        copy=False,
+        tracking=True,
     )
 
     error_message = fields.Html(readonly=True)
     blocking_level = fields.Selection(
-        [("warning", "Warning"), ("error", "Error")],
-        string="Blocking Level",
+        selection=[("warning", "Warning"), ("error", "Error")],
         readonly=True,
     )
 
-    content = fields.Binary(compute="_compute_content", compute_sudo=True)
+    content = fields.Binary(
+        compute="_compute_content",
+        compute_sudo=True,
+    )
     cancel_reason = fields.Selection(
         selection=[
             ("1", "Duplicate"),
@@ -162,17 +192,24 @@ class L10nInEwaybill(models.Model):
         copy=False,
         tracking=True,
     )
-    cancel_remarks = fields.Char("Cancel remarks", copy=False, tracking=True)
+    cancel_remarks = fields.Char(
+        string="Cancel remarks",
+        copy=False,
+        tracking=True,
+    )
 
     # Attachment
     attachment_id = fields.Many2one(
-        "ir.attachment",
+        comodel_name="ir.attachment",
         compute=lambda self: self._compute_linked_attachment_id(
             "attachment_id", "attachment_file"
         ),
         depends=["attachment_file"],
     )
-    attachment_file = fields.Binary(copy=False, attachment=True)
+    attachment_file = fields.Binary(
+        attachment=True,
+        copy=False,
+    )
 
     # ------------Generic compute methods to be overriden in l10n_in_ewaybill_stock module---------------
 
@@ -337,12 +374,13 @@ class L10nInEwaybill(models.Model):
             }
         )
 
-    def action_print(self):
-        self.check_singleton()
-        if self.state in ["pending", "cancel"]:
+    def _check_printable(self):
+        if self.filtered(lambda ewaybill: ewaybill.state in ["pending", "cancel"]):
             raise UserError(_("Please generate the E-Waybill to print it."))
 
-        return self._generate_and_attach_pdf(_("Ewaybill"))
+    def _get_print_label(self):
+        self.check_singleton()
+        return _("Ewaybill")
 
     @api.model
     def _get_default_help_message(self, status):
@@ -395,7 +433,7 @@ class L10nInEwaybill(models.Model):
             self.partner_ship_from_id,
         }
         for partner in partners:
-            error_message += self._l10n_in_validate_partner(partner)
+            error_message += self._l10n_in_get_partner_errors(partner)
         return error_message
 
     def _check_state(self):
@@ -414,7 +452,7 @@ class L10nInEwaybill(models.Model):
         return error_message
 
     @api.model
-    def _l10n_in_validate_partner(self, partner):
+    def _l10n_in_get_partner_errors(self, partner):
         """
         Validation method for Ewaybill (different from EDI)
         """
@@ -459,13 +497,13 @@ class L10nInEwaybill(models.Model):
                 )
             )
             return error_message
-        for line in invoice_lines:
-            if (
-                line.display_type == "product"
-                and not AccountMove._l10n_in_is_service_hsn(line.l10n_in_hsn_code)
-                and (hsn_error_message := line._l10n_in_check_invalid_hsn_code())
-            ):
-                error_message.append(hsn_error_message)
+        error_message.extend(
+            hsn_error_message
+            for line in invoice_lines
+            if line.display_type == "product"
+            and not AccountMove._l10n_in_is_service_hsn(line.l10n_in_hsn_code)
+            and (hsn_error_message := line._l10n_in_check_invalid_hsn_code())
+        )
         return error_message
 
     def _check_gst_treatment(self):
@@ -536,7 +574,7 @@ class L10nInEwaybill(models.Model):
 
     def _create_and_post_response_attachment(self, ewb_name, response, is_cancel=False):
         def _create_attachment_vals(name, raw_data, res_field=False):
-            vals = {
+            return {
                 "name": name,
                 "mimetype": "application/json",
                 "raw": json.dumps(raw_data, indent=4),
@@ -545,11 +583,10 @@ class L10nInEwaybill(models.Model):
                 "res_field": res_field,
                 "company_id": self.company_id.id,
             }
-            return vals
 
         attachment_vals_list = []
         request_json = (
-            self._get_cancellation_request_vals()
+            self._prepare_cancellation_payload()
             if is_cancel
             else self._ewaybill_generate_direct_json()
         )
@@ -574,16 +611,15 @@ class L10nInEwaybill(models.Model):
             ),
         )
 
-    def _get_cancellation_request_vals(self):
-        cancel_json_vals = {
+    def _prepare_cancellation_payload(self):
+        return {
             "ewbNo": int(self.name),
             "cancelRsnCode": int(self.cancel_reason),
             "cancelRmrk": self.cancel_remarks,
         }
-        return cancel_json_vals
 
     def _ewaybill_cancel(self):
-        cancel_json = self._get_cancellation_request_vals()
+        cancel_json = self._prepare_cancellation_payload()
         ewb_api = EWayBillApi(self.company_id)
         if self.error_message and self.blocking_level == "error":
             self.message_post(
@@ -603,6 +639,7 @@ class L10nInEwaybill(models.Model):
         )
         self._write_successfully_response({"state": "cancel"})
         self.env.cr.commit()
+        return None
 
     def _log_retry_message_on_generate(self):
         if self.error_message and self.blocking_level == "error":
@@ -640,6 +677,7 @@ class L10nInEwaybill(models.Model):
             }
         )
         self.env.cr.commit()
+        return None
 
     @api.model
     def _convert_str_datetime_to_date(self, str_datetime):
@@ -727,7 +765,7 @@ class L10nInEwaybill(models.Model):
                 for place, partner in partner_detail
             }
 
-        ewaybill_json = {
+        return {
             # document details
             "supplyType": self.supply_type,
             "subSupplyType": self.type_id.sub_type_code,
@@ -773,7 +811,6 @@ class L10nInEwaybill(models.Model):
             "actToStateCode": self._get_partner_state_code(self.partner_ship_to_id),
             "actFromStateCode": self._get_partner_state_code(self.partner_ship_from_id),
         }
-        return ewaybill_json
 
     def _prepare_ewaybill_transportation_json_payload(self):
         # only pass transporter details when value is exist
@@ -884,15 +921,14 @@ class L10nInEwaybill(models.Model):
                     "ewaybill_expiry_date": ewb_validity,
                 }
             )
+        return None
 
-    def _generate_and_attach_pdf(self, doc_label):
+    def _add_printed_pdf_attachment(self, pdf_content):
         self.check_singleton()
-        pdf_content = self.env["ir.actions.report"]._render_qweb_pdf(
-            "l10n_in_ewaybill.report_ewaybill", res_ids=[self.id]
-        )[0]
+        label = self._get_print_label()
         attachment = self.env["ir.attachment"].create(
             {
-                "name": f"{doc_label} - {self.document_number}.pdf",
+                "name": f"{label} - {self.document_number}.pdf",
                 "type": "binary",
                 "datas": base64.b64encode(pdf_content),
                 "res_model": "l10n.in.ewaybill",
@@ -901,12 +937,8 @@ class L10nInEwaybill(models.Model):
             }
         )
         self.message_post(
-            body=_("%s has been generated.", doc_label), attachment_ids=[attachment.id]
+            body=_("%s has been generated.", label), attachment_ids=[attachment.id]
         )
-        return {
-            "type": "ir.actions.act_url",
-            "url": f"/web/content/{attachment.id}?download=true",
-        }
 
     @api.ondelete(at_uninstall=False)
     def _unlink_l10n_in_ewaybill_prevent(self):

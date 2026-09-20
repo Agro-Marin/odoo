@@ -5,83 +5,91 @@ from lxml import etree
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import cleanup_xml_node
 from odoo.tools.xml_utils import get_xml_value
 
 from odoo.addons.account_edi_ubl_cii.models.account_edi_xml_ubl_20 import UBL_NAMESPACES
+
+_debug = DebugLog(__name__)
 
 
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
     l10n_tr_nilvera_dispatch_type = fields.Selection(
-        string="Dispatch Type",
-        help="Used to populate the type of dispatch.",
         selection=[
             ("SEVK", "Online"),
             ("MATBUDAN", "Pre-printed"),
         ],
+        string="Dispatch Type",
         default="SEVK",
-        tracking=True,
         copy=False,
+        tracking=True,
+        help="Used to populate the type of dispatch.",
     )
     l10n_tr_nilvera_carrier_id = fields.Many2one(
-        string="Carrier (TR)",
-        help="Used when the dispatch is made through a third-party carrier company. Populating this makes the Vehicle Plate and Drivers optional.",
         comodel_name="res.partner",
+        string="Carrier (TR)",
         copy=False,
+        help="Used when the dispatch is made through a third-party carrier company. Populating this makes the Vehicle Plate and Drivers optional.",
     )
     l10n_tr_nilvera_buyer_id = fields.Many2one(
-        string="Buyer",
-        help="Used for the original party who purchases the good when the Delivery Address is for another recipient",
         comodel_name="res.partner",
+        string="Buyer",
         copy=False,
+        help="Used for the original party who purchases the good when the Delivery Address is for another recipient",
     )
     l10n_tr_nilvera_seller_supplier_id = fields.Many2one(
-        string="Seller Supplier",
-        help="Used for the information of the supplier of the goods in the delivery note.",
         comodel_name="res.partner",
+        string="Seller Supplier",
         copy=False,
+        help="Used for the information of the supplier of the goods in the delivery note.",
     )
     l10n_tr_nilvera_buyer_originator_id = fields.Many2one(
-        string="Buyer Originator",
-        help="Used for the original initiator of the goods acquisition and requesting process.",
         comodel_name="res.partner",
+        string="Buyer Originator",
         copy=False,
+        help="Used for the original initiator of the goods acquisition and requesting process.",
     )
     l10n_tr_nilvera_delivery_printed_number = fields.Char(
-        string="Printed Delivery Note Number", copy=False
+        string="Printed Delivery Note Number",
+        copy=False,
     )
     l10n_tr_nilvera_delivery_date = fields.Date(
-        string="Printed Delivery Note Date", copy=False
+        string="Printed Delivery Note Date",
+        copy=False,
     )
     l10n_tr_vehicle_plate = fields.Many2one(
-        string="Vehicle Plate",
-        help="Used to input the plate number of the truck.",
         comodel_name="l10n_tr.nilvera.trailer.plate",
-        domain="[('plate_number_type', '=', 'vehicle')]",
+        string="Vehicle Plate",
         copy=False,
+        domain="[('plate_number_type', '=', 'vehicle')]",
+        help="Used to input the plate number of the truck.",
     )
     l10n_tr_nilvera_trailer_plate_ids = fields.Many2many(
-        string="Trailer Plates",
-        help="Used to input the plate numbers of the trailers attached to the truck.",
         comodel_name="l10n_tr.nilvera.trailer.plate",
-        domain="[('plate_number_type', '=', 'trailer')]",
         relation="l10n_tr_nilvera_delivery_vehicle_rel",
+        string="Trailer Plates",
         copy=False,
+        domain="[('plate_number_type', '=', 'trailer')]",
+        help="Used to input the plate numbers of the trailers attached to the truck.",
     )
     l10n_tr_nilvera_driver_ids = fields.Many2many(
-        string="Drivers",
-        help="Used for the individuals driving the truck.",
         comodel_name="res.partner",
+        string="Drivers",
+        copy=False,
+        help="Used for the individuals driving the truck.",
+    )
+    l10n_tr_nilvera_delivery_notes = fields.Char(
+        string="Delivery Notes",
         copy=False,
     )
-    l10n_tr_nilvera_delivery_notes = fields.Char(string="Delivery Notes", copy=False)
     l10n_tr_nilvera_dispatch_state = fields.Selection(
-        string="e-Dispatch State",
         selection=[("to_send", "To Send"), ("sent", "Sent")],
-        tracking=True,
+        string="e-Dispatch State",
         copy=False,
+        tracking=True,
     )
     l10n_tr_nilvera_edispatch_warnings = fields.Json(
         compute="_compute_edispatch_warnings"
@@ -100,6 +108,7 @@ class StockPicking(models.Model):
         "partner_id",
     )
     def _compute_edispatch_warnings(self):
+        _debug.perf.count("edispatch_warnings_compute", pickings=self)
         for picking in self:
             if (
                 picking.country_code == "TR"
@@ -107,12 +116,13 @@ class StockPicking(models.Model):
                 and picking.state in {"assigned", "done"}
             ):
                 picking.l10n_tr_nilvera_edispatch_warnings = (
-                    picking._l10n_tr_validate_edispatch_fields()
+                    picking._l10n_tr_get_edispatch_field_errors()
                 )
             else:
                 picking.l10n_tr_nilvera_edispatch_warnings = False
 
     def button_validate(self):
+        _debug.pipeline("edispatch_picking_validate", pickings=self)
         res = super().button_validate()
         for picking in self:
             if (
@@ -131,7 +141,8 @@ class StockPicking(models.Model):
                 )
         return res
 
-    def _l10n_tr_validate_edispatch_on_done(self):
+    def _l10n_tr_get_edispatch_errors_on_done(self):
+        _debug.logic("edispatch_validate_on_done", pickings=self)
         partners = (
             self.company_id.partner_id
             | self.partner_id
@@ -142,7 +153,7 @@ class StockPicking(models.Model):
             | self.l10n_tr_nilvera_buyer_originator_id
         )
 
-        error_messages = partners._l10n_tr_nilvera_validate_partner_details()
+        error_messages = partners._l10n_tr_nilvera_get_partner_detail_errors()
 
         if self.l10n_tr_nilvera_dispatch_type == "MATBUDAN":
             if not self.l10n_tr_nilvera_delivery_date:
@@ -219,7 +230,8 @@ class StockPicking(models.Model):
 
         return error_messages or False
 
-    def _l10n_tr_validate_edispatch_fields(self):
+    def _l10n_tr_get_edispatch_field_errors(self):
+        _debug.logic("edi_delivery_validate", regime="tr", pickings=self)
         self.check_singleton()
         if self.state not in {"assigned", "done"}:
             return {
@@ -238,9 +250,10 @@ class StockPicking(models.Model):
                 }
             }
         if self.state == "done":
-            return self._l10n_tr_validate_edispatch_on_done()
+            return self._l10n_tr_get_edispatch_errors_on_done()
 
     def _l10n_tr_generate_edispatch_xml(self):
+        _debug.pipeline("edi_delivery_send", regime="tr", pickings=self)
         dispatch_uuid = str(uuid.uuid4())
         drivers = []
         for driver in self.l10n_tr_nilvera_driver_ids:
@@ -302,10 +315,11 @@ class StockPicking(models.Model):
         )
 
     def action_generate_l10n_tr_edispatch_xml(self, is_list=False):
+        _debug.pipeline("edispatch_xml_action", pickings=self, is_list=is_list)
         errors = []
         for picking in self:
             if picking.country_code == "TR" and picking.picking_type_code == "outgoing":
-                if picking._l10n_tr_validate_edispatch_fields():
+                if picking._l10n_tr_get_edispatch_field_errors():
                     errors.append(picking.name)
                 else:
                     picking._l10n_tr_generate_edispatch_xml()
@@ -318,6 +332,7 @@ class StockPicking(models.Model):
             )
 
     def action_mark_l10n_tr_edispatch_status(self):
+        _debug.lifecycle("edi_delivery_status", regime="tr", pickings=self)
         self.filtered(
             lambda p: p.country_code == "TR" and p.picking_type_code == "outgoing"
         ).l10n_tr_nilvera_dispatch_state = "sent"

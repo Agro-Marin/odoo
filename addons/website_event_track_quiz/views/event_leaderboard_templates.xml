@@ -111,14 +111,11 @@
         </td>
     </template>
 
-    <!-- Sub nav -->
     <template id="leaderboard_search_bar" name="Leaderboard search bar">
         <div class="container">
             <div class="row align-items-center justify-content-between">
-                <!-- Desktop Mode -->
                 <div
                     class="col d-none d-md-flex flex-row align-items-center justify-content-end">
-                    <!-- search -->
                     <form
                         t-attf-action="#{'/event/%s/community/leaderboard/results' % (slug(event))}"
                         role="search"
@@ -141,7 +138,6 @@
                     </form>
                 </div>
 
-                <!-- Mobile Mode -->
                 <div
                     class="col d-md-none py-1 o_wprofile_user_profile_sub_nav_mobile_col">
                     <div

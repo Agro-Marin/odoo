@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 18:40+0000\n"
-"PO-Revision-Date: 2026-09-11 18:40+0000\n"
+"POT-Creation-Date: 2026-09-12 05:38+0000\n"
+"PO-Revision-Date: 2026-09-12 05:38+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -134,6 +134,12 @@ msgstr ""
 
 #. module: resource
 #. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "A recurrence cannot repeat more than %(maximum)s times."
+msgstr ""
+
+#. module: resource
+#. odoo-python
 #: code:addons/resource/models/resource_assignment.py:0
 msgid "A resource cannot be assigned to itself."
 msgstr ""
@@ -158,6 +164,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__day_period__afternoon
 msgid "Afternoon"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_occurrence__recurrence_update__all
+msgid "All of them"
 msgstr ""
 
 #. module: resource
@@ -288,6 +299,11 @@ msgid "Break"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__byday
+msgid "By day"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__two_weeks_calendar
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__two_weeks_calendar
 msgid "Calendar in 2 weeks mode"
@@ -336,15 +352,17 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__company_id
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__company_id
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_resource__company_id
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
 msgid "Company"
 msgstr ""
 
 #. module: resource
+#. odoo-javascript
+#: code:addons/resource/static/src/recurrence/ask_recurrence_update_dialog.xml:0
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 msgid "Confirm"
 msgstr ""
@@ -359,7 +377,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__create_uid
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_uid
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_resource__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_role__create_uid
@@ -370,7 +388,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__create_date
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_date
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_resource__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_role__create_date
@@ -388,7 +406,7 @@ msgid "Custodian"
 msgstr ""
 
 #. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 msgid "Date"
 msgstr ""
 
@@ -403,6 +421,16 @@ msgid "Date Start"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__month_by__date
+msgid "Date of month"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__day
+msgid "Day"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__day_period
 msgid "Day Period"
 msgstr ""
@@ -410,6 +438,19 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__dayofweek
 msgid "Day of Week"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__month_by__day
+msgid "Day of month"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_unit__day
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_unit__day
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_unit__day
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_unit__day
+msgid "Days"
 msgstr ""
 
 #. module: resource
@@ -450,6 +491,9 @@ msgid "Delete"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_occurrence__display_name
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__display_name
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rule__display_name
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__display_name
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__display_name
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__display_name
@@ -459,7 +503,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__display_name
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__display_name
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_resource__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_role__display_name
@@ -474,6 +518,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__driver
 msgid "Driver"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__dtstart
+msgid "Dtstart"
 msgstr ""
 
 #. module: resource
@@ -502,7 +551,7 @@ msgid "Email"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__date_to
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__date_to
 msgid "End Date"
 msgstr ""
 
@@ -528,6 +577,99 @@ msgid "Enforcement Mode"
 msgstr ""
 
 #. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months on the %(position)s %(weekday)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid ""
+"Every %(interval)s Months on the %(position)s %(weekday)s for %(count)s "
+"events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid ""
+"Every %(interval)s Months on the %(position)s %(weekday)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years until %(until)s"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__two_weeks_explanation
 msgid "Explanation"
 msgstr ""
@@ -540,6 +682,7 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__byday__1
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__week_type__0
 msgid "First"
 msgstr ""
@@ -562,6 +705,25 @@ msgid "Flexible Hours"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_type__forever
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_type__forever
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_type__forever
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_type__forever
+msgid "Forever"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__byday__4
+msgid "Fourth"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__fri
+msgid "Fri"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__fri
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__4
 msgid "Friday"
 msgstr ""
@@ -653,6 +815,9 @@ msgid "Human"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_occurrence__id
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__id
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rule__id
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__id
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__id
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__id
@@ -662,7 +827,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__id
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__id
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__id
 #: model:ir.model.fields,field_description:resource.field_resource_resource__id
 #: model:ir.model.fields,field_description:resource.field_resource_role__id
@@ -682,7 +847,7 @@ msgid ""
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,help:resource.field_resource_calendar_leaves__resource_id
+#: model:ir.model.fields,help:resource.field_resource_schedule_exception__resource_id
 msgid ""
 "If empty, this is a generic time off for the company. If a resource is set, "
 "the time off is only for this resource"
@@ -727,10 +892,15 @@ msgid "Is Full Time"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__byday__-1
+msgid "Last"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__write_uid
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_uid
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_resource__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_role__write_uid
@@ -741,7 +911,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__write_date
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_date
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_resource__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_role__write_date
@@ -768,6 +938,12 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__mon
+msgid "Mon"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__mon
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__0
 msgid "Monday"
 msgstr ""
@@ -791,6 +967,19 @@ msgid "Monday Morning"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__month_by
+msgid "Month By"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_unit__month
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_unit__month
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_unit__month
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_unit__month
+msgid "Months"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__day_period__morning
 msgid "Morning"
 msgstr ""
@@ -803,6 +992,7 @@ msgid "My Schedule"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__name
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__name
@@ -833,6 +1023,12 @@ msgid "Note"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__repeat_number
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_type__count
+msgid "Number of Repetitions"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_calendar__full_time_required_hours
 msgid ""
 "Number of hours to work on the company schedule to be considered as "
@@ -850,7 +1046,7 @@ msgid "Origin"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields.selection,name:resource.selection__resource_calendar_leaves__time_type__other
+#: model:ir.model.fields.selection,name:resource.selection__resource_schedule_exception__time_type__other
 msgid "Other"
 msgstr ""
 
@@ -886,7 +1082,7 @@ msgid "Percentage of the resource's work capacity allocated to this schedule."
 msgstr ""
 
 #. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 msgid "Period"
 msgstr ""
 
@@ -915,10 +1111,25 @@ msgid "Provided datetimes needs to be timezoned"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__name
-#: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_form
-#: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_tree
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__name
+#: model_terms:ir.ui.view,arch_db:resource.resource_schedule_exception_form
+#: model_terms:ir.ui.view,arch_db:resource.resource_schedule_exception_tree
 msgid "Reason"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_recurrence_occurrence
+msgid "Recurrence Occurrence Mixin"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_recurrence_rule
+msgid "Recurrence Rule Mixin"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_occurrence__recurrence_update
+msgid "Recurrence Update"
 msgstr ""
 
 #. module: resource
@@ -932,6 +1143,17 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,help:resource.field_resource_resource__user_id
 msgid "Related user name for the resource to manage its access."
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__repeat_interval
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rule__repeat_interval
+msgid "Repeat Every"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__repeat_until
+msgid "Repeat Until"
 msgstr ""
 
 #. module: resource
@@ -971,14 +1193,14 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_assignment__resource_id
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__resource_id
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__resource_id
 #: model:ir.ui.menu,name:resource.menu_resource_config
 #: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_resource_form
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 msgid "Resource"
 msgstr ""
 
@@ -1018,14 +1240,14 @@ msgid "Resource Scheduling Mixin"
 msgstr ""
 
 #. module: resource
-#: model:ir.actions.act_window,name:resource.action_resource_calendar_leave_tree
-#: model:ir.actions.act_window,name:resource.resource_calendar_leaves_action_from_calendar
-#: model:ir.ui.menu,name:resource.menu_view_resource_calendar_leaves_search
+#: model:ir.actions.act_window,name:resource.action_resource_schedule_exception_tree
+#: model:ir.actions.act_window,name:resource.resource_schedule_exception_action_from_calendar
+#: model:ir.ui.menu,name:resource.menu_view_resource_schedule_exception_search
 msgid "Resource Time Off"
 msgstr ""
 
 #. module: resource
-#: model:ir.model,name:resource.model_resource_calendar_leaves
+#: model:ir.model,name:resource.model_resource_schedule_exception
 msgid "Resource Time Off Detail"
 msgstr ""
 
@@ -1091,6 +1313,17 @@ msgid "Room Bookings"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__rrule
+msgid "Rrule"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__sat
+msgid "Sat"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__sat
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__5
 msgid "Saturday"
 msgstr ""
@@ -1129,7 +1362,7 @@ msgid "Search Resource"
 msgstr ""
 
 #. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 msgid "Search Working Period Time Off"
 msgstr ""
 
@@ -1139,6 +1372,7 @@ msgid "Search Working Time"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__byday__2
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__week_type__1
 msgid "Second"
 msgstr ""
@@ -1195,7 +1429,7 @@ msgid "Standard 40 hours/week"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__date_from
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__date_from
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 msgid "Start Date"
 msgstr ""
@@ -1208,7 +1442,7 @@ msgid ""
 msgstr ""
 
 #. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
+#: model_terms:ir.ui.view,arch_db:resource.view_resource_schedule_exception_search
 msgid "Starting Date of Time Off"
 msgstr ""
 
@@ -1218,6 +1452,12 @@ msgid "State"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__sun
+msgid "Sun"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__sun
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__6
 msgid "Sunday"
 msgstr ""
@@ -1280,10 +1520,33 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.constraint,message:resource.constraint_mixin_recurrence_rrule_month_day
+msgid "The day must be between 1 and 31"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_calendar__duration_based
 #: model:ir.model.fields,help:resource.field_resource_calendar_attendance__duration_based
 msgid ""
 "The hours will be centered around 12:00 to cover the duration for the day"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "The interval cannot be negative."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rule.py:0
+msgid "The interval should be greater than 0"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "The number of repetitions cannot be negative."
 msgstr ""
 
 #. module: resource
@@ -1299,8 +1562,18 @@ msgstr ""
 
 #. module: resource
 #. odoo-python
-#: code:addons/resource/models/resource_calendar_leaves.py:0
+#: code:addons/resource/models/resource_schedule_exception.py:0
 msgid "The start date of the time off must be earlier than the end date."
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__byday__3
+msgid "Third"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_occurrence__recurrence_update__subsequent
+msgid "This and the following ones"
 msgstr ""
 
 #. module: resource
@@ -1322,6 +1595,17 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_occurrence__recurrence_update__this
+msgid "This one"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__thu
+msgid "Thu"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__thu
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__3
 msgid "Thursday"
 msgstr ""
@@ -1346,18 +1630,18 @@ msgstr ""
 
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__leave_ids
-#: model:ir.model.fields.selection,name:resource.selection__resource_calendar_leaves__time_type__leave
+#: model:ir.model.fields.selection,name:resource.selection__resource_schedule_exception__time_type__leave
 msgid "Time Off"
 msgstr ""
 
 #. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_form
-#: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_tree
+#: model_terms:ir.ui.view,arch_db:resource.resource_schedule_exception_form
+#: model_terms:ir.ui.view,arch_db:resource.resource_schedule_exception_tree
 msgid "Time Off Detail"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__time_type
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__time_type
 msgid "Time Type"
 msgstr ""
 
@@ -1367,6 +1651,7 @@ msgid "Time efficiency must be strictly positive"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__event_tz
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__tz
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__tz
 #: model:ir.model.fields,field_description:resource.field_resource_resource__tz
@@ -1384,6 +1669,12 @@ msgid "Total"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__tue
+msgid "Tue"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__tue
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__1
 msgid "Tuesday"
 msgstr ""
@@ -1424,6 +1715,14 @@ msgid "Underbooked"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_type__until
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_type__until
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_type__until
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_type__until
+msgid "Until"
+msgstr ""
+
+#. module: resource
 #: model:ir.model,name:resource.model_res_users
 #: model:ir.model.fields,field_description:resource.field_resource_resource__user_id
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
@@ -1450,6 +1749,12 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__wed
+msgid "Wed"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__weekday__wed
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__dayofweek__2
 msgid "Wednesday"
 msgstr ""
@@ -1488,6 +1793,19 @@ msgid "Week Number"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_recurrence_rrule__weekday
+msgid "Weekday"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_unit__week
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_unit__week
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_unit__week
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_unit__week
+msgid "Weeks"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_assignment__resource_id
 msgid "What is held: a vehicle, a machine, a room, a device."
 msgstr ""
@@ -1500,7 +1818,7 @@ msgid ""
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,help:resource.field_resource_calendar_leaves__time_type
+#: model:ir.model.fields,help:resource.field_resource_schedule_exception__time_type
 msgid ""
 "Whether this should be computed as a time off or as work time (eg: "
 "formation)"
@@ -1583,7 +1901,7 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__resource_calendar_id
 #: model:ir.model.fields,field_description:resource.field_res_company__resource_calendar_ids
-#: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__calendar_id
+#: model:ir.model.fields,field_description:resource.field_resource_schedule_exception__calendar_id
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 msgid "Working Hours"
 msgstr ""
@@ -1635,14 +1953,33 @@ msgid "Working hours between start and end, respecting the resource calendar."
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__maintenance_request__repeat_unit__year
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rrule__repeat_unit__year
+#: model:ir.model.fields.selection,name:resource.selection__mixin_recurrence_rule__repeat_unit__year
+#: model:ir.model.fields.selection,name:resource.selection__project_task_recurrence__repeat_unit__year
+msgid "Years"
+msgstr ""
+
+#. module: resource
 #. odoo-python
 #: code:addons/resource/models/resource_calendar.py:0
 msgid "You can't delete section between weeks."
 msgstr ""
 
 #. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "You have to choose at least one day in the week"
+msgstr ""
+
+#. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.resource_role_view_list
 msgid "e.g. Developer"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_recurrence_rrule
+msgid "iCalendar Recurrence Rule Mixin"
 msgstr ""
 
 #. module: resource

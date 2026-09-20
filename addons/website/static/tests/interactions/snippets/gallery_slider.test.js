@@ -13,7 +13,6 @@ describe.current.tags("interaction_dev");
 
 const SLIDE_DURATION = 1000;
 
-// TODO Obtain rendering from `website.s_images_gallery` template ?
 const defaultGallery = `
     <div id="wrapwrap">
         <section class="s_image_gallery o_slideshow pt24 pb24 s_image_gallery_controllers_outside s_image_gallery_controllers_outside_arrows_right s_image_gallery_indicators_dots s_image_gallery_arrows_default" data-vcss="002" data-columns="3">
@@ -51,7 +50,6 @@ const defaultGallery = `
     </div>
 `;
 
-// TODO Obtain rendering from `website.gallery.s_image_gallery_mirror.lightbox` template ?
 const defaultLightbox = `
     <main class="modal-body o_slideshow bg-transparent">
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="position: absolute; right: 10px; top: 10px;">
@@ -99,7 +97,6 @@ const defaultLightbox = `
     </main>
 `;
 
-// TODO Obtain rendering from `website.gallery.slideshow` template.
 const defaultOldLightbox = `
     <main class="modal-body o_slideshow bg-transparent">
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="position: absolute; right: 10px; top: 10px;">
@@ -193,7 +190,6 @@ test("gallery_slider interaction on old lightbox", async () => {
     const interaction = core.interactions[0].interaction;
     await onceAllImagesLoaded(getFixture());
     await advanceTime(SLIDE_DURATION);
-    // Fix parameters that are based on sizes.
     interaction.page = 0;
     interaction.nbPages = 1;
     interaction.realNbPerPage = 20;

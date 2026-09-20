@@ -9,6 +9,7 @@ from markupsafe import Markup
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.models.discuss.discuss_channel_member import AVATAR_CARD_FIELDS
 from odoo.addons.mail.tools import discuss, jwt
@@ -21,6 +22,7 @@ if typing.TYPE_CHECKING:
     from .mail_guest import MailGuest
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class DiscussChannelRtcSession(models.Model):
@@ -30,30 +32,33 @@ class DiscussChannelRtcSession(models.Model):
     _rec_name = "channel_member_id"
 
     channel_member_id: DiscussChannelMember = fields.Many2one(
-        "discuss.channel.member",
+        comodel_name="discuss.channel.member",
         required=True,
         ondelete="cascade",
     )
-    channel_id: DiscussChannel = fields.Many2one(
-        "discuss.channel",
+    channel_id: DiscussChannel = fields.Many2one(  # noqa: E8529  One2many inverse of discuss.channel.rtc_session_ids
+        comodel_name="discuss.channel",
         related="channel_member_id.channel_id",
         store=True,
-        readonly=True,
         index="btree_not_null",
+        readonly=True,
     )
-    partner_id: ResPartner = fields.Many2one(
-        "res.partner",
+    partner_id: ResPartner = fields.Many2one(  # noqa: E8529  One2many inverse of res.partner.rtc_session_ids
+        comodel_name="res.partner",
         related="channel_member_id.partner_id",
         string="Partner",
         store=True,
         index=True,
     )
     guest_id: MailGuest = fields.Many2one(
-        "mail.guest",
+        comodel_name="mail.guest",
         related="channel_member_id.guest_id",
     )
 
-    write_date = fields.Datetime("Last Updated On", index=True)
+    write_date = fields.Datetime(
+        string="Last Updated On",
+        index=True,
+    )
 
     is_screen_sharing_on = fields.Boolean(string="Is sharing the screen")
     is_camera_on = fields.Boolean(string="Is sending user video")
@@ -85,6 +90,12 @@ class DiscussChannelRtcSession(models.Model):
                 [channels.ids],
             )
             channels.invalidate_recordset(["rtc_session_ids"])
+        _debug.lifecycle(
+            "create",
+            sessions=rtc_sessions.ids,
+            channels=channels.ids,
+            calls_started=len(channels.filtered(lambda c: len(c.rtc_session_ids) == 1)),
+        )
         for channel in channels.filtered(lambda c: len(c.rtc_session_ids) == 1):
             body = Markup('<div data-oe-type="call" class="o_mail_notification"></div>')
             message = channel.message_post(body=body, message_type="notification")
@@ -110,6 +121,12 @@ class DiscussChannelRtcSession(models.Model):
             channels.invalidate_recordset(["rtc_session_ids"])
         call_ended_channels = channels.filtered(
             lambda c: not (c.rtc_session_ids - self)
+        )
+        _debug.lifecycle(
+            "unlink",
+            sessions=self.ids,
+            channels=channels.ids,
+            calls_ended=len(call_ended_channels),
         )
         for channel in call_ended_channels:
             channel._rtc_cancel_invitations()
@@ -148,6 +165,12 @@ class DiscussChannelRtcSession(models.Model):
 
     def _update_and_broadcast(self, values: dict) -> None:
         valid_values = {"is_screen_sharing_on", "is_camera_on", "is_muted", "is_deaf"}
+        _debug.lifecycle(
+            "session_updated",
+            sessions=self.ids,
+            fields=sorted(valid_values & values.keys()),
+            ignored=sorted(values.keys() - valid_values),
+        )
         self.write({key: values[key] for key in valid_values if key in values})
         store = Store().add(self, extra_fields=self._get_fields_store_extra())
         self.channel_id._bus_send(
@@ -157,7 +180,9 @@ class DiscussChannelRtcSession(models.Model):
 
     @api.autovacuum
     def _gc_inactive_sessions(self) -> None:
-        self.search(self._get_domain_inactive_rtc_sessions()).unlink()
+        inactive = self.search(self._get_domain_inactive_rtc_sessions())
+        _debug.lifecycle("gc_inactive_sessions", removed=len(inactive))
+        inactive.unlink()
 
     def action_disconnect(self) -> None:
         session_ids_by_channel_by_url = defaultdict(lambda: defaultdict(list))
@@ -169,8 +194,16 @@ class DiscussChannelRtcSession(models.Model):
                     rtc_session.id
                 )
         key = discuss.get_sfu_key(self.env)
+        _debug.pipeline(
+            "disconnect",
+            sessions=self.ids,
+            sfu_servers=len(session_ids_by_channel_by_url),
+            has_key=bool(key),
+        )
         if key:
-            with requests.Session() as requests_session:
+            with self.env["ir.egress"].session(
+                purpose="discuss_sfu", policy="private"
+            ) as requests_session:
                 for (
                     url,
                     session_ids_by_channel,
@@ -187,6 +220,9 @@ class DiscussChannelRtcSession(models.Model):
                             timeout=3,
                         ).raise_for_status()
                     except requests.exceptions.RequestException as error:
+                        _debug.logic(
+                            "sfu_disconnect_failed", url=url, error=type(error).__name__
+                        )
                         _logger.warning(
                             "Could not disconnect sessions at sfu server %s: %s",
                             url,
@@ -210,6 +246,12 @@ class DiscussChannelRtcSession(models.Model):
                 .filtered(lambda target: target.channel_id == self.channel_id)
             ):
                 payload_by_target[target_session]["notifications"].append(content)
+        _debug.pipeline(
+            "peers_notified",
+            session=self.id,
+            notifications=len(notifications),
+            targets=len(payload_by_target),
+        )
         for target, payload in payload_by_target.items():
             target._bus_send("discuss.channel.rtc.session/peer_notification", payload)
 

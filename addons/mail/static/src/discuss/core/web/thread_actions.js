@@ -9,7 +9,7 @@ registerThreadAction("expand-discuss", {
     condition: ({ owner, store, thread }) =>
         thread &&
         owner.props.chatWindow?.isOpen &&
-        thread.model === "discuss.channel" &&
+        thread.isChannelKind &&
         !store.env.services.ui.isSmall &&
         !owner.isDiscussSidebarChannelActions,
     icon: "fa-solid fa-up-right-and-down-left-from-center",

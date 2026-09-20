@@ -46,7 +46,7 @@ registerMessageAction("reaction", {
     }),
     componentCondition: () => !isMobileOS(),
     /** @param {ActionParams} params */
-    condition: ({ message, thread }) => message.canAddReaction(thread),
+    condition: ({ message }) => message.canAddReaction(),
     icon: "oi oi-smile-add",
     name: _t("Add a Reaction"),
     /** @param {ActionParams} params */
@@ -102,7 +102,7 @@ registerMessageAction("reply-to", {
         }
         if (
             !message.isSelfAuthored &&
-            message.thread?.model !== "discuss.channel" &&
+            !message.thread?.isChannelKind &&
             message.author
         ) {
             composer.insertReplyFromNote(message);
@@ -204,8 +204,7 @@ registerMessageAction("delete", {
 registerMessageAction("download_files", {
     /** @param {ActionParams} params */
     condition: ({ message, store }) =>
-        message.attachment_ids.length > 1 &&
-        store.self_partner?.main_user_id?.share === false,
+        message.attachment_ids.length > 1 && store.selfIsInternalUser,
     icon: "fa-solid fa-download",
     name: _t("Download Files"),
     /** @param {ActionParams} params */

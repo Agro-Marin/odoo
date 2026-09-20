@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
+import { getPaletteColor } from "@web/core/colors/colors";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -52,7 +53,7 @@ export class SurveySessionTextAnswers extends Interaction {
                     "survey.survey_session_text_answer",
                     {
                         value: textValue,
-                        borderColor: `rgb(${SESSION_CHART_COLORS[this.answerIds.length % 10]})`,
+                        borderColor: `rgb(${getPaletteColor(this.answerIds.length, SESSION_CHART_COLORS.slice(0, 10))})`,
                     },
                 );
                 this.insert(textAnswerEl, this.el);

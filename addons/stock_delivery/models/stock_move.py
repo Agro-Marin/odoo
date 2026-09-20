@@ -1,12 +1,15 @@
 from odoo import api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockRoute(models.Model):
     _inherit = "stock.route"
 
-    shipping_selectable = fields.Boolean("Applicable on Shipping Methods")
+    shipping_selectable = fields.Boolean(string="Applicable on Shipping Methods")
 
 
 class StockMove(models.Model):
@@ -25,11 +28,15 @@ class StockMove(models.Model):
         return super()._auto_init()
 
     weight = fields.Float(
-        compute="_compute_weight", digits="Stock Weight", store=True, compute_sudo=True
+        digits="Stock Weight",
+        compute="_compute_weight",
+        compute_sudo=True,
+        store=True,
     )
 
     @api.depends("product_id", "product_uom_qty", "product_uom_id")
     def _compute_weight(self):
+        _debug.perf.count("move_weight_compute", moves=self)
         moves_with_weight = self.filtered(lambda moves: moves.product_id.weight > 0.00)
         for move in moves_with_weight:
             move.weight = move.product_qty * move.product_id.weight
@@ -81,7 +88,7 @@ class StockMoveLine(models.Model):
             sale_line_id = move_line.move_id.sale_line_id
             if sale_line_id and sale_line_id.product_id == move_line.product_id:
                 base_line = sale_line_id._prepare_base_line_for_taxes_computation()
-                qty = move_line.product_uom_id._compute_quantity(
+                qty = move_line.product_uom_id._get_quantity_in_unit(
                     move_line.quantity, sale_line_id.product_uom_id
                 )
                 base_line.update({"quantity": qty})
@@ -94,7 +101,7 @@ class StockMoveLine(models.Model):
                 )
             else:
                 unit_price = move_line.product_id.list_price
-                qty = move_line.product_uom_id._compute_quantity(
+                qty = move_line.product_uom_id._get_quantity_in_unit(
                     move_line.quantity, move_line.product_id.uom_id
                 )
                 move_line.sale_price = unit_price * qty
@@ -117,6 +124,7 @@ class StockMoveLine(models.Model):
         package_name=False,
         from_package_wizard=False,
     ):
+        _debug.pipeline("put_in_pack_pre", lines=self)
         res = super()._pre_put_in_pack_hook(
             all_lines, package_id, package_type_id, package_name, from_package_wizard
         )
@@ -129,6 +137,7 @@ class StockMoveLine(models.Model):
         return res
 
     def _post_put_in_pack_hook(self, package):
+        _debug.pipeline("put_in_pack_post", lines=self, package=package.id)
         weight = self.env.context.get("weight")
         if weight:
             package.shipping_weight = weight
@@ -148,6 +157,7 @@ class StockMoveLine(models.Model):
         return package_carrier_type
 
     def _is_package_set_required(self):
+        _debug.logic("package_set_required_check", lines=self)
         if self.carrier_id:
             return True
         return super()._is_package_set_required()

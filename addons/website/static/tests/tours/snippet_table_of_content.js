@@ -11,7 +11,9 @@ const scrollToHeading = function (position) {
         content: `Scroll to h2 number ${position}`,
         trigger: `:iframe .s_table_of_content h2:eq(${position})`,
         run: function () {
-            this.anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+            // the navbar marks the heading within its offset of the viewport
+            // top, so a heading scrolled to the centre never reads as active
+            this.anchor.scrollIntoView(true);
         },
     };
 };
@@ -46,7 +48,6 @@ registerWebsitePreviewTour(
                 ':iframe .o_add_snippets_preview [data-snippet="s_table_of_content"]',
             run: "click",
         },
-        // To make sure that the public widgets of the two previous ones started.
         ...insertSnippet({ id: "s_banner", name: "Banner", groupName: "Intro" }),
         {
             content: "Drag the Intro snippet group and drop it.",
@@ -68,7 +69,7 @@ registerWebsitePreviewTour(
         scrollToHeading(2),
         checkTOCNavBar(1, 0),
         scrollToHeading(3),
-        checkTOCNavBar(1, 0),
+        checkTOCNavBar(1, 1),
         ...clickOnEditAndWaitEditMode(),
         {
             content: "Click on the first TOC's title",
@@ -80,7 +81,6 @@ registerWebsitePreviewTour(
             trigger: '[data-action-param="no_mobile"]',
             run: "click",
         },
-        // Go back to blocks tabs to avoid changing the first ToC options
         goBackToBlocks(),
         {
             content: "Click on the second TOC's title",

@@ -7,16 +7,16 @@ class AccountPayment(models.Model):
 
     # == Business fields ==
     transaction_id = fields.Many2one(
-        string="Payment Transaction",
         comodel_name="payment.transaction",
+        string="Payment Transaction",
         readonly=True,
         # No `index=`: `_transaction_id_uniq` below is already a partial btree
         # over the same column, and a second one would only cost writes.
         bypass_search_access=True,  # Safe: access to payments means access to txs too
     )
     payment_token_id = fields.Many2one(
-        string="Saved Payment Token",
         comodel_name="payment.token",
+        string="Saved Payment Token",
         domain="""[
             ('id', 'in', suitable_payment_token_ids),
         ]""",
@@ -34,22 +34,19 @@ class AccountPayment(models.Model):
     )
     # Technical field used to hide or show the payment_token_id if needed
     use_electronic_payment_method = fields.Boolean(
-        compute="_compute_use_electronic_payment_method",
+        compute="_compute_use_electronic_payment_method"
     )
 
     # == Fields used for traceability ==
     source_payment_id = fields.Many2one(
-        string="Source Payment",
         comodel_name="account.payment",
-        help="The source payment of related refund payments",
         compute="_compute_source_payment_id",
-        readonly=True,
         store=True,  # Stored for the group by in `_compute_refunds_count`
         index="btree_not_null",
+        readonly=True,
+        help="The source payment of related refund payments",
     )
-    refunds_count = fields.Integer(
-        string="Refunds Count", compute="_compute_refunds_count"
-    )
+    refunds_count = fields.Integer(compute="_compute_refunds_count")
 
     # `_create_payment` makes one payment per transaction and
     # `_create_payment_transaction` one transaction per payment, so the edge has
@@ -67,11 +64,8 @@ class AccountPayment(models.Model):
             source_tx = payment.transaction_id.source_transaction_id
             payment.source_payment_id = source_tx.payment_ids[:1]
 
+    @api.depends("amount", "payment_method_id", "transaction_id")
     def _compute_amount_available_for_refund(self):
-        # Only consider refund transactions that are confirmed by summing the amounts of
-        # payments linked to such refund transactions. Indeed, should a refund transaction
-        # be stuck forever in a transient state (due to webhook failure, for example), the
-        # user would never be allowed to refund the source transaction again.
         rg_data = self.env["account.payment"]._read_group(
             domain=[("source_payment_id", "in", self.ids)],
             groupby=["source_payment_id"],
@@ -114,7 +108,7 @@ class AccountPayment(models.Model):
                 tokens_per_group[group_key] = (
                     self.env["payment.token"]
                     .sudo()
-                    .search(
+                    .search(  # noqa: E8507 - one query per distinct (company, partner, provider); payments sharing one reuse it
                         [
                             *self.env["payment.token"]._check_company_domain(
                                 payment.company_id
@@ -309,7 +303,7 @@ class AccountPayment(models.Model):
         return {
             "provider_id": self.payment_token_id.provider_id.id,
             "payment_method_id": self.payment_token_id.payment_method_id.id,
-            "reference": self.env["payment.transaction"]._compute_reference(
+            "reference": self.env["payment.transaction"]._get_unique_reference(
                 self.payment_token_id.provider_id.code, prefix=self.memo
             ),
             "amount": self.amount,

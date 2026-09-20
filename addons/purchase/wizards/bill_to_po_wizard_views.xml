@@ -10,8 +10,8 @@
                     <group>
                         <field
                             name="purchase_order_id"
-                            domain="['|', ('partner_id', '=', partner_id), ('partner_id.commercial_partner_id', '=', partner_id), ('state', 'in', ['done'])]"
                             placeholder="or create new"
+                            domain="['|', ('partner_id', '=', partner_id), ('partner_id.commercial_partner_id', '=', partner_id), ('state', 'in', ['done'])]"
                             context="{'show_total_amount': True}" />
                     </group>
                     <footer>

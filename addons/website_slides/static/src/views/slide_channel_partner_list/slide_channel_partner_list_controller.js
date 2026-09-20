@@ -12,9 +12,6 @@ export default class SlideChannelPartnerListController extends ListController {
     }
 
     /**
-     * Method opening the wizard to enroll new slide channel partners.
-     * Reloads the model afterwards to see new attendees.
-     *
      * @private
      */
     async _openEnrollWizard() {

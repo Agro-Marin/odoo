@@ -3,6 +3,7 @@ import warnings
 from typing import Self
 
 from odoo.libs.accel import origin_ids as _origin_ids
+from odoo.libs.debug_log import DebugLog
 
 from ... import decorators as api
 from ..._typing import (
@@ -17,6 +18,8 @@ if typing.TYPE_CHECKING:
 
     from ...runtime import Environment
 
+_debug = DebugLog(__name__)
+
 
 class EnvironmentMixin(_ModelStubs):
     __slots__ = ()
@@ -27,6 +30,9 @@ class EnvironmentMixin(_ModelStubs):
             (_id,) = self._ids
             return self
         except ValueError:
+            _debug.logic(
+                "env.singleton_expected", model=self._name, records=len(self._ids)
+            )
             raise ValueError(f"Expected singleton: {self}") from None
 
     @api.private
@@ -68,6 +74,12 @@ class EnvironmentMixin(_ModelStubs):
             allowed_company_ids.remove(company_id)
         allowed_company_ids.insert(0, company_id)
 
+        _debug.logic(
+            "env.company_switched",
+            model=self._name,
+            company=company_id,
+            allowed=len(allowed_company_ids),
+        )
         return self.with_context(allowed_company_ids=allowed_company_ids)
 
     @api.private
@@ -82,12 +94,16 @@ class EnvironmentMixin(_ModelStubs):
                 DeprecationWarning,
                 stacklevel=2,
             )
+            _debug.logic(
+                "env.context_key_unsupported", model=self._name, key="force_company"
+            )
         if "company" in context:
             warnings.warn(
                 "Context key 'company' is not recommended, because "
                 "of its special meaning in @depends_context.",
                 stacklevel=2,
             )
+            _debug.logic("env.context_key_discouraged", model=self._name, key="company")
         if (
             "allowed_company_ids" not in context
             and "allowed_company_ids" in self.env.context
@@ -123,21 +139,35 @@ class EnvironmentMixin(_ModelStubs):
             field_values.sort(key=lambda item: item[0].write_sequence)
 
         field_inverses = self.pool.field_inverses
+        with_new_corecords = []
         for field, value in field_values:
             value = field.convert_to_cache(value, self, validate)
             field._update_cache(self, value)
+            if (
+                field.relational
+                and field_inverses[field]
+                and self._can_cache_value_hold_new_ids(value)
+            ):
+                with_new_corecords.append(field)
 
-            if field.relational:
-                inverses = field_inverses[field]
-                if not inverses:
+        for field in with_new_corecords:
+            inv_recs = self[field.name]._new_records
+            if not inv_recs:
+                continue
+            inverses = field_inverses[field]
+            _debug.logic(
+                "env.new_inverses_updated",
+                model=self._name,
+                field=field.name,
+                inverses=len(inverses),
+                new_records=len(inv_recs),
+            )
+            for invf in inverses:
+                if invf.is_x2many and not self.filtered_domain(
+                    invf.get_comodel_domain(inv_recs)
+                ):
                     continue
-                if not self._can_cache_value_hold_new_ids(value):
-                    continue
-                inv_recs = self[field.name]._new_records
-                if not inv_recs:
-                    continue
-                for invf in inverses:
-                    invf._update_inverse(inv_recs, self)
+                invf._update_inverse(inv_recs, self)
 
     def _convert_to_write(self, values: dict) -> ValuesType:
         fields = self._fields
@@ -167,6 +197,14 @@ class EnvironmentMixin(_ModelStubs):
             ref = None
         record = self.browse((NewId(origin_id, ref),))
         record._update_cache(values, validate=False)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "env.new_record",
+                model=self._name,
+                origin=origin_id,
+                ref=ref is not None,
+                fields=sorted(values),
+            )
 
         return record
 

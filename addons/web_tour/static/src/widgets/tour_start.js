@@ -42,6 +42,7 @@ export class TourStartWidget extends CharField {
 export const tourStartWidgetField = {
     ...charField,
     component: TourStartWidget,
+    supportedAttributes: [],
     supportedOptions: [
         {
             label: _t("Link"),

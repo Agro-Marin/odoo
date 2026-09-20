@@ -31,9 +31,9 @@ High-level structure, data flow, and component organization for `odoo/addons/bas
 │  ┌────────┴────────┐  ┌────────┴──────────┐  ┌─────────┴──────────┐  │
 │  │ UI Framework    │  │ Actions           │  │ Infrastructure     │  │
 │  │ ir.ui.view      │  │ ir.actions.*      │  │ ir.cron            │  │
-│  │ ir.ui.menu      │  │ ir.actions.server │  │ ir.mail_server     │  │
-│  │ ir.asset        │  │ ir.actions.report │  │ ir.sequence        │  │
-│  │ ir.qweb         │  │ ir.embedded.*     │  │ ir.attachment      │  │
+│  │ ir.ui.menu      │  │ ir.actions.server │  │ ir.sequence        │  │
+│  │ ir.asset        │  │ ir.actions.report │  │ ir.attachment      │  │
+│  │ ir.qweb         │  │ ir.embedded.*     │  │ ir.job             │  │
 │  └─────────────────┘  └───────────────────┘  └────────────────────┘  │
 │                                                                      │
 │  ┌─────────────────┐  ┌───────────────────┐  ┌────────────────────┐  │
@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 98 Python model files (core ORM infrastructure)
+├── models/                      # 106 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_actions_act_url.py        #   URL action
@@ -81,8 +81,9 @@ odoo/addons/base/
 │   ├── ir_actions_client.py         #   Client-side (JS component) action
 │   ├── ir_actions_embedded.py       #   Actions embedded inside views
 │   ├── ir_actions_path.py           #   Side table keeping an action path unique
-│   ├── ir_actions_report.py         #   Report actions (WeasyPrint PDF/HTML/image rendering)
-│   ├── ir_actions_server.py         #   Server actions (code, CRUD, webhook) + history
+│   ├── ir_actions_report.py         #   Report actions (action type, HTML/text render; PDF is web's inherit)
+│   ├── ir_actions_server.py         #   Server actions (code, CRUD, webhook)
+│   ├── ir_actions_server_history.py #   Code history of a server action
 │   ├── ir_actions_todo.py           #   Configuration wizard queue
 │   ├── ir_asset.py                  #   Asset bundle management (directives, paths, sorting)
 │   ├── ir_asset_paths.py            #   Asset directive walk: paths, anchors, insert/remove/replace
@@ -91,18 +92,17 @@ odoo/addons/base/
 │   ├── ir_attachment_storage.py     #   Storage backends (DB, filestore, registry of schemes)
 │   ├── ir_autovacuum.py             #   Garbage collection framework (@api.autovacuum)
 │   ├── ir_binary.py                 #   File streaming helpers (images, downloads)
+│   ├── ir_egress.py                 #   Outbound HTTP: address policy, pinned sessions, caps
 │   ├── ir_config_parameter.py       #   System parameters (key-value config store)
 │   ├── ir_cron.py                   #   Scheduled jobs + triggers + progress tracking
 │   ├── ir_default.py                #   Default field values (per-user, per-company)
 │   ├── ir_demo.py                   #   Demo data installation
 │   ├── ir_demo_failure.py           #   Demo data failure tracking
-│   ├── ir_exports.py                #   Export presets (saved field lists)
 │   ├── ir_fields.py                 #   Import field type converters
 │   ├── ir_filters.py                #   Saved search filters
 │   ├── ir_http.py                   #   HTTP routing, auth, dispatch, translations
 │   ├── ir_job.py                    #   Background job queue + channels
 │   ├── ir_logging.py                #   Server/client log storage
-│   ├── ir_mail_server.py            #   SMTP mail server configuration and sending
 │   ├── ir_model.py                  #   Model registry + ir.model.inherit
 │   ├── ir_model_access.py           #   ir.model.access (model-level ACL)
 │   ├── ir_model_common.py           #   Shared helpers for the ir.model family (xmlids, upserts, access errors)
@@ -125,6 +125,7 @@ odoo/addons/base/
 │   ├── ir_sequence.py               #   Auto-incrementing sequences (standard/no-gap)
 │   ├── ir_ui_menu.py                #   Menu tree (hierarchy, visibility, icons)
 │   ├── ir_ui_view.py                #   View definitions (arch, inheritance, validation)
+│   ├── ir_ui_view_arch.py           #   Arch element handlers (validation, postprocessing, editability)
 │   ├── ir_ui_view_base.py           #   Default view generators (form/list/kanban/etc.)
 │   ├── ir_ui_view_custom.py         #   User-specific view customizations (COW)
 │   ├── ir_ui_view_name_manager.py   #   View XML structure validator
@@ -132,6 +133,7 @@ odoo/addons/base/
 │   ├── mixin_avatar.py              #   SVG avatar generation from initials
 │   ├── mixin_band.py                #   Numeric band / range mixin
 │   ├── mixin_catalog.py             #   Unique translated name, archivable
+│   ├── mixin_lifecycle.py           #   Declared state transitions, locking, confirm/cancel checks
 │   ├── mixin_color.py               #   Shared defaults, hex validation and palette conversion
 │   ├── mixin_favorite.py            #   Per-record favourite flag
 │   ├── mixin_format_address.py      #   Address form customization
@@ -141,12 +143,17 @@ odoo/addons/base/
 │   ├── mixin_merge.py               #   Record merge engine (reference repointing)
 │   ├── mixin_module_link.py         #   Manifest-named module link (abstract)
 │   ├── mixin_properties_base_definition.py #   Properties support mixin
+│   ├── mixin_recurrence_anchored.py #   Fixed points inside a period: weekday, day, month, twice
+│   ├── mixin_recurrence_interval.py #   Every N units: repeat_interval, repeat_unit, next occurrence
+│   ├── mixin_recurrence_occurrence.py #   Which occurrences an edit applies to
+│   ├── mixin_recurrence_rrule.py    #   iCalendar RRULE engine over the rule
+│   ├── mixin_recurrence_rule.py     #   Interval plus end policy (forever/until)
+│   ├── mixin_table_inheritance_root.py #   PostgreSQL table-inheritance tree: concrete type by tableoid, ondelete, root dispatch
 │   ├── mixin_tag.py                 #   Coloured label with a stable code
 │   ├── mixin_tag_nested.py          #   Tag with a parent/child hierarchy
 │   ├── mixin_user_favorite.py       #   Per-user favourite flag
 │   ├── phone_number.py              #   Shared phone number records
 │   ├── properties_base_definition.py #   Properties field definitions
-│   ├── report_layout.py             #   Report layout templates
 │   ├── report_paperformat.py        #   Paper format configuration
 │   ├── res_bank.py                  #   Banks + partner bank accounts
 │   ├── res_company.py               #   Company hierarchy (parent_store)
@@ -164,6 +171,7 @@ odoo/addons/base/
 │   ├── res_partner_tag.py           #   Partner tags (hierarchical)
 │   ├── res_users.py                 #   Users (inherits res.partner)
 │   ├── res_users_apikeys.py         #   API key management
+│   ├── res_users_auth.py            #   Password store: hashing and checks under _get_crypt_context
 │   ├── res_users_deletion.py        #   User deletion queue
 │   ├── res_users_identitycheck.py   #   Password verification wizard
 │   ├── res_users_log.py             #   Login tracking
@@ -182,12 +190,11 @@ odoo/addons/base/
 │   ├── reset_view_arch.py           #   Reset view to original arch (soft/hard)
 │   ├── server_action_history.py     #   Server-action run history (diff + restore)
 │   └── wizard_ir_model_menu_create.py #   Create menu item for custom model
-├── tests/                       # 136 Python test files + test assets
+├── tests/                       # 140 Python test files + test assets
 │   ├── common.py                #   Base test classes (demo user, portal user)
 │   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
-├── views/                       # 38 XML view definition files
+├── views/                       # 37 XML view definition files
 ├── data/                        # 20 data files (XML, CSV, SQL, JSON)
-├── reports/                      # Report templates + the module-reference report model
 ├── security/                    # ir.model.access.csv + groups and record-rule XML
 ├── rng/                         # RelaxNG schemas (view validation)
 ├── static/                      # CSS, JS, images, test assets
@@ -217,9 +224,8 @@ registry, access control, UI framework, scheduling, and module system.
 | Storage | ir.attachment | File storage (DB or filestore) |
 | Streaming | ir.binary | File/image download helpers |
 | Sequences | ir.sequence, ir.sequence.date_range | Auto-incrementing sequences |
-| Configuration | ir.config_parameter, ir.default, ir.filters, ir.exports | System params, defaults, saved filters |
+| Configuration | ir.config_parameter, ir.default, ir.filters | System params, defaults, saved filters |
 | Module System | ir.module.module, ir.module.category | Module lifecycle management |
-| Mail | ir.mail_server | SMTP configuration and email sending |
 | HTTP | ir.http | Routing, auth dispatch, translations |
 | Logging | ir.logging, ir.profile | Server logs, code profiling |
 | Import | ir.fields.converter | Data import type conversion |
@@ -254,7 +260,6 @@ every Odoo module depends on.
 | properties.base.definition | Properties field definition storage |
 | mixin.properties.base.definition | Properties support for models |
 | decimal.precision | Configurable decimal precision per usage |
-| report.layout | Report layout template registry |
 | report.paperformat | Paper format configuration (A4, Letter, etc.) |
 
 ### Non-ORM Classes
@@ -272,12 +277,12 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 98 |
+| Python (models) | 106 |
 | Python (wizards) | 11 |
-| Python (tests) | 136 |
-| XML (views) | 38 |
+| Python (tests) | 140 |
+| XML (views) | 37 |
 | Data files | 20 |
-| XML (reports) | 4 |
+| XML (reports) | 0 |
 | XML (wizard views) | 8 |
 | Security files | 3 |
 | RNG (schemas) | 7 |

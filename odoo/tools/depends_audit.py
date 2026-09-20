@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from opcode import opmap
 
+from odoo.libs.debug_log import DebugLog
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+_debug = DebugLog(__name__)
 
 
 def _opnames(*names: str) -> frozenset[str]:
@@ -100,7 +104,7 @@ def accessed_attribute_names(func: Callable) -> set[str]:
     return names
 
 
-def _compute_functions(field: typing.Any, model_class: typing.Any) -> list[Callable]:
+def _get_functions(field: typing.Any, model_class: typing.Any) -> list[Callable]:
     compute = field.compute
     if not compute:
         return []
@@ -114,7 +118,7 @@ def _compute_functions(field: typing.Any, model_class: typing.Any) -> list[Calla
 def audit_field(
     registry: typing.Any, model_class: typing.Any, field: typing.Any
 ) -> DependsFinding | None:
-    functions = _compute_functions(field, model_class)
+    functions = _get_functions(field, model_class)
     if not functions:
         return None
 
@@ -151,6 +155,7 @@ def audit_registry(
     include_stored: bool = False,
 ) -> Iterator[DependsFinding]:
     registry._get_field_triggers()
+    audited = findings = 0  # debuglog
     for model_class in registry.models.values():
         if model_class._abstract:
             continue
@@ -163,9 +168,29 @@ def audit_registry(
                 continue
             if only_without_dependencies and (
                 registry.field_depends.get(field)
-                or registry.field_depends_context.get(field)
+                or any(
+                    key != "access"
+                    for key in registry.field_depends_context.get(field, ())
+                )
             ):
                 continue
+            audited += 1  # debuglog
             finding = audit_field(registry, model_class, field)
             if finding is not None:
+                findings += 1  # debuglog
+                _debug.logic(
+                    "depends_audit.finding",
+                    model=finding.model_name,
+                    field=finding.field_name,
+                    reads=finding.reads,
+                    stored=finding.stored,
+                )
                 yield finding
+    _debug.pipeline(
+        "depends_audit.done",
+        models=len(registry.models),
+        audited=audited,
+        findings=findings,
+        only_without_dependencies=only_without_dependencies,
+        include_stored=include_stored,
+    )

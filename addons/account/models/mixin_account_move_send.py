@@ -5,10 +5,13 @@ from markupsafe import Markup
 
 from odoo import Command, _, api, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 
-from odoo.addons.base.models.ir_actions_report import PDF_OPTIONS_DATA_KEY
+from odoo.addons.web.models.ir_actions_report import PDF_OPTIONS_DATA_KEY
 
 _logger = logging.getLogger(__name__)
+
+_debug = DebugLog(__name__)
 
 
 class MixinAccountMoveSend(models.AbstractModel):
@@ -48,18 +51,22 @@ class MixinAccountMoveSend(models.AbstractModel):
         if partner_default_template := move.commercial_partner_id.with_company(
             move.company_id
         ).invoice_template_pdf_report_id:
+            _debug.logic("pdf_report_chosen", move=move, source="partner")
             return partner_default_template
 
         if journal_default_template := move.journal_id.with_company(
             move.company_id
         ).invoice_template_pdf_report_id:
+            _debug.logic("pdf_report_chosen", move=move, source="journal")
             return journal_default_template
 
         action_report = self.env.ref("account.account_invoices")
 
         if move._is_action_report_available(action_report):
+            _debug.logic("pdf_report_chosen", move=move, source="default_action")
             return action_report
 
+        _debug.logic("pdf_report_missing", move=move)
         raise UserError(_("There is no template that applies to this move type."))
 
     @api.model
@@ -98,6 +105,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         }
 
     @api.model
+    @_debug.perf.timed
     def _get_default_sending_settings(self, move, from_cron=False, **custom_settings):
         def get_setting(key, from_cron=False, default_value=None):
             return (
@@ -142,7 +150,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         if self._display_attachments_widget(
             vals["invoice_edi_format"], vals["sending_methods"]
         ):
-            mail_attachments_widget = self._get_default_mail_attachments_widget(
+            mail_attachments_widget = self._prepare_mail_attachments_widget(
                 move,
                 mail_template,
                 invoice_edi_format=vals["invoice_edi_format"],
@@ -152,9 +160,21 @@ class MixinAccountMoveSend(models.AbstractModel):
             vals["mail_attachments_widget"] = get_setting(
                 "mail_attachments_widget", default_value=mail_attachments_widget
             )
+        _debug.logic(
+            "send_settings",
+            move=move,
+            methods=vals["sending_methods"],
+            edis=vals["extra_edis"],
+            edi_format=vals["invoice_edi_format"],
+            pdf_report=vals["pdf_report"],
+            template=mail_template,
+            from_cron=from_cron,
+            custom=sorted(custom_settings),
+        )
         return vals
 
     @api.model
+    @_debug.perf.timed
     def _get_alerts(self, moves, moves_data):
         alerts = {}
         send_cron = self.env.ref(
@@ -202,6 +222,13 @@ class MixinAccountMoveSend(models.AbstractModel):
                     ),
                 }
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "send_alerts_built",
+                move=moves,
+                email_moves=len(email_moves),
+                alerts=sorted(alerts),
+            )
         return alerts
 
     @api.model
@@ -240,6 +267,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         )
 
     @api.model
+    @_debug.perf.timed
     def _get_default_mail_partner_ids(self, move, mail_template, mail_lang):
         partners = self.env["res.partner"].with_company(move.company_id)
         if mail_template.use_default_to:
@@ -272,6 +300,16 @@ class MixinAccountMoveSend(models.AbstractModel):
             )
             partner_ids = mail_template._parse_partner_to(partner_to)
             partners |= self.env["res.partner"].sudo().browse(partner_ids).exists()
+        _debug.logic(
+            "mail_recipients_resolved",
+            move=move,
+            template=mail_template,
+            use_default_to=mail_template.use_default_to,
+            candidates=len(partners),
+            allow_without_mail=bool(
+                self.env.context.get("allow_partners_without_mail")
+            ),
+        )
         return (
             partners
             if self.env.context.get("allow_partners_without_mail")
@@ -279,7 +317,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         )
 
     @api.model
-    def _get_default_mail_attachments_widget(
+    def _prepare_mail_attachments_widget(
         self,
         move,
         mail_template,
@@ -288,21 +326,21 @@ class MixinAccountMoveSend(models.AbstractModel):
         pdf_report=None,
     ):
         return (
-            self._get_placeholder_mail_attachments_data(
+            self._prepare_mail_attachment_placeholders(
                 move,
                 invoice_edi_format=invoice_edi_format,
                 extra_edis=extra_edis,
                 pdf_report=pdf_report,
             )
-            + self._get_placeholder_mail_template_dynamic_attachments_data(
+            + self._prepare_dynamic_mail_attachment_placeholders(
                 move, mail_template, pdf_report=pdf_report
             )
-            + self._get_invoice_extra_attachments_data(move)
-            + self._get_mail_template_attachments_data(mail_template)
+            + self._prepare_invoice_attachment_entries(move)
+            + self._prepare_template_attachment_entries(mail_template)
         )
 
     @api.model
-    def _get_placeholder_mail_attachments_data(
+    def _prepare_mail_attachment_placeholders(
         self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None
     ):
         if move.invoice_pdf_report_id:
@@ -318,7 +356,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         ]
 
     @api.model
-    def _get_placeholder_mail_template_dynamic_attachments_data(
+    def _prepare_dynamic_mail_attachment_placeholders(
         self, move, mail_template, pdf_report=None
     ):
         pdf_report = pdf_report or self._get_default_pdf_report_id(move)
@@ -348,7 +386,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return move.invoice_pdf_report_id
 
     @api.model
-    def _get_invoice_extra_attachments_data(self, move):
+    def _prepare_invoice_attachment_entries(self, move):
         return [
             {
                 "id": attachment.id,
@@ -361,7 +399,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         ]
 
     @api.model
-    def _get_mail_template_attachments_data(self, mail_template):
+    def _prepare_template_attachment_entries(self, mail_template):
         return [
             {
                 "id": attachment.id,
@@ -385,10 +423,12 @@ class MixinAccountMoveSend(models.AbstractModel):
             raise UserError("\n".join(danger_alert_messages))
 
     @api.model
+    @_debug.perf.timed
     def _check_move_constraints(self, moves):
         errors = []
         for move in moves:
             if move_constraints := self._get_move_constraints(move):
+                _debug.logic("send_refused", move=move, fields=sorted(move_constraints))
                 message = next(iter(move_constraints.values()), None)
                 errors.append(f"{move.display_name}: {message}")
         if errors:
@@ -411,6 +451,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return constraints
 
     @api.model
+    @_debug.perf.timed
     def _check_invoice_report(self, moves, **custom_settings):
         if (
             custom_settings.get("pdf_report")
@@ -469,6 +510,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
+    @_debug.perf.timed
     def _update_invoice_data_pdf_report(self, invoices_data):
         grouped_invoices_by_report = defaultdict(dict)
         for invoice, invoice_data in invoices_data.items():
@@ -476,6 +518,11 @@ class MixinAccountMoveSend(models.AbstractModel):
                 (invoice.company_id, invoice_data["pdf_report"])
             ][invoice] = invoice_data
 
+        _debug.pipeline(
+            "pdf_report_groups_built",
+            invoices=len(invoices_data),
+            groups=len(grouped_invoices_by_report),
+        )
         for (
             company,
             pdf_report,
@@ -487,6 +534,14 @@ class MixinAccountMoveSend(models.AbstractModel):
                 invoice: self._get_invoice_pdf_render_options(invoice, invoice_data)
                 for invoice, invoice_data in group_invoices_data.items()
             }
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "pdf_render_mode_chosen",
+                    company=company,
+                    report=pdf_report,
+                    invoices=len(ids),
+                    per_invoice=any(render_options.values()),
+                )
             if any(render_options.values()):
                 content_by_id = {}
                 for invoice in group_invoices_data:
@@ -567,10 +622,17 @@ class MixinAccountMoveSend(models.AbstractModel):
             for invoice_data in invoices_data.values()
             if invoice_data.get("pdf_attachment_values")
         ]
+        _debug.logic(
+            "invoice_documents_to_link",
+            invoices=len(invoices_data),
+            attachments=len(attachment_to_create),
+            skipped=not attachment_to_create,
+        )
         if not attachment_to_create:
             return
 
         attachments = self.sudo().env["ir.attachment"].create(attachment_to_create)
+        _debug.pipeline("invoice_attachments_created", attachments=attachments)
         res_id_to_attachment = {
             attachment.res_id: attachment for attachment in attachments
         }
@@ -585,6 +647,11 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_if_errors(self, moves_data, allow_raising=True):
+        _debug.logic(
+            "send_hook_if_errors",
+            allow_raising=allow_raising,
+            moves_data_count=len(moves_data),
+        )
         if allow_raising:
             error_messages = [
                 self._format_error_text(move_data["error"])
@@ -602,6 +669,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._send_notifications_to_partners(group_by_partner, is_success=False)
 
     @api.model
+    @_debug.perf.timed
     def _hook_if_success(self, moves_data, from_cron=False):
         group_by_partner = defaultdict(list)
         to_send_mail = {}
@@ -612,6 +680,12 @@ class MixinAccountMoveSend(models.AbstractModel):
                 "email", move, **move_data
             ):
                 to_send_mail[move] = move_data
+        _debug.pipeline(
+            "send_hook_if_success_mail",
+            moves_data_count=len(moves_data),
+            to_send_mail_count=len(to_send_mail),
+            from_cron=from_cron,
+        )
         self._send_mails(to_send_mail, from_cron=from_cron)
         self._send_notifications_to_partners(group_by_partner)
 
@@ -639,9 +713,15 @@ class MixinAccountMoveSend(models.AbstractModel):
                 _logger.exception("Failed notifying subscribers for move %s", move.id)
 
     @api.model
+    @_debug.perf.timed
     def _send_notifications_to_partners(
         self, moves_grouped_by_author_partner_id, is_success=True
     ):
+        _debug.pipeline(
+            "send_notifications_dispatching",
+            partners=len(moves_grouped_by_author_partner_id or ()),
+            is_success=is_success,
+        )
         if not moves_grouped_by_author_partner_id:
             return
 
@@ -697,6 +777,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                 "UPDATE ir_attachment SET res_id = NULL WHERE id = ANY(%s)",
                 [list(new_message.attachment_ids.ids)],
             )
+            _debug.perf.count("mail_attachments_detached", rows=self.env.cr.rowcount)
         new_message.attachment_ids.write(
             {
                 "res_model": new_message._name,
@@ -709,12 +790,13 @@ class MixinAccountMoveSend(models.AbstractModel):
         return "mail.mail_notification_layout_with_responsible_signature"
 
     @api.model
-    def _get_mail_params(self, move, move_data):
+    @_debug.perf.timed
+    def _prepare_mail_params(self, move, move_data):
         mail_attachments_widget = move_data.get("mail_attachments_widget")
         seen_attachment_ids = set()
         to_exclude = {x["name"] for x in mail_attachments_widget if x.get("skip")}
         for attachment_data in (
-            self._get_invoice_extra_attachments_data(move) + mail_attachments_widget
+            self._prepare_invoice_attachment_entries(move) + mail_attachments_widget
         ):
             if attachment_data["name"] in to_exclude and not attachment_data.get(
                 "manual"
@@ -744,15 +826,24 @@ class MixinAccountMoveSend(models.AbstractModel):
         }
         if move_data.get("reply_to"):
             params["reply_to"] = move_data["reply_to"]
+        _debug.pipeline(
+            "mail_params_built",
+            move=move,
+            attachments=len(mail_attachments),
+            excluded=len(to_exclude),
+            with_reply_to=bool(move_data.get("reply_to")),
+        )
         return params
 
     @api.model
+    @_debug.perf.timed
     def _generate_dynamic_reports(self, moves_data, from_cron=False):
         failed = self.env["account.move"]
         for move, move_data in moves_data.items():
             try:
                 self._create_dynamic_reports_for_move(move, move_data)
             except Exception:
+                _debug.logic("dynamic_report_failed", move=move, from_cron=from_cron)
                 if not from_cron:
                     raise
                 _logger.exception(
@@ -765,9 +856,13 @@ class MixinAccountMoveSend(models.AbstractModel):
                     )
                 )
                 failed |= move
+        _debug.pipeline(
+            "dynamic_reports_generated", moves=len(moves_data), failed=failed
+        )
         return failed
 
     @api.model
+    @_debug.perf.timed
     def _create_dynamic_reports_for_move(self, move, move_data):
         mail_attachments_widget = move_data.get("mail_attachments_widget", [])
 
@@ -798,6 +893,12 @@ class MixinAccountMoveSend(models.AbstractModel):
             )
 
         attachments = self.env["ir.attachment"].create(attachments_to_create)
+        _debug.pipeline(
+            "dynamic_reports_rendered",
+            move=move,
+            reports=len(dynamic_reports),
+            attachments=attachments,
+        )
         mail_attachments_widget += [
             {
                 "id": attachment.id,
@@ -810,6 +911,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         ]
 
     @api.model
+    @_debug.perf.timed
     def _send_mails(self, moves_data, from_cron=False):
         subtype = self.env.ref("mail.mt_comment")
 
@@ -823,9 +925,17 @@ class MixinAccountMoveSend(models.AbstractModel):
         ]:
             mail_template = move_data["mail_template"]
             mail_lang = move_data["mail_lang"]
-            mail_params = self._get_mail_params(move, move_data)
+            mail_params = self._prepare_mail_params(move, move_data)
             if not mail_params:
+                _debug.logic("send_no_mail_params_mail", move=move)
                 continue
+            _debug.pipeline(
+                "send_mailing",
+                move=move,
+                template=mail_template,
+                lang=mail_lang,
+                attachments=len(mail_params.get("attachments", [])),
+            )
 
             if move_data.get("proforma_pdf_attachment"):
                 attachment = move_data["proforma_pdf_attachment"]
@@ -876,6 +986,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
+    @_debug.perf.timed
     def _render_invoice_documents(self, invoices_data, allow_fallback_pdf=False):
         for invoice, invoice_data in invoices_data.items():
             self._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
@@ -917,9 +1028,18 @@ class MixinAccountMoveSend(models.AbstractModel):
 
         if pdf_to_generate:
             batches.append(pdf_to_generate)
+        _debug.pipeline(
+            "send_render_web_service_pdf",
+            invoices_data_count=len(invoices_data),
+            invoices_data_web_service_count=len(invoices_data_web_service),
+            invoices_data_pdf_count=len(invoices_data_pdf),
+            batches_count=len(batches),
+            batch_size=batch_size,
+        )
 
         for batch in batches:
-            self._update_invoice_data_pdf_report(batch)
+            with _debug.perf("send_pdf_batch", cr=self.env.cr, batch_count=len(batch)):
+                self._update_invoice_data_pdf_report(batch)
 
         for invoice, invoice_data in invoices_data_pdf.items():
             if not invoice_data.get("error") and not invoice.invoice_pdf_report_id:
@@ -935,6 +1055,10 @@ class MixinAccountMoveSend(models.AbstractModel):
                 and invoice_data.get("error")
             }
             if invoices_data_pdf_error:
+                _debug.logic(
+                    "send_pdf_errors_fallback",
+                    moves=self.env["account.move"].union(*invoices_data_pdf_error),
+                )
                 self._hook_if_errors(
                     invoices_data_pdf_error, allow_raising=not allow_fallback_pdf
                 )
@@ -955,9 +1079,11 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._link_invoice_documents(invoices_to_link)
 
     @api.model
+    @_debug.perf.timed
     def _create_invoice_fallback_documents(self, invoices_data):
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
+                _debug.logic("send_falling_back_proforma_pdf", move=invoice)
                 invoice_data.pop("error")
                 self._update_invoice_data_proforma_pdf_report(invoice, invoice_data)
                 self._hook_invoice_document_after_pdf_report_render(
@@ -967,6 +1093,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                     "ir.attachment"
                 ].create(invoice_data.pop("proforma_pdf_attachment_values"))
 
+    @_debug.perf.timed
     def _check_sending_data(self, moves, **custom_settings):
         self._check_move_constraints(moves)
         self._check_invoice_report(moves, **custom_settings)
@@ -978,6 +1105,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             raise ValidationError(_("Invalid sending method provided."))
 
     @api.model
+    @_debug.perf.timed
     def _generate_and_send_invoices(
         self,
         moves,
@@ -995,6 +1123,13 @@ class MixinAccountMoveSend(models.AbstractModel):
             }
             for move in moves
         }
+        _debug.pipeline(
+            "send_generate_and_send_invoices",
+            moves=moves,
+            from_cron=from_cron,
+            fallback=allow_fallback_pdf,
+            settings=sorted(custom_settings),
+        )
 
         self._render_invoice_documents(
             moves_data, allow_fallback_pdf=allow_fallback_pdf
@@ -1006,6 +1141,11 @@ class MixinAccountMoveSend(models.AbstractModel):
             if move_data.get("error")
         }
         if errors:
+            _debug.logic(
+                "send_errors_after_render",
+                error_count=len(errors),
+                moves=self.env["account.move"].union(*errors),
+            )
             self._hook_if_errors(
                 errors,
                 allow_raising=not from_cron
@@ -1026,6 +1166,16 @@ class MixinAccountMoveSend(models.AbstractModel):
             for move, move_data in moves_data.items()
             if not move_data.get("error")
         }
+        _debug.pipeline(
+            "send_outcome",
+            success=len(success),
+            error=len(moves_data) - len(success),
+            retry=sum(
+                1
+                for move_data in moves_data.values()
+                if move_data.get("error", {}).get("retry")
+            ),
+        )
         if success:
             self._hook_if_success(success, from_cron=from_cron)
 

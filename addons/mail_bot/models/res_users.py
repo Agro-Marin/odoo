@@ -7,7 +7,7 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     odoobot_state = fields.Selection(
-        [
+        selection=[
             ("not_initialized", "Not initialized"),
             ("onboarding_emoji", "Onboarding emoji"),
             ("onboarding_attachment", "Onboarding attachment"),
@@ -22,7 +22,7 @@ class ResUsers(models.Model):
     )
     odoobot_failed = fields.Boolean(readonly=True)
     odoobot_canned_response_id = fields.Many2one(
-        "mail.canned.response",
+        comodel_name="mail.canned.response",
         string="OdooBot Onboarding Canned Response",
         readonly=True,
         ondelete="set null",

@@ -14,14 +14,12 @@
                 <div class="row mb-3">
                     <div
                         t-att-class="event.website_track_proposal and 'col-lg-8 col-xl-9 pe-xxl-5' or 'col-12'">
-                        <!-- Default Title (editable) -->
                         <div class="oe_structure">
                             <section class="pt24 pb24">
                                 <h1 class="my-0 h3-fs">Call for Proposals</h1>
                             </section>
                         </div>
 
-                        <!-- "Proposal are CLOSED" content -->
                         <div
                             t-if="not event.website_track_proposal"
                             class="oe_structure">
@@ -36,7 +34,6 @@
                             </section>
                         </div>
 
-                        <!-- "Proposal are ALLOWED" content -->
                         <div t-if="event.website_track_proposal" class="oe_structure">
                             <section>
                                 <h4 class="mt-0">
@@ -161,9 +158,8 @@
                             class="oe_structure"
                             id="oe_structure_website_event_track_proposal_2"
                             data-editor-message.translate="DROP BUILDING BLOCKS HERE TO MAKE THEM AVAILABLE ACROSS ALL PROPOSAL PAGES OF ALL EVENTS" />
-                    </div> <!-- Close main column -->
+                    </div>
 
-                    <!-- Sidebar: visible if proposals are allowed only -->
                     <aside
                         t-if="event.website_track_proposal"
                         class="col-lg-4 col-xl-3 mt-3 mt-lg-0 pt-3">

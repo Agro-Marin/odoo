@@ -1,5 +1,8 @@
 from odoo import _, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
@@ -35,7 +38,6 @@ class SaleOrder(models.Model):
         event_ticket_id=False,
         **kwargs,
     ):
-        """Restrict quantity updates for event tickets according to available seats."""
         new_qty, warning = super()._get_updated_quantity(
             order_line,
             product_id,
@@ -50,11 +52,17 @@ class SaleOrder(models.Model):
             if not order_line.event_ticket_id or new_qty < order_line.product_uom_qty:
                 return new_qty, warning
             else:
+                _debug.logic(
+                    "ticket_quantity_raise_refused",
+                    line=order_line,
+                    ticket=order_line.event_ticket_id,
+                    requested=new_qty,
+                    kept=order_line.product_uom_qty,
+                )
                 return order_line.product_uom_qty, _(
                     "You cannot raise manually the event ticket quantity in your cart"
                 )
 
-        # Adding new ticket to the cart (might be automatically linked to an existing line)
         ticket = self.env["event.event.ticket"].browse(event_ticket_id).exists()
         if not ticket:
             raise UserError(_("The provided ticket doesn't exist"))
@@ -62,20 +70,23 @@ class SaleOrder(models.Model):
         if event_slot_id and not slot:
             raise UserError(_("The provided ticket slot doesn't exist"))
 
-        # TODO TDE consider full cart qty and not only added qty
-        # if event seats are not auto confirmed.
-        # Since created registrations are automatically reserved
-        # We should only consider new added qty and not full quantity
-        # when checking for seat availability
         existing_qty = order_line.product_uom_qty if order_line else 0
         qty_added = new_qty - existing_qty
         warning = ""
-        ticket_seats_available = (
-            ticket.event_id._get_seats_availability([(slot, ticket)])[0]
-            if slot
-            else ticket.seats_available
-        )
-        if ticket.seats_limited and qty_added > 0 and ticket_seats_available <= 0:
+        # Always go through the helper: it combines the event (or slot) cap with
+        # the ticket cap, whereas `ticket.seats_available` only knows about the
+        # ticket and ignores a capped event selling an uncapped ticket. `None`
+        # is the helper's documented "no limit" sentinel.
+        seats_available = ticket.event_id._get_seats_availability([(slot, ticket)])[0]
+        if seats_available is not None and qty_added > 0 and seats_available <= 0:
+            _debug.logic(
+                "ticket_sold_out",
+                ticket=ticket,
+                event=ticket.event_id,
+                slot=slot,
+                requested=new_qty,
+                kept=existing_qty,
+            )
             # Keep the existing line's quantity unchanged, and do not create a
             # new line, if no ticket is available anymore
             new_qty = existing_qty
@@ -84,11 +95,20 @@ class SaleOrder(models.Model):
                 ticket=ticket.name,
                 event=ticket.event_id.name,
             )
-        elif ticket.seats_limited and qty_added > ticket_seats_available:
-            new_qty = existing_qty + ticket_seats_available
+        elif seats_available is not None and qty_added > seats_available:
+            _debug.logic(
+                "ticket_quantity_clamped",
+                ticket=ticket,
+                event=ticket.event_id,
+                slot=slot,
+                requested=new_qty,
+                available=seats_available,
+                kept=existing_qty + seats_available,
+            )
+            new_qty = existing_qty + seats_available
             warning = _(
                 "Sorry, only %(remaining_seats)d seats are still available for the %(ticket)s ticket for the %(event)s event%(slot)s.",
-                remaining_seats=ticket_seats_available,
+                remaining_seats=seats_available,
                 slot=f" on {slot.name}" if slot else "",
                 ticket=ticket.name,
                 event=ticket.event_id.name,
@@ -99,7 +119,6 @@ class SaleOrder(models.Model):
     def _prepare_order_line_values(
         self, product_id, *args, event_slot_id=False, event_ticket_id=False, **kwargs
     ):
-        """Add corresponding event to the SOline creation values (if ticket is provided)."""
         values = super()._prepare_order_line_values(
             product_id,
             *args,
@@ -120,6 +139,12 @@ class SaleOrder(models.Model):
         values["event_id"] = ticket.event_id.id
         values["event_ticket_id"] = ticket.id
         values["event_slot_id"] = event_slot_id
+        _debug.pipeline(
+            "ticket_line_values",
+            ticket=ticket,
+            event=ticket.event_id,
+            slot=event_slot_id,
+        )
 
         return values
 
@@ -128,7 +153,6 @@ class SaleOrder(models.Model):
 
         updated_line = super()._cart_update_order_line(order_line, quantity, **kwargs)
 
-        # Cancel event registrations on quantity decrease.
         if (
             updated_line
             and updated_line.event_ticket_id
@@ -145,12 +169,19 @@ class SaleOrder(models.Model):
                 limit=diff,
                 order="create_date asc",
             )
+            _debug.lifecycle(
+                "attendees_cancelled_on_quantity_drop",
+                order=self,
+                line=updated_line,
+                ticket=updated_line.event_ticket_id,
+                removed=diff,
+                attendees=attendees,
+            )
             attendees.action_cancel()
 
         return updated_line
 
     def _filter_can_send_abandoned_cart_mail(self):
-        # Prevent carts with expired/sold out tickets from being subject of reminder emails
         return (
             super()
             ._filter_can_send_abandoned_cart_mail()

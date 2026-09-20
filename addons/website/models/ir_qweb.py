@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from odoo import models
 from odoo.exceptions import AccessError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import lazy
 
 from odoo.addons.website.models import ir_http
@@ -13,6 +14,7 @@ from odoo.addons.website.tools import add_form_signature
 re_background_image = re.compile(
     r"(background-image\s*:\s*url\(\s*['\"]?\s*)([^)'\"]+)"
 )
+_debug = DebugLog(__name__)
 
 
 class IrQweb(models.AbstractModel):
@@ -35,6 +37,14 @@ class IrQweb(models.AbstractModel):
     def _get_template_cache_keys(self):
         return super()._get_template_cache_keys() + ["website_id", "cookies_allowed"]
 
+    def _save_esm_attachment_rows(self, vals_list, touch_ids=(), bundle=""):
+        # Compiled ESM rows are content-addressed and served without a website
+        # filter, so they belong to no website. Left to ir.attachment.create,
+        # they would take the request's forced website, which an autonomous
+        # save cannot see when that website is still uncommitted.
+        vals_list = [dict(vals, website_id=False) for vals in vals_list]
+        super()._save_esm_attachment_rows(vals_list, touch_ids, bundle)
+
     def _prepare_frontend_environment(self, values):
         irQweb = super()._prepare_frontend_environment(values)
 
@@ -56,37 +66,17 @@ class IrQweb(models.AbstractModel):
             != irQweb.env["ir.http"]._get_default_lang().code
         )
         editable = editable and not translatable
+        _debug.logic(
+            "frontend_editability",
+            editable=editable,
+            translatable=translatable,
+            designer=irQweb.env.user.has_group("website.group_website_designer"),
+        )
 
         if has_group_restricted_editor and irQweb.env.user.has_group(
             "website.group_multi_website"
         ):
-            values["multi_website_websites_current"] = lazy(
-                lambda: current_website.name
-            )
-            values["multi_website_websites"] = lazy(
-                lambda: [
-                    {
-                        "website_id": website.id,
-                        "name": website.name,
-                        "domain": website.domain,
-                    }
-                    for website in current_website.search(
-                        [("id", "!=", current_website.id)]
-                    )
-                ]
-            )
-
-            cur_company = irQweb.env.company
-            values["multi_website_companies_current"] = lazy(
-                lambda: {"company_id": cur_company.id, "name": cur_company.name}
-            )
-            values["multi_website_companies"] = lazy(
-                lambda: [
-                    {"company_id": comp.id, "name": comp.name}
-                    for comp in irQweb.env.user.company_ids
-                    if comp != cur_company
-                ]
-            )
+            self._add_multi_website_values(values, irQweb, current_website)
 
         values.update(
             {
@@ -128,19 +118,62 @@ class IrQweb(models.AbstractModel):
         )
         irQweb = irQweb.with_context(cookies_allowed=is_allowed_optional_cookies)
 
+        # Guarded, and that is not stylistic: kwargs are evaluated BEFORE the
+        # call, so `_Channel.__call__`'s own isEnabledFor check comes too late to
+        # stop the two website field reads below. Unguarded they cost one extra
+        # SELECT on `website` per render with the channel OFF, which
+        # `TestWebsitePerformance.test_30_perf_sql_queries_page_no_layout`
+        # measures and refuses.
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "frontend_environment",
+                website=current_website.id,
+                editable=editable,
+                translatable=translatable,
+                restricted_editor=has_group_restricted_editor,
+                cookies_allowed=is_allowed_optional_cookies,
+                # The last two are the remaining inputs of the third-party
+                # blocking gate in `_post_processing_att`, which logs only when
+                # it blocks. Its other two inputs were already here, so "was
+                # blocking even active for this render?" -- the question behind
+                # any complaint that an embed loaded without consent, or that one
+                # failed to load -- needed these to be answerable. Logged here
+                # rather than at the gate because the gate runs once per element
+                # and this runs once per render.
+                cookies_bar=current_website.cookies_bar,
+                block_third_party=current_website.block_third_party_domains,
+            )
         return irQweb
 
+    def _add_multi_website_values(self, values, irQweb, current_website):
+        _debug.logic("multi_website_switcher", website=current_website.id)
+        values["multi_website_websites_current"] = lazy(lambda: current_website.name)
+        values["multi_website_websites"] = lazy(
+            lambda: [
+                {
+                    "website_id": website.id,
+                    "name": website.name,
+                    "domain": website.domain,
+                }
+                for website in current_website.search(
+                    [("id", "!=", current_website.id)]
+                )
+            ]
+        )
+
+        cur_company = irQweb.env.company
+        values["multi_website_companies_current"] = lazy(
+            lambda: {"company_id": cur_company.id, "name": cur_company.name}
+        )
+        values["multi_website_companies"] = lazy(
+            lambda: [
+                {"company_id": comp.id, "name": comp.name}
+                for comp in irQweb.env.user.company_ids
+                if comp != cur_company
+            ]
+        )
+
     def _get_post_processing_att_names(self):
-        # Not narrowable. `_post_processing_att` below acts on the tag name
-        # (img -> loading="lazy"), on `class` (the cookies-bar container
-        # watchlist), on `style` (background-image rewriting) and on every
-        # `data-` twin of a URL attribute, so any honest set would match very
-        # nearly every element that has an attribute at all.
-        #
-        # A precise set was written and measured, and it made
-        # `ir.qweb.field.html` ~4% SLOWER: the test cost more than the handful
-        # of elements it skipped. Answering None makes that caller drop the
-        # test rather than pay for one that never filters.
         return None
 
     def _post_processing_att(self, tagName, atts, *, is_static=False):
@@ -199,6 +232,11 @@ class IrQweb(models.AbstractModel):
             if remove_src or cookies_watchlist["classes"].intersection(
                 (atts.get("class") or "").split(" ")
             ):
+                _debug.logic(
+                    "third_party_blocked",
+                    tag=tagName,
+                    by="src" if remove_src else "class",
+                )
                 atts["data-need-cookies-approval"] = "true"
                 if "src" in atts:
                     atts["data-nocookie-src"] = atts["src"]

@@ -3,9 +3,12 @@ from typing import Any
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import ValidationError
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
 
+from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+ROUTES_BY_STEPS_CONTEXT = "approval_category_routes_by_steps"
 
 CATEGORY_SELECTION = [
     ("required", "Required"),
@@ -24,18 +27,16 @@ class ApprovalCategory(models.Model):
     company_id = fields.Many2one(
         comodel_name="res.company",
         default=lambda self: self.env.company,
+        index=True,
         copy=False,
         tracking=True,
-        index=True,
     )
     company_currency_id = fields.Many2one(
         related="company_id.currency_id",
         string="Company Currency",
         readonly=True,
     )
-    active = fields.Boolean(
-        tracking=True,
-    )
+    active = fields.Boolean(tracking=True)
     color = fields.Integer(
         string="Color Index",
         help="Color used in kanban views for visual distinction",
@@ -50,123 +51,17 @@ class ApprovalCategory(models.Model):
     sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
         string="Reference Sequence",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
-    image = fields.Binary(
-        default=lambda self: self._default_image(),
-    )
-    description = fields.Char(
-        translate=True,
-    )
+    image = fields.Binary(default=lambda self: self._default_image())
+    description = fields.Char(translate=True)
 
-    has_date = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
+    allow_self_approval = fields.Boolean(
         tracking=True,
-    )
-    has_date_deadline = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_date_planned = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_date_range = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_partner = fields.Selection(
-        CATEGORY_SELECTION,
-        string="Has Contact",
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_automation = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-        help="Automation flows that should be specified on the request.",
-    )
-    has_quantity = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_amount = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_reference = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-        help="An additional reference that should be specified on the request.",
-    )
-    has_location = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-    )
-    has_document = fields.Selection(
-        selection=[
-            ("required", "Required"),
-            ("optional", "Optional"),
-        ],
-        string="Documents",
-        required=True,
-        default="optional",
-        tracking=True,
-    )
-    group_approval = fields.Selection(
-        selection=[
-            ("no", "Users"),
-            ("exclusive", "Security group"),
-        ],
-        string="Approver Source",
-        required=True,
-        default="no",
-        tracking=True,
-        help="""Where the request's approvers come from:
-
-        • Users: approvers are the ones listed below (plus the
-          Employee's Manager and any matching tier, if configured)
-        • Security group: approvers are exactly the members of the selected
-          security group; the explicit user list is bypassed
-
-        Note:
-        - The 'Minimum Approval' field applies to all resulting approvers
-        - In 'Security group' mode approvers are ONLY the group members; the
-          explicit list, the Employee's Manager and tiers are all bypassed
-        - A user added by multiple mechanisms appears only once""",
-    )
-    approver_group_id = fields.Many2one(
-        comodel_name="res.groups",
-        tracking=True,
-        help="Users in this security group can approve requests for this category",
-    )
-    approver_group_user_ids = fields.Many2many(
-        comodel_name="res.users",
-        related="approver_group_id.all_user_ids",
-        string="Group Members",
-        help="Effective members of the security group who become approvers when "
-        "group approval is enabled. Mirrors the group's 'Users and implied users' "
-        "(approver_group_id.all_user_ids), the same set used by _sync_approvers().",
+        help="Whether the person asking may also decide their own request. Off, "
+        "the requester is never asked by any step and any decision they attempt "
+        "is refused.",
     )
     allowed_user_ids = fields.Many2many(
         comodel_name="res.users",
@@ -199,8 +94,8 @@ class ApprovalCategory(models.Model):
             ("employees", "All internal users"),
         ],
         string="Approval Visibility",
-        required=True,
         default="private",
+        required=True,
         tracking=True,
         help="""Who may READ the requests of this category (additive on top of
         the always-allowed requester/approvers/delegate and managers):
@@ -228,8 +123,8 @@ class ApprovalCategory(models.Model):
     )
     approval_minimum = fields.Integer(
         string="Minimum Approval",
-        required=True,
         default=1,
+        required=True,
         tracking=True,
     )
     approval_type = fields.Selection(
@@ -246,22 +141,6 @@ class ApprovalCategory(models.Model):
         "Leave empty if the approval is for an existing record (e.g., approving a purchase order). "
         "Set to model name (e.g., 'purchase.order') if approval should create a new record.",
     )
-    approve_sequentially = fields.Boolean(
-        string="Approvers Sequence?",
-        tracking=True,
-        help="If checked, the approvers have to approve in sequence (one after the other). "
-        "If Employee's Manager is selected as approver, they will be the first in line.",
-    )
-    approver_ids = fields.One2many(
-        comodel_name="approval.category.approver",
-        inverse_name="category_id",
-        string="Approvers",
-    )
-    document_requirement_ids = fields.One2many(
-        comodel_name="approval.document.requirement",
-        inverse_name="category_id",
-        string="Document Requirements",
-    )
     rule_ids = fields.One2many(
         comodel_name="approval.rule",
         inverse_name="category_id",
@@ -270,11 +149,10 @@ class ApprovalCategory(models.Model):
     step_ids = fields.One2many(
         comodel_name="approval.category.step",
         inverse_name="category_id",
-        context={"active_test": True},
         string="Steps",
-        help="Declare steps when approval must pass several pools, each needing its "
-        "own approvals. Without steps the flat approver list and Minimum Approval "
-        "apply exactly as before.",
+        context={"active_test": True},
+        help="The pools a request of this category must pass, each needing its own "
+        "approvals. Every request routes by the steps whose condition it meets.",
     )
     notify_sequentially = fields.Boolean(
         string="Request Steps In Order",
@@ -298,12 +176,6 @@ class ApprovalCategory(models.Model):
         compute="_compute_rule_count",
         help="Number of active conditional rules",
     )
-    template_count = fields.Integer(
-        compute="_compute_template_count",
-        help="Number of active templates",
-    )
-    invalid_minimum = fields.Boolean(compute="_compute_minimum_validity")
-    invalid_minimum_warning = fields.Char(compute="_compute_minimum_validity")
     count_request_to_validate = fields.Integer(
         string="Number of requests to validate",
         compute="_compute_count_request_to_validate",
@@ -376,11 +248,6 @@ class ApprovalCategory(models.Model):
         "have not refused within the window.",
     )
 
-    automation_id = fields.Many2one(
-        comodel_name="automation.rule",
-        domain="[('trigger', '=', 'on_hand')]",
-    )
-
     _name_src_uniq = name_uniq_index(
         "company_id",
         message="An approval category with this name already exists for this company.",
@@ -391,53 +258,31 @@ class ApprovalCategory(models.Model):
         "The sequence code must be unique per company.",
     )
 
-    @api.constrains("approval_minimum", "approver_ids")
+    @api.constrains("approval_minimum")
     def _constrains_approval_minimum(self) -> None:
         for category in self:
             if category.approval_minimum < 1:
+                trace.REFUSAL.event(
+                    "minimum_below_one",
+                    category=category.id,
+                    minimum=category.approval_minimum,
+                )
                 raise ValidationError(
                     self.env._(
                         "Minimum Approval must be at least 1.",
                     ),
                 )
-            if category.approval_minimum < len(
-                category.approver_ids.filtered("required"),
-            ):
-                raise ValidationError(
-                    self.env._(
-                        "Minimum Approval must be equal or superior to the sum of required Approvers.",
-                    ),
-                )
 
-    @api.constrains("approve_sequentially", "approval_minimum")
-    def _constrains_approve_sequentially(self) -> None:
-        if any(a.approve_sequentially and not a.approval_minimum for a in self):
-            raise ValidationError(
-                self.env._(
-                    "Approver Sequence can only be activated with at least 1 minimum approver.",
-                ),
-            )
-
-    @api.constrains("approve_sequentially", "step_ids")
-    def _constrains_steps_not_sequential(self) -> None:
-        for category in self:
-            if category.approve_sequentially and category.step_ids:
-                category._raise_steps_with_approver_sequence()
-
-    def _raise_steps_with_approver_sequence(self) -> None:
-        raise ValidationError(
-            self.env._(
-                "A category with steps orders them itself, so it cannot also use "
-                "Approvers Sequence: sequencing individual approvers forbids a later "
-                "step from deciding early, which steps allow. Use Request Steps In "
-                "Order instead.",
-            ),
-        )
-
-    @api.constrains("approve_sequentially", "consent_approval_hours")
+    @api.constrains("consent_approval_hours", "step_ids")
     def _constrains_consent_sequential(self) -> None:
         for category in self:
-            if category.approve_sequentially and category.consent_approval_hours:
+            ordered = any(category.step_ids.mapped("in_order"))
+            if ordered and category.consent_approval_hours:
+                trace.REFUSAL.event(
+                    "consent_with_sequential",
+                    category=category.id,
+                    hours=category.consent_approval_hours,
+                )
                 raise ValidationError(
                     self.env._(
                         "Consent-based auto-approval cannot be used with "
@@ -445,45 +290,26 @@ class ApprovalCategory(models.Model):
                     ),
                 )
 
-    @api.constrains("approval_minimum", "group_approval", "approver_group_id")
-    def _constrains_approval_minimum_vs_group(self) -> None:
-        for category in self:
-            if category.group_approval != "exclusive" or not category.approver_group_id:
-                continue
-            member_count = len(category.approver_group_id.all_user_ids)
-            if category.approval_minimum > member_count:
-                raise ValidationError(
-                    self.env._(
-                        "Minimum Approval (%(minimum)d) exceeds the number "
-                        "of members in security group '%(group)s' "
-                        "(%(count)d). Requests in this category could "
-                        "never reach the required number of approvals.",
-                        minimum=category.approval_minimum,
-                        group=category.approver_group_id.name,
-                        count=member_count,
-                    ),
+    @api.model
+    def default_get(self, fields):
+        defaults = super().default_get(fields)
+        if (
+            "step_ids" in fields
+            and "step_ids" not in defaults
+            and self.env.context.get(ROUTES_BY_STEPS_CONTEXT)
+        ):
+            defaults["step_ids"] = [
+                Command.create(
+                    {
+                        "name": self.env._("Approvers"),
+                        "sequence": 10,
+                        "minimum": 1,
+                        "counts_added_approvers": True,
+                    }
                 )
-
-    @api.constrains("group_approval", "approver_group_id")
-    def _constrains_group_approval(self) -> None:
-        for category in self:
-            if category.group_approval != "no" and not category.approver_group_id:
-                raise ValidationError(
-                    self.env._(
-                        "You must select a security group when group approval is enabled.",
-                    ),
-                )
-
-            if category.group_approval == "exclusive" and category.approver_group_id:
-                group_users = category.approver_group_id.all_user_ids
-                if not group_users:
-                    raise ValidationError(
-                        self.env._(
-                            "Security group '%(group)s' has no members. "
-                            "Add users to the group or change the approval mode.",
-                            group=category.approver_group_id.name,
-                        ),
-                    )
+            ]
+            trace.STEPS.event("category_born_with_steps", fields=len(fields))
+        return defaults
 
     @api.model_create_multi
     def create(self, vals_list: list[dict[str, Any]]) -> Any:
@@ -543,6 +369,12 @@ class ApprovalCategory(models.Model):
                     )
                 )
                 vals["sequence_id"] = sequence.id
+                trace.CRUD.event(
+                    "category_sequence",
+                    code=code,
+                    sequence=sequence.id,
+                    company=vals.get("company_id"),
+                )
         return super().create(vals_list)
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -600,6 +432,13 @@ class ApprovalCategory(models.Model):
                 category.id,
                 0,
             )
+        trace.COMPUTE.event(
+            "count_request_to_validate",
+            n=len(self),
+            uid=self.env.uid,
+            with_requests=len(requests_mapped_data),
+            requests=sum(requests_mapped_data.values()),
+        )
 
     def _compute_rule_count(self) -> None:
         data = self.env["approval.rule"]._read_group(
@@ -610,16 +449,12 @@ class ApprovalCategory(models.Model):
         mapped = {cat.id: count for cat, count in data}
         for category in self:
             category.rule_count = mapped.get(category.id, 0)
-
-    def _compute_template_count(self) -> None:
-        data = self.env["approval.template"]._read_group(
-            [("category_id", "in", self.ids), ("active", "=", True)],
-            ["category_id"],
-            ["__count"],
+        trace.RULES.event(
+            "rule_count",
+            n=len(self),
+            with_rules=len(mapped),
+            rules=sum(mapped.values()),
         )
-        mapped = {cat.id: count for cat, count in data}
-        for category in self:
-            category.template_count = mapped.get(category.id, 0)
 
     @api.depends_context("uid")
     def _compute_kanban_dashboard(self) -> None:
@@ -706,69 +541,50 @@ class ApprovalCategory(models.Model):
                 "has_late_requests": late_count > 0,
                 "show_company": show_company,
                 "rule_count": category.rule_count,
-                "template_count": category.template_count,
             }
+            trace.COMPUTE.event(
+                "kanban_dashboard",
+                category=category.id,
+                total=total,
+                late=late_count,
+                to_review=dashboard_data["to_review_count"],
+                mine=dashboard_data["my_requests_count"],
+            )
             category.kanban_dashboard = dashboard_data
 
-    @api.depends_context("lang")
-    @api.depends(
-        "approval_minimum",
-        "approver_ids",
-        "group_approval",
-        "approver_group_id",
-        "rule_ids.active",
-        "rule_ids.approver_ids",
-    )
-    def _compute_minimum_validity(self) -> None:
+    def _add_approver(self, user, required=False, sequence=10) -> None:
+        """Add `user` as an approver of every request: a member of the category's pool
+        step, the first step counting approvers added by hand."""
         for category in self:
-            approver_user_ids = set()
-            manager_count = 0
-
-            if category.group_approval != "exclusive":
-                approver_user_ids.update(category.approver_ids.mapped("user_id").ids)
-
-            manager_count = category._get_default_approver_count_extra()
-
-            if category.group_approval != "no" and category.approver_group_id:
-                approver_user_ids.update(category.approver_group_id.all_user_ids.ids)
-
-            total_approvers = len(approver_user_ids) + manager_count
-
-            replacements = category.rule_ids.filtered(
-                lambda r: r.active and r.action_type == "set_approvers",
+            pool = (
+                category.step_ids.filtered("counts_added_approvers")
+                or category.step_ids
+            )[:1]
+            trace.STEPS.event(
+                "approver_added_to_step",
+                category=category.id,
+                user=user.id,
+                required=required,
+                step=pool.id,
+                counts_added=pool.counts_added_approvers,
             )
-            if replacements:
-                total_approvers = max(
-                    total_approvers,
-                    *(len(rule.approver_ids) for rule in replacements),
+            if not pool:
+                category.step_ids = [
+                    Command.create(
+                        {
+                            "name": self.env._("Approvers"),
+                            "sequence": 10,
+                            "minimum": max(category.approval_minimum, 1),
+                            "counts_added_approvers": True,
+                        }
+                    )
+                ]
+                pool = category.step_ids[:1]
+            pool.member_ids = [
+                Command.create(
+                    {"user_id": user.id, "required": required, "sequence": sequence}
                 )
-
-            category.invalid_minimum = category.approval_minimum > total_approvers
-
-            if category.invalid_minimum:
-                if manager_count:
-                    category.invalid_minimum_warning = self.env._(
-                        "Your minimum approval (%(minimum)d) exceeds the estimated "
-                        "default approvers (%(total)d). Note: This count assumes all "
-                        "request owners will have managers. Users may need to add "
-                        "additional approvers when creating requests.",
-                        minimum=category.approval_minimum,
-                        total=total_approvers,
-                    )
-                else:
-                    category.invalid_minimum_warning = self.env._(
-                        "Your minimum approval (%(minimum)d) exceeds the total of "
-                        "default approvers (%(total)d). Users will need to manually "
-                        "add approvers when creating requests.",
-                        minimum=category.approval_minimum,
-                        total=total_approvers,
-                    )
-            else:
-                category.invalid_minimum_warning = False
-
-    def _get_default_approver_count_extra(self) -> int:
-        self.check_singleton()
-        return 0
+            ]
 
     def create_request(self) -> dict[str, Any]:
         self.check_singleton()
@@ -788,6 +604,9 @@ class ApprovalCategory(models.Model):
 
     def _is_applicable_for(self, document) -> bool:
         self.check_singleton()
+        trace.SUBJECTS.event(
+            "category_applicable", category=self.id, subject=document, applicable=True
+        )
         return True
 
     def _get_view_request(
@@ -797,6 +616,12 @@ class ApprovalCategory(models.Model):
         domain = [("category_id", "=", self.id)]
         if extra_domain:
             domain.extend(extra_domain)
+        trace.REPORT.note(
+            "view_request",
+            category=self.id,
+            label=label or None,
+            filters=len(extra_domain or ()),
+        )
         return {
             "type": "ir.actions.act_window",
             "name": f"{label} - {self.name}" if label else self.name,
@@ -865,17 +690,6 @@ class ApprovalCategory(models.Model):
             "name": self.env._("Rules: %s", self.name),
             "type": "ir.actions.act_window",
             "res_model": "approval.rule",
-            "view_mode": "list,form",
-            "domain": [("category_id", "=", self.id)],
-            "context": {"default_category_id": self.id},
-        }
-
-    def view_templates(self) -> dict[str, Any]:
-        self.check_singleton()
-        return {
-            "name": self.env._("Templates: %s", self.name),
-            "type": "ir.actions.act_window",
-            "res_model": "approval.template",
             "view_mode": "list,form",
             "domain": [("category_id", "=", self.id)],
             "context": {"default_category_id": self.id},

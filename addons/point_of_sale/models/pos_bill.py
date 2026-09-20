@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class PosBill(models.Model):
     _name = "pos.bill"
@@ -8,9 +10,15 @@ class PosBill(models.Model):
     _description = "Coins/Bills"
     _inherit = ["mixin.pos.load"]
 
-    name = fields.Char("Name")
-    value = fields.Float("Value", required=True, digits=(16, 4))
-    pos_config_ids = fields.Many2many("pos.config", string="Point of Sales")
+    name = fields.Char()
+    value = fields.Float(
+        digits=(16, 4),
+        required=True,
+    )
+    pos_config_ids = fields.Many2many(
+        comodel_name="pos.config",
+        string="Point of Sales",
+    )
 
     @api.model
     def name_create(self, name):
@@ -21,6 +29,7 @@ class PosBill(models.Model):
                 _("The name of the Coins/Bills must be a number.")
             ) from None
         result = super().create({"name": name, "value": value})
+        dbg.lifecycle.debug("pos.bill %s created from %r", dbg.rec(result), name)
         return result.id, result.display_name
 
     @api.model

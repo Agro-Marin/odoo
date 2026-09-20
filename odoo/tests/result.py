@@ -9,6 +9,8 @@ import traceback
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 from .. import db
+from ..libs.debug_log import DebugLog
+from ..tools import config
 from . import case
 from .utils import env_int
 
@@ -17,6 +19,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 __unittest = True
+
+_debug = DebugLog(__name__)
 
 _max_failed = env_int("ODOO_TEST_MAX_FAILED_TESTS", 0)
 ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
@@ -65,6 +69,29 @@ class TestLike(Protocol):
     def shortDescription(self) -> str | None: ...
 
 
+_ASSERTION_REPORTS: dict[str, OdooTestResult] = {}
+
+
+def assertion_report(db_name: str) -> OdooTestResult | None:
+    if not config["test_enable"]:
+        return None
+    report = _ASSERTION_REPORTS.get(db_name)
+    if report is None:
+        report = _ASSERTION_REPORTS[db_name] = OdooTestResult()
+        _debug.lifecycle("test.result.report_created", db=db_name)
+    return report
+
+
+def forget_assertion_report(db_name: str | None = None) -> None:
+    _debug.lifecycle(
+        "test.result.report_forgotten", db=db_name, held=len(_ASSERTION_REPORTS)
+    )
+    if db_name is None:
+        _ASSERTION_REPORTS.clear()
+    else:
+        _ASSERTION_REPORTS.pop(db_name, None)
+
+
 class OdooTestResult:
     _monotonic = staticmethod(time.monotonic)
 
@@ -82,6 +109,7 @@ class OdooTestResult:
         self.testsRun = 0
         self.skipped = 0
         self.infrastructure_skipped = 0
+        self.aborted = ""
         self.tb_locals = False
         self.time_start = 0.0
         self.queries_start = 0
@@ -102,6 +130,11 @@ class OdooTestResult:
         if self.total_errors_count() >= ODOO_TEST_MAX_FAILED_TESTS:
             global_report = self.global_report or self
             if not global_report.shouldStop:
+                _debug.lifecycle(
+                    "test.result.halted",
+                    failed=self.total_errors_count(),
+                    max=ODOO_TEST_MAX_FAILED_TESTS,
+                )
                 _logger.error(
                     "Test suite halted: max failed tests already reached (%s). "
                     "Remaining tests will be skipped.",
@@ -116,6 +149,14 @@ class OdooTestResult:
     def startTest(self, test: TestLike) -> None:
         if not self._is_retry:
             self.testsRun += 1
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.result.start",
+                test=test.id(),
+                n=self.testsRun,
+                retry=self._is_retry,
+                soft=self._soft_fail,
+            )
         self.log(
             logging.INFO,
             "Starting %s ...",
@@ -131,19 +172,48 @@ class OdooTestResult:
                 time=self._monotonic() - self.time_start,
                 queries=db.sql_counter - self.queries_start,
             )
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "test.result.stop",
+                test=test.id(),
+                ms=(self._monotonic() - self.time_start) * 1000.0,
+                queries=db.sql_counter - self.queries_start,
+                retry=self._is_retry,
+            )
 
     def _record_failure(self, counter: str) -> None:
         if self._soft_fail:
             self.had_failure = True
         else:
             setattr(self, counter, getattr(self, counter) + 1)
+        _debug.lifecycle(
+            "test.result.failure_recorded",
+            counter=counter,
+            soft=self._soft_fail,
+            failures=self.failures_count,
+            errors=self.errors_count,
+        )
         self._checkShouldStop()
 
     def addError(self, test: TestLike, err: tuple) -> None:
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.result.error",
+                test=test.id(),
+                error=err[0].__name__ if err[0] else None,
+                soft=self._soft_fail,
+            )
         self.logError("ERROR", test, err)
         self._record_failure("errors_count")
 
     def addFailure(self, test: TestLike, err: tuple) -> None:
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.result.fail",
+                test=test.id(),
+                error=err[0].__name__ if err[0] else None,
+                soft=self._soft_fail,
+            )
         self.logError("FAIL", test, err)
         self._record_failure("failures_count")
 
@@ -151,18 +221,34 @@ class OdooTestResult:
         self, test: case.TestCase, subtest: TestLike, err: tuple | None
     ) -> None:
         if err is not None:
-            if issubclass(err[0], test.failureException):
+            is_failure = issubclass(err[0], test.failureException)
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "test.result.subtest_failed",
+                    test=subtest.id(),
+                    failure=is_failure,
+                )
+            if is_failure:
                 self.addFailure(subtest, err)
             else:
                 self.addError(subtest, err)
 
     def addSuccess(self, test: TestLike) -> None:
-        pass
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("test.result.success", test=test.id())
 
     def addSkip(
         self, test: TestLike, reason: str, infrastructure: bool = False
     ) -> None:
         self.skipped += 1
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.result.skip",
+                test=test.id(),
+                infrastructure=infrastructure,
+                require_infra=REQUIRE_INFRA,
+                skipped=self.skipped,
+            )
         if not infrastructure:
             self.log(
                 logging.INFO,
@@ -195,6 +281,11 @@ class OdooTestResult:
 
     def wasSuccessful(self) -> bool:
         return self.failures_count == self.errors_count == 0
+
+    def record_abort(self, reason: str) -> None:
+        self.aborted = reason
+        self.errors_count += 1
+        _debug.lifecycle("test.result.aborted", reason=reason)
 
     def _exc_info_to_string(self, err: tuple, test: TestLike) -> str:
         exctype, value, tb = err
@@ -235,25 +326,31 @@ class OdooTestResult:
                 f" ({self.infrastructure_skipped} skipped because the "
                 f"environment could not run them)"
             )
+        if self.aborted:
+            summary += f", run aborted before it finished: {self.aborted}"
         return summary
 
     @contextlib.contextmanager
     def retry(self) -> Generator[None]:
         previous = self._is_retry
         self._is_retry = True
+        _debug.lifecycle("test.result.retry_enter", nested=previous)
         try:
             yield
         finally:
             self._is_retry = previous
+            _debug.lifecycle("test.result.retry_exit")
 
     @contextlib.contextmanager
     def soft_fail(self) -> Generator[None]:
         self.had_failure = False
         self._soft_fail = True
+        _debug.lifecycle("test.result.soft_fail_enter")
         try:
             yield
         finally:
             self._soft_fail = False
+            _debug.lifecycle("test.result.soft_fail_exit", had_failure=self.had_failure)
 
     def update(self, other: OdooTestResult) -> None:
         self.failures_count += other.failures_count
@@ -261,8 +358,18 @@ class OdooTestResult:
         self.testsRun += other.testsRun
         self.skipped += other.skipped
         self.infrastructure_skipped += other.infrastructure_skipped
+        self.aborted = self.aborted or other.aborted
         for test_id, stat in other.stats.items():
             self.stats[test_id] += stat
+        _debug.pipeline(
+            "test.result.merged",
+            tests=other.testsRun,
+            failures=other.failures_count,
+            errors=other.errors_count,
+            skipped=other.skipped,
+            stats=len(other.stats),
+            total=self.testsRun,
+        )
 
     def log(
         self,
@@ -306,9 +413,11 @@ class OdooTestResult:
         details = stats_logger.isEnabledFor(logging.DEBUG)
         stats_tree: dict[str, Stat] = collections.defaultdict(Stat)
         counts: collections.Counter[str] = collections.Counter()
+        unmatched = 0  # debuglog
         for test, stat in self.stats.items():
             r = _TEST_ID.match(test)
             if not r:
+                unmatched += 1  # debuglog
                 continue
 
             stats_tree[r["module"]] += stat
@@ -317,6 +426,13 @@ class OdooTestResult:
                 stats_tree[f"{r['module']}.{r['class']}"] += stat
                 stats_tree[f"{r['module']}.{r['class']}.{r['method']}"] += stat
 
+        _debug.pipeline(
+            "test.result.log_stats",
+            entries=len(self.stats),
+            modules=len(counts),
+            unmatched=unmatched,
+            details=details,
+        )
         if details:
             stats_logger.debug(
                 "Detailed Tests Report:\n%s",
@@ -354,14 +470,27 @@ class OdooTestResult:
         try:
             yield
         finally:
-            self.stats[test_id] += Stat(
+            stat = Stat(
                 time=self._monotonic() - time_start,
                 queries=db.sql_counter - queries_before,
+            )
+            self.stats[test_id] += stat
+            _debug.perf.count(
+                "test.result.stats",
+                id=test_id,
+                ms=stat.time * 1000.0,
+                queries=stat.queries,
             )
 
     def logError(self, flavour: str, test: TestLike, error: tuple) -> None:
         err = self._exc_info_to_string(error, test)
         caller_infos = self.getErrorCallerInfo(error, test)
+        _debug.pipeline(
+            "test.result.error_logged",
+            flavour=flavour,
+            located=caller_infos is not None,
+            lines=err.count("\n"),
+        )
         self.log(logging.INFO, "=" * 70, test=test, caller_infos=caller_infos)
         self.log(
             logging.ERROR,
@@ -401,6 +530,11 @@ class OdooTestResult:
             error_traceback = error_traceback.tb_next
 
         infos_tb = method_tb or file_tb
+        _debug.logic(
+            "test.result.caller_info",
+            source="method" if method_tb else "file" if file_tb else None,
+            file_known=filename is not None,
+        )
         if infos_tb:
             code = infos_tb.tb_frame.f_code
             lineno = infos_tb.tb_lineno

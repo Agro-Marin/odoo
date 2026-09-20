@@ -15,6 +15,5 @@ Technical module.
     "data": [
         "wizards/confirm_expiry_view.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

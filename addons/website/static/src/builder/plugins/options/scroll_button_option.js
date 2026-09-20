@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.option.scroll_button_option");
 
 export class ScrollButtonOption extends BaseOptionComponent {
     static template = "website.ScrollButtonOption";
@@ -10,6 +14,7 @@ export class ScrollButtonOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState((editingElement) => ({
             heightLabel:
                 editingElement.dataset.snippet === "s_image_gallery"

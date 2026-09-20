@@ -1,3 +1,4 @@
+import logging
 import re
 import smtplib
 from datetime import UTC as datetime_UTC
@@ -19,7 +20,7 @@ from odoo.libs.datetime import timezone
 from odoo.tests import tagged, users
 from odoo.tools import file_path, formataddr, mute_logger
 
-from odoo.addons.base.models.ir_mail_server import (
+from odoo.addons.mail.models.ir_mail_server import (
     MailDeliveryError,
     OutgoingEmailError,
 )
@@ -150,11 +151,12 @@ class TestMailMail(MailCommon):
         with patch.object(
             self.env.registry["ir.attachment"], "_check_access", _patched_check_access
         ):
-            # Sanity check
+            # Sanity check; attachments read newest first (ir.attachment's
+            # _order is "id desc"), from the cache as from a fetch
             self.assertEqual(mail.restricted_attachment_count, 2)
             self.assertEqual(len(mail.unrestricted_attachment_ids), 2)
             self.assertEqual(
-                mail.unrestricted_attachment_ids.mapped("name"), ["file 1", "file 3"]
+                mail.unrestricted_attachment_ids.mapped("name"), ["file 3", "file 1"]
             )
 
             # Add a new attachment
@@ -167,7 +169,7 @@ class TestMailMail(MailCommon):
             self.assertEqual(len(mail.unrestricted_attachment_ids), 3)
             self.assertEqual(
                 mail.unrestricted_attachment_ids.mapped("name"),
-                ["file 1", "file 3", "new file"],
+                ["new file", "file 3", "file 1"],
             )
             self.assertEqual(len(mail.attachment_ids), 5)
 
@@ -180,7 +182,7 @@ class TestMailMail(MailCommon):
             self.assertEqual(mail.restricted_attachment_count, 2)
             self.assertEqual(len(mail.unrestricted_attachment_ids), 2)
             self.assertEqual(
-                mail.unrestricted_attachment_ids.mapped("name"), ["file 1", "file 3"]
+                mail.unrestricted_attachment_ids.mapped("name"), ["file 3", "file 1"]
             )
             self.assertEqual(len(mail.attachment_ids), 4)
 
@@ -663,6 +665,44 @@ class TestMailMail(MailCommon):
         )
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_mail_mail_send_auto_delete_logs_without_reading_the_deleted_mail(self):
+        """Under ``auto_commit`` -- the queue cron -- an ``auto_delete`` mail is
+        unlinked as soon as its delivery is recorded, and the success log line
+        runs after that. It used to read ``self.message_id``, a field related
+        through ``mail_message_id``, on the deleted record: a MissingError per
+        sent mail, caught and logged as a traceback ("was sent; logging it was
+        not"), in production only, because a test never commits and so never
+        deletes before logging."""
+        mails = self.env["mail.mail"].create(
+            [
+                {
+                    "auto_delete": True,
+                    "body_html": "<p>Bye %s</p>" % idx,
+                    "email_from": "test.user@test.example.com",
+                    "email_to": "test.%s@example.com" % idx,
+                }
+                for idx in range(3)
+            ]
+        )
+        mail_ids = mails.ids
+        logger = "odoo.addons.mail.models.mail_mail"
+        with (
+            self.mock_mail_gateway(mail_unlink_sent=True),
+            patch.object(self.env.cr, "commit", self.env.invalidate_all),
+            self.assertLogs(logger, level="INFO") as captured,
+        ):
+            mails.send(auto_commit=True)
+
+        self.assertFalse(self.env["mail.mail"].sudo().browse(mail_ids).exists())
+        sent_lines = [
+            r for r in captured.records if "successfully sent" in r.getMessage()
+        ]
+        self.assertEqual(len(sent_lines), 3, "one success line per mail")
+        self.assertFalse(
+            [r for r in captured.records if r.levelno >= logging.ERROR],
+            "the success line must not fail on the mail it has just deleted",
+        )
+
     def test_mail_mail_schedule(self):
         """Test that a mail scheduled in the past/future are sent or not"""
         now = datetime(2022, 6, 28, 14, 0, 0)
@@ -2946,22 +2986,28 @@ class TestFailureTypeCoherence(MailCommon):
         return codes
 
     def test_every_model_carrying_a_failure_uses_the_shared_selection(self):
+        # a module such as sms extends the selection with selection_add; the
+        # shared vocabulary must survive inside it, whole and unrenamed
         shared = dict(DELIVERY_FAILURE_TYPES)
         outgoing = dict(OUTGOING_FAILURE_TYPES)
-        self.assertEqual(
-            dict(self.env["mail.notification"]._fields["failure_type"].selection),
-            shared,
+        self.assertLessEqual(
+            shared.items(),
+            dict(
+                self.env["mail.notification"]._fields["failure_type"].selection
+            ).items(),
             "mail.notification tracks a delivery it did not perform",
         )
-        self.assertEqual(
-            dict(self.env["mail.mail"]._fields["failure_type"].selection),
-            outgoing,
+        self.assertLessEqual(
+            outgoing.items(),
+            dict(self.env["mail.mail"]._fields["failure_type"].selection).items(),
             "mail.mail performs the send, so it never records a bounce",
         )
         if "mailing.trace" in self.env:
-            self.assertEqual(
-                dict(self.env["mailing.trace"]._fields["failure_type"].selection),
-                shared,
+            self.assertLessEqual(
+                shared.items(),
+                dict(
+                    self.env["mailing.trace"]._fields["failure_type"].selection
+                ).items(),
             )
         self.assertLess(
             set(outgoing),

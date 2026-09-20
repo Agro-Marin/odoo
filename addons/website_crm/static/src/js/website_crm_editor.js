@@ -48,8 +48,11 @@ registry.category("website.form_editor_actions").add("create_lead", {
         {
             name: "team_id",
             type: "many2one",
-            relation: "crm.team",
-            domain: [["use_opportunities", "=", true]],
+            relation: "team.team",
+            domain: [
+                ["use_sale", "=", true],
+                ["use_opportunities", "=", true],
+            ],
             string: _t("Sales Team"),
             title: _t("Assign leads/opportunities to a sales team."),
         },

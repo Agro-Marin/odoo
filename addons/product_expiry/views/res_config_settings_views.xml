@@ -9,9 +9,9 @@
         <field name="arch" type="xml">
             <xpath expr="//setting[@id='group_lot_on_delivery_slip']" position="after">
                 <setting
+                    id="group_expiry_date_on_delivery_slip"
                     help="Expiration dates will appear on the delivery slip"
-                    invisible="not group_lot_on_delivery_slip or not module_product_expiry"
-                    id="group_expiry_date_on_delivery_slip">
+                    invisible="not group_lot_on_delivery_slip or not module_product_expiry">
                     <field name="group_expiry_date_on_delivery_slip" />
                 </setting>
             </xpath>

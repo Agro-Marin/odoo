@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatMonetary } from "@web/core/formatters";
 import { deserializeDate, formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -13,6 +14,8 @@ class AccountPaymentPopOver extends Component {
     static props = { "*": { optional: true } };
     static template = "account.AccountPaymentPopOver";
 }
+
+const log = makeLogger("account.payment_field");
 
 export class AccountPaymentField extends Component {
     static props = { ...standardFieldProps };
@@ -59,6 +62,7 @@ export class AccountPaymentField extends Component {
     }
 
     async assignOutstandingCredit(moveId, id) {
+        log.logic("assignOutstandingCredit", () => ({ moveId, lineId: id }));
         await this.orm.call(
             this.props.record.resModel,
             "js_add_outstanding_line",
@@ -69,6 +73,7 @@ export class AccountPaymentField extends Component {
     }
 
     async removeMoveReconcile(moveId, partialId) {
+        log.logic("removeMoveReconcile", () => ({ moveId, partialId }));
         this.popover.close();
         await this.orm.call(
             this.props.record.resModel,

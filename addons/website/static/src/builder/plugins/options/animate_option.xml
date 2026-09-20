@@ -55,14 +55,12 @@
                 </t>
             </BuilderSelect>
         </BuilderRow>
-        <!-- Trigger -->
         <BuilderRow label.translate="Trigger" level="1">
             <BuilderSelect t-if="this.isActiveItem('animation_on_appearance_opt') and !state.isInDropdown" dropdownClass="props.dropdownClass">
                 <BuilderSelectItem classAction="''">First Time Only</BuilderSelectItem>
                 <BuilderSelectItem classAction="'o_animate_both_scroll'">Every Time</BuilderSelectItem>
             </BuilderSelect>
         </BuilderRow>
-        <!-- Intensity -->
         <BuilderRow label.translate="Intensity" level="1" t-if="state.showIntensity">
             <BuilderRange
                 action="'setAnimateIntensity'"
@@ -72,18 +70,15 @@
                 step="1"
                 displayRangeValue="true"/>
         </BuilderRow>
-        <!-- Scroll Zone -->
         <BuilderRow label.translate="Scroll Zone" level="1" t-if="this.isActiveItem('animation_on_scroll_opt')" preview="false">
             <BuilderNumberInput unit="'%'" dataAttributeAction="'scrollZoneStart'" action="'forceAnimation'" />
             <span class="mx-2">to</span>
             <BuilderNumberInput unit="'%'" dataAttributeAction="'scrollZoneEnd'" action="'forceAnimation'" />
         </BuilderRow>
         <BuilderContext t-if="this.isActiveItem('animation_on_appearance_opt')">
-            <!-- Start After -->
             <BuilderRow label.translate="Start After" level="1">
                 <BuilderNumberInput styleAction="'animation-delay'" action="'forceAnimation'" unit="'s'" />
             </BuilderRow>
-            <!-- Duration -->
             <BuilderRow label.translate="Duration" level="1">
                 <BuilderNumberInput styleAction="'animation-duration'" action="'forceAnimation'" default="0.4" unit="'s'" />
             </BuilderRow>

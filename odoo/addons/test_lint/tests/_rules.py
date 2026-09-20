@@ -5,11 +5,15 @@ from dataclasses import dataclass
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_credential_storage,
+    _checker_egress,
+    _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
+    _checker_receiver,
     _checker_row_counter,
     _checker_shadowed_def,
     _checker_sql,
@@ -227,6 +231,92 @@ RULES: tuple[Rule, ...] = (
         "proportional to the rows each record writes",
     ),
     Rule(
+        "raw-egress",
+        "E8518",
+        "send the call through `env['ir.egress']` (a configured vendor through "
+        "integration's `get_api_client(env, code)`, which builds on it), so the "
+        "address is checked, the connection pinned, every redirect checked again "
+        "and the response capped; a vendor SDK that cannot take the session takes "
+        "`# noqa: E8518  <why it cannot>`",
+    ),
+    Rule(
+        "receiver-fail-open",
+        "E8528",
+        "resolve the caller through an inbound gate before doing anything: "
+        "`InboundController.inspect_inbound_request`, or the receiver's "
+        "`_check_inbound_request`, so an unknown caller is refused, a flood is "
+        "throttled and every refusal is recorded; a route that must stay open "
+        "takes `# noqa: E8528  <why>`",
+    ),
+    Rule(
+        "secret-in-environ",
+        "E8519",
+        "hand the secret to the child process in its own `env=` mapping: "
+        "os.environ belongs to the whole worker, so every later subprocess and "
+        "every other company's work inherits it",
+    ),
+    Rule(
+        "credential-storage",
+        "E8520",
+        "keep the secret in credential.credential and hold a Many2one to it, "
+        "with a computed field of the old name reading it through the vault's use "
+        "path; a plain column or an ir.config_parameter is in every backup in "
+        "clear",
+    ),
+    Rule(
+        "field-redeclared",
+        "E8521",
+        "declare the field once: the class body keeps the last assignment, so "
+        "the earlier declaration is dead while it still reads as the one in force",
+    ),
+    Rule(
+        "default-evaluated-at-import",
+        "E8522",
+        "pass the callable (default=fields.Date.today), not its result: a call in "
+        "the declaration runs once when the module is imported, and every record "
+        "created afterwards gets that same value",
+    ),
+    Rule(
+        "selection-duplicate-key",
+        "E8523",
+        "give each selection key one label: Selection stores the list as a dict, "
+        "so the last label wins and the others are dead",
+    ),
+    Rule(
+        "field-hook-prefix",
+        "E8524",
+        "name the hook for its family -- _compute_*, _inverse_*, _search_*, "
+        "_selection_* -- so a reader and the naming gates can tell a field hook "
+        "from a helper (coding_guidelines.rst 2.4.1)",
+    ),
+    Rule(
+        "field-positional-argument",
+        "E8525",
+        "spell every argument as its keyword: a positional label, comodel or "
+        "selection reads as a bare string and only the signature says which",
+    ),
+    Rule(
+        "field-attribute-order",
+        "E8526",
+        "keywords in FIELD_ATTRIBUTE_ORDER, one per line once there are two: "
+        "what the field is, what it says, its shape, how its value is produced, "
+        "how it is stored, what it points at, who tracks it, then groups= and "
+        "help= last -- run _sort_field_attributes.py",
+    ),
+    Rule(
+        "dead-field-attribute",
+        "E8527",
+        "drop the attribute: index= without a column, precompute= without "
+        "store=True and compute= beside related= are ignored at setup",
+    ),
+    Rule(
+        "stored-related",
+        "E8529",
+        "drop store=True: a related field over many2one hops filters, groups, "
+        "sorts and aggregates through the join. A copy that carries a composite "
+        "index or a UNIQUE stays, with `# noqa: E8529  <what needs the column>`",
+    ),
+    Rule(
         "noqa-rationale",
         "",
         "write the reason after the codes: `# noqa: F401  re-exported by __init__`",
@@ -296,6 +386,26 @@ def _http_json(unit: Unit) -> Iterable[object]:
     return _checker_http_json.check(unit.tree, unit.nodes)
 
 
+def _raw_egress(unit: Unit) -> Iterable[object]:
+    return _checker_egress.check_raw_egress(unit.tree, unit.nodes)
+
+
+def _receiver_fail_open(unit: Unit) -> Iterable[object]:
+    return _checker_receiver.check(unit.tree)
+
+
+def _secret_in_environ(unit: Unit) -> Iterable[object]:
+    return _checker_egress.check_secret_in_environ(unit.tree, unit.nodes)
+
+
+def _field_declaration(unit: Unit) -> Iterable[object]:
+    return _checker_field_declaration.check(unit.tree, unit.nodes)
+
+
+def _credential_storage(unit: Unit) -> Iterable[object]:
+    return _checker_credential_storage.check(unit.tree, unit.path)
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -352,6 +462,38 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
     Checker(_http_json, _in_an_addon_outside_tests, frozenset({"http-json-string"})),
     Checker(_row_counter, _in_tests, frozenset({"row-counter-in-test"})),
+    Checker(
+        _raw_egress,
+        _in_an_addon_outside_tests,
+        frozenset({"raw-egress"}),
+    ),
+    Checker(_secret_in_environ, _outside_tests, frozenset({"secret-in-environ"})),
+    Checker(
+        _receiver_fail_open,
+        _in_an_addon_outside_tests,
+        frozenset({"receiver-fail-open"}),
+    ),
+    Checker(
+        _credential_storage,
+        _in_an_addon_outside_tests,
+        frozenset({"credential-storage"}),
+    ),
+    Checker(
+        _field_declaration,
+        _outside_tests,
+        frozenset(
+            {
+                "field-redeclared",
+                "default-evaluated-at-import",
+                "selection-duplicate-key",
+                "field-hook-prefix",
+                "field-positional-argument",
+                "field-attribute-order",
+                "dead-field-attribute",
+                "stored-related",
+            }
+        ),
+    ),
 )
 
 CROSS_UNIT_RULES = frozenset(

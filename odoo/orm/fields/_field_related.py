@@ -2,6 +2,7 @@ import logging
 import typing
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 
 from .._recordset import is_recordset
 from ..domain import Domain
@@ -12,6 +13,7 @@ if typing.TYPE_CHECKING:
     from .base import Field
 
 _logger = logging.getLogger("odoo.fields")
+_debug = DebugLog(__name__)
 
 
 def setup_related(field: Field, model: BaseModel) -> None:
@@ -28,6 +30,12 @@ def setup_related(field: Field, model: BaseModel) -> None:
                 f"Field {name} referenced in related field definition {field} does not exist."
             )
         if not step._setup_done:
+            _debug.logic(
+                "field.related.step_setup_forced",
+                model=field.model_name,
+                field=field.name,
+                step=f"{model_name}.{name}",
+            )
             step.setup(model.env[model_name])
         field_seq.append(step)
         if depth < len(related_names):
@@ -56,6 +64,17 @@ def setup_related(field: Field, model: BaseModel) -> None:
         field.inverse = field._inverse_related
     if not field.store and all(f._description_searchable for f in field_seq):
         field.search = field._search_related
+    _debug.logic(
+        "field.related.setup",
+        model=field.model_name,
+        field=field.name,
+        path=field.related,
+        depth=len(related_names),
+        inverse=field.inverse is not None,
+        search=field.search is not None,
+        store=field.store,
+        inherited=field.inherited,
+    )
 
     if field.default and field.readonly and not field.inverse:
         _logger.warning("Redundant default on %s", field)
@@ -97,8 +116,17 @@ def compute_related(field: Field, records: BaseModel) -> None:
         try:
             values = [next(iter(val := value[name]), val) for value in values]
         except AccessError as e:
-            description = records.env["ir.model"]._get(records._name).name
+            description = records.env.registry.metaschema.model_description(
+                records.env, records._name
+            )
             env = records.env
+            _debug.logic(
+                "field.related.access_denied_through",
+                model=field.model_name,
+                field=field.name,
+                step=name,
+                records=len(records),
+            )
             raise AccessError(
                 env._(
                     "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
@@ -122,6 +150,13 @@ def compute_related(field: Field, records: BaseModel) -> None:
         group[1].append(record.id)
     for processed, ids in falsy_groups.values():
         records.browse(ids)[field.name] = processed
+    _debug.pipeline(
+        "field.related.computed",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        falsy_groups=len(falsy_groups),
+    )
 
 
 def inverse_related(field: Field, records: BaseModel) -> None:
@@ -155,6 +190,15 @@ def inverse_related(field: Field, records: BaseModel) -> None:
         else:
             groups[key] = (target, target_field, value, [target.id])
 
+    _debug.pipeline(
+        "field.related.inversed",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        targets=len(latest),
+        groups=len(groups),
+        ungrouped=len(ungrouped),
+    )
     for target, target_field, value, ids in groups.values():
         target.browse(ids)[target_field.name] = value
     for target, target_field, value in ungrouped:
@@ -173,12 +217,29 @@ def search_related(
         value_is_null = value is False or value is None or value == falsy_value
     can_be_null = (operator not in Domain.NEGATIVE_OPERATORS) == value_is_null
     if operator in Domain.NEGATIVE_OPERATORS and not value_is_null:
+        _debug.logic(
+            "field.related.search_unsupported",
+            model=field.model_name,
+            field=field.name,
+            operator=operator,
+        )
         return NotImplemented
 
     field_seq = field._related_field_seq
     domain = Domain(field_seq[-1].name, operator, value)
+    null_steps = 0  # debuglog
     for step in reversed(field_seq[:-1]):
         domain = Domain(step.name, "any!" if field.compute_sudo else "any", domain)
         if can_be_null and step.is_many2one and not step.required:
             domain |= Domain(step.name, "=", False)
+            null_steps += 1  # debuglog
+    _debug.logic(
+        "field.related.search_domain",
+        model=field.model_name,
+        field=field.name,
+        operator=operator,
+        steps=len(field_seq) - 1,
+        sudo=bool(field.compute_sudo),
+        null_steps=null_steps,
+    )
     return domain

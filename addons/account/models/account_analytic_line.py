@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountAnalyticLine(models.Model):
@@ -7,41 +10,37 @@ class AccountAnalyticLine(models.Model):
     _description = "Analytic Line"
 
     product_id = fields.Many2one(
-        "product.product",
-        string="Product",
-        check_company=True,
+        comodel_name="product.product",
         index="btree_not_null",
-    )
-    product_category = fields.Many2one(
-        related="product_id.categ_id",
-    )
-    general_account_id = fields.Many2one(
-        "account.account",
-        string="Financial Account",
-        ondelete="restrict",
         check_company=True,
+    )
+    product_category = fields.Many2one(related="product_id.categ_id")
+    general_account_id = fields.Many2one(
+        comodel_name="account.account",
+        string="Financial Account",
         compute="_compute_general_account_id",
         store=True,
         readonly=False,
+        ondelete="restrict",
+        check_company=True,
     )
     journal_id = fields.Many2one(
-        "account.journal",
-        string="Financial Journal",
-        check_company=True,
-        readonly=True,
+        comodel_name="account.journal",
         related="move_line_id.journal_id",
-        store=True,
+        string="Financial Journal",
+        readonly=True,
+        check_company=True,
     )
     partner_id = fields.Many2one(
-        readonly=False,
         compute="_compute_partner_id",
         store=True,
+        readonly=False,
     )
     move_line_id = fields.Many2one(
-        "account.move.line",
+        comodel_name="account.move.line",
         string="Journal Item",
-        ondelete="cascade",
         index=True,
+        ondelete="cascade",
         check_company=True,
     )
     code = fields.Char(size=8)
@@ -51,6 +50,7 @@ class AccountAnalyticLine(models.Model):
     )
 
     @api.constrains("move_line_id", "general_account_id")
+    @_debug.perf.timed
     def _check_general_account_id(self):
         for line in self:
             if (
@@ -62,12 +62,22 @@ class AccountAnalyticLine(models.Model):
                 )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         analytic_lines = super().create(vals_list)
         analytic_lines.move_line_id._update_analytic_distribution()
         return analytic_lines
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         affected_move_lines = self.move_line_id
         res = super().write(vals)
         if any(
@@ -79,7 +89,9 @@ class AccountAnalyticLine(models.Model):
             affected_move_lines._update_analytic_distribution()
         return res
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         affected_move_lines = self.move_line_id
         res = super().unlink()
         affected_move_lines._update_analytic_distribution()
@@ -98,6 +110,7 @@ class AccountAnalyticLine(models.Model):
     @api.onchange("product_id", "product_uom_id", "unit_amount", "currency_id")
     def on_change_unit_amount(self):
         if not self.product_id:
+            _debug.logic("unit_amount_skipped", line=self, reason="no_product")
             return {}
 
         prod_accounts = self.product_id.product_tmpl_id.with_company(
@@ -105,10 +118,11 @@ class AccountAnalyticLine(models.Model):
         )._get_product_accounts()
         unit = self.product_uom_id
         account = prod_accounts["expense"]
+        _debug.logic("uom_resolved", line=self, fallback=not unit, account=account)
         if not unit:
             unit = self.product_id.uom_id
 
-        amount_unit = self.product_id._compute_price("standard_price", uom=unit)[
+        amount_unit = self.product_id._get_prices("standard_price", uom=unit)[
             self.product_id.id
         ]
         amount = amount_unit * self.unit_amount or 0.0

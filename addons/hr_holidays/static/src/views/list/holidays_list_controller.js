@@ -5,8 +5,6 @@ import { useService } from "@web/core/utils/hooks";
 import { ListController, listView } from "@web/views/list";
 
 export class HolidaysListController extends ListController {
-    static template = "hr_holidays.HolidaysListView";
-
     setup() {
         super.setup();
         this.orm = useService("orm");
@@ -44,11 +42,7 @@ export class HolidaysListController extends ListController {
         }
     }
 
-    /**
-     * @param {Object} button - Button configuration object
-     * @returns {boolean} True if button should be displayed
-     */
-    displayButton(button) {
+    displaySelectionButton(button) {
         const { selection } = this.model.root;
         if (!selection.length) {
             return false;

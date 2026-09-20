@@ -1,4 +1,3 @@
-import inspect
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +6,8 @@ import pytest
 from odoo.service import settings as server_settings
 from odoo.service._cron import ReconnectBackoff
 from odoo.service._limits import BACKOFF_BASE_S, BACKOFF_CEILING_S
+
+from .conftest import build_worker
 
 CURVES = {
     60: [2, 4, 8, 16, 32, 60, 60, 60, 60, 60, 60, 60],
@@ -71,24 +72,27 @@ class TestJobLimitsAreSeparableFromCron:
         return patch.dict(config.options, {**self.CRON, **overrides})
 
     def test_the_default_follows_cron(self):
-        from odoo.service._limits import get_job_max_age, get_job_real_time_budget
+        from odoo.service._limits import get_job_real_time_budget
+        from odoo.service.settings import current
 
         with self._with(limit_time_worker_job=-1, limit_time_real_job=-1):
-            assert get_job_max_age() == 300
+            assert current().job_max_age == 300
             assert get_job_real_time_budget() == 120
 
     def test_an_explicit_job_limit_wins(self):
-        from odoo.service._limits import get_job_max_age, get_job_real_time_budget
+        from odoo.service._limits import get_job_real_time_budget
+        from odoo.service.settings import current
 
         with self._with(limit_time_worker_job=900, limit_time_real_job=3600):
-            assert get_job_max_age() == 900
+            assert current().job_max_age == 900
             assert get_job_real_time_budget() == 3600
 
     def test_zero_disables_for_jobs_without_disabling_cron(self):
-        from odoo.service._limits import get_job_max_age, get_job_real_time_budget
+        from odoo.service._limits import get_job_real_time_budget
+        from odoo.service.settings import current
 
         with self._with(limit_time_worker_job=0, limit_time_real_job=0):
-            assert get_job_max_age() == 0
+            assert current().job_max_age == 0
             assert get_job_real_time_budget() == 0
         from odoo.tools import config
 
@@ -101,21 +105,22 @@ class TestJobLimitsAreSeparableFromCron:
         assert "limit_time_worker_job" in config.options
         assert "limit_time_real_job" in config.options
 
-    def test_worker_job_overrides_the_cron_max_age(self):
+    def test_worker_job_overrides_the_cron_max_age(self, worker_multi):
         from odoo.service._worker import WorkerCron, WorkerJob
 
         assert WorkerJob.get_max_age is not WorkerCron.get_max_age
-        worker = WorkerJob.__new__(WorkerJob)
+        worker = build_worker(WorkerJob, worker_multi)
         with self._with(limit_time_worker_job=900):
             assert worker.get_max_age() == 900
         with self._with(limit_time_worker_job=-1):
             assert worker.get_max_age() == 300
 
-    def test_worker_job_arms_its_watchdog_from_the_job_timeout(self):
-        from odoo.service._worker import WorkerJob
+    def test_worker_job_arms_its_watchdog_from_the_job_timeout(self, worker_multi):
+        from odoo.service._worker import WorkerCron, WorkerJob
 
-        source = inspect.getsource(WorkerJob)
-        assert "multi.job_timeout" in source
+        worker_multi.cron_timeout, worker_multi.job_timeout = 300, 45
+        assert build_worker(WorkerCron, worker_multi).watchdog_timeout == 300
+        assert build_worker(WorkerJob, worker_multi).watchdog_timeout == 45
 
 
 CRON_BUDGET_CASES = [
@@ -200,7 +205,7 @@ def _legacy_inherits(limit):
 @pytest.mark.parametrize("worker_cron", SENTINELS)
 def test_job_max_age_still_walks_the_two_level_chain(worker_job, worker_cron):
     """`_get_inherited_budget` must be a rewrite, not a behaviour change."""
-    from odoo.service._limits import get_job_max_age
+    from odoo.service.settings import current
     from odoo.tools import config
 
     expected = worker_cron if _legacy_inherits(worker_job) else worker_job
@@ -211,7 +216,7 @@ def test_job_max_age_still_walks_the_two_level_chain(worker_job, worker_cron):
             "limit_time_worker_cron": worker_cron,
         },
     ):
-        assert get_job_max_age() == expected
+        assert current().job_max_age == expected
 
 
 @pytest.mark.parametrize("real_job", SENTINELS)
@@ -247,13 +252,14 @@ def test_the_job_budget_still_walks_the_three_level_chain(real_job, real_cron, r
 
 def test_a_chain_whose_last_link_also_inherits_returns_the_sentinel():
     """Documented edge: the caller's clamp, not the resolver, absorbs it."""
-    from odoo.service._limits import _get_inherited_budget, get_cron_real_time_budget
+    from odoo.service._limits import get_cron_real_time_budget
+    from odoo.service.settings import _get_first_owned_limit
     from odoo.tools import config
 
     with patch.dict(
         config.options, {"limit_time_real_cron": -1, "limit_time_real": -1}
     ):
-        assert _get_inherited_budget("limit_time_real_cron", "limit_time_real") == -1
+        assert _get_first_owned_limit(-1, -1) == -1
         assert get_cron_real_time_budget() == 0
 
 

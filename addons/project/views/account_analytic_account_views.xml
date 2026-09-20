@@ -11,12 +11,12 @@
                 expr="//button[@name='%(analytic.account_analytic_line_action)d']"
                 position="before">
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_projects"
+                    type="object"
                     icon="fa-puzzle-piece"
-                    invisible="project_count == 0">
-                    <field string="Projects" name="project_count" widget="statinfo" />
+                    invisible="project_count == 0"
+                    class="oe_stat_button">
+                    <field name="project_count" string="Projects" widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//form" position="attributes">

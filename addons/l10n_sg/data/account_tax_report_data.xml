@@ -216,7 +216,6 @@
                         <field
                             name="name">Box 12 - Did you make any pre-registration input tax claims?</field>
                         <field name="code">BOX_12</field>
-                        <field name="code">BOX_12</field>
                         <field name="expression_ids">
                             <record
                                 id="account_tax_report_line_claim_pre_registration_tag"

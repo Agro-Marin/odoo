@@ -8,7 +8,7 @@ class MrpWorkcenter(models.Model):
     _inherit = "mrp.workcenter"
 
     asset_id = fields.Many2one(
-        "resource.asset",
+        comodel_name="resource.asset",
         string="Machine",
         index="btree_not_null",
         check_company=True,

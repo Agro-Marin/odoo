@@ -5,6 +5,7 @@ from types import MappingProxyType
 
 from odoo.db import schema as sql
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import LastOrderedSet, OrderedSet, discardattr, frozendict
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
     from odoo.orm.runtime import Registry
 
 _logger = logging.getLogger("odoo.registry")
+_debug = DebugLog(__name__)
 
 
 def is_model_definition(cls: type) -> bool:
@@ -38,7 +40,7 @@ def get_registry_of_model(model_cls: type[BaseModel]) -> Registry:
     return pool
 
 
-def is_model_class(cls: type) -> bool:
+def is_registry_class(cls: type) -> bool:
     return getattr(cls, "pool", None) is not None
 
 
@@ -130,9 +132,19 @@ def add_model_to_registry(
 
     registry[name] = model_cls
 
-    for model_name in registry.get_descendants([name], "_inherit", "_inherits"):
+    descendants = registry.get_descendants([name], "_inherit", "_inherits")
+    for model_name in descendants:
         registry[model_name]._setup_done__ = False
 
+    _debug.pipeline(
+        "registration.model_added",
+        model=name,
+        module=model_def._module,
+        extension=name in parent_names,
+        parents=len(parent_names),
+        bases=len(model_cls._base_classes__),
+        descendants_reset=len(descendants),
+    )
     return model_cls
 
 
@@ -166,7 +178,7 @@ def _check_model_parent_extension(
 
 
 def _init_model_class_attributes(model_cls: type[BaseModel]):
-    if not is_model_class(model_cls):
+    if not is_registry_class(model_cls):
         raise TypeError(f"{model_cls!r} is not a registry model class")
 
     if model_cls.__dict__.get("_init_attrs_in_progress__", False):
@@ -205,6 +217,15 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
         model_cls._inherits = frozendict(inherits)
     if depends:
         model_cls._depends = frozendict(depends)
+    _debug.lifecycle(
+        "registration.class_attributes_initialised",
+        model=model_cls._name,
+        table=model_cls._table,
+        log_access=model_cls._log_access,
+        inherits=len(inherits),
+        depends=len(depends),
+        bases=len(model_cls._base_classes__),
+    )
 
     registry = get_registry_of_model(model_cls)
     for parent_name in model_cls._inherits:
@@ -223,6 +244,12 @@ def setup_model_classes(env: Environment):
         _add_manual_models(env)
 
     models_classes = list(registry.values())
+    _debug.pipeline(
+        "registration.setup_model_classes",
+        models=len(models_classes),
+        to_setup=sum(1 for model_cls in models_classes if not model_cls._setup_done__),
+        manual_models=bool(registry.loaded_modules),
+    )
     for model_cls in models_classes:
         _reset_setup(model_cls)
 
@@ -246,6 +273,11 @@ def _reset_setup(model_cls: type[BaseModel]):
         return
 
     if model_cls.__bases__ != model_cls._base_classes__:
+        _debug.lifecycle(
+            "registration.model_bases_restored",
+            model=model_cls._name,
+            bases=len(model_cls._base_classes__),
+        )
         model_cls.__bases__ = model_cls._base_classes__
 
     for attr in ("_rec_name", "_active_name"):
@@ -292,6 +324,13 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
     _check_active_name(model_cls)
 
     _add_table_objects(model_cls)
+    _debug.pipeline(
+        "registration.model_setup",
+        model=model_cls._name,
+        fields=len(model_cls._fields),
+        inherits=len(model_cls._inherits),
+        table_objects=len(model_cls._table_objects),
+    )
 
 
 def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
@@ -305,6 +344,7 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
             for field in cls._field_definitions:
                 definitions[field.name].append(field)
 
+    merged = 0  # debuglog
     for name, fields_ in definitions.items():
         _patch_translate_field(model_cls, name, fields_)
         _patch_company_dependent_field(model_cls, env, name, fields_)
@@ -316,14 +356,22 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
         ):
             model_cls._fields__[name] = fields_[0]
         else:
+            merged += 1  # debuglog
             Field = type(fields_[-1])
             add_field(model_cls, name, Field(_base_fields__=tuple(fields_)))
+    _debug.pipeline(
+        "registration.fields_collected",
+        model=model_cls._name,
+        fields=len(definitions),
+        merged=merged,
+        classes=len(model_cls._model_classes__),
+    )
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
     registry = get_registry_of_model(model_cls)
     key = f"{model_cls._name}.{name}"
-    if key not in registry._database_translated_fields:
+    if key not in registry.database_translated_fields:
         return
 
     translate = next(
@@ -336,10 +384,16 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
     )
     if not translate:
         field_translate = FIELD_TRANSLATE.get(
-            registry._database_translated_fields[key],
+            registry.database_translated_fields[key],
             True,
         )
         _logger.debug("Patching %s.%s with translate=True", model_cls._name, name)
+        _debug.logic(
+            "registration.field_patched",
+            model=model_cls._name,
+            field=name,
+            attribute="translate",
+        )
         fields_.append(type(fields_[0])(translate=field_translate))
 
 
@@ -347,7 +401,7 @@ def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
     key = f"{model_cls._name}.{name}"
-    if key not in get_registry_of_model(model_cls)._database_company_dependent_fields:
+    if key not in get_registry_of_model(model_cls).database_company_dependent_fields:
         return
 
     company_dependent = next(
@@ -365,6 +419,12 @@ def _patch_company_dependent_field(
                 "Patching %s.%s with company_dependent=True",
                 model_cls._name,
                 name,
+            )
+            _debug.logic(
+                "registration.field_patched",
+                model=model_cls._name,
+                field=name,
+                attribute="company_dependent",
             )
             fields_.append(type(fields_[0])(company_dependent=True))
 
@@ -397,6 +457,12 @@ def _check_active_name(model_cls: type[BaseModel]):
         model_cls._active_name = "active"
     elif "x_active" in model_cls._fields:
         model_cls._active_name = "x_active"
+    if _debug.logic.enabled and model_cls._active_name:
+        _debug.logic(
+            "registration.active_name_resolved",
+            model=model_cls._name,
+            active_name=model_cls._active_name,
+        )
 
 
 def _add_table_objects(model_cls: type[BaseModel]):
@@ -413,6 +479,12 @@ def _add_table_objects(model_cls: type[BaseModel]):
             for cons in cls._table_object_definitions
         }
     )
+    if _debug.pipeline.enabled and model_cls._table_objects:
+        _debug.pipeline(
+            "registration.table_objects_collected",
+            model=model_cls._name,
+            table_objects=len(model_cls._table_objects),
+        )
 
 
 def _check_inherits(model_cls: type[BaseModel]):
@@ -457,6 +529,12 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
                 )
             to_inherit[name] = (parent_fname, field)
 
+    _debug.pipeline(
+        "registration.inherited_fields_added",
+        model=model_cls._name,
+        parents=len(model_cls._inherits),
+        fields=len(to_inherit),
+    )
     for name, (parent_fname, field) in to_inherit.items():
         field_cls = type(field)
         add_field(
@@ -497,6 +575,12 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
         if field.is_many2one and field.company_dependent:
             many2one_company_dependents.add(field.comodel_name or "", field)
 
+    if _debug.logic.enabled and bad_fields:
+        _debug.logic(
+            "registration.manual_fields_dropped",
+            model=model_cls._name,
+            fields=bad_fields,
+        )
     for name in bad_fields:
         pop_field(model_cls, name)
 
@@ -518,14 +602,17 @@ def _add_manual_models(env: Environment):
                     inherits_parent_cls._inherits_children.discard(name)
 
     if removed_fields:
-        env.registry._discard_fields(list(removed_fields))
+        env.registry.discard_fields(list(removed_fields))
 
-    env.cr.execute(
-        "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'",
-        prepare=False,
+    metaschema = env.registry.metaschema
+    manual_models = metaschema.manual_model_data(env)
+    _debug.pipeline(
+        "registration.manual_models",
+        removed_fields=len(removed_fields),
+        manual=len(manual_models),
     )
-    for model_data in env.cr.dictfetchall():
-        attrs = env["ir.model"]._prepare_class_attrs(model_data)
+    for model_data in manual_models:
+        attrs = metaschema.manual_class_attrs(env, model_data)
 
         table_name = model_data["model"].replace(".", "_")
         table_kind = sql.get_table_kind(env.cr, table_name)
@@ -545,15 +632,25 @@ def _add_manual_models(env: Environment):
 
 
 def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
-    IrModelFields = env["ir.model.fields"]
-
-    fields_data = IrModelFields._get_manual_field_data(model_cls._name)
+    metaschema = env.registry.metaschema
+    fields_data = metaschema.manual_field_data(env, model_cls._name)
+    if _debug.pipeline.enabled and fields_data:
+        _debug.pipeline(
+            "registration.manual_fields",
+            model=model_cls._name,
+            candidates=len(fields_data),
+        )
     for name, field_data in fields_data.items():
         if name not in model_cls._fields and field_data["state"] == "manual":
             try:
-                if not IrModelFields._is_field_ready(field_data):
+                if not metaschema.manual_field_ready(env, field_data):
+                    _debug.logic(
+                        "registration.manual_field_not_ready",
+                        model=model_cls._name,
+                        field=name,
+                    )
                     continue
-                attrs = IrModelFields._prepare_field_attrs(field_data)
+                attrs = metaschema.manual_field_attrs(env, field_data)
                 field = fields.Field._by_type__[field_data["ttype"]](**attrs)
                 add_field(model_cls, name, field)
             except Exception:
@@ -586,6 +683,11 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
         )
 
     if not isinstance(getattr(model_cls, name, field), fields.Field):
+        _debug.logic(
+            "registration.field_overrides_attribute",
+            model=model_cls._name,
+            field=name,
+        )
         _logger.warning(
             "In model %r, field %r overriding existing value",
             model_cls._name,
@@ -595,11 +697,25 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     field._toplevel = True
     field.__set_name__(model_cls, name)
     model_cls._fields__[name] = field
+    if _debug.lifecycle.enabled and not is_class_field:
+        _debug.lifecycle(
+            "registration.manual_field_added",
+            model=model_cls._name,
+            field=name,
+            type=field.type,
+        )
 
 
 def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     field = model_cls._fields__.pop(name, None)
     discardattr(model_cls, name)
+    _debug.lifecycle(
+        "registration.field_popped",
+        model=model_cls._name,
+        field=name,
+        found=field is not None,
+        was_rec_name=model_cls._rec_name == name,
+    )
     if model_cls._rec_name == name:
         model_cls._rec_name = None
         registry = get_registry_of_model(model_cls)

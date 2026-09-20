@@ -4,7 +4,6 @@ import functools
 import itertools
 import logging
 import typing
-import warnings
 from collections.abc import (
     Callable,
     Collection,
@@ -17,6 +16,7 @@ from collections.abc import (
 from operator import attrgetter
 
 from odoo.libs.accel import to_prefetch_ids as _to_prefetch_ids
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import reset_cached_properties
 from odoo.tools.misc import (
     PENDING,
@@ -81,6 +81,19 @@ def _get_recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
 
 _logger = logging.getLogger("odoo.fields")
 
+BOOLEAN_ATTRIBUTES = (
+    "store",
+    "precompute",
+    "copy",
+    "recursive",
+    "compute_sudo",
+    "related_sudo",
+    "required",
+    "readonly",
+    "export_string_translation",
+)
+_debug = DebugLog(__name__)
+
 
 def _prepare_fast_get(
     cache_to_record: Callable[[Field, typing.Any, BaseModel], typing.Any] | None = None,
@@ -93,12 +106,12 @@ def _prepare_fast_get(
         if record is None:
             return self
         env = record.env
-        if self.groups and not env.su and not record._has_field_access(self, "read"):
-            record._check_field_access(self, "read")
+        if self.groups:
+            self.check_read_access(record)
         ids = record._ids
         if len(ids) != 1:
             return self._get_not_singleton(record, owner)
-        if self.is_stored_computed and env._core.has_pending_field(self):
+        if self.is_stored_computed and env.core.has_pending_field(self):
             self.recompute(record)
         try:
             value = env.__dict__["_field_cache_memo"][self][ids[0]]
@@ -225,6 +238,11 @@ class Field[T](
     group_expand: (
         str | Callable[[ModelLike, typing.Any, DomainType], typing.Any] | None
     ) = None
+    group_by_field: str | None = None
+    order_by_field: str | None = None
+    group_by_sql: str | None = None
+    order_by_sql: str | None = None
+    value_sql: str | None = None
     falsy_value_label: str | None = None
     prefetch: bool | str = True
 
@@ -235,6 +253,13 @@ class Field[T](
     _register_type: typing.ClassVar[bool] = True
 
     def __init__(self, string: str | Sentinel = SENTINEL, **kwargs):
+        for key in BOOLEAN_ATTRIBUTES:
+            value = kwargs.get(key, SENTINEL)
+            if value is not SENTINEL and not isinstance(value, bool):
+                # store="True" is truthy and so is store="False"
+                raise TypeError(
+                    f"{type(self).__name__}({key}={value!r}): {key} takes a bool"
+                )
         kwargs["string"] = string
         self._sequence = next(_global_seq)
         self._args__ = ReadonlyDict(
@@ -272,6 +297,11 @@ class Field[T](
                 )
             if taken is None:
                 cls._by_type__[cls.type] = cls
+                _debug.lifecycle(
+                    "field.type_registered",
+                    type=cls.type,
+                    field_class=f"{cls.__module__}.{cls.__qualname__}",
+                )
 
         related: list[tuple[str, str]] = []
         described: list[tuple[str, str]] = []
@@ -282,6 +312,7 @@ class Field[T](
                 described.append((attr.removeprefix("_description_"), attr))
         cls.related_attrs = tuple(related)
         cls.description_attrs = tuple(described)
+        cls.description_props = dict(described)
 
     def __set_name__(self, owner: ModelClass, name: str) -> None:
         assert get_base_model() is None or is_model_class(owner)
@@ -314,6 +345,14 @@ class Field[T](
 
         if not self.store or not self.column_type or self.manual:
             self.prefetch = False
+        if _debug.logic.enabled and extra_keys:
+            _debug.logic(
+                "field.setup.extra_keys",
+                model=self.model_name,
+                field=name,
+                type=self.type,
+                extra_keys=list(extra_keys),
+            )
 
         if not self.string and not self.related:
             self.string = (
@@ -333,6 +372,12 @@ class Field[T](
         if not self._setup_done:
             for key in self._extra_keys__:
                 if not model._is_valid_field_parameter(self, key):
+                    _debug.logic(
+                        "field.setup.unknown_parameter",
+                        model=self.model_name,
+                        field=self.name,
+                        parameter=key,
+                    )
                     _logger.warning(
                         "Field %s: unknown parameter %r, if this is an actual"
                         " parameter you may want to override the method"
@@ -345,24 +390,61 @@ class Field[T](
                 self.setup_related(model)
             else:
                 self.setup_nonrelated(model)
-
-            if not isinstance(self.required, bool):
-                warnings.warn(
-                    f"Property {self}.required should be a boolean ({self.required}).",
-                    stacklevel=1,
-                )
-
-            if not isinstance(self.readonly, bool):
-                warnings.warn(
-                    f"Property {self}.readonly should be a boolean ({self.readonly}).",
-                    stacklevel=1,
-                )
+            self._check_stand_in_fields(model)
 
             self._setup_done = True
             reset_cached_properties(self)
 
     def setup_nonrelated(self, model: BaseModel) -> None:
         pass
+
+    def _check_stand_in_fields(self, model: BaseModel) -> None:
+        self._check_sql_hooks(model)
+        for attribute in ("group_by_field", "order_by_field"):
+            target_name = getattr(self, attribute)
+            if target_name is None:
+                continue
+            target = model._fields.get(target_name)
+            if target is None or target is self:
+                raise ValueError(
+                    f"Field {self}: {attribute}={target_name!r} names no other field "
+                    f"of {model._name}"
+                )
+            if attribute == "group_by_field" and (
+                target.comodel_name != self.comodel_name
+                if self.relational
+                else target.type != self.type
+            ):
+                raise ValueError(
+                    f"Field {self}: group_by_field {target} groups other values "
+                    f"than {self.type} {self.comodel_name or ''} does"
+                )
+
+    def _check_sql_hooks(self, model: BaseModel) -> None:
+        # A field whose SQL for a groupby or an order term is not its column
+        # names the model method that composes it, the way `search=` names
+        # the method that composes its domain. The method is a declaration a
+        # reader and a tool can find on the field, where an override of
+        # `_read_group_groupby` or `_order_field_to_sql` on the model is not:
+        # it hides the one field it acts on behind the identity of a method
+        # that every groupby and every order on the model goes through.
+        for attribute, stand_in in (
+            ("group_by_sql", "group_by_field"),
+            ("order_by_sql", "order_by_field"),
+            ("value_sql", None),
+        ):
+            method_name = getattr(self, attribute)
+            if method_name is None:
+                continue
+            if not callable(getattr(type(model), method_name, None)):
+                raise ValueError(
+                    f"Field {self}: {attribute}={method_name!r} names no method of "
+                    f"{model._name}"
+                )
+            if stand_in is not None and getattr(self, stand_in) is not None:
+                raise ValueError(
+                    f"Field {self}: {attribute} and {stand_in} cannot both be set"
+                )
 
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
         return _setup.get_depends(self, model)
@@ -403,6 +485,13 @@ class Field[T](
     def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any:
         assert self.company_dependent
         fallback = self._get_company_dependent_fallback_raw(records)
+        _debug.logic(
+            "field.company_dependent.fallback",
+            model=self.model_name,
+            field=self.name,
+            company=records.env.company.id,
+            has_fallback=fallback is not None and fallback is not False,
+        )
         fallback = self.convert_to_cache(fallback, records, validate=False)
         return self.convert_to_record(fallback, records)
 
@@ -454,6 +543,11 @@ class Field[T](
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
+            _debug.logic(
+                "field.mark_dirty.unchanged",
+                model=self.model_name,
+                field=self.name,
+            )
             return
 
         self._update_cache(records, cache_value, dirty=True)
@@ -464,8 +558,29 @@ class Field[T](
         records.env.remove_to_compute(self, records)
 
         cache_value = self.convert_to_cache(value, records)
+        if cache_value is None:
+            self._settle_pending_as_null(records)
         records = self._filter_not_equal(records, cache_value)
         return records, cache_value
+
+    def _settle_pending_as_null(self, records: BaseModel) -> None:
+        """A just-inserted row already holds NULL where its compute is pending.
+
+        `_create` leaves PENDING, not None, in cache for a stored computed field it
+        did not insert. A compute that lands on the value NULL stands for is then
+        not a change, and writing it back would cost an UPDATE per create.
+        """
+        field_cache = self._get_cache(records.env)
+        dirty = records.env.core.get_dirty(self)
+        settled = [
+            id_
+            for id_ in records._ids
+            if id_
+            and field_cache.get(id_, SENTINEL) is PENDING
+            and not (dirty and id_ in dirty)
+        ]
+        if settled:
+            field_cache.update(dict.fromkeys(settled, None))
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         field_cache = env._field_cache_memo.get(self)
@@ -476,10 +591,16 @@ class Field[T](
         return field_cache
 
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        core = env._core
+        core = env.core
         if self._is_context_dependent(env):
             return core.get_context_data(self, env.get_cache_key(self))
         return core.get_field_data(self)
+
+    def _peek_cache(self, env: Environment) -> Mapping[IdType, typing.Any] | None:
+        core = env.core
+        if self._is_context_dependent(env):
+            return core.get_context_data_or_none(self, env.get_cache_key(self))
+        return core.get_field_data_or_none(self)
 
     def _invalidate_cache(
         self,
@@ -488,10 +609,10 @@ class Field[T](
         *,
         keep_dirty: bool = False,
     ) -> None:
-        env._core.invalidate(self, ids, keep_dirty=keep_dirty)
+        env.core.invalidate(self, ids, keep_dirty=keep_dirty)
 
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
-        core = env._core
+        core = env.core
         if self._is_context_dependent(env):
             return core.get_context_cached_ids(self)
         return core.get_cached_ids(self)
@@ -547,9 +668,10 @@ class Field[T](
         field_cache = self._get_cache(env)
         if not field_cache:
             return
-        core = env._core
+        core = env.core
         scheduled = core.get_pending_ids(self)
         dirty = core.get_dirty(self)
+        cleared = 0  # debuglog
         for id_ in records._ids:
             if field_cache.get(id_) is not PENDING:
                 continue
@@ -558,6 +680,15 @@ class Field[T](
             if dirty and id_ in dirty:
                 continue
             del field_cache[id_]
+            cleared += 1  # debuglog
+        if _debug.logic.enabled and cleared:
+            _debug.logic(
+                "field.dead_pending_cleared",
+                model=self.model_name,
+                field=self.name,
+                cleared=cleared,
+                records=len(records._ids),
+            )
 
     def _insert_cache(self, records: ModelLike, values: Iterable) -> None:
         field_cache = self._get_cache(records.env)
@@ -581,7 +712,7 @@ class Field[T](
     ) -> None:
         if not self.is_column:
             return
-        dirty_ids = env._core.get_dirty(self)
+        dirty_ids = env.core.get_dirty(self)
         if not dirty_ids or dirty_ids.isdisjoint(ids):
             return
         overlap = sorted(dirty_ids.intersection(ids))
@@ -608,7 +739,9 @@ class Field[T](
             field_cache.update(dict.fromkeys(ids, cache_value))
 
         if self.is_column and dirty:
-            env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
+            env.core.mark_dirty(self, (id_ for id_ in records._ids if id_))
+            for many2one in env.registry.order_key_inverses.get(self, ()):
+                many2one._resort_inverses(records)
 
     if typing.TYPE_CHECKING:
 
@@ -627,6 +760,11 @@ class Field[T](
     def _get_not_singleton(self, record: BaseModel, owner: typing.Any = None) -> T:
         if record._ids:
             record.check_singleton()
+        _debug.logic(
+            "field.get.empty_recordset",
+            model=self.model_name,
+            field=self.name,
+        )
         value = self.convert_to_cache(False, record, validate=False)
         return self.convert_to_record(value, record)
 
@@ -649,6 +787,12 @@ class Field[T](
         if value is PENDING:
             field_cache.pop(record_id, None)
             if env.is_protected(self, record):
+                _debug.logic(
+                    "field.get.pending_protected",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record_id,
+                )
                 value = self.convert_to_cache(False, record, validate=False)
                 self._update_cache(record, value)
                 return self.convert_to_record(value, record)
@@ -665,13 +809,23 @@ class Field[T](
     ) -> T:
         return _cache_miss.get_cache_miss(self, record, env, record_id)
 
+    def _value_after_delegated_fetch(
+        self, env: Environment, record_id: IdType
+    ) -> typing.Any:
+        return SENTINEL
+
     def __set__(self, records: BaseModel, value: typing.Any) -> None:
         record_ids = records._ids
-        core = records.env._core
+        core = records.env.core
         if len(record_ids) == 1:
             record_id = record_ids[0]
             if core.is_protected(self, record_id):
                 self.mark_dirty(records, value)
+                if record_id:
+                    # a recompute writes through here, never through write():
+                    # user scopes whose read rule tests this field must forget
+                    # what they hold, exactly as write() does after mark_dirty
+                    records._evict_x2many_scopes_reading_through((self.name,))
                 return
             if not record_id:
                 self._update_new(records, [record_id], value)
@@ -692,6 +846,14 @@ class Field[T](
             else:
                 other_ids.append(record_id)
 
+        _debug.logic(
+            "field.set.split",
+            model=self.model_name,
+            field=self.name,
+            protected=len(protected_ids),
+            new=len(new_ids),
+            real=len(other_ids),
+        )
         if protected_ids:
             self._update_protected(records, protected_ids, value)
         if new_ids:
@@ -702,7 +864,11 @@ class Field[T](
     def _update_protected(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        self.mark_dirty(_get_recordset_like(records, ids), value)
+        recs = _get_recordset_like(records, ids)
+        self.mark_dirty(recs, value)
+        if any(ids):
+            # same eviction as write(), which this protected path bypasses
+            recs._evict_x2many_scopes_reading_through((self.name,))
 
     def _update_new(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
@@ -717,6 +883,12 @@ class Field[T](
             new_records.modified([self.name])
 
         if self.inherited:
+            _debug.logic(
+                "field.set.new_inherited_forwarded",
+                model=self.model_name,
+                field=self.name,
+                records=len(ids),
+            )
             parents = new_records[self._related_names[0]]
             parents._new_records[self.name] = value
 
@@ -739,7 +911,7 @@ class Field[T](
         return True, value
 
     def recompute_pending(self, records: ModelLike) -> None:
-        if self.is_stored_computed and records.env._core.has_pending_field(self):
+        if self.is_stored_computed and records.env.core.has_pending_field(self):
             self.recompute(records)
 
     def recompute(self, records: ModelLike) -> None:

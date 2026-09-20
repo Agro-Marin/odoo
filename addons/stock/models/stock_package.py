@@ -4,6 +4,7 @@ from odoo.fields import Domain
 from odoo.libs.barcode import is_barcode_encoding_valid
 
 from ..const import INVENTORY_REFERENCE_PACKAGE_RELOCATED
+from ..tools import debug_log as dbg
 
 
 class StockPackage(models.Model):
@@ -17,21 +18,21 @@ class StockPackage(models.Model):
 
     name = fields.Char(
         string="Package Reference",
-        required=True,
-        copy=False,
         index="trigram",
+        copy=False,
+        required=True,
     )
     complete_name = fields.Char(
         string="Full Package Name",
         compute="_compute_complete_name",
-        store=True,
         recursive=True,
+        store=True,
     )
     dest_complete_name = fields.Char(
         string="Package Name At Destination",
         compute="_compute_dest_complete_name",
-        store=True,
         recursive=True,
+        store=True,
     )
     quant_ids = fields.One2many(
         comodel_name="stock.quant",
@@ -46,21 +47,20 @@ class StockPackage(models.Model):
         search="_search_contained_quant_ids",
     )
     content_description = fields.Char(
-        string="Contents", compute="_compute_content_description"
+        string="Contents",
+        compute="_compute_content_description",
     )
     package_type_id = fields.Many2one(
         comodel_name="stock.package.type",
-        string="Package Type",
         index=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Location",
         compute="_compute_package_info",
-        store=True,
         recursive=True,
-        readonly=False,
+        store=True,
         index=True,
+        readonly=False,
     )
     location_dest_id = fields.Many2one(
         comodel_name="stock.location",
@@ -70,20 +70,18 @@ class StockPackage(models.Model):
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         compute="_compute_package_info",
-        store=True,
         recursive=True,
-        readonly=True,
+        store=True,
         index=True,
+        readonly=True,
     )
     owner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Owner",
         compute="_compute_owner_id",
+        search="_search_owner_id",
         compute_sudo=True,
         readonly=True,
-        search="_search_owner_id",
     )
     parent_package_id = fields.Many2one(
         comodel_name="stock.package",
@@ -109,8 +107,8 @@ class StockPackage(models.Model):
         comodel_name="stock.package",
         string="Outermost Destination Container",
         compute="_compute_outermost_package_id",
-        store=True,
         recursive=True,
+        store=True,
         index="btree_not_null",
     )
     child_package_dest_ids = fields.One2many(
@@ -137,7 +135,6 @@ class StockPackage(models.Model):
         help="Transfers in which the Package is set as Destination Package",
     )
     shipping_weight = fields.Float(
-        string="Shipping Weight",
         digits="Stock Weight",
         help="Total weight of the package.",
     )
@@ -145,15 +142,21 @@ class StockPackage(models.Model):
         string="Package name is valid SSCC",
         compute="_compute_valid_sscc",
     )
-    pack_date = fields.Date(string="Pack Date", default=fields.Date.context_today)
+    pack_date = fields.Date(default=fields.Date.context_today)
     parent_path = fields.Char(index=True)
     json_popover = fields.Char(
         string="JSON data for popover widget",
         compute="_compute_json_popover",
     )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.package.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         new_vals_list = []
         for vals in vals_list:
             vals = dict(vals)
@@ -168,7 +171,11 @@ class StockPackage(models.Model):
 
         return super().create(new_vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.package.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if "name" in vals and not vals.get("name"):
             vals = {key: value for key, value in vals.items() if key != "name"}
             for package in self:
@@ -189,6 +196,12 @@ class StockPackage(models.Model):
                 quant_to_move = self.contained_quant_ids.filtered(
                     lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
                 )
+                dbg.pipeline.debug(
+                    "package relocation %s -> location %s: moving %s",
+                    dbg.rec(self),
+                    vals["location_id"],
+                    dbg.rec(quant_to_move),
+                )
                 quant_to_move.move_quants(
                     location_dest_id,
                     message=INVENTORY_REFERENCE_PACKAGE_RELOCATED,
@@ -198,6 +211,10 @@ class StockPackage(models.Model):
                     lambda q: q.product_uom_id.compare(q.quantity, 0) < 0
                 )
                 if negative_quants:
+                    dbg.logic.debug(
+                        "package relocation: negative quants %s moved by inventory moves",
+                        dbg.rec(negative_quants),
+                    )
                     message = INVENTORY_REFERENCE_PACKAGE_RELOCATED
                     moves = self.env["stock.move"].create(
                         [
@@ -338,6 +355,12 @@ class StockPackage(models.Model):
                 else:
                     move_line_ids_to_update.add(line.id)
 
+        dbg.logic.debug(
+            "action_remove_package %s: unlink lines %s, clear result on %s",
+            dbg.rec(self),
+            sorted(move_line_ids_to_unlink),
+            sorted(move_line_ids_to_update),
+        )
         self.env["stock.move.line"].browse(move_line_ids_to_unlink).unlink()
         self.env["stock.move.line"].browse(move_line_ids_to_update).write(
             {"result_package_id": False}
@@ -377,6 +400,12 @@ class StockPackage(models.Model):
         return action
 
     def action_unpack(self):
+        dbg.pipeline.debug(
+            "action_unpack %s: children %s, quants %s",
+            dbg.rec(self),
+            dbg.rec(self.child_package_ids),
+            dbg.rec(self.quant_ids),
+        )
         self.child_package_ids.parent_package_id = False
         quants = self.quant_ids
         if quants:

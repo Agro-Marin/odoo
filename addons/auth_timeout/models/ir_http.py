@@ -4,6 +4,9 @@ import time
 
 from odoo import api, models
 from odoo.http import SessionExpiredException, request, root
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class CheckIdentityException(SessionExpiredException):
@@ -68,6 +71,14 @@ class IrHttp(models.AbstractModel):
                 # Hence, an inactivity timeout with a greater timeout must reduce its timeout with the first timeout
                 # to get if its timeout is reached according to when `identity-check-next` was set at the lowest timeout
                 # It doesn't apply for `create_time`, which is set as soon as the session is created
+                _debug.logic(
+                    "identity_check_evaluated",
+                    kind=timeout_type,
+                    timeout=timeout,
+                    timestamp=timestamp,
+                    threshold=threshold,
+                    first_timeout=first_timeout,
+                )
                 if timestamp is not None and timestamp - first_timeout <= threshold:
                     res = {reauth_type: True, "mfa": mfa}
                     if mfa:
@@ -159,6 +170,15 @@ class IrHttp(models.AbstractModel):
         inactivity_period /= 1000
         timeout = self.env.user._get_lock_timeout_inactivity()
         inactive = timeout and (force or inactivity_period >= timeout)
+        _debug.lifecycle(
+            "session_inactivity_reported",
+            uid=self.env.uid,
+            inactivity_s=inactivity_period,
+            timeout=timeout,
+            force=force,
+            inactive=bool(inactive),
+            next_check=session.get("identity-check-next"),
+        )
         if inactive:
             next_check = time.time() + timeout - inactivity_period
             if (

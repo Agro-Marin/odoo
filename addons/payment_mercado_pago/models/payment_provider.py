@@ -18,20 +18,23 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "mercado_pago_access_token": "mercado_pago_access_token",
+        "mercado_pago_refresh_token": "mercado_pago_refresh_token",
+    }
 
     code = fields.Selection(
         selection_add=[("mercado_pago", "Mercado Pago")],
         ondelete={"mercado_pago": "set default"},
     )
     mercado_pago_account_country_id = fields.Many2one(
-        string="Mercado Pago Account Country",
-        help="The country of the Mercado Pago account. The currency will be updated to match the"
-        " country of the Mercado Pago account.",
         comodel_name="res.country",
         inverse="_inverse_mercado_pago_account_country_id",
+        copy=False,
         domain=[("code", "in", list(const.SUPPORTED_COUNTRIES))],
         required_if_provider="mercado_pago",
-        copy=False,
+        help="The country of the Mercado Pago account. The currency will be updated to match the"
+        " country of the Mercado Pago account.",
     )
     # TODO anko remove in 19.1
     mercado_pago_is_oauth_supported = fields.Boolean(
@@ -40,22 +43,20 @@ class PaymentProvider(models.Model):
 
     # OAuth fields
     mercado_pago_access_token = fields.Char(
-        string="Mercado Pago Access Token",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     mercado_pago_access_token_expiry = fields.Datetime(
-        string="Mercado Pago Access Token Expiry",
         copy=False,
         groups="base.group_system",
     )
     mercado_pago_refresh_token = fields.Char(
-        string="Mercado Pago Refresh Token",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     mercado_pago_public_key = fields.Char(
-        string="Mercado Pago Public Key",
         copy=False,
         groups="base.group_system",
     )
@@ -79,7 +80,7 @@ class PaymentProvider(models.Model):
                 self.mercado_pago_account_country_id.code
             )
             currency = (
-                self.env["res.currency"]
+                self.env["res.currency"]  # noqa: E8507 - one lookup per provider, on its own account country
                 .with_context(
                     active_test=False,
                 )
@@ -185,10 +186,10 @@ class PaymentProvider(models.Model):
             "target": "self",
         }
 
-    def _get_reset_values(self):
+    def _prepare_credential_reset_vals(self):
         """Override of `payment` to supply the provider-specific credential values to reset."""
         if self.code != "mercado_pago":
-            return super()._get_reset_values()
+            return super()._prepare_credential_reset_vals()
 
         return {
             "mercado_pago_access_token": None,
@@ -278,11 +279,11 @@ class PaymentProvider(models.Model):
         if method == "POST" and idempotency_key:
             headers["X-Idempotency-Key"] = idempotency_key
         if not is_proxy_request and not is_refresh_token_request:
-            access_token = self._mercado_pago_fetch_access_token()
+            access_token = self._mercado_pago_get_access_token()
             headers["Authorization"] = f"Bearer {access_token}"
         return headers
 
-    def _mercado_pago_fetch_access_token(self):
+    def _mercado_pago_get_access_token(self):
         """Generate a new access token if it's expired, otherwise return the existing access token.
 
         Note: `self.check_singleton()`

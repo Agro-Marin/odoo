@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from itertools import batched
 from uuid import uuid4
 
@@ -23,14 +24,6 @@ class SmsSms(models.Model):
         "sent": "pending",
         "delivered": "sent",
     }
-    IAP_TO_SMS_FAILURE_TYPE = {  # TODO RIGR remove me in master
-        "insufficient_credit": "sms_credit",
-        "wrong_number_format": "sms_number_format",
-        "country_not_supported": "sms_country_not_supported",
-        "server_error": "sms_server",
-        "unregistered": "sms_acc",
-    }
-
     BOUNCE_DELIVERY_ERRORS = {
         "sms_invalid_destination",
         "sms_not_allowed",
@@ -39,18 +32,24 @@ class SmsSms(models.Model):
     DELIVERY_ERRORS = {"sms_expired", "sms_not_delivered", *BOUNCE_DELIVERY_ERRORS}
 
     uuid = fields.Char(
-        "UUID",
+        string="UUID",
+        default=lambda self: uuid4().hex,
         copy=False,
         readonly=True,
-        default=lambda self: uuid4().hex,
         help="Alternate way to identify a SMS record, used for delivery reports",
     )
-    number = fields.Char("Number")
+    number = fields.Char()
     body = fields.Text()
-    partner_id = fields.Many2one("res.partner", "Customer")
-    mail_message_id = fields.Many2one("mail.message", index=True)
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Customer",
+    )
+    mail_message_id = fields.Many2one(
+        comodel_name="mail.message",
+        index=True,
+    )
     state = fields.Selection(
-        [
+        selection=[
             ("outgoing", "In Queue"),
             ("process", "Processing"),
             ("pending", "Sent"),
@@ -58,14 +57,14 @@ class SmsSms(models.Model):
             ("error", "Error"),
             ("canceled", "Cancelled"),
         ],
-        "SMS Status",
-        readonly=True,
-        copy=False,
+        string="SMS Status",
         default="outgoing",
+        copy=False,
+        readonly=True,
         required=True,
     )
     failure_type = fields.Selection(
-        [
+        selection=[
             ("unknown", "Unknown error"),
             ("sms_number_missing", "Missing Number"),
             ("sms_number_format", "Wrong Number Format"),
@@ -82,10 +81,12 @@ class SmsSms(models.Model):
         copy=False,
     )
     sms_tracker_id = fields.Many2one(
-        "sms.tracker", string="SMS trackers", compute="_compute_sms_tracker_id"
+        comodel_name="sms.tracker",
+        string="SMS trackers",
+        compute="_compute_sms_tracker_id",
     )
     to_delete = fields.Boolean(
-        "Marked for deletion",
+        string="Marked for deletion",
         default=False,
         help="Will automatically be deleted, while notifications will not be deleted in any case.",
     )
@@ -143,7 +144,19 @@ class SmsSms(models.Model):
                 )
 
     def _split_by_api(self):
-        yield SmsApi(self.env), self
+        # group by company: `SmsApi`'s IAP account is resolved via
+        # `iap.account.get()`, which is scoped to `self.env.companies` -- a
+        # single ungrouped batch would resolve to whichever company's account
+        # happens to match the calling env, silently used for every company's
+        # SMS in the batch.
+        sms_by_company = defaultdict(self.browse)
+        for sms in self:
+            sms_by_company[sms._get_sms_company()] += sms
+        for company, company_sms in sms_by_company.items():
+            company_env = self.env(
+                context={**self.env.context, "allowed_company_ids": [company.id]}
+            )
+            yield SmsApi(company_env), company_sms
 
     def resend_failed(self):
         sms_to_send = self.filtered(
@@ -215,10 +228,9 @@ class SmsSms(models.Model):
     def _send(self, unlink_failed=False, unlink_sent=True, raise_exception=False):
         """Resolve the SMS API and delegate sending to it."""
         sms_api = self.env.context.get("sms_api")
-        if not sms_api:
-            company = self._get_sms_company()
-            company.check_singleton()  # This should always be the case since the grouping is done in `send`
-            sms_api = company._get_sms_api_class()(self.env)
+        assert sms_api, (
+            "sms_api must be set in context: only `send()` calls `_send()`, and it always sets it via `_split_by_api()`."
+        )
 
         return self._send_with_api(
             sms_api,

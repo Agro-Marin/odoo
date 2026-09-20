@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, xml } from "@odoo/owl";
 import { useIsChildLarger } from "@point_of_sale/app/hooks/hooks";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.component.list_container");
 class ListContainerDialog extends Component {
     static components = { Dialog };
     static props = {
@@ -61,6 +63,11 @@ export class ListContainer extends Component {
         useEffect(
             () => {
                 this.sizing.reload();
+                log.logic("items changed: resized", () => ({
+                    items: this.props.items.length,
+                    maxItems: this.sizing.maxItems,
+                    isLarger: this.sizing.isLarger,
+                }));
             },
             () => [this.props.items],
         );
@@ -69,6 +76,9 @@ export class ListContainer extends Component {
         return itemIndex >= this.sizing.maxItems;
     }
     toggle() {
+        log.logic("toggle: overflow dialog", () => ({
+            items: this.props.items.length,
+        }));
         this.dialog.add(ListContainerDialog, {
             items: this.props.items,
             slots: this.props.slots,

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="vpicktree" model="ir.ui.view">
@@ -9,14 +10,14 @@
                 <field name="zip" optional="hide" />
                 <field
                     name="shipping_weight"
-                    sum="Total Shipping Weight"
                     string="Shipping Weight"
-                    optional="hide" />
+                    optional="hide"
+                    sum="Total Shipping Weight" />
                 <field
                     name="shipping_volume"
-                    sum="Total Shipping Volume"
                     string="Shipping Volume"
-                    optional="hide" />
+                    optional="hide"
+                    sum="Total Shipping Volume" />
             </field>
         </field>
     </record>

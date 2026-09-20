@@ -139,10 +139,10 @@ class TestRecurrencePrivacy(CalendarPrivacyCommon, TransactionCase):
         return self._make_event(
             privacy,
             recurrency=True,
-            rrule_type="weekly",
+            repeat_unit="week",
             thu=True,
-            end_type="count",
-            count=3,
+            repeat_type="count",
+            repeat_number=3,
             event_tz="UTC",
         )
 
@@ -163,15 +163,15 @@ class TestRecurrencePrivacy(CalendarPrivacyCommon, TransactionCase):
         with self.assertRaises(AccessError):
             self.env["calendar.recurrence"].with_user(self.bystander).browse(
                 recurrence_id
-            ).write({"count": 99})
+            ).write({"repeat_number": 99})
 
     def test_owner_still_drives_their_own_recurrence(self):
         event = self._make_recurrence("private")
         self.env.flush_all()
         self.assertEqual(len(event.recurrence_id.calendar_event_ids), 3)
-        event.recurrence_id.with_user(self.organizer).write({"count": 4})
+        event.recurrence_id.with_user(self.organizer).write({"repeat_number": 4})
         self.env.flush_all()
-        self.assertEqual(event.recurrence_id.count, 4)
+        self.assertEqual(event.recurrence_id.repeat_number, 4)
 
 
 @tagged("post_install", "-at_install")
@@ -306,9 +306,9 @@ class TestRecurrenceCountCap(CalendarPrivacyCommon, TransactionCase):
                     "start": self.start,
                     "stop": self.start + timedelta(hours=1),
                     "recurrency": True,
-                    "rrule_type": "daily",
-                    "end_type": "count",
-                    "count": 800,
+                    "repeat_unit": "day",
+                    "repeat_type": "count",
+                    "repeat_number": 800,
                     "event_tz": "UTC",
                 }
             )

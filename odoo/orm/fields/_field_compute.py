@@ -4,6 +4,7 @@ import typing
 from collections.abc import Callable, Collection, Iterable, Iterator
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 
 from .._recordset import is_recordset
@@ -15,6 +16,7 @@ if typing.TYPE_CHECKING:
     from .base import Field
 
 _orm_compute = logging.getLogger("odoo.orm.compute")
+_debug = DebugLog(__name__)
 
 
 def call_hook(
@@ -56,7 +58,7 @@ def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
 
 
 def recompute(field: Field, records: ModelLike) -> None:
-    to_compute_ids = records.env._core.get_pending_ids(field)
+    to_compute_ids = records.env.core.get_pending_ids(field)
     if not to_compute_ids:
         return
 
@@ -65,7 +67,7 @@ def recompute(field: Field, records: ModelLike) -> None:
         _pending_before = len(to_compute_ids)
 
         def _count():
-            remaining = records.env._core.get_pending_ids(field)
+            remaining = records.env.core.get_pending_ids(field)
             return _pending_before - len(remaining or ())
 
     def apply_except_missing(func, records):
@@ -76,10 +78,20 @@ def recompute(field: Field, records: ModelLike) -> None:
             pass
 
         existing = records.exists()
+        missing = records - existing
+        _debug.logic(
+            "field.recompute.missing_records",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+            missing=len(missing),
+        )
         if existing:
             func(existing)
-        missing = records - existing
-        for f in records.pool.field_computed[field]:
+        # a record that is gone is gone for every pending field of the model,
+        # not only this one: the next field's recompute would only find it
+        # missing again, one existence query each
+        for f in records._get_stored_computed_fields():
             records.env.remove_to_compute(f, missing)
 
     if field.recursive:
@@ -116,11 +128,18 @@ def _recompute_singly(
     expanded = (
         len(record_ids) == 1
         and record_ids[0] in to_compute_ids
-        and not records.env._core.has_any_protected()
+        and not records.env.core.has_any_protected()
     )
     if expanded:
         records = records.browse(
             itertools.islice(_expand_ids(record_ids[0], to_compute_ids), PREFETCH_MAX)
+        )
+        _debug.logic(
+            "field.recompute.recursive_expanded",
+            model=field.model_name,
+            field=field.name,
+            pending=len(to_compute_ids),
+            batch=len(records),
         )
 
     try:
@@ -128,6 +147,12 @@ def _recompute_singly(
     except AccessError:
         if not (expanded and record_ids[0] in computed_ids):
             raise
+        _debug.logic(
+            "field.recompute.recursive_access_error_swallowed",
+            model=field.model_name,
+            field=field.name,
+            computed=len(computed_ids),
+        )
     if computed_ids:
         records.browse(computed_ids)._check_computed(field)
 
@@ -147,6 +172,12 @@ def _recompute_batched(
                 continue
             except AccessError:
                 pass
+            _debug.logic(
+                "field.recompute.batch_access_error_single",
+                model=field.model_name,
+                field=field.name,
+                batch=len(recs),
+            )
             field.compute_value(record)
 
 
@@ -162,10 +193,26 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
         if computed.store:
             env.remove_to_compute(computed, records)
 
+    _debug.pipeline(
+        "field.compute_value",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        computed_together=len(fields),
+        sudo=bool(field.compute_sudo),
+        validate=validate,
+    )
     try:
         with records.env.protecting(fields, records):
             records._compute_field_value(field, validate=validate)
-    except Exception:
+    except Exception as e:
+        _debug.logic(
+            "field.compute.failed_rescheduled",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+            error=type(e).__name__,
+        )
         for computed in fields:
             if computed.store:
                 env.add_to_compute(computed, records)
@@ -185,6 +232,12 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
 def apply_inverse(field: Field, records: ModelLike) -> None:
     prof = _OrmProfile(_orm_compute)
 
+    _debug.pipeline(
+        "field.apply_inverse",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+    )
     call_hook(field.inverse, records)
 
     prof.stop()

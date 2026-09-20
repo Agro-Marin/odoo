@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { EventBus, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { jsToPyLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -11,7 +12,6 @@ import { WebsiteLoader } from "../components/website_loader/website_loader.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 
-// TODO this is duplicated in website_root at least, it should be a shared util
 export const unslugHtmlDataObject = (repr) => {
     const match = repr && repr.match(/(.+)\((-?\d+),(.*)\)/);
     if (!match) {
@@ -24,6 +24,8 @@ export const unslugHtmlDataObject = (repr) => {
 };
 
 const ANONYMOUS_PROCESS_ID = "ANONYMOUS_PROCESS_ID";
+
+const log = makeLogger("website.service");
 
 export const websiteService = {
     dependencies: ["orm", "action", "hotkey"],
@@ -43,7 +45,7 @@ export const websiteService = {
         let actionJsId;
         const blockingProcesses = [];
         let modelNamesProm = null;
-        const modelNames = {};
+        const modelNames = new Map();
         let invalidateSnippetCache = false;
         let lastWebsiteId = null;
 
@@ -59,18 +61,19 @@ export const websiteService = {
         hotkey.add(
             "escape",
             () => {
-                // Toggle fullscreen mode when pressing escape.
                 if (
                     (!currentWebsiteId && !fullscreen) ||
                     (pageDocument && isVisible(pageDocument.querySelector(".modal")))
                 ) {
-                    // Only allow to use this feature while on the website app, or
-                    // while it is already fullscreen (in case you left the website
-                    // app in fullscreen mode, thanks to CTRL-K), or if a modal
-                    // is open within the preview and could be closed with escape.
+                    log.logic("escape: fullscreen toggle skipped", () => ({
+                        currentWebsiteId,
+                        fullscreen,
+                        hasPageDocument: !!pageDocument,
+                    }));
                     return;
                 }
                 fullscreen = !fullscreen;
+                log.logic("escape: fullscreen toggled", () => ({ fullscreen }));
                 document.body.classList.toggle("o_website_fullscreen", fullscreen);
                 bus.trigger(
                     fullscreen
@@ -94,6 +97,11 @@ export const websiteService = {
                 currentWebsiteId = id;
             }
             currentWebsiteIdList.push(id);
+            log.pipeline("addWebsiteId", () => ({
+                id,
+                currentWebsiteId,
+                stack: [...currentWebsiteIdList],
+            }));
         }
 
         function removeWebsiteId() {
@@ -103,27 +111,36 @@ export const websiteService = {
             } else {
                 currentWebsiteId = null;
             }
+            log.pipeline("removeWebsiteId", () => ({
+                currentWebsiteId,
+                stack: [...currentWebsiteIdList],
+            }));
         }
 
         return {
             set currentWebsiteId(id) {
+                log.lifecycle("currentWebsiteId", () => ({
+                    from: currentWebsiteId,
+                    to: id,
+                }));
                 if (id === null) {
                     removeWebsiteId();
                     return;
                 }
                 if (id && id !== lastWebsiteId) {
+                    log.logic(
+                        "currentWebsiteId: website changed, invalidate snippet cache",
+                        () => ({
+                            id,
+                            lastWebsiteId,
+                        }),
+                    );
                     invalidateSnippetCache = true;
                     lastWebsiteId = id;
                 }
                 addWebsiteId(id);
                 websiteSystrayRegistry.trigger("EDIT-WEBSITE");
             },
-            /**
-             * This represents the current website being edited in the
-             * WebsitePreview client action. Multiple components based their
-             * visibility on this value, which is falsy if the client action is
-             * not displayed.
-             */
             get currentWebsite() {
                 const currentWebsite = websites.find((w) => w.id === currentWebsiteId);
                 if (currentWebsite) {
@@ -144,17 +161,25 @@ export const websiteService = {
                 return bus;
             },
             set pageDocument(document) {
+                log.lifecycle("pageDocument", () => ({
+                    url: document?.location?.href,
+                }));
                 pageDocument = document;
                 if (!document) {
+                    log.logic("pageDocument: cleared, reset metadata");
                     currentMetadata = {};
                     contentWindow = null;
                     return;
                 }
                 const { dataset } = document.documentElement;
-                // XML files have no dataset on Firefox, and an empty one on
-                // Chrome.
                 const isWebsitePage = dataset && dataset.websiteId;
                 if (!isWebsitePage) {
+                    log.logic(
+                        "pageDocument: not a website page, empty metadata",
+                        () => ({
+                            url: document.location?.href,
+                        }),
+                    );
                     currentMetadata = {};
                 } else {
                     const {
@@ -169,10 +194,6 @@ export const websiteService = {
                         defaultLangName,
                         langName,
                     } = dataset;
-                    // We ignore multiple menus with the same `content_menu_id`
-                    // in the DOM, since it's possible to have different
-                    // templates for the same content menu (E.g. used for a
-                    // different desktop / mobile UI).
                     const contentMenus = [
                         ...new Map(
                             [
@@ -197,10 +218,6 @@ export const websiteService = {
                         title: document.title,
                         translatable: !!translatable,
                         contentMenus,
-                        // TODO: Find a better way to figure out if
-                        // a page is editable or not. For now, we use
-                        // the editable selector because it's the common
-                        // denominator of editable pages.
                         editable: !!document.getElementById("wrapwrap"),
                         viewXmlid: viewXmlid,
                         lang: jsToPyLocale(
@@ -215,6 +232,15 @@ export const websiteService = {
                             : "ltr",
                     };
                 }
+                log.pipeline("pageDocument metadata computed", () => ({
+                    isWebsitePage: !!isWebsitePage,
+                    viewXmlid: currentMetadata.viewXmlid,
+                    mainObject: currentMetadata.mainObject,
+                    contentMenus: currentMetadata.contentMenus?.length,
+                    editable: currentMetadata.editable,
+                    translatable: currentMetadata.translatable,
+                    lang: currentMetadata.lang,
+                }));
                 contentWindow = document.defaultView;
                 websiteSystrayRegistry.trigger("CONTENT-UPDATED");
             },
@@ -228,6 +254,7 @@ export const websiteService = {
                 return websitePublicEnv;
             },
             set websitePublicEnv(env) {
+                log.lifecycle("websitePublicEnv", () => ({ ready: !!env }));
                 websitePublicEnv = env;
                 context.isPublicRootReady = !!env;
             },
@@ -247,14 +274,19 @@ export const websiteService = {
                 return currentMetadata.viewXmlid === "website.page_404";
             },
             get currentLocation() {
-                const path = decodeURIComponent(this.contentWindow.location.pathname);
+                let path = this.contentWindow.location.pathname;
+                try {
+                    path = decodeURIComponent(path);
+                } catch {
+                    log.logic("currentLocation: retain undecodable pathname", () => ({
+                        path,
+                    }));
+                }
                 if (!this.currentWebsite.metadata.translatable) {
                     return path;
                 }
-                // If the website is translatable, remove the /lang in the
-                // location pathname, e.g. /fr/hello-page -> /hello-page
                 const lang = path.split("/")[1];
-                return path.slice(lang.length + 1);
+                return path.slice(lang.length + 1) || "/";
             },
             get hasMultiWebsites() {
                 return hasMultiWebsites === true;
@@ -263,18 +295,34 @@ export const websiteService = {
                 return actionJsId;
             },
             set actionJsId(jsId) {
+                log.lifecycle("actionJsId", () => ({ from: actionJsId, to: jsId }));
                 actionJsId = jsId;
             },
             get invalidateSnippetCache() {
                 return invalidateSnippetCache;
             },
             set invalidateSnippetCache(value) {
+                log.logic("invalidateSnippetCache", () => ({
+                    from: invalidateSnippetCache,
+                    to: value,
+                }));
                 invalidateSnippetCache = value;
             },
 
             goToWebsite({ websiteId, path, edition, translation, lang } = {}) {
+                log.logic("goToWebsite", () => ({
+                    websiteId,
+                    path,
+                    edition,
+                    translation,
+                    lang,
+                }));
                 this.websitePublicEnv = undefined;
                 if (lang) {
+                    log.logic("goToWebsite: lang switch redirect", () => ({
+                        lang,
+                        path,
+                    }));
                     invalidateSnippetCache = true;
                     path = `/website/lang/${encodeURIComponent(lang)}?r=${encodeURIComponent(
                         path,
@@ -294,14 +342,16 @@ export const websiteService = {
                 });
             },
             async fetchUserGroups() {
-                // Fetch user groups, before fetching the websites.
+                const endGroups = log.perf("fetchUserGroups");
                 [isRestrictedEditor, isDesigner, hasMultiWebsites] = await Promise.all([
                     user.hasGroup("website.group_website_restricted_editor"),
                     user.hasGroup("website.group_website_designer"),
                     user.hasGroup("website.group_multi_website"),
                 ]);
+                endGroups({ isRestrictedEditor, isDesigner, hasMultiWebsites });
             },
             async fetchWebsites() {
+                const endFetch = log.perf("fetchWebsites");
                 websites = (
                     await orm.webSearchRead("website", [], {
                         specification: {
@@ -314,68 +364,84 @@ export const websiteService = {
                         },
                     })
                 ).records;
+                endFetch({ websites: websites.length });
             },
             blockPreview(showLoader, processId) {
+                log.logic("blockPreview", () => ({
+                    showLoader,
+                    processId,
+                    blocking: blockingProcesses.length,
+                }));
                 if (!blockingProcesses.length) {
+                    log.lifecycle("preview blocked", () => ({ showLoader, processId }));
                     bus.trigger("BLOCK", { showLoader });
                 }
                 blockingProcesses.push(processId || ANONYMOUS_PROCESS_ID);
             },
             unblockPreview(processId) {
+                log.logic("unblockPreview", () => ({
+                    processId,
+                    blocking: blockingProcesses.length,
+                }));
                 const processIndex = blockingProcesses.indexOf(
                     processId || ANONYMOUS_PROCESS_ID,
                 );
+                log.logic("unblockPreview: process lookup", () => ({
+                    processIndex,
+                    known: processIndex > -1,
+                }));
                 if (processIndex > -1) {
                     blockingProcesses.splice(processIndex, 1);
                     if (blockingProcesses.length === 0) {
+                        log.lifecycle("preview unblocked", () => ({ processId }));
                         bus.trigger("UNBLOCK");
                     }
                 }
             },
             showLoader(props) {
+                log.lifecycle("showLoader", () => ({ props }));
                 bus.trigger("SHOW-WEBSITE-LOADER", props);
             },
             hideLoader() {
+                log.lifecycle("hideLoader");
                 bus.trigger("HIDE-WEBSITE-LOADER");
             },
             prepareOutLoader() {
+                log.lifecycle("prepareOutLoader");
                 bus.trigger("PREPARE-OUT-WEBSITE-LOADER");
             },
             /**
-             * Returns the (translated) "functional" name of a model
-             * (_description) given its "technical" name (_name).
-             *
              * @param {string} [model]
-             * @returns {string}
+             * @returns {Promise<string>}
              */
             async getUserModelName(
-                model = this.currentWebsite.metadata.mainObject.model,
+                model = this.currentWebsite?.metadata?.mainObject?.model,
             ) {
+                log.logic("getUserModelName", () => ({
+                    model,
+                    cached: !!modelNamesProm,
+                }));
+                if (!model) {
+                    log.logic("getUserModelName: page has no model, use fallback");
+                    return _t("Data");
+                }
+                const endModelNames = log.perf("getUserModelName await model names");
                 if (!modelNamesProm) {
-                    // FIXME the `get_available_models` is to be removed/changed
-                    // in a near future. This code is to be adapted, probably
-                    // with another helper to map a model functional name from
-                    // its technical map without the need of the right access
-                    // rights (which is why I cannot use search_read here).
                     modelNamesProm = orm
                         .call("ir.model", "get_available_models")
                         .then((modelsData) => {
                             for (const modelData of modelsData) {
-                                modelNames[modelData["model"]] =
-                                    modelData["display_name"];
+                                modelNames.set(modelData.model, modelData.display_name);
                             }
                         })
-                        // Precaution in case the util is simply removed without
-                        // adapting this method: not critical, we can restore
-                        // later and use the fallback until the fix is made.
-                        // Reset on failure so a later call retries instead of
-                        // caching an empty result and returning "Data" forever.
                         .catch(() => {
+                            log.logic("getUserModelName: fetch failed, cache reset");
                             modelNamesProm = null;
                         });
                 }
                 await modelNamesProm;
-                return modelNames[model] || _t("Data");
+                endModelNames(() => ({ model, found: modelNames.has(model) }));
+                return modelNames.get(model) || _t("Data");
             },
         };
     },

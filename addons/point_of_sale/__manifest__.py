@@ -1,6 +1,6 @@
 {
     "name": "Point of Sale",
-    "version": "1.0.6",
+    "version": "1.0.8",
     "category": "Sales/Point of Sale",
     "sequence": 40,
     "summary": "Handle checkouts and payments for shops and restaurants.",
@@ -9,6 +9,7 @@
     "license": "LGPL-3",
     "depends": [
         "base_order",
+        "credential",
         "resource",
         "stock_account",
         "phone_validation",
@@ -38,7 +39,6 @@
         "views/pos_category_view.xml",
         "views/product_combo_views.xml",
         "views/product_view.xml",
-        "views/account_journal_view.xml",
         "views/pos_payment_method_views.xml",
         "views/pos_payment_views.xml",
         "views/pos_config_view.xml",
@@ -62,6 +62,7 @@
         "views/pos_session_sales_details.xml",
         "views/product_tag_views.xml",
         "views/stock_reference_views.xml",
+        "views/point_of_sale_menus.xml",
     ],
     "demo": [
         "demo/demo_data.xml",
@@ -102,6 +103,10 @@
             ),
             "web/static/src/components/errors/error_handlers.js",
             "web/static/src/ui/dialog/dialog.scss",
+            "point_of_sale/static/src/backend/pos_kanban_view/*",
+            "point_of_sale/static/src/backend/pos_payment_provider_cards/*",
+            "point_of_sale/static/src/backend/many2many_placeholder_list_view/*",
+            "point_of_sale/static/src/backend/test_epos/*",
         ],
         "web.assets_unit_tests": [
             "point_of_sale/static/tests/unit/**/*",
@@ -228,8 +233,6 @@
             "web/static/lib/hoot-dom/**/*",
             "web_tour/static/src/js/**/*",
             "web_tour/static/src/tour_utils.js",
-            "web/static/tests/helpers/utils.js",
-            "web/static/tests/helpers/cleanup.js",
         ],
         "point_of_sale.assets_prod": [
             (
@@ -298,9 +301,6 @@
             "point_of_sale.base_tests",
         ],
         "secondary_import_map_includes": {
-            "web.assets_tests": [
-                "point_of_sale.assets_prod",
-            ],
             "point_of_sale.assets_prod": [
                 "web.assets_tests",
                 "point_of_sale.assets_debug",
@@ -314,7 +314,6 @@
             ],
         },
     },
-    "installable": True,
     "application": True,
     "uninstall_hook": "uninstall_hook",
 }

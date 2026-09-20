@@ -12,7 +12,7 @@
                 name="phone_ids"
                 eval="[Command.create({'number': '+32456001100', 'type': 'mobile'})]" />
             <field name="email">hubert.farnsworth@example.com</field>
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
         <record id="mailing_contact_0_1" model="mailing.contact">
             <field name="name">Philip Fry</field>
@@ -20,28 +20,28 @@
                 name="phone_ids"
                 eval="[Command.create({'number': '+32456001111', 'type': 'mobile'})]" />
             <field name="email">philip.fry@example.com</field>
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
         <record id="mailing_contact_0_2" model="mailing.contact">
             <field name="name">Turanga Leela</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+32456001122', 'type': 'mobile'})]" />
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
         <record id="mailing_contact_0_3" model="mailing.contact">
             <field name="name">John Zoidberg</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+32456001133', 'type': 'mobile'})]" />
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
         <record id="mailing_contact_0_4" model="mailing.contact">
             <field name="name">Zapp Brannigan</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': 'dummy', 'type': 'mobile'})]" />
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
     </data>
 

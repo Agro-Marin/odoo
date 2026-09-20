@@ -13,10 +13,10 @@ class PaymentProvider(models.Model):
     )
 
     code = fields.Selection(
-        selection_add=[("custom", "Custom")], ondelete={"custom": "set default"}
+        selection_add=[("custom", "Custom")],
+        ondelete={"custom": "set default"},
     )
     custom_mode = fields.Selection(
-        string="Custom Mode",
         selection=[("wire_transfer", "Wire Transfer")],
         required_if_provider="custom",
     )
@@ -56,7 +56,7 @@ class PaymentProvider(models.Model):
             for provider in self.filtered(lambda p: p.custom_mode == "wire_transfer"):
                 company_id = provider.company_id.id
                 accounts = (
-                    self.env["account.journal"]
+                    self.env["account.journal"]  # noqa: E8507 - one lookup per provider, on its own company
                     .search(
                         [
                             *self.env["account.journal"]._check_company_domain(
@@ -93,13 +93,13 @@ class PaymentProvider(models.Model):
         return res
 
     @api.model
-    def _get_removal_values(self):
+    def _prepare_removal_values(self):
         """Override of `payment` to nullify the `custom_mode` field."""
-        res = super()._get_removal_values()
+        res = super()._prepare_removal_values()
         res["custom_mode"] = None
         return res
 
-    def _transfer_ensure_pending_msg_is_set(self):
+    def _transfer_update_missing_pending_msg(self):
         transfer_providers_without_msg = self.filtered(
             lambda p: p.custom_mode == "wire_transfer" and not p.pending_msg
         )

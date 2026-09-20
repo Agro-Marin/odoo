@@ -13,10 +13,10 @@
                 <div role="separator" class="dropdown-divider"/>
                 <div class="dropdown-header">Task Templates</div>
                 <t t-foreach="state.taskTemplates" t-as="template" t-key="template.id">
-                    <DropdownItem tag="'button'" class="'btn btn-link o-dropdown-item-indent o-task-template d-flex align-items-center pe-0'"
+                    <DropdownItem tag="'button'" class="templateItemClasses"
                         onSelected="() => this.createTaskFromTemplate(template.id)">
                         <span class="text-truncate" t-out="template.name"/>
-                        <ProjectTemplateButtons resModel="'project.task'" resId="template.id"/>
+                        <ProjectTemplateButtons t-if="isProjectManager" resModel="'project.task'" resId="template.id"/>
                     </DropdownItem>
                 </t>
             </t>

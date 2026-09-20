@@ -1363,6 +1363,8 @@ class TestOrmTransient_Model(models.TransientModel):
 class TestOrmAttachment(models.Model):
     _name = "test_orm.attachment"
     _description = "Attachment"
+    # the override below exists to be patched by a test; it narrows nothing
+    _search_visibility_fields = ()
 
     res_model = fields.Char(required=True)
     res_id = fields.Integer(required=True)
@@ -3118,4 +3120,103 @@ class TestOrmPropertiesSource(models.Model):
     holder_id = fields.Many2one("test_orm.properties.holder.a")
     attributes = fields.Properties(
         string="Source Properties", definition="holder_id.definition"
+    )
+
+
+class TestOrmProjectionParent(models.Model):
+    _name = "test_orm.projection.parent"
+    _description = "test_orm.projection.parent"
+
+    name = fields.Char()
+    note = fields.Char()
+    state = fields.Selection(
+        selection=[("open", "Open"), ("closed", "Closed")],
+        default="open",
+    )
+    child_ids = fields.One2many(
+        comodel_name="test_orm.projection.child",
+        inverse_name="parent_id",
+    )
+
+
+class TestOrmProjectionChild(models.Model):
+    _name = "test_orm.projection.child"
+    _description = "test_orm.projection.child"
+
+    name = fields.Char()
+    quantity = fields.Integer()
+    parent_id = fields.Many2one(
+        comodel_name="test_orm.projection.parent",
+    )
+    parent_state = fields.Selection(
+        related="parent_id.state",
+    )
+    parent_name = fields.Char(
+        related="parent_id.name",
+        readonly=False,
+    )
+
+    @api.constrains("parent_state", "parent_name")
+    def _check_parent_is_named(self):
+        for child in self:
+            if child.parent_id and not child.parent_name:
+                raise ValidationError(f"{child.name}: its parent has no name")
+
+    @api.constrains("parent_state", "quantity")
+    def _check_closed_parent_holds_nothing(self):
+        for child in self:
+            if child.parent_state == "closed" and child.quantity:
+                raise ValidationError(
+                    f"{child.name}: a closed parent holds no quantity"
+                )
+
+
+class TestOrmProjectionGrandchild(models.Model):
+    _name = "test_orm.projection.grandchild"
+    _description = "test_orm.projection.grandchild"
+
+    name = fields.Char()
+    quantity = fields.Integer()
+    child_id = fields.Many2one(
+        comodel_name="test_orm.projection.child",
+    )
+    parent_state = fields.Selection(
+        related="child_id.parent_id.state",
+    )
+
+    @api.constrains("parent_state")
+    def _check_closed_grandparent_holds_nothing(self):
+        for grandchild in self:
+            if grandchild.parent_state == "closed" and grandchild.quantity:
+                raise ValidationError(
+                    f"{grandchild.name}: a closed grandparent holds no quantity"
+                )
+
+
+class TestOrmSharedRelationTag(models.Model):
+    _name = "test_orm.shared_relation.tag"
+    _description = "test_orm.shared_relation.tag"
+
+    name = fields.Char()
+    featured = fields.Boolean()
+
+
+class TestOrmSharedRelationOwner(models.Model):
+    _name = "test_orm.shared_relation.owner"
+    _description = "test_orm.shared_relation.owner"
+
+    name = fields.Char()
+    tag_ids = fields.Many2many(
+        comodel_name="test_orm.shared_relation.tag",
+        relation="test_orm_shared_relation_rel",
+        column1="owner_id",
+        column2="tag_id",
+    )
+    featured_tag_ids = fields.Many2many(
+        comodel_name="test_orm.shared_relation.tag",
+        relation="test_orm_shared_relation_rel",
+        column1="owner_id",
+        column2="tag_id",
+        readonly=True,
+        domain=[("featured", "=", True)],
     )

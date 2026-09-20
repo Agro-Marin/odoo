@@ -1,4 +1,5 @@
 import csv
+import functools
 import io
 import logging
 import re
@@ -7,6 +8,7 @@ from pathlib import Path
 from lxml import etree
 
 from odoo.modules import Manifest
+from odoo.modules.db import category_xml_id
 
 from . import lint_case
 from ._rules import is_test_path
@@ -16,9 +18,15 @@ _logger = logging.getLogger(__name__)
 
 _SKIP_DIRS = {"static", "node_modules", "_vendor"}
 
-_DECLARING_TAGS = frozenset({"record", "template", "menuitem", "report", "act_window"})
+_DECLARING_TAGS = frozenset({"record", "template", "menuitem", "asset"})
 
-_ORM_MINTED_PREFIXES = ("model_", "field_", "selection_", "constraint_", "module_")
+_MARKUP_TAGS = frozenset({"template"})
+
+_REF_ATTRIBUTES = ("eval", "t-value", "context", "search")
+
+_TEMPLATE_REF_ATTRIBUTES = ("inherit_id", "website_id")
+
+_REGISTRY_MINTED_PREFIXES = ("field_", "selection_", "constraint_")
 
 _HOOK_MINTED_MODULES = frozenset({"product_unspsc"})
 
@@ -28,10 +36,18 @@ _RE_XML_ID_LITERAL = re.compile(r"['\"]xml_id['\"]\s*:\s*['\"]([^'\"]+)['\"]")
 _RE_XML_ID_WRAPPED = re.compile(
     r"['\"]xml_id['\"]\s*:\s*[A-Za-z_][\w.]*\(\s*['\"]([^'\"]+)['\"]"
 )
+_RE_PCT_REF = re.compile(r"%%|%\((.*?)\)[ds]")
 
 
 def _qualify(module, xmlid):
     return xmlid if "." in xmlid else f"{module}.{xmlid}"
+
+
+def _is_markup(element):
+    return element.tag in _MARKUP_TAGS or (
+        element.tag == "field"
+        and (element.get("name") == "arch" or element.get("type") in ("xml", "html"))
+    )
 
 
 def _is_optional_field_ref(element):
@@ -43,6 +59,43 @@ def _is_optional_field_ref(element):
     return (record.get("forcecreate") or "").strip().lower() in ("false", "0")
 
 
+def _references_of(module, element):
+    def qualified(xmlid):
+        return _qualify(module, xmlid)
+
+    if element.tag == "field" and (ref := element.get("ref")):
+        if not _is_optional_field_ref(element):
+            yield qualified(ref)
+    if element.tag == "delete" and (ref := element.get("id")):
+        yield qualified(ref)
+    if uid := element.get("uid"):
+        yield qualified(uid)
+    if element.tag == "menuitem":
+        for attribute in ("parent", "action"):
+            if value := element.get(attribute):
+                yield qualified(value)
+    if element.tag == "template":
+        for attribute in _TEMPLATE_REF_ATTRIBUTES:
+            if value := element.get(attribute):
+                yield qualified(value)
+    if element.tag in ("menuitem", "template"):
+        for group in (element.get("groups") or "").split(","):
+            group = group.strip().removeprefix("-").removeprefix("!")
+            if group:
+                yield qualified(group)
+    for attribute in _REF_ATTRIBUTES:
+        source = element.get(attribute) or ""
+        optional = {m.group(1) for m in _RE_REF_CALL_OPTIONAL.finditer(source)}
+        for match in _RE_REF_CALL.finditer(source):
+            if match.group(1) not in optional:
+                yield qualified(match.group(1))
+    if _is_markup(element):
+        markup = etree.tostring(element, encoding="unicode")
+        for match in _RE_PCT_REF.finditer(markup):
+            if match.group(0) != "%%":
+                yield qualified(match.group(1))
+
+
 class TestRecordReferences(lint_case.LintCase):
     @classmethod
     def setUpClass(cls):
@@ -50,14 +103,24 @@ class TestRecordReferences(lint_case.LintCase):
         cls.defined = set()
         cls.known_modules = set()
         cls.references = []
+        cls.declared_models = lint_case.declared_models()
+        cls.inherits = lint_case.declared_inherits()
         for manifest in Manifest.get_all_addon_manifests():
             cls.known_modules.add(manifest.name)
-            cls._scan_xml(manifest.name, Path(manifest.path))
+            cls._collect_categories(manifest)
+            core = lint_case.is_core_path(str(manifest.path))
+            cls._scan_xml(manifest.name, Path(manifest.path), core)
             cls._scan_csv(manifest.name, Path(manifest.path))
             cls._scan_python(manifest.name, Path(manifest.path))
 
     @classmethod
-    def _scan_xml(cls, module, root):
+    def _collect_categories(cls, manifest):
+        parts = (manifest.get("category") or "").split("/")
+        for depth in range(1, len(parts) + 1):
+            cls.defined.add(f"base.{category_xml_id(parts[:depth])}")
+
+    @classmethod
+    def _scan_xml(cls, module, root, core):
         for path in root.rglob("*.xml"):
             if _SKIP_DIRS.intersection(path.parts) or is_test_path(str(path)):
                 continue
@@ -69,46 +132,27 @@ class TestRecordReferences(lint_case.LintCase):
                 if callable(element.tag):
                     continue
                 cls._collect_definition(module, element)
-                cls._collect_reference(module, path, element)
+                if core:
+                    cls._collect_reference(module, path, element)
 
     @classmethod
     def _collect_definition(cls, module, element):
         xmlid = element.get("id")
+        if element.tag == "template" and not xmlid:
+            xmlid = element.get("t-name")
         if xmlid and element.tag in _DECLARING_TAGS:
             qualified = _qualify(module, xmlid)
             cls.defined.add(qualified)
-            if element.get("model") == "product.product":
-                cls.defined.add(f"{qualified}_product_template")
+            for parent in cls.inherits.get(element.get("model"), ()):
+                cls.defined.add(f"{qualified}_{parent.replace('.', '_')}")
         for attribute in ("eval", "t-value"):
             for match in _RE_XML_ID_LITERAL.finditer(element.get(attribute) or ""):
                 cls.defined.add(_qualify(module, match.group(1)))
 
     @classmethod
     def _collect_reference(cls, module, path, element):
-        if element.tag == "field" and (ref := element.get("ref")):
-            if not _is_optional_field_ref(element):
-                cls.references.append((_qualify(module, ref), path, element.sourceline))
-        if element.tag == "menuitem":
-            for attribute in ("parent", "action"):
-                if value := element.get(attribute):
-                    cls.references.append(
-                        (_qualify(module, value), path, element.sourceline)
-                    )
-            for group in (element.get("groups") or "").split(","):
-                group = group.strip().removeprefix("-")
-                if group:
-                    cls.references.append(
-                        (_qualify(module, group), path, element.sourceline)
-                    )
-        for attribute in ("eval", "t-value"):
-            source = element.get(attribute) or ""
-            optional = {m.group(1) for m in _RE_REF_CALL_OPTIONAL.finditer(source)}
-            for match in _RE_REF_CALL.finditer(source):
-                if match.group(1) in optional:
-                    continue
-                cls.references.append(
-                    (_qualify(module, match.group(1)), path, element.sourceline)
-                )
+        for xmlid in _references_of(module, element):
+            cls.references.append((xmlid, path, element.sourceline))
 
     @classmethod
     def _scan_csv(cls, module, root):
@@ -148,11 +192,25 @@ class TestRecordReferences(lint_case.LintCase):
     def _is_statically_undecidable(cls, ref):
         module, _, local = ref.partition(".")
         return (
-            local.startswith(_ORM_MINTED_PREFIXES)
+            local.startswith(_REGISTRY_MINTED_PREFIXES)
             or module in _HOOK_MINTED_MODULES
             or "%" in ref
             or "{" in ref
         )
+
+    @classmethod
+    def _is_orm_minted(cls, ref):
+        _module, _, local = ref.partition(".")
+        if local.startswith("model_"):
+            return local.removeprefix("model_") in cls._model_tokens()
+        if local.startswith("module_"):
+            return local.removeprefix("module_") in cls.known_modules
+        return False
+
+    @classmethod
+    @functools.cache
+    def _model_tokens(cls):
+        return frozenset(name.replace(".", "_") for name in cls.declared_models)
 
     def _unresolved(self, refs):
         return [
@@ -161,6 +219,7 @@ class TestRecordReferences(lint_case.LintCase):
             if ref.split(".")[0] in self.known_modules
             and ref not in self.defined
             and not self._is_statically_undecidable(ref)
+            and not self._is_orm_minted(ref)
         ]
 
     def test_every_record_reference_resolves(self):
@@ -210,19 +269,62 @@ class TestRecordReferences(lint_case.LintCase):
             "base.model_res_partner",
             "base.field_res_partner__name",
             "base.module_web",
+            "base.module_category_sales_sales",
+            "stock.ir_cron_scheduler_action_ir_actions_server",
         ):
             self.assertFalse(
                 self._unresolved([ref]), f"{ref} is minted by the ORM, not declared"
             )
 
-    def test_a_format_placeholder_reference_is_not_judged(self):
-        self.assertFalse(self._unresolved(["account.%s_ri_tax_vat_0_compras"]))
-        self.assertFalse(self._unresolved(["account.{}_ri_tax_vat_21_compras"]))
+    def test_a_minted_looking_xmlid_naming_no_model_or_module_is_judged(self):
+        self.assertEqual(
+            self._unresolved(["base.model_res_partnerr", "base.module_no_such"]),
+            ["base.model_res_partnerr", "base.module_no_such"],
+        )
 
-    def test_an_unqualified_reference_is_read_as_its_own_module(self):
-        self.assertEqual(_qualify("sale", "sale_order_tree"), "sale.sale_order_tree")
-        self.assertEqual(_qualify("sale", "base.group_user"), "base.group_user")
-        self.assertFalse(
-            [ref for ref, _p, _l in self.references if "." not in ref],
-            "every collected reference must carry a module",
+    def test_every_reference_shape_the_loader_resolves_is_collected(self):
+        root = etree.fromstring(
+            b"""
+            <odoo context="{'a': ref('ctx_ref')}">
+                <record id="r" model="m" context="{'b': ref('rec_ctx')}">
+                    <field name="f1" ref="field_ref"/>
+                    <field name="f2" eval="[ref('eval_ref'), ref('opt', False)]"/>
+                    <field name="f3" search="[('id', '=', ref('search_ref'))]"/>
+                    <field name="arch" type="xml">
+                        <button name="%(pct_ref)d"/>
+                        <span>%%(year)s</span>
+                    </field>
+                </record>
+                <template id="t" inherit_id="tpl_parent" groups="g1,!g2"/>
+                <menuitem id="m1" parent="menu_parent" action="menu_action"/>
+                <delete model="m" id="delete_ref"/>
+                <function model="m" name="f" uid="fn_uid" eval="[ref('fn_ref')]"/>
+            </odoo>
+            """,
+            _PARSER,
+        )
+        collected = {
+            xmlid.removeprefix("base.")
+            for element in root.iter()
+            if not callable(element.tag)
+            for xmlid in _references_of("base", element)
+        }
+        self.assertEqual(
+            collected,
+            {
+                "ctx_ref",
+                "rec_ctx",
+                "field_ref",
+                "eval_ref",
+                "search_ref",
+                "pct_ref",
+                "tpl_parent",
+                "g1",
+                "g2",
+                "menu_parent",
+                "menu_action",
+                "delete_ref",
+                "fn_uid",
+                "fn_ref",
+            },
         )

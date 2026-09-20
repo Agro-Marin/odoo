@@ -2,12 +2,15 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
+
+const log = makeLogger("mail.composer.template");
 export class MailComposerTemplateSelector extends Component {
     static template = "mail.MailComposerTemplateSelector";
     static components = { Dropdown, DropdownItem };
@@ -33,6 +36,7 @@ export class MailComposerTemplateSelector extends Component {
 
     async fetchTemplates() {
         const fields = ["display_name"];
+        const endFetch = log.perf("fetchTemplates");
         const templates = await this.orm.searchRead(
             "mail.template",
             [
@@ -55,6 +59,10 @@ export class MailComposerTemplateSelector extends Component {
                 )),
             );
         }
+        endFetch({
+            model: this.props.record.data.render_model,
+            templates: templates.length,
+        });
         this.state.templates = templates;
     }
 
@@ -64,6 +72,7 @@ export class MailComposerTemplateSelector extends Component {
      * @param {string} template.display_name
      */
     async onLoadTemplate(template) {
+        log.logic("onLoadTemplate", () => ({ templateId: template.id }));
         await this.props.record.update({
             template_id: { id: template.id },
         });
@@ -71,8 +80,10 @@ export class MailComposerTemplateSelector extends Component {
 
     async onSaveTemplate() {
         if (!(await this.props.record.save())) {
+            log.logic("onSaveTemplate aborted: record save failed");
             return;
         }
+        log.logic("onSaveTemplate", () => ({ resId: this.props.record.resId }));
         await this.action.doActionButton({
             type: "object",
             name: "open_template_creation_wizard",

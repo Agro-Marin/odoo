@@ -257,7 +257,7 @@
                                 <td class="shipping_address">
                                     <span class="fw-bold">Shipping Address:</span>
                                     <address
-                                        t-esc="o.partner_shipping_id"
+                                        t-out="o.partner_shipping_id"
                                         t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                                 </td>
                             </t>
@@ -267,7 +267,7 @@
                                     <span class="fw-bold">Beneficiary:</span>
                                     <address
                                         class="mb-0"
-                                        t-esc="o.commercial_partner_id"
+                                        t-out="o.commercial_partner_id"
                                         t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                                     <div t-if="o.commercial_partner_id.vat">
                                         <t
@@ -321,7 +321,7 @@
                 expr="//table[@name='invoice_line_table']/tbody//tr[1]//td[1]"
                 position="before">
                 <t t-if="o.company_id.has_position_column">
-                    <td class="text-start" t-esc="line_number" />
+                    <td class="text-start" t-out="line_number" />
                     <t t-set="line_number" t-value="line_number+1" />
                     </t>
             </xpath>

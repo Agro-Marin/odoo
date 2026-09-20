@@ -3,12 +3,6 @@ from . import common
 
 class TestResPartner(common.SlidesCase):
     def test_slide_channel_count_updates_within_transaction(self):
-        """`_compute_slide_channel_values` depends on
-        `slide_channel_partner_ids` precisely so an enrollment created
-        earlier in the same transaction is reflected immediately; without
-        that dependency `slide_channel_count` read 0 for the rest of the
-        transaction (see the field's own comment in models/res_partner.py).
-        """
         partner = self.env["res.partner"].create({"name": "New Enrollee"})
         self.assertEqual(partner.slide_channel_count, 0)
 

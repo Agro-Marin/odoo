@@ -1,6 +1,6 @@
 {
     "name": "Italy - E-invoicing",
-    "version": "0.4",
+    "version": "0.5",
     "category": "Accounting/Localizations/EDI",
     "description": """
 E-invoice implementation
@@ -35,6 +35,7 @@ E-invoice implementation
         "views/portal_address_templates.xml",
         "views/report_invoice.xml",
         "views/res_config_settings_views.xml",
+        "views/l10n_it_edi_menus.xml",
     ],
     "demo": [
         "demo/account_invoice_demo.xml",

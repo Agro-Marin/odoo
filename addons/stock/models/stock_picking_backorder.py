@@ -1,6 +1,7 @@
 from odoo import models
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
 
 
@@ -15,6 +16,11 @@ class StockPickingBackorder(models.Model):
             not_to_backorder |= (
                 self.browse(self.env.context["picking_ids_not_to_backorder"]) & self
             ).filtered(lambda p: p.picking_type_id.create_backorder != "always")
+        dbg.logic.debug(
+            "_split_backorder_pickings: backorder %s, never %s",
+            dbg.rec(self - not_to_backorder),
+            dbg.rec(not_to_backorder),
+        )
         return self - not_to_backorder, not_to_backorder
 
     def _prepare_action_backorder_confirmation(self, show_transfers=False):
@@ -49,6 +55,7 @@ class StockPickingBackorder(models.Model):
     def _post_create_backorder(self, backorder):
         pass
 
+    @dbg.timed
     def _create_backorder(self, backorder_moves=None):
         moves_by_picking = {}
         for picking in self:
@@ -66,6 +73,12 @@ class StockPickingBackorder(models.Model):
         sources = self.browse([picking.id for picking in moves_by_picking])
         backorders = self.create(
             [picking._prepare_backorder_picking_vals() for picking in sources],
+        )
+        dbg.pipeline.debug(
+            "_create_backorder: %s -> %s with moves %s",
+            dbg.rec(sources),
+            dbg.rec(backorders),
+            {p.id: moves.ids for p, moves in moves_by_picking.items()},
         )
 
         bo_to_assign = self.browse()
@@ -91,6 +104,10 @@ class StockPickingBackorder(models.Model):
         backorders.user_id = False
         all_moves_to_backorder._recompute_state()
         if bo_to_assign:
+            dbg.pipeline.debug(
+                "_create_backorder -> action_assign at_confirm %s",
+                dbg.rec(bo_to_assign),
+            )
             bo_to_assign.action_assign()
         return backorders
 
@@ -114,6 +131,7 @@ class StockPickingBackorder(models.Model):
                 if move.state != "cancel"
             ):
                 backorder_pickings |= picking
+        dbg.logic.debug("_get_pickings_to_backorder: %s", dbg.rec(backorder_pickings))
         return backorder_pickings
 
     def _is_backorder_ignore_required(self):

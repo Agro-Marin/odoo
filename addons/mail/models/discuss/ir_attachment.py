@@ -1,19 +1,22 @@
 import typing
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from .discuss_voice_metadata import DiscussVoiceMetadata
 
+_debug = DebugLog(__name__)
+
 
 class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
     voice_ids: DiscussVoiceMetadata = fields.One2many(
-        "discuss.voice.metadata",
-        "attachment_id",
+        comodel_name="discuss.voice.metadata",
+        inverse_name="attachment_id",
     )
 
     def _bus_channel(self) -> models.Model:
@@ -36,6 +39,7 @@ class IrAttachment(models.Model):
             self._create_voice_metadata()
 
     def _create_voice_metadata(self) -> None:
+        _debug.lifecycle("voice_metadata_created", attachments=self.ids)
         self.env["discuss.voice.metadata"].create(
             [{"attachment_id": att.id} for att in self]
         )

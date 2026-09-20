@@ -18,22 +18,32 @@ class GamificationBadgeUser(models.Model):
     _mail_partner_fields = ("user_partner_id",)
 
     user_id = fields.Many2one(
-        "res.users", string="User", required=True, ondelete="cascade", index=True
-    )
-    user_partner_id = fields.Many2one("res.partner", related="user_id.partner_id")
-    sender_id = fields.Many2one("res.users", string="Sender")
-    badge_id = fields.Many2one(
-        "gamification.badge",
-        string="Badge",
+        comodel_name="res.users",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
-    challenge_id = fields.Many2one("gamification.challenge", string="Challenge")
-    comment = fields.Text("Comment")
-    badge_name = fields.Char(related="badge_id.name", string="Badge Name")
+    user_partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        related="user_id.partner_id",
+    )
+    sender_id = fields.Many2one(comodel_name="res.users")
+    badge_id = fields.Many2one(
+        comodel_name="gamification.badge",
+        index=True,
+        required=True,
+        ondelete="cascade",
+    )
+    challenge_id = fields.Many2one(comodel_name="gamification.challenge")
+    comment = fields.Text()
+    badge_name = fields.Char(
+        related="badge_id.name",
+        string="Badge Name",
+    )
     level = fields.Selection(
-        string="Badge Level", related="badge_id.level", store=True, readonly=True
+        related="badge_id.level",
+        string="Badge Level",
+        readonly=True,
     )
 
     def _send_badge(self) -> bool:

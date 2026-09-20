@@ -37,6 +37,7 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -975,4 +976,29 @@ test("the message composer shows before the suggested recipients have been fetch
     await contains(".o-mail-RecipientsInput");
     recipientsFetched.resolve();
     await contains(".o-mail-Composer");
+});
+
+test("the aside chatter's collapsed state is stored and follows another tab", async () => {
+    patchUiSize({ size: SIZES.XXL });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Form-chatter.o-aside");
+    await contains(".o-mail-Chatter-collapsed", { count: 0 });
+    await click(".o-mail-Chatter-collapse");
+    await contains(".o-mail-Chatter-collapsed");
+    expect(browser.localStorage.getItem("chatter_aside_collapsed")).toBe("true");
+    window.dispatchEvent(
+        new StorageEvent("storage", {
+            key: "chatter_aside_collapsed",
+            newValue: "false",
+        }),
+    );
+    await contains(".o-mail-Chatter-collapsed", { count: 0 });
+    await click(".o-mail-Chatter-collapse");
+    await contains(".o-mail-Chatter-collapsed");
+    await click(".o-mail-Chatter-collapsed");
+    await contains(".o-mail-Chatter-collapsed", { count: 0 });
+    expect(browser.localStorage.getItem("chatter_aside_collapsed")).toBe("false");
 });

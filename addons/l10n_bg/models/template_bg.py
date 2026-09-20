@@ -7,12 +7,10 @@ class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
 
     @template("bg")
-    def _get_bg_template_data(self):
+    def _prepare_bg_template_data(self):
         return {
             "property_account_receivable_id": "l10n_bg_411",
             "property_account_payable_id": "l10n_bg_401",
-            "default_cash_difference_income_account_id": "l10n_bg_791001",
-            "default_cash_difference_expense_account_id": "l10n_bg_691001",
             "code_digits": "6",
         }
 
@@ -31,5 +29,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "account_default_pos_receivable_account_id": "l10n_bg_4111",
                 "expense_account_id": "l10n_bg_601",
                 "income_account_id": "l10n_bg_701",
+                "default_cash_difference_income_account_id": "l10n_bg_791001",
+                "default_cash_difference_expense_account_id": "l10n_bg_691001",
             },
         }

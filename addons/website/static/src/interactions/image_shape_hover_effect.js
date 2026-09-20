@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.image_shape_hover_effect");
 
 export class ImageShapeHoverEffect extends Interaction {
     static selector = "img[data-hover-effect]";
@@ -16,19 +19,53 @@ export class ImageShapeHoverEffect extends Interaction {
         this.originalImgSrc = this.el.getAttribute("src");
         this.svgInEl = null;
         this.svgOutEl = null;
-        // Observe the src attribute for modifications made outside this
-        // interaction's scope.
-        this.sourceObserver = new MutationObserver(() => {
-            this.originalImgSrc = this.el.src;
-        });
+        this.sourceVersion = 0;
+        this.sourceObserver = new MutationObserver(() => this.onSourceChanged());
         this.connectSourceObserver();
         this.adjustImageSourceFrom = this.bindDeferred(this.adjustImageSourceFrom);
+        log.lifecycle("ImageShapeHoverEffect setup: src observer attached", () => ({
+            hoverEffect: this.el.dataset.hoverEffect,
+            hasSrc: !!this.originalImgSrc,
+        }));
     }
 
     destroy() {
-        this.el.src = this.originalImgSrc;
+        log.lifecycle(
+            "ImageShapeHoverEffect destroy: restore src, observer disconnected",
+            () => ({
+                hoverEffect: this.el.dataset.hoverEffect,
+            }),
+        );
+        this.flushSourceChanges();
+        this.cancelPendingHover?.();
         this.disconnectSourceObserver();
+        if (this.originalImgSrc === null) {
+            this.el.removeAttribute("src");
+        } else {
+            this.el.setAttribute("src", this.originalImgSrc);
+        }
     }
+
+    onSourceChanged() {
+        this.originalImgSrc = this.el.getAttribute("src");
+        this.sourceVersion++;
+        this.svgInEl = null;
+        this.svgOutEl = null;
+        this.cancelPendingHover?.();
+        log.logic(
+            "ImageShapeHoverEffect source changed: invalidate animations",
+            () => ({
+                sourceVersion: this.sourceVersion,
+            }),
+        );
+    }
+
+    flushSourceChanges() {
+        if (this.sourceObserver.takeRecords().length) {
+            this.onSourceChanged();
+        }
+    }
+
     connectSourceObserver() {
         this.sourceObserver.observe(this.el, {
             attributes: true,
@@ -42,119 +79,192 @@ export class ImageShapeHoverEffect extends Interaction {
     }
 
     mouseEnter() {
-        if (!this.originalImgSrc || !this.el.dataset.hoverEffect) {
-            return;
+        this.lastMouseEvent = this.lastMouseEvent.then(async () => {
+            this.flushSourceChanges();
+            if (
+                this.isDestroyed ||
+                !this.originalImgSrc ||
+                !this.el.dataset.hoverEffect
+            ) {
+                return;
+            }
+            const version = this.sourceVersion;
+            const svg = this.svgInEl || (await this.loadSvg());
+            this.flushSourceChanges();
+            if (svg && !this.isDestroyed && version === this.sourceVersion) {
+                await new Promise((resolve) => this.setImgSrc(svg, resolve));
+            }
+        });
+    }
+
+    async loadSvg() {
+        const version = this.sourceVersion;
+        const controller = new AbortController();
+        let cancel;
+        const cancelled = new Promise((resolve) => {
+            cancel = () => {
+                controller.abort();
+                resolve(null);
+            };
+        });
+        const forgetCleanup = this.registerCleanup(cancel);
+        this.cancelPendingHover = cancel;
+        const endFetch = log.perf("ImageShapeHoverEffect fetch svg");
+        try {
+            const response = fetch(this.originalImgSrc, {
+                signal: controller.signal,
+            }).then((response) => (response.ok ? response.text() : null));
+            const text = await Promise.race([response, cancelled]);
+            this.flushSourceChanges();
+            if (!text || this.isDestroyed || version !== this.sourceVersion) {
+                return null;
+            }
+            const document = new DOMParser().parseFromString(text, "text/xml");
+            const svg = document.getElementsByTagName("svg")[0];
+            if (!svg) {
+                return null;
+            }
+            for (const animation of svg.querySelectorAll(
+                "#hoverEffects animateTransform, #hoverEffects animate",
+            )) {
+                animation.removeAttribute("begin");
+            }
+            this.svgInEl = svg;
+            return svg;
+        } catch (error) {
+            log.logic(
+                "ImageShapeHoverEffect fetch failed, release hover queue",
+                () => ({ error }),
+            );
+            return null;
+        } finally {
+            forgetCleanup();
+            if (this.cancelPendingHover === cancel) {
+                this.cancelPendingHover = null;
+            }
+            endFetch({ cancelled: controller.signal.aborted });
         }
-        this.lastMouseEvent = this.lastMouseEvent.then(
-            () =>
-                new Promise((resolve) => {
-                    if (!this.svgInEl) {
-                        fetch(this.el.src)
-                            .then((response) => response.text())
-                            .then((text) => {
-                                const parser = new DOMParser();
-                                const result = parser.parseFromString(text, "text/xml");
-                                const svg = result.getElementsByTagName("svg")[0];
-                                this.svgInEl = svg;
-                                if (!this.svgInEl) {
-                                    resolve();
-                                    return;
-                                }
-                                // Start animations.
-                                const animateEls = this.svgInEl.querySelectorAll(
-                                    "#hoverEffects animateTransform, #hoverEffects animate",
-                                );
-                                animateEls.forEach((animateTransformEl) => {
-                                    animateTransformEl.removeAttribute("begin");
-                                });
-                                this.setImgSrc(this.svgInEl, resolve);
-                            })
-                            .catch(() => {
-                                // Could be the case if somehow the `src` is an absolute
-                                // URL from another domain.
-                            });
-                    } else {
-                        this.setImgSrc(this.svgInEl, resolve);
-                    }
-                }),
-        );
+    }
+
+    getOutgoingSvg() {
+        if (!this.svgOutEl) {
+            this.svgOutEl = this.svgInEl.cloneNode(true);
+            for (const animation of this.svgOutEl.querySelectorAll(
+                "#hoverEffects animateTransform, #hoverEffects animate",
+            )) {
+                const values = animation.getAttribute("values");
+                if (values !== null) {
+                    animation.setAttribute(
+                        "values",
+                        values.split(";").reverse().join(";"),
+                    );
+                } else if (
+                    animation.hasAttribute("from") &&
+                    animation.hasAttribute("to")
+                ) {
+                    const from = animation.getAttribute("from");
+                    animation.setAttribute("from", animation.getAttribute("to"));
+                    animation.setAttribute("to", from);
+                }
+            }
+        }
+        return this.svgOutEl;
     }
 
     mouseLeave() {
-        this.lastMouseEvent = this.lastMouseEvent.then(
-            () =>
-                new Promise((resolve) => {
-                    if (
-                        !this.originalImgSrc ||
-                        !this.svgInEl ||
-                        !this.el.dataset.hoverEffect
-                    ) {
-                        resolve();
-                        return;
-                    }
-                    if (!this.svgOutEl) {
-                        // Reverse animations.
-                        this.svgOutEl = this.svgInEl.cloneNode(true);
-                        const animateTransformEls = this.svgOutEl.querySelectorAll(
-                            "#hoverEffects animateTransform, #hoverEffects animate",
-                        );
-                        animateTransformEls.forEach((animateTransformEl) => {
-                            let valuesValue = animateTransformEl.getAttribute("values");
-                            valuesValue = valuesValue.split(";").reverse().join(";");
-                            animateTransformEl.setAttribute("values", valuesValue);
-                        });
-                    }
-                    this.setImgSrc(this.svgOutEl, resolve);
-                }),
-        );
+        this.lastMouseEvent = this.lastMouseEvent.then(async () => {
+            this.flushSourceChanges();
+            if (
+                this.isDestroyed ||
+                !this.originalImgSrc ||
+                !this.svgInEl ||
+                !this.el.dataset.hoverEffect
+            ) {
+                return;
+            }
+            const version = this.sourceVersion;
+            const svg = this.getOutgoingSvg();
+            await new Promise((resolve) => this.setImgSrc(svg, resolve));
+            if (!this.isDestroyed && version === this.sourceVersion) {
+                // Editor mode restores the original after the reverse animation.
+                await this.afterMouseLeave?.(svg, version);
+            }
+        });
     }
 
     /**
-     * Converts the SVG to a data URI and set it as the image source.
-     *
      * @param {HTMLElement} svg
      * @param {Function} resolve
-￼    */
+     */
     setImgSrc(svg, resolve) {
         if (this.isDestroyed) {
+            log.logic("ImageShapeHoverEffect setImgSrc: destroyed, drop");
+            resolve();
             return;
         }
-        // Add random class to prevent browser from caching image. Otherwise the
-        // animations do not trigger more than once.
         const previousRandomClass = [...svg.classList].find((cl) =>
             cl.startsWith("o_shape_anim_random_"),
         );
-        svg.classList.remove(previousRandomClass);
+        if (previousRandomClass) {
+            svg.classList.remove(previousRandomClass);
+        }
         svg.classList.add("o_shape_anim_random_" + Date.now());
-        // Convert the SVG element to a data URI. Percent-encode as UTF-8 rather
-        // than btoa(), which throws (InvalidCharacterError) on any non-Latin1
-        // glyph in the SVG (e.g. a Unicode character in a <text>).
         const svgString = new XMLSerializer().serializeToString(svg);
-        // The image is preloaded to avoid a flickering when it is added to the
-        // DOM.
+        this.setImageSource(
+            `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`,
+            resolve,
+        );
+    }
+
+    setImageSource(src, resolve) {
+        if (this.isDestroyed) {
+            resolve();
+            return;
+        }
+        const version = this.sourceVersion;
         const preloadedImg = new Image();
-        preloadedImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
-        preloadedImg.onload = () => {
-            if (this.isDestroyed) {
-                // In some cases, it is possible for the "preloadedImg" to
-                // finish loading while the widget has already been destroyed.
-                // So, we do not set the image source because that can cause
-                // unexpected reverse of the animation.
-                resolve();
+        let settled = false;
+        const finish = () => {
+            if (settled) {
                 return;
             }
-            this.adjustImageSourceFrom(preloadedImg);
-            this.hoveringImgSrc = preloadedImg.getAttribute("src");
-            this.el.onload = () => {
-                resolve();
-            };
+            settled = true;
+            if (this.cancelPendingHover === finish) {
+                this.cancelPendingHover = null;
+            }
+            forgetCleanup();
+            preloadedImg.removeEventListener("load", onPreload);
+            preloadedImg.removeEventListener("error", onError);
+            this.el.removeEventListener("load", finish);
+            this.el.removeEventListener("error", onError);
+            resolve();
         };
+        const onError = () => {
+            log.logic(
+                "ImageShapeHoverEffect setImgSrc: image failed, release hover queue",
+            );
+            finish();
+        };
+        const onPreload = () => {
+            preloadedImg.removeEventListener("load", onPreload);
+            preloadedImg.removeEventListener("error", onError);
+            this.flushSourceChanges();
+            if (this.isDestroyed || version !== this.sourceVersion) {
+                finish();
+                return;
+            }
+            this.el.addEventListener("load", finish, { once: true });
+            this.el.addEventListener("error", onError, { once: true });
+            this.adjustImageSourceFrom(preloadedImg);
+        };
+        const forgetCleanup = this.registerCleanup(finish);
+        this.cancelPendingHover = finish;
+        preloadedImg.addEventListener("load", onPreload, { once: true });
+        preloadedImg.addEventListener("error", onError, { once: true });
+        preloadedImg.src = src;
     }
 
     /**
-     * Overridable method called once the preloadedImageEl is loaded in
-     * setImgSrc.
-     *
      * @param {HTMLImageElement} preloadedImageEl
      */
     adjustImageSourceFrom(preloadedImageEl) {

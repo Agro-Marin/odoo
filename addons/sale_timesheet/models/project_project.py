@@ -3,8 +3,11 @@ import json
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.translate import _
+
+_debug = DebugLog(__name__)
 
 
 class ProjectProject(models.Model):
@@ -12,60 +15,61 @@ class ProjectProject(models.Model):
     _inherit = "project.project"
 
     pricing_type = fields.Selection(
-        [
+        selection=[
             ("task_rate", "Task rate"),
             ("fixed_rate", "Project rate"),
             ("employee_rate", "Employee rate"),
         ],
         string="Pricing",
-        default="task_rate",
         compute="_compute_pricing_type",
         search="_search_pricing_type",
+        default="task_rate",
         help="The task rate is perfect if you would like to bill different services to different customers at different rates. The fixed rate is perfect if you bill a service at a fixed rate per hour or day worked regardless of the employee who performed it. The employee rate is preferable if your employees deliver the same service at a different rate. For instance, junior and senior consultants would deliver the same service (= consultancy), but at a different rate because of their level of seniority.",
     )
     sale_line_employee_ids = fields.One2many(
-        "project.sale.line.employee.map",
-        "project_id",
-        "Sale line/Employee map",
-        copy=False,
+        comodel_name="project.sale.line.employee.map",
+        inverse_name="project_id",
+        string="Sale line/Employee map",
         export_string_translation=False,
+        copy=False,
         help="Sales order item that will be selected by default on the timesheets of the corresponding employee. It bypasses the sales order item defined on the project and the task, and can be modified on each timesheet entry if necessary. In other words, it defines the rate at which an employee's time is billed based on their expertise, skills or experience, for instance.\n"
         "If you would like to bill the same service at a different rate, you need to create two separate sales order items as each sales order item can only have a single unit price at a time.\n"
         "You can also define the hourly company cost of your employees for their timesheets on this project specifically. It will bypass the timesheet cost set on the employee.",
     )
     timesheet_product_id = fields.Many2one(
-        "product.product",
-        string="Timesheet Product",
+        comodel_name="product.product",
+        compute="_compute_timesheet_product_id",
+        store=True,
+        readonly=False,
         domain="""[
             ('type', '=', 'service'),
             ('invoice_policy', '=', 'transferred'),
             ('service_type', '=', 'timesheet'),
         ]""",
-        help="Service that will be used by default when invoicing the time spent on a task. It can be modified on each task individually by selecting a specific sales order item.",
         check_company=True,
-        compute="_compute_timesheet_product_id",
+        help="Service that will be used by default when invoicing the time spent on a task. It can be modified on each task individually by selecting a specific sales order item.",
+    )
+    warning_employee_rate = fields.Boolean(
+        export_string_translation=False,
+        compute="_compute_warning_employee_rate",
+        compute_sudo=True,
+    )
+    partner_id = fields.Many2one(
+        compute="_compute_partner_id",
         store=True,
         readonly=False,
     )
-    warning_employee_rate = fields.Boolean(
-        compute="_compute_warning_employee_rate",
-        compute_sudo=True,
-        export_string_translation=False,
-    )
-    partner_id = fields.Many2one(
-        compute="_compute_partner_id", store=True, readonly=False
-    )
     allocated_hours = fields.Float()
     billing_type = fields.Selection(
-        compute="_compute_billing_type",
         selection=[
             ("not_billable", "not billable"),
             ("manually", "billed manually"),
         ],
+        compute="_compute_billing_type",
         default="not_billable",
-        required=True,
-        readonly=False,
         store=True,
+        readonly=False,
+        required=True,
     )
 
     @api.model
@@ -159,8 +163,16 @@ class ProjectProject(models.Model):
             )
 
         (self - projects).warning_employee_rate = False
+        _debug.perf.count(
+            "employee_rate_warning",
+            projects=len(self),
+            employee_rate=len(projects),
+            rows=len(dict_project_employee),
+        )
 
-    @api.depends("sale_line_employee_ids.sale_line_id", "sale_line_id")
+    @api.depends(
+        "sale_line_employee_ids.sale_line_id", "sale_line_id", "allow_billable"
+    )
     def _compute_partner_id(self):
         billable_projects = self.filtered("allow_billable")
         for project in billable_projects:
@@ -176,6 +188,9 @@ class ProjectProject(models.Model):
                     or project.sale_line_employee_ids.sale_line_id[:1]
                 )
                 project.partner_id = sol.partner_id
+                _debug.logic(
+                    "project_partner_from_sale_line", project=project, line=sol
+                )
         super(ProjectProject, self - billable_projects)._compute_partner_id()
 
     @api.depends("partner_id")
@@ -189,7 +204,7 @@ class ProjectProject(models.Model):
             )
         ):
             SaleOrderLine = self.env["sale.order.line"]
-            sol = SaleOrderLine.search(
+            sol = SaleOrderLine.search(  # noqa: E8507 - one lookup per project, on its own partner
                 Domain.AND(
                     [
                         SaleOrderLine._domain_sale_line_service(),
@@ -207,6 +222,12 @@ class ProjectProject(models.Model):
             )
             project.sale_line_id = (
                 sol or project.sale_line_employee_ids.sale_line_id[:1]
+            )
+            _debug.logic(
+                "project_sale_line_resolved",
+                project=project,
+                line=project.sale_line_id,
+                by="prepaid_search" if sol else "employee_map",
             )
 
     @api.depends("sale_line_employee_ids.sale_line_id", "allow_billable")
@@ -230,12 +251,20 @@ class ProjectProject(models.Model):
     def _check_sale_line_type(self):
         for project in self.filtered(lambda project: project.sale_line_id):
             if not project.sale_line_id.is_service:
+                _debug.logic(
+                    "project_sale_line_rejected",
+                    project=project,
+                    reason="not_a_service",
+                )
                 raise ValidationError(
                     _(
                         "You cannot link a billable project to a sales order item that is not a service."
                     )
                 )
             if project.sale_line_id.is_expense:
+                _debug.logic(
+                    "project_sale_line_rejected", project=project, reason="is_expense"
+                )
                 raise ValidationError(
                     _(
                         "You cannot link a billable project to a sales order item that comes from an expense or a vendor bill."
@@ -245,6 +274,9 @@ class ProjectProject(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if "allow_billable" in vals and not vals.get("allow_billable"):
+            _debug.lifecycle(
+                "timesheet_sale_lines_cleared", projects=self, reason="not_billable"
+            )
             self.task_ids._get_timesheet().write(
                 {
                     "so_line": False,
@@ -265,6 +297,12 @@ class ProjectProject(models.Model):
                 sale_line_id = project.sale_line_employee_ids.filtered(
                     lambda l: l.project_id == project and l.employee_id == employee_id
                 ).sale_line_id
+                _debug.lifecycle(
+                    "timesheets_repointed",
+                    project=project,
+                    employee=employee_id,
+                    line=sale_line_id,
+                )
                 timesheet_ids.filtered(
                     lambda t: t.employee_id == employee_id
                 ).sudo().so_line = sale_line_id
@@ -460,7 +498,9 @@ class ProjectProject(models.Model):
             ],
         }
 
-        return self._get_domain_sale_items(section_domains.get(section_id, []))
+        if section_id not in section_domains:
+            return super()._get_domain_from_section_id(section_id)
+        return self._get_domain_sale_items(section_domains[section_id])
 
     def _get_profitability_labels(self):
         return {

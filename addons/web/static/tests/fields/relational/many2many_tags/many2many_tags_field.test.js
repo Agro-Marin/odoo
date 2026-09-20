@@ -2038,8 +2038,8 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
     await model.root.load();
     await animationFrame();
     const idsAfter = model.root.data.timmy.records.map((/** @type {any} */ r) => r.id);
-    expect(idsAfter).not.toEqual(idsBefore, {
-        message: "the reload must actually invalidate the datapoint ids",
+    expect(idsAfter).toEqual(idsBefore, {
+        message: "a reload that leaves the tags alone keeps their datapoints",
     });
 
     expect(".o_colorlist").toHaveCount(1);

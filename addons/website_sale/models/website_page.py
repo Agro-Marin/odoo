@@ -21,8 +21,6 @@ class WebsitePage(models.Model):
         if not order_id or not quantity:
             return
 
-        # update generated html from "webiste_sale.header_cart_link" used on all page
-
         my_cart_quantity_re = re.compile(
             r"""
             <sup\s

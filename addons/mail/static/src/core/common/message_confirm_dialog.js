@@ -1,10 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
+
+const log = makeLogger("mail.message.ui");
 
 export class MessageConfirmDialog extends Component {
     static components = { Dialog };
@@ -31,6 +34,7 @@ export class MessageConfirmDialog extends Component {
     }
 
     onClickConfirm() {
+        log.logic("confirm", () => ({ messageId: this.props.message?.id }));
         this.props.onConfirm();
         this.props.close();
     }

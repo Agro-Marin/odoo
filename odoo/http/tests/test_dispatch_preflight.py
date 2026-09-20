@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from werkzeug.exceptions import HTTPException
 
+from odoo.http._cookies import FutureResponse
 from odoo.http._protocols import RequestState
 from odoo.http.constants import CORS_DEFAULT_ALLOWED_HEADERS
 from odoo.http.dispatcher import (
@@ -11,7 +12,6 @@ from odoo.http.dispatcher import (
     JsonRPCDispatcher,
     get_dispatcher_for_unmatched_route,
 )
-from odoo.http.wrappers import FutureResponse
 
 
 class _FakeSession:
@@ -160,7 +160,7 @@ def test_options_on_a_cors_route_is_still_the_preflight():
 
     assert response.status_code == 204
     assert req.future_response.headers["Access-Control-Max-Age"]
-    assert response.headers["Allow"] == "GET, PUT, OPTIONS"
+    assert response.headers["Allow"] == "GET, PUT, HEAD, OPTIONS"
 
 
 def test_a_refused_preflight_still_says_which_methods_the_url_takes():

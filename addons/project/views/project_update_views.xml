@@ -12,25 +12,25 @@
                 <field name="description" />
                 <field name="status" />
                 <filter
-                    string="My Updates"
                     name="my_updates"
+                    string="My Updates"
                     domain="[('user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="On Track"
                     name="on_track"
+                    string="On Track"
                     domain="[('status', '=', 'on_track')]" />
                 <filter
-                    string="At Risk"
                     name="at_risk"
+                    string="At Risk"
                     domain="[('status', '=', 'at_risk')]" />
                 <filter
-                    string="Off Track"
                     name="off_track"
+                    string="Off Track"
                     domain="[('status', '=', 'off_track')]" />
                 <filter
-                    string="On Hold"
                     name="on_hold"
+                    string="On Hold"
                     domain="[('status', '=', 'on_hold')]" />
                 <separator />
                 <filter name="date" string="Date" date="date" />
@@ -48,8 +48,8 @@
                         <h1>
                             <field
                                 name="name"
-                                class="o_text_overflow"
-                                placeholder="e.g. Monthly review" />
+                                placeholder="e.g. Monthly review"
+                                class="o_text_overflow" />
                         </h1>
                     </div>
                     <group>
@@ -72,12 +72,11 @@
                     </group>
                     <separator />
                     <notebook>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="description"
-                                nolabel="1"
-                                class="o_project_update_description"
-                                options="{'resizable': false, 'collaborative': true}" />
+                                options="{'resizable': false, 'collaborative': true}"
+                                class="o_project_update_description" />
                         </page>
                     </notebook>
                 </sheet>
@@ -90,7 +89,7 @@
         <field name="name">project.update.view.kanban</field>
         <field name="model">project.update</field>
         <field name="arch" type="xml">
-            <kanban highlight_color="color" sample="0" js_class="project_update_kanban">
+            <kanban sample="0" highlight_color="color" js_class="project_update_kanban">
                 <field name="color" />
                 <templates>
                     <t
@@ -110,17 +109,17 @@
                             <field name="color" invisible="1" />
                             <field
                                 name="status"
-                                class="fw-bolder"
+                                widget="status_with_color"
                                 readonly="1"
-                                widget="status_with_color" />
+                                class="fw-bolder" />
                         </div>
                         <div
                             class="flex-grow-1 flex-shrink-0 w-50 w-md-auto px-2 px-md-0">
                             <span>Progress</span>
                             <field
                                 name="progress_percentage"
-                                class="fw-bolder"
-                                widget="percentage" />
+                                widget="percentage"
+                                class="fw-bolder" />
                         </div>
                         <div
                             class="flex-grow-1 flex-shrink-0 w-50 w-md-auto px-2 px-md-0">
@@ -151,8 +150,8 @@
                 <field
                     name="user_id"
                     widget="many2one_avatar_user"
-                    class="fw-bolder"
-                    optional="show" />
+                    optional="show"
+                    class="fw-bolder" />
                 <field name="date" optional="show" />
                 <field
                     name="progress"

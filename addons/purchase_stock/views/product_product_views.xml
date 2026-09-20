@@ -39,12 +39,12 @@
                     <span class="text-muted small me-1">Monthly Demand:</span>
                     <span
                         class="fw-bold ms-1"
-                        t-esc="Math.round(record.monthly_demand.raw_value *100)/100"
+                        t-out="Math.round(record.monthly_demand.raw_value *100)/100"
                         name="kanban_monthly_demand_qty" />
                     <field
                         name="uom_id"
-                        class="text-muted small ms-1"
-                        groups="uom.group_uom" />
+                        groups="uom.group_uom"
+                        class="text-muted small ms-1" />
                 </div>
                 <div
                     name="kanban_purchase_suggest"
@@ -56,8 +56,8 @@
                         name="kanban_purchase_suggest_qty" />
                     <field
                         name="uom_id"
-                        class="text-info fw-bold fs-5 me-1"
-                        groups="uom.group_uom" />
+                        groups="uom.group_uom"
+                        class="text-info fw-bold fs-5 me-1" />
                     <span class="text-info fw-bold fs-5 me-1" groups="!uom.group_uom">Units</span>
                 </div>
             </div>

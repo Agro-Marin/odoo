@@ -10,19 +10,19 @@
             <xpath expr="//div[@name='section_leaves']" position="before">
                 <block title="Billing">
                     <setting
+                        id="time_billing_setting"
                         string="Time Billing"
-                        help="Sell services and invoice time spent"
-                        id="time_billing_setting">
+                        help="Sell services and invoice time spent">
                         <button
                             name="%(sale_timesheet.product_template_action_default_services)d"
-                            string="Configure your services"
                             type="action"
-                            class="btn-link"
-                            icon="oi-arrow-right" />
+                            string="Configure your services"
+                            icon="oi-arrow-right"
+                            class="btn-link" />
                     </setting>
                     <setting
-                        help="Timesheets taken into account when invoicing your time"
-                        name="invoice_policy">
+                        name="invoice_policy"
+                        help="Timesheets taken into account when invoicing your time">
                         <field name="invoice_policy" widget="upgrade_boolean" />
                     </setting>
                 </block>

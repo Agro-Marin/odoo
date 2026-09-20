@@ -5,7 +5,7 @@ import { patch } from "@web/core/utils/patch";
 patch(ChatWindow.prototype, {
     _onClose(options = {}) {
         if (
-            this.thread?.channel_type === "livechat" &&
+            this.thread?.isLivechat &&
             this.thread.livechatVisitorMember?.persona?.notEq(this.store.self)
         ) {
             const thread = this.thread;

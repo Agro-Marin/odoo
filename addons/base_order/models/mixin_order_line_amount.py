@@ -1,7 +1,10 @@
 from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderLineAmount(models.AbstractModel):
@@ -11,29 +14,29 @@ class MixinOrderLineAmount(models.AbstractModel):
     _product_tax_field = ""
     _price_direction = 0
 
-    currency_id = fields.Many2one("res.currency")
+    currency_id = fields.Many2one(comodel_name="res.currency")
 
     product_qty = fields.Float(
         string="Quantity",
         digits="Product Unit",
         compute="_compute_product_qty",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
     )
     product_uom_qty = fields.Float(
         string="Quantity (Reference UoM)",
         digits="Product Unit",
         compute="_compute_product_uom_qty",
-        store=True,
         precompute=True,
+        store=True,
     )
     price_unit = fields.Float(
         string="Unit Price",
         min_display_digits="Product Price",
         compute="_compute_price_and_discount",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         aggregator="avg",
     )
@@ -41,8 +44,8 @@ class MixinOrderLineAmount(models.AbstractModel):
         string="Automatic Price",
         min_display_digits="Product Price",
         compute="_compute_price_and_discount",
-        store=True,
         precompute=True,
+        store=True,
         copy=True,
         help="Price from the pricelist/seller. Compared with price_unit to "
         "detect manual overrides.",
@@ -51,16 +54,16 @@ class MixinOrderLineAmount(models.AbstractModel):
         string="Discount (%)",
         digits="Discount",
         compute="_compute_price_and_discount",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
     )
     discount_auto = fields.Float(
         string="Automatic Discount",
         digits="Discount",
         compute="_compute_price_and_discount",
-        store=True,
         precompute=True,
+        store=True,
         copy=True,
         help="Discount from the pricelist/seller. Compared with discount to "
         "detect manual overrides.",
@@ -68,27 +71,27 @@ class MixinOrderLineAmount(models.AbstractModel):
     tax_ids = fields.Many2many(
         comodel_name="account.tax",
         string="Taxes",
-        check_company=True,
         context={"active_test": False, "hide_original_tax_ids": True},
+        check_company=True,
     )
 
     price_subtotal = fields.Monetary(
         string="Subtotal",
         compute="_compute_amounts",
-        store=True,
         precompute=True,
+        store=True,
     )
     price_tax = fields.Monetary(
         string="Total Tax",
         compute="_compute_amounts",
-        store=True,
         precompute=True,
+        store=True,
     )
     price_total = fields.Monetary(
         string="Total",
         compute="_compute_amounts",
-        store=True,
         precompute=True,
+        store=True,
     )
 
     @api.depends("tax_ids", "product_qty", "price_unit", "discount")
@@ -156,7 +159,7 @@ class MixinOrderLineAmount(models.AbstractModel):
                 and line.product_id.uom_id != line.product_uom_id
                 and line.product_uom_id._has_common_reference(line.product_id.uom_id)
             ):
-                line.product_uom_qty = line.product_uom_id._compute_quantity(
+                line.product_uom_qty = line.product_uom_id._get_quantity_in_unit(
                     line.product_qty,
                     line.product_id.uom_id,
                 )
@@ -166,6 +169,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _check_write_derived_quantity(self, write_vals):
         if "product_uom_qty" not in write_vals:
             return
+        _debug.logic("derived_quantity_write_refused", model=self._name)
         raise ValueError(
             f"{self._name}.product_uom_qty is computed from product_qty and "
             f"cannot be written; set product_qty instead.",
@@ -186,7 +190,7 @@ class MixinOrderLineAmount(models.AbstractModel):
             )["total_void"]
             price_unit /= qty
         if self.product_uom_id.id != self.product_id.uom_id.id:
-            price_unit = self.product_uom_id._compute_price(
+            price_unit = self.product_uom_id._get_price_in_unit(
                 price_unit, self.product_id.uom_id
             )
         return price_unit
@@ -239,12 +243,21 @@ class MixinOrderLineAmount(models.AbstractModel):
         precision = self._get_price_precision()
 
         if self._is_price_update_blocked():
+            _debug.logic("price_update", line=self, update=False, by="blocked")
             return False
 
         if force_recompute:
+            _debug.logic("price_update", line=self, update=True, by="forced")
             return True
 
         if self._origin.product_id and self._origin.product_id != self.product_id:
+            _debug.logic(
+                "price_update",
+                line=self,
+                update=True,
+                by="product_changed",
+                origin_product=self._origin.product_id,
+            )
             return True
 
         has_baseline = self._origin.id or old_auto_price
@@ -257,8 +270,25 @@ class MixinOrderLineAmount(models.AbstractModel):
                 )
                 != 0
             )
+            _debug.logic(
+                "price_update",
+                line=self,
+                update=not is_manual,
+                by="baseline",
+                manual=is_manual,
+                origin_is_self=self._origin.id == self.id,
+                price=self.price_unit,
+                old_auto=old_auto_price,
+            )
             return not is_manual
 
+        _debug.logic(
+            "price_update",
+            line=self,
+            by="no_baseline",
+            price=self.price_unit,
+            new_auto=new_auto_price,
+        )
         return not (
             self.price_unit
             and float_compare(
@@ -274,6 +304,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     ):
         self.check_singleton()
         if force_recompute:
+            _debug.logic("discount_update", line=self, update=True, by="forced")
             return True
         precision = self.env["decimal.precision"].get_precision("Discount")
 
@@ -286,6 +317,14 @@ class MixinOrderLineAmount(models.AbstractModel):
                     precision_digits=precision,
                 )
                 != 0
+            )
+            _debug.logic(
+                "discount_update",
+                line=self,
+                update=not is_manual,
+                by="baseline",
+                manual=is_manual,
+                origin_is_self=self._origin.id == self.id,
             )
             return not is_manual
 
@@ -340,8 +379,8 @@ class MixinOrderLineAmount(models.AbstractModel):
         string="Unit Price Product UoM",
         min_display_digits="Product Price",
         compute="_compute_price_unit_product_uom",
-        store=True,
         precompute=True,
+        store=True,
         help="The price of one unit of the product's own unit of measure. "
         "Comparable across lines that were bought or sold in different units.",
     )
@@ -349,8 +388,8 @@ class MixinOrderLineAmount(models.AbstractModel):
         string="Net Unit Price Product UoM",
         min_display_digits="Product Price",
         compute="_compute_price_unit_discounted_taxexc_product_uom",
-        store=True,
         precompute=True,
+        store=True,
         help="`price_unit_discounted_taxexc` expressed in the product's own "
         "unit of measure: the discount applied, taxes excluded, units "
         "normalized. The only per-line price that compares across both, which "
@@ -386,7 +425,7 @@ class MixinOrderLineAmount(models.AbstractModel):
             if line.display_type or line.is_downpayment:
                 line.price_unit_product_uom = False
                 continue
-            line.price_unit_product_uom = line.product_uom_id._compute_price_report(
+            line.price_unit_product_uom = line.product_uom_id._get_price_report(
                 line.price_unit,
                 line.product_id.uom_id,
             )
@@ -424,6 +463,9 @@ class MixinOrderLineAmount(models.AbstractModel):
                 continue
             lines_by_company[line.company_id] += line
 
+        _debug.perf.count(
+            "tax_ids_computed", lines=len(self), companies=len(lines_by_company)
+        )
         for company, lines in lines_by_company.items():
             for line in lines.with_company(company):
                 taxes = line.product_id[tax_field]._filter_taxes_by_company(
@@ -440,6 +482,12 @@ class MixinOrderLineAmount(models.AbstractModel):
                 else:
                     result = fiscal_position.map_tax(taxes)
                     cached_taxes[cache_key] = result
+                    _debug.logic(
+                        "taxes_mapped",
+                        line=line,
+                        fiscal_position=fiscal_position,
+                        taxes=result,
+                    )
                 line.tax_ids = result
 
     def _is_product_taxable(self, line):
@@ -478,6 +526,12 @@ class MixinOrderLineAmount(models.AbstractModel):
                 )
             distribution = cache[cache_key]
             line.analytic_distribution = distribution or line.analytic_distribution
+            if _debug.logic.enabled and distribution:
+                _debug.logic(
+                    "analytic_distribution_from_model",
+                    line=line,
+                    plans=len(distribution),
+                )
 
     def _get_price_precision(self):
         return self.env["decimal.precision"].get_precision("Product Price")
@@ -497,5 +551,6 @@ class MixinOrderLineAmount(models.AbstractModel):
         )
 
     def _merge_order_line(self, source_line):
+        _debug.lifecycle("order_line_merged", target=self, source=source_line)
         self.product_qty += source_line.product_qty
         self.price_unit = min(self.price_unit, source_line.price_unit)

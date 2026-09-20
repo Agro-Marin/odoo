@@ -5,6 +5,8 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 from odoo.tools.translate import LazyTranslate
 
+from ..tools import debug_log as dbg
+
 _lt = LazyTranslate(__name__)
 
 
@@ -25,10 +27,9 @@ class MixinDateCategory(models.AbstractModel):
 
     date_category = fields.Selection(
         selection="_selection_date_category",
-        string="Date Category",
+        search="_search_date_category",
         store=False,
         readonly=True,
-        search="_search_date_category",
     )
 
     def _search_date_category(self, operator, value):
@@ -42,7 +43,9 @@ class MixinDateCategory(models.AbstractModel):
         return Domain.OR(
             domain
             for item in value
-            if (domain := self.get_domain_date_category(self._date_category_field, item))
+            if (
+                domain := self.get_domain_date_category(self._date_category_field, item)
+            )
         )
 
     @api.model
@@ -139,4 +142,12 @@ class MixinDateCategory(models.AbstractModel):
         )
         for record_id, date_category, count in rows:
             counts_by_record[record_id][date_category] = count
+        dbg.performance.debug(
+            "_get_date_category_counts(%s.%s by %s): %d records, %d rows",
+            model_name,
+            date_field,
+            group_field,
+            len(self),
+            len(rows),
+        )
         return counts_by_record

@@ -17,11 +17,11 @@
                 <field
                     name="activity_type"
                     widget="badge"
-                    decoration-info="activity_type == 'kudos'"
-                    decoration-warning="activity_type == 'badge'"
-                    decoration-success="activity_type in ('achievement', 'level_up', 'skill_unlocked')"
                     decoration-danger="activity_type == 'streak_milestone'"
-                    decoration-primary="activity_type in ('challenge_completed', 'quest_completed')" />
+                    decoration-info="activity_type == 'kudos'"
+                    decoration-primary="activity_type in ('challenge_completed', 'quest_completed')"
+                    decoration-success="activity_type in ('achievement', 'level_up', 'skill_unlocked')"
+                    decoration-warning="activity_type == 'badge'" />
                 <field name="user_id" widget="many2one_avatar_user" />
                 <field
                     name="target_user_id"
@@ -41,50 +41,50 @@
                 <field name="user_id" />
                 <field name="activity_type" />
                 <filter
-                    string="Last 7 Days"
                     name="last_7d"
+                    string="Last 7 Days"
                     domain="[('activity_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%%Y-%%m-%%d'))]" />
                 <filter
-                    string="Last 30 Days"
                     name="last_30d"
+                    string="Last 30 Days"
                     domain="[('activity_date', '&gt;=', (context_today() - datetime.timedelta(days=30)).strftime('%%Y-%%m-%%d'))]" />
                 <separator />
                 <filter
-                    string="Badges"
                     name="badges"
+                    string="Badges"
                     domain="[('activity_type', '=', 'badge')]" />
                 <filter
-                    string="Kudos"
                     name="kudos"
+                    string="Kudos"
                     domain="[('activity_type', '=', 'kudos')]" />
                 <filter
-                    string="Achievements"
                     name="achievements"
+                    string="Achievements"
                     domain="[('activity_type', '=', 'achievement')]" />
                 <filter
-                    string="Level Ups"
                     name="level_ups"
+                    string="Level Ups"
                     domain="[('activity_type', '=', 'level_up')]" />
                 <filter
-                    string="Quests"
                     name="quests"
+                    string="Quests"
                     domain="[('activity_type', '=', 'quest_completed')]" />
                 <filter
-                    string="Skills"
                     name="skills"
+                    string="Skills"
                     domain="[('activity_type', '=', 'skill_unlocked')]" />
                 <group>
                     <filter
-                        string="Type"
                         name="group_type"
+                        string="Type"
                         context="{'group_by': 'activity_type'}" />
                     <filter
-                        string="User"
                         name="group_user"
+                        string="User"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Day"
                         name="group_day"
+                        string="Day"
                         context="{'group_by': 'activity_date:day'}" />
                 </group>
             </search>

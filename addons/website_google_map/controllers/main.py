@@ -2,26 +2,13 @@ import contextlib
 
 from odoo import http
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.json import scriptsafe
+
+_debug = DebugLog(__name__)
 
 
 class GoogleMap(http.Controller):
-    """
-    This class generates on-the-fly partner maps that can be reused in every
-    website page. To do so, just use an ``<iframe ...>`` whose ``src``
-    attribute points to ``/google_map`` (this controller generates a complete
-    HTML5 page).
-
-    URL query parameters:
-    - ``partner_ids``: a comma-separated list of ids (partners to be shown)
-    - ``partner_url``: the base-url to display the partner
-        (eg: if ``partner_url`` is ``/partners/``, when the user will click on
-        a partner on the map, it will be redirected to <myodoo>.com/partners/<id>)
-
-    In order to resize the map, simply resize the ``iframe`` with CSS
-    directives ``width`` and ``height``.
-    """
-
     def _get_gmap_domains(self, **kw):
         return [(0, "=", 1)]
 
@@ -42,11 +29,18 @@ class GoogleMap(http.Controller):
 
         limit = (post.get("limit") and int(post["limit"])) or 80
 
-        if domain:  # [] is not allowed
+        if domain:
             domain += [("website_published", "=", True)]
             partners = PartnerSudo.search(domain, limit=limit)
         else:
             partners = PartnerSudo
+        _debug.pipeline(
+            "google_map_partners",
+            by_ids=bool(post.get("partner_ids")),
+            requested=len(clean_ids),
+            limit=limit,
+            partners=partners,
+        )
 
         partner_data = {"counter": len(partners), "partners": []}
         for partner in partners.with_context(show_address=True):
@@ -69,6 +63,11 @@ class GoogleMap(http.Controller):
             partner_url = "/partners/"
 
         google_maps_api_key = request.website.google_maps_api_key
+        _debug.logic(
+            "google_map_page",
+            partner_url=partner_url,
+            has_api_key=bool(google_maps_api_key),
+        )
         values = {
             "partner_url": partner_url,
             "partner_data": scriptsafe.dumps(partner_data),

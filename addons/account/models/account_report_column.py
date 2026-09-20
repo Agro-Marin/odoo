@@ -10,19 +10,20 @@ class AccountReportColumn(models.Model):
     _description = "Accounting Report Column"
     _order = "sequence, id"
 
-    name = fields.Char(string="Name", translate=True, required=True)
-    expression_label = fields.Char(string="Expression Label", required=True)
-    sequence = fields.Integer(string="Sequence")
-    report_id = fields.Many2one(
-        string="Report",
-        comodel_name="account.report",
+    name = fields.Char(
+        translate=True,
         required=True,
+    )
+    expression_label = fields.Char(required=True)
+    sequence = fields.Integer()
+    report_id = fields.Many2one(
+        comodel_name="account.report",
         index="btree_not_null",
+        required=True,
         ondelete="cascade",
     )
-    sortable = fields.Boolean(string="Sortable")
+    sortable = fields.Boolean()
     figure_type = fields.Selection(
-        string="Figure Type",
         selection=FIGURE_TYPE_SELECTION_VALUES,
         default="monetary",
         required=True,
@@ -31,6 +32,4 @@ class AccountReportColumn(models.Model):
         string="Blank if Zero",
         help="When checked, 0 values will not show in this column.",
     )
-    custom_audit_action_id = fields.Many2one(
-        string="Custom Audit Action", comodel_name="ir.actions.act_window"
-    )
+    custom_audit_action_id = fields.Many2one(comodel_name="ir.actions.act_window")

@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- SLIDE.CHANNEL.TAG -->
         <record id="slide_channel_tag_view_search" model="ir.ui.view">
             <field name="name">slide.channel.tag.view.search</field>
             <field name="model">slide.channel.tag</field>
@@ -44,7 +43,6 @@
             <field name="res_model">slide.channel.tag</field>
             <field name="view_mode">list,form</field>
         </record>
-        <!-- SLIDE.CHANNEL.TAG.GROUP -->
         <record id="slide_channel_tag_group_view_search" model="ir.ui.view">
             <field name="name">slide.channel.tag.group.view.search</field>
             <field name="model">slide.channel.tag.group</field>
@@ -52,8 +50,8 @@
                 <search string="Course Tag Groups">
                     <field name="name" />
                     <filter
-                        string="Has Menu Entry"
                         name="filter_is_published"
+                        string="Has Menu Entry"
                         domain="[('is_published', '=', True)]" />
                 </search>
             </field>
@@ -66,11 +64,11 @@
                     <sheet>
                         <div class="oe_title">
                             <label for="name" string="Course Group Name" />
-                            <h1><field name="name" default_focus="1" placeholder="e.g. Your Level" /></h1>
+                            <h1><field name="name" placeholder="e.g. Your Level" default_focus="1" /></h1>
                         </div>
                         <group>
                             <field name="is_published" string="Menu Entry" />
-                            <field name="tag_ids" nolabel="1" colspan="2">
+                            <field name="tag_ids" colspan="2" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
                                     <field

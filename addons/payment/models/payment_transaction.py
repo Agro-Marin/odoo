@@ -29,55 +29,59 @@ class PaymentTransaction(models.Model):
         return self.env["res.lang"].get_installed()
 
     provider_id = fields.Many2one(
-        string="Provider", comodel_name="payment.provider", readonly=True, required=True
+        comodel_name="payment.provider",
+        readonly=True,
+        required=True,
     )
-    provider_code = fields.Selection(string="Provider Code", related="provider_id.code")
-    company_id = (
-        fields.Many2one(  # Indexed to speed-up ORM searches (from ir_rule or others)
-            related="provider_id.company_id", store=True, index=True
-        )
+    provider_code = fields.Selection(
+        related="provider_id.code",
+        string="Provider Code",
+    )
+    company_id = fields.Many2one(
+        # Indexed to speed-up ORM searches (from ir_rule or others)
+        related="provider_id.company_id",
     )
     payment_method_id = fields.Many2one(
-        string="Payment Method",
         comodel_name="payment.method",
         readonly=True,
         required=True,
     )
     payment_method_code = fields.Char(
-        string="Payment Method Code", related="payment_method_id.code"
+        related="payment_method_id.code",
+        string="Payment Method Code",
     )
     primary_payment_method_id = fields.Many2one(
-        string="Primary Payment Method",
         comodel_name="payment.method",
         compute="_compute_primary_payment_method_id",
     )
     reference = fields.Char(
-        string="Reference",
-        help="The internal reference of the transaction",
         readonly=True,
         required=True,
+        help="The internal reference of the transaction",
     )  # Already has an index from the UNIQUE SQL constraint.
     provider_reference = fields.Char(
-        string="Provider Reference",
-        help="The provider reference of the transaction",
         readonly=True,
+        help="The provider reference of the transaction",
     )  # This is not the same thing as the provider reference of the token.
     amount = fields.Monetary(
-        string="Amount", currency_field="currency_id", readonly=True, required=True
+        currency_field="currency_id",
+        readonly=True,
+        required=True,
     )
     currency_id = fields.Many2one(
-        string="Currency", comodel_name="res.currency", readonly=True, required=True
+        comodel_name="res.currency",
+        readonly=True,
+        required=True,
     )
     token_id = fields.Many2one(
-        string="Payment Token",
         comodel_name="payment.token",
-        readonly=True,
+        string="Payment Token",
         index="btree_not_null",
+        readonly=True,
         domain='[("provider_id", "=", "provider_id")]',
         ondelete="restrict",
     )
     state = fields.Selection(
-        string="Status",
         selection=[
             ("draft", "Draft"),
             ("pending", "Pending"),
@@ -86,24 +90,27 @@ class PaymentTransaction(models.Model):
             ("cancel", "Canceled"),
             ("error", "Error"),
         ],
+        string="Status",
         default="draft",
+        index=True,
+        copy=False,
         readonly=True,
         required=True,
-        copy=False,
-        index=True,
     )
     state_message = fields.Text(
         string="Message",
-        help="The complementary information message about the state",
         readonly=True,
+        help="The complementary information message about the state",
     )
     last_state_change = fields.Datetime(
-        string="Last State Change Date", readonly=True, default=fields.Datetime.now
+        string="Last State Change Date",
+        default=fields.Datetime.now,
+        readonly=True,
     )
 
     # Fields used for traceability.
-    operation = fields.Selection(  # This should not be trusted if the state is draft or pending.
-        string="Operation",
+    operation = fields.Selection(
+        # This should not be trusted if the state is draft or pending.
         selection=[
             ("online_redirect", "Online payment with redirection"),
             ("online_direct", "Online direct payment"),
@@ -112,8 +119,8 @@ class PaymentTransaction(models.Model):
             ("offline", "Offline payment by token"),
             ("refund", "Refund"),
         ],
-        readonly=True,
         index=True,
+        readonly=True,
     )
     is_live = fields.Boolean(
         string="Production Environment",
@@ -121,56 +128,63 @@ class PaymentTransaction(models.Model):
         " created before this tracking was implemented.",
     )
     source_transaction_id = fields.Many2one(
-        string="Source Transaction",
         comodel_name="payment.transaction",
         index="btree_not_null",
-        help="The source transaction of the related child transactions",
         readonly=True,
+        help="The source transaction of the related child transactions",
     )
     child_transaction_ids = fields.One2many(
-        string="Child Transactions",
-        help="The child transactions of the transaction.",
         comodel_name="payment.transaction",
         inverse_name="source_transaction_id",
+        string="Child Transactions",
         readonly=True,
+        help="The child transactions of the transaction.",
     )
-    refunds_count = fields.Integer(
-        string="Refunds Count", compute="_compute_refunds_count"
-    )
+    refunds_count = fields.Integer(compute="_compute_refunds_count")
 
     # Fields used for user redirection & payment post-processing
     is_post_processed = fields.Boolean(
-        string="Is Post-processed", help="Has the payment been post-processed"
+        string="Is Post-processed",
+        help="Has the payment been post-processed",
     )
     tokenize = fields.Boolean(
         string="Create Token",
         help="Whether a payment token should be created when post-processing the transaction",
     )
     landing_route = fields.Char(
-        string="Landing Route",
-        help="The route the user is redirected to after the transaction",
+        help="The route the user is redirected to after the transaction"
     )
 
     # Duplicated partner values allowing to keep a record of them, should they be later updated.
     partner_id = fields.Many2one(
-        string="Customer",
         comodel_name="res.partner",
+        string="Customer",
         readonly=True,
         required=True,
         ondelete="restrict",
     )
-    partner_name = fields.Char(string="Partner Name")
+    partner_name = fields.Char()
     partner_lang = fields.Selection(
-        string="Language", selection=_selection_installed_langs
+        selection=_selection_installed_langs,
+        string="Language",
     )
     partner_email = fields.Char(string="Email")
     partner_address = fields.Char(string="Address")
     partner_zip = fields.Char(string="Zip")
     partner_city = fields.Char(string="City")
-    partner_state_id = fields.Many2one(string="State", comodel_name="res.country.state")
-    partner_country_id = fields.Many2one(string="Country", comodel_name="res.country")
+    partner_state_id = fields.Many2one(
+        comodel_name="res.country.state",
+        string="State",
+    )
+    partner_country_id = fields.Many2one(
+        comodel_name="res.country",
+        string="Country",
+    )
     partner_phone = fields.Char(
-        string="Phone", compute="_compute_partner_phone", store=True, readonly=False
+        string="Phone",
+        compute="_compute_partner_phone",
+        store=True,
+        readonly=False,
     )
 
     _reference_uniq = models.Constraint(
@@ -183,7 +197,7 @@ class PaymentTransaction(models.Model):
     @api.depends("partner_id")
     def _compute_partner_phone(self):
         for tx in self:
-            tx.partner_phone = tx.partner_id.phone_ids._primary().number or False
+            tx.partner_phone = tx.partner_id._phone_get_number().number or False
 
     def _compute_primary_payment_method_id(self):
         for pm, txs in self.grouped("payment_method_id").items():
@@ -251,7 +265,7 @@ class PaymentTransaction(models.Model):
             vals_list, providers, partners, strict=True
         ):
             if not values.get("reference"):
-                values["reference"] = self._compute_reference(
+                values["reference"] = self._get_unique_reference(
                     provider.code, references_in_use=references_in_use, **values
                 )
             references_in_use.add(values["reference"])
@@ -470,7 +484,7 @@ class PaymentTransaction(models.Model):
     # === BUSINESS METHODS - PRE-PROCESSING === #
 
     @api.model
-    def _compute_reference(
+    def _get_unique_reference(
         self,
         provider_code,
         prefix=None,
@@ -487,7 +501,7 @@ class PaymentTransaction(models.Model):
         - `{computed_prefix}` is:
 
           - The provided custom prefix, if any.
-          - The computation result of :meth:`_compute_reference_prefix` if the custom prefix is not
+          - The computation result of :meth:`_get_reference_prefix` if the custom prefix is not
             filled, but the kwargs are.
           - `'tx-{datetime}'` if neither the custom prefix nor the kwargs are filled.
 
@@ -512,7 +526,7 @@ class PaymentTransaction(models.Model):
         :param set references_in_use: References already assigned to sibling transactions in the
                                       same create batch and not yet persisted; treated as existing
                                       to avoid collisions.
-        :param dict kwargs: Optional values passed to :meth:`_compute_reference_prefix` if no custom
+        :param dict kwargs: Optional values passed to :meth:`_get_reference_prefix` if no custom
                             prefix is provided.
         :return: The unique reference for the transaction.
         :rtype: str
@@ -530,7 +544,7 @@ class PaymentTransaction(models.Model):
         if (
             not prefix
         ):  # Prefix not provided or voided above, compute it based on the kwargs.
-            prefix = self.sudo()._compute_reference_prefix(separator, **kwargs)
+            prefix = self.sudo()._get_reference_prefix(separator, **kwargs)
         if (
             not prefix
         ):  # Prefix not computed from the kwargs, fallback on time-based value
@@ -588,7 +602,7 @@ class PaymentTransaction(models.Model):
         return reference
 
     @api.model
-    def _compute_reference_prefix(self, separator, **values):
+    def _get_reference_prefix(self, separator, **values):
         """Compute the reference prefix from the transaction values.
 
         Note: This method should be called in sudo mode to give access to the documents (invoices,
@@ -602,7 +616,7 @@ class PaymentTransaction(models.Model):
         """
         return ""
 
-    def _get_processing_values(self):
+    def _prepare_processing_values(self):
         """Return the values used to process the transaction.
 
         The values are returned as a dict containing entries with the following keys:
@@ -635,7 +649,7 @@ class PaymentTransaction(models.Model):
 
         # Complete generic processing values with provider-specific values.
         processing_values.update(
-            self._get_specific_processing_values(processing_values)
+            self._prepare_provider_processing_values(processing_values)
         )
 
         # Render the HTML form for the redirect flow if available.
@@ -644,16 +658,14 @@ class PaymentTransaction(models.Model):
                 is_validation=self.operation == "validation"
             )
             if redirect_form_view:  # Some providers don't need a redirect form.
-                rendering_values = self._get_specific_rendering_values(
-                    processing_values
-                )
+                rendering_values = self._prepare_redirect_form_values(processing_values)
                 redirect_form_html = self.env["ir.qweb"]._render(
                     redirect_form_view.id, rendering_values
                 )
                 processing_values.update(redirect_form_html=redirect_form_html)
 
         # Include the state and state message only after they might have been updated by calling the
-        # `_get_specific_rendering/processing_values` methods (due to possible external requests).
+        # `_prepare_redirect_form_values / _prepare_provider_processing_values` methods (due to possible external requests).
         processing_values.update(
             {
                 "state": self.state,
@@ -663,7 +675,7 @@ class PaymentTransaction(models.Model):
 
         return processing_values
 
-    def _get_specific_processing_values(self, processing_values):
+    def _prepare_provider_processing_values(self, processing_values):
         """Return a dict of provider-specific values used to process the transaction.
 
         For a provider to add its own processing values, it must overwrite this method and return a
@@ -677,7 +689,7 @@ class PaymentTransaction(models.Model):
         """
         return {}
 
-    def _get_specific_rendering_values(self, processing_values):
+    def _prepare_redirect_form_values(self, processing_values):
         """Return a dict of provider-specific values used to render the redirect form.
 
         For a provider to add its own rendering values, it must overwrite this method and return a
@@ -690,7 +702,7 @@ class PaymentTransaction(models.Model):
         """
         return {}
 
-    def _get_mandate_values(self):
+    def _prepare_mandate_data(self):
         """Return a dict of module-specific values used to create a mandate.
 
         For a module to add its own mandate values, it must overwrite this method and return a dict
@@ -876,7 +888,7 @@ class PaymentTransaction(models.Model):
             {
                 "provider_id": self.provider_id.id,
                 "payment_method_id": self.payment_method_id.id,
-                "reference": self._compute_reference(
+                "reference": self._get_unique_reference(
                     self.provider_code, prefix=reference_prefix
                 ),
                 "amount": amount,

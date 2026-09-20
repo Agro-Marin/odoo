@@ -11,14 +11,14 @@
             </xpath>
             <xpath expr="//filter[@name='out_refund']" position="after">
                 <filter
-                    string="Exceeded Declaration of Intent"
                     name="l10n_it_edi_doi_declaration_of_intent_exceeded"
+                    string="Exceeded Declaration of Intent"
                     domain="[('l10n_it_edi_doi_id.remaining','&lt;', 0)]" />
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter
-                    string="Declaration of Intent"
                     name="l10n_it_edi_doi_declaration_of_intent"
+                    string="Declaration of Intent"
                     context="{'group_by':'l10n_it_edi_doi_id'}" />
             </xpath>
         </field>
@@ -49,9 +49,9 @@
                     decoration-success="state == 'posted'" />
                 <field
                     name="l10n_it_edi_doi_amount"
-                    decoration-bf="1"
+                    string="Tax excluded"
                     sum="Total"
-                    string="Tax excluded" />
+                    decoration-bf="1" />
             </list>
         </field>
     </record>
@@ -63,12 +63,12 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    groups="account.group_account_invoice"
-                    type="object"
-                    class="oe_stat_button"
                     name="action_view_declaration_of_intent"
+                    type="object"
                     icon="fa-list"
-                    invisible="not l10n_it_edi_doi_id">
+                    groups="account.group_account_invoice"
+                    invisible="not l10n_it_edi_doi_id"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Declaration of Intent</span>
                     </div>
@@ -86,10 +86,10 @@
                 <field name="l10n_it_edi_doi_use" invisible="True" />
                 <field
                     name="l10n_it_edi_doi_id"
-                    invisible="not l10n_it_edi_doi_use"
-                    readonly="state != 'draft'"
+                    domain="[                            ('state', '!=', 'draft'),                            ('company_id', '=', company_id),                            ('currency_id', '=', currency_id),                            ('partner_id', '=', commercial_partner_id)]"
                     options="{&quot;no_quick_create&quot;: True}"
-                    domain="[                            ('state', '!=', 'draft'),                            ('company_id', '=', company_id),                            ('currency_id', '=', currency_id),                            ('partner_id', '=', commercial_partner_id)]" />
+                    invisible="not l10n_it_edi_doi_use"
+                    readonly="state != 'draft'" />
             </xpath>
         </field>
     </record>

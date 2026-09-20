@@ -2,6 +2,7 @@ from odoo import _, http
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.json import scriptsafe as json_safe
 from odoo.tools.translate import LazyTranslate
 
@@ -10,6 +11,8 @@ from odoo.addons.account_payment_provider.controllers import (
 )
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers import portal as payment_portal
+
+_debug = DebugLog(__name__)
 
 _lt = LazyTranslate(__name__)
 
@@ -25,15 +28,6 @@ class PaymentPortal(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Donation Payment"),
     )
     def donation_pay(self, **kwargs):
-        """Behaves like PaymentPortal.payment_pay but for donation
-
-        :param dict kwargs: As the parameters of in payment_pay, with the additional:
-            - str donation_options: The options settled in the donation snippet
-            - str donation_descriptions: The descriptions for all prefilled amounts
-        :return: The rendered donation form
-        :rtype: str
-        :raise: werkzeug.exceptions.NotFound if the access token is invalid
-        """
         kwargs["is_donation"] = True
         kwargs["currency_id"] = (
             self._cast_as_int(kwargs.get("currency_id"))
@@ -71,18 +65,31 @@ class PaymentPortal(payment_portal.PaymentPortal):
         below), so validating it against the current amount would reject legitimate amount
         changes as if they were tampering.
         """
-        if float(amount) < float(minimum_amount):
+        amount = self._cast_as_float(amount)
+        minimum_amount = self._cast_as_float(minimum_amount)
+        if amount is None or minimum_amount is None:
+            raise ValidationError(_("Invalid donation amount."))
+        if amount < minimum_amount:
+            _debug.logic(
+                "donation_refused",
+                reason="below_minimum",
+                amount=amount,
+                minimum=minimum_amount,
+            )
             raise ValidationError(
-                _("Donation amount must be at least %.2f.", float(minimum_amount))
+                _("Donation amount must be at least %.2f.", minimum_amount)
             )
         use_public_partner = request.env.user._is_public() or not partner_id
         if use_public_partner:
-            details = kwargs["partner_details"]
+            details = kwargs.get("partner_details") or {}
             if not details.get("name"):
+                _debug.logic("donation_refused", reason="no_name")
                 raise ValidationError(_("Name is required."))
             if not details.get("email"):
+                _debug.logic("donation_refused", reason="no_email")
                 raise ValidationError(_("Email is required."))
             if not details.get("country_id"):
+                _debug.logic("donation_refused", reason="no_country")
                 raise ValidationError(_("Country is required."))
             partner_id = request.website.user_id.partner_id.id
             del kwargs["partner_details"]
@@ -105,18 +112,23 @@ class PaymentPortal(payment_portal.PaymentPortal):
         )
         tx_sudo.is_donation = True
         if use_public_partner:
+            country_id = self._cast_as_int(details["country_id"])
+            if not country_id:
+                raise ValidationError(_("Country is required."))
             tx_sudo.update(
                 {
                     "partner_name": details["name"],
                     "partner_email": details["email"],
-                    "partner_country_id": int(details["country_id"]),
+                    "partner_country_id": country_id,
                 }
             )
         elif not tx_sudo.partner_country_id:
-            country_id = kwargs.get("partner_details", {}).get("country_id")
+            country_id = self._cast_as_int(
+                kwargs.get("partner_details", {}).get("country_id")
+            )
             if not country_id:
                 raise ValidationError(_("Country is required."))
-            tx_sudo.partner_country_id = int(country_id)
+            tx_sudo.partner_country_id = country_id
         # the user can change the donation amount on the payment page,
         # therefor we need to recompute the access_token
         access_token = payment_utils.generate_access_token(
@@ -124,21 +136,20 @@ class PaymentPortal(payment_portal.PaymentPortal):
         )
         self._update_landing_route(tx_sudo, access_token)
 
-        # Send a notification to warn that a donation has been made
         recipient_email = kwargs["donation_recipient_email"]
         comment = kwargs["donation_comment"]
         tx_sudo._send_donation_email(True, comment, recipient_email)
 
-        return tx_sudo._get_processing_values()
+        return tx_sudo._prepare_processing_values()
 
-    def _get_extra_payment_form_values(
+    def _prepare_extra_payment_form_context(
         self,
         donation_options=None,
         donation_descriptions=None,
         is_donation=False,
         **kwargs,
     ):
-        rendering_context = super()._get_extra_payment_form_values(
+        rendering_context = super()._prepare_extra_payment_form_context(
             donation_options=donation_options,
             donation_descriptions=donation_descriptions,
             is_donation=is_donation,
@@ -147,11 +158,6 @@ class PaymentPortal(payment_portal.PaymentPortal):
         if is_donation:
             user_sudo = request.env.user
             logged_in = not user_sudo._is_public()
-            # If the user is logged in, take their partner rather than the partner set in the params.
-            # This is something that we want, since security rules are based on the partner, and created
-            # tokens should not be assigned to the public user. This should have no impact on the
-            # transaction itself besides making reconciliation possibly more difficult (e.g. The
-            # transaction and invoice partners are different).
             partner_sudo = user_sudo.partner_id
             partner_details = {}
             if logged_in:
@@ -194,17 +200,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
         return super()._get_payment_page_template_xmlid(**kwargs)
 
     @staticmethod
-    def _compute_show_tokenize_input_mapping(providers_sudo, **kwargs):
-        """Override of `payment` to hide the "Save my payment details" input in the payment form
-        when its a donation and user is not logged in.
-
-        :param payment.provider providers_sudo: The providers for which to determine whether the
-                                                tokenization input should be shown or not.
-        :param dict kwargs: The optional data passed to the helper methods.
-        :return: The mapping of the computed value for each provider id.
-        :rtype: dict
-        """
-        res = super(PaymentPortal, PaymentPortal)._compute_show_tokenize_input_mapping(
+    def _get_show_tokenize_input_mapping(providers_sudo, **kwargs):
+        res = super(PaymentPortal, PaymentPortal)._get_show_tokenize_input_mapping(
             providers_sudo, **kwargs
         )
         if kwargs.get("is_donation") and request.env.user._is_public():
@@ -222,33 +219,17 @@ class PaymentPortal(payment_portal.PaymentPortal):
         readonly=True,
     )
     def get_supported_payment_methods(self, limit=None):
-        """Retrieve the payment methods linked to payment providers published on the current
-        website.
-
-        If a payment method is a primary payment method, its brands are returned instead.
-
-        Note: The provider must be linked to the same company as the website. This differs from the
-        usual payment method selection, which uses the user's company. In this case, we want to
-        display the general payment methods linked to the website, regardless of the user.
-
-        :param int limit: The number of payment methods to return.
-        :return: The supported payment methods, in [{'name': str, 'image_url': str}] format.
-        :rtype: list[dict]
-        """
         limit = self._cast_as_int(limit)
         website = request.website
 
-        # For any primary payment method with at least one compatible provider.
         compatible_providers_sudo = (
             request.env["payment.provider"]
-            # Force the public user such that editors see what customers will see
             .with_user(website.user_id)
-            .sudo()  # Needed to read providers' fields with public user
+            .sudo()
             ._get_compatible_providers(
                 website.company_id.id, None, 0, website_id=website.id
             )
         )
-        # Select the brands, i.e. non-primary payment methods. E.g., Amex for Card.
         brands_domain = Domain(
             [
                 ("is_primary", "=", False),
@@ -260,7 +241,6 @@ class PaymentPortal(payment_portal.PaymentPortal):
                 ("primary_payment_method_id.active", "=", True),
             ]
         )
-        # Or, select the primary payment methods without any brands. E.g., PayPal.
         primary_without_brands_domain = Domain(
             [
                 ("is_primary", "=", True),
@@ -278,18 +258,14 @@ class PaymentPortal(payment_portal.PaymentPortal):
             .mapped(
                 lambda pm: {
                     "name": pm.name,
-                    # Loading the image via this url caches the image on the client browser
                     "image_url": request.env["website"].image_url(pm, "image"),
                 }
             )
         )
 
         if request.env.user._is_internal():
-            # Ensure the internal users can always see the most up to date list of PMs.
             cache_control = "no-cache"
         else:
-            # Cache the PMs for public/portal users for 7 days, with an additional day to re-use
-            # the stale PMs while a background task updates the client cache.
             cache_control = "public, max-age=604800, stale-while-revalidate=86400"
 
         return request.prepare_json_response(
@@ -300,7 +276,6 @@ class PaymentPortal(payment_portal.PaymentPortal):
 
 class PortalAccount(account_payment_portal.PortalAccount):
     def _invoice_get_page_view_values(self, *args, **kwargs):
-        """Override of `account_payment_provider` to make the providers filtering website-aware."""
         return super()._invoice_get_page_view_values(
             *args, website_id=request.website.id, **kwargs
         )

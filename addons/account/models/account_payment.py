@@ -3,7 +3,10 @@ from itertools import zip_longest
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import MissingError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
     SELECT
@@ -33,7 +36,7 @@ _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
 _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT = """
     SELECT
         payment.id,
-        ARRAY_AGG(DISTINCT counterpart_line.statement_line_id) AS statement_line_ids
+        ARRAY_AGG(DISTINCT counterpart_move.statement_line_id) AS statement_line_ids
     FROM account_payment payment
     JOIN account_move move ON move.id = payment.move_id
     JOIN account_move_line line ON line.move_id = move.id
@@ -46,10 +49,11 @@ _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT = """
         part.debit_move_id = counterpart_line.id
         OR
         part.credit_move_id = counterpart_line.id
+    JOIN account_move counterpart_move ON counterpart_move.id = counterpart_line.move_id
     WHERE account.id = payment.outstanding_account_id
         AND payment.id = ANY(%(payment_ids)s)
         AND line.id != counterpart_line.id
-        AND counterpart_line.statement_line_id IS NOT NULL
+        AND counterpart_move.statement_line_id IS NOT NULL
     GROUP BY payment.id
 """
 
@@ -95,20 +99,20 @@ class AccountPayment(models.Model):
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_journal_id",
-        store=True,
-        readonly=False,
         precompute=True,
-        check_company=True,
+        store=True,
         index=False,
+        readonly=False,
         required=True,
+        check_company=True,
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
         compute="_compute_company_id",
-        store=True,
-        readonly=False,
         precompute=True,
+        store=True,
         index=False,
+        readonly=False,
         required=True,
     )
     state = fields.Selection(
@@ -119,50 +123,49 @@ class AccountPayment(models.Model):
             ("canceled", "Canceled"),
             ("rejected", "Rejected"),
         ],
-        required=True,
-        default="draft",
         compute="_compute_state",
+        default="draft",
         store=True,
-        readonly=False,
-        tracking=True,
         copy=False,
+        readonly=False,
+        required=True,
+        tracking=True,
     )
     is_invoice_reconciled = fields.Boolean(
         string="Is Reconciled",
-        store=True,
         compute="_compute_reconciliation_status",
+        store=True,
     )
     is_bank_matched = fields.Boolean(
         string="Is Matched With a Bank Statement",
-        store=True,
         compute="_compute_reconciliation_status",
+        store=True,
     )
     is_sent = fields.Boolean(
-        string="Is Sent",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
     available_partner_bank_ids = fields.Many2many(
         comodel_name="res.partner.bank",
         compute="_compute_available_partner_bank_ids",
     )
     partner_bank_id = fields.Many2one(
-        "res.partner.bank",
+        comodel_name="res.partner.bank",
         string="Recipient Bank Account",
-        readonly=False,
-        store=True,
-        tracking=True,
         compute="_compute_partner_bank_id",
+        store=True,
+        readonly=False,
         domain="[('id', 'in', available_partner_bank_ids)]",
-        check_company=True,
         ondelete="restrict",
+        check_company=True,
+        tracking=True,
     )
     qr_code = fields.Html(
         string="QR Code URL",
         compute="_compute_qr_code",
     )
     paired_internal_transfer_payment_id = fields.Many2one(
-        "account.payment",
+        comodel_name="account.payment",
         index="btree_not_null",
         copy=False,
         help="When an internal transfer is posted, a paired payment is created. "
@@ -170,12 +173,12 @@ class AccountPayment(models.Model):
     )
 
     payment_channel_id = fields.Many2one(
-        "account.payment.channel",
+        comodel_name="account.payment.channel",
         string="Payment Method",
-        readonly=False,
+        compute="_compute_payment_channel_id",
         store=True,
         copy=False,
-        compute="_compute_payment_channel_id",
+        readonly=False,
         domain="[('id', 'in', available_payment_channel_ids)]",
         help="Manual: Pay or Get paid by any method outside of Odoo.\n"
         "Payment Providers: Each payment provider has its own Payment Method. Request a transaction on/to a card thanks to a payment token saved by the partner when buying or subscribing online.\n"
@@ -186,14 +189,13 @@ class AccountPayment(models.Model):
         "U.S. ISO20022: Pay in the US by submitting an ISO20022 file to your bank. Module account_iso20022 is necessary.\n",
     )
     available_payment_channel_ids = fields.Many2many(
-        "account.payment.channel",
+        comodel_name="account.payment.channel",
         compute="_compute_available_payment_channel_ids",
     )
     payment_method_id = fields.Many2one(
         related="payment_channel_id.payment_method_id",
         string="Method",
         tracking=True,
-        store=True,
     )
     available_journal_ids = fields.Many2many(
         comodel_name="account.journal",
@@ -202,107 +204,101 @@ class AccountPayment(models.Model):
 
     amount = fields.Monetary(currency_field="currency_id")
     payment_type = fields.Selection(
-        [
+        selection=[
             ("outbound", "Send"),
             ("inbound", "Receive"),
         ],
-        string="Payment Type",
         default="inbound",
         required=True,
         tracking=True,
     )
     partner_type = fields.Selection(
-        [
+        selection=[
             ("customer", "Customer"),
             ("supplier", "Vendor"),
         ],
         default="customer",
-        tracking=True,
         required=True,
+        tracking=True,
     )
     memo = fields.Char(
-        string="Memo",
-        tracking=True,
         inverse="_inverse_memo",
+        tracking=True,
     )
     payment_reference = fields.Char(
-        string="Payment Reference",
         copy=False,
         tracking=True,
         help="Reference of the document used to issue this payment. Eg. check number, file name, etc.",
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Currency",
         compute="_compute_currency_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="The payment's currency.",
     )
     company_currency_id = fields.Many2one(
-        string="Company Currency",
         related="company_id.currency_id",
+        string="Company Currency",
     )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Customer/Vendor",
-        ondelete="restrict",
         domain="['|', ('parent_id','=', False), ('is_company','=', True)]",
-        tracking=True,
+        ondelete="restrict",
         check_company=True,
+        tracking=True,
     )
     outstanding_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Outstanding Account",
+        compute="_compute_outstanding_account_id",
         store=True,
         index="btree_not_null",
-        compute="_compute_outstanding_account_id",
         check_company=True,
     )
     destination_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Destination Account",
+        compute="_compute_destination_account_id",
         store=True,
         readonly=False,
-        compute="_compute_destination_account_id",
         domain="[('account_type', 'in', ('asset_receivable', 'liability_payable'))]",
         check_company=True,
     )
 
     invoice_ids = fields.Many2many(
-        string="Invoices",
         comodel_name="account.move",
         relation="account_move__account_payment",
         column1="payment_id",
         column2="invoice_id",
+        string="Invoices",
         copy=False,
     )
     reconciled_invoice_ids = fields.Many2many(
-        "account.move",
+        comodel_name="account.move",
         string="Reconciled Invoices",
         compute="_compute_stat_buttons_from_reconciliation",
         search="_search_reconciled_invoice_ids",
         help="Invoices whose journal items have been reconciled with these payments.",
     )
     reconciled_invoices_count = fields.Count(
-        "reconciled_invoice_ids",
+        count_of="reconciled_invoice_ids",
         string="# Reconciled Invoices",
     )
 
     reconciled_invoices_type = fields.Selection(
-        [("credit_note", "Credit Note"), ("invoice", "Invoice")],
+        selection=[("credit_note", "Credit Note"), ("invoice", "Invoice")],
         compute="_compute_stat_buttons_from_reconciliation",
     )
     reconciled_bill_ids = fields.Many2many(
-        "account.move",
+        comodel_name="account.move",
         string="Reconciled Bills",
         compute="_compute_stat_buttons_from_reconciliation",
         search="_search_reconciled_bill_ids",
         help="Bills whose journal items have been reconciled with these payments.",
     )
     reconciled_bills_count = fields.Count(
-        "reconciled_bill_ids",
+        count_of="reconciled_bill_ids",
         string="# Reconciled Bills",
     )
     reconciled_statement_line_ids = fields.Many2many(
@@ -312,29 +308,21 @@ class AccountPayment(models.Model):
         help="Statements lines matched to this payment",
     )
     reconciled_statement_lines_count = fields.Count(
-        "reconciled_statement_line_ids",
+        count_of="reconciled_statement_line_ids",
         string="# Reconciled Statement Lines",
     )
 
-    payment_method_code = fields.Char(
-        related="payment_channel_id.code",
-    )
-    payment_receipt_title = fields.Char(
-        compute="_compute_payment_receipt_title",
-    )
+    payment_method_code = fields.Char(related="payment_channel_id.code")
+    payment_receipt_title = fields.Char(compute="_compute_payment_receipt_title")
 
-    need_cancel_request = fields.Boolean(
-        related="move_id.need_cancel_request",
-    )
+    need_cancel_request = fields.Boolean(related="move_id.need_cancel_request")
     show_partner_bank_account = fields.Boolean(
         compute="_compute_show_require_partner_bank"
     )
     require_partner_bank_account = fields.Boolean(
         compute="_compute_show_require_partner_bank"
     )
-    country_code = fields.Char(
-        related="company_id.account_fiscal_country_id.code",
-    )
+    country_code = fields.Char(related="company_id.account_fiscal_country_id.code")
     amount_signed = fields.Monetary(
         currency_field="currency_id",
         compute="_compute_amount_signed",
@@ -351,8 +339,8 @@ class AccountPayment(models.Model):
         compute="_compute_duplicate_payment_ids",
     )
     attachment_ids = fields.One2many(
-        "ir.attachment",
-        "res_id",
+        comodel_name="ir.attachment",
+        inverse_name="res_id",
         string="Attachments",
     )
 
@@ -393,8 +381,10 @@ class AccountPayment(models.Model):
 
         if len(other) == 1:
             if not liquidity:
+                _debug.logic("lone_other_line_as_liquidity", payment=self)
                 liquidity, other = other, empty
             elif not counterpart:
+                _debug.logic("lone_other_line_as_counterpart", payment=self)
                 counterpart, other = other, empty
 
         return [liquidity, counterpart, other]
@@ -432,10 +422,12 @@ class AccountPayment(models.Model):
             ("label", label),
         ]
 
+    @_debug.perf.timed
     def _prepare_move_withholding_lines(self, default_values):
         self.check_singleton()
         return []
 
+    @_debug.perf.timed
     def _prepare_move_liquidity_lines(self, default_values):
         self.check_singleton()
         return [
@@ -450,6 +442,7 @@ class AccountPayment(models.Model):
             }
         ]
 
+    @_debug.perf.timed
     def _prepare_move_counterpart_lines(self, default_values):
         self.check_singleton()
         return [
@@ -464,6 +457,7 @@ class AccountPayment(models.Model):
             }
         ]
 
+    @_debug.perf.timed
     def _prepare_move_lines_per_type(
         self, write_off_line_vals=None, force_balance=None
     ):
@@ -539,6 +533,17 @@ class AccountPayment(models.Model):
             }
         )
 
+        _debug.pipeline(
+            "payment_lines_prepared",
+            payment=self,
+            forced_balance=force_balance is not None,
+            liquidity=len(liquidity_lines),
+            counterpart=len(counterpart_lines),
+            write_off=len(write_off_lines),
+            withholding=len(withholding_lines),
+            liquidity_balance=liquidity_balance,
+            counterpart_balance=counterpart_balance,
+        )
         return {
             "liquidity_lines": liquidity_lines,
             "counterpart_lines": counterpart_lines,
@@ -546,6 +551,7 @@ class AccountPayment(models.Model):
             "withholding_lines": withholding_lines,
         }
 
+    @_debug.perf.timed
     def _prepare_move_line_default_vals(
         self, write_off_line_vals=None, force_balance=None
     ):
@@ -573,6 +579,7 @@ class AccountPayment(models.Model):
             ).next_by_code("account.payment", sequence_date=payment.date)
 
     @api.depends("company_id", "partner_id", "payment_type")
+    @_debug.perf.timed
     def _compute_journal_id(self):
         default_journal_by_company = {}
         for payment in self:
@@ -599,6 +606,11 @@ class AccountPayment(models.Model):
                         company
                     )
                 payment.journal_id = default_journal_by_company[company]
+        _debug.logic(
+            "journal_defaults_resolved",
+            payment=self,
+            companies_defaulted=len(default_journal_by_company),
+        )
 
     def _get_default_journal(self, company):
         return self.env["account.journal"].search(
@@ -624,6 +636,7 @@ class AccountPayment(models.Model):
         "move_id.line_ids.account_id.reconcile",
         *_SEEK_FOR_LINES_DEPENDS,
     )
+    @_debug.perf.timed
     def _compute_state(self):
         for payment in self:
             if not payment.state:
@@ -647,7 +660,14 @@ class AccountPayment(models.Model):
                 )
                 and all(invoice.payment_state == "paid" for invoice in moves)
             ):
+                _debug.logic("all_reconciled_invoices_paid_paid", payment=payment)
                 payment.state = "paid"
+            _debug.logic(
+                "_compute_state",
+                payment=payment,
+                state=payment.state,
+                move=payment.move_id,
+            )
 
     @api.depends(
         "move_id.line_ids.amount_residual",
@@ -658,6 +678,7 @@ class AccountPayment(models.Model):
         "company_id.currency_id",
         *_SEEK_FOR_LINES_DEPENDS,
     )
+    @_debug.perf.timed
     def _compute_reconciliation_status(self):
         for pay in self:
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
@@ -693,6 +714,13 @@ class AccountPayment(models.Model):
                 pay.is_invoice_reconciled = pay.currency_id.is_zero(
                     sum(reconcile_lines.mapped(residual_field))
                 )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "reconciliation_status_computed",
+                payment=self,
+                invoice_reconciled=len(self.filtered("is_invoice_reconciled")),
+                bank_matched=len(self.filtered("is_bank_matched")),
+            )
 
     @api.model
     def _get_method_codes_using_bank_account(self):
@@ -702,7 +730,9 @@ class AccountPayment(models.Model):
     def _get_method_codes_needing_bank_account(self):
         return []
 
+    @_debug.perf.timed
     def action_view_business_doc(self):
+        _debug.lifecycle("action_view_business_doc", records=self)
         return {
             "name": _("Payment"),
             "type": "ir.actions.act_window",
@@ -779,6 +809,7 @@ class AccountPayment(models.Model):
                 pay.partner_bank_id = pay.available_partner_bank_ids[:1]._origin
 
     @api.depends("available_payment_channel_ids", "partner_id", "company_id")
+    @_debug.perf.timed
     def _compute_payment_channel_id(self):
         for pay in self:
             available = pay.available_payment_channel_ids
@@ -795,6 +826,12 @@ class AccountPayment(models.Model):
                 pay.payment_channel_id = available[0]._origin
             else:
                 pay.payment_channel_id = False
+        if _debug.logic.enabled:
+            _debug.logic(
+                "payment_channels_resolved",
+                payment=self,
+                channels=self.mapped("payment_channel_id"),
+            )
 
     @api.depends("payment_type", "journal_id", "currency_id")
     def _compute_available_payment_channel_ids(self):
@@ -859,10 +896,19 @@ class AccountPayment(models.Model):
                     fallback[key] = pay._get_outstanding_account(pay.payment_type)
                 account = fallback[key]
             if not account and pay.move_id:
+                _debug.logic("outstanding_account_kept_no_channel", payment=pay)
                 continue
+            _debug.logic(
+                "outstanding",
+                payment=pay,
+                account=account,
+                channel=pay.payment_channel_id,
+                mandatory=mandatory,
+            )
             pay.outstanding_account_id = account
 
     @api.depends("journal_id", "partner_id", "partner_type")
+    @_debug.perf.timed
     def _compute_destination_account_id(self):
         self.destination_account_id = False
         fallback_account = {}
@@ -895,6 +941,12 @@ class AccountPayment(models.Model):
                 pay.partner_id.with_company(pay.company_id)[property_name]
                 if pay.partner_id
                 else _fallback(pay.company_id, account_type)
+            )
+            _debug.logic(
+                "destination_account",
+                payment=pay,
+                account=pay.destination_account_id,
+                source=property_name if pay.partner_id else f"fallback {account_type}",
             )
 
     @api.depends(
@@ -944,8 +996,15 @@ class AccountPayment(models.Model):
         "move_id.line_ids.matched_credit_ids",
         "invoice_ids",
     )
+    @_debug.perf.timed
     def _compute_stat_buttons_from_reconciliation(self):
         stored_payments = self.filtered("id")
+        _debug.logic(
+            "stat_buttons_scope",
+            payment=self,
+            stored=len(stored_payments),
+            skipped=not stored_payments,
+        )
         if not stored_payments:
             self.reconciled_invoice_ids = False
             self.reconciled_invoices_type = False
@@ -967,8 +1026,10 @@ class AccountPayment(models.Model):
         invoices_per_payment = self._get_reconciled_invoices_per_payment(
             stored_payments
         )
+        _debug.perf.count("reconciled_invoices_fetched", rows=len(invoices_per_payment))
 
         query_res = self._get_reconciled_statement_lines_per_payment(stored_payments)
+        _debug.perf.count("reconciled_statement_lines_fetched", rows=len(query_res))
         sale_types = self.env["account.move"].get_sale_types(True)
 
         invoices_by_payment = defaultdict(list)
@@ -979,6 +1040,13 @@ class AccountPayment(models.Model):
             )
             target[payment_id].extend(invoice_ids)
 
+        _debug.pipeline(
+            "reconciled_documents_grouped",
+            payment=stored_payments,
+            with_invoices=len(invoices_by_payment),
+            with_bills=len(bills_by_payment),
+            with_statement_lines=len(query_res),
+        )
         for pay in self:
             invoices = pay.invoice_ids.filtered(lambda m: m.is_sale_document(True))
             bills = pay.invoice_ids.filtered(lambda m: m.is_purchase_document(True))
@@ -1010,11 +1078,15 @@ class AccountPayment(models.Model):
     )
     def _compute_duplicate_payment_ids(self):
         payment_to_duplicate_move = self._get_duplicate_reference()
+        _debug.perf.count(
+            "duplicate_payments_fetched", rows=len(payment_to_duplicate_move)
+        )
         for payment in self:
             payment.duplicate_payment_ids = payment_to_duplicate_move.get(
                 payment._origin.id, self.env["account.payment"]
             )
 
+    @_debug.perf.timed
     def _search_reconciled_move_ids(self, operator, value, move_filter=None):
         if operator not in ("in", "="):
             return NotImplemented
@@ -1031,19 +1103,29 @@ class AccountPayment(models.Model):
             ids = payment_ids(moves.exists())
         return [("id", "in", ids)]
 
+    @_debug.perf.timed
     def _search_reconciled_invoice_ids(self, operator, value):
         return self._search_reconciled_move_ids(
             operator, value, lambda move: move.is_sale_document(True)
         )
 
+    @_debug.perf.timed
     def _search_reconciled_bill_ids(self, operator, value):
         return self._search_reconciled_move_ids(
             operator, value, lambda move: move.is_purchase_document(True)
         )
 
+    @_debug.perf.timed
     def _get_duplicate_reference(self, matching_states=("draft", "in_process")):
         payments = self.filtered(
             lambda p: p.partner_id and p.amount and p.state != "in_process"
+        )
+        _debug.pipeline(
+            "duplicate_candidates_filtered",
+            payment=self,
+            candidates=len(payments),
+            unsaved=not self.ids,
+            matching_states=matching_states,
         )
         if not payments:
             return {}
@@ -1115,6 +1197,7 @@ class AccountPayment(models.Model):
             payment.move_id.ref = payment.memo
 
     @api.constrains("payment_channel_id")
+    @_debug.perf.timed
     def _check_payment_channel_id(self):
         for pay in self:
             if not pay.payment_channel_id:
@@ -1132,6 +1215,7 @@ class AccountPayment(models.Model):
                 )
 
     @api.constrains("state", "move_id")
+    @_debug.perf.timed
     def _check_move_id(self):
         for payment in self:
             if (
@@ -1149,7 +1233,15 @@ class AccountPayment(models.Model):
                 )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         entry_vals_list = [
             (
                 vals.pop("write_off_line_vals", None),
@@ -1170,6 +1262,13 @@ class AccountPayment(models.Model):
                 and line_ids is None
             ):
                 continue
+            _debug.pipeline(
+                "create_journal_entry_explicit_vals",
+                payment=pay,
+                write_off=write_off_line_vals is not None,
+                force_balance=force_balance is not None,
+                line_ids=line_ids is not None,
+            )
             pay._create_journal_entry(
                 write_off_line_vals=write_off_line_vals,
                 force_balance=force_balance,
@@ -1205,17 +1304,30 @@ class AccountPayment(models.Model):
             )
         return outstanding_account
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
+        if _debug.lifecycle.enabled and "state" in vals:
+            _debug.lifecycle(
+                "state_change",
+                payment=self,
+                state=set(self.mapped("state")),
+                state_to=vals["state"],
+            )
         if vals.get("state") in ("in_process", "paid") and not vals.get("move_id"):
             self.filtered(lambda p: not p.move_id)._create_journal_entry()
-            self.move_id.filtered(lambda m: m.state == "draft").action_post()
+            draft_moves = self.move_id.filtered(lambda m: m.state == "draft")
+            _debug.pipeline("posting_moves", payment=self, draft_moves=draft_moves)
+            draft_moves.action_post()
 
         res = super().write(vals)
         if self.move_id:
             self._sync_to_moves(set(vals.keys()))
         return res
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         moves = self.move_id
         res = super().unlink()
         moves.filtered(lambda m: m.state != "draft").action_draft()
@@ -1227,7 +1339,9 @@ class AccountPayment(models.Model):
         for payment in self:
             payment.display_name = payment.name or _("Draft Payment")
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         vals_list = super().copy_data(dict(default or {}))
         for payment, vals in zip(self, vals_list, strict=True):
             vals.setdefault("payment_channel_id", payment.payment_channel_id.id)
@@ -1246,6 +1360,7 @@ class AccountPayment(models.Model):
         return super()._message_mail_after_hook(mails)
 
     @api.model
+    @_debug.perf.timed
     def _prepare_line_commands(self, lines, line_vals):
         commands = []
         for line, vals in zip_longest(lines, line_vals):
@@ -1257,6 +1372,7 @@ class AccountPayment(models.Model):
                 commands.append(Command.delete(line.id))
         return commands
 
+    @_debug.perf.timed
     def _sync_to_moves(self, changed_fields):
         if not any(
             field_name in changed_fields
@@ -1266,8 +1382,18 @@ class AccountPayment(models.Model):
 
         for pay in self:
             if pay.move_id.state == "posted":
+                _debug.logic("_sync_to_moves_move_posted_not_synced", payment=pay)
                 continue
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
+            if _debug.pipeline.enabled:
+                _debug.pipeline(
+                    "_sync_to_moves",
+                    payment=pay,
+                    fields=sorted(changed_fields),
+                    liquidity=liquidity_lines,
+                    counterpart=counterpart_lines,
+                    writeoff=writeoff_lines,
+                )
 
             if "amount" in changed_fields and len(liquidity_lines) > 1:
                 raise UserError(
@@ -1339,6 +1465,7 @@ class AccountPayment(models.Model):
             "journal_id",
         )
 
+    @_debug.perf.timed
     def _create_journal_entry(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
@@ -1354,9 +1481,16 @@ class AccountPayment(models.Model):
             for pay in need_move
         ]
         moves = self.env["account.move"].with_context(is_payment=True).create(move_vals)
+        _debug.pipeline(
+            "_create_journal_entry",
+            payment=need_move,
+            moves=moves,
+            skipped=self - need_move,
+        )
         for pay, move in zip(need_move, moves, strict=True):
             pay.write({"move_id": move.id, "state": "in_process"})
 
+    @_debug.perf.timed
     def _generate_move_vals(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
@@ -1380,7 +1514,7 @@ class AccountPayment(models.Model):
             ],
         }
 
-    def _get_payment_receipt_report_values(self):
+    def _prepare_payment_receipt_report_values(self):
         self.check_singleton()
         return {
             "display_invoices": True,
@@ -1393,7 +1527,9 @@ class AccountPayment(models.Model):
     def unmark_as_sent(self):
         self.write({"is_sent": False})
 
+    @_debug.perf.timed
     def action_post(self):
+        _debug.lifecycle("action_post", records=self)
         for payment in self:
             if (
                 payment.require_partner_bank_account
@@ -1408,34 +1544,50 @@ class AccountPayment(models.Model):
                         partner=payment.partner_id.display_name,
                     )
                 )
-        self.filtered(
+        cash_payments = self.filtered(
             lambda pay: pay.outstanding_account_id.account_type == "asset_cash"
-        ).state = "paid"
+        )
+        _debug.logic(
+            "action_post_cash_payments_straight_paid", cash_payments=cash_payments
+        )
+        cash_payments.state = "paid"
         self.filtered(
             lambda pay: pay.state in {False, "draft", "in_process"}
         ).state = "in_process"
 
+    @_debug.perf.timed
     def action_validate(self):
+        _debug.lifecycle("action_validate", records=self)
         self.state = "paid"
 
+    @_debug.perf.timed
     def action_reject(self):
+        _debug.lifecycle("action_reject", records=self)
         self.state = "rejected"
 
+    @_debug.perf.timed
     def action_cancel(self):
+        _debug.lifecycle("action_cancel", records=self)
         moves = self.move_id
         draft_moves = moves.filtered(lambda m: m.state == "draft")
         self.state = "canceled"
         (moves - draft_moves).action_cancel()
         draft_moves.unlink()
 
+    @_debug.perf.timed
     def button_request_cancel(self):
+        _debug.lifecycle("button_request_cancel", records=self)
         return self.move_id.button_request_cancel()
 
+    @_debug.perf.timed
     def action_draft(self):
+        _debug.lifecycle("action_draft", records=self)
         self.state = "draft"
         self.move_id.action_draft()
 
+    @_debug.perf.timed
     def button_open_invoices(self):
+        _debug.lifecycle("button_open_invoices", records=self)
         self.check_singleton()
         return self.reconciled_invoice_ids.with_context(
             create=False
@@ -1443,13 +1595,17 @@ class AccountPayment(models.Model):
             name=_("Paid Invoices"),
         )
 
+    @_debug.perf.timed
     def button_open_bills(self):
+        _debug.lifecycle("button_open_bills", records=self)
         self.check_singleton()
         return self.reconciled_bill_ids.with_context(create=False)._get_records_action(
             name=_("Paid Bills"),
         )
 
+    @_debug.perf.timed
     def button_open_statement_lines(self):
+        _debug.lifecycle("button_open_statement_lines", records=self)
         self.check_singleton()
         return self.reconciled_statement_line_ids.with_context(
             create=False
@@ -1457,7 +1613,9 @@ class AccountPayment(models.Model):
             name=_("Matched Transactions"),
         )
 
+    @_debug.perf.timed
     def button_open_journal_entry(self):
+        _debug.lifecycle("button_open_journal_entry", records=self)
         self.check_singleton()
         return self.move_id.with_context(create=False)._get_records_action(
             name=_("Journal Entry"),
@@ -1467,4 +1625,8 @@ class AccountPayment(models.Model):
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    payment_ids = fields.One2many("account.payment", "move_id", string="Payments")
+    payment_ids = fields.One2many(
+        comodel_name="account.payment",
+        inverse_name="move_id",
+        string="Payments",
+    )

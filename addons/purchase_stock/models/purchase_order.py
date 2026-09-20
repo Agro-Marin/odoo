@@ -5,9 +5,12 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_repr
 from odoo.tools.misc import OrderedSet
 from odoo.tools.translate import _
+
+_debug = DebugLog(__name__)
 
 
 class PurchaseOrder(models.Model):
@@ -21,11 +24,11 @@ class PurchaseOrder(models.Model):
     picking_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Deliver To",
-        required=True,
         compute="_compute_picking_type_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        required=True,
         domain="['|', ('warehouse_id', '=', False), ('warehouse_id.company_id', '=', company_id)]",
         help="This will determine operation type of incoming shipment",
     )
@@ -51,9 +54,7 @@ class PurchaseOrder(models.Model):
         string="Incoming Shipment count",
         compute="_compute_incoming_transfer_counts",
     )
-    is_shipped = fields.Boolean(
-        compute="_compute_is_shipped",
-    )
+    is_shipped = fields.Boolean(compute="_compute_is_shipped")
     reference_ids = fields.Many2many(
         comodel_name="stock.reference",
         relation="stock_reference_purchase_rel",
@@ -74,6 +75,7 @@ class PurchaseOrder(models.Model):
     )
 
     def write(self, vals):
+        _debug.lifecycle("po_stock_write", orders=self, fields=len(vals))
         pre_order_line_qty = {}
         if vals.get("line_ids"):
             for order in self.filtered(lambda po: po.state == "done"):
@@ -120,6 +122,7 @@ class PurchaseOrder(models.Model):
 
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_is_shipped(self):
+        _debug.perf.count("po_is_shipped_compute", orders=self)
         for order in self:
             order.is_shipped = bool(order.picking_ids) and all(
                 picking.state in ("done", "cancel") for picking in order.picking_ids
@@ -139,6 +142,7 @@ class PurchaseOrder(models.Model):
             self.picking_type_id = self._get_picking_type(self.company_id.id)
 
     def _action_cancel(self):
+        _debug.pipeline("po_cancel_enter", orders=self)
         order_lines_ids = OrderedSet()
         pickings_to_cancel_ids = OrderedSet()
 
@@ -209,10 +213,12 @@ class PurchaseOrder(models.Model):
         return super()._action_cancel()
 
     def _action_confirm(self):
+        _debug.pipeline("po_confirm_enter", orders=self)
         self._create_picking()
         super()._action_confirm()
 
     def action_purchase_order_suggest(self):
+        _debug.pipeline("po_suggest_enter", orders=self)
         self.check_singleton()
         ctx = self.env.context
         domain = Domain("type", "=", "consu")
@@ -297,9 +303,9 @@ class PurchaseOrder(models.Model):
         ]
         return action
 
-    def _get_action_add_from_catalog_extra_context(self):
+    def _prepare_catalog_extra_context(self):
         return {
-            **super()._get_action_add_from_catalog_extra_context(),
+            **super()._prepare_catalog_extra_context(),
             "warehouse_id": (
                 self.picking_type_id.warehouse_id.id if self.picking_type_id else False
             ),
@@ -350,10 +356,12 @@ class PurchaseOrder(models.Model):
         )
 
     def _create_update_date_activity(self, updated_dates):
+        _debug.lifecycle("po_date_activity_create", orders=self)
         activity = super()._create_update_date_activity(updated_dates)
         self._add_picking_info(activity)
 
     def _update_update_date_activity(self, updated_dates, activity):
+        _debug.lifecycle("po_date_activity_update", orders=self)
         note_lines = activity.note.split("<p>")
         note_lines.pop()
         activity.note = Markup("<p>").join(note_lines)
@@ -381,43 +389,63 @@ class PurchaseOrder(models.Model):
         self.reference_ids |= reference
 
     def _create_picking(self):
-        StockPicking = self.env["stock.picking"]
-        for order in self.filtered(lambda po: po.state == "done"):
-            if any(product.type == "consu" for product in order.line_ids.product_id):
-                order_in_company = order.with_company(order.company_id)
-                pickings = order_in_company.picking_ids.filtered(
+        # the orders confirmed together get their pickings, moves, confirmation
+        # and reservation in batches per company; the chatter link stays per
+        # picking
+        _debug.pipeline("po_picking_create_enter", orders=self)
+        StockPicking = self.env["stock.picking"].with_user(SUPERUSER_ID)
+        orders = self.filtered(
+            lambda po: (
+                po.state == "done"
+                and any(product.type == "consu" for product in po.line_ids.product_id)
+            )
+        )
+        for company, company_orders in orders.grouped("company_id").items():
+            company_orders = company_orders.with_company(company)
+            picking_by_order = {}
+            without_picking = company_orders.browse()
+            for order in company_orders:
+                pickings = order.picking_ids.filtered(
                     lambda x: x.state not in ("done", "cancel"),
                 )
-                if not pickings:
-                    order_in_company._add_missing_reference()
-                    res = order_in_company._prepare_picking_vals()
-                    picking = StockPicking.with_user(SUPERUSER_ID).create(res)
-                    pickings = picking
+                if pickings:
+                    picking_by_order[order.id] = pickings[0]
                 else:
-                    picking = pickings[0]
-                moves = order_in_company.line_ids._create_stock_moves(picking)
-                moves = moves.filtered(
-                    lambda x: x.state not in ("done", "cancel"),
-                )._action_confirm()
+                    without_picking |= order
+            if without_picking:
+                without_picking._add_missing_references()
+                created = StockPicking.create(
+                    [order._prepare_picking_vals() for order in without_picking]
+                )
+                for order, picking in zip(without_picking, created, strict=True):
+                    picking_by_order[order.id] = picking
+            move_vals = []
+            for order in company_orders:
+                move_vals += order.line_ids._prepare_stock_moves_vals_list(
+                    picking_by_order[order.id]
+                )
+            moves = self.env["stock.move"].with_user(SUPERUSER_ID).create(move_vals)
+            moves = moves.filtered(
+                lambda x: x.state not in ("done", "cancel"),
+            )._action_confirm()
+            for picking_moves in moves.grouped("picking_id").values():
                 for seq, move in enumerate(
-                    moves.sorted(lambda move: move.date), start=1
+                    picking_moves.sorted(lambda move: move.date), start=1
                 ):
                     move.sequence = seq * 5
-                moves._action_assign()
-                forward_pickings = self.env["stock.picking"]._get_impacted_pickings(
-                    moves,
-                )
-                (pickings | forward_pickings).action_confirm()
-                picking.message_post_with_source(
-                    "mail.message_origin_link",
-                    render_values={"self": picking, "origin": order},
-                    subtype_xmlid="mail.mt_note",
-                )
+            moves._action_assign()
+            pickings = self.env["stock.picking"].union(*picking_by_order.values())
+            forward_pickings = self.env["stock.picking"]._get_impacted_pickings(moves)
+            (pickings | forward_pickings).action_confirm()
+            pickings._message_post_origin_links(
+                (picking_by_order[order.id].id, order) for order in company_orders
+            )
         return True
 
     @api.model
     @api.depends("company_id")
     def _compute_picking_type_id(self):
+        _debug.perf.count("po_picking_type_compute", orders=self)
         for order in self:
             picking_type = order.picking_type_id
             type_company = picking_type.warehouse_id.company_id
@@ -426,7 +454,7 @@ class PurchaseOrder(models.Model):
                     (order.company_id or self.env.company).id
                 )
 
-    def _get_action_view_picking_context(self, pickings):
+    def _prepare_picking_action_context(self, pickings):
         self.check_singleton()
         return {
             "default_partner_id": self.partner_id.id,
@@ -584,10 +612,19 @@ class PurchaseOrder(models.Model):
         return invoice_vals
 
     def _add_missing_reference(self):
-        if not self.reference_ids:
-            self.reference_ids = self.reference_ids.sudo().create(
-                self._prepare_reference_vals(),
-            )
+        self._add_missing_references()
+
+    def _add_missing_references(self):
+        missing = self.filtered(lambda order: not order.reference_ids)
+        if not missing:
+            return
+        references = (
+            self.env["stock.reference"]
+            .sudo()
+            .create([order._prepare_reference_vals() for order in missing])
+        )
+        for order, reference in zip(missing, references, strict=True):
+            order.reference_ids = reference
 
     def _prepare_picking_vals(self):
         if not self.partner_id.property_stock_supplier.id:

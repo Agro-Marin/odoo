@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
@@ -7,6 +8,8 @@ import { NavBar } from "@web/webclient/navbar/navbar";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 
 const websiteSystrayRegistry = registry.category("website_systray");
+
+const log = makeLogger("website.component.navbar");
 websiteSystrayRegistry.add("UserMenu", { Component: UserMenu }, { sequence: 14 });
 
 patch(NavBar.prototype, {
@@ -15,31 +18,26 @@ patch(NavBar.prototype, {
         this.websiteService = useService("website");
         this.websiteCustomMenus = useService("website_custom_menus");
 
-        // The navbar is rerendered with an event, as it can not naturally be
-        // with props/state (the WebsitePreview client action and the navbar
-        // are not related).
         useBus(websiteSystrayRegistry, "EDIT-WEBSITE", () => this.render(true));
 
         if (this.env.debug && !websiteSystrayRegistry.contains("web.debug_mode_menu")) {
+            log.logic("NavBar register debug menu in website systray");
             websiteSystrayRegistry.add(
                 "web.debug_mode_menu",
                 registry.category("systray").get("web.debug_mode_menu"),
                 { sequence: 100 },
             );
         }
-        // Similar to what is done in web/navbar. When the app menu or systray
-        // is updated, we need to adapt the navbar so that the "more" menu
-        // can be computed.
         let adaptCounter = 0;
         const renderAndAdapt = () => {
+            log.pipeline("NavBar CONTENT-UPDATED render+adapt", { adaptCounter });
             this.render(true);
             adaptCounter++;
         };
         useEffect(
             (adaptCounter) => {
-                // We do not want to adapt on the first render
-                // as the super class already does it.
                 if (adaptCounter > 0) {
+                    log.logic("NavBar adapt after content update", { adaptCounter });
                     this.adapt();
                 }
             },
@@ -55,13 +53,6 @@ patch(NavBar.prototype, {
         );
     },
 
-    // Not "somehow": `patch()` installs an extension's property descriptors
-    // with `Object.defineProperty`, and a POJO declaring only `get x()` yields
-    // `{get, set: undefined}`. Without a setter anywhere in the chain the
-    // accessor is getter-only, so any assignment throws in strict mode.
-    // `core/utils/patch.js` inherits the missing half from the ancestor
-    // descriptor, but only if some ancestor actually defines it — this is that
-    // definition for a key `web` does not declare.
     set shouldDisplayWebsiteSystray(_) {},
 
     /**
@@ -76,8 +67,6 @@ patch(NavBar.prototype, {
                     "isDisplayed" in item ? item.isDisplayed(this.env) : true,
                 )
                 .reverse();
-            // Do not override the regular Odoo navbar if the only visible
-            // elements are the debug items.
             if (
                 !websiteItems.every((item) =>
                     ["burger_menu", "web.debug_mode_menu"].includes(item.key),
@@ -111,6 +100,7 @@ patch(NavBar.prototype, {
     async onNavBarDropdownItemSelection(menu) {
         const websiteMenu = this.websiteCustomMenus.get(menu.xmlid);
         if (websiteMenu) {
+            log.logic("NavBar open website custom menu", () => ({ xmlid: menu.xmlid }));
             return this.websiteCustomMenus.open(menu);
         }
         return super.onNavBarDropdownItemSelection(menu);

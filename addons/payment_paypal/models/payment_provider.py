@@ -14,41 +14,51 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "paypal_client_secret": "paypal_client_secret",
+        "paypal_access_token": "paypal_access_token",
+    }
 
     code = fields.Selection(
-        selection_add=[("paypal", "PayPal")], ondelete={"paypal": "set default"}
+        selection_add=[("paypal", "PayPal")],
+        ondelete={"paypal": "set default"},
     )
     paypal_email_account = fields.Char(
         string="Email",
-        help="The public business email solely used to identify the account with PayPal",
-        required_if_provider="paypal",
         default=lambda self: self.env.company.email,
         copy=False,
+        required_if_provider="paypal",
+        help="The public business email solely used to identify the account with PayPal",
     )
     paypal_client_id = fields.Char(
         string="PayPal Client ID",
-        required_if_provider="paypal",
         copy=False,
+        required_if_provider="paypal",
     )
     paypal_client_secret = fields.Char(
         string="PayPal Client Secret",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
     )
     paypal_access_token = fields.Char(
         string="PayPal Access Token",
-        help="The short-lived token used to access Paypal APIs",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="base.group_system",
+        help="The short-lived token used to access Paypal APIs",
     )
     paypal_access_token_expiry = fields.Datetime(
         string="PayPal Access Token Expiry",
-        help="The moment at which the access token becomes invalid.",
         default="1970-01-01",
         copy=False,
         groups="base.group_system",
+        help="The moment at which the access token becomes invalid.",
     )
-    paypal_webhook_id = fields.Char(string="PayPal Webhook ID", copy=False)
+    paypal_webhook_id = fields.Char(
+        string="PayPal Webhook ID",
+        copy=False,
+    )
 
     # === COMPUTE METHODS === #
 
@@ -157,10 +167,10 @@ class PaymentProvider(models.Model):
         if idempotency_key:
             headers["PayPal-Request-Id"] = idempotency_key
         if not is_refresh_token_request:
-            headers["Authorization"] = f"Bearer {self._paypal_fetch_access_token()}"
+            headers["Authorization"] = f"Bearer {self._paypal_get_access_token()}"
         return headers
 
-    def _paypal_fetch_access_token(self):
+    def _paypal_get_access_token(self):
         """Generate a new access token if it's expired, otherwise return the existing access token.
 
         :return: A valid access token.

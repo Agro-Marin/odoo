@@ -6,10 +6,10 @@
         <field name="model">account.tax</field>
         <field name="inherit_id" ref="account.view_tax_form" />
         <field name="arch" type="xml">
-            <field position="after" name="price_include">
+            <field name="price_include" position="after">
                 <field name="tax_discount" invisible="country_code != 'BR'" />
                     </field>
-                    <field position="after" name="tax_discount">
+                    <field name="tax_discount" position="after">
                 <field
                     name="base_reduction"
                     widget="monetary"

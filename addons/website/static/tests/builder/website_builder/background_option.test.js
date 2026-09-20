@@ -37,7 +37,6 @@ test("change the background shape of elements", async () => {
             static defaultProps = {
                 withColors: true,
                 withImages: true,
-                // todo: handle with_videos
                 withShapes: true,
                 withColorCombinations: false,
             };
@@ -134,7 +133,7 @@ test("Background position overlay layout", async () => {
     const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(
         `<section>
             <div class="container">
-                <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height: 500px">
+                <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height: 500px">
                 </section>
             </div>
         </section>`,
@@ -145,11 +144,6 @@ test("Background position overlay layout", async () => {
     const section = queryOne(":iframe .container section");
 
     const testLayout = async (mobile) => {
-        // In mobile preview, the iframe is scaled by the o-mobile-phone SCSS mixin.
-        // This mixin creates multiple similar CSS rules with different scales
-        // that activate depending on the screen size.
-        // The following scale of 0.87 is just one of them. It is here to have
-        // a more representative test.
         const iframeContainerScale = mobile ? 0.87 : 1.0;
         if (mobile) {
             const iframeContainer = queryOne(
@@ -159,7 +153,6 @@ test("Background position overlay layout", async () => {
         }
         await openBgPositionOverlay(section, waitSidebarUpdated);
 
-        // The overlay should cover exactly the iframe
         const iframeRect = iframe.getBoundingClientRect();
         const bgOverlayRect = queryOne(
             ".o_we_background_position_overlay",
@@ -173,7 +166,6 @@ test("Background position overlay layout", async () => {
             body.clientHeight * iframeContainerScale,
         );
 
-        // The content of the overlay should cover the editing element
         const editingElementRect = section.getBoundingClientRect();
         const overlayContentStyle = getComputedStyle(queryOne(".o_we_overlay_content"));
         expect(parseFloat(overlayContentStyle.left)).toBeCloseTo(
@@ -189,7 +181,6 @@ test("Background position overlay layout", async () => {
             editingElementRect.height * iframeContainerScale,
         );
 
-        // The loading spinner should not be displayed
         expect(":iframe .o_loading_screen").not.toHaveClass("o_we_ui_loading");
     };
 
@@ -228,19 +219,15 @@ test("Background position overlay behavior", async () => {
     const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(
         `<section>
             <div class="container">
-                <section style="background-image: url('/web/image/123/transparent.png'); width: 500px;">
+                <section style="background-image: url('/web/static/img/transparent.png'); width: 500px;">
                 </section>
             </div>
         </section>`,
         {
-            // Load the CSS related to the Scroll Effect
             loadIframeBundles: true,
         },
     );
 
-    // Force the dimensions of the web client in order to have consistent result
-    // values after dragging. The "Fixed" Scroll Effect is applied only when the
-    // iframe is wider than 1200px.
     Object.assign(document.querySelector(".o_web_client").style, {
         left: "0px",
         top: "0px",
@@ -250,12 +237,10 @@ test("Background position overlay behavior", async () => {
     });
 
     const section = queryOne(":iframe .container section");
-    // Make sure we can scroll
     section.style.height = "1000px";
 
     await openBgPositionOverlay(section, waitSidebarUpdated);
 
-    // Scrolling on the overlay should scroll the iframe
     await scroll(
         queryOne(".o_we_background_position_overlay"),
         { y: 50 },
@@ -264,43 +249,28 @@ test("Background position overlay behavior", async () => {
     await animationFrame();
     expect(":iframe body").toHaveProperty("scrollTop", 50);
 
-    // The Scroll Effect should be set to "None"
     expect("[data-label='Scroll Effect'] button").toHaveText("None");
     await openBgPositionOverlay(section, waitSidebarUpdated);
     expect(section).toHaveClass("o_we_background_positioning");
 
-    // Drag and check that the background moves properly
     await drag();
     const sectionRect = section.getBoundingClientRect();
-    // Delta X obtained by applying the formula in getBackgroundDelta of BackgroundPositionOverlay
     const deltaX = sectionRect.width - sectionRect.height;
-    expect(getBgPosPercent(section).x).toBeCloseTo(
-        // Formula derived from the one in onDragBackgroundMove of BackgroundPositionOverlay
-        // 50% being the starting position
-        50 + (movement / deltaX) * 100,
-        {
-            message:
-                "Background X position should be dragged correctly with Scroll Effect set to None ",
-        },
-    );
+    expect(getBgPosPercent(section).x).toBeCloseTo(50 + (movement / deltaX) * 100, {
+        message:
+            "Background X position should be dragged correctly with Scroll Effect set to None ",
+    });
 
-    // Set Scroll Effect to "Fixed"
     await contains("[data-label='Scroll Effect'] button").click();
     await contains("[data-action-value='fixed']").click();
     await openBgPositionOverlay(section, waitSidebarUpdated);
-    // The element with the background is not the section when the Scroll Effect is not "None".
-    // However the section (i.e. its parent element) needs to have this class set to hide its content.
     expect(section).toHaveClass("o_we_background_positioning");
 
-    // Drag and check that the background moves properly
     await drag();
     const iframe = getEditor().editable.ownerDocument.defaultView.frameElement;
     const iframeRect = iframe.getBoundingClientRect();
-    // Delta Y obtained by applying the formula in getBackgroundDelta of BackgroundPositionOverlay
     const deltaY = iframeRect.height - iframeRect.width;
     expect(getBgPosPercent(queryOne(":iframe .s_parallax_bg")).y).toBeCloseTo(
-        // Formula derived from the one in onDragBackgroundMove of BackgroundPositionOverlay
-        // 50% being the starting position
         50 + (movement / deltaY) * 100,
         {
             message:
@@ -319,7 +289,6 @@ async function openBgPositionOverlay(editingElement, waitSidebarUpdated) {
 function patchDragBackground(el, from, to) {
     patchWithCleanup(BackgroundPositionOverlay.prototype, {
         onDragBackgroundMove(ev) {
-            // Mock the movementX and movementY readonly property
             super.onDragBackgroundMove({
                 preventDefault: () => {},
                 movementX: ev.clientX === to.x ? to.x - from.x : 0,
@@ -337,7 +306,7 @@ function patchDragBackground(el, from, to) {
 
 async function dragAndDropBgImage() {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px">
+        <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px">
             <div class="o_we_shape o_html_builder_Connections_01">
                 AAAA
             </div>
@@ -394,7 +363,7 @@ test("open the media dialog to toggle the image background but do not choose an 
 
 test("remove the background image of a snippet", async () => {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px">
+        <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px">
             <div class="o_we_shape o_html_builder_Connections_01">
                 AAAA
             </div>
@@ -440,9 +409,14 @@ test("remove background image removes color filter", async () => {
     expect(":iframe section .o_we_bg_filter").not.toHaveCount();
 });
 
+// Chrome serialises a one-value background-size with its implied `auto`
+function expectBackgroundSize(el, expected) {
+    expect(el.style.backgroundSize.replace(/ auto$/, "")).toBe(expected);
+}
+
 test("change background size", async () => {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section class="o_bg_img_opt_repeat" style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px; background-size: 100px;">
+        <section class="o_bg_img_opt_repeat" style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px; background-size: 100px;">
         </section>`);
 
     const section = await waitFor(":iframe section");
@@ -461,20 +435,20 @@ test("change background size", async () => {
 
     await contains(heightInput).edit("0");
     expect(heightInput).toHaveValue("1", { message: "minimum value is 1" });
-    expect(section).toHaveStyle("background-size: 100px 1px");
+    expectBackgroundSize(section, "100px 1px");
 
     await contains(heightInput).edit("");
     expect(heightInput).toHaveValue("");
-    expect(section).toHaveStyle("background-size: 100px");
+    expectBackgroundSize(section, "100px");
 
     await contains(widthInput).edit("");
     expect(widthInput).toHaveValue("");
     expect(heightInput).toHaveValue("", { message: "height input should stay empty" });
-    expect(section).toHaveStyle("background-size: auto");
+    expectBackgroundSize(section, "auto");
 
     await contains(widthInput).edit("0");
     expect(widthInput).toHaveValue("1", { message: "minimum value is 1" });
-    expect(section).toHaveStyle("background-size: 1px");
+    expectBackgroundSize(section, "1px");
 });
 
 test("background shape detection is compatible with previous ones (web_editor)", async () => {

@@ -1,12 +1,14 @@
 // @ts-check
 /** @odoo-module native */
-
 import { Component, onWillStart, onWillUpdateProps, useRef } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { getColorIndex } from "@web/core/colors/colors";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -20,11 +22,7 @@ import { useLongTouchSelection } from "@web/views/multi_record_selection";
 import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { compileViewTemplates } from "@web/views/view_compiler";
-import {
-    getColorIndex,
-    getFormattedValue,
-    getOpenActionParams,
-} from "@web/views/view_utils";
+import { getFormattedValue, getOpenActionParams } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser.js";
@@ -124,7 +122,7 @@ export function getFormattedRecord(record) {
     };
     const isField = (p) =>
         typeof p === "string" && (p === "id" || getFieldNames().has(p));
-    return new Proxy(Object.create(null), {
+    return new Proxy(Object.create(Object.prototype), {
         get(target, p) {
             return isField(p) ? getEntry(p) : Reflect.get(target, p);
         },
@@ -170,6 +168,8 @@ export function getImageSrcFromRecordInfo(record, model, field, idOrIds, placeho
 function isBinSize(value) {
     return /^\d+(\.\d*)? [^0-9]+$/.test(value);
 }
+
+const log = makeLogger("web.view.kanban.record");
 
 export class KanbanRecord extends Component {
     static components = {
@@ -219,6 +219,7 @@ export class KanbanRecord extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         useRenderCounter("kanban.KanbanRecord");
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         this.action = useAction();

@@ -8,6 +8,8 @@ from pathlib import Path
 from lxml import etree
 
 from odoo import tools
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import view_ir
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -15,6 +17,7 @@ if typing.TYPE_CHECKING:
     type Validator = Callable[..., bool]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 _validators: collections.defaultdict[str, list[Validator]] = collections.defaultdict(
@@ -29,7 +32,7 @@ _relaxng_cache: dict[str, etree.RelaxNG | None] = {}
 # schema and not because it was added to a decorator in this file.
 #
 # None is a meaningful declaration, not an absence: `form` and `kanban` are
-# qweb-based and validated structurally by ir.ui.view._check_view_tag_*, and
+# qweb-based and validated structurally by the element handlers of ir_ui_view_arch, and
 # saying so here is what lets a gate tell them apart from a type whose author
 # forgot.
 _view_schemas: dict[str, str | None] = {}
@@ -244,6 +247,9 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
     if not schema_valid(arch, **kwargs):
         _logger.warning("Invalid XML for view type %r: schema", arch.tag)
         return False
+    if not ir_valid(arch):
+        _logger.warning("Invalid XML for view type %r: view IR", arch.tag)
+        return False
     for pred in _validators.get(arch.tag, ()):
         if not pred(arch, **kwargs):
             _logger.warning(
@@ -251,14 +257,54 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
                 arch.tag,
                 pred.__doc__ or pred.__name__,
             )
+            _debug.logic(
+                "view_validation.predicate_rejected",
+                view_type=arch.tag,
+                predicate=pred.__name__,
+            )
             return False
+    _debug.pipeline(
+        "view_validation.valid",
+        view_type=arch.tag,
+        predicates=len(_validators.get(arch.tag, ())),
+        schema=_view_schemas.get(arch.tag) is not None,
+    )
     return True
+
+
+def ir_valid(arch: etree._Element) -> bool:
+    """Reject what the view IR schema calls an error: a tag no view type knows,
+    a required attribute missing, a value the attribute's type cannot read.
+    Undeclared attributes are warnings there and do not fail here."""
+    view_type = view_ir.schema().view_type_of(arch.tag)
+    if view_type is None:
+        _debug.logic("view_validation.ir_skipped", root=arch.tag)
+        return True
+    errors = [
+        issue
+        for issue in view_ir.get_issues(view_ir.from_arch(arch), view_type)
+        if issue.severity == "error"
+    ]
+    for issue in errors:
+        _logger.warning("%s", issue)
+    _debug.logic(
+        "view_validation.ir_checked",
+        view_type=view_type,
+        errors=len(errors),
+        first=str(errors[0]) if errors else None,
+    )
+    return not errors
 
 
 def register_validator(*view_types: str) -> Callable[[Validator], Validator]:
     def decorator(fn: Validator) -> Validator:
         for arch in view_types:
             _validators[arch].append(fn)
+        _debug.lifecycle(
+            "view_validation.validator_registered",
+            predicate=fn.__name__,
+            view_types=view_types,
+        )
         return fn
 
     return decorator
@@ -276,6 +322,12 @@ def register_schema(view_type: str, path: str | None) -> None:
     second registration for the same type replaces the first and drops the
     cached schema, which is what makes a module reloadable in tests.
     """
+    _debug.lifecycle(
+        "view_validation.schema_registered",
+        view_type=view_type,
+        path=path,
+        replaced=view_type in _view_schemas,
+    )
     if _view_schemas.get(view_type) != path:
         _relaxng_cache.pop(view_type, None)
     _view_schemas[view_type] = path
@@ -294,13 +346,20 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
             _relaxng_cache[view_type] = None
             return None
         try:
-            with tools.file_open(path) as frng:
-                _relaxng_cache[view_type] = etree.RelaxNG(etree.parse(frng))
-        except Exception:
+            with _debug.perf("view_validation.schema_compiled", view_type=view_type):
+                with tools.file_open(path) as frng:
+                    _relaxng_cache[view_type] = etree.RelaxNG(etree.parse(frng))
+        except Exception as exc:
             _logger.exception(
                 "Failed to load RelaxNG XML schema %r for view type %r",
                 path,
                 view_type,
+            )
+            _debug.logic(
+                "view_validation.schema_load_failed",
+                view_type=view_type,
+                path=path,
+                error=type(exc).__name__,
             )
             _relaxng_cache[view_type] = None
     return _relaxng_cache[view_type]
@@ -311,6 +370,11 @@ def schema_valid(arch: etree._Element, **kwargs: object) -> bool:
     view_type = arch.tag
     if _view_schemas.get(view_type) is None:
         # Declared no schema, or is not a registered view type at all.
+        _debug.logic(
+            "view_validation.schema_absent",
+            view_type=view_type,
+            registered=view_type in _view_schemas,
+        )
         return True
     validator = relaxng(view_type)
     if validator is None:
@@ -327,6 +391,11 @@ def schema_valid(arch: etree._Element, **kwargs: object) -> bool:
     if not validator.validate(arch):
         for error in validator.error_log:
             _logger.warning("%s", error)
+        _debug.logic(
+            "view_validation.schema_rejected",
+            view_type=view_type,
+            errors=len(validator.error_log),
+        )
         return False
     return True
 

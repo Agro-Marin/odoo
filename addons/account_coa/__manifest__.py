@@ -21,5 +21,4 @@ depend on.
         "views/account_account_views.xml",
         "views/account_account_tag_views.xml",
     ],
-    "installable": True,
 }

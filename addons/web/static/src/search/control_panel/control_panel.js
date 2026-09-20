@@ -8,6 +8,8 @@ import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { SearchModelEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
@@ -33,6 +35,8 @@ function makeNoEmbeddedInfos() {
         currentEmbeddedAction: undefined,
     };
 }
+
+const log = makeLogger("web.search.control_panel");
 
 export class ControlPanel extends Component {
     static template = "web.ControlPanel";
@@ -82,6 +86,7 @@ export class ControlPanel extends Component {
     isScrolling;
 
     setup() {
+        useLifecycleLog(log);
         this.actionService = useAction();
         this.pagerProps = this.env.config.pagerProps
             ? useState(this.env.config.pagerProps)

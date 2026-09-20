@@ -32,7 +32,6 @@ export class ProductImageViewer extends Dialog {
         });
         this.isDragging = false;
         this.dragStartPos = { x: 0, y: 0 };
-        // Doing a full render for the translate is too slow.
         this.imageTranslate = { x: 0, y: 0 };
         useHotkey("arrowleft", this.previousImage.bind(this));
         useHotkey("arrowright", this.nextImage.bind(this));
@@ -43,8 +42,6 @@ export class ProductImageViewer extends Dialog {
             this.updateImage();
         });
 
-        // Not using a t-on-click on purpose because we want to be able to cancel the drag
-        // when we go outside of the window.
         useEffect(
             (document) => {
                 const onGlobalClick = this.onGlobalClick.bind(this);
@@ -72,7 +69,6 @@ export class ProductImageViewer extends Dialog {
                 });
             }
         });
-        // For some reason the styling does not always update properly.
         onRendered(() => {
             this.updateImage();
         });
@@ -120,8 +116,6 @@ export class ProductImageViewer extends Dialog {
     }
 
     /**
-     * Centers the thumbnail row element on the currently selected image.
-     *
      * @private
      */
     _updateCarousel() {
@@ -143,7 +137,6 @@ export class ProductImageViewer extends Dialog {
 
     onGlobalClick(ev) {
         if (ev.target.tagName === "IMG") {
-            // Only zoom if the image did not move
             if (
                 this.dragStartPos.clientX === ev.clientX &&
                 this.dragStartPos.clientY === ev.clientY

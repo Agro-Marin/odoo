@@ -12,11 +12,7 @@ export class SaleOrderPortalReorder extends Interaction {
     };
 
     /**
-     * Handles the reorder functionality when the reorder button is clicked.
-     * Does the reorder by calling the `/my/orders/reorder` endpoint with the order ID and
-     * access token.
-     *
-     * @param {Event} ev - The event triggered when the reorder button is clicked.
+     * @param {Event} ev
      */
     async onReorder(ev) {
         this.orderId = parseInt(ev.currentTarget.dataset.saleOrderId);
@@ -37,8 +33,6 @@ export class SaleOrderPortalReorder extends Interaction {
                 }),
             );
 
-            // Sync cart quantity in session storage when adding reorder products from backend,
-            // since `website_sale_cart_quantity` updates only via the cart service.
             browser.sessionStorage.setItem(
                 "website_sale_cart_quantity",
                 values.cart_quantity,
@@ -52,11 +46,8 @@ export class SaleOrderPortalReorder extends Interaction {
     }
 
     /**
-     * Track the products added to the cart.
-     *
      * @private
-     * @param {Object[]} trackingInfo - A list of product tracking information.
-     *
+     * @param {Object[]} trackingInfo
      * @returns {void}
      */
     _trackProducts(trackingInfo) {

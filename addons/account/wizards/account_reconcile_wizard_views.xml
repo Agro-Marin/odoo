@@ -39,9 +39,8 @@
 
                 <field
                     name="reco_model_id"
-                    nolabel="1"
-                    domain="[['id', 'in', reco_model_autocomplete_ids]]"
                     widget="selection_badge"
+                    domain="[['id', 'in', reco_model_autocomplete_ids]]"
                     options="{'horizontal': true}"
                     invisible="not reco_model_autocomplete_ids and not reco_model_id" />
 
@@ -53,37 +52,37 @@
                             readonly="force_partials" />
                         <field
                             name="account_id"
-                            required="not allow_partials or edit_mode"
-                            invisible="allow_partials and not edit_mode" />
+                            invisible="allow_partials and not edit_mode"
+                            required="not allow_partials or edit_mode" />
                         <field
                             name="to_partner_id"
-                            required="not allow_partials or edit_mode"
-                            invisible="not is_rec_pay_account or (allow_partials and not edit_mode)" />
+                            invisible="not is_rec_pay_account or (allow_partials and not edit_mode)"
+                            required="not allow_partials or edit_mode" />
                         <field
                             name="tax_id"
                             context="{'append_fields': ['type_tax_use']}"
                             invisible="allow_partials and not edit_mode" />
                         <field
                             name="journal_id"
-                            required="not allow_partials or edit_mode"
-                            invisible="allow_partials and not edit_mode" />
+                            invisible="allow_partials and not edit_mode"
+                            required="not allow_partials or edit_mode" />
                         <field
                             name="label"
-                            required="not allow_partials or edit_mode"
-                            invisible="allow_partials and not edit_mode" />
+                            invisible="allow_partials and not edit_mode"
+                            required="not allow_partials or edit_mode" />
                     </group>
                     <group invisible="allow_partials and not edit_mode">
                         <div class="o_td_label">
                             <label
                                 for="amount_currency"
                                 string="Amount"
-                                class="o_form_label"
-                                invisible="edit_mode" />
+                                invisible="edit_mode"
+                                class="o_form_label" />
                             <label
                                 for="edit_mode_amount_currency"
                                 string="Amount"
-                                class="o_form_label"
-                                invisible="not edit_mode" />
+                                invisible="not edit_mode"
+                                class="o_form_label" />
                         </div>
                         <div class="d-flex">
                             <div name="regular_mode_amounts" invisible="edit_mode">
@@ -96,8 +95,8 @@
                                         class="d-flex o-row">
                                         <field
                                             name="amount_currency"
-                                            required="not allow_partials and not edit_mode"
                                             options="{'no_symbol': True}"
+                                            required="not allow_partials and not edit_mode"
                                             class="oe_inline" />
                                         <span class="oe_inline o_form_label mx-3" invisible="reco_currency_id == company_currency_id"> in </span>
                                         <field
@@ -120,8 +119,8 @@
                             <div name="edit_mode_amounts" invisible="not edit_mode">
                                 <field
                                     name="edit_mode_amount_currency"
-                                    required="edit_mode"
                                     options="{'no_symbol': True}"
+                                    required="edit_mode"
                                     class="oe_inline" />
                                 <span class="oe_inline o_form_label mx-3" invisible="single_currency_mode"> in </span>
                                 <field
@@ -137,18 +136,18 @@
 
                 <footer>
                     <button
-                        string="Reconcile"
-                        class="btn-primary"
                         name="reconcile"
                         type="object"
+                        string="Reconcile"
+                        class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Reconcile &amp; open"
-                        class="btn-primary"
                         name="reconcile_open"
                         type="object"
+                        string="Reconcile &amp; open"
+                        class="btn-primary"
                         data-hotkey="o" />
-                    <button string="Discard" special="cancel" data-hotkey="x" />
+                    <button special="cancel" string="Discard" data-hotkey="x" />
                 </footer>
             </form>
         </field>

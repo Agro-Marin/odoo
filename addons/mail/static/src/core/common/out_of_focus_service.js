@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 const PREVIEW_MSG_MAX_SIZE = 350;
+
+const log = makeLogger("mail.out_of_focus");
 
 export class OutOfFocusService {
     /**
@@ -35,11 +38,13 @@ export class OutOfFocusService {
      * @param {import("models").Thread} [thread]
      */
     async notify(message, thread) {
+        log.logic("notify", () => ({ message: message.id, thread: thread?.localId }));
         const modelsHandleByPush = ["mixin.mail.thread", "discuss.channel"];
         if (
             modelsHandleByPush.includes(message.thread?.model) &&
             (await this.hasServiceWorkInstalledAndPushSubscriptionActive())
         ) {
+            log.logic("notify delegated to push", () => ({ message: message.id }));
             return;
         }
         const author = message.author;
@@ -86,7 +91,16 @@ export class OutOfFocusService {
      * @param {string} [param0.icon]
      */
     async sendNotification({ message, sound = true, title, type, icon }) {
+        log.logic("sendNotification", () => ({
+            type,
+            title,
+            sound,
+            native: this.canSendNativeNotification,
+        }));
         if (!this.canSendNativeNotification || !(await this.multiTab.isOnMainTab())) {
+            log.logic("sendNotification sound only", () => ({
+                native: this.canSendNativeNotification,
+            }));
             if (sound) {
                 this._playSound();
             }
@@ -96,6 +110,7 @@ export class OutOfFocusService {
             this.sendNativeNotification(title, message, icon, { sound });
         } catch (error) {
             if (String(error?.message ?? "").includes("ServiceWorkerRegistration")) {
+                log.logic("native notification fell back to odoo notification");
                 this.sendOdooNotification(message, { sound, title, type });
             } else {
                 throw error;
@@ -144,6 +159,7 @@ export class OutOfFocusService {
             this.store.settings.messageSound &&
             (await this.multiTab.isOnMainTab())
         ) {
+            log.logic("playSound new-message");
             this.soundEffectService.play("new-message");
         }
     }

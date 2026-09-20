@@ -13,9 +13,6 @@ export class TermsAndConditionsCheckbox extends Interaction {
     }
 
     /**
-     * Enable/disable the payment button when the "Terms and Conditions" checkbox is
-     * checked/unchecked.
-     *
      * @return {void}
      */
     onClickTcCheckbox() {

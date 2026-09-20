@@ -10,53 +10,64 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     karma = fields.Integer(
-        "Karma", compute="_compute_karma", store=True, readonly=False
+        compute="_compute_karma",
+        store=True,
+        readonly=False,
     )
     karma_tracking_ids = fields.One2many(
-        "gamification.karma.tracking",
-        "user_id",
+        comodel_name="gamification.karma.tracking",
+        inverse_name="user_id",
         string="Karma Changes",
         groups="base.group_system",
     )
     badge_ids = fields.One2many(
-        "gamification.badge.user", "user_id", string="Badges", copy=False
+        comodel_name="gamification.badge.user",
+        inverse_name="user_id",
+        string="Badges",
+        copy=False,
     )
     gold_badge = fields.Integer(
-        "Gold badges count", compute="_compute_badge_level_counts"
+        string="Gold badges count",
+        compute="_compute_badge_level_counts",
     )
     silver_badge = fields.Integer(
-        "Silver badges count", compute="_compute_badge_level_counts"
+        string="Silver badges count",
+        compute="_compute_badge_level_counts",
     )
     bronze_badge = fields.Integer(
-        "Bronze badges count", compute="_compute_badge_level_counts"
+        string="Bronze badges count",
+        compute="_compute_badge_level_counts",
     )
-    rank_id = fields.Many2one("gamification.karma.rank", "Rank", index="btree_not_null")
-    next_rank_id = fields.Many2one("gamification.karma.rank", "Next Rank")
+    rank_id = fields.Many2one(
+        comodel_name="gamification.karma.rank",
+        index="btree_not_null",
+    )
+    next_rank_id = fields.Many2one(comodel_name="gamification.karma.rank")
 
     # XP progress fields for UI display
     xp_to_next_rank = fields.Integer(
-        "XP to Next Rank",
+        string="XP to Next Rank",
         compute="_compute_xp_progress",
     )
     xp_progress_percent = fields.Float(
-        "XP Progress %",
+        string="XP Progress %",
         compute="_compute_xp_progress",
     )
     streak_ids = fields.One2many(
-        "gamification.streak",
-        "user_id",
+        comodel_name="gamification.streak",
+        inverse_name="user_id",
         string="Streaks",
     )
 
     # Profile enhancements
     featured_badge_ids = fields.Many2many(
-        "gamification.badge.user",
-        "gamification_featured_badge_rel",
+        comodel_name="gamification.badge.user",
+        relation="gamification_featured_badge_rel",
         string="Featured Badges",
         help="Up to 3 badges showcased on the user's gamification profile.",
     )
     gamification_visibility = fields.Selection(
-        [
+        selection=[
             ("private", "Private"),
             ("team", "Team Only"),
             ("public", "Public"),
@@ -68,7 +79,7 @@ class ResUsers(models.Model):
         "not hide your karma or rank from someone who opens your user record.",
     )
     last_gamification_nudge_date = fields.Date(
-        "Last Nudge Date",
+        string="Last Nudge Date",
         help="Last date a gamification nudge was sent to this user.  "
         "Used to rate-limit nudges to at most once per week.",
     )
@@ -570,7 +581,7 @@ WHERE sub.user_id = ANY(%s)""",
             domain, order="karma_min ASC", limit=1
         )
 
-    def get_gamification_redirection_data(self) -> list[dict[str, str]]:
+    def prepare_rank_email_links(self) -> list[dict[str, str]]:
         """Hook for other modules to add redirect buttons in the rank-reached email.
 
         :return: list of dicts with 'url' and 'label' keys,
@@ -785,7 +796,7 @@ WHERE sub.user_id = ANY(%s)""",
 
     NUDGE_COOLDOWN_DAYS = 7
 
-    def _can_nudge(self) -> Self:
+    def _mark_eligible_users_nudged(self) -> Self:
         """Return the subset of users eligible for a nudge (not nudged within cooldown).
 
         Also marks the returned users as nudged today so subsequent
@@ -829,7 +840,7 @@ WHERE sub.user_id = ANY(%s)""",
                 ("current_count", ">=", 3),
             ]
         )
-        eligible_users = streaks.mapped("user_id")._can_nudge()
+        eligible_users = streaks.mapped("user_id")._mark_eligible_users_nudged()
         if not eligible_users:
             return
         for streak in streaks.filtered(lambda s: s.user_id in eligible_users):
@@ -865,7 +876,7 @@ WHERE sub.user_id = ANY(%s)""",
         if not candidate_ids:
             return
         candidates = self.browse(candidate_ids)
-        for user in candidates._can_nudge():
+        for user in candidates._mark_eligible_users_nudged():
             threshold = user.next_rank_id.karma_min
             distance = threshold - user.karma
             user._send_gamification_notification(
@@ -891,14 +902,14 @@ WHERE sub.user_id = ANY(%s)""",
             ]
         )
         # Narrow to goals that actually warrant a nudge *before* asking who is
-        # eligible: ``_can_nudge`` marks the users it returns as nudged, so
+        # eligible: ``_mark_eligible_users_nudged`` marks the users it returns as nudged, so
         # calling it on every goal owner burned the weekly nudge budget of
         # users who were nowhere near completion and never got a message —
         # which also blocked them from the other three nudge types.
         almost_done = goals.filtered(lambda g: 80 <= g.completeness < 100)
         if not almost_done:
             return
-        candidate_users = almost_done.mapped("user_id")._can_nudge()
+        candidate_users = almost_done.mapped("user_id")._mark_eligible_users_nudged()
         if not candidate_users:
             return
         for goal in almost_done.filtered(lambda g: g.user_id in candidate_users):
@@ -943,7 +954,7 @@ WHERE sub.user_id = ANY(%s)""",
         if not user_ids:
             return
 
-        for user in self.browse(user_ids)._can_nudge():
+        for user in self.browse(user_ids)._mark_eligible_users_nudged():
             user._send_gamification_notification(
                 "badge",
                 {

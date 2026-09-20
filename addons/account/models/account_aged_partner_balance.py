@@ -4,7 +4,10 @@ from itertools import chain
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
@@ -12,6 +15,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
     _inherit = ["account.report.custom.handler"]
     _description = "Aged Partner Balance Custom Handler"
 
+    @_debug.perf.timed
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
@@ -62,6 +66,17 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                     column["name"] = (
                         f"{interval * period_number + 1}-{interval * (period_number + 1)}"
                     )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "aging_options_resolved",
+                report=report,
+                show_currency=options["show_currency"],
+                show_account=options["show_account"],
+                hidden_columns=sorted(hidden_columns),
+                aging_based_on=options["aging_based_on"],
+                aging_interval=interval,
+                order_column=options["order_column"].get("expression_label"),
+            )
 
         options["custom_display_config"] = {
             "css_custom_class": "aged_partner_balance",
@@ -82,6 +97,12 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             if model == "res.partner":
                 partner_lines_map[model_id] = line
 
+        _debug.pipeline(
+            "trust_partner_lines_collected",
+            report=report,
+            lines=len(lines),
+            partner_lines=len(partner_lines_map),
+        )
         if partner_lines_map:
             for partner, line_dict in zip(
                 self.env["res.partner"].browse(partner_lines_map),
@@ -94,6 +115,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
 
         return lines
 
+    @_debug.perf.timed
     def _report_custom_engine_aged_receivable(
         self,
         expressions,
@@ -114,6 +136,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @_debug.perf.timed
     def _report_custom_engine_aged_payable(
         self,
         expressions,
@@ -134,6 +157,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @_debug.perf.timed
     def _aged_partner_report_custom_engine_common(
         self,
         options,
@@ -153,9 +177,9 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             return fields.Date.to_string(date_obj - relativedelta(days=days))
 
         aging_date_field = (
-            SQL.identifier("invoice_date")
+            SQL.identifier("aged_move", "invoice_date")
             if options["aging_based_on"] == "base_on_invoice_date"
-            else SQL.identifier("date_maturity")
+            else SQL.identifier("account_move_line", "date_maturity")
         )
         date_to = fields.Date.from_string(options["date"]["date_to"])
         interval = options["aging_interval"]
@@ -178,6 +202,16 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                 minus_days(date_to, interval * (i + 1)) if i < nb_periods - 1 else False
             )
             periods.append((start_date, end_date))
+        _debug.logic(
+            "aging_periods_built",
+            report=report,
+            internal_type=internal_type,
+            aging_based_on=options["aging_based_on"],
+            interval=interval,
+            periods=len(periods),
+            groupby=current_groupby,
+            next_groupby=next_groupby,
+        )
 
         def prepare_result_dict(report, query_res_lines):
             rslt = {f"period{i}": 0 for i in range(len(periods))}
@@ -309,10 +343,10 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                 ) AS amount_currency,
                 ARRAY_AGG(DISTINCT account_move_line.partner_id) AS partner_id,
                 ARRAY_AGG(account_move_line.payment_id) AS payment_id,
-                ARRAY_AGG(DISTINCT account_move_line.invoice_date) AS invoice_date,
-                ARRAY_AGG(DISTINCT COALESCE(account_move_line.%(aging_date_field)s, account_move_line.date)) AS report_date,
+                ARRAY_AGG(DISTINCT aged_move.invoice_date) AS invoice_date,
+                ARRAY_AGG(DISTINCT COALESCE(%(aging_date_field)s, account_move_line.date)) AS report_date,
                 ARRAY_AGG(DISTINCT %(account_code)s) AS account_name,
-                ARRAY_AGG(DISTINCT COALESCE(account_move_line.%(aging_date_field)s, account_move_line.date)) AS due_date,
+                ARRAY_AGG(DISTINCT COALESCE(%(aging_date_field)s, account_move_line.date)) AS due_date,
                 ARRAY_AGG(DISTINCT account_move_line.currency_id) AS currency_id,
                 COUNT(account_move_line.id) AS aml_count,
                 ARRAY_AGG(%(account_code)s) AS account_code,
@@ -321,6 +355,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             FROM %(table_references)s
 
             JOIN account_journal journal ON journal.id = account_move_line.journal_id
+            JOIN account_move aged_move ON aged_move.id = account_move_line.move_id
             %(currency_table_join)s
 
             LEFT JOIN LATERAL (
@@ -346,12 +381,12 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             JOIN period_table ON
                 (
                     period_table.date_start IS NULL
-                    OR COALESCE(account_move_line.%(aging_date_field)s, account_move_line.date) <= DATE(period_table.date_start)
+                    OR COALESCE(%(aging_date_field)s, account_move_line.date) <= DATE(period_table.date_start)
                 )
                 AND
                 (
                     period_table.date_stop IS NULL
-                    OR COALESCE(account_move_line.%(aging_date_field)s, account_move_line.date) >= DATE(period_table.date_stop)
+                    OR COALESCE(%(aging_date_field)s, account_move_line.date) >= DATE(period_table.date_stop)
                 )
 
             WHERE %(search_condition)s
@@ -393,6 +428,16 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
 
         self.env.cr.execute(query)
         query_res_lines = self.env.cr.dictfetchall()
+        _debug.pipeline(
+            "aged_rows_fetched",
+            report=report,
+            internal_type=internal_type,
+            groupby=current_groupby,
+            rows=len(query_res_lines),
+            offset=offset,
+            limit=limit,
+            aggregated=not current_groupby,
+        )
 
         if not current_groupby:
             return prepare_result_dict(report, query_res_lines)
@@ -408,10 +453,18 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                 rslt.append(
                     (grouping_key, prepare_result_dict(report, query_res_lines))
                 )
+            _debug.pipeline(
+                "aged_groups_built",
+                report=report,
+                groupby=current_groupby,
+                groups=len(rslt),
+            )
 
             return rslt
 
+    @_debug.perf.timed
     def open_journal_items(self, options, params):
+        _debug.lifecycle("open_journal_items", records=self)
         params["view_ref"] = "account.view_account_move_line_list_grouped_partner"
         options_for_audit = {**options, "date": {**options["date"], "date_from": None}}
         report = self.env["account.report"].browse(options["report_id"])
@@ -421,11 +474,14 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
         )
         return action
 
+    @_debug.perf.timed
     def open_customer_statement(self, options, params):
+        _debug.lifecycle("open_customer_statement", records=self)
         report = self.env["account.report"].browse(options["report_id"])
         record_model, record_id = report._get_model_info_from_id(params.get("line_id"))
         return self.env[record_model].browse(record_id).open_customer_statement()
 
+    @_debug.perf.timed
     def _common_custom_unfold_all_batch_data_generator(
         self, internal_type, report, options, lines_to_expand_by_function
     ):
@@ -447,13 +503,19 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                         line_to_expand["id"], "account.report.line"
                     )
                     expressions_to_evaluate = report.line_ids.expression_ids.filtered(
-                        lambda x: (
-                            x.report_line_id.id == report_line_id  # noqa: B023
+                        lambda x, report_line_id=report_line_id: (
+                            x.report_line_id.id == report_line_id
                             and x.engine == "custom"
                         )
                     )
 
                     if not expressions_to_evaluate:
+                        _debug.logic(
+                            "unfold_batch_skipped",
+                            report=report,
+                            reason="no_custom_expressions",
+                            report_line=report_line_id,
+                        )
                         continue
 
                     for (
@@ -521,9 +583,25 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                                 partner_expression_totals[expression][
                                     "sublines_info"
                                 ].add(partner_id)
+                        _debug.pipeline(
+                            "unfold_batch_column_group",
+                            report=report,
+                            report_line=report_line_id,
+                            column_group=column_group_key,
+                            partners=len(aml_data_by_partner),
+                            expressions=len(expressions_to_evaluate),
+                        )
 
+        _debug.pipeline(
+            "unfold_batch_generated",
+            report=report,
+            internal_type=internal_type,
+            expand_functions=len(lines_to_expand_by_function),
+            groupby_keys=len(rslt),
+        )
         return rslt
 
+    @_debug.perf.timed
     def _prepare_partner_values(self):
         return {
             "invoice_date": None,
@@ -560,6 +638,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             action["domain"] = domain
         return action
 
+    @_debug.perf.timed
     def _prepare_domain_from_period(self, options, period):
         if period != "total" and period[-1].isdigit():
             period_number = int(period[-1])
@@ -603,6 +682,13 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                     ]
         else:
             domain = []
+        _debug.logic(
+            "audit_period_domain",
+            report=options.get("report_id"),
+            period=period,
+            aging_interval=options.get("aging_interval"),
+            domain_leaves=len(domain),
+        )
         return domain
 
 
@@ -621,7 +707,9 @@ class AccountAgedSideReportHandler(models.AbstractModel):
     def _get_aged_account_type_option(self):
         raise NotImplementedError
 
+    @_debug.perf.timed
     def open_journal_items(self, options, params):
+        _debug.lifecycle("open_journal_items", records=self)
         options.setdefault("account_type", []).append(
             self._get_aged_account_type_option()
         )
@@ -640,7 +728,9 @@ class AccountAgedSideReportHandler(models.AbstractModel):
             )
         return {}
 
+    @_debug.perf.timed
     def action_audit_cell(self, options, params):
+        _debug.lifecycle("action_audit_cell", records=self)
         return super().aged_partner_balance_audit(
             options, params, self._aged_audit_journal_type
         )

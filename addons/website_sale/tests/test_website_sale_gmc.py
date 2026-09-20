@@ -27,7 +27,7 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
     def test_gmc_xml_correct_xml_format(self):
         response = self.url_open(self.gmc_feed.url)
 
-        gmc_xml = etree.XML(response.content)  # assert valid xml
+        gmc_xml = etree.XML(response.content)
         self.assertEqual(self.website.name, gmc_xml.xpath("//title")[0].text)
         self.assertURLEqual("/en", gmc_xml.xpath("//link")[0].text)
         self.assertEqual(
@@ -65,7 +65,7 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
             gmc_xml = etree.XML(self.gmc_feed._render_gmc_feed().encode())
 
         self.assertEqual(
-            "1100.0 EUR",  # 1000.0 * 1.1 (EUR rate)
+            "1100.0 EUR",
             gmc_xml.xpath(
                 '//item[g:id="SOFA-R"]/g:price',
                 namespaces={"g": "http://base.google.com/ns/1.0"},
@@ -88,11 +88,9 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
                     "identifier_exists",
                 },
                 item.keys(),
-            )  # subseteq
+            )
 
     def test_gmc_items_use_internal_reference_if_exists(self):
-        """Test prefer internal code to database id"""
-        # setup: red_sofa.code = 'SOFA-R', blue_sofa.code = False
         self.update_items()
 
         self.assertEqual(self.red_sofa.code, self.red_sofa_item["id"])
@@ -164,13 +162,10 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
 
         self.update_items()
 
-        # 1000.0 (list_price) * 1.1 (EUR rate) - 10% (discount)
         self.assertEqual("990.0 EUR", self.red_sofa_item["sale_price"])
-        # 1200.0 (list_price) * 1.1 (EUR rate) - 10% (discount)
         self.assertEqual("1188.0 EUR", self.blue_sofa_item["sale_price"])
-        # 100.0 (list_price) * 1.1 (EUR rate)
         self.assertEqual("110.0 EUR", self.items[self.blanket]["price"])
-        self.assertNotIn("sale_price", self.items[self.blanket])  # no discount
+        self.assertNotIn("sale_price", self.items[self.blanket])
         self.assertNotEqual(self.red_sofa_item["link"], self.blue_sofa_item["link"])
         self.start_tour(
             self.red_sofa_item["link"],
@@ -182,7 +177,6 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
         )
 
     def test_gmc_items_prices_match_website_prices_tax_included(self):
-        # 15% taxes
         self.website.show_line_subtotals_tax_selection = "tax_included"
 
         self.update_items()
@@ -229,8 +223,6 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
         self.assertEqual("no", self.blue_sofa_item["identifier_exists"])
 
     def test_gmc_items_sorted_types(self):
-        # Furnitures / Sofas
-        # Furnitures / Indoor Furnitures / Indoor Sofas
         furnitures_categ, sofas_categ = self._create_public_category(
             [
                 {"name": "Furnitures"},
@@ -296,11 +288,9 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
 
         self.update_items()
 
-        # same template
         self.assertEqual(
             self.red_sofa_item["item_group_id"], self.blue_sofa_item["item_group_id"]
         )
-        # no other variant
         self.assertNotIn("item_group_id", self.items[product_one_variant])
 
     def test_gmc_items_bundle_if_is_combo_product(self):
@@ -372,7 +362,6 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
         self.update_items()
         self.assertNotIn("unit_pricing_measure", self.items[six_pack])
 
-        # enable "Product Reference Price" setting
         self.env.user.group_ids |= self.env.ref("website_sale.group_show_uom_price")
         self.update_items()
 
@@ -382,7 +371,7 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
 
     def test_gmc_items_dont_send_unsupported_unit(self):
         six_pack = self._setup_6l_water_pack()
-        six_pack.base_unit_id = False  # remove `L` alias -> falls back to `Pack of 6`
+        six_pack.base_unit_id = False
 
         self.update_items()
 

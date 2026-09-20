@@ -2,7 +2,6 @@ import base64
 import json
 from datetime import UTC, datetime
 
-import requests
 from google.auth.transport.requests import Request
 
 from odoo import _, api, fields, models
@@ -29,7 +28,8 @@ class ResConfigSettings(models.TransientModel):
     )
     # Google Service Account Key in JSON format
     cloud_storage_google_service_account_key = fields.Binary(
-        string="Google Service Account Key", store=False
+        string="Google Service Account Key",
+        store=False,
     )
     cloud_storage_google_account_info = fields.Char(
         string="Google Service Account Info",
@@ -78,7 +78,9 @@ class ResConfigSettings(models.TransientModel):
             method="PUT",
             expiration=IrAttachment._cloud_storage_upload_url_time_to_expiry,
         )
-        upload_response = requests.put(upload_url, data=b"", timeout=5)
+        upload_response = self.env["ir.egress"].request(
+            "PUT", upload_url, purpose="cloud_storage", data=b"", timeout=5
+        )
         if upload_response.status_code != 200:
             raise ValidationError(
                 _(
@@ -94,7 +96,9 @@ class ResConfigSettings(models.TransientModel):
             method="GET",
             expiration=IrAttachment._cloud_storage_download_url_time_to_expiry,
         )
-        download_response = requests.get(download_url, timeout=5)
+        download_response = self.env["ir.egress"].request(
+            "GET", download_url, purpose="cloud_storage", timeout=5
+        )
         if download_response.status_code != 200:
             raise ValidationError(
                 _(
@@ -123,7 +127,9 @@ class ResConfigSettings(models.TransientModel):
             "Content-Type": "application/json",
         }
         data = json.dumps({"cors": cors})
-        patch_response = requests.patch(url, data=data, headers=headers, timeout=5)
+        patch_response = self.env["ir.egress"].request(
+            "PATCH", url, purpose="cloud_storage", data=data, headers=headers, timeout=5
+        )
         if patch_response.status_code != 200:
             raise ValidationError(
                 _(

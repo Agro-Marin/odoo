@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { getQueueSequence } from "@point_of_sale/app/utils/offline_queue";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { AlertDialog } from "@web/ui/dialog";
 
@@ -11,6 +12,7 @@ const RECONNECT_BASE_DELAY = 3000;
 const RECONNECT_MAX_DELAY = 60000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const OPEN_BLOCKED_TIMEOUT = 10000;
+const log = makeLogger("pos.idb");
 
 export default class IndexedDB {
     constructor(dbName, dbVersion, dbStores, whenReady, dialog = null) {
@@ -44,6 +46,14 @@ export default class IndexedDB {
         }
 
         this.dbInstance = indexedDB;
+        const endOpen = log.perf("open");
+        log.lifecycle("open", () => ({
+            db: this.dbName,
+            version: this.dbVersion,
+            stores: this.dbStores.length,
+            reconnecting: this._isReconnecting,
+            attempt: this._reconnectAttempts,
+        }));
         let dbInstance;
         if (this.dbVersion) {
             dbInstance = indexedDB.open(this.dbName, this.dbVersion);
@@ -63,6 +73,7 @@ export default class IndexedDB {
 
         dbInstance.onerror = (event) => {
             const err = event.target.error;
+            endOpen({ error: err?.message || event.target.errorCode });
             logPosMessage(
                 "IndexedDB",
                 "databaseEventListener",
@@ -120,10 +131,18 @@ export default class IndexedDB {
                 }
             }
 
+            log.logic("open: schema", () => ({
+                db: this.dbName,
+                version: this.db.version,
+                stores: actualStoreNames.length,
+                expected: this.dbStores.length,
+                needsUpgrade,
+            }));
             if (needsUpgrade) {
                 const newVersion = this.db.version + 1;
                 this.db.close();
                 this.dbVersion = newVersion;
+                endOpen({ upgradeTo: newVersion });
 
                 logPosMessage(
                     "IndexedDB",
@@ -145,14 +164,23 @@ export default class IndexedDB {
                 `IndexedDB ${this.dbName} Ready`,
                 CONSOLE_COLOR,
             );
+            endOpen({ db: this.dbName, version: this.db.version });
             whenReady?.();
         };
         dbInstance.onupgradeneeded = (event) => {
+            const created = [];
             for (const [id, storeName] of this.dbStores) {
                 if (!event.target.result.objectStoreNames.contains(storeName)) {
                     event.target.result.createObjectStore(storeName, { keyPath: id });
+                    created.push(storeName);
                 }
             }
+            log.lifecycle("upgradeneeded", () => ({
+                db: this.dbName,
+                oldVersion: event.oldVersion,
+                newVersion: event.newVersion,
+                created,
+            }));
         };
     }
 
@@ -162,6 +190,7 @@ export default class IndexedDB {
         }
 
         const results = [];
+        const endAll = log.perf(`${method} ${storeName}`);
         for (let i = 0; i < arrData.length; i += BATCH_SIZE) {
             let timeoutId;
             let finished = false;
@@ -170,6 +199,11 @@ export default class IndexedDB {
             const transaction = this.getNewTransaction([storeName], "readwrite");
 
             if (!transaction) {
+                log.logic("promises: no transaction", () => ({
+                    store: storeName,
+                    method,
+                    batch: batch.length,
+                }));
                 results.push({
                     status: "rejected",
                     reason: "Transaction could not be created",
@@ -269,6 +303,11 @@ export default class IndexedDB {
                 .catch((err) => ({ status: "rejected", reason: err }));
             results.push(result);
         }
+        endAll({
+            rows: arrData.length,
+            batches: results.length,
+            rejected: results.filter((r) => r.status === "rejected").length,
+        });
 
         return results;
     }
@@ -283,6 +322,12 @@ export default class IndexedDB {
             this.activeTransactions.add(transaction);
             return transaction;
         } catch (e) {
+            log.logic("getNewTransaction: failed", () => ({
+                stores: dbStore,
+                mode,
+                error: e.name,
+                reconnect: e.name === "InvalidStateError",
+            }));
             logPosMessage(
                 "IndexedDB",
                 "getNewTransaction",
@@ -315,10 +360,22 @@ export default class IndexedDB {
             RECONNECT_MAX_DELAY,
         );
         this._reconnectAttempts++;
+        log.lifecycle("reconnect scheduled", () => ({
+            db: this.dbName,
+            attempt: this._reconnectAttempts,
+            delay,
+        }));
         setTimeout(() => this.databaseEventListener(), delay);
     }
 
     _openFailed(reason) {
+        log.logic("openFailed", () => ({
+            db: this.dbName,
+            reason,
+            reconnecting: this._isReconnecting,
+            attempts: this._reconnectAttempts,
+            giveUp: this._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS,
+        }));
         if (!this._isReconnecting) {
             return;
         }
@@ -371,6 +428,7 @@ export default class IndexedDB {
     }
 
     reset() {
+        log.lifecycle("reset", () => ({ db: this.dbName, open: Boolean(this.db) }));
         return new Promise((resolve) => {
             if (this.db) {
                 this.db.close();
@@ -499,8 +557,10 @@ export default class IndexedDB {
         const storeNames =
             store.length > 0 ? store : this.dbStores.map((store) => store[1]);
         const transaction = this.getNewTransaction(storeNames, "readonly");
+        const endRead = log.perf("readAll");
 
         if (!transaction) {
+            endRead({ stores: storeNames.length, noTransaction: true });
             return Promise.resolve(false);
         }
 
@@ -540,15 +600,21 @@ export default class IndexedDB {
                 }),
         );
 
-        return Promise.allSettled(promises).then((results) =>
-            results.reduce((acc, result) => {
+        return Promise.allSettled(promises).then((results) => {
+            const data = results.reduce((acc, result) => {
                 if (result.status === "fulfilled") {
                     return { ...acc, ...result.value };
                 } else {
                     return acc;
                 }
-            }, {}),
-        );
+            }, {});
+            endRead({
+                stores: storeNames.length,
+                rows: Object.values(data).reduce((sum, rows) => sum + rows.length, 0),
+                rejected: results.filter((r) => r.status === "rejected").length,
+            });
+            return data;
+        });
     }
 
     delete(storeName, uuids) {

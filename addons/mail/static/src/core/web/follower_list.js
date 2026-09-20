@@ -5,8 +5,11 @@ import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { useVisible } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.follower");
 /**
  * @typedef {Object} Props
  * @property {import("@web/components/dropdown").DropdownState} dropdown
@@ -36,6 +39,7 @@ export class FollowerList extends Component {
     }
 
     onClickAddFollowers() {
+        log.logic("onClickAddFollowers", () => ({ thread: this.props.thread.localId }));
         const action = {
             type: "ir.actions.act_window",
             res_model: "mail.followers.edit",
@@ -63,6 +67,10 @@ export class FollowerList extends Component {
     }
 
     async onClickUnfollow() {
+        log.logic("onClickUnfollow", () => ({
+            thread: this.props.thread.localId,
+            selfFollower: Boolean(this.props.thread.selfFollower),
+        }));
         if (this.props.thread.selfFollower) {
             await this.props.thread.selfFollower.remove();
             this.props.onFollowerChanged?.();

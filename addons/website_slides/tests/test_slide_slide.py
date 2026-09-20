@@ -8,9 +8,6 @@ from odoo.addons.website_slides.tests import common as slides_common
 
 class TestSlideInternals(slides_common.SlidesCase):
     def test_compute_category_completion_time(self):
-        """
-        Check that we properly calculate the completion time of a course without error, after deleting a slide.
-        """
         self.category2 = (
             self.env["slide.slide"]
             .with_user(self.user_officer)
@@ -67,7 +64,6 @@ class TestSlideInternals(slides_common.SlidesCase):
     @mute_logger("odoo.db")
     @users("user_manager")
     def test_slide_create_vote_constraint(self):
-        # test vote value must be 1, 0 and -1.
         with self.assertRaises(psycopg.errors.CheckViolation):
             self.env["slide.slide.partner"].create(
                 {
@@ -80,7 +76,6 @@ class TestSlideInternals(slides_common.SlidesCase):
 
     @users("user_manager")
     def test_slide_user_has_completed_category(self):
-        # As an uncategorized slide doesn't have a category, the method should always return False
         uncategorized_slide = self.channel.slide_ids.filtered(
             lambda s: not s.is_category and not s.category_id
         )
@@ -92,22 +87,15 @@ class TestSlideInternals(slides_common.SlidesCase):
 
         category_slides = self.category.slide_ids
         self.assertEqual(len(category_slides), 2)
-        # No slide completed in the category
         self.assertFalse(any(category_slides.mapped("user_has_completed")))
         self.assertFalse(category_slides[0].user_has_completed_category)
-        # One slide completed in the category
         category_slides[0].user_has_completed = True
         self.assertFalse(category_slides[0].user_has_completed_category)
-        # All slides completed in the category
         for slide in category_slides:
             slide.user_has_completed = True
         self.assertTrue(category_slides[0].user_has_completed_category)
 
     def test_comments_count_matches_visible_chatter(self):
-        """comments_count must count only what the portal chatter shows:
-        internal notes and empty messages are excluded, so the badge never
-        exceeds the visible comment list (regression for the counter/chatter
-        divergence)."""
         slide = self.slide
         slide.message_post(
             body="Visible comment",
@@ -119,7 +107,6 @@ class TestSlideInternals(slides_common.SlidesCase):
             message_type="comment",
             subtype_xmlid="mail.mt_note",
         )
-        # Empty-body, no-attachment message of a counted type: shown nowhere.
         self.env["mail.message"].create(
             {
                 "model": "slide.slide",
@@ -133,7 +120,6 @@ class TestSlideInternals(slides_common.SlidesCase):
         self.assertEqual(slide.comments_count, 1)
 
     def test_change_content_type(self):
-        """To prevent constraint violation when changing type from video to article and vice-versa"""
         slide = (
             self.env["slide.slide"]
             .with_context(website_slides_skip_fetch_metadata=True)
@@ -166,7 +152,7 @@ class TestVideoFromURL(slides_common.SlidesCase):
                 "https://www.youtube.com/live/W0JQcpGLSFw?feature=shared",
                 "https://youtube.com/shorts/W0JQcpGLSFw?si=N9xYS2w3f1BWuhU9",
             ],
-            "vmhB-pt7EfA": [  # id starts with v, it is important
+            "vmhB-pt7EfA": [
                 "https://youtu.be/vmhB-pt7EfA",
                 "https://www.youtube.com/watch?feature=youtu.be&v=vmhB-pt7EfA",
                 "https://www.youtube.com/watch?v=vmhB-pt7EfA&list=PL1-aSABtP6ACZuppkBqXFgzpNb2nVctZx&index=7",
@@ -183,7 +169,6 @@ class TestVideoFromURL(slides_common.SlidesCase):
             website_slides_skip_fetch_metadata=True
         )
 
-        # test various YouTube URL formats
         for youtube_id, urls in youtube_urls.items():
             for url in urls:
                 with self.subTest(url=url, id=youtube_id):
@@ -210,7 +195,6 @@ class TestVideoFromURL(slides_common.SlidesCase):
             website_slides_skip_fetch_metadata=True
         )
 
-        # test various Google Drive URL formats
         for google_drive_id, urls in google_drive_urls.items():
             for url in urls:
                 with self.subTest(url=url, id=google_drive_id):
@@ -227,18 +211,14 @@ class TestVideoFromURL(slides_common.SlidesCase):
 
     def test_video_vimeo(self):
         vimeo_urls = {
-            # regular URL from Vimeo
             "545859999": [
                 "https://vimeo.com/545859999",
                 "https://vimeo.com/545859999?autoplay=1",
             ],
-            # test channel URL from Vimeo
             "551979139": [
                 "https://vimeo.com/channels/staffpicks/551979139",
                 "https://vimeo.com/channels/staffpicks/551979139?autoplay=1",
             ],
-            # test URL from Vimeo with setting 'with URL only'
-            # we need to store both the ID and the token, see '_compute_embed_code' method for details
             "545859999/94dd03ddb0": [
                 "https://vimeo.com/545859999/94dd03ddb0",
                 "https://vimeo.com/545859999/94dd03ddb0?autoplay=1",
@@ -249,7 +229,6 @@ class TestVideoFromURL(slides_common.SlidesCase):
             website_slides_skip_fetch_metadata=True
         )
 
-        # test various Vimeo URL formats
         for vimeo_id, urls in vimeo_urls.items():
             for url in urls:
                 with self.subTest(url=url, id=vimeo_id):

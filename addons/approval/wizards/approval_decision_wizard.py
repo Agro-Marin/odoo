@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..models import approval_trace as trace
+
 
 class ApprovalDecisionWizard(models.TransientModel):
     _name = "approval.decision.wizard"
@@ -30,8 +32,8 @@ class ApprovalDecisionWizard(models.TransientModel):
     )
     user_id = fields.Many2one(
         comodel_name="res.users",
-        string="User",
         related="approver_id.user_id",
+        string="User",
         readonly=True,
     )
     decision_type = fields.Selection(
@@ -40,8 +42,8 @@ class ApprovalDecisionWizard(models.TransientModel):
             ("change", "Request Change"),
         ],
         string="Decision",
-        required=True,
         readonly=True,
+        required=True,
         help="Type of decision being made",
     )
 
@@ -71,23 +73,23 @@ class ApprovalDecisionWizard(models.TransientModel):
 
     note = fields.Text(
         help="Free-text message to the requester. Required when "
-        "requesting a change; optional when refusing.",
+        "requesting a change; optional when refusing."
     )
     request_name = fields.Char(
-        string="Request",
         related="request_id.name",
+        string="Request",
         readonly=True,
     )
     request_owner_id = fields.Many2one(
         comodel_name="res.users",
-        string="Request Owner",
         related="request_id.request_owner_id",
+        string="Request Owner",
         readonly=True,
     )
     category_id = fields.Many2one(
         comodel_name="approval.category",
-        string="Category",
         related="request_id.category_id",
+        string="Category",
         readonly=True,
     )
 
@@ -101,6 +103,12 @@ class ApprovalDecisionWizard(models.TransientModel):
         self.check_singleton()
         reason = self.refusal_reason_id
         if reason.category_ids and request.category_id not in reason.category_ids:
+            trace.REFUSAL.event(
+                "reason_wrong_category",
+                request=request.id,
+                reason=reason.id,
+                category=request.category_id.id,
+            )
             raise UserError(
                 self.env._(
                     "The reason '%(reason)s' is not available for the "
@@ -110,6 +118,12 @@ class ApprovalDecisionWizard(models.TransientModel):
                 ),
             )
         if reason.company_id and reason.company_id != request.company_id:
+            trace.REFUSAL.event(
+                "reason_wrong_company",
+                request=request.id,
+                reason=reason.id,
+                company=request.company_id.id,
+            )
             raise UserError(
                 self.env._(
                     "The reason '%(reason)s' is restricted to another "
@@ -121,6 +135,11 @@ class ApprovalDecisionWizard(models.TransientModel):
     def action_confirm_refuse(self):
         self.check_singleton()
         if not self.refusal_reason_id:
+            trace.REFUSAL.event(
+                "refusal_without_reason",
+                request=self.request_id.id,
+                approver=self.approver_id.id,
+            )
             raise UserError(
                 self.env._("Please select a reason for refusing this request.")
             )
@@ -132,7 +151,15 @@ class ApprovalDecisionWizard(models.TransientModel):
                 before=self._stamp_refusal,
             )
         if not self.approver_id:
+            trace.REFUSAL.event("refusal_without_a_row", wizard=self.id)
             raise UserError(self.env._("There is no approval to refuse."))
+        trace.WIZARD.note(
+            "refuse",
+            request=self.request_id.id,
+            approver=self.approver_id.id,
+            reason=self.refusal_reason_id.id,
+            noted=bool(self.note),
+        )
         self._stamp_refusal(self.request_id, self.approver_id)
         self.approver_id.with_context(skip_wizard=True).action_refuse()
         return {"type": "ir.actions.act_window_close"}
@@ -158,6 +185,9 @@ class ApprovalDecisionWizard(models.TransientModel):
     def action_confirm_change(self):
         self.check_singleton()
         if not self.change_field:
+            trace.REFUSAL.event(
+                "change_request_without_field", request=self.request_id.id
+            )
             raise UserError(
                 self.env._(
                     "Select which field the requester must update "
@@ -165,12 +195,23 @@ class ApprovalDecisionWizard(models.TransientModel):
                 ),
             )
         if not self.note:
+            trace.REFUSAL.event(
+                "change_request_without_note",
+                request=self.request_id.id,
+                field=self.change_field,
+            )
             raise UserError(
                 self.env._(
                     "Explain what the requester should change.",
                 ),
             )
 
+        trace.WIZARD.note(
+            "request_change",
+            request=self.request_id.id,
+            approver=self.approver_id.id,
+            field=self.change_field,
+        )
         self.request_id.with_context(
             skip_wizard=True,
             requested_change_field=self.change_field,

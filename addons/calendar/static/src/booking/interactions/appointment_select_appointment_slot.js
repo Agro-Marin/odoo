@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { Interaction } from "@web/public/interaction";
-import { serializeDateTime, deserializeDateTime } from "@web/core/l10n/dates";
+import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
+import { Interaction } from "@web/public/interaction";
+
 import { DateTime } from "luxon";
 export class appointmentSlotSelect extends Interaction {
     static selector = ".o_appointment_info";
@@ -57,7 +58,6 @@ export class appointmentSlotSelect extends Interaction {
         this.removeLoadingSpinner();
         this.firstEl?.click();
     }
-
 
     /**
      * Adapts the availability helpers to the calendar currently rendered.
@@ -349,7 +349,7 @@ export class appointmentSlotSelect extends Interaction {
         const resourceCapacity = this.el.querySelector(
             "select[name='resourceCapacity']",
         )?.value;
-        let commonUrlParams = new URLSearchParams(window.location.search);
+        const commonUrlParams = new URLSearchParams(window.location.search);
         // The url may still carry the staff user, resource, duration and date_time of a
         // previous booking attempt (e.g. slot already taken, visitor sent back to the
         // calendar). Drop them so they do not interfere with the values bound to the
@@ -373,16 +373,14 @@ export class appointmentSlotSelect extends Interaction {
                 scheduleBasedOn: scheduleBasedOn,
                 slotDate: DateTime.fromISO(slotDate).toFormat("cccc dd MMMM yyyy"),
                 slots: slots,
-                getAvailableResources: (slot) => {
-                    return scheduleBasedOn === "resources"
+                getAvailableResources: (slot) =>
+                    scheduleBasedOn === "resources"
                         ? JSON.stringify(slot["available_resources"])
-                        : false;
-                },
-                getAvailableUsers: (slot) => {
-                    return scheduleBasedOn === "users"
+                        : false,
+                getAvailableUsers: (slot) =>
+                    scheduleBasedOn === "users"
                         ? JSON.stringify(slot["available_staff_users"])
-                        : false;
-                },
+                        : false,
             },
             this.slotsListEl,
         );

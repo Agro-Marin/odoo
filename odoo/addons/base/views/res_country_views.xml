@@ -36,8 +36,8 @@
                     <field
                         name="image_url"
                         widget="image_url"
-                        class="oe_avatar"
-                        options="{'size': [128,128]}" />
+                        options="{'size': [128,128]}"
+                        class="oe_avatar" />
                     <group name="main_group">
                         <group name="country_details">
                             <field name="name" />

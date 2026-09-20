@@ -372,3 +372,58 @@ test("an Array method with no record-list reimplementation throws instead of cop
         "materialized",
     );
 });
+
+test("the membership set of a record list follows every mutator", async () => {
+    (class Team extends Record {
+        static id = "id";
+        id;
+        members = fields.Many(/** @type {string} */ ("Person"), { inverse: "team" });
+        lead = fields.One(/** @type {string} */ ("Person"), { inverse: "leadOf" });
+    }).register(localRegistry);
+    (class Person extends Record {
+        static id = "id";
+        id;
+        team = fields.One(/** @type {string} */ ("Team"));
+        leadOf = fields.One(/** @type {string} */ ("Team"));
+    }).register(localRegistry);
+    const store = await start();
+    const team = store.Team.insert({ id: 1 });
+    const people = store.Person.insert([1, 2, 3, 4, 5, 6].map((id) => ({ id })));
+    const raw = (list) => toRaw(list)._raw;
+    const agrees = (list) => {
+        const rawList = raw(list);
+        for (const person of people) {
+            const localId = toRaw(person)._raw.localId;
+            expect(rawList._.has(rawList, localId)).toBe(
+                rawList.data.includes(localId),
+            );
+        }
+        expect(rawList._.localIdSet?.size ?? rawList.data.length).toBe(
+            rawList.data.length,
+        );
+    };
+    team.members.add(people[0], people[1]);
+    agrees(team.members);
+    people[2].team = team; // inverse path (addNoinv)
+    agrees(team.members);
+    team.members.add(people[2]); // already a member: no duplicate
+    expect(team.members.length).toBe(3);
+    team.members.splice(1, 1, people[3], people[4]);
+    agrees(team.members);
+    team.members.delete(people[0]);
+    agrees(team.members);
+    people[3].team = undefined; // inverse removal (deleteNoinv)
+    agrees(team.members);
+    team.members = [people[5], people[1]]; // assign
+    agrees(team.members);
+    team.lead = people[0];
+    team.lead = people[1]; // One replace
+    agrees(raw(team).lead);
+    team.members.clear();
+    agrees(team.members);
+    expect(team.members.length).toBe(0);
+    team.members.unshift(people[4]);
+    team.members.push(people[5]);
+    agrees(team.members);
+    expect(team.members.map((p) => p.id)).toEqual([5, 6]);
+});

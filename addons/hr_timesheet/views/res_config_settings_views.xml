@@ -9,54 +9,54 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Timesheets"
-                    string="Timesheets"
                     name="hr_timesheet"
+                    id="timesheets"
+                    string="Timesheets"
                     groups="hr_timesheet.group_timesheet_manager"
-                    id="timesheets">
-                    <block title="Time Encoding" name="time_encoding_setting_container">
+                    data-string="Timesheets">
+                    <block name="time_encoding_setting_container" title="Time Encoding">
                         <setting
                             id="time_mode_setting"
-                            company_dependent="1"
-                            invisible="project_time_mode_id">
+                            invisible="project_time_mode_id"
+                            company_dependent="1">
                             <field
                                 name="project_time_mode_id"
                                 options="{'no_create': True, 'no_open': True}" />
                         </setting>
                         <setting
-                            company_dependent="1"
+                            id="time_unit_timesheets_setting"
                             help="Time unit used to record your timesheets"
-                            id="time_unit_timesheets_setting">
+                            company_dependent="1">
                             <field
                                 name="timesheet_encode_method"
-                                class="col-lg-5 ps-0"
-                                widget="radio" />
+                                widget="radio"
+                                class="col-lg-5 ps-0" />
                             <field name="is_encode_uom_days" invisible="1" />
                         </setting>
                     </block>
                     <block title="Timesheets Control">
                         <setting
                             id="reminder_user_allow"
-                            company_dependent="1"
-                            help="Send a periodical email reminder to timesheets users that still have timesheets to encode">
+                            help="Send a periodical email reminder to timesheets users that still have timesheets to encode"
+                            company_dependent="1">
                             <field
                                 name="reminder_user_allow"
                                 widget="upgrade_boolean" />
                         </setting>
                         <setting
                             id="reminder_allow"
-                            company_dependent="1"
-                            help="Send a periodical email reminder to timesheets approvers that still have timesheets to validate">
+                            help="Send a periodical email reminder to timesheets approvers that still have timesheets to validate"
+                            company_dependent="1">
                             <field name="reminder_allow" widget="upgrade_boolean" />
                         </setting>
                     </block>
                     <div name="section_leaves">
-                        <block title="Time Off" name="timesheet_control">
+                        <block name="timesheet_control" title="Time Off">
                             <setting
-                                company_dependent="1"
-                                documentation="/applications/services/timesheets/time_off.html"
+                                id="timesheet_off_validation_setting"
                                 help="Generate timesheets for validated time off requests and public holidays"
-                                id="timesheet_off_validation_setting">
+                                company_dependent="1"
+                                documentation="/applications/services/timesheets/time_off.html">
                                 <field name="module_project_timesheet_holidays" />
                             </setting>
                         </block>

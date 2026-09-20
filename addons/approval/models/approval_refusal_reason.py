@@ -1,5 +1,6 @@
 from odoo import fields, models
 
+from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
@@ -27,7 +28,7 @@ class ApprovalRefusalReason(models.Model):
         help="Short description of the refusal reason (e.g., 'Missing Documentation', 'Budget Exceeded')",
     )
     active = fields.Boolean(
-        help="Inactive reasons are hidden but preserved for historical records",
+        help="Inactive reasons are hidden but preserved for historical records"
     )
     sequence = fields.Integer(
         default=10,
@@ -68,3 +69,9 @@ class ApprovalRefusalReason(models.Model):
         }
         for reason in self:
             reason.usage_count = counts.get(reason.id, 0)
+        trace.COMPUTE.event(
+            "refusal_reason_usage_count",
+            n=len(self),
+            used=len(counts),
+            requests=sum(counts.values()),
+        )

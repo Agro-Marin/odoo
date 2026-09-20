@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import { Popover } from "@web/ui/popover/popover";
@@ -27,6 +28,8 @@ import { Popover } from "@web/ui/popover/popover";
  * }} PopoverServiceAddOptions
  * @typedef {PopoverService["add"]} PopoverServiceAddFunction
  */
+
+const log = makeLogger("web.ui.popover");
 
 class PopoverService {
     /** @param {{ overlay: any }} services */
@@ -56,6 +59,11 @@ class PopoverService {
      * @returns {(removeParams?: any) => Promise<void>}
      */
     add(target, component, props = {}, options = {}) {
+        log.lifecycle("add", () => ({
+            component: component.name,
+            target: target?.tagName,
+            position: options.position,
+        }));
         return this.present(target, component, props, options);
     }
 }

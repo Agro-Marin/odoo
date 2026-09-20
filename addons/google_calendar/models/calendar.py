@@ -18,13 +18,14 @@ class CalendarEvent(models.Model):
     MEET_ROUTE = "meet.google.com"
 
     google_id = fields.Char(
-        "Google Calendar Event Id",
+        string="Google Calendar Event Id",
         compute="_compute_google_id",
         store=True,
         readonly=False,
     )
     guests_readonly = fields.Boolean(
-        "Guests Event Modification Permission", default=False
+        string="Guests Event Modification Permission",
+        default=False,
     )
     videocall_source = fields.Selection(
         selection_add=[("google_meet", "Google Meet")],
@@ -97,35 +98,32 @@ class CalendarEvent(models.Model):
         )
 
     @api.model
-    def _check_values_to_sync(self, values):
+    def _has_values_to_sync(self, values):
         """Return True if values being updated intersects with Google synced values and False otherwise."""
         synced_fields = self._get_fields_google_synced()
         return any(key in synced_fields for key in values)
 
     @api.model
-    def _get_update_future_events_values(self):
+    def _prepare_update_future_events_values(self):
         """Add parameters for updating events within the _update_future_events function scope."""
-        update_future_events_values = super()._get_update_future_events_values()
+        update_future_events_values = super()._prepare_update_future_events_values()
         return {**update_future_events_values, "need_sync": False}
 
     @api.model
-    def _get_remove_sync_id_values(self):
+    def _prepare_remove_sync_id_values(self):
         """Add parameters for removing event synchronization while updating the events in super class."""
-        remove_sync_id_values = super()._get_remove_sync_id_values()
+        remove_sync_id_values = super()._prepare_remove_sync_id_values()
         return {**remove_sync_id_values, "google_id": False}
 
     @api.model
-    def _get_archive_values(self):
+    def _prepare_archive_values(self):
         """Return the parameters for archiving events. Do not synchronize events after archiving."""
-        archive_values = super()._get_archive_values()
+        archive_values = super()._prepare_archive_values()
         return {**archive_values, "need_sync": False}
 
     def write(self, vals):
         recurrence_update_setting = vals.get("recurrence_update")
-        if (
-            recurrence_update_setting in ("all_events", "future_events")
-            and len(self) == 1
-        ):
+        if recurrence_update_setting in ("all", "subsequent") and len(self) == 1:
             vals = dict(vals, need_sync=False)
         notify_context = self.env.context.get("dont_notify", False)
         if not notify_context and (
@@ -136,7 +134,7 @@ class CalendarEvent(models.Model):
             vals
         )
         if (
-            recurrence_update_setting == "all_events"
+            recurrence_update_setting == "all"
             and len(self) == 1
             and vals.keys() & self._get_fields_google_synced()
         ):
@@ -150,7 +148,7 @@ class CalendarEvent(models.Model):
         # Edge case 2: when resetting an account, we must be able to erase the event's google_id.
         skip_event_permission = self.env.context.get("skip_event_permission", False)
         # Edge case 3: check if event is synchronizable in order to make sure the error is worth it.
-        is_synchronizable = self._check_values_to_sync(values)
+        is_synchronizable = self._has_values_to_sync(values)
         if google_sync_restart or skip_event_permission or not is_synchronizable:
             return
         if any(
@@ -293,24 +291,23 @@ class CalendarEvent(models.Model):
         attendees_by_emails = {
             tools.email_normalize(a.email): a for a in existing_attendees
         }
-        partners = self._get_sync_partner(emails)
-        for attendee in zip(emails, partners, google_attendees, strict=False):
-            email = attendee[0]
+        partner_by_email = self._get_sync_partner(emails)
+        for email, google_attendee in zip(emails, google_attendees, strict=True):
             if email in attendees_by_emails:
                 # Update existing attendees
                 attendee_commands += [
                     (
                         1,
                         attendees_by_emails[email].id,
-                        {"state": attendee[2].get("responseStatus")},
+                        {"state": google_attendee.get("responseStatus")},
                     )
                 ]
             else:
                 # Create new attendees
-                if attendee[2].get("self"):
+                if google_attendee.get("self"):
                     partner = self.env.user.partner_id
-                elif attendee[1]:
-                    partner = attendee[1]
+                elif partner_by_email.get(email):
+                    partner = partner_by_email[email]
                 else:
                     continue
                 attendee_commands += [
@@ -318,14 +315,14 @@ class CalendarEvent(models.Model):
                         0,
                         0,
                         {
-                            "state": attendee[2].get("responseStatus"),
+                            "state": google_attendee.get("responseStatus"),
                             "partner_id": partner.id,
                         },
                     )
                 ]
                 partner_commands += [(4, partner.id)]
-                if attendee[2].get("displayName") and not partner.name:
-                    partner.name = attendee[2].get("displayName")
+                if google_attendee.get("displayName") and not partner.name:
+                    partner.name = google_attendee.get("displayName")
         for odoo_attendee in attendees_by_emails.values():
             # Remove old attendees but only if it does not correspond to the current user.
             email = tools.email_normalize(odoo_attendee.email)
@@ -346,7 +343,7 @@ class CalendarEvent(models.Model):
             )
 
             minutes = reminder.get("minutes", 0)
-            alarm = self.env["calendar.alarm"].search(
+            alarm = self.env["calendar.alarm"].search(  # noqa: E8507 - one lookup per reminder of the synced event
                 [("alarm_type", "=", alarm_type), ("duration_minutes", "=", minutes)],
                 limit=1,
             )
@@ -392,20 +389,20 @@ class CalendarEvent(models.Model):
         return commands
 
     def action_mass_archive(self, recurrence_update_setting):
-        """Delete recurrence in Odoo if in 'all_events' or in 'future_events' edge case, triggering one mail."""
+        """Delete recurrence in Odoo if in 'all' or in 'subsequent' edge case, triggering one mail."""
         self.check_singleton()
         google_service = GoogleCalendarService(self.env["google.service"])
         archive_future_events = (
-            recurrence_update_setting == "future_events"
+            recurrence_update_setting == "subsequent"
             and self == self.recurrence_id.base_event_id
         )
-        if recurrence_update_setting == "all_events" or archive_future_events:
+        if recurrence_update_setting == "all" or archive_future_events:
             self.recurrence_id.with_context(is_recurrence=True)._google_delete(
                 google_service, self.recurrence_id.google_id
             )
-            # Increase performance handling 'future_events' edge case as it was an 'all_events' update.
+            # Increase performance handling 'subsequent' edge case as it was an 'all' update.
             if archive_future_events:
-                recurrence_update_setting = "all_events"
+                recurrence_update_setting = "all"
         super().action_mass_archive(recurrence_update_setting)
 
     def _get_google_start_end(self):

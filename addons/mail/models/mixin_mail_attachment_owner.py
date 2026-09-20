@@ -4,6 +4,9 @@ from typing import Self
 from odoo import api, models
 from odoo.api import ValuesType
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailAttachmentOwner(models.AbstractModel):
@@ -45,6 +48,14 @@ class MixinMailAttachmentOwner(models.AbstractModel):
                     and attachment.res_model
                     and attachment.res_id
                 )
+            )
+            _debug.lifecycle(
+                "attachment_ownership",
+                model=record._name,
+                record=record.id,
+                foreign=len(foreign),
+                adopted=len(foreign - owned_elsewhere),
+                copied=len(owned_elsewhere),
             )
             if adoptable := foreign - owned_elsewhere:
                 adoptable.write({"res_model": record._name, "res_id": record.id})

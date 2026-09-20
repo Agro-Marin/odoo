@@ -8,14 +8,18 @@ class EventBoothCategory(models.Model):
     _order = "sequence ASC"
 
     active = fields.Boolean(default=True)
-    name = fields.Char(string="Name", required=True, translate=True)
-    sequence = fields.Integer(string="Sequence", default=10)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=10)
     description = fields.Html(
-        string="Description", translate=True, sanitize_attributes=False
+        translate=True,
+        sanitize_attributes=False,
     )
     booth_ids = fields.One2many(
-        "event.booth",
-        "booth_category_id",
+        comodel_name="event.booth",
+        inverse_name="booth_category_id",
         string="Booths",
         groups="event.group_event_registration_desk",
     )

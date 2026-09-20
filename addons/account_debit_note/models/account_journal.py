@@ -7,8 +7,8 @@ class AccountJournal(models.Model):
     debit_sequence = fields.Boolean(
         string="Dedicated Debit Note Sequence",
         compute="_compute_debit_sequence",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Check this box if you don't want to share the same sequence for invoices "
         "and debit notes made from this journal",
     )

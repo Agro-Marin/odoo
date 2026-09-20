@@ -8,12 +8,12 @@
         <field name="arch" type="xml">
             <xpath expr="//div[hasclass('oe_button_box')]/button" position="before">
                 <button
-                    class="oe_stat_button"
                     name="action_view_ro"
                     type="object"
-                    icon="fa-wrench"
                     help="Repair Orders"
-                    invisible="repair_part_count == 0 or not display_complete">
+                    icon="fa-wrench"
+                    invisible="repair_part_count == 0 or not display_complete"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <div
                             class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
@@ -30,9 +30,9 @@
                 </button>
                 <button
                     name="action_lot_open_repairs"
+                    type="object"
                     icon="fa-wrench"
-                    class="oe_stat_button"
-                    type="object">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <div
                             class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">

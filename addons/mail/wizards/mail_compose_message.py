@@ -10,6 +10,7 @@ from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import (
     email_normalize,
     email_normalize_all,
@@ -27,6 +28,7 @@ from odoo.addons.mail.tools.parser import parse_res_ids
 from odoo.addons.mail.tools.recipients import prepare_recipient_data
 
 if typing.TYPE_CHECKING:
+    from ..models.ir_mail_server import IrMail_Server
     from ..models.mail_activity_type import MailActivityType
     from ..models.mail_alias_domain import MailAliasDomain
     from ..models.mail_mail import MailMail
@@ -35,10 +37,11 @@ if typing.TYPE_CHECKING:
     from ..models.mail_scheduled_message import MailScheduledMessage
     from ..models.mail_template import MailTemplate
     from ..models.res_partner import ResPartner
-    from odoo.addons.base.models.ir_mail_server import IrMail_Server
     from odoo.addons.base.models.res_company import ResCompany
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 COMPOSER_FIELD_TO_TEMPLATE_FIELD = {
     "attachments": "report_template_ids",
@@ -48,9 +51,7 @@ COMPOSER_FIELD_TO_TEMPLATE_FIELD = {
 
 TEMPLATE_FIELD_TO_COMPOSER_FIELD = {"body_html": "body"}
 
-TEMPLATE_RENDER_FIELDS = (DYNAMIC_FIELD_NAMES - RECIPIENT_FIELD_NAMES) | (
-    ATTACHMENT_FIELD_NAMES
-)
+TEMPLATE_RENDER_FIELDS = DYNAMIC_FIELD_NAMES - RECIPIENT_FIELD_NAMES
 
 SENT_EMAILS_MAPPING_CONTEXT_KEY = "mail_composer_sent_emails_mapping"
 
@@ -106,67 +107,73 @@ class MailComposeMessage(models.TransientModel):
         return {fname: result[fname] for fname in result if fname in fields}
 
     subject = fields.Char(
-        "Subject", compute="_compute_subject", readonly=False, store=True
+        compute="_compute_subject",
+        store=True,
+        readonly=False,
     )
     body = fields.Html(
-        "Contents",
-        render_engine="qweb",
-        render_options={"post_process": True},
+        string="Contents",
         sanitize_style=True,
         compute="_compute_body",
-        readonly=False,
         store=True,
+        readonly=False,
+        render_engine="qweb",
+        render_options={"post_process": True},
     )
     parent_id: MailMessage = fields.Many2one(
-        "mail.message", "Parent Message", ondelete="set null"
+        comodel_name="mail.message",
+        string="Parent Message",
+        ondelete="set null",
     )
     template_id: MailTemplate = fields.Many2one(
-        "mail.template",
-        "Use template",
+        comodel_name="mail.template",
+        string="Use template",
         domain="[('model', '=', model), '|', ('user_id','=', False), ('user_id', '=', uid)]",
     )
     template_render_values = fields.Json(compute="_compute_template_render_values")
+    template_render_attachments = fields.Json(
+        compute="_compute_template_render_attachments"
+    )
     lang = fields.Char(precompute=False)
     attachment_ids: IrAttachment = fields.Many2many(
-        "ir.attachment",
-        "mail_compose_message_ir_attachments_rel",
-        "wizard_id",
-        "attachment_id",
+        comodel_name="ir.attachment",
+        relation="mail_compose_message_ir_attachments_rel",
+        column1="wizard_id",
+        column2="attachment_id",
         string="Attachments",
         compute="_compute_attachment_ids",
-        readonly=False,
         store=True,
+        readonly=False,
         bypass_search_access=True,
     )
     email_layout_xmlid = fields.Char(
-        "Email Notification Layout",
+        string="Email Notification Layout",
         compute="_compute_email_layout_xmlid",
-        readonly=False,
+        compute_sudo=False,
         store=True,
         copy=False,
-        compute_sudo=False,
+        readonly=False,
     )
     email_add_signature = fields.Boolean(
-        "Add signature",
+        string="Add signature",
         compute="_compute_email_add_signature",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     email_from = fields.Char(
-        "From",
+        string="From",
         compute="_compute_authorship",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         help="Email address of the sender. This field is set when no matching partner is found and replaces the author_id field in the chatter.",
     )
     author_id: ResPartner = fields.Many2one(
-        "res.partner",
-        string="Author",
+        comodel_name="res.partner",
         compute="_compute_authorship",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         help="Author of the message. If not set, email_from may hold an email address that did not match any partner.",
     )
     composition_mode = fields.Selection(
@@ -178,81 +185,92 @@ class MailComposeMessage(models.TransientModel):
         default="comment",
     )
     composition_batch = fields.Boolean(
-        "Batch composition", compute="_compute_composition_batch"
+        string="Batch composition",
+        compute="_compute_composition_batch",
     )
     composition_comment_option = fields.Selection(
-        [("reply_all", "Reply-All"), ("forward", "Forward")], string="Comment Options"
+        selection=[("reply_all", "Reply-All"), ("forward", "Forward")],
+        string="Comment Options",
     )
     model = fields.Char(
-        "Related Document Model", compute="_compute_model", readonly=False, store=True
+        string="Related Document Model",
+        compute="_compute_model",
+        store=True,
+        readonly=False,
     )
     model_is_thread = fields.Boolean(
-        "Thread-Enabled", compute="_compute_model_is_thread"
+        string="Thread-Enabled",
+        compute="_compute_model_is_thread",
     )
     res_ids = fields.Text(
-        "Related Document IDs", compute="_compute_res_ids", readonly=False, store=True
+        string="Related Document IDs",
+        compute="_compute_res_ids",
+        store=True,
+        readonly=False,
     )
-    res_domain = fields.Text("Active domain")
+    res_domain = fields.Text(string="Active domain")
     res_domain_user_id: ResUsers = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Responsible",
         help="Used as context used to evaluate composer domain",
     )
     record_alias_domain_id: MailAliasDomain = fields.Many2one(
-        "mail.alias.domain",
-        "Alias Domain",
+        comodel_name="mail.alias.domain",
+        string="Alias Domain",
         compute="_compute_record_environment",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     record_company_id: ResCompany = fields.Many2one(
-        "res.company",
-        "Company",
+        comodel_name="res.company",
+        string="Company",
         compute="_compute_record_environment",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     message_type = fields.Selection(
-        [
+        selection=[
             ("auto_comment", "Automated Targeted Notification"),
             ("comment", "Comment"),
             ("notification", "System notification"),
         ],
-        "Type",
-        required=True,
+        string="Type",
         default="comment",
+        required=True,
         help="Message type: email for email message, notification for system "
         "message, comment for other messages such as user replies",
     )
     subtype_id: MailMessageSubtype = fields.Many2one(
-        "mail.message.subtype",
-        "Subtype",
-        ondelete="set null",
+        comodel_name="mail.message.subtype",
         compute="_compute_subtype_id",
-        readonly=False,
         store=True,
+        readonly=False,
+        ondelete="set null",
     )
-    subtype_is_log = fields.Boolean("Is a log", compute="_compute_subtype_is_log")
+    subtype_is_log = fields.Boolean(
+        string="Is a log",
+        compute="_compute_subtype_is_log",
+    )
     mail_activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type", "Mail Activity Type", ondelete="set null"
+        comodel_name="mail.activity.type",
+        ondelete="set null",
     )
     reply_to = fields.Char(
-        "Reply To",
         compute="_compute_reply_to",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         help="Reply email address. Setting the reply_to bypasses the automatic thread creation.",
     )
     reply_to_force_new = fields.Boolean(
         string="Considers answers as new thread",
         compute="_compute_reply_to_force_new",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Manage answers as new incoming emails instead of replies going to the same thread.",
     )
     reply_to_mode = fields.Selection(
-        [
+        selection=[
             ("update", "Store email and replies in the chatter of each record"),
             ("new", "Collect replies on a specific email address"),
         ],
@@ -262,77 +280,81 @@ class MailComposeMessage(models.TransientModel):
         help="Original Discussion: Answers go in the original document discussion thread. \n Another Email Address: Answers go to the email address mentioned in the tracking message-id instead of original document discussion thread. \n This has an impact on the generated message-id.",
     )
     partner_ids: ResPartner = fields.Many2many(
-        "res.partner",
-        "mail_compose_message_res_partner_rel",
-        "wizard_id",
-        "partner_id",
-        "Additional Contacts",
+        comodel_name="res.partner",
+        relation="mail_compose_message_res_partner_rel",
+        column1="wizard_id",
+        column2="partner_id",
+        string="Additional Contacts",
         compute="_compute_partner_ids",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     partner_ids_all_have_email = fields.Boolean(
         compute="_compute_partner_ids_all_have_email"
     )
     notified_bcc_contains_share = fields.Boolean(
-        "Is an external partner follower of the document?",
+        string="Is an external partner follower of the document?",
         compute="_compute_notified_bcc_contains_share",
     )
     auto_delete = fields.Boolean(
-        "Delete Emails",
+        string="Delete Emails",
         compute="_compute_auto_delete",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         help="This option permanently removes any track of email after it's been sent, including from the Technical menu in the Settings, in order to preserve storage space of your Odoo database.",
     )
     auto_delete_keep_log = fields.Boolean(
-        "Keep Message Copy",
+        string="Keep Message Copy",
         compute="_compute_auto_delete_keep_log",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Keep a copy of the email content if emails are removed (mass mailing only)",
     )
     force_send = fields.Boolean(
-        "Send mailing or notifications directly",
+        string="Send mailing or notifications directly",
         compute="_compute_force_send",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     mail_server_id: IrMail_Server = fields.Many2one(
-        "ir.mail_server",
+        comodel_name="ir.mail_server",
         string="Outgoing mail server",
         compute="_compute_mail_server_id",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
     )
     notify_author = fields.Boolean(
-        compute="_compute_notify_author", readonly=False, store=True
+        compute="_compute_notify_author",
+        store=True,
+        readonly=False,
     )
     notify_author_mention = fields.Boolean(
-        compute="_compute_notify_author_mention", readonly=False, store=True
+        compute="_compute_notify_author_mention",
+        store=True,
+        readonly=False,
     )
     notify_skip_followers = fields.Boolean(
-        compute="_compute_notify_skip_followers", readonly=False, store=True
+        compute="_compute_notify_skip_followers",
+        store=True,
+        readonly=False,
     )
     scheduled_date = fields.Char(
-        "Scheduled Date",
         compute="_compute_scheduled_date",
-        readonly=False,
-        store=True,
         compute_sudo=False,
+        store=True,
+        readonly=False,
         help="In comment mode: if set, postpone notifications sending. "
         "In mass mail mode: if sent, send emails after that date. "
         "This date is considered as being in UTC timezone.",
     )
     use_exclusion_list = fields.Boolean(
-        "Use Exclusion List",
         default=True,
         copy=False,
         help="Prevent sending messages to blacklisted contacts. Disable only when absolutely necessary.",
     )
-    template_name = fields.Char("Template Name")
+    template_name = fields.Char()
 
     @api.constrains("res_ids")
     def _check_res_ids(self) -> None:
@@ -381,9 +403,28 @@ class MailComposeMessage(models.TransientModel):
     @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_template_render_values(self) -> None:
         for composer in self:
-            composer.template_render_values = composer._render_template_values()
+            values = composer._render_template_fields(TEMPLATE_RENDER_FIELDS)
+            if values and (scheduled_date := values.get("scheduled_date")):
+                values["scheduled_date"] = fields.Datetime.to_string(scheduled_date)
+            composer.template_render_values = values
 
-    def _render_template_values(self) -> dict | Literal[False]:
+    @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
+    def _compute_template_render_attachments(self) -> None:
+        for composer in self:
+            values = composer._render_template_fields(ATTACHMENT_FIELD_NAMES)
+            if values and (attachments := values.get("attachments")):
+                values["attachments"] = [
+                    [name, datas.decode()] for name, datas in attachments
+                ]
+            composer.template_render_attachments = values
+
+    def _render_template_fields(self, fnames) -> dict | Literal[False]:
+        """Render the template's `fnames` for the composer's one record.
+
+        Attachments render apart from the text fields: a report renders its page,
+        and building that page's assets flushes, which recomputes the composer's
+        other fields while the render that asked for it is still running.
+        """
         self.check_singleton()
         if (
             not self.template_id
@@ -392,16 +433,7 @@ class MailComposeMessage(models.TransientModel):
         ):
             return False
         res_ids = self._evaluate_res_ids() or [0]
-        values = self.template_id._prepare_mail_vals(res_ids, TEMPLATE_RENDER_FIELDS)[
-            res_ids[0]
-        ]
-        if scheduled_date := values.get("scheduled_date"):
-            values["scheduled_date"] = fields.Datetime.to_string(scheduled_date)
-        if attachments := values.get("attachments"):
-            values["attachments"] = [
-                [name, datas.decode()] for name, datas in attachments
-            ]
-        return values
+        return self.template_id._prepare_mail_vals(res_ids, fnames)[res_ids[0]]
 
     @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_attachment_ids(self) -> None:
@@ -410,7 +442,7 @@ class MailComposeMessage(models.TransientModel):
                 composer.composition_mode == "mass_mail" or composer.composition_batch
             ):
                 composer.attachment_ids = composer.template_id.attachment_ids
-            elif rendered_values := composer.template_render_values:
+            elif rendered_values := composer.template_render_attachments:
                 attachment_ids = list(rendered_values.get("attachment_ids") or [])
                 if attachments := rendered_values.get("attachments"):
                     attachment_ids += (
@@ -511,9 +543,13 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("model")
     def _compute_model_is_thread(self) -> None:
+        thread = self.pool["mixin.mail.thread"]
         for composer in self:
-            model = self.env["ir.model"]._get(composer.model)
-            composer.model_is_thread = model.is_mail_thread
+            composer.model_is_thread = bool(
+                composer.model
+                and composer.model in self.env
+                and isinstance(self.env[composer.model], thread)
+            )
 
     @api.depends("composition_mode", "parent_id")
     def _compute_res_ids(self) -> None:
@@ -763,14 +799,16 @@ class MailComposeMessage(models.TransientModel):
     @api.autovacuum
     def _gc_lost_attachments(self) -> None:
         limit_date = fields.Datetime.subtract(fields.Datetime.now(), days=1)
-        self.env["ir.attachment"].search(
+        lost = self.env["ir.attachment"].search(
             [
                 ("res_model", "=", self._name),
                 ("res_id", "=", 0),
                 ("create_date", "<", limit_date),
                 ("write_date", "<", limit_date),
             ]
-        ).unlink()
+        )
+        _debug.lifecycle("gc_lost_attachments", removed=len(lost))
+        lost.unlink()
 
     def action_schedule_message(self) -> dict:
         self._action_schedule_message()
@@ -816,6 +854,9 @@ class MailComposeMessage(models.TransientModel):
             create_values.append(
                 wizard._prepare_schedule_message_post_values(post_values)
             )
+        _debug.lifecycle(
+            "messages_scheduled", wizards=self.ids, scheduled=len(create_values)
+        )
         return self.env["mail.scheduled.message"].create(create_values)
 
     def action_send_mail(self) -> dict:
@@ -850,30 +891,41 @@ class MailComposeMessage(models.TransientModel):
                     f"record. No records found (model {wizard.model})."
                 )
 
-            if wizard.composition_mode == "mass_mail":
-                result_mails_su += wizard._action_send_mail_mass_mail(
-                    res_ids, auto_commit=auto_commit
-                )
-            else:
-                result_messages += wizard._action_send_mail_comment(res_ids)
+            with _debug.perf(
+                "send_mail",
+                cr=self.env.cr,
+                wizard=wizard.id,
+                model=wizard.model or None,
+                mode=wizard.composition_mode,
+                records=len(res_ids),
+                template=wizard.template_id.id or None,
+                by_domain=bool(wizard.res_domain),
+                auto_commit=auto_commit,
+            ):
+                if wizard.composition_mode == "mass_mail":
+                    result_mails_su += wizard._action_send_mail_mass_mail(
+                        res_ids, auto_commit=auto_commit
+                    )
+                else:
+                    result_messages += wizard._action_send_mail_comment(res_ids)
 
         return result_mails_su, result_messages
 
     def _action_send_mail_comment(self, res_ids: list[int]) -> MailMessage:
         self.check_singleton()
-        post_values_all = self._manage_mail_values(self._prepare_mail_values(res_ids))
-        ActiveModel = (
-            self.env[self.model]
-            if self.model and hasattr(self.env[self.model], "message_post")
-            else self.env["mixin.mail.thread"]
+        post_values_all = self._prepare_post_values(res_ids)
+        ActiveModel = self._get_comment_target_model()
+        _debug.pipeline(
+            "send_comment",
+            wizard=self.id,
+            model=ActiveModel._name,
+            records=len(post_values_all),
+            batch=self.composition_batch,
+            by="notify" if ActiveModel._name == "mixin.mail.thread" else "post",
         )
-        if self.composition_batch:
-            ActiveModel = ActiveModel.with_context(
-                mail_post_autofollow_author_skip=True,
-            )
-        messages = self.env["mail.message"]
-        for res_id, post_values in post_values_all.items():
-            if ActiveModel._name == "mixin.mail.thread":
+        if ActiveModel._name == "mixin.mail.thread":
+            messages = self.env["mail.message"]
+            for res_id, post_values in post_values_all.items():
                 post_values.pop("message_type")
                 post_values.pop("parent_id", False)
                 if self.model:
@@ -883,9 +935,25 @@ class MailComposeMessage(models.TransientModel):
                 if not message:
                     raise UserError(_("No recipient found."))
                 messages += message
-            else:
-                messages += ActiveModel.browse(res_id).message_post(**post_values)
-        return messages
+            return messages
+        return ActiveModel._message_post_values_all(post_values_all)
+
+    def _get_comment_target_model(self) -> models.Model:
+        self.check_singleton()
+        ActiveModel = (
+            self.env[self.model]
+            if self.model and hasattr(self.env[self.model], "message_post")
+            else self.env["mixin.mail.thread"]
+        )
+        if self.composition_batch:
+            ActiveModel = ActiveModel.with_context(
+                mail_post_autofollow_author_skip=True,
+            )
+        return ActiveModel
+
+    def _prepare_post_values(self, res_ids: list[int]) -> dict[int, dict]:
+        self.check_singleton()
+        return self._manage_mail_values(self._prepare_mail_values(res_ids))
 
     def _action_send_mail_mass_mail(
         self, res_ids: list[int], auto_commit: bool = False
@@ -929,6 +997,16 @@ class MailComposeMessage(models.TransientModel):
                 self.env["ir.cron"]._commit_progress(
                     batch_done, remaining=len(res_ids) - counter_mails_done
                 )
+            _debug.pipeline(
+                "mass_mail_batch",
+                wizard=self.id,
+                batch=len(res_ids_iter),
+                prepared=len(prepared_mail_values_filtered),
+                mails=len(iter_mails_sudo),
+                sent=sent_in_batch,
+                done=counter_mails_done,
+                total=len(res_ids),
+            )
             if not (sent_in_batch and auto_commit):
                 self.env.invalidate_all()
 
@@ -936,6 +1014,9 @@ class MailComposeMessage(models.TransientModel):
 
     def _generate_mail_notification_values(self, mails: MailMail) -> list:
         if self.auto_delete and not self.auto_delete_keep_log:
+            _debug.logic(
+                "mail_notifications_skipped", wizard=self.id, reason="auto_delete"
+            )
             return []
 
         create_vals_all = []
@@ -992,6 +1073,12 @@ class MailComposeMessage(models.TransientModel):
             "user_id": self.env.uid,
         }
         template = self.env["mail.template"].create(values)
+        _debug.lifecycle(
+            "template_created_from_composer",
+            wizard=self.id,
+            template=template.id,
+            model=self.model,
+        )
 
         if self.attachment_ids:
             attachments = (
@@ -1041,6 +1128,17 @@ class MailComposeMessage(models.TransientModel):
         base_values = self._prepare_mail_values_static()
 
         additional_values_all = {}
+        _debug.logic(
+            "mail_values_by",
+            wizard=self.id,
+            records=len(res_ids),
+            by="dynamic"
+            if rendering_mode and self.model
+            else "rendered"
+            if not rendering_mode
+            else "static",
+            email_mode=email_mode,
+        )
         if rendering_mode and self.model:
             additional_values_all = self._prepare_mail_values_dynamic(res_ids)
         elif not rendering_mode:
@@ -1118,6 +1216,15 @@ class MailComposeMessage(models.TransientModel):
         mail_values_all = self._prepare_mail_values_per_record(
             records, res_ids, langs, emails_from, email_mode
         )
+        _debug.pipeline(
+            "dynamic_mail_values",
+            wizard=self.id,
+            records=len(res_ids),
+            langs=len(set(langs.values())),
+            template=self.template_id.id or None,
+            reply_to_force_new=self.reply_to_force_new,
+            layout=self.email_layout_xmlid or None,
+        )
 
         if self.template_id:
             self._update_mail_values_from_template(mail_values_all, res_ids, langs)
@@ -1125,6 +1232,13 @@ class MailComposeMessage(models.TransientModel):
             default_recipients = records._message_get_default_recipients()
             for res_id in res_ids:
                 mail_values_all[res_id].update(default_recipients.get(res_id, {}))
+        if not email_mode and self.partner_ids:
+            for mail_values in mail_values_all.values():
+                mail_values["partner_ids"] = list(
+                    dict.fromkeys(
+                        [*mail_values.get("partner_ids", []), *self.partner_ids.ids]
+                    )
+                )
 
         if self.reply_to_force_new:
             reply_to_values = self._render_field("reply_to", res_ids)
@@ -1234,6 +1348,16 @@ class MailComposeMessage(models.TransientModel):
             ),
             res_ids_lang=res_ids_lang,
         )
+        _debug.pipeline(
+            "template_values_applied",
+            wizard=self.id,
+            template=self.template_id.id,
+            records=len(res_ids),
+            allow_suggested=self.composition_mode == "comment"
+            and not self.composition_batch
+            and self.message_type == "comment"
+            and not self.subtype_is_log,
+        )
         for res_id in res_ids:
             template_values[res_id].pop("attachment_ids", None)
             mail_values_all[res_id].update(template_values[res_id])
@@ -1293,6 +1417,9 @@ class MailComposeMessage(models.TransientModel):
             )
         )
         if not classified:
+            _debug.logic(
+                "layout_body_skipped", wizard=self.id, record=res_id, reason="no_group"
+            )
             return
         _lang, render_values, recipients_group = classified[-1]
         merged_group = {
@@ -1416,6 +1543,24 @@ class MailComposeMessage(models.TransientModel):
                 for mail_to in recipients["mail_to_normalized"]:
                     sent_emails_mapping.setdefault(mail_to, []).append(mail_values)
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "mail_values_state",
+                wizard=self.id,
+                records=len(mail_values_dict),
+                blacklisted=len(blacklist_ids),
+                optout=len(optout_emails),
+                done=len(done_emails),
+                canceled=sum(
+                    1 for v in mail_values_dict.values() if v.get("state") == "cancel"
+                ),
+                invalid=sum(
+                    1
+                    for v in mail_values_dict.values()
+                    if v.get("failure_type")
+                    in ("mail_email_missing", "mail_email_invalid")
+                ),
+            )
         return mail_values_dict
 
     def _prepare_template_vals(
@@ -1484,6 +1629,13 @@ class MailComposeMessage(models.TransientModel):
                     for res_id, recipient_info in recipients_info.items()
                     if blacklist & set(recipient_info["mail_to_normalized"])
                 )
+            _debug.logic(
+                "blacklist_applied",
+                wizard=self.id,
+                blacklist=len(blacklist),
+                records=len(mail_values_dict),
+                blacklisted=len(blacklisted_rec_ids),
+            )
         return blacklisted_rec_ids
 
     def _get_done_emails(self, mail_values_dict: dict) -> list:
@@ -1580,4 +1732,10 @@ class MailComposeMessage(models.TransientModel):
                 self[composer_fname] = rendered_values[template_fname]
             else:
                 self[composer_fname] = self.template_id[template_fname]
+            _debug.logic(
+                "composer_value_from_template",
+                wizard=self.id,
+                field=composer_fname,
+                by="rendered" if self.template_render_values else "raw",
+            )
         return self[composer_fname]

@@ -3,7 +3,10 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
@@ -11,27 +14,26 @@ class SaleOrder(models.Model):
 
     timesheet_count = fields.Float(
         string="Timesheet activities",
+        export_string_translation=False,
         compute="_compute_timesheet_count",
         groups="hr_timesheet.group_hr_timesheet_user",
-        export_string_translation=False,
     )
     timesheet_encode_uom_id = fields.Many2one(
-        "uom.uom",
+        comodel_name="uom.uom",
         related="company_id.timesheet_encode_uom_id",
         export_string_translation=False,
     )
     timesheet_total_duration = fields.Integer(
-        "Timesheet Total Duration",
+        export_string_translation=False,
         compute="_compute_timesheet_total_duration",
-        help="Total recorded duration, expressed in the encoding UoM, and rounded to the unit",
         compute_sudo=True,
         groups="hr_timesheet.group_hr_timesheet_user",
-        export_string_translation=False,
+        help="Total recorded duration, expressed in the encoding UoM, and rounded to the unit",
     )
     show_hours_recorded_button = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_show_hours_recorded_button",
         groups="hr_timesheet.group_hr_timesheet_user",
-        export_string_translation=False,
     )
 
     def _compute_timesheet_count(self):
@@ -63,11 +65,13 @@ class SaleOrder(models.Model):
             {order.id: unit_amount for order, unit_amount in group_data}
         )
         for sale_order in self:
-            total_time = sale_order.company_id.project_time_mode_id._compute_quantity(
-                timesheet_unit_amount_dict[sale_order.id],
-                sale_order.timesheet_encode_uom_id,
-                rounding_method="HALF-UP",
-                raise_if_failure=False,
+            total_time = (
+                sale_order.company_id.project_time_mode_id._get_quantity_in_unit(
+                    timesheet_unit_amount_dict[sale_order.id],
+                    sale_order.timesheet_encode_uom_id,
+                    rounding_method="HALF-UP",
+                    raise_if_failure=False,
+                )
             )
             sale_order.timesheet_total_duration = round(total_time)
 
@@ -93,12 +97,16 @@ class SaleOrder(models.Model):
         for order in upsellable_orders:
             upsellable_lines = order._get_prepaid_service_lines_to_upsell()
             if upsellable_lines:
+                _debug.pipeline(
+                    "prepaid_upsell_detected", order=order, lines=upsellable_lines
+                )
                 order._create_upsell_activity()
                 upsellable_lines.write({"has_displayed_warning_upsell": True})
         super(SaleOrder, self - upsellable_orders)._compute_field_value(
             field, validate=validate
         )
 
+    @api.depends("timesheet_count", "project_count", "line_ids.product_id")
     def _compute_show_hours_recorded_button(self):
         show_button_ids = self._get_order_with_valid_service_product()
         for order in self:
@@ -113,9 +121,17 @@ class SaleOrder(models.Model):
             if not next(
                 (sol for sol in created_records.line_ids if sol.is_service), False
             ):
+                _debug.logic(
+                    "employee_mapping_order_refused",
+                    orders=created_records,
+                    reason="no_service_line",
+                )
                 raise UserError(
                     _("The Sales Order must contain at least one service product.")
                 )
+            _debug.pipeline(
+                "order_confirmed_for_employee_mapping", orders=created_records
+            )
             created_records.with_context(
                 disable_project_task_generation=True
             ).action_confirm()
@@ -144,7 +160,7 @@ class SaleOrder(models.Model):
         return self.line_ids.filtered(
             lambda sol: (
                 sol.is_service
-                and sol.invoice_state != "done"
+                and (sol.invoice_state != "done" or sol._is_upsell_opportunity())
                 and not sol.has_displayed_warning_upsell
                 and sol.product_id.service_policy == "ordered_prepaid"
                 and float_compare(
@@ -219,10 +235,12 @@ class SaleOrder(models.Model):
                 )
                 == 0
             ):
+                _debug.lifecycle("upsell_warning_reset", line=line)
                 line.has_displayed_warning_upsell = False
 
     def _create_invoices(self, grouped=False, final=False, date=None):
         moves = super()._create_invoices(grouped=grouped, final=final, date=date)
+        _debug.pipeline("timesheets_linked_to_invoices", orders=self, moves=moves)
         moves._link_timesheets_to_invoice(
             self.env.context.get("timesheet_start_date"),
             self.env.context.get("timesheet_end_date"),

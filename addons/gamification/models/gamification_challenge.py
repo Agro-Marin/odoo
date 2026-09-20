@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import Command, _, api, exceptions, fields, models
+from odoo.fields import Domain
 from odoo.http import SESSION_LIFETIME
 from odoo.models import ValuesType
 from odoo.tools import SQL
@@ -40,22 +41,27 @@ class GamificationChallenge(models.Model):
         return res
 
     # description
-    name = fields.Char("Challenge Name", required=True, translate=True)
-    description = fields.Text("Description", translate=True)
+    name = fields.Char(
+        string="Challenge Name",
+        translate=True,
+        required=True,
+    )
+    description = fields.Text(translate=True)
     state = fields.Selection(
-        [
+        selection=[
             ("draft", "Draft"),
             ("inprogress", "In Progress"),
             ("done", "Done"),
         ],
         default="draft",
         copy=False,
-        string="State",
         required=True,
         tracking=True,
     )
     manager_id = fields.Many2one(
-        "res.users", default=lambda self: self.env.uid, string="Responsible"
+        comodel_name="res.users",
+        string="Responsible",
+        default=lambda self: self.env.uid,
     )
     # members
     # `user_ids` is the effective roster and is maintained by
@@ -66,101 +72,115 @@ class GamificationChallenge(models.Model):
     # someone the *previous* domain had matched, and retargeting a challenge
     # from one team to another silently ran it for both, for ever.
     user_ids = fields.Many2many(
-        "res.users",
-        "gamification_challenge_users_rel",
+        comodel_name="res.users",
+        relation="gamification_challenge_users_rel",
         string="Participants",
         compute="_compute_user_ids",
         store=True,
         readonly=True,
     )
     manual_user_ids = fields.Many2many(
-        "res.users",
-        "gamification_challenge_manual_users_rel",
+        comodel_name="res.users",
+        relation="gamification_challenge_manual_users_rel",
         string="Extra Participants",
         help="People taking part on top of whoever the domain selects. "
         "Changing the domain never removes them.",
     )
-    user_domain = fields.Char("User domain")  # Alternative to a list of users
-    user_count = fields.Integer("# Users", compute="_compute_user_count")
+    user_domain = fields.Char(string="User domain")  # Alternative to a list of users
+    user_count = fields.Integer(
+        string="# Users",
+        compute="_compute_user_count",
+    )
     # periodicity
     period = fields.Selection(
-        [
+        selection=[
             ("once", "Non recurring"),
             ("daily", "Daily"),
             ("weekly", "Weekly"),
             ("monthly", "Monthly"),
             ("yearly", "Yearly"),
         ],
-        default="once",
         string="Periodicity",
-        help="Period of automatic goal assignment. If none is selected, should be launched manually.",
+        default="once",
         required=True,
+        help="Period of automatic goal assignment. If none is selected, should be launched manually.",
     )
     start_date = fields.Date(
-        "Start Date",
-        help="The day a new challenge will be automatically started. If no periodicity is set, will use this date as the goal start date.",
+        help="The day a new challenge will be automatically started. If no periodicity is set, will use this date as the goal start date."
     )
     end_date = fields.Date(
-        "End Date",
-        help="The day a new challenge will be automatically closed. If no periodicity is set, will use this date as the goal end date.",
+        help="The day a new challenge will be automatically closed. If no periodicity is set, will use this date as the goal end date."
     )
 
     invited_user_ids = fields.Many2many(
-        "res.users", "gamification_invited_user_ids_rel", string="Suggest to users"
+        comodel_name="res.users",
+        relation="gamification_invited_user_ids_rel",
+        string="Suggest to users",
     )
 
     line_ids = fields.One2many(
-        "gamification.challenge.line",
-        "challenge_id",
+        comodel_name="gamification.challenge.line",
+        inverse_name="challenge_id",
         string="Lines",
-        help="List of goals that will be set",
-        required=True,
         copy=True,
+        required=True,
+        help="List of goals that will be set",
     )
 
     reward_id = fields.Many2one(
-        "gamification.badge", string="For Every Succeeding User", index="btree_not_null"
+        comodel_name="gamification.badge",
+        string="For Every Succeeding User",
+        index="btree_not_null",
     )
-    reward_first_id = fields.Many2one("gamification.badge", string="For 1st user")
-    reward_second_id = fields.Many2one("gamification.badge", string="For 2nd user")
-    reward_third_id = fields.Many2one("gamification.badge", string="For 3rd user")
-    reward_failure = fields.Boolean("Reward Bests if not Succeeded?")
+    reward_first_id = fields.Many2one(
+        comodel_name="gamification.badge",
+        string="For 1st user",
+    )
+    reward_second_id = fields.Many2one(
+        comodel_name="gamification.badge",
+        string="For 2nd user",
+    )
+    reward_third_id = fields.Many2one(
+        comodel_name="gamification.badge",
+        string="For 3rd user",
+    )
+    reward_failure = fields.Boolean(string="Reward Bests if not Succeeded?")
     reward_realtime = fields.Boolean(
-        "Reward as soon as every goal is reached",
+        string="Reward as soon as every goal is reached",
         default=True,
         help="With this option enabled, a user can receive a badge only once. The top 3 badges are still rewarded only at the end of the challenge.",
     )
 
     visibility_mode = fields.Selection(
-        [
+        selection=[
             ("personal", "Individual Goals"),
             ("ranking", "Leader Board (Group Ranking)"),
         ],
-        default="personal",
         string="Display Mode",
+        default="personal",
         required=True,
     )
 
     # Team mode
     challenge_mode = fields.Selection(
-        [
+        selection=[
             ("individual", "Individual"),
             ("team", "Team vs Team"),
         ],
+        string="Competition Mode",
         default="individual",
         required=True,
-        string="Competition Mode",
     )
     team_ids = fields.Many2many(
-        "gamification.team",
-        "gamification_challenge_team_rel",
+        comodel_name="gamification.team",
+        relation="gamification_challenge_team_rel",
         string="Competing Teams",
         help="Teams participating in this challenge. Each team's score is "
         "the average completeness of its members' goals.",
     )
 
     report_message_frequency = fields.Selection(
-        [
+        selection=[
             ("never", "Never"),
             ("onchange", "On change"),
             ("daily", "Daily"),
@@ -168,46 +188,45 @@ class GamificationChallenge(models.Model):
             ("monthly", "Monthly"),
             ("yearly", "Yearly"),
         ],
-        default="never",
         string="Report Frequency",
+        default="never",
         required=True,
     )
     report_message_group_id = fields.Many2one(
-        "discuss.channel",
+        comodel_name="discuss.channel",
         string="Send a copy to",
         help="Group that will receive a copy of the report in addition to the user",
     )
     report_template_id = fields.Many2one(
-        "mail.template",
+        comodel_name="mail.template",
         default=lambda self: self._default_report_template_id(),
-        string="Report Template",
         required=True,
     )
     remind_update_delay = fields.Integer(
-        "Non-updated manual goals will be reminded after",
+        string="Non-updated manual goals will be reminded after",
         help="Never reminded if no value or zero is specified.",
     )
-    last_report_date = fields.Date("Last Report Date", default=fields.Date.today)
+    last_report_date = fields.Date(default=fields.Date.today)
     next_report_date = fields.Date(
-        "Next Report Date", compute="_compute_next_report_date", store=True
+        compute="_compute_next_report_date",
+        store=True,
     )
 
     season_id = fields.Many2one(
-        "gamification.season",
-        string="Season",
+        comodel_name="gamification.season",
         index="btree_not_null",
         ondelete="set null",
         help="Season this challenge belongs to. Leave empty for permanent challenges.",
     )
 
     challenge_category = fields.Selection(
-        [
+        selection=[
             ("hr", "Human Resources / Engagement"),
             ("other", "Settings / Gamification Tools"),
         ],
         string="Appears in",
-        required=True,
         default="hr",
+        required=True,
         help="Define the visibility of the challenge through menus",
     )
 
@@ -348,10 +367,11 @@ class GamificationChallenge(models.Model):
             """SELECT gg.id
                         FROM gamification_goal as gg
                         JOIN mail_presence as mp ON mp.user_id = gg.user_id
+                        JOIN gamification_challenge_line as line ON line.id = gg.line_id
                        WHERE gg.write_date <= mp.last_presence
                          AND mp.last_presence >= now() AT TIME ZONE 'UTC' - interval '%(session_lifetime)s seconds'
                          AND gg.closed IS NOT TRUE
-                         AND gg.challenge_id = ANY(%(challenge_ids)s)
+                         AND line.challenge_id = ANY(%(challenge_ids)s)
                          AND (gg.state = 'inprogress'
                               OR (gg.state = 'reached' AND gg.end_date >= %(yesterday)s))
                       GROUP BY gg.id
@@ -392,25 +412,30 @@ class GamificationChallenge(models.Model):
         self._recompute_challenge_users()
         self._generate_goals_from_challenge()
 
+        today = fields.Date.today()
+        due = self.browse()
+        overdue_domains = []
         for challenge in self:
-            if challenge.last_report_date != fields.Date.today():
-                if (
-                    challenge.next_report_date
-                    and fields.Date.today() >= challenge.next_report_date
-                ):
-                    challenge.report_progress()
-                else:
-                    # goals closed but still opened at the last report date
-                    closed_goals_to_report = Goals.search(
-                        [
-                            ("challenge_id", "=", challenge.id),
-                            ("start_date", "<=", challenge.last_report_date),
-                            ("end_date", ">=", challenge.last_report_date),
-                        ]
-                    )
-                    if closed_goals_to_report:
-                        # some goals need a final report
-                        challenge.report_progress(subset_goals=closed_goals_to_report)
+            if challenge.last_report_date == today:
+                continue
+            if challenge.next_report_date and today >= challenge.next_report_date:
+                due |= challenge
+            else:
+                overdue_domains.append(
+                    Domain("challenge_id", "=", challenge.id)
+                    & Domain("start_date", "<=", challenge.last_report_date)
+                    & Domain("end_date", ">=", challenge.last_report_date)
+                )
+        for challenge in due:
+            challenge.report_progress()
+
+        # goals closed but still opened at the last report date
+        closed_goals_to_report = (
+            Goals.search(Domain.OR(overdue_domains)) if overdue_domains else Goals
+        )
+        for challenge, goals in closed_goals_to_report.grouped("challenge_id").items():
+            # some goals need a final report
+            challenge.report_progress(subset_goals=goals)
 
         self._check_challenge_reward()
         return True
@@ -488,6 +513,7 @@ class GamificationChallenge(models.Model):
                 challenge.period, challenge.start_date, challenge.end_date
             )
             to_update = Goals.browse(())
+            squat_domains = []
             adaptive_targets = challenge._get_adaptive_targets()
 
             for line in challenge.line_ids:
@@ -526,7 +552,7 @@ class GamificationChallenge(models.Model):
                         squat_domain.append(("start_date", "=", start_date))
                     if end_date:
                         squat_domain.append(("end_date", "=", end_date))
-                    Goals.search(squat_domain).unlink()
+                    squat_domains.append(Domain(squat_domain))
 
                 values = {
                     "definition_id": line.definition_id.id,
@@ -563,6 +589,8 @@ class GamificationChallenge(models.Model):
                         goal_vals.append(user_vals)
                     to_update |= Goals.create(goal_vals)
 
+            if squat_domains:
+                Goals.search(Domain.OR(squat_domains)).unlink()  # noqa: E8507 - one query per challenge: the cron commits after each one
             to_update.update_goal()
 
             if self.env.context.get("commit_gamification"):
@@ -904,7 +932,7 @@ class GamificationChallenge(models.Model):
             challenge_ended = force or (end_date and end_date <= yesterday)
             if challenge.reward_id and (challenge_ended or challenge.reward_realtime):
                 # not using start_date as atemporal goals have a start date but no end_date
-                reached_goals = self.env["gamification.goal"]._read_group(
+                reached_goals = self.env["gamification.goal"]._read_group(  # noqa: E8507 - one query per challenge: the cron commits after each one
                     [
                         ("challenge_id", "=", challenge.id),
                         ("end_date", "=", end_date),
@@ -913,20 +941,23 @@ class GamificationChallenge(models.Model):
                     groupby=["user_id"],
                     aggregates=["__count"],
                 )
+                already_rewarded = self.env["res.users"]
+                if challenge.reward_realtime:
+                    [[already_rewarded]] = self.env[
+                        "gamification.badge.user"
+                    ]._read_group(  # noqa: E8507 - one query per challenge: the cron commits after each one
+                        [
+                            ("challenge_id", "=", challenge.id),
+                            ("badge_id", "=", challenge.reward_id.id),
+                        ],
+                        aggregates=["user_id:recordset"],
+                    )
                 for user, count in reached_goals:
                     if count == len(challenge.line_ids):
                         # the user has succeeded every assigned goal
-                        if challenge.reward_realtime:
-                            badges = self.env["gamification.badge.user"].search_count(
-                                [
-                                    ("challenge_id", "=", challenge.id),
-                                    ("badge_id", "=", challenge.reward_id.id),
-                                    ("user_id", "=", user.id),
-                                ]
-                            )
-                            if badges > 0:
-                                # already received the badge for this challenge
-                                continue
+                        if user in already_rewarded:
+                            # already received the badge for this challenge
+                            continue
                         challenge._reward_user(user, challenge.reward_id)
                         rewarded_users |= user
                         if commit:

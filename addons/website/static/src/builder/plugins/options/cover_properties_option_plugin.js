@@ -2,12 +2,15 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { COVER_PROPERTIES } from "@website/builder/option_sequence";
 import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";
 
 import { coverSizeClassLabels } from "./cover_properties_option.js";
+
+const log = makeLogger("website.builder.plugin.cover_properties_option");
 
 class CoverPropertiesOptionPlugin extends Plugin {
     static id = "coverPropertiesOption";
@@ -34,20 +37,38 @@ class CoverPropertiesOptionPlugin extends Plugin {
                 const resModel = coverEl.dataset.resModel;
                 const resID = Number(coverEl.dataset.resId);
                 if (!resModel || !resID) {
+                    log.logic(
+                        "CoverPropertiesOptionPlugin pending cover without record",
+                        () => ({
+                            resModel,
+                            resID,
+                        }),
+                    );
                     throw new Error(
                         "There should be a model and id associated to the cover",
                     );
                 }
+                log.pipeline(
+                    "CoverPropertiesOptionPlugin save pending cover image",
+                    () => ({
+                        resModel,
+                        resID,
+                    }),
+                );
 
-                // Checks if the image is in base64 format for RPC call. Relying
-                // only on the presence of the class "o_b64_cover_image_to_save" is not
-                // robust enough.
                 const groups = bgImage.match(
                     /url\("data:(?<mimetype>.*);base64,(?<imageData>.*)"\)/,
                 )?.groups;
                 if (groups?.imageData) {
+                    const endModelName = log.perf(
+                        "CoverPropertiesOptionPlugin getUserModelName",
+                        () => ({
+                            resModel,
+                        }),
+                    );
                     const modelName =
                         await this.services.website.getUserModelName(resModel);
+                    endModelName();
                     const recordNameEl = bgEl
                         .closest("body")
                         .querySelector(
@@ -56,6 +77,13 @@ class CoverPropertiesOptionPlugin extends Plugin {
                     const recordName = recordNameEl
                         ? `'${recordNameEl.textContent.replaceAll("/", "")}'`
                         : resID;
+                    const endUpload = log.perf(
+                        "CoverPropertiesOptionPlugin upload cover attachment",
+                        () => ({
+                            mimetype: groups.mimetype,
+                            dataLength: groups.imageData.length,
+                        }),
+                    );
                     const attachment = await rpc("/web_editor/attachment/add_data", {
                         name: `${modelName} ${recordName} cover image.${
                             groups.mimetype.split("/")[1]
@@ -64,6 +92,7 @@ class CoverPropertiesOptionPlugin extends Plugin {
                         is_image: true,
                         res_model: "ir.ui.view",
                     });
+                    endUpload();
                     bgEl.style.backgroundImage = `url(${attachment.image_src})`;
                 }
                 bgEl.classList.remove("o_b64_cover_image_to_save");
@@ -73,6 +102,9 @@ class CoverPropertiesOptionPlugin extends Plugin {
 
     saveCoverProperties(el) {
         if (!el.dataset.coverPropertiesToBeSaved) {
+            log.logic(
+                "CoverPropertiesOptionPlugin saveCoverProperties skipped: not marked",
+            );
             return;
         }
         delete el.dataset.coverPropertiesToBeSaved;
@@ -81,8 +113,19 @@ class CoverPropertiesOptionPlugin extends Plugin {
         const resID = Number(el.dataset.resId);
 
         if (!resModel || !resID) {
+            log.logic(
+                "CoverPropertiesOptionPlugin saveCoverProperties: no record",
+                () => ({
+                    resModel,
+                    resID,
+                }),
+            );
             throw new Error("There should be a model and id associated to the cover");
         }
+        log.pipeline("CoverPropertiesOptionPlugin write cover_properties", () => ({
+            resModel,
+            resID,
+        }));
 
         return this.services.orm.write(resModel, [resID], {
             cover_properties: JSON.stringify(this.readCoverPoperties(el)),
@@ -95,15 +138,10 @@ class CoverPropertiesOptionPlugin extends Plugin {
             el.querySelector(".o_record_cover_image")?.style.backgroundImage || "";
         coverProperties["background-image"] = bg;
 
-        // TODO: `o_record_has_cover` should be handled using model field, not
-        // resize_class to avoid all of this.
         let coverClass =
             Object.keys(coverSizeClassLabels).find((e) => el.classList.contains(e)) ||
             "";
         if (bg && bg !== "none") {
-            // Guard the default "": otherwise a missing size class made this
-            // `undefined + " o_record_has_cover"` → the literal string
-            // "undefined o_record_has_cover" was persisted to resize_class.
             coverClass = (coverClass ? coverClass + " " : "") + "o_record_has_cover";
         }
         coverProperties.resize_class = coverClass;
@@ -146,9 +184,11 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
     }
     load({ params: { mainParam: setBackground } }) {
         if (!setBackground) {
+            log.logic("SetCoverBackgroundAction load skipped: removing background");
             return;
         }
         let resultPromise;
+        log.lifecycle("SetCoverBackgroundAction open media dialog");
         return this.dependencies.media
             .openMediaDialog({
                 onlyImages: true,
@@ -171,8 +211,13 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
     }
     apply({ editingElement, loadResult: { imageSrc, b64ToSave, cancel } = {} }) {
         if (cancel) {
+            log.logic("SetCoverBackgroundAction apply cancelled: dialog closed");
             return;
         }
+        log.pipeline("SetCoverBackgroundAction apply", () => ({
+            hasImage: !!imageSrc,
+            b64ToSave,
+        }));
         (imageSrc ? this.classAction.apply : this.classAction.clean)({
             editingElement,
             params: { mainParam: "o_record_has_cover" },
@@ -199,6 +244,7 @@ export class SetCoverBackgroundAction extends BaseCoverPropertiesAction {
 export class MarkCoverPropertiesToBeSavedAction extends BaseCoverPropertiesAction {
     static id = "markCoverPropertiesToBeSaved";
     apply({ editingElement }) {
+        log.pipeline("MarkCoverPropertiesToBeSavedAction apply");
         editingElement.closest(
             ".o_record_cover_container",
         ).dataset.coverPropertiesToBeSaved = true;

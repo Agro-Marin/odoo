@@ -4,7 +4,7 @@ import logging
 
 from odoo import api, fields, models
 
-from ...tools.endpoint_rate_limiter import EndpointRateLimiter
+from odoo.addons.rate_limit.tools import EndpointRateLimiter
 
 _logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ class MixinCredentialAuth(models.AbstractModel):
     credential_id = fields.Many2one(
         comodel_name="credential.credential",
         string="Active Credential",
-        ondelete="restrict",
         index=True,
+        ondelete="restrict",
         help="Encrypted credential for authentication. Managed by credential.",
     )
     auth_type = fields.Selection(
@@ -55,9 +55,9 @@ class MixinCredentialAuth(models.AbstractModel):
     )
     credential_fingerprint = fields.Char(
         compute="_compute_credential_fingerprint",
+        compute_sudo=True,
         store=True,
         index=True,
-        compute_sudo=True,
         copy=False,
         groups="base.group_system",
         help="SHA-256 of the credential's secret. Lets a presented token be "
@@ -69,7 +69,9 @@ class MixinCredentialAuth(models.AbstractModel):
         for record in self:
             credential = record.credential_id
             value = (
-                credential._get_secret(prefer=record._secret_slot_for_auth_type())
+                credential._use_secret(
+                    "fingerprint", prefer=record._secret_slot_for_auth_type()
+                )
                 if credential
                 else False
             )

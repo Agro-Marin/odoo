@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 
+from ..tools import debug_log as dbg
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -8,19 +9,20 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     employee_ids = fields.One2many(
-        "hr.employee",
-        "partner_id",
+        comodel_name="hr.employee",
+        inverse_name="partner_id",
         string="Employees",
         groups="hr.group_hr_user",
         help="Related employees based on their private address",
     )
     employees_count = fields.Integer(
-        compute="_compute_employees_count", groups="hr.group_hr_user"
+        compute="_compute_employees_count",
+        groups="hr.group_hr_user",
     )
     employee = fields.Boolean(
-        help="Whether this contact is an Employee.",
         compute="_compute_employee",
         search="_search_employee",
+        help="Whether this contact is an Employee.",
     )
 
     # What a person IS, kept where an employee's confidential facts already
@@ -28,15 +30,15 @@ class ResPartner(models.Model):
     # They are declared by hr because hr owns their vocabulary and is their
     # only reader; base owns the facet and its rule.
     place_of_birth = fields.Char()
-    country_of_birth = fields.Many2one("res.country")
+    country_of_birth = fields.Many2one(comodel_name="res.country")
     marital = fields.Selection(
         selection="_selection_marital_status",
         string="Marital Status",
         default="single",
     )
     spouse_complete_name = fields.Char(string="Spouse Legal Name")
-    spouse_birthdate = fields.Date(string="Spouse Birthdate")
-    dependent_children = fields.Integer(string="Dependent Children")
+    spouse_birthdate = fields.Date()
+    dependent_children = fields.Integer()
     education_certificate = fields.Selection(
         selection="_selection_certificate",
         string="Certificate Level",
@@ -62,6 +64,7 @@ class ResPartner(models.Model):
             ("other", self.env._("Other")),
         ]
 
+    @dbg.timed
     def _compute_employees_count(self):
         counts = dict(
             self.env["hr.employee"]
@@ -111,9 +114,15 @@ class ResPartner(models.Model):
         private = self.child_ids.filtered(lambda partner: partner.type == "private")
         if not private:
             return super()._get_all_addr()
+        dbg.logic.debug(
+            "[party:%s] _get_all_addr: home address from private child %s first",
+            self.id,
+            private[0].id,
+        )
         home = dict(private[0]._get_all_addr()[0], contact_type="employee")
         return [home] + super()._get_all_addr()
 
+    @dbg.timed
     @api.depends("employee_ids")
     def _compute_employee(self):
         employee_data = (
@@ -140,6 +149,11 @@ class ResPartner(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_contact_rel_employee(self):
         partners = self.filtered(lambda partner: partner.sudo().employee_ids)
+        dbg.logic.debug(
+            "res.partner.unlink %s: %s are linked to employees",
+            dbg.rec(self),
+            dbg.rec(partners),
+        )
         if len(self) == 1 and len(partners) == 1 and self.id == partners[0].id:
             raise UserError(
                 self.env._(
@@ -185,6 +199,10 @@ class ResPartner(models.Model):
     def _get_fields_store_avatar_card(self, target):
         avatar_card_fields = super()._get_fields_store_avatar_card(target)
         if target.is_internal(self.env):
+            dbg.logic.debug(
+                "res.partner avatar card on %s: internal target, employee fields added",
+                dbg.rec(self),
+            )
             employee_fields = self.sudo().employee_ids._get_fields_store_avatar_card(
                 target
             )

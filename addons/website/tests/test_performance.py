@@ -70,9 +70,6 @@ class UtilPerf(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
         for query in sql_queries:
             query_type, table = classify_query(query)
             if query_type == "other" and "orm_signaling_registry" in query:
-                # The registry-signaling probe is one SELECT of subselects with
-                # no top-level FROM; the expectations below count it as a read
-                # of `orm_signaling_registry`.
                 query_type, table = "from", "orm_signaling_registry"
             if query_type == "into":
                 log_target = sql_into_tables

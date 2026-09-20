@@ -22,9 +22,10 @@ from psycopg_pool import PoolTimeout
 
 import odoo
 from odoo import api, tools
-from odoo.db import db_connect, get_or_create_row
+from odoo.db import Connection, db_connect, get_or_create_row
 from odoo.db import pool as pool_module
 from odoo.db import schema as sql_schema
+from odoo.db import settings as pool_settings
 from odoo.db import utils as _db_utils
 from odoo.db.cursor import (
     Cursor,
@@ -36,7 +37,6 @@ from odoo.db.lifecycle import (
     _RESET_SESSION_STATE_SQL,
 )
 from odoo.db.pool import (
-    Connection,
     ConnectionPool,
     PoolError,
     _check_connection,
@@ -438,6 +438,42 @@ class TestTestCursor(common.TransactionCase):
                     cursor.close()
 
 
+class TestStatementBudgetOnATestCursor(common.TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.registry_enter_test_mode()
+
+    def _sleeps(self, cr, seconds=0.4):
+        try:
+            cr.execute("SELECT pg_sleep(%s)", (seconds,))
+        except psycopg.errors.QueryCanceled:
+            cr.rollback()
+            return False
+        return True
+
+    def test_the_budget_outlives_a_rollback_and_ends_with_the_test_cursor(self):
+        cr = self.registry.cursor()
+        try:
+            cr.set_statement_timeout(0.1)
+            self.assertFalse(self._sleeps(cr), "bounded on the first statement")
+            self.assertFalse(self._sleeps(cr), "still bounded after its rollback")
+            cr.execute("SHOW statement_timeout")
+            self.assertEqual(cr.fetchone(), ("100ms",))
+        finally:
+            cr.close()
+        cr = self.registry.cursor()
+        try:
+            cr.execute("SHOW statement_timeout")
+            self.assertEqual(
+                cr.fetchone(),
+                ("0",),
+                "the real cursor outlives every test cursor: the budget must not",
+            )
+            self.assertTrue(self._sleeps(cr, 0.05))
+        finally:
+            cr.close()
+
+
 class TestCursorHooks(common.TransactionCase):
     def setUp(self):
         super().setUp()
@@ -797,8 +833,8 @@ class TestCursorBulkMethods(BaseCase):
         with registry().cursor() as cr:
             with cr.pipeline():
                 cr.execute("SELECT 1 AS a")
-                self.assertIsNotNone(
-                    cr.description,
+                self.assertFalse(
+                    cr.in_pipeline,
                     "a lone statement in a pipeline block should have run "
                     "outside pipeline mode",
                 )
@@ -809,10 +845,13 @@ class TestCursorBulkMethods(BaseCase):
             with cr.pipeline():
                 cr.execute("SELECT 1 AS a")
                 cr.execute("SELECT 2 AS b")
-                self.assertIsNone(
-                    cr.description,
+                self.assertTrue(
+                    cr.in_pipeline,
                     "the second statement should have run in pipeline mode",
                 )
+                # The queued statement has no result yet; the cursor syncs the
+                # pipeline to answer rather than reporting the stale None.
+                self.assertEqual([c.name for c in cr.description], ["b"])
                 self.assertEqual(cr.fetchall(), [(2,)])
 
     def test_executemany_counts_toward_arming_the_pipeline(self):
@@ -856,10 +895,12 @@ class TestCursorBulkMethods(BaseCase):
                 cr.execute("SELECT 1 AS a")
                 with cr.pipeline():
                     cr.execute("SELECT 2 AS b")
-                    self.assertIsNone(cr.description)
+                    self.assertTrue(cr.in_pipeline)
                     self.assertEqual(cr.fetchall(), [(2,)])
+                self.assertTrue(
+                    cr.in_pipeline, "the inner exit must not leave the mode"
+                )
                 cr.execute("SELECT 3 AS c")
-                self.assertIsNone(cr.description)
                 self.assertEqual(cr.fetchall(), [(3,)])
 
     def test_copy_from_inside_a_pipeline_says_what_is_wrong(self):
@@ -1034,18 +1075,21 @@ class TestCursorConstructionNeverLeaksAPermit(BaseCase):
     def test_a_baseexception_during_construction_returns_the_connection(self):
         registry_ = registry()
         pool = registry_._replica.primary._Connection__pool
+        with registry_.cursor() as probe:
+            connection_class = type(probe._cnx)
         before = pool.stats.get_snapshot(budget=pool._budget, checkouts=pool._checkouts)
 
-        real = psycopg.Connection.cursor
+        real = connection_class.cursor
         seen = []
 
         def interrupted(conn, *args, **kwargs):
-            if not seen:
+            caller = inspect.currentframe().f_back.f_code
+            if not seen and caller is Cursor.__init__.__code__:
                 seen.append(True)
                 raise KeyboardInterrupt("watchdog")
             return real(conn, *args, **kwargs)
 
-        with patch.object(psycopg.Connection, "cursor", interrupted):
+        with patch.object(connection_class, "cursor", interrupted):
             with self.assertRaises(KeyboardInterrupt):
                 registry_.cursor()
 
@@ -1779,12 +1823,19 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(pool._reaper.check_interval, 22.0)
         pool.close_all()
 
-    def test_tuning_defaults_match_constants(self):
+    def test_tuning_defaults_come_from_the_settings_snapshot(self):
+        settings = pool_settings.current()
         pool = ConnectionPool(maxconn=1)
-        self.assertEqual(pool._borrow_timeout, pool_module._DEFAULT_BORROW_TIMEOUT)
-        self.assertEqual(pool._max_lifetime, pool_module._DEFAULT_MAX_LIFETIME)
-        self.assertEqual(pool._max_idle, pool_module._DEFAULT_MAX_IDLE)
-        self.assertEqual(pool._reaper.ttl, pool_module._DEFAULT_REAP_IDLE_TTL)
+        self.assertEqual(pool._borrow_timeout, settings.borrow_timeout)
+        self.assertEqual(pool._max_lifetime, settings.conn_max_lifetime)
+        self.assertEqual(pool._max_idle, settings.conn_max_idle)
+        self.assertEqual(pool._reaper.ttl, settings.pool_reap_idle)
+        self.assertEqual(pool._pool_workers, settings.pool_workers)
+        pool.close_all()
+        with pool_settings.override(borrow_timeout=12.5, pool_reap_idle=88.0):
+            pool = ConnectionPool(maxconn=1)
+        self.assertEqual(pool._borrow_timeout, 12.5)
+        self.assertEqual(pool._reaper.ttl, 88.0)
         pool.close_all()
 
     def test_reap_check_interval_disabled_when_ttl_zero(self):
@@ -1841,7 +1892,7 @@ class TestPoolBasics(BaseCase):
         def churn():
             i = 0
             while not stop.is_set():
-                pool._pools[frozenset([("database", f"d{i & 7}"), ("n", str(i))])] = (
+                pool._pools[frozenset([("dbname", f"d{i & 7}"), ("n", str(i))])] = (
                     _FakePool()
                 )
                 keys = list(pool._pools)
@@ -2180,6 +2231,42 @@ class TestCursorDelReclaimsConnection(BaseCase):
             2,
             "Cursor.__del__ leaked the pool semaphore permit",
         )
+
+    def test_del_reclaims_the_permit_of_a_dead_connection_too(self):
+        import gc
+
+        pool = ConnectionPool(maxconn=2)
+        self.addCleanup(pool.close_all)
+        dbname = common.get_db_name()
+        info = self._info()
+
+        def leak():
+            cr = Cursor(pool, dbname, info)
+            cr.execute("SELECT pg_backend_pid()")
+            pid = cr.fetchscalar()
+            with contextlib.closing(db_connect(dbname).cursor()) as admin:
+                admin.execute("SELECT pg_terminate_backend(%s)", (pid,))
+                admin.commit()
+            with self.assertRaises(psycopg.OperationalError):
+                cr.execute("SELECT 1")
+            self.assertTrue(cr._cnx.closed, "psycopg marks a killed backend closed")
+            self.assertEqual(pool._budget.available, 1)
+            self.assertEqual(len(pool._checkouts), 1)
+
+        with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
+            leak()
+            gc.collect()
+
+        self.assertTrue(any("not closed explicitly" in m for m in cm.output))
+        self.assertEqual(
+            pool._budget.available,
+            2,
+            "__del__ used to skip _close() on a dead connection, and _close() "
+            "is the only path that gives the permit back: a request whose "
+            "backend died and whose cursor was never closed lost one permit "
+            "for the life of the process",
+        )
+        self.assertEqual(len(pool._checkouts), 0)
 
 
 class TestPoolTimeoutCleanup(BaseCase):
@@ -2620,6 +2707,66 @@ class TestExecuteValuesPageSize(BaseCase):
                 cr.execute_values("INSERT INTO t VALUES %s", [], fetch=True), []
             )
 
+    def test_a_page_wider_than_the_bind_ceiling_is_clamped(self):
+        # PostgreSQL counts bind parameters in a uint16; a page_size that would
+        # put 65 536 of them in one statement is split rather than refused.
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _ev_ceiling (a int, b int)")
+            rows = [(i, -i) for i in range(40000)]
+            cr.execute_values(
+                "INSERT INTO _ev_ceiling VALUES %s", rows, page_size=100000
+            )
+            cr.execute("SELECT count(*), sum(a + b) FROM _ev_ceiling")
+            self.assertEqual(cr.fetchone(), (40000, 0))
+            cr.execute("SELECT count(*) FROM _ev_ceiling WHERE a = 39999")
+            self.assertEqual(cr.fetchone(), (1,))
+
+
+class TestFaketimeSearchPathIsAStartupOption(BaseCase):
+    def test_a_configured_database_sees_the_path_on_every_cursor(self):
+        db_name = common.get_db_name()
+        with (
+            patch.dict(os.environ, {"ODOO_FAKETIME_TEST_MODE": "1"}),
+            pool_settings.override(db_names=(db_name,)) as settings,
+        ):
+            pool = ConnectionPool(maxconn=1, settings=settings)
+            try:
+                _, info = get_connection_info_for_database(db_name)
+                connection = Connection(pool, db_name, info)
+                for attempt in ("fresh", "after a return"):
+                    with self.subTest(attempt=attempt):
+                        cr = connection.cursor()
+                        try:
+                            # public resolves before pg_catalog, so a public.now()
+                            # shadows the builtin: that is what faketime needs
+                            cr.execute("SELECT current_schemas(true)")
+                            self.assertEqual(cr.fetchone(), (["public", "pg_catalog"],))
+                            self.assertEqual(
+                                cr.sql_statement_count,
+                                1,
+                                "the pin costs no statement of its own",
+                            )
+                        finally:
+                            cr.close()
+                    time.sleep(0.2)
+            finally:
+                pool.close_all()
+
+    def test_an_unconfigured_database_keeps_the_default_path(self):
+        db_name = common.get_db_name()
+        with (
+            patch.dict(os.environ, {"ODOO_FAKETIME_TEST_MODE": "1"}),
+            pool_settings.override(db_names=("some_other_db",)) as settings,
+        ):
+            pool = ConnectionPool(maxconn=1, settings=settings)
+            try:
+                _, info = get_connection_info_for_database(db_name)
+                with Connection(pool, db_name, info).cursor() as cr:
+                    cr.execute("SELECT current_schemas(true)")
+                    self.assertEqual(cr.fetchone(), (["pg_catalog", "public"],))
+            finally:
+                pool.close_all()
+
 
 class TestResetConnectionRestoresPrepare(BaseCase):
     def test_reset_restores_prepare_threshold(self):
@@ -2638,7 +2785,7 @@ class TestHealthCheckGracePeriod(BaseCase):
     def test_fresh_connection_skips_probe(self):
         conn = self._Bare()
         setattr(conn, _IDLE_SINCE_ATTR, time.monotonic())
-        with patch("odoo.db.pool._PsycopgPool.check_connection") as probe:
+        with patch("odoo.db.lifecycle._probe_liveness") as probe:
             _check_connection(conn)
         probe.assert_not_called()
 
@@ -2651,18 +2798,48 @@ class TestHealthCheckGracePeriod(BaseCase):
             _IDLE_SINCE_ATTR,
             time.monotonic() - config["db_healthcheck_grace"] - 1,
         )
-        with patch("odoo.db.pool._PsycopgPool.check_connection") as probe:
+        with patch("odoo.db.lifecycle._probe_liveness") as probe:
             _check_connection(conn)
         probe.assert_called_once_with(conn)
 
     def test_unstamped_connection_fails_safe_to_probe(self):
         conn = self._Bare()
-        with patch("odoo.db.pool._PsycopgPool.check_connection") as probe:
+        with patch("odoo.db.lifecycle._probe_liveness") as probe:
             _check_connection(conn)
         probe.assert_called_once_with(conn)
 
+    def test_a_terminated_backend_fails_the_probe_and_the_pool_reconnects(self):
+        from odoo.db.lifecycle import _probe_liveness
+
+        dbname = common.get_db_name()
+        _, info = get_connection_info_for_database(dbname)
+        pool = ConnectionPool(maxconn=1, settings=pool_settings.current())
+        self.addCleanup(pool.close_all)
+        with contextlib.closing(Cursor(pool, dbname, info)) as cr:
+            cr.execute("SELECT pg_backend_pid()")
+            first = cr.fetchscalar()
+            _probe_liveness(cr._cnx)
+        with contextlib.closing(db_connect(dbname).cursor()) as admin:
+            admin.execute("SELECT pg_terminate_backend(%s)", (first,))
+            admin.commit()
+        time.sleep(0.2)
+        [psycopg_pool] = pool._pools.values()
+        idle = psycopg_pool._pool[0]
+        with self.assertRaises(psycopg.OperationalError):
+            _probe_liveness(idle)
+        setattr(idle, _IDLE_SINCE_ATTR, 0.0)
+        with contextlib.closing(Cursor(pool, dbname, info)) as cr:
+            cr.execute("SELECT pg_backend_pid()")
+            self.assertNotEqual(
+                cr.fetchscalar(),
+                first,
+                "the check callback must refuse the dead backend so the pool "
+                "hands out a fresh one",
+            )
+
     def test_configure_and_reset_stamp_freshness(self):
         conn = MagicMock()
+        conn.pgconn.exec_.return_value.status = 1
         _configure_connection(conn)
         first = getattr(conn, _IDLE_SINCE_ATTR)
         self.assertIsInstance(first, float)
@@ -2683,35 +2860,40 @@ class TestDiscardOnReturn(BaseCase):
         config["db_discard_on_return"] = value
         self.addCleanup(config.__setitem__, "db_discard_on_return", old)
 
-    def test_default_runs_cheap_session_reset(self):
+    def _conn(self):
         conn = MagicMock()
-        seen = []
-        conn.execute.side_effect = lambda sql, **kw: seen.append(
-            (sql, conn.autocommit, kw.get("prepare"))
-        )
+        conn.autocommit = False
+        conn.pgconn.exec_.return_value.status = 1
+        return conn
+
+    def test_default_runs_cheap_session_reset(self):
+        conn = self._conn()
         self._set_discard(False)
         _reset_connection(conn)
         self.assertEqual(
-            seen,
-            [(_RESET_SESSION_STATE_SQL, True, False)],
+            [c.args for c in conn.pgconn.exec_.call_args_list],
+            [(_RESET_SESSION_STATE_SQL.encode(),)],
             "default return path must run the cheap session reset "
             "(and never DISCARD ALL)",
         )
+        conn.execute.assert_not_called()
         self.assertEqual(conn.prepare_threshold, 2)
         self.assertEqual(conn.prepared_max, 500)
         self.assertFalse(conn.autocommit)
 
-    def test_opt_in_runs_discard_all_in_autocommit(self):
-        conn = MagicMock()
-        seen = []
-        conn.execute.side_effect = lambda sql, **kw: seen.append(
-            (sql, conn.autocommit, kw.get("prepare"))
-        )
+    def test_opt_in_runs_discard_all_without_touching_autocommit(self):
+        conn = self._conn()
         self._set_discard(True)
         _reset_connection(conn)
-        self.assertEqual(seen, [("DISCARD ALL", True, False)])
+        self.assertEqual(
+            [c.args for c in conn.pgconn.exec_.call_args_list], [(b"DISCARD ALL",)]
+        )
         conn._prepared.clear.assert_called_once_with()
-        self.assertFalse(conn.autocommit)
+        self.assertFalse(
+            conn.autocommit,
+            "the simple-query call folds no BEGIN in, so the autocommit toggle "
+            "that used to bracket the reset is gone with its 1 us",
+        )
         self.assertEqual(conn.prepare_threshold, 2)
         self.assertEqual(conn.prepared_max, 500)
 
@@ -2912,6 +3094,7 @@ class TestBulkCatalogFactScope(BaseCase):
 
 
 class TestConcurrentDdlDuringBinaryCopy(BaseCase):
+    @mute_logger("odoo.db.cursor")
     def test_concurrent_alter_does_not_corrupt_binary_copy(self):
         tbl = "_test_race_copy"
         db_name = common.get_db_name()
@@ -3160,11 +3343,12 @@ class TestFlushingSavepointLayering(BaseCase):
             _OrmFlushingSavepoint._restore_orm_state,
             _FlushingSavepoint._restore_orm_state,
         )
-        self.assertIs(
-            _OrmFlushingSavepoint._save_orm_state,
-            _FlushingSavepoint._save_orm_state,
-            "the ORM savepoint snapshots nothing: default_env is set by the "
-            "transaction's opener, not by whoever constructs an Environment first",
+        self.assertEqual(
+            _OrmFlushingSavepoint.__slots__,
+            ("_generation_before",),
+            "the ORM savepoint snapshots the cache-invalidation generations and "
+            "nothing else: default_env is set by the transaction's opener, not by "
+            "whoever constructs an Environment first",
         )
 
     def test_savepoint_restores_orm_state_on_rollback(self):
@@ -3429,6 +3613,8 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
 
     def test_probe_is_wired_into_pool_creation(self):
         src = inspect.getsource(ConnectionPool._get_or_create_pool)
+        self.assertIn("_check_connectable_or_fail_fast", src)
+        src = inspect.getsource(ConnectionPool._check_connectable_or_fail_fast)
         self.assertIn(
             "self._probe.check_connectable",
             src,
@@ -3559,18 +3745,17 @@ class TestRecoverableErrorLogLevel(BaseCase):
         )
 
     def test_lock_not_available_logged_as_warning_not_error(self):
+        # An advisory lock, not a row of res_users: under ``-u`` the loading
+        # transaction holds the admin row until it commits, so a plain
+        # ``FOR UPDATE`` on it waits forever. ``lock_timeout`` raises the same
+        # 55P03 ``LockNotAvailable`` that ``NOWAIT`` does.
         with registry().cursor() as cr_lock:
-            cr_lock.execute(
-                "SELECT id FROM res_users WHERE id = %s FOR UPDATE",
-                (ADMIN_USER_ID,),
-            )
+            cr_lock.execute("SELECT pg_advisory_xact_lock(%s)", (0x0D00,))
             with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
                 with self.assertRaises(psycopg.errors.LockNotAvailable):
                     with registry().cursor() as cr_nowait:
-                        cr_nowait.execute(
-                            "SELECT id FROM res_users WHERE id = %s FOR UPDATE NOWAIT",
-                            (ADMIN_USER_ID,),
-                        )
+                        cr_nowait.execute("SET LOCAL lock_timeout = '50ms'")
+                        cr_nowait.execute("SELECT pg_advisory_xact_lock(%s)", (0x0D00,))
         levels = {r.levelname for r in cm.records}
         self.assertIn("WARNING", levels)
         self.assertNotIn(
@@ -4324,7 +4509,7 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
 
     def _make_pool_with(self, *fakes):
         cp = ConnectionPool(maxconn=8)
-        cp._pools = {frozenset([("database", fp.name)]): fp for fp in fakes}
+        cp._pools = {frozenset([("dbname", fp.name)]): fp for fp in fakes}
         return cp
 
     def test_close_all_closes_survivors_despite_failure(self):
@@ -4341,8 +4526,8 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
         b = self._FakePool("db")
         cp = ConnectionPool(maxconn=8)
         cp._pools = {
-            frozenset([("database", "db"), ("host", "h1")]): a,
-            frozenset([("database", "db"), ("host", "h2")]): b,
+            frozenset([("dbname", "db"), ("host", "h1")]): a,
+            frozenset([("dbname", "db"), ("host", "h2")]): b,
         }
         cp.close_database("db")
         self.assertTrue(a.close_called and b.close_called)
@@ -4360,8 +4545,8 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
         b = self._FakePool("db")
         cp = ConnectionPool(maxconn=8)
         cp._pools = {
-            frozenset([("database", "db"), ("host", "h1")]): a,
-            frozenset([("database", "db"), ("host", "h2")]): b,
+            frozenset([("dbname", "db"), ("host", "h1")]): a,
+            frozenset([("dbname", "db"), ("host", "h2")]): b,
         }
         cp.drain_database("db")
         self.assertTrue(a.drain_called and b.drain_called)
@@ -5161,12 +5346,12 @@ class TestCreateModelTableAndConstraintColumns(BaseCase):
         self.assertIsNone(
             diag.column_name,
             "PostgreSQL names no single column for a composite constraint, "
-            "which is the whole reason check_registry exists",
+            "which is the whole reason check_catalog exists",
         )
         self.assertEqual(sql_schema.get_column_names_in_constraint(self.cr, diag), [])
         self.assertEqual(
             sql_schema.get_column_names_in_constraint(
-                self.cr, diag, check_registry=True
+                self.cr, diag, check_catalog=True
             ),
             ["name", "qty"],
             "only the catalog lookup can tell the user which fields clashed",
@@ -5452,20 +5637,14 @@ class TestPartitionedTablesAreVisible(BaseCase):
 
     def test_every_relkind_the_kind_enum_names_is_admitted_as_existing(self):
         named = {k.value for k in sql_schema.TableKind if k.value} - {"t"}
-        cr = db_connect(common.get_db_name()).cursor()
-        try:
-            cr.execute("SELECT 1")
-            src = inspect.getsource(sql_schema.get_tables_existing)
-            for relkind in self.assertSweep(sorted(named)):
-                self.assertIn(
-                    f'"{relkind}"',
-                    src,
-                    f"TableKind names relkind {relkind!r} but get_tables_existing "
-                    f"does not admit it, so get_table_kind and table_exists "
-                    f"disagree about that relation",
-                )
-        finally:
-            cr.close()
+        for relkind in self.assertSweep(sorted(named)):
+            self.assertIn(
+                relkind,
+                sql_schema._EXISTING_RELKINDS,
+                f"TableKind names relkind {relkind!r} but get_tables_existing "
+                f"does not admit it, so get_table_kind and table_exists "
+                f"disagree about that relation",
+            )
 
 
 class TestDdlDrainsSiblingConnections(BaseCase):
@@ -5576,7 +5755,11 @@ class TestDdlDrainsSiblingConnections(BaseCase):
 
 class TestMaintenanceConnectionOptions(BaseCase):
     def test_both_borrow_paths_share_one_options_assembler(self):
-        for path in ("_get_or_create_pool", "_borrow_directly"):
+        self.assertIn(
+            "_prepare_connect_args",
+            inspect.getsource(ConnectionPool._get_or_create_pool),
+        )
+        for path in ("_prepare_connect_args", "_borrow_directly"):
             src = inspect.getsource(getattr(ConnectionPool, path))
             self.assertIn(
                 "_prepare_connection_options",
@@ -5593,7 +5776,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         )
         self.assertIn(
             "session_gucs=self._settings.session_gucs",
-            inspect.getsource(ConnectionPool._get_or_create_pool),
+            inspect.getsource(ConnectionPool._prepare_connect_args),
             "the pooled path applies the pool's configured session policy",
         )
 
@@ -6117,6 +6300,84 @@ class TestNoRedundantLockAfterDdl(BaseCase):
             sp.close()
             cr.execute("DROP TABLE _cf_sp")
             cr.commit()
+
+
+class TestPermitsSurviveKilledBackendsUnderLoad(BaseCase):
+    # Cursors are taken from db_connect(), not registry(): every TestCursor
+    # serialises on one lock, and this test exists to race.
+    @mute_logger("odoo.db.cursor")
+    def test_budget_and_checkouts_read_zero_after_the_storm(self):
+        import gc
+        import random
+
+        dbname = common.get_db_name()
+        _, info = get_connection_info_for_database(dbname)
+        pool = ConnectionPool(maxconn=6, borrow_timeout=5)
+        self.addCleanup(pool.close_all)
+        stop = threading.Event()
+        pids: set[int] = set()
+        lock = threading.Lock()
+        outcomes = {"ok": 0, "killed": 0, "pool_error": 0, "other": 0}
+
+        def worker():
+            rnd = random.Random()
+            while not stop.is_set():
+                try:
+                    cr = Cursor(pool, dbname, info)
+                except PoolError:
+                    with lock:
+                        outcomes["pool_error"] += 1
+                    continue
+                except Exception:
+                    with lock:
+                        outcomes["other"] += 1
+                    continue
+                try:
+                    cr.execute("SELECT pg_backend_pid()")
+                    with lock:
+                        pids.add(cr.fetchscalar())
+                    if rnd.random() < 0.5:
+                        cr.commit()
+                    if rnd.random() < 0.1:
+                        del cr  # dropped without close: __del__ must release
+                        continue
+                    cr.close()
+                    with lock:
+                        outcomes["ok"] += 1
+                except psycopg.OperationalError, psycopg.InterfaceError:
+                    with lock:
+                        outcomes["killed"] += 1
+                    cr.close()
+
+        def killer():
+            with contextlib.closing(db_connect(dbname).cursor()) as admin:
+                while not stop.is_set():
+                    time.sleep(0.05)
+                    with lock:
+                        victims = list(pids)[:2]
+                        pids.difference_update(victims)
+                    for pid in victims:
+                        admin.execute("SELECT pg_terminate_backend(%s)", (pid,))
+                    admin.commit()
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        threads.append(threading.Thread(target=killer))
+        for t in threads:
+            t.start()
+        time.sleep(2.0)
+        stop.set()
+        for t in threads:
+            t.join(10)
+        gc.collect()
+        time.sleep(0.2)
+        health = pool.get_health()["pool"]
+        self.assertGreater(outcomes["killed"], 0, "the killer must have hit someone")
+        self.assertEqual(outcomes["other"], 0, outcomes)
+        self.assertEqual(
+            (health["budget_in_use"], health["checked_out"]),
+            (0, 0),
+            f"a permit or a checkout outlived its borrow: {health} {outcomes}",
+        )
 
 
 class TestSaturatedPoolNamesItsHolders(BaseCase):

@@ -62,6 +62,6 @@ class TestColorize(unittest.TestCase):
     def test_fg_and_bg_encoded(self):
         result = colorize("x", fg=RED, bg=BLUE)
         match = re.match(r"\033\[1;(\d+)m\033\[1;(\d+)mx", result)
-        self.assertIsNotNone(match)
+        assert match is not None
         self.assertEqual(int(match.group(1)), 30 + RED)
         self.assertEqual(int(match.group(2)), 40 + BLUE)

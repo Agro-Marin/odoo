@@ -4,7 +4,10 @@ from odoo import _, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import Query
+
+_debug = DebugLog(__name__)
 
 
 class MailBlacklist(models.Model):
@@ -12,15 +15,19 @@ class MailBlacklist(models.Model):
     _inherit = ["mixin.mail.thread"]
     _description = "Mail Blacklist"
     _rec_name = "email"
+    _search_visibility_fields = ()
 
     email = fields.Char(
         string="Email Address",
-        required=True,
         index="trigram",
-        help="This field is case insensitive.",
+        required=True,
         tracking=1,
+        help="This field is case insensitive.",
     )
-    active = fields.Boolean(default=True, tracking=2)
+    active = fields.Boolean(
+        default=True,
+        tracking=2,
+    )
 
     _unique_email = models.Constraint(
         "unique (email)",
@@ -54,6 +61,13 @@ class MailBlacklist(models.Model):
             for value, email in zip(vals_list, emails, strict=True)
             if email in id_by_email and value.get("active", True)
         ]
+        _debug.lifecycle(
+            "create",
+            asked=len(emails),
+            created=len(created),
+            existing=len(emails) - len(vals_by_new_email),
+            reactivated=len(reactivate_ids),
+        )
         if reactivate_ids:
             self.browse(reactivate_ids).with_context(active_test=False).filtered(
                 lambda record: not record.active
@@ -87,6 +101,7 @@ class MailBlacklist(models.Model):
             .with_context(active_test=False)
             .search([("email", "=", normalized)])
         )
+        _debug.lifecycle("added", email=normalized, existing=bool(record))
         if len(record) > 0:
             if message:
                 record._track_set_log_message(message)
@@ -107,6 +122,7 @@ class MailBlacklist(models.Model):
             .with_context(active_test=False)
             .search([("email", "=", normalized)])
         )
+        _debug.lifecycle("removed", email=normalized, existing=bool(record))
         if len(record) > 0:
             if message:
                 record._track_set_log_message(message)

@@ -6,8 +6,8 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     l10n_es_edi_verifactu_required = fields.Boolean(
-        string="Veri*Factu Required",
         related="company_id.l10n_es_edi_verifactu_required",
+        string="Veri*Factu Required",
     )
     l10n_es_edi_verifactu_document_ids = fields.One2many(
         comodel_name="l10n_es_edi_verifactu.document",
@@ -15,13 +15,13 @@ class PosOrder(models.Model):
         string="Veri*Factu Documents",
     )
     l10n_es_edi_verifactu_state = fields.Selection(
-        string="Veri*Factu Status",
         selection=[
             ("rejected", "Rejected"),
             ("registered_with_errors", "Registered with Errors"),
             ("accepted", "Accepted"),
             ("cancelled", "Cancelled"),
         ],
+        string="Veri*Factu Status",
         compute="_compute_l10n_es_edi_verifactu_state",
         store=True,
         help="""- Rejected: Successfully sent to the AEAT, but it was rejected during validation
@@ -73,7 +73,7 @@ class PosOrder(models.Model):
                 warning = last_document.errors
                 warning_level = "danger"
 
-            if last_document._filter_waiting():
+            if last_document._filtered_waiting():
                 warning = _(
                     "%(existing_warning)sA Veri*Factu document is waiting to be sent as soon as possible.",
                     existing_warning=(warning + "\n" if warning else ""),
@@ -306,7 +306,7 @@ class PosOrder(models.Model):
             new_documents = False
 
             waiting_documents = (
-                order.l10n_es_edi_verifactu_document_ids._filter_waiting()
+                order.l10n_es_edi_verifactu_document_ids._filtered_waiting()
             )
             if waiting_documents:
                 raise UserError(

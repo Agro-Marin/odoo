@@ -177,13 +177,13 @@ class TestTemplateCopyPriceExtra(ProductCommon):
         )
 
         extras = {blue: 11.0, green: 22.0}
-        for ptav in line.product_template_value_ids._only_active():
+        for ptav in line.product_template_value_ids._filtered_active():
             ptav.price_extra = extras[ptav.product_attribute_value_id]
 
         copied = template.copy()
         copied_extras = {
             ptav.product_attribute_value_id: ptav.price_extra
-            for ptav in copied.attribute_line_ids.product_template_value_ids._only_active()
+            for ptav in copied.attribute_line_ids.product_template_value_ids._filtered_active()
         }
         self.assertEqual(
             copied_extras,
@@ -234,17 +234,17 @@ class TestSellerPriceUomConversion(ProductCommon):
 
     def test_compute_price_is_strict_by_default(self):
         with self.assertRaises(UserError):
-            self.uom_kgm._compute_price(100.0, self.uom_unit)
+            self.uom_kgm._get_price_in_unit(100.0, self.uom_unit)
 
     def test_compute_price_wrappers_degrade(self):
         self.assertEqual(
-            self.uom_kgm._compute_price_report(100.0, self.uom_unit), 100.0
+            self.uom_kgm._get_price_report(100.0, self.uom_unit), 100.0
         )
         self.assertEqual(
-            self.uom_kgm._compute_price_estimate(100.0, self.uom_unit), 100.0
+            self.uom_kgm._get_price_estimate(100.0, self.uom_unit), 100.0
         )
         self.assertEqual(
-            self.uom_dozen._compute_price_report(120.0, self.uom_unit), 10.0
+            self.uom_dozen._get_price_report(120.0, self.uom_unit), 10.0
         )
 
 

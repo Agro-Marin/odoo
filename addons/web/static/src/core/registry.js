@@ -2,11 +2,13 @@
 /** @odoo-module native */
 
 import { EventBus, onWillDestroy, useState, validate } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { makeAssetLog } from "@web/core/utils/asset_log";
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
 const log = makeAssetLog("registry");
+const debugLog = makeLogger("web.registry");
 
 class KeyNotFoundError extends Error {}
 
@@ -143,6 +145,12 @@ export class Registry extends EventBus {
             value,
             previousInsertion ?? this._insertionIndex++,
         ];
+        debugLog.logic("add", () => ({
+            registry: this.name,
+            key,
+            sequence,
+            force: Boolean(force),
+        }));
         const payload = { operation: "add", key, value };
         this.trigger("UPDATE", payload);
         return this;
@@ -216,6 +224,7 @@ export class Registry extends EventBus {
         }
         const value = this.content[key][1];
         delete this.content[key];
+        debugLog.logic("remove", () => ({ registry: this.name, key }));
         const payload = { operation: "delete", key, value };
         this.trigger("UPDATE", payload);
     }

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { messageActionsRegistry } from "@mail/core/common/message_actions";
+import { patch } from "@web/core/utils/patch";
 
 import { AccountReportMessage } from "./message.js";
-import { patch } from "@web/core/utils/patch";
 
 const deleteAction = messageActionsRegistry.get("delete");
 

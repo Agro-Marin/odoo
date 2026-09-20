@@ -198,8 +198,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": False,
-                    "interval_type": "hours",
-                    "interval_number": 4,
+                    "repeat_unit": "hour",
+                    "repeat_interval": 4,
                 }
             ],
         )
@@ -221,8 +221,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": True,
-                    "interval_type": "minutes",
-                    "interval_number": 12,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 12,
                 }
             ],
         )
@@ -242,8 +242,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": True,
-                    "interval_type": "minutes",
-                    "interval_number": 6,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 6,
                 }
             ],
         )
@@ -254,8 +254,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": True,
-                    "interval_type": "minutes",
-                    "interval_number": 6,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 6,
                 }
             ],
         )
@@ -266,8 +266,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": False,
-                    "interval_type": "minutes",
-                    "interval_number": 6,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 6,
                 }
             ],
         )
@@ -279,8 +279,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": True,
-                    "interval_type": "minutes",
-                    "interval_number": 6,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 6,
                 }
             ],
         )
@@ -300,8 +300,8 @@ class TestAutomation(TransactionCaseWithUserDemo):
             [
                 {
                     "active": True,
-                    "interval_type": "minutes",
-                    "interval_number": 6,
+                    "repeat_unit": "minute",
+                    "repeat_interval": 6,
                 }
             ],
         )

@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
 from odoo.logutils import RUNBOT
 from odoo.tools.populate import populate_models
 
@@ -16,6 +17,7 @@ DEFAULT_SEPARATOR = "_"
 DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,stock.picking,project.task"
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _prepare_factors_by_model_name(
@@ -24,13 +26,24 @@ def _prepare_factors_by_model_name(
     try:
         opt_factors = [int(f) for f in factors.split(",")]
     except ValueError:
+        _debug.logic("cli.populate.factors_rejected", reason="not_integers")
         error(f"--factors must be a comma-separated list of integers, got {factors!r}")
         return {}
     if any(f < 1 for f in opt_factors):
+        _debug.logic("cli.populate.factors_rejected", reason="below_one")
         error(f"--factors must all be >= 1, got {factors!r}")
         return {}
     model_names = models.split(",")
+    _debug.logic(
+        "cli.populate.factors",
+        models=len(model_names),
+        factors=len(opt_factors),
+        propagated=max(len(model_names) - len(opt_factors), 0),
+    )
     if len(opt_factors) > len(model_names):
+        _debug.logic(
+            "cli.populate.factors_ignored", extra=len(opt_factors) - len(model_names)
+        )
         _logger.warning(
             "%d factors provided for %d models; ignoring the extra factors %s",
             len(opt_factors),
@@ -84,14 +97,25 @@ class Populate(DatabaseCommand):
             parsed_args.factors, parsed_args.models_to_populate, parser.error
         )
         if len(parsed_args.separator) != 1:
+            _debug.logic(
+                "cli.populate.separator_rejected", length=len(parsed_args.separator)
+            )
             parser.error(
                 f"--sep must be a single Unicode character, got "
                 f"{parsed_args.separator!r} (length {len(parsed_args.separator)})"
             )
         separator_code = ord(parsed_args.separator)
 
+        _debug.pipeline(
+            "cli.populate.plan",
+            db=db_name,
+            models=len(model_factors),
+            factor_min=min(model_factors.values(), default=0),
+            factor_max=max(model_factors.values(), default=0),
+        )
         with open_environment(db_name, context={"active_test": False}) as env:
             self._populate_models_named(env, model_factors, separator_code)
+        _debug.lifecycle("cli.populate.done", db=db_name, models=len(model_factors))
 
     @classmethod
     def _populate_models_named(
@@ -106,16 +130,34 @@ class Populate(DatabaseCommand):
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
+        if _debug.logic.enabled:
+            for model, factor in model_factors.items():
+                _debug.logic(
+                    "cli.populate.model_selected", model=model._name, factor=factor
+                )
         if skipped := set(model_name_factors) - {m._name for m in model_factors}:
+            _debug.logic("cli.populate.models_skipped", count=len(skipped))
             _logger.warning(
                 "Ignoring unknown, transient or abstract models: %s",
                 ", ".join(sorted(skipped)),
             )
         _logger.log(RUNBOT, "Populating models %s", list(model_factors))
         t0 = time.time()
-        populate_models(model_factors, separator_code)
-        env.flush_all()
+        with _debug.perf(
+            "cli.populate",
+            cr=env.cr,
+            models=len(model_factors),
+            skipped=len(skipped) if skipped else 0,
+            separator=separator_code,
+        ):
+            with _debug.perf("cli.populate.models", cr=env.cr):
+                populate_models(model_factors, separator_code)
+            with _debug.perf("cli.populate.flush", cr=env.cr):
+                env.flush_all()
         model_time = time.time() - t0
         _logger.info(
             "Populated models %s (total: %fs)", list(model_factors), model_time
+        )
+        _debug.lifecycle(
+            "cli.populate.populated", models=len(model_factors), seconds=model_time
         )

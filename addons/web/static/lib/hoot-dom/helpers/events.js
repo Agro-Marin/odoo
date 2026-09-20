@@ -375,8 +375,6 @@ function getDefaultRunTimeValue() {
 }
 
 /**
- * Returns the list of nodes containing n2 (included) that do not contain n1.
- *
  * @param {Element} [el1]
  * @param {Element} [el2]
  */
@@ -530,12 +528,6 @@ function getFirstCommonParent(a, b) {
 }
 
 /**
- * Returns the interactive pointer target from a given element, unless the element
- * is falsy, or the 'interactive' option is set to `false`.
- *
- * If an 'originalTarget' is given, the helper will deliberately throw an error if
- * no interactive elements are found.
- *
  * @param {HTMLElement} element
  * @param {QueryOptions} [options]
  * @param {AsyncTarget} [originalTarget]
@@ -688,10 +680,35 @@ function parseKeyStrokes(keyStrokes, options) {
 }
 
 /**
- * Redirects all 'submit' events to explicit network requests.
- *
- * This allows the `mockFetch` helper to take control over submit requests.
- *
+ * @param {(url: URL) => boolean} isAppHost
+ * @returns {(ev: MouseEvent) => void}
+ */
+function makeWindowOpeningNavigationCanceler(isAppHost) {
+    const cancel = (/** @type {Event} */ ev) => ev.preventDefault();
+    return (ev) => {
+        const target = /** @type {Element | null} */ (ev.target);
+        const anchor = /** @type {HTMLAnchorElement | null} */ (
+            target?.closest?.("a[href]")
+        );
+        if (!anchor) {
+            return;
+        }
+        let leaves = anchor.getAttribute("target") === "_blank";
+        if (!leaves && /^[a-z][a-z0-9+.-]*:/i.test(anchor.getAttribute("href") || "")) {
+            try {
+                const url = new URL(anchor.href);
+                leaves = url.host !== globalThis.location.host && !isAppHost(url);
+            } catch {
+                leaves = false;
+            }
+        }
+        if (leaves) {
+            anchor.addEventListener("click", cancel, { once: true });
+        }
+    };
+}
+
+/**
  * @param {SubmitEvent} ev
  */
 function redirectSubmit(ev) {
@@ -1312,9 +1329,6 @@ async function _keyDown(targetResolver, eventInit) {
         return;
     }
 
-    // Re-resolved after 'keydown' was dispatched: a handler may have moved
-    // focus, and the browser routes the resulting input to wherever focus
-    // landed, not to the element the sequence started on.
     const target = resolve(targetResolver);
 
     /**
@@ -1329,10 +1343,6 @@ async function _keyDown(targetResolver, eventInit) {
             nextValue += toInsert;
         } else {
             nextValue = value.slice(0, selectionStart) + toInsert + value.slice(selectionEnd);
-            // Also when a RANGE was replaced: a browser collapses the caret to
-            // the end of what it inserted. Leaving the range in place kept the
-            // whole replaced text selected, so the next character replaced it
-            // again -- the opposite of what typing over a selection does.
             nextSelectionStart = nextSelectionEnd = selectionStart + toInsert.length;
         }
     }
@@ -1432,11 +1442,6 @@ async function _keyDown(targetResolver, eventInit) {
             }
             break;
         }
-        /**
-         * Special action: copy
-         *  On: unprevented 'Control + c' keydown
-         *  Do: copy current selection to clipboard
-         */
         case "c": {
             if (ctrlKey) {
                 const text = globalThis.getSelection().toString();
@@ -1532,12 +1537,6 @@ async function _keyDown(targetResolver, eventInit) {
 
     if (initialValue !== nextValue) {
         target.value = nextValue;
-        // Value AND selection, both before `input` is dispatched: a browser
-        // applies an editing operation atomically and only then notifies. Doing
-        // the selection afterwards silently overwrote whatever the listener had
-        // just set -- a widget that `select()`s its own input from `oninput`
-        // looked like it had never run, hiding that class of bug from every
-        // test in the suite.
         changeSelection(target, nextSelectionStart, nextSelectionEnd);
         nextSelectionStart = nextSelectionEnd = null;
         const inputEventInit = {
@@ -2796,6 +2795,8 @@ export async function setInputRange(target, value, options) {
  * @param {HTMLElement} target
  * @param {{
  *  allowSubmit?: boolean;
+ *  allowNavigation?: boolean;
+ *  isAppHost?: (url: URL) => boolean;
  *  allowTrustedEvents?: boolean;
  *  noFileInputRegistration?: boolean;
  * }} [options]
@@ -2810,6 +2811,14 @@ export function setupEventActions(target, options) {
     }
     if (!options?.allowSubmit) {
         eventHandlers.push(...GLOBAL_SUBMIT_FORWARDERS);
+    }
+    if (!options?.allowNavigation) {
+        const isAppHost = options?.isAppHost || (() => false);
+        eventHandlers.push([
+            "click",
+            makeWindowOpeningNavigationCanceler(isAppHost),
+            CAPTURE,
+        ]);
     }
 
     const view = getWindow(target);

@@ -13,7 +13,7 @@
             </t>
             <th t-if="display_sol">Sales Order Item</th>
         </th>
-        <xpath expr="//tr/td[t[@t-esc='timesheet.name']]" position="after">
+        <xpath expr="//tr/td[t[@t-out='timesheet.name']]" position="after">
             <td t-if="display_sol">
             <t t-if="timesheet.so_line.order_id.access_url and so_accessible"><a t-att-href="'%s' % timesheet.so_line.order_id.access_url"><t t-out="timesheet.so_line.display_name" /></a></t>
         <t
@@ -30,11 +30,11 @@
                 <td class="text-end">
                     <span
                         t-if="is_uom_day"
-                        t-esc="timesheets._convert_hours_to_days(task.remaining_hours_so)"
+                        t-out="timesheets._convert_hours_to_days(task.remaining_hours_so)"
                         t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                     <span
                         t-else=""
-                        t-esc="task.remaining_hours_so"
+                        t-out="task.remaining_hours_so"
                         t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                 </td>
             </tr>

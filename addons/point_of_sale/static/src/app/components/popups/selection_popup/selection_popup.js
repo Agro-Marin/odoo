@@ -1,7 +1,9 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.selection");
 export class SelectionPopup extends Component {
     static template = "point_of_sale.SelectionPopup";
     static components = { Dialog };
@@ -39,6 +41,11 @@ export class SelectionPopup extends Component {
         return selected && selected.item;
     }
     confirm() {
+        log.logic("confirm", () => ({
+            title: this.props.title,
+            options: this.props.list.length,
+            selected: this.state.selectedId,
+        }));
         this.props.getPayload(this.computePayload());
         this.props.close();
     }

@@ -1,6 +1,6 @@
 {
     "name": "Automation Rules",
-    "version": "1.7",
+    "version": "1.11",
     "category": "Sales/Sales",
     "description": """
 This module allows to implement automation rules for any object.
@@ -16,7 +16,6 @@ trigger an automatic reminder email.
     "license": "LGPL-3",
     "depends": [
         "bus",
-        "credential",
         "digest",
         "mail",
         "resource",
@@ -34,6 +33,7 @@ trigger an automatic reminder email.
         "views/automation_runtime_line_views.xml",
         "views/ir_actions_server_views.xml",
         "views/workflow_dag_views.xml",
+        "views/automation_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

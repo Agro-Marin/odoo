@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="ai_model_claude_sonnet_5" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Sonnet 5</field>
+        <field name="code">claude-sonnet-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1000000</field>
+        <field name="max_output_tokens">128000</field>
+        <field name="cost_per_1m_input">2.00</field>
+        <field name="cost_per_1m_output">10.00</field>
+        <field name="accuracy_rating">5</field>
+        <field name="speed_rating">4</field>
+        <field name="sampling_params" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_fable_5_1" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Fable 5.1</field>
+        <field name="code">claude-fable-5-1</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="sampling_params" eval="False" />
+        <field name="forced_tool_choice" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_opus_5" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Opus 5</field>
+        <field name="code">claude-opus-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="sampling_params" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_fable_5" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Fable 5</field>
+        <field name="code">claude-fable-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="sampling_params" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_opus_4_8" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Opus 4.8</field>
+        <field name="code">claude-opus-4-8</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="sampling_params" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_opus_4_7" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Opus 4.7</field>
+        <field name="code">claude-opus-4-7</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="sampling_params" eval="False" />
+    </record>
+
+    <record id="ai_model_claude_opus_4_6" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Opus 4.6</field>
+        <field name="code">claude-opus-4-6</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_claude_sonnet_4_6" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Sonnet 4.6</field>
+        <field name="code">claude-sonnet-4-6</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_claude_sonnet_4_5" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Sonnet 4.5</field>
+        <field name="code">claude-sonnet-4-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_claude_haiku_4_5" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Haiku 4.5</field>
+        <field name="code">claude-haiku-4-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_claude_sonnet_4_5_20250929" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Sonnet 4.5 (2025-09-29)</field>
+        <field name="code">claude-sonnet-4-5-20250929</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_claude_haiku_4_5_20251001" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Haiku 4.5 (2025-10-01)</field>
+        <field name="code">claude-haiku-4-5-20251001</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+    </record>
+
+    <record id="ai_model_openai_gpt_5_6_luna" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">GPT-5.6 Luna</field>
+        <field name="code">gpt-5.6-luna</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1050000</field>
+        <field name="max_output_tokens">128000</field>
+        <field name="cost_per_1m_input">0.20</field>
+        <field name="cost_per_1m_output">1.20</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">4</field>
+        <field name="max_tokens_param">max_completion_tokens</field>
+        <field name="request_extra" eval="{'reasoning_effort': 'none'}" />
+    </record>
+
+    <record id="ai_model_openai_gpt_transcribe" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">GPT Transcribe</field>
+        <field name="code">gpt-transcribe</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="15" />
+        <field name="has_timestamps" eval="False" />
+        <field name="supports_streaming" eval="True" />
+        <field name="cost_per_audio_minute">0.0045</field>
+        <field name="accuracy_rating">5</field>
+        <field name="speed_rating">4</field>
+        <field name="language_form_key">languages[]</field>
+    </record>
+
+    <record id="ai_model_openai_whisper_1" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">Whisper</field>
+        <field name="code">whisper-1</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="20" />
+        <field name="has_timestamps" eval="True" />
+        <field name="supports_streaming" eval="False" />
+        <field name="cost_per_audio_minute">0.006</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_gemini_3_5_flash_lite" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_google" />
+        <field name="name">Gemini 3.5 Flash-Lite</field>
+        <field name="code">gemini-3.5-flash-lite</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1048576</field>
+        <field name="max_output_tokens">65536</field>
+        <field name="cost_per_1m_input">0.30</field>
+        <field name="cost_per_1m_output">2.50</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">5</field>
+        <field name="min_max_tokens">2000</field>
+        <field name="request_extra" eval="{'reasoning_effort': 'low'}" />
+    </record>
+
+    <record id="ai_model_gemini_flash_lite_latest" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_google" />
+        <field name="name">Gemini Flash Lite (audio)</field>
+        <field name="code">gemini-flash-lite-latest</field>
+        <field name="kind">audio</field>
+        <field name="active" eval="False" />
+        <field name="sequence" eval="20" />
+        <field name="has_timestamps" eval="False" />
+        <field name="supports_streaming" eval="False" />
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_deepseek_flash" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_deepseek" />
+        <field name="name">DeepSeek Flash</field>
+        <field name="code">deepseek-flash</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1000000</field>
+        <field name="max_output_tokens">393216</field>
+        <field name="cost_per_1m_input">0.15</field>
+        <field name="cost_per_1m_output">0.60</field>
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">5</field>
+        <field name="request_extra" eval="{'thinking': {'type': 'disabled'}}" />
+    </record>
+
+    <record id="ai_model_deepgram_nova_3" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_deepgram" />
+        <field name="name">Nova 3</field>
+        <field name="code">nova-3</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="10" />
+        <field name="has_timestamps" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="cost_per_audio_minute">0.0043</field>
+        <field name="accuracy_rating">5</field>
+        <field name="speed_rating">5</field>
+        <field name="vocabulary_param">keyterm</field>
+    </record>
+
+    <record id="ai_model_groq_gpt_oss_120b" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_groq" />
+        <field name="name">GPT-OSS 120B</field>
+        <field name="code">openai/gpt-oss-120b</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="False" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">131072</field>
+        <field name="max_output_tokens">65536</field>
+        <field name="cost_per_1m_input">0.15</field>
+        <field name="cost_per_1m_output">0.60</field>
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">5</field>
+        <field name="request_extra" eval="{'reasoning_effort': 'low'}" />
+    </record>
+
+    <record id="ai_model_groq_whisper_large_v3_turbo" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_groq" />
+        <field name="name">Whisper Large v3 Turbo</field>
+        <field name="code">whisper-large-v3-turbo</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="30" />
+        <field name="has_timestamps" eval="True" />
+        <field name="supports_streaming" eval="False" />
+        <field name="cost_per_audio_minute">0.000667</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_moonshot_kimi_k3" model="gateway.ml.model">
+        <field name="provider_id" ref="ai_provider_moonshot" />
+        <field name="name">Kimi K3</field>
+        <field name="code">kimi-k3</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1048576</field>
+        <field name="max_output_tokens">1048576</field>
+        <field name="cost_per_1m_input">3.00</field>
+        <field name="cost_per_1m_output">15.00</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">2</field>
+        <field name="min_max_tokens">2000</field>
+        <field name="request_extra" eval="{'temperature': 1}" />
+    </record>
+
+    <record id="ai_provider_anthropic" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_claude_sonnet_5" />
+    </record>
+
+    <record id="ai_provider_openai" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_openai_gpt_5_6_luna" />
+    </record>
+
+    <record id="ai_provider_google" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_gemini_3_5_flash_lite" />
+    </record>
+
+    <record id="ai_provider_deepseek" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_deepseek_flash" />
+    </record>
+
+    <record id="ai_provider_deepgram" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_deepgram_nova_3" />
+    </record>
+
+    <record id="ai_provider_groq" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_groq_gpt_oss_120b" />
+    </record>
+
+    <record id="ai_provider_moonshot" model="gateway.ml.provider">
+        <field name="default_model_id" ref="ai_model_moonshot_kimi_k3" />
+    </record>
+
+</odoo>

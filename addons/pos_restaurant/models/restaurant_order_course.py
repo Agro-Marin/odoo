@@ -8,17 +8,29 @@ class RestaurantOrderCourse(models.Model):
     _description = "POS Restaurant Order Course"
     _inherit = ["mixin.pos.load"]
 
-    fired = fields.Boolean(string="Fired", default=False)
-    fired_date = fields.Datetime(string="Fired Date")
+    fired = fields.Boolean(default=False)
+    fired_date = fields.Datetime()
     uuid = fields.Char(
-        string="Uuid", readonly=True, default=lambda self: str(uuid4()), copy=False
+        default=lambda self: str(uuid4()),
+        copy=False,
+        readonly=True,
     )
-    index = fields.Integer(string="Course index", default=0)
+    index = fields.Integer(
+        string="Course index",
+        default=0,
+    )
     order_id = fields.Many2one(
-        "pos.order", string="Order Ref", required=True, index=True, ondelete="cascade"
+        comodel_name="pos.order",
+        string="Order Ref",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     line_ids = fields.One2many(
-        "pos.order.line", "course_id", string="Order Lines", readonly=True
+        comodel_name="pos.order.line",
+        inverse_name="course_id",
+        string="Order Lines",
+        readonly=True,
     )
 
     @api.model_create_multi

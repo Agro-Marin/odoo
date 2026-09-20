@@ -128,5 +128,4 @@ this fork has just finished deleting elsewhere.
             "extract/static/tests/**/*.test.js",
         ],
     },
-    "installable": True,
 }

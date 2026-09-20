@@ -36,7 +36,6 @@
     <Dialog title.translate="Add a Google font or upload a custom font" size="'xl'">
         <div class="row">
             <div class="col-lg-7">
-                <!-- Google Font -->
                 <div class="mb-3 row">
                     <div class="col-form-label col-md-4">
                         <label for="google_font">Choose from list</label>
@@ -60,7 +59,6 @@
                     </label>
                 </div>
                 <hr/>
-                <!-- Upload font -->
                 <div class="mb-3 row">
                     <div class="col-form-label col-md-4">
                         <label for="upload_font">Custom Font</label>
@@ -75,7 +73,6 @@
                 </div>
             </div>
             <div class="col-lg-5" style="border-left: var(--gray-300) solid 1px;">
-                <!-- Preview -->
                 <t t-call="website.dialog.addFont.preview">
                     <t t-if="state.googleFontFamily">
                         <t t-set="previewFontName" t-value="state.googleFontFamily"/>

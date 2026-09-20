@@ -11,12 +11,12 @@ class AccountPaymentRegister(models.TransientModel):
     _inherit = "account.payment.register"
 
     l10n_ar_withholding_ids = fields.One2many(
-        "l10n_ar.payment.register.withholding",
-        "payment_register_id",
+        comodel_name="l10n_ar.payment.register.withholding",
+        inverse_name="payment_register_id",
         string="Withholdings",
         compute="_compute_l10n_ar_withholding_ids",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     l10n_ar_net_amount = fields.Monetary(
         compute="_compute_l10n_ar_net_amount",
@@ -204,7 +204,7 @@ class AccountPaymentRegister(models.TransientModel):
     def _compute_l10n_ar_withholding_ids(self):
         for wizard in self:
             date = wizard.payment_date or fields.Date.context_today(self)
-            partner_taxes = self.env["l10n_ar.partner.tax"].search(
+            partner_taxes = self.env["l10n_ar.partner.tax"].search(  # noqa: E8507 - a transient wizard: one record
                 [
                     *self.env["l10n_ar.partner.tax"]._check_company_domain(
                         wizard.company_id

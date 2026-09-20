@@ -19,16 +19,18 @@ from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_emai
 from odoo.tools.misc import get_lang
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.res_partner import _selection_timezones
-from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
-from odoo.addons.calendar.models.calendar_recurrence import (
+from odoo.addons.base.models.mixin_recurrence_rrule import (
     BYDAY_SELECTION,
-    END_TYPE_SELECTION,
     MONTH_BY_SELECTION,
-    RRULE_TYPE_SELECTION,
+    REPEAT_TYPE_SELECTION_RRULE,
     WEEKDAY_SELECTION,
     weekday_to_field,
 )
+from odoo.addons.base.models.mixin_recurrence_rule import (
+    REPEAT_UNIT_SELECTION,
+)
+from odoo.addons.base.models.res_partner import _selection_timezones
+from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
 from odoo.addons.calendar.models.utils import (
     generate_calendar_token,
 )
@@ -43,11 +45,14 @@ except ImportError:
     )
     vobject = None
 
-RRULE_TYPE_SELECTION_UI = [
-    ("daily", "Daily"),
-    ("weekly", "Weekly"),
-    ("monthly", "Monthly"),
-    ("yearly", "Yearly"),
+# The quick picker above the custom rule. Its four real values are the shared
+# `repeat_unit` ones, so `_compute_recurrence` can hand one straight to the
+# recurrence instead of translating between two spellings of "weekly".
+REPEAT_UNIT_SELECTION_UI = [
+    ("day", "Daily"),
+    ("week", "Weekly"),
+    ("month", "Monthly"),
+    ("year", "Yearly"),
     ("custom", "Custom"),
 ]
 
@@ -77,7 +82,7 @@ class RecurrencePolicy(NamedTuple):
     the rest are what it means for this particular recordset.
     """
 
-    #: 'self_only' / 'future_events' / 'all_events', or None when no policy
+    #: 'this' / 'subsequent' / 'all', or None when no policy
     #: applies -- including when one was asked for on an event with no
     #: recurrence, where it is meaningless.
     setting: str | None
@@ -85,9 +90,9 @@ class RecurrencePolicy(NamedTuple):
     update: bool
     #: `recurrency=False` is being written: detach rather than rewrite.
     breaking: bool
-    #: 'future_events' asked for from the base event, i.e. from the first
+    #: 'subsequent' asked for from the base event, i.e. from the first
     #: occurrence -- "this and following" is then the whole series, and it takes
-    #: the `all_events` path.
+    #: the `all` path.
     from_base_event: bool
 
 
@@ -102,7 +107,16 @@ class CalendarEvent(models.Model):
     _name = "calendar.event"
     _description = "Calendar Event"
     _order = "start desc"
-    _inherit = ["mixin.mail.thread", "mixin.resource.scheduling"]
+    _search_visibility_fields = (
+        "privacy",
+        "user_id",
+        "partner_ids",
+    )
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.recurrence.occurrence",
+        "mixin.resource.scheduling",
+    ]
     _systray_view = "calendar"
 
     # ``write`` below keeps working long after ``super()`` returns: it applies
@@ -187,61 +201,69 @@ class CalendarEvent(models.Model):
         return start + timedelta(hours=duration_hours)
 
     # description
-    name = fields.Char("Meeting Subject", required=True)
-    description = fields.Html(
-        "Description",
-        help="""When synchronization with an external calendar is active, this description is synchronized \
-        with the one of the associated meeting in that external calendar. Any update will be propagated there \
-        and vice versa.""",
+    name = fields.Char(
+        string="Meeting Subject",
+        required=True,
     )
+    description = fields.Html(help="""When synchronization with an external calendar is active, this description is synchronized \
+        with the one of the associated meeting in that external calendar. Any update will be propagated there \
+        and vice versa.""")
     user_id = fields.Many2one(
-        "res.users",
-        "Organizer",
+        comodel_name="res.users",
+        string="Organizer",
         default=lambda self: self.env.user,
         index="btree_not_null",
     )
     partner_id = fields.Many2one(
-        "res.partner",
-        string="Scheduled by",
+        comodel_name="res.partner",
         related="user_id.partner_id",
+        string="Scheduled by",
         readonly=True,
     )
-    location = fields.Char("Location", tracking=True)
-    notes = fields.Html("Notes")  # Unlike description, internal use only
+    location = fields.Char(tracking=True)
+    notes = fields.Html()  # Unlike description, internal use only
     videocall_location = fields.Char(
-        "Meeting URL", compute="_compute_videocall_location", store=True, copy=True
+        string="Meeting URL",
+        compute="_compute_videocall_location",
+        store=True,
+        copy=True,
     )
-    access_token = fields.Char("Invitation Token", store=True, copy=False, index=True)
+    access_token = fields.Char(
+        string="Invitation Token",
+        store=True,
+        index=True,
+        copy=False,
+    )
     videocall_source = fields.Selection(
-        [("discuss", "Discuss"), ("custom", "Custom")],
+        selection=[("discuss", "Discuss"), ("custom", "Custom")],
         compute="_compute_videocall_source",
     )
     videocall_channel_id = fields.Many2one(
-        "discuss.channel", "Discuss Channel", index="btree_not_null"
+        comodel_name="discuss.channel",
+        string="Discuss Channel",
+        index="btree_not_null",
     )
     # visibility
     privacy = fields.Selection(
-        [
+        selection=[
             ("public", "Public"),
             ("private", "Private"),
             ("confidential", "Only internal users"),
         ],
-        "Privacy",
         help="People to whom this event will be visible.",
     )
     effective_privacy = fields.Selection(
-        [
+        selection=[
             ("public", "Public"),
             ("private", "Private"),
             ("confidential", "Only internal users"),
         ],
-        "Effective Privacy",
-        help="Whether the event is private, considering the user privacy",
         compute="_compute_effective_privacy",
+        help="Whether the event is private, considering the user privacy",
     )
     show_as = fields.Selection(
-        [("free", "Available"), ("busy", "Busy")],
-        "Show as",
+        selection=[("free", "Available"), ("busy", "Busy")],
+        string="Show as",
         default="busy",
         required=True,
         help="If the time is shown as 'busy', this event will be visible to other people with either the full \
@@ -250,123 +272,158 @@ class CalendarEvent(models.Model):
         that you are available during that period of time.",
     )
     is_highlighted = fields.Boolean(
-        compute="_compute_is_highlighted", string="Is the Event Highlighted"
+        string="Is the Event Highlighted",
+        compute="_compute_is_highlighted",
     )
     is_organizer_alone = fields.Boolean(
-        compute="_compute_is_organizer_alone",
         string="Is the Organizer Alone",
+        compute="_compute_is_organizer_alone",
         help="""Check if the organizer is alone in the event, i.e. if the organizer is the only one that hasn't declined
         the event (only if the organizer is not the only attendee)""",
     )
     # filtering
     active = fields.Boolean(
-        "Active",
         default=True,
         tracking=True,
         help="If the active field is set to false, it will allow you to hide the event alarm information without removing it.",
     )
     categ_ids = fields.Many2many(
-        "calendar.event.type", "meeting_category_rel", "event_id", "type_id", "Tags"
+        comodel_name="calendar.event.type",
+        relation="meeting_category_rel",
+        column1="event_id",
+        column2="type_id",
+        string="Tags",
     )
     # timing
     start = fields.Datetime(
-        "Start",
-        required=True,
-        tracking=True,
         default=_default_start,
         index=True,
+        required=True,
+        tracking=True,
         help="Start date of an event, without time for full days events",
     )
     stop = fields.Datetime(
-        "Stop",
+        compute="_compute_stop",
+        default=_default_stop,
+        store=True,
+        readonly=False,
         required=True,
         tracking=True,
-        default=_default_stop,
-        compute="_compute_stop",
-        readonly=False,
-        store=True,
         help="Stop date of an event, without time for full days events",
     )
-    display_time = fields.Char("Event Time", compute="_compute_display_time")
-    allday = fields.Boolean("All Day", default=False)
+    display_time = fields.Char(
+        string="Event Time",
+        compute="_compute_display_time",
+    )
+    allday = fields.Boolean(
+        string="All Day",
+        default=False,
+    )
     start_date = fields.Date(
-        "Start Date",
-        store=True,
-        tracking=True,
         compute="_compute_dates",
         inverse="_inverse_dates",
+        store=True,
+        tracking=True,
     )
     stop_date = fields.Date(
-        "End Date",
-        store=True,
-        tracking=True,
+        string="End Date",
         compute="_compute_dates",
         inverse="_inverse_dates",
+        store=True,
+        tracking=True,
     )
     duration = fields.Float(
-        "Duration", compute="_compute_duration", store=True, readonly=False
+        compute="_compute_duration",
+        store=True,
+        readonly=False,
     )
     # linked document
-    res_id = fields.Many2oneReference("Document ID", model_field="res_model")
-    res_model_id = fields.Many2one("ir.model", "Document Model", ondelete="cascade")
+    res_id = fields.Many2oneReference(
+        model_field="res_model",
+        string="Document ID",
+    )
+    res_model_id = fields.Many2one(
+        comodel_name="ir.model",
+        string="Document Model",
+        ondelete="cascade",
+    )
     res_model = fields.Char(
-        "Document Model Name", related="res_model_id.model", readonly=True, store=True
+        related="res_model_id.model",
+        string="Document Model Name",
+        readonly=True,
     )
     res_model_name = fields.Char(related="res_model_id.name")
     # messaging
     activity_ids = fields.One2many(
-        "mail.activity", "calendar_event_id", string="Activities"
+        comodel_name="mail.activity",
+        inverse_name="calendar_event_id",
+        string="Activities",
     )
     # attendees
-    attendee_ids = fields.One2many("calendar.attendee", "event_id", "Participant")
+    attendee_ids = fields.One2many(
+        comodel_name="calendar.attendee",
+        inverse_name="event_id",
+        string="Participant",
+    )
     current_attendee = fields.Many2one(
-        "calendar.attendee",
+        comodel_name="calendar.attendee",
         compute="_compute_current_attendee",
         search="_search_current_attendee",
     )
     current_status = fields.Selection(
-        string="Attending?", related="current_attendee.state", readonly=False
+        related="current_attendee.state",
+        string="Attending?",
+        readonly=False,
     )
     should_show_status = fields.Boolean(compute="_compute_should_show_status")
+    # `active_test` off because `partner_ids` and `attendee_ids` are two views of
+    # one set and the model relies on it: `_attendees_values` reads
+    # `self.partner_ids` as the attendees a record currently has, and derives the
+    # create/unlink commands for `calendar.attendee` from the difference against
+    # what the caller asked for. `calendar.attendee` has no `active` column, so
+    # with the comodel's active test left on, an archived partner sat in the
+    # relation table and in `attendee_ids` while reading `partner_ids` back
+    # denied they were there: they could never be removed (never in
+    # `removed_partner_ids`) and were re-added as a second attendee by the next
+    # write that named them (always in `added_partner_ids`).
     partner_ids = fields.Many2many(
-        "res.partner",
-        "calendar_event_res_partner_rel",
+        comodel_name="res.partner",
+        relation="calendar_event_res_partner_rel",
         string="Attendees",
         default=_default_partner_ids,
+        context={"active_test": False},
     )
     invalid_email_partner_ids = fields.Many2many(
-        "res.partner", compute="_compute_invalid_email_partner_ids"
+        comodel_name="res.partner",
+        compute="_compute_invalid_email_partner_ids",
     )
     unavailable_partner_ids = fields.Many2many(
-        "res.partner",
+        comodel_name="res.partner",
         string="Unavailable Attendees",
         compute="_compute_unavailable_partner_ids",
     )
     # alarms
     alarm_ids = fields.Many2many(
-        "calendar.alarm",
-        "calendar_alarm_calendar_event_rel",
+        comodel_name="calendar.alarm",
+        relation="calendar_alarm_calendar_event_rel",
         string="Reminders",
         ondelete="restrict",
         help="Notifications sent to all attendees to remind of the meeting.",
     )
     # RECURRENCE FIELD
-    recurrency = fields.Boolean("Recurrent")
+    recurrency = fields.Boolean(string="Recurrent")
     recurrence_id = fields.Many2one(
-        "calendar.recurrence", string="Recurrence Rule", index="btree_not_null"
+        comodel_name="calendar.recurrence",
+        string="Recurrence Rule",
+        index="btree_not_null",
     )
-    follow_recurrence = fields.Boolean(
-        default=False
-    )  # Indicates if an event follows the recurrence, i.e. is not an exception
+    follow_recurrence = fields.Boolean(default=False)  # Indicates if an event follows the recurrence, i.e. is not an exception
     recurrence_update = fields.Selection(
-        [
-            ("self_only", "This event"),
-            ("future_events", "This and following events"),
-            ("all_events", "All events"),
+        selection=[
+            ("this", "This event"),
+            ("subsequent", "This and following events"),
+            ("all", "All events"),
         ],
-        store=False,
-        copy=False,
-        default="self_only",
         help="Choose what to do with other events in the recurrence. Updating All Events is not allowed when dates or time is modified",
     )
     # Those field are pseudo-related fields of recurrence_id.
@@ -374,66 +431,103 @@ class CalendarEvent(models.Model):
     # when recurrence_id is not created yet.
     # If some of these fields are set and recurrence_id does not exists,
     # a `calendar.recurrence.rule` will be dynamically created.
-    rrule = fields.Char("Recurrent Rule", compute="_compute_recurrence", readonly=False)
-    rrule_type_ui = fields.Selection(
-        RRULE_TYPE_SELECTION_UI,
-        string="Repeat",
-        compute="_compute_rrule_type_ui",
-        readonly=False,
-        help="Let the event automatically repeat at that interval",
-    )
-    rrule_type = fields.Selection(
-        RRULE_TYPE_SELECTION,
-        string="Recurrence",
-        help="Let the event automatically repeat at that interval",
+    rrule = fields.Char(
+        string="Recurrent Rule",
         compute="_compute_recurrence",
         readonly=False,
     )
+    repeat_unit_ui = fields.Selection(
+        selection=REPEAT_UNIT_SELECTION_UI,
+        string="Repeat",
+        compute="_compute_repeat_unit_ui",
+        readonly=False,
+        help="Let the event automatically repeat at that interval",
+    )
+    repeat_unit = fields.Selection(
+        selection=REPEAT_UNIT_SELECTION,
+        string="Recurrence",
+        compute="_compute_recurrence",
+        readonly=False,
+        help="Let the event automatically repeat at that interval",
+    )
     event_tz = fields.Selection(
-        _selection_timezones,
+        selection=_selection_timezones,
         string="Timezone",
         compute="_compute_recurrence",
         readonly=False,
     )
-    end_type = fields.Selection(
-        END_TYPE_SELECTION,
+    repeat_type = fields.Selection(
+        selection=REPEAT_TYPE_SELECTION_RRULE,
         string="Recurrence Termination",
         compute="_compute_recurrence",
         readonly=False,
     )
-    interval = fields.Integer(
+    repeat_interval = fields.Integer(
         string="Repeat On",
         compute="_compute_recurrence",
         readonly=False,
         help="Repeat every (Days/Week/Month/Year)",
     )
-    count = fields.Integer(
+    repeat_number = fields.Integer(
         string="Number of Repetitions",
+        compute="_compute_recurrence",
+        readonly=False,
         help="Repeat x times",
+    )
+    mon = fields.Boolean(
         compute="_compute_recurrence",
         readonly=False,
     )
-    mon = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    tue = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    wed = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    thu = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    fri = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    sat = fields.Boolean(compute="_compute_recurrence", readonly=False)
-    sun = fields.Boolean(compute="_compute_recurrence", readonly=False)
+    tue = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
+    wed = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
+    thu = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
+    fri = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
+    sat = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
+    sun = fields.Boolean(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
     month_by = fields.Selection(
-        MONTH_BY_SELECTION,
+        selection=MONTH_BY_SELECTION,
         string="Option",
         compute="_compute_recurrence",
         readonly=False,
     )
-    day = fields.Integer("Date of month", compute="_compute_recurrence", readonly=False)
+    day = fields.Integer(
+        string="Date of month",
+        compute="_compute_recurrence",
+        readonly=False,
+    )
     weekday = fields.Selection(
-        WEEKDAY_SELECTION, compute="_compute_recurrence", readonly=False
+        selection=WEEKDAY_SELECTION,
+        compute="_compute_recurrence",
+        readonly=False,
     )
     byday = fields.Selection(
-        BYDAY_SELECTION, string="By day", compute="_compute_recurrence", readonly=False
+        selection=BYDAY_SELECTION,
+        string="By day",
+        compute="_compute_recurrence",
+        readonly=False,
     )
-    until = fields.Date(compute="_compute_recurrence", readonly=False)
+    repeat_until = fields.Date(
+        compute="_compute_recurrence",
+        readonly=False,
+    )
     # UI Fields.
     display_description = fields.Boolean(compute="_compute_display_description")
     attendees_count = fields.Integer(compute="_compute_attendees_count")
@@ -706,29 +800,29 @@ class CalendarEvent(models.Model):
                     ),
                 )
 
-    def _check_organizer_validation_conditions(self, vals_list):
+    def _get_organizer_validation_conditions(self, vals_list):
         """Method for check in the microsoft_calendar module that needs to be
         overridden in appointment.
         """
         return [True] * len(vals_list)
 
     @api.depends("recurrence_id", "recurrency")
-    def _compute_rrule_type_ui(self):
+    def _compute_repeat_unit_ui(self):
         defaults = self.env["calendar.recurrence"].default_get(
-            ["interval", "rrule_type"]
+            ["repeat_interval", "repeat_unit"]
         )
         for event in self:
             if event.recurrency:
                 if event.recurrence_id:
-                    event.rrule_type_ui = (
+                    event.repeat_unit_ui = (
                         "custom"
-                        if event.recurrence_id.interval != 1
-                        else (event.recurrence_id.rrule_type)
+                        if event.recurrence_id.repeat_interval != 1
+                        else (event.recurrence_id.repeat_unit)
                     )
                 else:
-                    event.rrule_type_ui = defaults["rrule_type"]
+                    event.repeat_unit_ui = defaults["repeat_unit"]
 
-    @api.depends("recurrence_id", "recurrency", "rrule_type_ui")
+    @api.depends("recurrence_id", "recurrency", "repeat_unit_ui")
     def _compute_recurrence(self):
         recurrence_fields = self._get_fields_recurrent()
         false_values = dict.fromkeys(
@@ -739,9 +833,9 @@ class CalendarEvent(models.Model):
         for event in self:
             if event.recurrency:
                 current_rrule = (
-                    event.rrule_type
-                    if event.rrule_type_ui == "custom"
-                    else event.rrule_type_ui
+                    event.repeat_unit
+                    if event.repeat_unit_ui == "custom"
+                    else event.repeat_unit_ui
                 )
                 event.update(
                     defaults
@@ -753,10 +847,10 @@ class CalendarEvent(models.Model):
                     if event.recurrence_id[field]
                 }
                 rrule_values = rrule_values or default_rrule_values
-                rrule_values["rrule_type"] = (
+                rrule_values["repeat_unit"] = (
                     current_rrule
-                    or rrule_values.get("rrule_type")
-                    or defaults["rrule_type"]
+                    or rrule_values.get("repeat_unit")
+                    or defaults["repeat_unit"]
                 )
                 event.update(
                     {**false_values, **defaults, **event_values, **rrule_values}
@@ -1252,19 +1346,19 @@ class CalendarEvent(models.Model):
 
         vals_list = []
         booked = set()
-        users = self._get_scheduled_partners().user_ids
-        user_resources = users._get_calendar_event_resources()
-        for user in users:
-            resource = user_resources[user]
-            # One row per resource, not per user.  A partner may carry several
-            # users, and two partners may share one, but a person attends a
-            # meeting once; the ledger permits repeated resources (a task can
-            # book one twice) and would take the duplicates at face value as
-            # 200% of that person's capacity, conflicting with themselves.
+        partners = self._get_scheduled_partners()
+        partner_resources = partners._get_calendar_event_resources()
+        for partner in partners:
+            resource = partner_resources[partner]
+            # One row per resource, not per attendee.  A person invited both in
+            # person and through a contact that shares their resource attends the
+            # meeting once; the ledger permits repeated resources (a task can book
+            # one twice) and would take the duplicates at face value as 200% of
+            # that person's capacity, conflicting with themselves.
             if not resource or resource.id in booked:
                 continue
             booked.add(resource.id)
-            start, stop = self._get_reservation_interval(user.tz or resource.tz)
+            start, stop = self._get_reservation_interval(partner.tz or resource.tz)
             vals_list.append(
                 {
                     "name": self.display_name,
@@ -1282,9 +1376,12 @@ class CalendarEvent(models.Model):
     def _get_scheduled_partners(self):
         """Partners whose attendance occupies their personal schedule."""
         self.check_singleton()
-        return self.partner_ids - self.attendee_ids.filtered(
-            lambda attendee: attendee.state == "declined"
-        ).partner_id
+        return (
+            self.partner_ids
+            - self.attendee_ids.filtered(
+                lambda attendee: attendee.state == "declined"
+            ).partner_id
+        )
 
     def _get_attendee_intervals(self, partner, *, resources=None):
         """Return UTC occupancy for an attendee, excluding a declined invitation.
@@ -1298,8 +1395,7 @@ class CalendarEvent(models.Model):
         if not self.allday:
             return [self._get_reservation_interval("UTC")]
         if resources is None:
-            user_resources = partner.user_ids._get_calendar_event_resources()
-            resources = self.env["resource.resource"].union(*user_resources.values())
+            resources = partner._get_calendar_event_resources()[partner]
         timezones = {partner.tz or resource.tz or "UTC" for resource in resources}
         return [
             self._get_reservation_interval(timezone)
@@ -1349,18 +1445,16 @@ class CalendarEvent(models.Model):
         setting = values.pop("recurrence_update", None)
         # `recurrence_update` selects which occurrences of an EXISTING recurrence
         # to touch. On an event with no recurrence yet (a plain event being made
-        # recurrent), it is meaningless: honouring 'self_only'/'all_events' here
+        # recurrent), it is meaningless: honouring 'this'/'all' here
         # skipped _apply_recurrence_values and left the record contradictory
         # (recurrency=True, recurrence_id=False), silently dropping the rrule.
-        # Its own default is 'self_only', so this bit any programmatic caller
+        # Its own default is 'this', so this bit any programmatic caller
         # that passed the field through. Treat it as unset so the recurrence is
         # built regardless of which policy was requested.
         if setting and not self.recurrence_id:
             setting = None
         update = bool(
-            setting in ("all_events", "future_events")
-            and len(self) == 1
-            and self.recurrence_id
+            setting in ("all", "subsequent") and len(self) == 1 and self.recurrence_id
         )
         if any(fname in self._get_fields_recurrent() for fname in values) and not (
             update or values.get("recurrency")
@@ -1371,7 +1465,7 @@ class CalendarEvent(models.Model):
             update=update,
             breaking=values.get("recurrency") is False,
             from_base_event=(
-                setting == "future_events" and self == self.recurrence_id.base_event_id
+                setting == "subsequent" and self == self.recurrence_id.base_event_id
             ),
         )
 
@@ -1382,9 +1476,7 @@ class CalendarEvent(models.Model):
             detached from their recurrence by the rewrite.
         """
         if policy.breaking:
-            return self, self._break_recurrence(
-                future=policy.setting == "future_events"
-            )
+            return self, self._break_recurrence(future=policy.setting == "subsequent")
         time_values = {
             field: values.pop(field)
             for field in self._get_fields_time()
@@ -1396,7 +1488,7 @@ class CalendarEvent(models.Model):
         # not always ``self``: `_rewrite_recurrence` archives every occurrence
         # and rebuilds from the *base* event, so a write on any other occurrence
         # leaves ``self`` archived and detached, with nobody left to notify.
-        if policy.setting == "all_events" or policy.from_base_event:
+        if policy.setting == "all" or policy.from_base_event:
             # Update all events: we create a new reccurrence and dismiss the existing events
             return self._rewrite_recurrence(
                 values, time_values, recurrence_values
@@ -1426,6 +1518,21 @@ class CalendarEvent(models.Model):
         to_sync._sync_reservations()
 
     def write(self, values):
+        # `_attendees_values` derives the `attendee_ids` commands from
+        # `self.partner_ids`, which over a multi-record write is the UNION of
+        # every record's attendees. A partner already on one event then counts
+        # as present on all of them, so the `(0, 0, …)` that would have added
+        # them to the others is never emitted -- and a `Command.SET` that drops
+        # a partner only one event had emits an unlink for all. The derivation
+        # is only sound when the records agree on who is currently invited, so
+        # when they do not, do it one record at a time.
+        if "partner_ids" in values and len(self) > 1:
+            invited = {tuple(sorted(event.partner_ids.ids)) for event in self}
+            if len(invited) > 1:
+                for event in self:
+                    event.write(dict(values))
+                return True
+
         self = self.with_context(skip_attendee_reservation_sync=True)
         # Snapshot before the pops below: the recurrence branches consume the
         # very keys the sync and the notification decisions need, and
@@ -1451,7 +1558,7 @@ class CalendarEvent(models.Model):
         update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
 
         if (
-            not policy.setting or policy.setting == "self_only"
+            not policy.setting or policy.setting == "this"
         ) and "follow_recurrence" not in values:
             if touches_time:
                 values["follow_recurrence"] = False
@@ -1473,12 +1580,12 @@ class CalendarEvent(models.Model):
 
         # We reapply recurrence for future events and when we add a rrule and 'recurrency' == True on the event
         if (
-            policy.setting not in ["self_only", "all_events"]
+            policy.setting not in ["this", "all"]
             and not policy.from_base_event
             and not policy.breaking
         ):
             detached_events |= self._apply_recurrence_values(
-                recurrence_values, future=policy.setting == "future_events"
+                recurrence_values, future=policy.setting == "subsequent"
             )
 
         (detached_events & self).active = False
@@ -1853,7 +1960,7 @@ class CalendarEvent(models.Model):
 
         :param recurrence: which occurrences to delete. Accepts the
             `recurrence_update` vocabulary the form view sends
-            ('self_only'/'future_events'/'all_events') and the delete wizard's
+            ('this'/'subsequent'/'all') and the delete wizard's
             own ('one'/'next'/'all'); anything else means this occurrence only.
         :return: Action to delete the event, or to open the wizard
         """
@@ -2025,7 +2132,7 @@ class CalendarEvent(models.Model):
         # fallback here the two halves of the pair disagree: the predicate calls such
         # an event public while the domain hides it from everyone, so it vanishes
         # from any search that touches a non-public field even for its own attendees.
-        if self.env["res.users"]._default_user_calendar_default_privacy() != "private":
+        if self.env["res.users"]._get_user_calendar_default_privacy() != "private":
             owner_default_is_public |= Domain(
                 "user_id", "not in", settings._search([]).select("user_id")
             )
@@ -2132,14 +2239,16 @@ class CalendarEvent(models.Model):
     # The two vocabularies a delete policy arrives in: the form view sends the
     # `recurrence_update` selection, the delete wizard its own `delete` field.
     # They mean the same three things, so normalise once here instead of letting
-    # each call site test for one spelling and silently ignore the other.
+    # each call site test for one spelling and silently ignore the other. Since
+    # `recurrence_update` took the neutral spelling the other models already
+    # used, the two now agree on "all" and only the wizard's other two words are
+    # still aliases.
     RECURRENCE_DELETE_POLICIES = {
-        "all_events": "all_events",
-        "all": "all_events",
-        "future_events": "future_events",
-        "next": "future_events",
-        "self_only": "self_only",
-        "one": "self_only",
+        "all": "all",
+        "subsequent": "subsequent",
+        "next": "subsequent",
+        "this": "this",
+        "one": "this",
     }
 
     @api.model
@@ -2149,23 +2258,23 @@ class CalendarEvent(models.Model):
         Anything unrecognised (including False) means this occurrence only: the
         user did ask for a delete, so the one thing we must never do is nothing.
         """
-        return self.RECURRENCE_DELETE_POLICIES.get(policy, "self_only")
+        return self.RECURRENCE_DELETE_POLICIES.get(policy, "this")
 
     def _unlink_by_recurrence_policy(self, policy):
         """Delete the occurrences `policy` selects, for a possibly-recurrent event."""
         policy = self._normalize_recurrence_policy(policy)
-        if policy == "self_only" or not self.recurrency or len(self) > 1:
+        if policy == "this" or not self.recurrency or len(self) > 1:
             self.unlink()
             return
         self.action_mass_deletion(policy)
 
     def action_mass_deletion(self, recurrence_update_setting):
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
+        if recurrence_update_setting == "all":
             events = self.recurrence_id.calendar_event_ids
             self.recurrence_id.unlink()
             events.unlink()
-        elif recurrence_update_setting == "future_events":
+        elif recurrence_update_setting == "subsequent":
             # `_stop_at` does both halves: it detaches the occurrences from this
             # one onward AND trims the rule to end before it. Selecting the rows
             # by hand and unlinking them did only the first, so the recurrence
@@ -2177,7 +2286,7 @@ class CalendarEvent(models.Model):
         else:
             # Public, RPC-callable method: fail loudly instead of silently
             # no-op'ing on an unrecognized policy. Today's only caller,
-            # `_unlink_by_recurrence_policy`, pre-filters 'self_only' before
+            # `_unlink_by_recurrence_policy`, pre-filters 'this' before
             # reaching here, but nothing enforces that for a future caller.
             raise UserError(
                 _(
@@ -2191,13 +2300,13 @@ class CalendarEvent(models.Model):
         The aim of this action purpose is to be called from sync calendar module when mass deletion is not possible.
         """
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
-            self.recurrence_id.calendar_event_ids.write(self._get_archive_values())
-        elif recurrence_update_setting == "future_events":
+        if recurrence_update_setting == "all":
+            self.recurrence_id.calendar_event_ids.write(self._prepare_archive_values())
+        elif recurrence_update_setting == "subsequent":
             detached_events = self.recurrence_id._stop_at(self)
-            detached_events.write(self._get_archive_values())
-        elif recurrence_update_setting == "self_only":
-            self.write({"active": False, "recurrence_update": "self_only"})
+            detached_events.write(self._prepare_archive_values())
+        elif recurrence_update_setting == "this":
+            self.write({"active": False, "recurrence_update": "this"})
             if len(self.recurrence_id.calendar_event_ids) == 0:
                 self.recurrence_id.unlink()
             elif self == self.recurrence_id.base_event_id:
@@ -2489,22 +2598,22 @@ class CalendarEvent(models.Model):
         return update_dict
 
     @api.model
-    def _get_archive_values(self):
+    def _prepare_archive_values(self):
         """Return parameters for archiving events in calendar module."""
         return {"active": False}
 
     @api.model
-    def _check_values_to_sync(self, values):
+    def _has_values_to_sync(self, values):
         """Method to be overriden: return candidate values to be synced within rewrite_recurrence function scope."""
         return False
 
     @api.model
-    def _get_update_future_events_values(self):
+    def _prepare_update_future_events_values(self):
         """Return parameters for updating future events within _update_future_events function scope."""
         return {}
 
     @api.model
-    def _get_remove_sync_id_values(self):
+    def _prepare_remove_sync_id_values(self):
         """Return parameters for removing event synchronization id within _update_future_events function scope."""
         return {}
 
@@ -2535,7 +2644,7 @@ class CalendarEvent(models.Model):
         # Trim previous recurrence at current event, deleting following events except for the updated event.
         detached_events_split = self.recurrence_id._stop_at(self)
         (detached_events_split - self).write(
-            {"active": False, **self._get_remove_sync_id_values()}
+            {"active": False, **self._prepare_remove_sync_id_values()}
         )
 
         # Update the current event with the new recurrence information.
@@ -2550,8 +2659,8 @@ class CalendarEvent(models.Model):
                 {
                     **time_values,
                     **values,
-                    **self._get_remove_sync_id_values(),
-                    **self._get_update_future_events_values(),
+                    **self._prepare_remove_sync_id_values(),
+                    **self._prepare_update_future_events_values(),
                 }
             )
             if time_values:
@@ -2563,7 +2672,8 @@ class CalendarEvent(models.Model):
             **previous_recurrence_values,
             **self._get_recurrence_params_by_date(start_date),
             **recurrence_values,
-            "count": recurrence_values.get("count", 0) or len(detached_events_split),
+            "repeat_number": recurrence_values.get("repeat_number", 0)
+            or len(detached_events_split),
         }
         new_values.pop("rrule", None)
 
@@ -2589,7 +2699,7 @@ class CalendarEvent(models.Model):
         update_dict = self._get_time_update_dict(base_event, time_values)
         time_values.update(update_dict)
 
-        if self._check_values_to_sync(values) or time_values or recurrence_values:
+        if self._has_values_to_sync(values) or time_values or recurrence_values:
             # Get base values from the previous recurrence and update the start date weekday field.
             start_date = (
                 time_values["start"].date()
@@ -2599,7 +2709,7 @@ class CalendarEvent(models.Model):
             old_recurrence_values = self._get_updated_recurrence_values(start_date)
 
             # Archive all events and delete recurrence, reactivate base event and apply updated values.
-            base_event.action_mass_archive("all_events")
+            base_event.action_mass_archive("all")
             base_event.recurrence_id.unlink()
             base_event.with_context(skip_attendee_notification=True).write(
                 {"active": True, "recurrence_id": False, **values, **time_values}
@@ -2631,9 +2741,9 @@ class CalendarEvent(models.Model):
 
     def change_attendee_status(self, status, recurrence_update_setting):
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
+        if recurrence_update_setting == "all":
             events = self.recurrence_id.calendar_event_ids
-        elif recurrence_update_setting == "future_events":
+        elif recurrence_update_setting == "subsequent":
             events = self.recurrence_id.calendar_event_ids.filtered(
                 lambda ev: ev.start >= self.start
             )
@@ -2981,14 +3091,14 @@ class CalendarEvent(models.Model):
     def _get_fields_recurrent(self):
         return {
             "byday",
-            "until",
-            "rrule_type",
+            "repeat_until",
+            "repeat_unit",
             "month_by",
             "event_tz",
             "rrule",
-            "interval",
-            "count",
-            "end_type",
+            "repeat_interval",
+            "repeat_number",
+            "repeat_type",
             "mon",
             "tue",
             "wed",
@@ -3036,9 +3146,9 @@ class CalendarEvent(models.Model):
                 "allday",
                 "duration",
                 "user_id",
-                "interval",
+                "repeat_interval",
                 "partner_id",
-                "count",
+                "repeat_number",
                 "rrule",
                 "recurrence_id",
                 "show_as",

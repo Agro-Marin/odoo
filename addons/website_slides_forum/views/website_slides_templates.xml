@@ -3,7 +3,6 @@
 
     <data>
         <template id="course_main" inherit_id="website_slides.course_main">
-            <!-- Channel main template: add link to forum -->
             <xpath
                 expr="//li[hasclass('o_wslides_course_header_nav_review')]"
                 position="after">

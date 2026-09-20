@@ -20,13 +20,13 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/approval
 DOCS=("$SCRIPT_DIR"/*.md)
@@ -77,7 +77,7 @@ done
 # Forward: every shipped Python file is named somewhere in the docs. A file
 # that exists and is undocumented is the half of drift a reader cannot detect,
 # because nothing in the document looks wrong.
-for f in "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py; do
+for f in "$MOD"/models/*.py "$MOD"/wizards/*.py; do
     base="$(basename "$f")"
     [ "$base" = "__init__.py" ] && continue
     assert_doc_cites "$base" "source file $base"
@@ -108,14 +108,19 @@ done < <(grep -hoP '`\K(approval_\w+|approver_\w+|ir_attachment|mail_activity\w*
 # that is merely incomplete is the drift a reader cannot detect, the same
 # argument the file listing above makes, one level down.
 #
+# `fields\.[A-Z]` and not `fields\.`: every Odoo field type is capitalised, and a
+# local `rows = fields.get(...)` in a helper whose PARAMETER is called `fields` is not
+# a field declaration. The scan reported one, and the answer was to stop shadowing the
+# name AND to stop the pattern matching a lowercase attribute.
+#
 # Forward only. The reverse -- a documented field that no model declares --
 # needs the field bound to its model to be decidable, and the docs name fields
 # in prose as often as in tables, so it would report the prose as a defect.
 while read -r field; do
     [ -z "$field" ] && continue
     assert_doc_cites "\`$field\`" "field $field"
-done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.)' \
-    "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py | sort -u)
+done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.[A-Z])' \
+    "$MOD"/models/*.py "$MOD"/wizards/*.py | sort -u)
 
 # ------------------------------------------------------------------- models --
 # Every model the module declares must appear in models.md, and every

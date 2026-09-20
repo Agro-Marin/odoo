@@ -1,6 +1,9 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
+
+_debug = DebugLog(__name__)
 
 
 class ResCompany(models.Model):
@@ -35,11 +38,11 @@ class ResCompany(models.Model):
     sale_discount_product_id = fields.Many2one(
         comodel_name="product.product",
         string="Discount Product",
-        check_company=True,
         domain=[
             ("type", "=", "service"),
             ("invoice_policy", "=", "ordered"),
         ],
+        check_company=True,
         help="Default product used for discounts",
     )
     sale_onboarding_payment_method = fields.Selection(
@@ -52,9 +55,14 @@ class ResCompany(models.Model):
         ],
         string="Sale onboarding selected payment method",
     )
+    sale_order_template_id = fields.Many2one(
+        comodel_name="sale.order.template",
+        string="Default Sale Template",
+        domain="['|', ('company_id', '=', False), ('company_id', '=', id)]",
+        check_company=True,
+    )
     downpayment_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Downpayment Account",
         domain=[
             ("account_type", "in", ("income", "income_other", "liability_current")),
         ],
@@ -73,6 +81,11 @@ class ResCompany(models.Model):
             if company.portal_confirmation_pay and not (
                 0 < company.prepayment_percent <= 1.0
             ):
+                _debug.logic(
+                    "company_prepayment_rejected",
+                    company=company,
+                    percent=company.prepayment_percent,
+                )
                 raise ValidationError(
                     _("Prepayment percentage must be a valid percentage."),
                 )

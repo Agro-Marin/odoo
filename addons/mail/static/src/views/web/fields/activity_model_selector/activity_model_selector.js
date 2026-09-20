@@ -2,12 +2,15 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { ModelSelector } from "@web/components/model_selector";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
+
+const log = makeLogger("mail.activity");
 
 const getAvailableResModels = memoize(
     /**
@@ -37,6 +40,7 @@ class ActivityModelSelector extends Component {
 
     /** @param {{technical: string | false, label?: string | false}} value */
     async onModelSelected(value) {
+        log.logic("onModelSelected", () => ({ resModel: value.technical }));
         this.state.resModel = value.technical;
         this.state.resModelName = value.label || "";
         if (this.state.resModel) {
@@ -49,6 +53,10 @@ class ActivityModelSelector extends Component {
                     resModel: this.state.resModel,
                     /** @param {number[]} resId */
                     onSelected: async (resId) => {
+                        log.logic("record linked", () => ({
+                            resModel: this.state.resModel,
+                            resId,
+                        }));
                         const persistDataThroughModelChange = {
                             summary: this.props.record.data.summary,
                             note: this.props.record.data.note,
@@ -86,6 +94,7 @@ class ActivityModelSelector extends Component {
     }
 
     onRecordReset() {
+        log.logic("onRecordReset");
         const persistDataThroughModelChange = {
             summary: this.props.record.data.summary,
             note: this.props.record.data.note,

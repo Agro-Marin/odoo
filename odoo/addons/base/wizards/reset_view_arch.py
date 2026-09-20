@@ -3,36 +3,45 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _
 from odoo.tools.misc import get_diff
+
+_debug = DebugLog(__name__)
 
 
 class ResetViewArchWizard(models.TransientModel):
     _name = "reset.view.arch.wizard"
     _description = "Reset View Architecture Wizard"
 
-    view_id = fields.Many2one("ir.ui.view", string="View")
-    view_name = fields.Char(related="view_id.name", string="View Name")
+    view_id = fields.Many2one(comodel_name="ir.ui.view")
+    view_name = fields.Char(
+        related="view_id.name",
+        string="View Name",
+    )
     has_diff = fields.Boolean(compute="_compute_arch_comparison")
     arch_diff = fields.Html(
         string="Architecture Diff",
-        readonly=True,
-        compute="_compute_arch_comparison",
         sanitize_tags=False,
+        compute="_compute_arch_comparison",
+        readonly=True,
     )
     reset_mode = fields.Selection(
-        [
+        selection=[
             ("soft", "Restore previous version (soft reset)."),
             ("hard", "Reset to file version (hard reset)."),
             ("other_view", "Reset to another view."),
         ],
-        string="Reset Mode",
         default="soft",
         required=True,
     )
-    compare_view_id = fields.Many2one("ir.ui.view", string="Compare To View")
+    compare_view_id = fields.Many2one(
+        comodel_name="ir.ui.view",
+        string="Compare To View",
+    )
     arch_to_compare = fields.Text(
-        "Arch To Compare To", compute="_compute_arch_comparison"
+        string="Arch To Compare To",
+        compute="_compute_arch_comparison",
     )
 
     @api.model
@@ -49,6 +58,7 @@ class ResetViewArchWizard(models.TransientModel):
         if len(view_ids) == 2:
             result["reset_mode"] = "other_view"
             result["compare_view_id"] = view_ids[1]
+        _debug.logic("reset_wizard_defaults", views=list(view_ids))
         return result
 
     @api.depends("reset_mode", "view_id", "compare_view_id")
@@ -76,6 +86,12 @@ class ResetViewArchWizard(models.TransientModel):
                 diff_to_name = _("File Arch")
 
             view.arch_to_compare = diff_to
+            _debug.logic(
+                "arch_comparison",
+                view=view.view_id.id,
+                mode=view.reset_mode,
+                has_target=bool(diff_to),
+            )
 
             if not diff_to:
                 view.arch_diff = False
@@ -100,6 +116,9 @@ class ResetViewArchWizard(models.TransientModel):
 
     def reset_view_button(self) -> dict[str, str]:
         self.check_singleton()
+        _debug.lifecycle(
+            "wizard_reset_view", view=self.view_id.id, mode=self.reset_mode
+        )
         if self.reset_mode == "other_view":
             self.view_id.write({"arch_db": self.arch_to_compare})
         else:

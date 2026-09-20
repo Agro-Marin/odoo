@@ -70,11 +70,9 @@ registry.category("web_tour.tours").add("category_page_and_products_snippet_use"
         },
         {
             content: "Check that the snippet displays the right products",
-            // Wait for at least one shown product
             trigger:
                 "#category_header .s_dynamic_snippet_products:has(.oe_product_image_link)",
             run() {
-                // Fetch the category's id from the url.
                 const productCategoryId = window.location.href.match(
                     "/shop/category/test-category-(\\d+)",
                 )[1];

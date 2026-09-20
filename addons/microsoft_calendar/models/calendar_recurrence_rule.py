@@ -127,7 +127,7 @@ class CalendarRecurrence(models.Model):
         new_event_values = self.env["calendar.event"]._microsoft_to_odoo_values(
             microsoft_event
         )
-        # Edge case:  if the base event was deleted manually in 'self_only' update, skip applying recurrence.
+        # Edge case:  if the base event was deleted manually in 'this' update, skip applying recurrence.
         if self._has_base_event_time_fields_changed(new_event_values) and (
             new_event_values["start"] >= self.base_event_id.start
         ):

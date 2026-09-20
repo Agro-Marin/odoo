@@ -1,7 +1,7 @@
 {
     "name": "France - Work Entries Time Off",
-    "category": "Human Resources/Payroll",
     "version": "1.0",
+    "category": "Human Resources/Payroll",
     "summary": "Management of leaves for part-time workers in France",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

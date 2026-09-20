@@ -1,8 +1,26 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.animation");
+
+// Several `.o_animate` elements can finish their animation within the same
+// frame; coalesce their "animationend" reaction into a single global resize
+// dispatch per frame instead of one per element.
+let resizeDispatchScheduled = false;
+function scheduleGlobalResizeDispatch() {
+    if (resizeDispatchScheduled) {
+        return;
+    }
+    resizeDispatchScheduled = true;
+    window.requestAnimationFrame(() => {
+        resizeDispatchScheduled = false;
+        window.dispatchEvent(new Event("resize"));
+    });
+}
 
 export class Animation extends Interaction {
     static selector = ".o_animate";
@@ -12,9 +30,6 @@ export class Animation extends Interaction {
         _windowUnlessDropdown: () => this.windowUnlessDropdown,
     };
     dynamicContent = {
-        // rAF-throttled like the scroll handler below: resize can fire rapidly
-        // (and every .o_animate element's animationend dispatches a synthetic
-        // global "resize"), so coalesce this heavy relayout to one run/frame.
         _window: { "t-on-resize": this.throttled(this.scrollWebsiteAnimate) },
         _windowUnlessDropdown: {
             "t-on-shown.bs.modal": this.scrollWebsiteAnimate,
@@ -23,9 +38,6 @@ export class Animation extends Interaction {
             "t-on-shown.bs.collapse": this.scrollWebsiteAnimate,
         },
         _scrollingTarget: {
-            // Setting capture to true allows to take advantage of event
-            // bubbling for events that otherwise don’t support it. (e.g. useful
-            // when scrolling a modal)
             "t-on-scroll.capture": this.throttled(this.scrollWebsiteAnimate),
         },
         _root: {
@@ -42,12 +54,8 @@ export class Animation extends Interaction {
                         this.isResetting || this.isAnimateOnScroll
                             ? undefined
                             : this.playState,
-                    // The ones which are invisible in state 0 (like fade_in for
-                    // example) will stay invisible.
                     visibility: "visible",
                 };
-                // Avoid resetting animation-delay upon stop when it is not
-                // supposed to be modified at all.
                 if (this.isAnimateOnScroll) {
                     result["animation-delay"] = this.delay;
                 }
@@ -56,8 +64,8 @@ export class Animation extends Interaction {
         },
     };
 
-    offsetRatio = 0.3; // Dynamic offset ratio: 0.3 = (element's height/3)
-    offsetMin = 10; // Minimum offset for small elements (in pixels)
+    offsetRatio = 0.3;
+    offsetMin = 10;
 
     setup() {
         this.wrapwrapEl = document.querySelector("#wrapwrap");
@@ -73,15 +81,26 @@ export class Animation extends Interaction {
         const style = window.getComputedStyle(this.el);
         this.playState = style.animationPlayState;
         this.delay = undefined;
+        log.lifecycle("Animation setup", () => ({
+            className: this.el.className,
+            isAnimateOnScroll: this.isAnimateOnScroll,
+            inDropdown: Array.isArray(this.windowUnlessDropdown),
+            scrollingTargetIsElement: this.scrollingTarget === this.scrollingElement,
+            playState: this.playState,
+        }));
     }
 
     start() {
         if (this.el.closest(".dropdown")) {
+            log.logic("Animation start: inside dropdown, skip", () => ({
+                className: this.el.className,
+            }));
             return;
         }
-        // By default, elements are hidden by the css of o_animate.
-        // Render elements and trigger the animation then pause it in state 0.
         if (!this.isAnimateOnScroll) {
+            log.logic("Animation start: reset before first scroll check", () => ({
+                className: this.el.className,
+            }));
             this.resetAnimation();
             this.updateContent();
         }
@@ -93,11 +112,7 @@ export class Animation extends Interaction {
         return getScrollingElement(this.el.ownerDocument);
     }
 
-    /**
-     * Starts animation and/or update element's state.
-     */
     startAnimation() {
-        // Forces the browser to redraw using setTimeout.
         this.waitForTimeout(() => {
             this.isAnimating = true;
             this.playState = "running";
@@ -111,9 +126,13 @@ export class Animation extends Interaction {
                     this.el,
                     eventName,
                     () => {
+                        log.lifecycle("Animation ended", () => ({
+                            eventName,
+                            className: this.el.className,
+                        }));
                         this.isAnimating = false;
                         this.isAnimated = true;
-                        window.dispatchEvent(new Event("resize"));
+                        scheduleGlobalResizeDispatch();
                     },
                     { once: true },
                 );
@@ -126,21 +145,16 @@ export class Animation extends Interaction {
         this.isAnimated = false;
         this.isAnimating = false;
         this.updateContent();
-        // trigger a DOM reflow
         void this.el.offsetWidth;
         this.isResetting = false;
         this.playState = "paused";
     }
 
     /**
-     * Gets element top offset by not taking CSS transforms into calculations.
-     *
      * @param {HTMLElement} el
-     * @param {HTMLElement} [topEl] if specified, calculates the top distance to
-     *     this element.
+     * @param {HTMLElement} [topEl]
      */
     getElementOffsetTop(el, topEl) {
-        // Loop through the DOM tree and add its parent's offset to get page offset.
         let top = 0;
         do {
             top += el.offsetTop || 0;
@@ -163,11 +177,6 @@ export class Animation extends Interaction {
             ? 0
             : Math.max(elHeight * this.offsetRatio, this.offsetMin);
 
-        // We need to offset for the change in position from some animation.
-        // So we get the top value by not taking CSS transforms into calculations.
-        // Cookies bar might be opened and considered as a modal but it is
-        // not really one when there is no backdrop (eg 'discrete' layout),
-        // and should not be used as scrollTop value.
         const closestModal = el.closest(".modal");
         let scrollTop = this.scrollingElement.scrollTop;
         if (closestModal && isVisible(closestModal)) {
@@ -179,12 +188,6 @@ export class Animation extends Interaction {
         let visible;
         const footerEl = el.closest(".o_footer_slideout");
         if (footerEl && this.wrapwrapEl.classList.contains("o_footer_effect_enable")) {
-            // Since the footer slideout is always in the viewport but not
-            // always displayed, the way to calculate if an element is
-            // visible in the footer is different. We decided to handle this
-            // case specifically instead of a generic solution using
-            // elementFromPoint as it is a rare case and the implementation
-            // would have been too complicated for such a small use case.
             const actualScroll = scrollTop + windowsHeight;
             const totalScrollHeight = this.wrapwrapEl.scrollHeight;
             const heightFromFooter = this.getElementOffsetTop(el, footerEl);
@@ -214,6 +217,11 @@ export class Animation extends Interaction {
             }
         } else {
             if (visible && this.playState === "paused") {
+                log.pipeline("Animation scroll: paused -> start", () => ({
+                    className: el.className,
+                    elTop,
+                    scrollTop,
+                }));
                 el.classList.add("o_visible");
                 this.startAnimation();
             } else if (
@@ -221,6 +229,11 @@ export class Animation extends Interaction {
                 el.classList.contains("o_animate_both_scroll") &&
                 this.playState === "running"
             ) {
+                log.pipeline("Animation scroll: running -> reset", () => ({
+                    className: el.className,
+                    elTop,
+                    scrollTop,
+                }));
                 el.classList.remove("o_visible");
                 this.resetAnimation();
             }

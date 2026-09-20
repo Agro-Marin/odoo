@@ -126,6 +126,23 @@ class TestCombineBundleWithTemplates:
         assert out.startswith(code)
         assert out.rstrip().endswith("tpl();")
 
+    def test_recombining_replaces_the_templates_a_reused_bundle_carries(self):
+        stale = combine_bundle_with_templates(
+            "code();\n//# sourceMappingURL=x.map\n", 'registerTemplate("a", "old");'
+        )
+        fresh = combine_bundle_with_templates(stale, 'registerTemplate("a", "new");')
+        assert fresh.count("Inlined templates registration") == 1
+        assert '"old"' not in fresh
+        assert '"new"' in fresh
+        assert fresh.rstrip().splitlines()[-1] == "//# sourceMappingURL=x.map"
+        assert fresh == combine_bundle_with_templates(
+            fresh, 'registerTemplate("a", "new");'
+        )
+
+    def test_recombining_with_no_templates_drops_the_stale_section(self):
+        stale = combine_bundle_with_templates("code();", "tpl();")
+        assert combine_bundle_with_templates(stale, "") == "code();"
+
 
 class TestImportMapCounting:
     def test_splits_urls_bridges_and_data_uris(self):

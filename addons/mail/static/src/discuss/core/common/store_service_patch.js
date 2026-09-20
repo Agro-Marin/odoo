@@ -1,9 +1,16 @@
 // @ts-check
 /** @odoo-module native */
+import {
+    REACHABLE_IM_STATUSES,
+    reachableDecoratedImStatuses,
+} from "@mail/core/common/presence_status";
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
 import { debounce } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.store");
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const storeServicePatch = {
     setup() {
@@ -18,7 +25,10 @@ const storeServicePatch = {
         );
     },
     get onlineMemberStatuses() {
-        return ["away", "bot", "busy", "online"];
+        // Derived, not a literal: a module that decorates `im_status` registers
+        // the pair once and every reader of a presence word sees it, rather than
+        // each module patching this getter with its own vocabulary.
+        return ["bot", ...REACHABLE_IM_STATUSES, ...reachableDecoratedImStatuses()];
     },
     /**
      * @param {Object} param0
@@ -28,6 +38,11 @@ const storeServicePatch = {
      * @returns {Promise<import("models").Thread>}
      */
     async createGroupChat({ default_display_mode, partners_to, name }) {
+        log.logic("createGroupChat", () => ({
+            default_display_mode,
+            partners: partners_to?.length,
+            named: Boolean(name),
+        }));
         const { channel } = await this.fetchStoreData(
             "/discuss/create_group",
             { default_display_mode, partners_to, name },
@@ -38,6 +53,7 @@ const storeServicePatch = {
     },
     /** @param {number} channelId */
     async fetchChannel(channelId) {
+        log.pipeline("fetchChannel", () => ({ channelId }));
         await this.fetchStoreData("discuss.channel", [channelId], {
             merge: (queuedIds, [id]) =>
                 queuedIds.includes(id) ? queuedIds : [...queuedIds, id],
@@ -46,10 +62,7 @@ const storeServicePatch = {
     /** @returns {number[]} */
     getRecentChatPartnerIds() {
         return Object.values(this.Thread.records)
-            .filter(
-                (thread) =>
-                    thread.channel_type === "chat" && thread.correspondent?.partner_id,
-            )
+            .filter((thread) => thread.isDirectChat && thread.correspondent?.partner_id)
             .sort(
                 (a, b) =>
                     compareDatetime(b.lastInterestDt, a.lastInterestDt) ||
@@ -67,6 +80,7 @@ const storeServicePatch = {
     /** @param {number[]} partnerIds */
     async startChat(partnerIds) {
         const partners_to = [...new Set([this.self.id, ...partnerIds])];
+        log.logic("startChat", () => ({ partners: partners_to.length }));
         if (partners_to.length === 1) {
             const chat = await this.joinChat(partners_to[0], true);
             chat.open({ focus: true, bypassCompact: true });

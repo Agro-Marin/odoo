@@ -37,7 +37,6 @@ class TestWebsiteEventPriceList(TestWebsiteEventSaleCommon):
         )
         self.assertEqual(so_line.price_unit_discounted_taxexc, 100)
 
-        # set pricelist to 10% - without discount
         pl2 = self.pricelist.copy(
             {
                 "currency_id": self.currency_test.id,
@@ -71,10 +70,7 @@ class TestWebsiteEventPriceList(TestWebsiteEventSaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestEventSalePricelistItemWarning(TestWebsiteEventSaleCommon):
-    """UI warning on pricelist items whose min. quantity skips event tickets."""
-
     def test_min_qty_global_item_warns(self):
-        """A global item with positive min. quantity warns it skips tickets."""
         item = self.env["product.pricelist.item"].new(
             {
                 "applied_on": "3_global",
@@ -85,7 +81,6 @@ class TestEventSalePricelistItemWarning(TestWebsiteEventSaleCommon):
         self.assertIn("will not be applied", res["warning"]["message"])
 
     def test_min_qty_event_template_item_warns(self):
-        """A product item targeting an event product template warns."""
         item = self.env["product.pricelist.item"].new(
             {
                 "applied_on": "1_product",
@@ -97,7 +92,6 @@ class TestEventSalePricelistItemWarning(TestWebsiteEventSaleCommon):
         self.assertIn("cannot be applied", res["warning"]["message"])
 
     def test_min_qty_event_variant_item_warns(self):
-        """A variant item targeting an event product variant warns."""
         item = self.env["product.pricelist.item"].new(
             {
                 "applied_on": "0_product_variant",
@@ -109,7 +103,6 @@ class TestEventSalePricelistItemWarning(TestWebsiteEventSaleCommon):
         self.assertIn("cannot be applied", res["warning"]["message"])
 
     def test_min_qty_zero_no_warning(self):
-        """No warning without a positive min. quantity (boundary case)."""
         item = self.env["product.pricelist.item"].new(
             {
                 "applied_on": "3_global",

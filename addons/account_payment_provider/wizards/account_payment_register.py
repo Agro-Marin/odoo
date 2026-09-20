@@ -8,9 +8,9 @@ class AccountPaymentRegister(models.TransientModel):
     payment_token_id = fields.Many2one(
         comodel_name="payment.token",
         string="Saved payment token",
+        compute="_compute_payment_token_id",
         store=True,
         readonly=False,
-        compute="_compute_payment_token_id",
         domain="""[
             ('id', 'in', suitable_payment_token_ids),
         ]""",
@@ -20,11 +20,12 @@ class AccountPaymentRegister(models.TransientModel):
 
     # == Display purpose fields ==
     suitable_payment_token_ids = fields.Many2many(
-        comodel_name="payment.token", compute="_compute_suitable_payment_token_ids"
+        comodel_name="payment.token",
+        compute="_compute_suitable_payment_token_ids",
     )
     # Technical field used to hide or show the payment_token_id if needed
     use_electronic_payment_method = fields.Boolean(
-        compute="_compute_use_electronic_payment_method",
+        compute="_compute_use_electronic_payment_method"
     )
 
     # -------------------------------------------------------------------------
@@ -43,7 +44,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.suitable_payment_token_ids = (
                     self.env["payment.token"]
                     .sudo()
-                    .search(
+                    .search(  # noqa: E8507 - a transient wizard: one record
                         [
                             *self.env["payment.token"]._check_company_domain(
                                 wizard.company_id

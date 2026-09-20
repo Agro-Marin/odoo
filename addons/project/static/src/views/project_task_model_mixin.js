@@ -32,13 +32,10 @@ export const ProjectTaskModelMixin = (T) =>
                     "has_project_template",
                     "project_id.is_template",
                 ]);
-                const templateTaskDomain = Domain.or([
+                domain = Domain.and([
+                    domain,
                     [["has_template_ancestor", "=", true]],
-                    "default_project_id" in this.env.searchModel.globalContext
-                        ? Domain.TRUE
-                        : [["project_id.is_template", "=", true]],
-                ]);
-                domain = Domain.and([domain, templateTaskDomain]).toList({});
+                ]).toList({});
             }
             return domain;
         }

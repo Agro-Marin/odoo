@@ -2,13 +2,14 @@ import unittest
 from dataclasses import replace
 from typing import Any
 
+import psycopg
+
 from odoo.db import settings as pool_settings
 from odoo.db import utils as db_utils
 from odoo.db.settings import PoolSettings
 from odoo.db.utils import (
     _HEALTH_PARAMS,
     get_connection_info_for_database,
-    get_value_marker_positions,
     is_maintenance_db,
 )
 
@@ -85,6 +86,24 @@ class TestConnectionInfoForKeywords(unittest.TestCase):
         for key, value in _HEALTH_PARAMS.items():
             with self.subTest(key=key):
                 self.assertEqual(info[key], value)
+
+    def test_health_parameters_are_accepted_by_every_supported_libpq(self):
+        # tcp_user_timeout (libpq 12) is the youngest of these; the wheel a
+        # deployment installs picks its own libpq, and a keyword libpq does not
+        # know fails the connect outright ("invalid connection option").
+        # min_protocol_version arrived with libpq 18 and, at its default of
+        # 3.0, negotiated exactly what its absence does.
+        self.assertLessEqual(
+            set(_HEALTH_PARAMS),
+            {
+                "connect_timeout",
+                "tcp_user_timeout",
+                "keepalives",
+                "keepalives_idle",
+                "keepalives_interval",
+                "keepalives_count",
+            },
+        )
 
     def test_application_name_interpolates_the_pid_and_is_truncated(self):
         import os
@@ -168,32 +187,67 @@ class TestConnectionInfoForUri(unittest.TestCase):
         self.assertEqual(db, "thedb")
 
 
-class TestFindValueMarkers(unittest.TestCase):
-    def test_basic_and_escapes(self):
-        self.assertEqual(get_value_marker_positions("%s and %s"), [0, 7])
-        self.assertEqual(get_value_marker_positions("LIKE 'a%%s'"), [])
-        self.assertEqual(get_value_marker_positions("x %s y %% z %s"), [2, 12])
-        self.assertEqual(get_value_marker_positions("%%"), [])
-        self.assertEqual(get_value_marker_positions("ends %s"), [5])
-
-    def test_a_literal_percent_s_inside_a_string_is_not_a_marker(self):
-        query = "INSERT INTO t (a,b) VALUES ('has a %s inside', %s)"
-        markers = get_value_marker_positions(query)
-        self.assertEqual(markers, [len(query) - 3])
-        self.assertEqual(query[markers[0] : markers[0] + 2], "%s")
-
-    def test_a_literal_percent_s_inside_a_line_comment_is_not_a_marker(self):
-        self.assertEqual(get_value_marker_positions("SELECT 1 -- %s\n"), [])
-
-    def test_a_literal_percent_s_inside_a_block_comment_is_not_a_marker(self):
-        query = "SELECT 1 /* %s */ %s"
-        self.assertEqual(get_value_marker_positions(query), [query.rindex("%s")])
-
-    def test_a_doubled_quote_inside_a_literal_does_not_end_it_early(self):
-        query = "a = 'it''s %s' AND b = %s"
-        markers = get_value_marker_positions(query)
-        self.assertEqual(markers, [len(query) - 2])
-
-
 if __name__ == "__main__":
     unittest.main()
+
+
+class _SeedCursor:
+    def __init__(self, *, blocked=False):
+        self.statements: list[tuple[str, tuple]] = []
+        self.blocked = blocked
+        self.rolled_back = 0
+        self._row = None
+
+    def execute(self, query, params=None, log_exceptions=True):
+        self.statements.append((" ".join(query.split()), tuple(params or ())))
+        if query.startswith("SELECT current_setting"):
+            self._row = ("5min",)
+        elif "pg_restore_relation_stats" in query:
+            if self.blocked:
+                raise psycopg.errors.LockNotAvailable(
+                    "canceling statement due to lock timeout"
+                )
+            self._row = (7,)
+
+    def fetchone(self):
+        return self._row
+
+    def savepoint(self, flush=True):
+        cursor = self
+
+        class _Savepoint:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                if exc_type is not None:
+                    cursor.rolled_back += 1
+                return False
+
+        return _Savepoint()
+
+
+class TestPlannerStatsSeedNeverWaitsWithoutBound(unittest.TestCase):
+    def test_the_seed_runs_under_a_lock_timeout_and_puts_the_old_value_back(self):
+        from odoo.db.utils import update_planner_stats
+
+        cr = _SeedCursor()
+        self.assertEqual(update_planner_stats(cr, lock_timeout=2.0), 7)
+        sets = [p for q, p in cr.statements if q.startswith("SET LOCAL lock_timeout")]
+        self.assertEqual(sets, [("2000ms",), ("5min",)])
+        self.assertEqual(cr.rolled_back, 0)
+
+    def test_a_relation_locked_by_another_session_skips_the_seed(self):
+        from odoo.db.utils import update_planner_stats
+
+        cr = _SeedCursor(blocked=True)
+        with self.assertLogs("odoo.db.utils", level="WARNING") as cm:
+            self.assertEqual(update_planner_stats(cr, lock_timeout=2.0), 0)
+        self.assertIn("not seeded", cm.output[0])
+        self.assertEqual(
+            cr.rolled_back,
+            1,
+            "the timeout and the failed statement leave with the savepoint, "
+            "so the caller's transaction is usable and its lock_timeout is "
+            "what it was",
+        )

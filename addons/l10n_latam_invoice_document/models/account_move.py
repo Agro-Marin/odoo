@@ -58,22 +58,22 @@ class AccountMove(models.Model):
         return super()._auto_init()
 
     l10n_latam_available_document_type_ids = fields.Many2many(
-        "l10n_latam.document.type",
+        comodel_name="l10n_latam.document.type",
         compute="_compute_l10n_latam_available_document_types",
     )
     l10n_latam_document_type_id = fields.Many2one(
-        "l10n_latam.document.type",
+        comodel_name="l10n_latam.document.type",
         string="Document Type",
-        readonly=False,
-        bypass_search_access=True,
-        index="btree_not_null",
         compute="_compute_l10n_latam_document_type_id",
         store=True,
+        index="btree_not_null",
+        readonly=False,
+        bypass_search_access=True,
     )
     l10n_latam_document_number = fields.Char(
+        string="Document Number",
         compute="_compute_l10n_latam_document_number",
         inverse="_inverse_l10n_latam_document_number",
-        string="Document Number",
         readonly=False,
     )
     l10n_latam_use_documents = fields.Boolean(
@@ -81,10 +81,12 @@ class AccountMove(models.Model):
         search="_search_l10n_latam_use_documents",
     )
     l10n_latam_manual_document_number = fields.Boolean(
-        compute="_compute_l10n_latam_manual_document_number", string="Manual Number"
+        string="Manual Number",
+        compute="_compute_l10n_latam_manual_document_number",
     )
     l10n_latam_document_type_id_code = fields.Char(
-        related="l10n_latam_document_type_id.code", string="Doc Type"
+        related="l10n_latam_document_type_id.code",
+        string="Doc Type",
     )
 
     @api.depends("l10n_latam_document_type_id")
@@ -199,13 +201,10 @@ class AccountMove(models.Model):
         return super()._deduce_sequence_number_reset(name)
 
     def _get_domain_last_sequence(self, relaxed=False):
-        no_anti_regex = False
-        if self.l10n_latam_use_documents:
-            no_anti_regex = True
-        where_string, param = super(
+        no_anti_regex = bool(self.l10n_latam_use_documents)
+        return super(
             AccountMove, self.with_context(no_anti_regex=no_anti_regex)
         )._get_domain_last_sequence(relaxed)
-        return where_string, param
 
     def _skip_format_document_number(self):
         """Hook to be overridden in localisation"""
@@ -315,9 +314,11 @@ class AccountMove(models.Model):
         for rec in self.filtered(
             lambda x: x.journal_id and x.l10n_latam_use_documents and x.partner_id
         ):
-            rec.l10n_latam_available_document_type_ids = self.env[
-                "l10n_latam.document.type"
-            ].search(rec._get_domain_l10n_latam_documents())
+            rec.l10n_latam_available_document_type_ids = (
+                self.env["l10n_latam.document.type"]  # noqa: E8507 - one query per move: the document types depend on its journal and partner
+                .with_context(active_test=True)
+                .search(rec._get_domain_l10n_latam_documents())
+            )
 
     @api.depends("l10n_latam_available_document_type_ids")
     def _compute_l10n_latam_document_type_id(self):

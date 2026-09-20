@@ -19,8 +19,8 @@
                     <field
                         name="worldline_api_secret"
                         string="API Secret"
-                        required="code == 'worldline' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'worldline' and state != 'disabled'" />
                     <field
                         name="worldline_webhook_key"
                         string="Webhook Key"
@@ -28,8 +28,8 @@
                     <field
                         name="worldline_webhook_secret"
                         string="Webhook Secret"
-                        required="code == 'worldline' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'worldline' and state != 'disabled'" />
                 </group>
             </group>
         </field>

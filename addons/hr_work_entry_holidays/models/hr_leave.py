@@ -3,13 +3,17 @@ from datetime import date, datetime, time
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrLeaveType(models.Model):
     _inherit = "hr.leave.type"
 
     work_entry_type_id = fields.Many2one(
-        "hr.work.entry.type", string="Work Entry Type", index="btree_not_null"
+        comodel_name="hr.work.entry.type",
+        index="btree_not_null",
     )
 
 
@@ -35,7 +39,7 @@ class HrLeave(models.Model):
                     leave.date_to >= contract.date_generated_from
                     and leave.date_from <= contract.date_generated_to
                 ):
-                    work_entries_vals_list += contract._get_work_entries_values(
+                    work_entries_vals_list += contract._prepare_work_entries_values(
                         datetime.combine(leave.date_from, time.min),
                         datetime.combine(leave.date_to, time.max),
                     )
@@ -45,6 +49,11 @@ class HrLeave(models.Model):
         ]._generate_work_entries_postprocess(work_entries_vals_list)
         new_leave_work_entries = self.env["hr.work.entry"].create(
             work_entries_vals_list
+        )
+        _debug.pipeline(
+            "leave_work_entries_generated",
+            leaves=self,
+            entries=new_leave_work_entries,
         )
 
         if new_leave_work_entries:
@@ -88,6 +97,12 @@ class HrLeave(models.Model):
                     lambda l: l.state in ("confirm", "validate", "validate1")
                 )
                 - self
+            )
+            _debug.lifecycle(
+                "conflicting_entries_archived",
+                archived=included,
+                unlinked_from_leave=overlappping,
+                stale_leaves=stale_leaves,
             )
             included.write({"active": False})
             stale_leaves.action_refuse()
@@ -176,10 +191,11 @@ class HrLeave(models.Model):
             self.env["hr.work.entry"].sudo().search([("leave_id", "in", self.ids)])
         )
 
+        _debug.pipeline("regen_work_entries", leaves=self, entries=work_entries)
         work_entries.write({"active": False})
         vals_list = []
         for work_entry in work_entries:
-            vals_list += work_entry.version_id._get_work_entries_values(
+            vals_list += work_entry.version_id._prepare_work_entries_values(
                 datetime.combine(work_entry.date, time.min),
                 datetime.combine(work_entry.date, time.max),
             )
@@ -202,5 +218,10 @@ class HrLeave(models.Model):
         )
         leave_ids = work_entries.mapped("leave_id").ids
 
+        _debug.logic(
+            "can_cancel_blocked_by_validated",
+            candidates=cancellable_leaves,
+            blocked=len(leave_ids),
+        )
         for leave in cancellable_leaves:
             leave.can_cancel = leave.id not in leave_ids

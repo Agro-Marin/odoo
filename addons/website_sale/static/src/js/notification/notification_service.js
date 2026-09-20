@@ -11,13 +11,6 @@ export class CartNotificationContainer extends NotificationContainer {
         ...NotificationContainer.components,
         Notification: CartNotification,
     };
-    // The `ErrorHandler` is not decoration: without it a single notification
-    // that throws while rendering escapes to `MainComponentsContainer`, which
-    // drops THIS container from the page and silently kills every later cart
-    // toast for the session. `CartNotification` dereferences its own optional
-    // `lines` prop, so that is one missing key away. The base
-    // `web.NotificationContainer` template has always wrapped the loop; this
-    // override lost it.
     static template = xml`
     <div class="position-fixed w-100 h-100 top-0 pe-none">
         <div class="d-flex flex-column container align-items-end">

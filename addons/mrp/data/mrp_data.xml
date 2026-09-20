@@ -9,7 +9,9 @@
             <field name="sequence">5</field>
             <field name="product_selectable" eval="False" />
             <field name="warehouse_selectable" eval="True" />
-            <field name="warehouse_ids" eval="[(4, ref('stock.warehouse0'))]" />
+            <field
+                name="warehouse_ids"
+                eval="[Command.link(ref('stock.warehouse0'))]" />
         </record>
         <record id="stock.warehouse0" model="stock.warehouse">
             <field name="manufacture_to_resupply" eval="True" />

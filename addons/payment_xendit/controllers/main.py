@@ -50,7 +50,10 @@ class XenditController(http.Controller):
             ._search_by_reference("xendit", data)
         )
         if tx_sudo:
-            self._check_notification_token(received_token, tx_sudo)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id,
+                lambda: self._check_notification_token(received_token, tx_sudo),
+            )
             tx_sudo._process("xendit", data)
 
         return request.prepare_json_response(["accepted"], status=200)
@@ -71,7 +74,7 @@ class XenditController(http.Controller):
                     limit=1,
                 )
             )
-            if tx_sudo and payment_utils.check_access_token(
+            if tx_sudo and payment_utils.is_access_token_valid(
                 access_token, tx_ref, tx_sudo.amount
             ):
                 tx_sudo._set_pending()

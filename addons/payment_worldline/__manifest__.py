@@ -1,9 +1,9 @@
 {
     "name": "Payment Provider: Worldline",
+    "version": "1.1",
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A French payment provider covering several European countries.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

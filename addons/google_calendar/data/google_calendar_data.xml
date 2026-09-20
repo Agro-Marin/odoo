@@ -14,8 +14,8 @@
 # will avoid the synchronization of users that succeeded in the previous failing cron.
 model._sync_all_google_calendar()</field>
             <field name="user_id" ref="base.user_root" />
-            <field name="interval_number">12</field>
-            <field name="interval_type">hours</field>
+            <field name="repeat_interval">12</field>
+            <field name="repeat_unit">hour</field>
         </record>
     </data>
 

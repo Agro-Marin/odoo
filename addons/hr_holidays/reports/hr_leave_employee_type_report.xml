@@ -10,17 +10,17 @@
                 <field name="date_from" />
                 <filter
                     name="year"
+                    string="Period"
                     date="date_from"
-                    default_period="year"
-                    string="Period" />
+                    default_period="year" />
                 <filter
-                    string="Company"
                     name="company"
+                    string="Company"
                     context="{'group_by':'company_id'}"
                     groups="base.group_multi_company" />
                 <filter
-                    string="Employee"
                     name="employee"
+                    string="Employee"
                     context="{'group_by':'employee_id'}" />
             </search>
         </field>

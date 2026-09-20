@@ -1,14 +1,13 @@
+import { AccountReportLineCellEditable } from "@account/components/account_report/line_cell_editable/line_cell_editable";
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { click, press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
-    mountWithCleanup,
-    makeMockEnv,
     defineModels,
+    makeMockEnv,
+    mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { mailModels } from "@mail/../tests/mail_test_helpers";
-
-import { AccountReportLineCellEditable } from "@account/components/account_report/line_cell_editable/line_cell_editable";
 
 // Due to dependency with mail module, we have to define their models for our tests.
 defineModels(mailModels);

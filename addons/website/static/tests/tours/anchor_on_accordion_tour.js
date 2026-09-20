@@ -28,7 +28,6 @@ registerWebsitePreviewTour(
             content: "Create anchor for this accordion item",
             trigger: "[data-container-title='Accordion Item'] .oe_snippet_anchor",
             async run(helpers) {
-                // Patch and ignore write on clipboard in tour as we don't have permissions
                 browser.navigator.clipboard.writeText = () => {
                     console.info("Copy in clipboard ignored!");
                 };

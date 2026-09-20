@@ -74,7 +74,6 @@
 
 <t t-name="website.AddPageTemplates">
     <div class="overflow-hidden w-100" t-att-class="{o_loading: state.loading}">
-        <!-- Do not rely on Notebook to avoid pages from needing reload -->
         <div class="d-flex w-100 h-100 vertical flex-row">
             <aside class="border-end overflow-auto">
                 <div t-ref="tabs"

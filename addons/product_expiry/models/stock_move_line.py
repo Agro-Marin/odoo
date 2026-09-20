@@ -2,13 +2,15 @@ import datetime
 
 from odoo import api, fields, models
 from odoo.db.schema import column_exists, create_column
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
     expiration_date = fields.Datetime(
-        string="Expiration Date",
         compute="_compute_expiration_date",
         store=True,
         readonly=False,
@@ -16,14 +18,14 @@ class StockMoveLine(models.Model):
         " become dangerous and must not be consumed.",
     )
     removal_date = fields.Datetime(
-        string="Removal Date",
         compute="_compute_removal_date",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     is_expired = fields.Boolean(related="lot_id.product_expiry_alert")
     use_expiration_date = fields.Boolean(
-        string="Use Expiration Date", related="product_id.use_expiration_date"
+        related="product_id.use_expiration_date",
+        string="Use Expiration Date",
     )
 
     def _auto_init(self):
@@ -80,6 +82,7 @@ class StockMoveLine(models.Model):
                 move_line.removal_date = False
 
     def _filtered_expired(self, at=None):
+        _debug.logic("move_lines_expired_filter", lines=self, at=at)
         at = at or fields.Datetime.now()
         return self.filtered(
             lambda ml: (

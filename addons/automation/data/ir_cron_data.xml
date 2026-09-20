@@ -6,19 +6,18 @@
         <field name="model_id" ref="model_automation_rule" />
         <field name="state">code</field>
         <field name="code">model._cron_process_time_based_actions()</field>
-        <field name="interval_number">4</field>
-        <field name="interval_type">hours</field>
+        <field name="repeat_interval">4</field>
+        <field name="repeat_unit">hour</field>
         <field name="active" eval="False" />
     </record>
 
     <record id="ir_cron_data_automation_resume" model="ir.cron">
-        <field name="name">Automation Rules: resume paused workflows</field>
+        <field name="name">Automation Rules: run due workflow steps</field>
         <field name="model_id" ref="model_automation_runtime" />
         <field name="state">code</field>
-        <field name="code">model._resume_waiting_executions()</field>
-        <field name="interval_number">10</field>
-        <field name="interval_type">minutes</field>
-        <field name="active" eval="False" />
+        <field name="code">model._dispatch_due_steps()</field>
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">hour</field>
     </record>
 
 </odoo>

@@ -1,16 +1,15 @@
 import typing
 
-from psycopg.types.json import Jsonb
-
 from odoo.exceptions import UserError
-from odoo.tools import SQL
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
+
+from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Collection
 
-
-from ._model_stubs import _ModelStubs
+_debug = DebugLog(__name__)
 
 
 class TranslationMixin(_ModelStubs):
@@ -27,11 +26,15 @@ class TranslationMixin(_ModelStubs):
         )
 
     def _check_translation_langs(self, translations: dict, source_lang: str) -> None:
-        valid_langs = {code for code, _ in self.env["res.lang"].get_installed()} | {
-            "en_US"
-        }
+        valid_langs = {*self.env.registry.locale.installed_langs(self.env), "en_US"}
         missing_langs = (set(translations) | {source_lang}) - valid_langs
         if missing_langs:
+            _debug.logic(
+                "translation.langs_inactive",
+                model=self._name,
+                missing=sorted(missing_langs),
+                installed=len(valid_langs),
+            )
             raise UserError(
                 _(
                     "The following languages are not activated: %(missing_names)s",
@@ -57,6 +60,9 @@ class TranslationMixin(_ModelStubs):
             for lang, translation in translations.items()
         }
         if not translations:
+            _debug.logic(
+                "translation.model_update_empty", model=self._name, field=field_name
+            )
             return False
 
         translation_fallback = (
@@ -72,20 +78,17 @@ class TranslationMixin(_ModelStubs):
             )
         )
         self.invalidate_recordset([field_name])
-        self.env.cr.execute(
-            SQL(
-                """ UPDATE %(table)s
-                SET %(field)s = NULLIF(
-                    jsonb_strip_nulls(%(fallback)s || COALESCE(%(field)s, '{}'::jsonb) || %(value)s),
-                    '{}'::jsonb)
-                WHERE id = %(id)s
-            """,
-                table=SQL.identifier(self._table),
-                field=SQL.identifier(field_name),
-                fallback=Jsonb({"en_US": translation_fallback}),
-                value=Jsonb(translations),
-                id=self.id,
-            )
+        rows = self.env.backend.columns.merge_json(
+            self, field_name, self.id, {"en_US": translation_fallback}, translations
+        )
+        _debug.lifecycle(
+            "translation.model_updated",
+            model=self._name,
+            field=field_name,
+            record=self.id,
+            langs=len(translations),
+            fallback=translation_fallback is not None,
+            rows=rows,
         )
         self.modified([field_name])
         return True
@@ -95,6 +98,12 @@ class TranslationMixin(_ModelStubs):
     ) -> bool:
         old_values = field._get_stored_translations(self)
         if not old_values:
+            _debug.logic(
+                "translation.terms_no_stored_values",
+                model=self._name,
+                field=field.name,
+                record=self.id,
+            )
             return False
 
         for lang in translations:
@@ -158,6 +167,16 @@ class TranslationMixin(_ModelStubs):
                 field.translate(_new_translations.get, old_source_lang_value),
                 self,
             )
+        _debug.pipeline(
+            "translation.terms_updated",
+            model=self._name,
+            field=field.name,
+            record=self.id,
+            langs=len(translations),
+            terms=len(old_translation_dictionary),
+            digest=digest is not None,
+            source_key=source_key,
+        )
         field._update_cache(
             self.with_context(prefetch_langs=True), new_values, dirty=True
         )
@@ -180,16 +199,42 @@ class TranslationMixin(_ModelStubs):
         self._check_translation_langs(translations, source_lang)
 
         if not field.translate:
+            _debug.logic(
+                "translation.update_skipped",
+                model=self._name,
+                field=field_name,
+                reason="not_translated",
+            )
             return False
 
         if not field.store and not field.related and field.compute:
+            _debug.logic(
+                "translation.update_skipped",
+                model=self._name,
+                field=field_name,
+                reason="computed_unstored",
+            )
             return False
 
         if field.related and not field.store:
             related_path, field_name = field.related.rsplit(".", 1)
+            _debug.logic(
+                "translation.update_delegated",
+                model=self._name,
+                field=field.name,
+                related=field.related,
+            )
             return self.mapped(related_path)._update_field_translations(
                 field_name, translations, digest, source_lang=source_lang
             )
+        _debug.pipeline(
+            "translation.update",
+            model=self._name,
+            field=field_name,
+            langs=len(translations),
+            source_lang=source_lang,
+            mode="model" if field.translate is True else "terms",
+        )
 
         if field.translate is True:
             if not self._update_model_translations(field_name, translations):
@@ -207,7 +252,7 @@ class TranslationMixin(_ModelStubs):
     ) -> tuple[list[dict[str, str]], dict[str, typing.Any]]:
         self.check_singleton()
         field = self._fields[field_name]
-        langs = set(langs or [l[0] for l in self.env["res.lang"].get_installed()])
+        langs = set(langs or self.env.registry.locale.installed_langs(self.env))
         self_lang = self.with_context(check_translations=True, prefetch_langs=True)
         val_en = self_lang.with_context(lang="en_US")[field_name]
         if not field.translate:
@@ -241,6 +286,15 @@ class TranslationMixin(_ModelStubs):
         )
         context["translation_show_source"] = callable(field.translate)
 
+        _debug.perf.count(
+            "translation.field_translations_read",
+            model=self._name,
+            field=field_name,
+            record=self.id,
+            langs=len(langs),
+            entries=len(translations),
+            terms=callable(field.translate),
+        )
         return translations, context
 
     def _get_base_lang(self) -> str:

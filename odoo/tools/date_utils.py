@@ -8,8 +8,10 @@ from dateutil.relativedelta import relativedelta
 from odoo.libs.datetime import (
     TIME_UNIT_SELECTION,
     WEEKDAY_NUMBER,
+    Anchor,
     TimeUnit,
     add,
+    anchor_day,
     date_range,
     end_of,
     float_to_time,
@@ -20,7 +22,11 @@ from odoo.libs.datetime import (
     get_quarter_number,
     get_timedelta,
     localized,
+    next_after,
+    next_anchor,
+    occurrences_after,
     parse_iso_date,
+    previous_anchor,
     start_of,
     subtract,
     time_to_float,
@@ -31,6 +37,9 @@ from odoo.libs.datetime import (
     weeknumber,
     weekstart,
 )
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 def utcnow() -> datetime:
@@ -62,8 +71,10 @@ _SHORT_DATE_UNIT = {
 __all__ = [
     "TIME_UNIT_SELECTION",
     "WEEKDAY_NUMBER",
+    "Anchor",
     "TimeUnit",
     "add",
+    "anchor_day",
     "date_range",
     "end_of",
     "float_to_time",
@@ -74,8 +85,12 @@ __all__ = [
     "get_quarter_number",
     "get_timedelta",
     "localized",
+    "next_after",
+    "next_anchor",
+    "occurrences_after",
     "parse_date_expression",
     "parse_iso_date",
+    "previous_anchor",
     "start_of",
     "subtract",
     "time_to_float",
@@ -170,4 +185,12 @@ def parse_date_expression(value: str, env: Environment) -> date | datetime:
                 .astimezone(UTC)
                 .replace(tzinfo=None)
             )
+    _debug.logic(
+        "date_utils.expression_parsed",
+        expression=value,
+        terms=len(terms),
+        started_as_date=started_as_date,
+        week_start=week_start,
+        result=str(dt),
+    )
     return dt

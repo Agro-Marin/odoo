@@ -41,56 +41,74 @@ class MailGroup(models.Model):
             )
         return res
 
-    active = fields.Boolean("Active", default=True)
-    name = fields.Char("Name", required=True, translate=True)
-    description = fields.Text("Description")
-    image_128 = fields.Image("Image", max_width=128, max_height=128)
+    active = fields.Boolean(default=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    description = fields.Text()
+    image_128 = fields.Image(
+        string="Image",
+        max_width=128,
+        max_height=128,
+    )
     is_closed = fields.Boolean(
-        "Is Closed",
-        help="Closed groups might still be accessed, but emails sent to it will bounce",
         copy=False,
+        help="Closed groups might still be accessed, but emails sent to it will bounce",
     )
     mail_group_message_ids = fields.One2many(
-        "mail.group.message", "mail_group_id", string="Pending Messages"
+        comodel_name="mail.group.message",
+        inverse_name="mail_group_id",
+        string="Pending Messages",
     )
     mail_group_message_last_month_count = fields.Integer(
-        "Messages Per Month", compute="_compute_mail_group_message_last_month_count"
+        string="Messages Per Month",
+        compute="_compute_mail_group_message_last_month_count",
     )
     mail_group_message_count = fields.Integer(
-        "Messages Count",
-        help="Number of message in this group",
+        string="Messages Count",
         compute="_compute_mail_group_message_count",
+        help="Number of message in this group",
     )
     mail_group_message_moderation_count = fields.Integer(
-        "Pending Messages Count",
-        help="Messages that need an action",
+        string="Pending Messages Count",
         compute="_compute_mail_group_message_moderation_count",
+        help="Messages that need an action",
     )
-    is_member = fields.Boolean("Is Member", compute="_compute_is_member")
-    member_ids = fields.One2many("mail.group.member", "mail_group_id", string="Members")
+    is_member = fields.Boolean(compute="_compute_is_member")
+    member_ids = fields.One2many(
+        comodel_name="mail.group.member",
+        inverse_name="mail_group_id",
+        string="Members",
+    )
     member_partner_ids = fields.Many2many(
-        "res.partner",
+        comodel_name="res.partner",
         string="Partners Member",
         compute="_compute_member_partner_ids",
         search="_search_member_partner_ids",
     )
-    member_count = fields.Count("member_ids", "Members Count")
+    member_count = fields.Count(
+        count_of="member_ids",
+        string="Members Count",
+    )
     is_moderator = fields.Boolean(
         string="Moderator",
-        help="Current user is a moderator of the group",
         compute="_compute_is_moderator",
+        help="Current user is a moderator of the group",
     )
     moderation = fields.Boolean(string="Moderate")
     moderation_rule_count = fields.Count(
-        "moderation_rule_ids",
+        count_of="moderation_rule_ids",
         string="Moderated emails count",
     )
     moderation_rule_ids = fields.One2many(
-        "mail.group.moderation", "mail_group_id", string="Moderated Emails"
+        comodel_name="mail.group.moderation",
+        inverse_name="mail_group_id",
+        string="Moderated Emails",
     )
     moderator_ids = fields.Many2many(
-        "res.users",
-        "mail_group_moderator_rel",
+        comodel_name="res.users",
+        relation="mail_group_moderator_rel",
         string="Moderators",
         domain=lambda self: [
             ("all_group_ids", "in", self.env.ref("base.group_user").id)
@@ -107,22 +125,24 @@ class MailGroup(models.Model):
     )
     moderation_guidelines_msg = fields.Html(string="Guidelines")
     access_mode = fields.Selection(
-        [
+        selection=[
             ("public", "Everyone"),
             ("members", "Members only"),
             ("groups", "Selected group of users"),
         ],
         string="Privacy",
-        required=True,
         default="public",
+        required=True,
     )
     access_group_id = fields.Many2one(
-        "res.groups",
+        comodel_name="res.groups",
         string="Authorized Group",
         default=lambda self: self.env.ref("base.group_user"),
     )
     can_manage_group = fields.Boolean(
-        "Can Manage", help="Can manage the members", compute="_compute_can_manage_group"
+        string="Can Manage",
+        compute="_compute_can_manage_group",
+        help="Can manage the members",
     )
 
     @api.depends(
@@ -282,7 +302,7 @@ class MailGroup(models.Model):
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("mail.group").id
         values["alias_force_thread_id"] = self.id
-        values["alias_defaults"] = self._get_alias_defaults()
+        values["alias_defaults"] = self._prepare_alias_defaults()
         return values
 
     def action_close(self):
@@ -757,7 +777,7 @@ class MailGroup(models.Model):
 
     def _generate_action_url(self, email, action):
         if action not in ["subscribe", "unsubscribe"]:
-            raise ValueError(_("Invalid action for URL generation (%s)", action))
+            raise ValueError(f"Invalid action for URL generation ({action})")
         self.check_singleton()
 
         confirm_action_url = "/group/%s-confirm?%s" % (
@@ -776,7 +796,7 @@ class MailGroup(models.Model):
 
     def _generate_action_token(self, email, action):
         if action not in ["subscribe", "unsubscribe"]:
-            raise ValueError(_("Invalid action for URL generation (%s)", action))
+            raise ValueError(f"Invalid action for URL generation ({action})")
         self.check_singleton()
 
         email_normalized = email_normalize(email)

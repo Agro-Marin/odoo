@@ -13,6 +13,5 @@
     "data": [
         "views/website_crm_lead_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

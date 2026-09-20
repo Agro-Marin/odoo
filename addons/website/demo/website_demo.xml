@@ -4,6 +4,8 @@
     <data>
         <record id="bs_debug_view" model="ir.ui.view">
             <field name="name">BS Debug</field>
+            <field name="key">website.bs_debug_page_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t name="Debug" t-name="website.bs_debug_page_view">
                     <t t-call="website.layout">
@@ -580,11 +582,11 @@
                     </t>
                 </t>
             </field>
-            <field name="key">website.bs_debug_page_view</field>
-            <field name="type">qweb</field>
         </record>
         <record id="color_combinations_debug_view" model="ir.ui.view">
             <field name="name">Color Combinations Debug</field>
+            <field name="key">website.color_combinations_debug_page_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t name="Debug" t-name="website.color_combinations_debug_page_view">
                     <t t-call="website.layout">
@@ -733,11 +735,11 @@
                     </t>
                 </t>
             </field>
-            <field name="key">website.color_combinations_debug_page_view</field>
-            <field name="type">qweb</field>
         </record>
         <record id="snippets_debug_view" model="ir.ui.view">
             <field name="name">Snippet Debug</field>
+            <field name="key">website.snippets_debug_page_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t name="Debug" t-name="website.snippets_debug_page_view">
                     <t t-call="website.layout">
@@ -765,8 +767,6 @@
                     </t>
                 </t>
             </field>
-            <field name="key">website.snippets_debug_page_view</field>
-            <field name="type">qweb</field>
         </record>
     </data>
 
@@ -774,27 +774,22 @@
         <record id="base.default_user_group" model="res.groups">
             <field
                 name="implied_ids"
-                eval="[(4, ref('website.group_website_designer'))]" />
+                eval="[Command.link(ref('website.group_website_designer'))]" />
         </record>
         <record id="website2" model="website">
             <field name="name">My Website 2</field>
             <field name="sequence">20</field>
         </record>
-        <!-- BS Debug Page -->
-        <!-- Showcase all (most?) BS components and utilities -->
         <record id="bs_debug_page" model="website.page">
             <field name="url">/website/demo/bootstrap</field>
             <field name="is_published">False</field>
             <field name="view_id" ref="bs_debug_view" />
         </record>
-        <!-- Presets Debug Page -->
         <record id="color_combinations_debug_page" model="website.page">
             <field name="url">/website/demo/color-combinations</field>
             <field name="is_published">False</field>
             <field name="view_id" ref="color_combinations_debug_view" />
         </record>
-        <!-- Snippet Debug Page -->
-        <!-- Showcase all snippets -->
         <record id="snippets_debug_page" model="website.page">
             <field name="url">/website/demo/snippets</field>
             <field name="is_published">False</field>

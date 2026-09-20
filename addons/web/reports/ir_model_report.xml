@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="report_ir_model_overview" model="ir.actions.report">
+        <field name="name">Model Overview</field>
+        <field name="model">ir.model</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">web.report_irmodeloverview</field>
+        <field name="report_file">web.report_irmodeloverview</field>
+        <field name="print_report_name">'Model overview - %s' % object.model</field>
+        <field name="binding_model_id" ref="base.model_ir_model" />
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

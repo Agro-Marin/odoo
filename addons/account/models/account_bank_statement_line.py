@@ -3,10 +3,13 @@ from xmlrpc.client import MAXINT
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.misc import str2bool
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
+_debug = DebugLog(__name__)
 
 _RUNNING_BALANCE_INPUTS = {
     "account.bank.statement.line": [
@@ -42,37 +45,36 @@ class AccountBankStatementLine(models.Model):
 
     move_id = fields.Many2one(
         comodel_name="account.move",
-        bypass_search_access=True,
         string="Journal Entry",
-        required=True,
-        readonly=True,
-        ondelete="cascade",
         index=True,
+        readonly=True,
+        required=True,
+        ondelete="cascade",
         check_company=True,
+        bypass_search_access=True,
     )
-    journal_id = fields.Many2one(
+    journal_id = fields.Many2one(  # noqa: E8529  three indexes over (journal_id, company_id, internal_index)
         comodel_name="account.journal",
-        inherited=True,
         related="move_id.journal_id",
-        store=True,
-        readonly=False,
         precompute=True,
+        inherited=True,
+        store=True,
         index=False,
+        readonly=False,
         required=True,
     )
-    company_id = fields.Many2one(
+    company_id = fields.Many2one(  # noqa: E8529  three indexes over (journal_id, company_id, internal_index)
         comodel_name="res.company",
-        inherited=True,
         related="move_id.company_id",
-        store=True,
-        readonly=False,
         precompute=True,
+        inherited=True,
+        store=True,
         index=False,
+        readonly=False,
         required=True,
     )
     statement_id = fields.Many2one(
         comodel_name="account.bank.statement",
-        string="Statement",
         index=True,
     )
 
@@ -85,9 +87,8 @@ class AccountBankStatementLine(models.Model):
     sequence = fields.Integer(default=1)
     partner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Partner",
-        ondelete="restrict",
         domain="['|', ('parent_id','=', False), ('is_company','=',True)]",
+        ondelete="restrict",
         check_company=True,
     )
 
@@ -96,7 +97,10 @@ class AccountBankStatementLine(models.Model):
     partner_name = fields.Char(index="btree_not_null")
 
     transaction_type = fields.Char()
-    payment_ref = fields.Char(string="Label", index="trigram")
+    payment_ref = fields.Char(
+        string="Label",
+        index="trigram",
+    )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         string="Journal Currency",
@@ -108,15 +112,14 @@ class AccountBankStatementLine(models.Model):
     running_balance = fields.Monetary(compute="_compute_running_balance")
     foreign_currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Foreign Currency",
         help="The optional other currency if it is a multi-currency entry.",
     )
     amount_currency = fields.Monetary(
+        string="Amount in Currency",
+        currency_field="foreign_currency_id",
         compute="_compute_amount_currency",
         store=True,
         readonly=False,
-        string="Amount in Currency",
-        currency_field="foreign_currency_id",
         help="The amount expressed in an optional other currency if it is a multi-currency entry.",
     )
 
@@ -134,22 +137,17 @@ class AccountBankStatementLine(models.Model):
     )
 
     is_reconciled = fields.Boolean(
-        string="Is Reconciled",
         compute="_compute_reconciliation",
         store=True,
     )
-    statement_complete = fields.Boolean(
-        related="statement_id.is_complete",
-    )
-    statement_valid = fields.Boolean(
-        related="statement_id.is_valid",
-    )
+    statement_complete = fields.Boolean(related="statement_id.is_complete")
+    statement_valid = fields.Boolean(related="statement_id.is_valid")
     statement_balance_end_real = fields.Monetary(
-        related="statement_id.balance_end_real",
+        related="statement_id.balance_end_real"
     )
     statement_name = fields.Char(
-        string="Statement Name",
         related="statement_id.name",
+        string="Statement Name",
     )
 
     transaction_details = fields.Json(readonly=True)
@@ -186,6 +184,7 @@ class AccountBankStatementLine(models.Model):
                 st_line.journal_id.currency_id or st_line.company_id.currency_id
             )
 
+    @api.depends("journal_id")
     def _compute_running_balance(self):
         for model_name, fnames in _RUNNING_BALANCE_INPUTS.items():
             self.env[model_name].flush_model(fnames)
@@ -218,8 +217,17 @@ class AccountBankStatementLine(models.Model):
             if line is not None:
                 line.running_balance = balance
                 reached |= line
+        _debug.perf.count("running_balance_window_fetched", rows=len(window))
+        _debug.pipeline(
+            "running_balance_updated",
+            journal=journal,
+            lines=journal_lines,
+            companies=companies,
+            reached=reached,
+        )
         return reached
 
+    @_debug.perf.timed
     def _get_running_balance_before(self, journal, companies, min_index):
         self.env.cr.execute(
             """
@@ -234,6 +242,13 @@ class AccountBankStatementLine(models.Model):
             [min_index, journal.id],
         )
         anchor_index, balance = self.env.cr.fetchone() or (None, 0.0)
+        _debug.pipeline(
+            "running_balance_anchor_found",
+            journal=journal,
+            min_index=min_index,
+            anchor_index=anchor_index,
+            anchor_balance=balance,
+        )
 
         self.env.cr.execute(
             SQL(
@@ -309,6 +324,7 @@ class AccountBankStatementLine(models.Model):
         "move_id.line_ids.matched_debit_ids",
         "move_id.line_ids.matched_credit_ids",
     )
+    @_debug.perf.timed
     def _compute_reconciliation(self):
         for st_line in self:
             _liquidity_lines, suspense_lines, _other_lines = st_line._seek_for_lines()
@@ -338,9 +354,15 @@ class AccountBankStatementLine(models.Model):
     @api.constrains(
         "amount", "amount_currency", "currency_id", "foreign_currency_id", "journal_id"
     )
+    @_debug.perf.timed
     def _check_amounts_currencies(self):
         for st_line in self:
             if st_line.foreign_currency_id == st_line.currency_id:
+                _debug.logic(
+                    "amounts_currencies_rejected",
+                    stline=st_line,
+                    reason="foreign_currency_is_journal_currency",
+                )
                 raise ValidationError(
                     _(
                         "The foreign currency must be different than the journal one: %s",
@@ -348,6 +370,11 @@ class AccountBankStatementLine(models.Model):
                     )
                 )
             if not st_line.foreign_currency_id and st_line.amount_currency:
+                _debug.logic(
+                    "amounts_currencies_rejected",
+                    stline=st_line,
+                    reason="amount_currency_without_foreign_currency",
+                )
                 raise ValidationError(
                     _(
                         "You can't provide an amount in foreign currency without "
@@ -359,6 +386,11 @@ class AccountBankStatementLine(models.Model):
                 and not st_line.amount_currency
                 and not st_line.currency_id.is_zero(st_line.amount)
             ):
+                _debug.logic(
+                    "amounts_currencies_rejected",
+                    stline=st_line,
+                    reason="foreign_currency_without_amount_currency",
+                )
                 raise ValidationError(
                     _(
                         "You can't provide a foreign currency without specifying an amount in "
@@ -367,7 +399,9 @@ class AccountBankStatementLine(models.Model):
                 )
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields):
+        _debug.lifecycle("default_get", records=self)
         self_ctx = self.with_context(is_statement_line=True)
         defaults = super(AccountBankStatementLine, self_ctx).default_get(fields)
         if "journal_id" in fields and not defaults.get("journal_id"):
@@ -387,6 +421,12 @@ class AccountBankStatementLine(models.Model):
                 defaults["date"] = last_line.statement_id.date
             elif last_line:
                 defaults["date"] = last_line.date
+            _debug.logic(
+                "default_date_from_last_line",
+                last_line=last_line,
+                from_statement=bool(last_line.statement_id),
+                date=defaults.get("date"),
+            )
         return defaults
 
     @api.model
@@ -395,6 +435,7 @@ class AccountBankStatementLine(models.Model):
             AccountBankStatementLine, self.with_context(is_statement_line=True)
         ).new(values, origin, ref)
 
+    @_debug.perf.timed
     def _prepare_create_vals(self, vals):
         line_vals = {"name": False, **vals, "move_type": "entry"}
         counterpart_account_id = line_vals.pop("counterpart_account_id", None)
@@ -411,13 +452,26 @@ class AccountBankStatementLine(models.Model):
             journal = self.env["account.journal"].browse(line_vals["journal_id"])
             journal_currency = journal.currency_id or journal.company_id.currency_id
             if line_vals["foreign_currency_id"] == journal_currency.id:
+                _debug.logic(
+                    "foreign_currency_dropped",
+                    journal=journal,
+                    reason="same_as_journal_currency",
+                )
                 line_vals["foreign_currency_id"] = False
                 line_vals["amount_currency"] = 0.0
 
         return line_vals, counterpart_account_id
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         prepared = [self._prepare_create_vals(vals) for vals in vals_list]
         st_lines = super(
             AccountBankStatementLine, self.with_context(is_statement_line=True)
@@ -437,11 +491,17 @@ class AccountBankStatementLine(models.Model):
                 "name": False,
             }
             with self.env.protecting(
-                self.env["account.move"]._get_protected_vals(line_vals, st_line)
+                self.env["account.move"]._get_field_protections(line_vals, st_line)
             ):
                 st_line.move_id.with_context(clear_sequence_mixin_cache=False).write(
                     to_write
                 )
+        _debug.pipeline(
+            "created_moves_line",
+            stline=st_lines,
+            move_id=st_lines.move_id,
+            to_create_lines_vals_count=len(to_create_lines_vals),
+        )
         self.env["account.move.line"].create(to_create_lines_vals)
         self.env.add_to_compute(
             self.env["account.move"]._fields["name"], st_lines.move_id
@@ -455,7 +515,9 @@ class AccountBankStatementLine(models.Model):
         self._invalidate_running_balance()
         return st_lines.with_env(self.env)
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         res = super(
             AccountBankStatementLine, self.with_context(skip_readonly_check=True)
         ).write(vals)
@@ -464,9 +526,16 @@ class AccountBankStatementLine(models.Model):
             self._invalidate_running_balance()
         return res
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         tracked_lines = self.filtered(
             lambda stl: stl.company_id.restrictive_audit_trail
+        )
+        _debug.logic(
+            "unlink_statement_lines_cancel_audit",
+            tracked_lines=tracked_lines,
+            delete=self - tracked_lines,
         )
         tracked_lines.move_id.action_cancel()
         moves_to_delete = (self - tracked_lines).move_id
@@ -531,7 +600,15 @@ class AccountBankStatementLine(models.Model):
         for group_line, index in zip(result, anchor_indexes, strict=True):
             group_line["running_balance"] = balance_by_index.get(index) or 0.0
 
+    @_debug.perf.timed
     def action_undo_reconciliation(self):
+        _debug.lifecycle("action_undo_reconciliation", records=self)
+        _debug.pipeline(
+            "undo_payments",
+            stline=self,
+            line_ids_count=len(self.line_ids),
+            payment_ids=self.payment_ids,
+        )
         self.line_ids.remove_move_reconcile()
         self.payment_ids.unlink()
 
@@ -548,7 +625,9 @@ class AccountBankStatementLine(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _check_allow_unlink(self):
+        _debug.lifecycle("_check_allow_unlink", records=self)
         if self.statement_id.filtered(lambda stmt: stmt.is_valid and stmt.is_complete):
             raise UserError(
                 _(
@@ -560,12 +639,16 @@ class AccountBankStatementLine(models.Model):
     def _get_or_create_bank_account(self):
         self.check_singleton()
         if not self.partner_id:
+            _debug.logic("bank_account_skipped", stline=self, reason="no_partner")
             return self.env["res.partner.bank"]
         if str2bool(
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("account.skip_create_bank_account_on_reconcile")
         ):
+            _debug.logic(
+                "bank_account_create_skipped", stline=self, reason="config_param"
+            )
             return self.env["res.partner.bank"].search(
                 [
                     ("acc_number", "=", self.account_number),
@@ -580,6 +663,7 @@ class AccountBankStatementLine(models.Model):
             company=self.company_id,
         )
 
+    @_debug.perf.timed
     def _get_domain_default_amls_matching(self):
         self.check_singleton()
         all_reconcilable_account_ids = (
@@ -592,6 +676,11 @@ class AccountBankStatementLine(models.Model):
                 ]
             )
             .ids
+        )
+        _debug.pipeline(
+            "default_matching_domain_built",
+            stline=self,
+            reconcilable_accounts=len(all_reconcilable_account_ids),
         )
         return [
             ("parent_state", "=", "posted"),
@@ -641,6 +730,7 @@ class AccountBankStatementLine(models.Model):
             liquidity_line.company_currency_id,
         )
 
+    @_debug.perf.timed
     def _prepare_counterpart_amounts_using_st_line_rate(
         self, currency, balance, amount_currency
     ):
@@ -686,6 +776,16 @@ class AccountBankStatementLine(models.Model):
             )
             new_balance = balance
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "counterpart_rate_applied",
+                stline=self,
+                currency=currency,
+                is_transaction_currency=currency == transaction_currency,
+                is_journal_currency=currency == journal_currency,
+                balance=new_balance,
+                amount_currency=trans_amount_currency,
+            )
         return {
             "amount_currency": trans_amount_currency,
             "balance": new_balance,
@@ -694,9 +794,15 @@ class AccountBankStatementLine(models.Model):
     def _rounded_quotient(self, currency, amount, rate):
         return currency.round(amount / rate) if rate else 0.0
 
+    @_debug.perf.timed
     def _prepare_move_line_default_vals(self, counterpart_account_id=None):
         self.check_singleton()
 
+        _debug.logic(
+            "counterpart_account_chosen",
+            stline=self,
+            suspense_fallback=not counterpart_account_id,
+        )
         if not counterpart_account_id:
             counterpart_account_id = self.journal_id.suspense_account_id.id
 
@@ -728,6 +834,15 @@ class AccountBankStatementLine(models.Model):
                 journal_amount, company_currency, self.journal_id.company_id, self.date
             )
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "statement_amounts_resolved",
+                stline=self,
+                foreign_is_journal=foreign_currency == journal_currency,
+                journal_is_company=journal_currency == company_currency,
+                foreign_is_company=foreign_currency == company_currency,
+                company_amount=company_amount,
+            )
         liquidity_line_vals = {
             **self._prepare_move_line_common_vals(),
             "account_id": self.journal_id.default_account_id.id,
@@ -747,6 +862,7 @@ class AccountBankStatementLine(models.Model):
         }
         return [liquidity_line_vals, counterpart_line_vals]
 
+    @_debug.perf.timed
     def _prepare_move_line_common_vals(self):
         self.check_singleton()
         return {
@@ -777,6 +893,7 @@ class AccountBankStatementLine(models.Model):
             other_lines -= liquidity_lines
         return liquidity_lines, suspense_lines, other_lines
 
+    @_debug.perf.timed
     def _sync_from_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
@@ -786,11 +903,18 @@ class AccountBankStatementLine(models.Model):
         for st_line in self.with_context(skip_account_move_synchronization=True):
             move = st_line.move_id
             move_vals, st_line_vals = st_line._prepare_synchronized_vals_from_move()
+            _debug.pipeline(
+                "_sync_from_moves_move_st_line",
+                stline=st_line,
+                fields=sorted(move_vals),
+                fields_to=sorted(st_line_vals),
+            )
             move.with_context(skip_readonly_check=True).write(
                 move._cleanup_write_orm_values(move, move_vals)
             )
             st_line.write(move._cleanup_write_orm_values(st_line, st_line_vals))
 
+    @_debug.perf.timed
     def _prepare_synchronized_vals_from_move(self):
         self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()
@@ -819,6 +943,13 @@ class AccountBankStatementLine(models.Model):
                 )
             )
 
+        _debug.pipeline(
+            "move_lines_classified",
+            stline=self,
+            liquidity=len(liquidity_lines),
+            suspense=len(suspense_lines),
+            other=len(other_lines),
+        )
         st_line_vals = {
             "payment_ref": liquidity_lines.name,
             "partner_id": liquidity_lines.partner_id.id,
@@ -836,6 +967,12 @@ class AccountBankStatementLine(models.Model):
                 st_line_vals["amount_currency"] = -suspense_lines.amount_currency
                 st_line_vals["foreign_currency_id"] = suspense_lines.currency_id.id
 
+        _debug.logic(
+            "foreign_currency_synced",
+            stline=self,
+            amount_currency=st_line_vals.get("amount_currency"),
+            foreign_currency_id=st_line_vals.get("foreign_currency_id"),
+        )
         move_vals = {
             "partner_id": liquidity_lines.partner_id.id,
             "currency_id": (
@@ -844,6 +981,7 @@ class AccountBankStatementLine(models.Model):
         }
         return move_vals, st_line_vals
 
+    @_debug.perf.timed
     def _sync_to_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
@@ -851,12 +989,20 @@ class AccountBankStatementLine(models.Model):
         rebuild = not _AMOUNT_SYNCED_FIELDS.isdisjoint(changed_fields)
         if not rebuild and _LABEL_SYNCED_FIELDS.isdisjoint(changed_fields):
             return
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "_sync_to_moves",
+                stline=self,
+                rebuild=rebuild,
+                fields=sorted(changed_fields),
+            )
 
         for st_line in self.with_context(skip_account_move_synchronization=True):
             st_line.move_id.with_context(skip_readonly_check=True).write(
                 st_line._prepare_synchronized_move_vals(rebuild=rebuild)
             )
 
+    @_debug.perf.timed
     def _prepare_synchronized_move_vals(self, rebuild):
         self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()
@@ -867,6 +1013,13 @@ class AccountBankStatementLine(models.Model):
         if self.move_id.partner_id != self.partner_id:
             move_vals["partner_id"] = self.partner_id.id
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "sync_mode_chosen",
+                stline=self,
+                rebuild=rebuild,
+                header_keys=sorted(move_vals),
+            )
         if not rebuild:
             common_vals = self._prepare_move_line_common_vals()
             move_vals["line_ids"] = [
@@ -914,6 +1067,13 @@ class AccountBankStatementLine(models.Model):
             self.foreign_currency_id or journal_currency or company_currency
         ).id
         move_vals["line_ids"] = line_ids_commands
+        _debug.pipeline(
+            "rebuild_commands_built",
+            stline=self,
+            commands=len(line_ids_commands),
+            suspense_updated=bool(suspense_lines),
+            deleted=len(other_lines),
+        )
         return move_vals
 
 
@@ -921,5 +1081,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     statement_line_ids = fields.One2many(
-        "account.bank.statement.line", "move_id", string="Statements"
+        comodel_name="account.bank.statement.line",
+        inverse_name="move_id",
+        string="Statements",
     )

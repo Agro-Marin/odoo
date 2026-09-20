@@ -10,9 +10,9 @@
                 <field name="manufacture_to_resupply" />
                 <field
                     name="manufacture_steps"
-                    invisible="not manufacture_to_resupply"
                     widget="radio"
-                    groups="stock.group_adv_location" />
+                    groups="stock.group_adv_location"
+                    invisible="not manufacture_to_resupply" />
             </xpath>
             <xpath expr="//field[@name='out_type_id']" position="after">
                 <field name="manu_type_id" readonly="True" />

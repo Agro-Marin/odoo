@@ -1,8 +1,10 @@
 import logging
 
 from odoo import api, models
+from odoo.libs.colors import TAG_COLOR_INDICES
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .stock_warehouse import WAREHOUSE_PICKING_TYPE_CODES
 
 _logger = logging.getLogger(__name__)
@@ -11,6 +13,7 @@ _logger = logging.getLogger(__name__)
 class StockWarehousePickingType(models.Model):
     _inherit = "stock.warehouse"
 
+    @dbg.timed
     def _create_or_update_picking_types(self):
         self.check_singleton()
         PickingType = self.env["stock.picking.type"]
@@ -24,7 +27,22 @@ class StockWarehousePickingType(models.Model):
         self._update_picking_type_barcodes(data, suffixes)
 
         to_update = [field for field in data if self[field]]
-        to_create = [field for field in data if not self[field]]
+        pending = set(self.env.context.get("stock_pending_picking_type_fields", ()))
+        to_create = [
+            field for field in data if not self[field] and field not in pending
+        ]
+        if pending:
+            dbg.logic.debug(
+                "[warehouse:%s] picking types left to the pending outer write: %s",
+                self.id,
+                sorted(pending),
+            )
+        dbg.lifecycle.debug(
+            "[warehouse:%s] picking types: update %s, create %s",
+            self.id,
+            to_update,
+            to_create,
+        )
 
         for field in to_update:
             self[field].write(data[field])
@@ -63,6 +81,9 @@ class StockWarehousePickingType(models.Model):
         )
         if not (in_type and out_type):
             return
+        dbg.lifecycle.debug(
+            "_link_return_picking_types: in %s <-> out %s", in_type.id, out_type.id
+        )
         in_type.return_picking_type_id = out_type
         out_type.return_picking_type_id = in_type
 
@@ -82,7 +103,7 @@ class StockWarehousePickingType(models.Model):
                 ["color"],
             )
         }
-        return next((color for color in range(12) if color not in used), 0)
+        return next((color for color in TAG_COLOR_INDICES if color not in used), 0)
 
     def _get_last_picking_type_sequence(self):
         [(highest,)] = (

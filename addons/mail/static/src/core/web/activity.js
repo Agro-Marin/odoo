@@ -7,10 +7,13 @@ import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
 import { computeDelay, getMsToTomorrow } from "@mail/utils/common/dates";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.activity");
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity
@@ -79,6 +82,10 @@ export class Activity extends Component {
         const { id: attachmentId } = await this.attachmentUploader.uploadData(data, {
             activity: this.props.activity,
         });
+        log.logic("onFileUploaded marks done", () => ({
+            activityId: this.props.activity.id,
+            attachmentId,
+        }));
         await this.props.activity.markAsDone([attachmentId]);
         this.props.onActivityChanged(thread);
         await thread.fetchNewMessages();
@@ -106,6 +113,7 @@ export class Activity extends Component {
     async unlink() {
         const thread = this.thread;
         const { activity } = this.props;
+        log.logic("unlink", () => ({ activityId: activity.id }));
         await this.env.services.orm.unlink("mail.activity", [activity.id]);
         activity.remove();
         this.props.onActivityChanged(thread);

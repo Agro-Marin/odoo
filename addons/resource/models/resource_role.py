@@ -7,17 +7,20 @@ class ResourceRole(models.Model):
     _description = "Resource Role"
     _order = "sequence, name, id"
 
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(default=True)
-    name = fields.Char(required=True, translate=True)
     color = fields.Integer(default=lambda self: self._default_color())
     sequence = fields.Integer(export_string_translation=False)
 
     resource_ids = fields.Many2many(
-        "resource.resource",
-        "resource_resource_role_rel",
-        "role_id",
-        "resource_resource_id",
-        "Resources",
+        comodel_name="resource.resource",
+        relation="resource_resource_role_rel",
+        column1="role_id",
+        column2="resource_resource_id",
+        string="Resources",
     )
 
     def copy_data(self, default=None):

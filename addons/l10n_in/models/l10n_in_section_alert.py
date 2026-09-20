@@ -5,16 +5,15 @@ class L10n_InSectionAlert(models.Model):
     _name = "l10n_in.section.alert"
     _description = "indian section alert"
 
-    name = fields.Char("Section Name")
+    name = fields.Char(string="Section Name")
     tax_source_type = fields.Selection(
-        [
+        selection=[
             ("tds", "TDS"),
             ("tcs", "TCS"),
-        ],
-        string="Tax Source Type",
+        ]
     )
     consider_amount = fields.Selection(
-        [
+        selection=[
             ("untaxed_amount", "Untaxed Amount"),
             ("total_amount", "Total Amount"),
         ],
@@ -22,24 +21,23 @@ class L10n_InSectionAlert(models.Model):
         default="untaxed_amount",
         required=True,
     )
-    is_per_transaction_limit = fields.Boolean("Per Transaction")
-    per_transaction_limit = fields.Float("Per Transaction limit")
-    is_aggregate_limit = fields.Boolean("Aggregate")
-    aggregate_limit = fields.Float("Aggregate limit")
+    is_per_transaction_limit = fields.Boolean(string="Per Transaction")
+    per_transaction_limit = fields.Float(string="Per Transaction limit")
+    is_aggregate_limit = fields.Boolean(string="Aggregate")
+    aggregate_limit = fields.Float(string="Aggregate limit")
     aggregate_period = fields.Selection(
-        [
+        selection=[
             ("monthly", "Monthly"),
             ("fiscal_yearly", "Financial Yearly"),
         ],
-        string="Aggregate Period",
         default="fiscal_yearly",
     )
     l10n_in_section_tax_ids = fields.One2many(
-        "account.tax", "l10n_in_section_id", string="Taxes"
+        comodel_name="account.tax",
+        inverse_name="l10n_in_section_id",
+        string="Taxes",
     )
-    tax_report_line_id = fields.Many2one(
-        string="Tax Report Line", comodel_name="account.report.line"
-    )
+    tax_report_line_id = fields.Many2one(comodel_name="account.report.line")
 
     _per_transaction_limit = models.Constraint(
         "CHECK(per_transaction_limit >= 0)",

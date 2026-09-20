@@ -2,6 +2,8 @@ import uuid
 
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 def _new_access_token():
     return str(uuid.uuid4())
@@ -12,7 +14,9 @@ class MixinPosBus(models.AbstractModel):
     _description = "Bus Mixin"
 
     access_token = fields.Char(
-        "Security Token", copy=False, default=lambda self: _new_access_token()
+        string="Security Token",
+        default=lambda self: _new_access_token(),
+        copy=False,
     )
 
     def _get_access_token(self):
@@ -20,6 +24,7 @@ class MixinPosBus(models.AbstractModel):
         if self.access_token:
             return self.access_token
         token = _new_access_token()
+        dbg.lifecycle.debug("access token minted for %s", dbg.rec(self))
         self.sudo().access_token = token
         return token
 
@@ -33,6 +38,19 @@ class MixinPosBus(models.AbstractModel):
                 )
             notifications = [notifications]
         for name, message in notifications:
+            dbg.pipeline.debug(
+                "[bus] %s -> %s private=%s payload=%s",
+                name,
+                dbg.rec(self),
+                private,
+                dbg.lazy(
+                    lambda message=message: (
+                        sorted(message)
+                        if isinstance(message, dict)
+                        else type(message).__name__
+                    )
+                ),
+            )
             self.env["bus.bus"]._sendone(
                 token,
                 f"{token}-{name}" if private else name,

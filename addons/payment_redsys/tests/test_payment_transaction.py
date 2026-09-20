@@ -8,14 +8,14 @@ from odoo.addons.payment_redsys.tests.common import RedsysCommon
 class TestPaymentTransaction(RedsysCommon):
     def test_reference_uses_only_alphanumeric_chars(self):
         """The computed reference must be made of alphanumeric characters."""
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             provider_code="redsys"
         )
         self.assertTrue(reference.isalnum())
 
     def test_reference_length_is_between_9_and_12_chars(self):
         """The computed reference must be between 9 and 12 characters."""
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             provider_code="redsys"
         )
         self.assertTrue(9 <= len(reference) <= 12)
@@ -24,7 +24,7 @@ class TestPaymentTransaction(RedsysCommon):
         """Test that all important items are present in the merchant parameters."""
         tx = self._create_transaction(flow="redirect")
         merchant_parameters = tx._redsys_prepare_merchant_parameters()
-        converted_amount = payment_utils.to_minor_currency_units(
+        converted_amount = payment_utils.major_to_minor_currency_units(
             tx.amount, tx.currency_id
         )
         self.assertEqual(

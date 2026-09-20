@@ -12,15 +12,21 @@ their own ``iot_*`` modules, so installing one never drags an application in.
 """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["mail"],
+    "depends": [
+        "integration",
+        "mail",
+    ],
     "data": [
         "wizards/add_iot_box_views.xml",
         "wizards/select_printers_views.xml",
         "security/iot_security.xml",
         "security/ir.model.access.csv",
         "views/iot_views.xml",
+        "views/iot_menus.xml",
     ],
-    "demo": ["demo/iot_demo.xml"],
+    "demo": [
+        "demo/iot_demo.xml",
+    ],
     "assets": {
         "iot.assets_client": [
             "iot/static/src/network_utils/**/*",
@@ -33,14 +39,28 @@ their own ``iot_*`` modules, so installing one never drags an application in.
             "iot/static/src/client_action/delete_local_storage.js",
         ],
         "web.assets_backend": [
-            ("include", "iot.assets_client"),
-            ("include", "iot.assets_report"),
+            (
+                "include",
+                "iot.assets_client",
+            ),
+            (
+                "include",
+                "iot.assets_report",
+            ),
             "iot/static/src/**/*",
         ],
-        "web.assets_unit_tests": ["iot/static/tests/unit/**/*"],
-        "web.assets_tests": [("include", "iot.assets_tests")],
-        "iot.assets_tests": ["iot/static/tests/tours/**/*"],
+        "web.assets_unit_tests": [
+            "iot/static/tests/unit/**/*",
+        ],
+        "web.assets_tests": [
+            (
+                "include",
+                "iot.assets_tests",
+            ),
+        ],
+        "iot.assets_tests": [
+            "iot/static/tests/tours/**/*",
+        ],
     },
-    "installable": True,
     "application": True,
 }

@@ -1,6 +1,9 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class ProductSupplierinfo(models.Model):
@@ -11,11 +14,12 @@ class ProductSupplierinfo(models.Model):
         compute="_compute_date_last_purchase",
     )
     show_set_supplier_button = fields.Boolean(
-        string="Show Set Supplier Button",
-        compute="_compute_show_set_supplier_button",
+        compute="_compute_show_set_supplier_button"
     )
 
+    @api.depends("partner_id", "product_tmpl_id.product_variant_ids")
     def _compute_date_last_purchase(self):
+        _debug.perf.count("last_purchase_date_compute", supplierinfos=self)
         self.date_last_purchase = False
         groups = self.env["purchase.order.line"]._read_group(
             [
@@ -65,6 +69,7 @@ class ProductSupplierinfo(models.Model):
                 supplier.display_name = f"{supplier.partner_id.display_name} ({supplier.min_qty} {supplier.product_uom_id.name} - {price_str})"
 
     def action_set_supplier(self):
+        _debug.lifecycle("supplier_set", supplierinfos=self)
         self.check_singleton()
         orderpoint_id = self.env.context.get("orderpoint_id")
         if not orderpoint_id:
@@ -81,7 +86,7 @@ class ProductSupplierinfo(models.Model):
                 self.env["stock.rule"].search(domain, limit=1).route_id.id
             )
         orderpoint.supplier_id = self
-        supplier_min_qty = self.product_uom_id._compute_quantity_estimate(
+        supplier_min_qty = self.product_uom_id._get_quantity_estimate(
             self.min_qty,
             orderpoint.product_id.uom_id,
         )

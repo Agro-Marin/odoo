@@ -3,6 +3,7 @@ import typing
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import (
     is_valid_limited_field_access_token,
     limited_field_access_token,
@@ -12,6 +13,8 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSp
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
+
+_debug = DebugLog(__name__)
 
 
 class IrAttachment(models.Model):
@@ -67,6 +70,12 @@ class IrAttachment(models.Model):
         for attachment in self:
             if attachment.res_model and attachment.res_id:
                 by_model.setdefault(attachment.res_model, set()).add(attachment.res_id)
+        if _debug.perf.enabled and by_model:
+            _debug.perf.count(
+                "attachment_count_invalidated",
+                attachments=len(self),
+                models=sorted(by_model),
+            )
         for model_name, res_ids in by_model.items():
             model = self.env.get(model_name)
             if model is None or "message_attachment_count" not in model._fields:
@@ -90,6 +99,12 @@ class IrAttachment(models.Model):
             related_records = self.env[model].browse(attachments.mapped("res_id"))
             if not hasattr(related_records, "_message_set_main_attachment_id"):
                 continue
+            _debug.lifecycle(
+                "main_attachment_registered",
+                model=model,
+                attachments=len(attachments),
+                force=force,
+            )
 
             for related_record, attachment in zip(
                 related_records, attachments, strict=False
@@ -102,6 +117,11 @@ class IrAttachment(models.Model):
     def _remove_and_notify(self, message: MailMessage | None = None) -> None:
         if message:
             message.sudo().write({})
+        _debug.lifecycle(
+            "removed_and_notified",
+            attachments=self.ids,
+            message=message.id if message else None,
+        )
         for attachment in self:
             attachment._bus_send(
                 "ir.attachment/delete",

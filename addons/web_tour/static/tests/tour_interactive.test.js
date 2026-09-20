@@ -62,7 +62,7 @@ defineModels([Partner, Product]);
 
 class Counter extends Component {
     static props = ["*"];
-    static template = xml `
+    static template = xml`
         <div class="counter">
             <div class="interval">
                 <input type="number" t-model.number="state.interval" />
@@ -149,7 +149,7 @@ test("next step with new anchor at same position", async () => {
     class Dummy extends Component {
         static props = ["*"];
         state = useState({ bool: true });
-        static template = xml `
+        static template = xml`
             <button class="foo w-100" t-if="state.bool" t-on-click="() => { state.bool = false; }">Foo</button>
             <button class="bar w-100" t-if="!state.bool">Bar</button>
         `;
@@ -157,7 +157,7 @@ test("next step with new anchor at same position", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Dummy };
-        static template = xml `
+        static template = xml`
             <t>
                 <Dummy />
             </t>
@@ -238,7 +238,7 @@ test("registering test tour after service is started doesn't auto-start the tour
     patchWithCleanup(session, { tour_enabled: true });
     class Root extends Component {
         static components = { Counter };
-        static template = xml `
+        static template = xml`
                 <t>
                     <Counter />
                 </t>
@@ -278,7 +278,7 @@ test("hovering to the anchor element should show the content and not when conten
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <t>
                 <Counter />
                 <button class="other">Pogačar</button>
@@ -330,7 +330,7 @@ test("should show only 1 pointer at a time", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <t>
                 <Counter />
             </t>
@@ -365,7 +365,7 @@ test("perform edit on next step", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <t>
                 <Counter />
             </t>
@@ -400,7 +400,7 @@ test("scrolling to next step should update the pointer's height", async (assert)
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <div class="scrollable-parent" style="overflow-y: scroll; height: 150px;">
                 <Counter />
                 <div class="bottom-filler" style="height: 300px" />
@@ -466,7 +466,7 @@ test("scroller pointer to reach next step", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <div class="scrollable-parent" style="overflow-y: scroll; height: 150px;">
                 <button class="test">Test me</button>
                 <div class="top-filler" style="height: 500px" />
@@ -523,7 +523,7 @@ test("scroller pointer to reach next step (X axis)", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <div class="scrollable-parent d-flex flex-row" style="overflow-x: scroll; width: 300px;">
                 <button class="test">Test me</button>
                 <div class="left-filler" style="min-width: 500px" />
@@ -609,7 +609,7 @@ test("manual tour with inactive steps", async () => {
     class Root extends Component {
         static props = ["*"];
         static components = { Counter };
-        static template = xml `
+        static template = xml`
             <t>
                 <Counter />
             </t>
@@ -655,7 +655,7 @@ test("manual tour with alternative trigger", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">0, hello</button>
@@ -864,7 +864,7 @@ test("check tooltip position", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0">Button 0</button></div>
@@ -936,7 +936,7 @@ test("check rainbowManMessage", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0">Button 0</button></div>
@@ -972,7 +972,7 @@ test("check alternative trigger that appear after the initial trigger", async ()
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0">Button 0</button></div>

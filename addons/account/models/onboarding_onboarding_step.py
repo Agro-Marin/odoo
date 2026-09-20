@@ -1,11 +1,16 @@
 from odoo import _, api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class OnboardingOnboardingStep(models.Model):
     _inherit = "onboarding.onboarding.step"
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_company_data(self):
+        _debug.lifecycle("action_view_step_company_data", records=self)
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -24,7 +29,9 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_base_document_layout(self):
+        _debug.lifecycle("action_view_step_base_document_layout", records=self)
         view_id = self.env.ref("web.view_base_document_layout").id
         return {
             "name": _("Configure your document layout"),
@@ -36,7 +43,9 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def action_validate_step_base_document_layout(self):
+        _debug.lifecycle("action_validate_step_base_document_layout", records=self)
         step = self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
             raise_if_not_found=False,
@@ -48,11 +57,15 @@ class OnboardingOnboardingStep(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_bank_account(self):
+        _debug.lifecycle("action_view_step_bank_account", records=self)
         return self.env.company.setting_init_bank_account_action()
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_create_invoice(self):
+        _debug.lifecycle("action_view_step_create_invoice", records=self)
         return {
             "type": "ir.actions.act_window",
             "name": _("Create first invoice"),
@@ -62,7 +75,9 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_fiscal_year(self):
+        _debug.lifecycle("action_view_step_fiscal_year", records=self)
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -88,7 +103,9 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_chart_of_accounts(self):
+        _debug.lifecycle("action_view_step_chart_of_accounts", records=self)
         company = (
             self.env["account.journal"]
             .browse(self.env.context.get("journal_id", None))
@@ -119,7 +136,9 @@ class OnboardingOnboardingStep(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def action_view_step_sales_tax(self):
+        _debug.lifecycle("action_view_step_sales_tax", records=self)
         view_id = self.env.ref("account.res_company_form_view_onboarding_sale_tax").id
 
         return {

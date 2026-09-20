@@ -3,8 +3,11 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 
 from ..models.res_users import check_identity
+
+_debug = DebugLog(__name__)
 
 
 class ChangePasswordWizard(models.TransientModel):
@@ -23,8 +26,8 @@ class ChangePasswordWizard(models.TransientModel):
         ]
 
     user_ids = fields.One2many(
-        "change.password.user",
-        "wizard_id",
+        comodel_name="change.password.user",
+        inverse_name="wizard_id",
         string="Users",
         default=_default_user_ids,
     )
@@ -41,18 +44,27 @@ class ChangePasswordUser(models.TransientModel):
     _name = "change.password.user"
     _description = "User, Change Password Wizard"
     wizard_id = fields.Many2one(
-        "change.password.wizard",
-        string="Wizard",
+        comodel_name="change.password.wizard",
         required=True,
         ondelete="cascade",
     )
     user_id = fields.Many2one(
-        "res.users", string="User", required=True, ondelete="cascade"
+        comodel_name="res.users",
+        required=True,
+        ondelete="cascade",
     )
-    user_login = fields.Char(string="User Login", readonly=True)
-    new_passwd = fields.Char(string="New Password", default="")
+    user_login = fields.Char(readonly=True)
+    new_passwd = fields.Char(
+        string="New Password",
+        default="",
+    )
 
     def change_password_button(self) -> None:
+        _debug.lifecycle(
+            "wizard_change_password",
+            by=self.env.uid,
+            users=[line.user_id.id for line in self if line.new_passwd],
+        )
         for line in self:
             if line.new_passwd:
                 line.user_id._change_password(line.new_passwd)
@@ -64,7 +76,7 @@ class ChangePasswordOwn(models.TransientModel):
     _description = "User, change own password wizard"
     _transient_max_hours = 0.1
 
-    new_password = fields.Char(string="New Password")
+    new_password = fields.Char()
     confirm_password = fields.Char(string="New Password (Confirmation)")
 
     @api.constrains("new_password", "confirm_password")

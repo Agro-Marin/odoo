@@ -13,19 +13,19 @@
                 <field
                     name="journal_group_ids"
                     widget="many2many_tags"
-                    readonly="1"
-                    optional="hide" />
+                    optional="hide"
+                    readonly="1" />
                 <field
                     name="currency_id"
-                    groups="base.group_multi_currency"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_currency" />
                 <field name="code" optional="show" />
                 <field name="default_account_id" optional="show" />
                 <field name="active" optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field
                     name="company_id"
                     groups="!base.group_multi_company"
@@ -45,11 +45,11 @@
                 <sheet>
                     <div name="button_box" class="oe_button_box">
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="%(action_account_moves_all_a)d"
+                            type="action"
                             icon="fa-book"
-                            context="{'search_default_journal_id':id}">
+                            context="{'search_default_journal_id':id}"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Journal Entries</span>
                             </div>
@@ -58,11 +58,11 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" />
-                        <field name="name_placeholder" invisible="1" force_save="1" />
+                        <field name="name_placeholder" force_save="1" invisible="1" />
                         <h1>
                             <field
                                 name="name"
@@ -91,68 +91,68 @@
                                     <label
                                         for="default_account_id"
                                         string="Bank Account"
-                                        invisible="type != 'bank'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'bank'" />
                                     <label
                                         for="default_account_id"
                                         string="Journal Account"
-                                        invisible="type != 'credit'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'credit'" />
                                     <label
                                         for="default_account_id"
                                         string="Cash Account"
-                                        invisible="type != 'cash'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'cash'" />
                                     <label
                                         for="default_account_id"
                                         string="Default Income Account"
-                                        invisible="type != 'sale'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'sale'" />
                                     <label
                                         for="default_account_id"
                                         string="Default Expense Account"
-                                        invisible="type != 'purchase'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'purchase'" />
                                     <label
                                         for="default_account_id"
                                         string="Default Account"
                                         help="If set, this account is used to automatically balance entries."
-                                        invisible="type != 'general'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'general'" />
                                     <field
                                         name="default_account_id"
-                                        nolabel="1"
                                         placeholder="Create new account"
-                                        invisible="not type or type in ('sale', 'purchase', 'general')"
-                                        required="(id and type in ('bank', 'cash', 'credit'))"
+                                        nolabel="1"
                                         options="{'no_quick_create': True}"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="not type or type in ('sale', 'purchase', 'general')"
+                                        required="(id and type in ('bank', 'cash', 'credit'))" />
                                     <field
                                         name="default_account_id"
                                         nolabel="1"
-                                        invisible="type not in ('sale', 'purchase', 'general')"
-                                        required="type in ('sale', 'purchase')"
                                         options="{'no_quick_create': True}"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type not in ('sale', 'purchase', 'general')"
+                                        required="type in ('sale', 'purchase')" />
                                     <field
                                         name="suspense_account_id"
-                                        invisible="type not in ('bank', 'cash', 'credit')"
-                                        required="type in ('bank', 'cash', 'credit')"
                                         options="{'no_quick_create': True}"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type not in ('bank', 'cash', 'credit')"
+                                        required="type in ('bank', 'cash', 'credit')" />
                                     <field
                                         name="non_deductible_account_id"
-                                        invisible="type != 'purchase'"
                                         options="{'no_quick_create': True}"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'purchase'" />
                                     <field
                                         name="profit_account_id"
-                                        invisible="type not in ('cash', 'bank')"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type not in ('cash', 'bank')" />
                                     <field
                                         name="loss_account_id"
-                                        invisible="type not in ('cash', 'bank')"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type not in ('cash', 'bank')" />
                                     <field
                                         name="refund_sequence"
                                         invisible="type not in ['sale', 'purchase']" />
@@ -161,8 +161,8 @@
                                         invisible="type not in ('bank', 'cash', 'credit')" />
                                     <field
                                         name="invoice_template_pdf_report_id"
-                                        invisible="not display_invoice_template_pdf_report_id"
-                                        options="{'no_create': True, 'no_edit': True}" />
+                                        options="{'no_create': True, 'no_edit': True}"
+                                        invisible="not display_invoice_template_pdf_report_id" />
                                     <field
                                         name="currency_id"
                                         options="{'no_create': True}"
@@ -182,33 +182,32 @@
                                     <field
                                         name="bank_statements_source"
                                         widget="radio"
-                                        required="type == 'bank'"
-                                        groups="account.group_account_basic" />
+                                        groups="account.group_account_basic"
+                                        required="type == 'bank'" />
                                 </group>
                                 <group name="bank_source" invisible="type != 'credit'">
                                     <label
                                         for="bank_statements_source"
                                         string="Transaction Feeds"
-                                        invisible="type != 'credit'"
-                                        groups="account.group_account_readonly" />
+                                        groups="account.group_account_readonly"
+                                        invisible="type != 'credit'" />
                                     <field
                                         name="bank_statements_source"
-                                        nolabel="1"
                                         widget="radio"
-                                        required="type == 'credit'"
-                                        groups="account.group_account_basic" />
+                                        nolabel="1"
+                                        groups="account.group_account_basic"
+                                        required="type == 'credit'" />
                                 </group>
                             </group>
                         </page>
                         <page
+                            name="page_incoming_payments"
                             id="inbound_payment_settings"
                             string="Incoming Payments"
-                            name="page_incoming_payments"
                             invisible="type not in ['cash', 'bank', 'credit']">
                             <field name="available_payment_method_ids" invisible="1" />
                             <field
                                 name="inbound_payment_channel_ids"
-                                nolabel="1"
                                 context="{'default_payment_type': 'inbound'}">
                                 <list string="Payment Methods" editable="bottom">
                                     <field
@@ -225,21 +224,20 @@
                                     <field name="name" />
                                     <field
                                         name="payment_account_id"
-                                        placeholder="No payment journal entries"
                                         string="Outstanding Receipts accounts"
+                                        placeholder="No payment journal entries"
                                         options="{'no_quick_create': True}"
                                         groups="account.group_account_readonly" />
                                 </list>
                             </field>
                         </page>
                         <page
+                            name="page_outgoing_payments"
                             id="outbound_payment_settings"
                             string="Outgoing Payments"
-                            name="page_outgoing_payments"
                             invisible="type not in ['cash', 'bank', 'credit']">
                             <field
                                 name="outbound_payment_channel_ids"
-                                nolabel="1"
                                 context="{'default_payment_type': 'outbound'}">
                                 <list string="Payment Methods" editable="bottom">
                                     <field
@@ -256,8 +254,8 @@
                                     <field name="name" />
                                     <field
                                         name="payment_account_id"
-                                        placeholder="No payment journal entries"
                                         string="Outstanding Payments accounts"
+                                        placeholder="No payment journal entries"
                                         options="{'no_quick_create': True}"
                                         groups="account.group_account_readonly" />
                                 </list>
@@ -279,8 +277,8 @@
                                         invisible="type != 'purchase'" />
                                 </group>
                                 <group
-                                    string="Emails"
                                     name="group_email_alias"
+                                    string="Emails"
                                     invisible="type not in ('general', 'sale', 'purchase')">
                                     <field name="display_alias_fields" invisible="1" />
                                     <div
@@ -301,7 +299,7 @@
                                         colspan="2"
                                         dir="ltr"
                                         invisible="not display_alias_fields">
-                                        <label string="Email Alias" for="alias_name" />
+                                        <label for="alias_name" string="Email Alias" />
                                             <field name="alias_name" placeholder="alias" />@ <field name="alias_domain_id" placeholder="e.g. mycompany.com" options="{'no_create': True, 'no_open': True}" />
                                     </div>
                                     <field
@@ -351,10 +349,10 @@
                 <templates>
                     <t t-name="card" class="row g-0">
                         <div class="col-6">
-                            <field class="fw-bolder" name="name" />
+                            <field name="name" class="fw-bolder" />
                         </div>
                         <div class="col-6 ">
-                            <field class="float-end" name="type" />
+                            <field name="type" class="float-end" />
                         </div>
                     </t>
                 </templates>
@@ -455,9 +453,9 @@
                     options="{'no_create': True}" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
                     placeholder="Visible to all"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>

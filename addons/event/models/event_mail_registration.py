@@ -2,8 +2,6 @@ import logging
 
 from odoo import api, fields, models
 
-from odoo.addons.event.models.event_mail import _INTERVALS
-
 _logger = logging.getLogger(__name__)
 
 
@@ -14,15 +12,25 @@ class EventMailRegistration(models.Model):
     _order = "scheduled_date DESC, id ASC"
 
     scheduler_id = fields.Many2one(
-        "event.mail", "Mail Scheduler", required=True, index=True, ondelete="cascade"
+        comodel_name="event.mail",
+        string="Mail Scheduler",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     registration_id = fields.Many2one(
-        "event.registration", "Attendee", required=True, index=True, ondelete="cascade"
+        comodel_name="event.registration",
+        string="Attendee",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     scheduled_date = fields.Datetime(
-        "Scheduled Time", compute="_compute_scheduled_date", store=True
+        string="Scheduled Time",
+        compute="_compute_scheduled_date",
+        store=True,
     )
-    mail_sent = fields.Boolean("Mail Sent")
+    mail_sent = fields.Boolean()
 
     _scheduler_registration_uniq = models.Constraint(
         "unique(scheduler_id, registration_id)",
@@ -37,7 +45,7 @@ class EventMailRegistration(models.Model):
             if mail.registration_id:
                 mail.scheduled_date = mail.registration_id.create_date.replace(
                     microsecond=0
-                ) + _INTERVALS[mail.scheduler_id.interval_unit](
+                ) + mail.scheduler_id._get_schedule_delta(
                     mail.scheduler_id.interval_nbr
                 )
             else:

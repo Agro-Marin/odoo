@@ -32,6 +32,5 @@ This module includes contact phone and mobile numbers validation.""",
             "website_crm/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

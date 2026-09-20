@@ -7,8 +7,8 @@
         <field name="arch" type="xml">
             <list string="Assignments" decoration-muted="state == 'ended'">
                 <field name="resource_id" />
-                <field name="assignee_id" />
-                <field name="role" />
+                <field name="assignee_partner_id" />
+                <field name="custody_role" />
                 <field name="date_start" />
                 <field name="date_end" />
                 <field name="state" />
@@ -33,8 +33,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1" />
@@ -44,8 +44,8 @@
                         <group name="parties">
                             <field name="active" invisible="1" />
                             <field name="resource_id" />
-                            <field name="assignee_id" />
-                            <field name="role" />
+                            <field name="assignee_partner_id" required="1" />
+                            <field name="custody_role" />
                         </group>
                         <group name="period">
                             <field name="date_start" />
@@ -69,7 +69,7 @@
         <field name="arch" type="xml">
             <search string="Assignments">
                 <field name="resource_id" />
-                <field name="assignee_id" />
+                <field name="assignee_partner_id" />
                 <filter
                     name="active"
                     string="Active"
@@ -95,11 +95,11 @@
                 <filter
                     name="group_assignee"
                     string="Assignee"
-                    context="{'group_by': 'assignee_id'}" />
+                    context="{'group_by': 'assignee_partner_id'}" />
                 <filter
                     name="group_role"
                     string="Role"
-                    context="{'group_by': 'role'}" />
+                    context="{'group_by': 'custody_role'}" />
             </search>
         </field>
     </record>

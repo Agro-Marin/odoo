@@ -3,14 +3,16 @@
 
     <record id="mail_template_document_request" model="mail.template">
         <field name="name">Document: Document Request</field>
+        <field
+            name="description">Sent to partner when requesting a document from them</field>
         <field name="model_id" ref="document.model_document_document" />
         <field
             name="subject">Document Request {{ object.name != False and ': '+ object.name or '' }}</field>
         <field name="email_to" eval="False" />
         <field name="partner_to">{{ object.requestee_partner_id.id or '' }}</field>
         <field name="use_default_to" eval="False" />
-        <field
-            name="description">Sent to partner when requesting a document from them</field>
+        <field name="lang">{{ object.requestee_partner_id.lang }}</field>
+        <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <table
                 border="0"
@@ -191,21 +193,19 @@
                 </tr>
             </table>
         </field>
-        <field name="lang">{{ object.requestee_partner_id.lang }}</field>
-        <field name="auto_delete" eval="True" />
     </record>
 
     <record id="mail_template_document_request_reminder" model="mail.template">
         <field name="name">Document Request: Reminder</field>
+        <field
+            name="description">Set reminders in activities to notify users who didn't upload their requested document</field>
         <field name="model_id" ref="document.model_document_document" />
         <field
             name="subject">Reminder to upload your document{{ object.name and ' : ' + object.name or '' }}</field>
         <field name="email_to" eval="False" />
         <field name="partner_to">{{ object.requestee_partner_id.id or '' }}</field>
-        <field name="lang">{{ object.requestee_partner_id.lang }}</field>
         <field name="use_default_to" eval="False" />
-        <field
-            name="description">Set reminders in activities to notify users who didn't upload their requested document</field>
+        <field name="lang">{{ object.requestee_partner_id.lang }}</field>
         <field name="body_html" type="html">
             <table
                 border="0"
@@ -452,14 +452,16 @@
 
     <record id="mail_template_document_share" model="mail.template">
         <field name="name">Document: Document Share</field>
+        <field
+            name="description">Sent to partner when sharing a document with them</field>
         <field name="model_id" ref="base.model_res_partner" />
         <field
             name="subject">{{ len(ctx.get('documents', [])) }} document(s) shared with you</field>
         <field name="email_to" eval="False" />
         <field name="partner_to">{{ object.id or '' }}</field>
         <field name="use_default_to" eval="False" />
-        <field
-            name="description">Sent to partner when sharing a document with them</field>
+        <field name="lang">{{ object.lang }}</field>
+        <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <t
                 t-set="documents"
@@ -670,8 +672,6 @@
                 </tr>
             </table>
         </field>
-        <field name="lang">{{ object.lang }}</field>
-        <field name="auto_delete" eval="True" />
     </record>
 
 </odoo>

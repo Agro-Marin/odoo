@@ -12,9 +12,9 @@
                         <field name="mode" widget="radio" nolabel="1" />
                         <field
                             name="wave_id"
+                            context="{'add_to_existing_batch': True}"
                             options="{'no_create': True, 'no_open': True}"
                             invisible="mode == 'new'"
-                            context="{'add_to_existing_batch': True}"
                             required="mode == 'existing'" />
                         <field
                             name="user_id"
@@ -29,14 +29,14 @@
                         type="object"
                         string="Confirm"
                         class="btn-primary" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>
     </record>
 
     <record id="stock_add_to_wave_action_stock_picking" model="ir.actions.act_window">
-        <field name="name">Add to wave</field>
+        <field name="name">Add to Wave…</field>
         <field name="res_model">stock.add.to.wave</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

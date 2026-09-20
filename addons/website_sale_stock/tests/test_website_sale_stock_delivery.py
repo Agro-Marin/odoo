@@ -15,10 +15,6 @@ class TestWebsiteSaleStockDeliveryController(
     PaymentCommon, WebsiteSaleCommon, DeliveryCommon
 ):
     def test_validate_payment_with_no_available_delivery_method(self):
-        """
-        An error should be raised if you try to validate an order with a storable
-        product without any delivery method available
-        """
         storable_product = self.env["product.product"].create(
             [
                 {
@@ -44,10 +40,6 @@ class TestWebsiteSaleStockDeliveryController(
                 WebsiteSaleController.shop_payment_validate()
 
     def test_validate_order_out_of_stock_zero_price(self):
-        """
-        An error should be raised if you try to validate an order for
-        an out of stock product with 0 price
-        """
         WebsiteSaleController = WebsiteSale()
         storable_product = self.env["product.product"].create(
             {

@@ -15,9 +15,6 @@ registerWebsitePreviewTour(
     () => [
         ...clickOnSnippet({ id: "o_header_standard", name: "Header" }),
         ...changeOptionInPopover("Header", "Header Position", "Over the content"),
-        // It's important to test saving right after changing that option only as
-        // this is why this test was made in the first place: the page was not
-        // marked as dirty when that option was the only one that was changed.
         ...clickOnSave(),
         {
             content: "Check that the header is transparent",

@@ -33,13 +33,13 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/addons/automation
 DOCS=("$SCRIPT_DIR"/*.md)
@@ -188,6 +188,7 @@ done <<< "$constants_report"
 # Forward: every shipped source and test file is named in index.md's table. The
 # test half of this is what caught index.md listing 4 of 8.
 for f in "$MOD"/models/*.py "$MOD"/controllers/*.py "$MOD"/tests/test_*.py; do
+    [ -f "$f" ] || continue
     base="$(basename "$f")"
     [ "$base" = "__init__.py" ] && continue
     rel="${f#"$MOD"/}"

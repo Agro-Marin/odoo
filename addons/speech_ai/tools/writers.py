@@ -6,32 +6,34 @@ from typing import Any
 from odoo.libs.documents import TEXT, BaseWriter, register_writer
 
 from .selection import SYNTHESIS_KIND, pick_model, run
-from odoo.addons.api_ai.tools.ai_clients import AI_CLIENT_REGISTRY
-from odoo.addons.api_ai.tools.vendor_catalog import PROVIDERS
 
 _logger = logging.getLogger(__name__)
 
 
-def written_by(vendor: str) -> frozenset[str]:
-    for spec in PROVIDERS.values():
-        if spec.get("speech_service") == vendor:
-            return frozenset(spec.get("speech_mimetypes") or {})
-    client = AI_CLIENT_REGISTRY.get(vendor)
-    return frozenset(getattr(client, "SPEECH_ENCODINGS", None) or ())
+SPEECH_MIMETYPES = frozenset(
+    {"audio/aac", "audio/flac", "audio/mpeg", "audio/ogg", "audio/wav"}
+)
 
 
-def _vendors() -> frozenset[str]:
-    named = {
-        spec["speech_service"] for spec in PROVIDERS.values() if spec.get("speech")
-    }
-    return frozenset(named | set(AI_CLIENT_REGISTRY))
+def _speech_operations(env: Any) -> Any:
+    return (
+        env["gateway.ml.provider.service"]
+        .sudo()
+        .search([("operation", "=", "synthesize")])
+    )
 
 
-def _written_mimetypes() -> frozenset[str]:
-    spoken: set[str] = set()
-    for vendor in _vendors():
-        spoken |= written_by(vendor)
-    return frozenset(spoken)
+def written_by(env: Any, vendor: str) -> frozenset[str]:
+    return frozenset(
+        mimetype
+        for operation in _speech_operations(env)
+        if operation.service_id.code == vendor
+        for mimetype in (operation.formats or {})
+    )
+
+
+def _vendors(env: Any) -> frozenset[str]:
+    return frozenset(_speech_operations(env).mapped("service_id.code"))
 
 
 class AiSpeech(BaseWriter):
@@ -46,11 +48,15 @@ class AiSpeech(BaseWriter):
         self.mimetype = mimetype
 
     def available(self, env: Any) -> bool:
-        return any(
-            pick_model(env, SYNTHESIS_KIND, provider_code=vendor)
-            for vendor in _vendors()
-            if self.mimetype in written_by(vendor)
-        )
+        return bool(self._pick_model(env))
+
+    def _pick_model(self, env: Any) -> Any:
+        writing = [
+            vendor
+            for vendor in _vendors(env)
+            if self.mimetype in written_by(env, vendor)
+        ]
+        return pick_model(env, SYNTHESIS_KIND, provider_code=writing)
 
     def write(self, value: Any, **options: Any) -> bytes:
         env = options.get("env")
@@ -58,32 +64,19 @@ class AiSpeech(BaseWriter):
             raise ValueError(
                 "Speech synthesis needs an environment: pass env= to write audio"
             )
-        model = pick_model(env, SYNTHESIS_KIND)
+        model = self._pick_model(env)
         if not model:
             raise ValueError("No speech model is configured with a usable credential")
         return run(
             env,
+            "synthesize",
             model,
-            lambda client, ai_model: _speak(
-                client, ai_model, str(value), options, self.mimetype
-            ),
             log_metadata={"feature": "speech.synthesis"},
-        )
+            text=str(value),
+            voice=options.get("voice"),
+            mimetype=self.mimetype,
+        ).audio
 
 
-def _speak(
-    client: Any, ai_model: Any, text: str, options: dict, mimetype: str
-) -> bytes:
-    speaker = getattr(client, "synthesize", None)
-    if speaker is None:
-        raise NotImplementedError(f"{type(client).__name__} does not speak")
-    return speaker(
-        text,
-        voice=options.get("voice"),
-        mimetype=mimetype,
-        model=ai_model.code,
-    )
-
-
-for _mimetype in sorted(_written_mimetypes()):
+for _mimetype in sorted(SPEECH_MIMETYPES):
     register_writer(AiSpeech(_mimetype))

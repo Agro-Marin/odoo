@@ -9,19 +9,26 @@ class AccountAccountTag(models.Model):
     _name = "account.account.tag"
     _description = "Account Tag"
 
-    name = fields.Char("Tag Name", required=True, translate=True)
+    name = fields.Char(
+        string="Tag Name",
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(
         default=True,
         help="Set active to false to hide the Account Tag without removing it.",
     )
-    color = fields.Integer("Color Index")
+    color = fields.Integer(string="Color Index")
     applicability = fields.Selection(
-        [("accounts", "Accounts"), ("taxes", "Taxes"), ("products", "Products")],
-        required=True,
+        selection=[
+            ("accounts", "Accounts"),
+            ("taxes", "Taxes"),
+            ("products", "Products"),
+        ],
         default="accounts",
+        required=True,
     )
     country_id = fields.Many2one(
-        string="Country",
         comodel_name="res.country",
         help="Country for which this tag is available, when applied on taxes.",
     )

@@ -5,7 +5,7 @@
         <record id="base.group_user" model="res.groups">
             <field
                 name="implied_ids"
-                eval="[(4, ref('product.group_product_variant'))]" />
+                eval="[Command.link(ref('product.group_product_variant'))]" />
         </record>
         <record id="casual_t_shirt" model="product.product">
             <field name="name">Casual T-shirt</field>
@@ -22,7 +22,9 @@
                 file="point_of_sale/static/img/product_casual_t_shirt.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <function model="ir.model.data" name="_update_xmlids">
             <value
@@ -76,7 +78,9 @@
                 file="point_of_sale/static/img/product_t_shirt_slim.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <function model="ir.model.data" name="_update_xmlids">
             <value
@@ -117,7 +121,9 @@
                 file="point_of_sale/static/img/product_t_shirt_black_embroidered.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <function model="ir.model.data" name="_update_xmlids">
             <value
@@ -160,7 +166,9 @@
                 file="point_of_sale/static/img/product_blue_denim_jeans.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_lower')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_lower')])]" />
             <field
                 name="attribute_line_ids"
                 eval="[                 Command.create({                     'attribute_id': ref('product.pa_size'),                     'value_ids': [                         Command.set([                             ref('product.pav_size_s'),                             ref('product.pav_size_m'),                             ref('product.pav_size_l'),                             ref('product.pav_size_xl'),                             ref('product.pav_size_2xl'),                             ref('product.pav_size_3xl'),                             ref('product.pav_size_4xl'),                             ref('product.pav_size_5xl'),                         ])                     ]                 })             ]" />
@@ -184,7 +192,9 @@
                 file="point_of_sale/static/img/product_blue_denim_jeans_slim.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_lower')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_lower')])]" />
             <field
                 name="attribute_line_ids"
                 eval="[                 Command.create({                     'attribute_id': ref('product.pa_size'),                     'value_ids': [                         Command.set([                             ref('product.pav_size_s'),                             ref('product.pav_size_m'),                             ref('product.pav_size_l'),                             ref('product.pav_size_xl'),                             ref('product.pav_size_2xl'),                             ref('product.pav_size_3xl'),                             ref('product.pav_size_4xl'),                             ref('product.pav_size_5xl'),                         ])                     ]                 })             ]" />
@@ -209,7 +219,9 @@
                 file="point_of_sale/static/img/product_hood.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
         </record>
         <record id="product_classic_brown_jacket" model="product.product">
             <field name="name">Classic Brown Jacket</field>
@@ -226,7 +238,9 @@
                 file="point_of_sale/static/img/product_classic_brown_jacket.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <record id="product_crocheted_poncho_unisize" model="product.product">
             <field name="name">Crocheted Poncho Unisize</field>
@@ -243,7 +257,9 @@
                 file="point_of_sale/static/img/product_crocheted_poncho_unisize.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <record id="product_odoo_sneakers" model="product.product">
             <field name="name">Odoo Sneakers</field>
@@ -260,7 +276,9 @@
                 file="point_of_sale/static/img/product_odoo_sneakers.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
         </record>
         <function model="ir.model.data" name="_update_xmlids">
             <value
@@ -304,12 +322,14 @@
                 file="point_of_sale/static/img/product_t_shirt_pants.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
             <field
                 name="combo_ids"
-                eval="[(6, 0, [ref('jeans_combo'), ref('tshirt_combo')])]" />
-            <field name="taxes_id" eval="[(5,)]" />
-            <field name="supplier_taxes_id" eval="[(5,)]" />
+                eval="[Command.set([ref('jeans_combo'), ref('tshirt_combo')])]" />
+            <field name="taxes_id" eval="[Command.clear()]" />
+            <field name="supplier_taxes_id" eval="[Command.clear()]" />
         </record>
         <record id="casual_denim_short" model="product.product">
             <field name="name">Casual Denim Short</field>
@@ -326,7 +346,9 @@
                 file="point_of_sale/static/img/casual_denim_short.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_lower')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_lower')])]" />
         </record>
         <record id="classic_leather_belt" model="product.product">
             <field name="name">Classic Leather Belt</field>
@@ -343,7 +365,9 @@
                 file="point_of_sale/static/img/classic_leather_belt.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
         </record>
         <record id="cozy_sweater" model="product.product">
             <field name="name">Cozy Sweater</field>
@@ -360,7 +384,9 @@
                 file="point_of_sale/static/img/cozy_sweater.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <record id="leather_jacket" model="product.product">
             <field name="name">Leather Jacket</field>
@@ -377,7 +403,9 @@
                 file="point_of_sale/static/img/leather_jacket.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <record id="summer_hat" model="product.product">
             <field name="name">Summer Hat</field>
@@ -394,7 +422,9 @@
                 file="point_of_sale/static/img/summer_hat.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
         </record>
         <record id="jean_jacket" model="product.product">
             <field name="name">Jean Jacket</field>
@@ -411,7 +441,9 @@
                 file="point_of_sale/static/img/jean_jacket.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_upper')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_upper')])]" />
         </record>
         <record id="sport_shoes" model="product.product">
             <field name="name">Sport Shoes</field>
@@ -428,7 +460,9 @@
                 file="point_of_sale/static/img/sport_shoes.png" />
             <field name="available_in_pos" eval="True" />
             <field name="categ_id" ref="product_category_clothes" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_others')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_others')])]" />
         </record>
         <function model="ir.model.data" name="_update_xmlids">
             <value

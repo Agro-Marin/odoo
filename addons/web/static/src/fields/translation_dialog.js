@@ -6,7 +6,7 @@ import { jsToPyLocale } from "@web/core/l10n/utils";
 import { _t, loadLanguages } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 export class TranslationDialog extends Component {
     static template = "web.TranslationDialog";

@@ -8,11 +8,19 @@ class L10nCzTaxOffice(models.Model):
     _rec_names_search = ["workplace_code", "name"]
 
     workplace_code = fields.Integer(
-        string="Territorial Office", required=True, aggregator=False
+        string="Territorial Office",
+        required=True,
+        aggregator=False,
     )
-    code = fields.Integer(string="Code", required=True, aggregator=False)
-    name = fields.Char(string="Name", translate=True)
-    region = fields.Char(string="Region", required=True, translate=True)
+    code = fields.Integer(
+        required=True,
+        aggregator=False,
+    )
+    name = fields.Char(translate=True)
+    region = fields.Char(
+        translate=True,
+        required=True,
+    )
 
     _workplace_code_unique = models.Constraint(
         "UNIQUE (workplace_code)",

@@ -10,9 +10,9 @@
                 <p> It looks like you've successfully validated the last <b>
                     <field
                         name="nb_unmodified_bills"
+                        invisible="nb_unmodified_bills &gt; 9"
                         readonly="True"
-                        class="oe_inline"
-                        invisible="nb_unmodified_bills &gt; 9" />
+                        class="oe_inline" />
                     <span invisible="nb_unmodified_bills &lt; 10">10+</span>
                     </b>
                     bills for <b>
@@ -28,10 +28,10 @@
                     disable the feature for all vendors in the accounting settings. </p>
 
                 <footer>
-                    <button class="btn-primary" type="object" name="action_automate_partner">Activate
+                    <button name="action_automate_partner" type="object" class="btn-primary">Activate
                         auto-validation</button>
-                    <button class="btn-secondary" type="object" name="action_ask_later">Ask me later</button>
-                    <button class="btn-secondary" type="object" name="action_never_automate_partner">Never
+                    <button name="action_ask_later" type="object" class="btn-secondary">Ask me later</button>
+                    <button name="action_never_automate_partner" type="object" class="btn-secondary">Never
                         for this vendor</button>
                 </footer>
             </form>

@@ -2,8 +2,6 @@
     "name": "France - Localizations",
     "version": "2.1",
     "category": "Accounting/Localizations/Account Charts",
-    "description": """
-""",
     "author": "Odoo S.A.",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",

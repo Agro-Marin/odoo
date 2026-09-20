@@ -6,10 +6,13 @@ import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_pre
 import { useVisible } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
+
+const log = makeLogger("mail.sub_channel");
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
@@ -65,6 +68,10 @@ export class SubChannelList extends Component {
 
     /** @param {import("models").Thread} subThread */
     async onClickSubThread(subThread) {
+        log.logic("onClickSubThread", () => ({
+            thread: subThread.localId,
+            join: !subThread.hasSelfAsMember,
+        }));
         if (!subThread.hasSelfAsMember) {
             await rpc("/discuss/channel/join", { channel_id: subThread.id });
         }
@@ -93,6 +100,7 @@ export class SubChannelList extends Component {
     }
 
     async onClickCreate() {
+        log.logic("onClickCreate", () => ({ thread: this.props.thread.localId }));
         await this.props.thread.createSubChannel({ name: this.state.searchTerm });
         this._updateSubChannelList();
         this.props.close?.();
@@ -102,6 +110,10 @@ export class SubChannelList extends Component {
         if (!this.state.searchTerm) {
             return;
         }
+        log.logic("search", () => ({
+            thread: this.props.thread.localId,
+            term: this.state.searchTerm,
+        }));
         this.sequential(async () => {
             this.state.searching = true;
             this.state.loading = true;

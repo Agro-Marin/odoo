@@ -38,8 +38,6 @@ test("Using the 'Spacing (Y, X)' option should display a grid preview", async ()
     expect(cell).toHaveStyle({
         "animation-name": "gridPreview",
     });
-    // 'animationend' event is manually dispatched to speed up the test since the
-    // actual animation takes 2 seconds.
     await manuallyDispatchProgrammaticEvent(cell, "animationend");
 
     expect(":iframe .o_we_grid_preview").toHaveCount(0);

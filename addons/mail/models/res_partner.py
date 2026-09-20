@@ -5,8 +5,9 @@ from typing import Any, Literal, Self
 
 from odoo import Command, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import limited_field_access_token
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
@@ -14,12 +15,19 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSp
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
+_debug = DebugLog(__name__)
+
 ROOT_EMAIL_UNIQUENESS_FIELDS = frozenset({"email", "active"})
 
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "mixin.mail.activity", "mixin.mail.thread.blacklist"]
+    _inherit = [
+        "res.partner",
+        "mixin.mail.activity",
+        "mixin.mail.presence",
+        "mixin.mail.thread.blacklist",
+    ]
     _mail_flat_thread = False
 
     name = fields.Char(tracking=1)
@@ -29,19 +37,9 @@ class ResPartner(models.Model):
     user_id: ResUsers = fields.Many2one(tracking=4)
     vat = fields.Char(tracking=5)
     contact_address_inline = fields.Char(
-        compute="_compute_contact_address_inline",
         string="Inlined Complete Address",
+        compute="_compute_contact_address_inline",
         tracking=True,
-    )
-    im_status = fields.Char(
-        "IM Status",
-        compute="_compute_presence",
-        compute_sudo=True,
-    )
-    offline_since = fields.Datetime(
-        "Offline since",
-        compute="_compute_presence",
-        compute_sudo=True,
     )
 
     @api.depends("contact_address")
@@ -73,6 +71,7 @@ class ResPartner(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         partners = super().create(vals_list)
         if partners._mail_shares_root_email():
+            _debug.lifecycle("root_email_uniqueness_invalidated", by="create")
             self._mail_invalidate_root_email_uniqueness()
         return partners
 
@@ -85,6 +84,7 @@ class ResPartner(models.Model):
             or (watched and self._mail_shares_root_email())
             or ("email" in vals and self._mail_get_root_partner_id() in self._ids)
         ):
+            _debug.lifecycle("root_email_uniqueness_invalidated", by="write")
             self._mail_invalidate_root_email_uniqueness()
         return result
 
@@ -106,9 +106,15 @@ class ResPartner(models.Model):
 
     def _mail_shares_root_email(self) -> bool:
         root_email = self._mail_get_root_email()
-        return bool(root_email) and any(
-            partner.email_normalized == root_email for partner in self.sudo()
-        )
+        if not root_email:
+            return False
+        partners = self.sudo()
+        try:
+            return any(partner.email_normalized == root_email for partner in partners)
+        except MissingError:
+            return any(
+                partner.email_normalized == root_email for partner in partners.exists()
+            )
 
     @api.model
     @tools.ormcache("root_email", cache="stable")
@@ -170,11 +176,15 @@ class ResPartner(models.Model):
                 limit=1,
             )
             if partners:
+                _debug.logic("get_or_create", partner=partners.id, by="found")
                 return partners
 
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
         if parsed_email_normalized:
             create_values["email"] = parsed_email_normalized
+        _debug.lifecycle(
+            "get_or_create", by="created", valid_email=bool(parsed_email_normalized)
+        )
         return self.create(create_values)
 
     @api.model
@@ -256,6 +266,16 @@ class ResPartner(models.Model):
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
+        _debug.logic(
+            "partners_from_emails",
+            emails=len(emails),
+            normalized=len(emails_normalized),
+            names=len(names),
+            banned=len(ban_emails),
+            found=len(partners) - len(tocreate_vals_list),
+            created=len(tocreate_vals_list),
+            no_create=no_create,
+        )
         return self._get_partner_per_email(name_emails, emails, partners)
 
     @api.model
@@ -295,10 +315,6 @@ class ResPartner(models.Model):
             for (name, email_normalized), email in zip(name_emails, emails, strict=True)
         ]
 
-    def _get_im_status_access_token(self) -> str:
-        self.check_singleton()
-        return limited_field_access_token(self, "im_status", scope="mail.presence")
-
     def _get_mention_token(self) -> str:
         self.check_singleton()
         return limited_field_access_token(self, "id", scope="mail.message_mention")
@@ -319,24 +335,6 @@ class ResPartner(models.Model):
                 ["email", Store.Attr("phone", lambda p: p._phone_get_number().number)]
             )
         return fields
-
-    def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
-        if field_spec == "avatar_128":
-            return [
-                Store.Attr(
-                    "avatar_128_access_token",
-                    lambda p: p._get_avatar_128_access_token(),
-                ),
-                "write_date",
-            ]
-        if field_spec == "im_status":
-            return [
-                "im_status",
-                Store.Attr(
-                    "im_status_access_token", lambda p: p._get_im_status_access_token()
-                ),
-            ]
-        return [field_spec]
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         res = [

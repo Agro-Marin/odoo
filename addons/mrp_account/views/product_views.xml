@@ -14,10 +14,10 @@
                     <field name="valuation" invisible="1" />
                     <button
                         name="button_bom_cost"
-                        string="Compute Price from BoM"
                         type="object"
-                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
+                        string="Compute Price from BoM"
                         help="Compute the price of the product using products and operations of related bill of materials, for manufactured products only."
+                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
                         class="oe_link pt-0" />
                     </t>
             </xpath>
@@ -37,12 +37,12 @@
                     <field name="valuation" invisible="1" />
                     <button
                         name="button_bom_cost"
-                        string="Compute Price from BoM"
                         type="object"
-                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
+                        string="Compute Price from BoM"
                         help="Compute the price of the product using products and operations of related bill of materials, for manufactured products only."
-                        class="oe_link pt-0"
-                        colspan="2" />
+                        colspan="2"
+                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
+                        class="oe_link pt-0" />
                 </t>
             </xpath>
         </field>
@@ -61,10 +61,10 @@
                     <field name="valuation" invisible="1" />
                     <button
                         name="button_bom_cost"
-                        string="Compute Price from BoM"
                         type="object"
-                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
+                        string="Compute Price from BoM"
                         help="Compute the price of the product using products and operations of related bill of materials, for manufactured products only."
+                        invisible="bom_count == 0 or valuation == 'real_time' and cost_method == 'fifo'"
                         class="oe_link pt-0" />
                 </t>
             </xpath>

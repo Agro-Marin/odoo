@@ -232,7 +232,7 @@ class test_res_lang(TransactionCase):
             dict.fromkeys(ResLang.CACHED_FIELDS, False),
         )
 
-        self.env._core.clear_cache()
+        self.env.core.clear_cache()
         self.env.registry.clear_cache()
         with self.assertQueryCount(2):
             self.assertEqual(ResLang._get_data(code="en_US").url_code, en_url_code)

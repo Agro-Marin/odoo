@@ -3,8 +3,12 @@ from typing import Any, Self
 import odoo
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.ir_module import assert_log_admin_access
+from odoo.addons.base.models.ir_ui_view_base import attach_ir
+
+_debug = DebugLog(__name__)
 
 
 class BaseModuleUpgrade(models.TransientModel):
@@ -23,7 +27,9 @@ class BaseModuleUpgrade(models.TransientModel):
         )
 
     module_info = fields.Text(
-        "Apps to Update", readonly=True, default=_default_module_info
+        string="Apps to Update",
+        default=_default_module_info,
+        readonly=True,
     )
 
     @api.model
@@ -45,10 +51,12 @@ class BaseModuleUpgrade(models.TransientModel):
                                     <button special="cancel" data-hotkey="x" string="Close" class="btn-secondary"/>
                                 </footer>
                              </form>"""
+            attach_ir(res)
 
         return res
 
     def upgrade_module_cancel(self) -> dict[str, str]:
+        _debug.lifecycle("upgrade_cancelled", uid=self.env.uid)
         self.env["ir.module.module"].button_reset_state()
         return {"type": "ir.actions.act_window_close"}
 
@@ -66,6 +74,11 @@ class BaseModuleUpgrade(models.TransientModel):
             self.env.cr.execute(query, (mods.ids, "uninstalled"))
             unmet_packages = [row[0] for row in self.env.cr.fetchall()]
             if unmet_packages:
+                _debug.logic(
+                    "upgrade_unmet_dependencies",
+                    modules=len(mods),
+                    unmet=unmet_packages,
+                )
                 raise UserError(
                     self.env._(
                         "The following modules are not installed or unknown: %s",
@@ -73,8 +86,10 @@ class BaseModuleUpgrade(models.TransientModel):
                     )
                 )
 
+        _debug.pipeline("upgrade_planned", modules=mods.mapped("name"))
         self.env.cr.commit()
-        odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
+        with _debug.perf("registry_reload", db=self.env.cr.dbname, modules=len(mods)):
+            odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
         self.env.cr.reset()
 
         return {"type": "ir.actions.act_window_close"}

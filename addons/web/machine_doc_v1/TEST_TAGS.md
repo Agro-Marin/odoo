@@ -9,11 +9,11 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 349 tests | ~45s |
-| `web_http` | HttpCase (url_open, no browser) | 114 tests | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 358 tests | ~45s |
+| `web_http` | HttpCase (url_open, no browser) | 141 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 7 tests | ~2 min |
 | `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
-| `addon_js` | HOOT suites of addons with no runner of their own | 88 tests | depends on the DB's module set |
+| `addon_js` | HOOT suites of addons with no runner of their own | 97 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -84,15 +84,30 @@ in the URL across runs and a renamed test would otherwise wedge the page. Note
 what that fail-open path costs when it applies: with the last id gone `hasFilter`
 is false and the **whole bundle** runs.
 
-### Warm-server runner (`tooling/hoot/`)
+### Warm-server runner (deleted)
 
-`./hoot '@web/core/domain'` is ~2 s faster again per run and takes plain suite
-paths, and `./hoot-shard` runs the whole desktop suite in parallel — **14209
-tests in 311 s wall at `-j 4`** against ~1216 s serial. Its suite list is read
-from `test_js.py`, heavy suites are split into child ids, and each suite gets its
-own page load so results mean what CI means. See `tooling/hoot/README.md`.
-`./hoot --affected` selects suites from your git diff across **all four addon
-repos**; add `--downstream` for suites in other addons.
+The `./hoot` warm runner, `./hoot-shard` and `--affected` lived in the tooling
+tree and were deleted with it in `7b0f58cb517f`. Run suites through `WebSuite` /
+`MobileWebSuite` as described above.
+
+### Driving a suite by hand
+
+One `odoo-bin` of your own with `--dev=xml`, and a browser loading
+`/web/tests?headless&loglevel=2&preset=desktop&timeout=15000&id=<hash>&module_scope=<addon>`
+where `<hash>` is `HOOTCommon._generate_hash("<suite id>")`; the run ends on a
+console line `[HOOT] Test suite succeeded` or `[HOOT] Failed N tests`. Two traps:
+
+- **The mobile preset does not resize the browser.** `MobileWebSuite` sets
+  `browser_size = "375x667"` and touch on Chrome itself, plus `&tag=-headless`;
+  a page driven at 1366x768 with `preset=mobile` reads `innerWidth 1366`,
+  `ui.size 4`, and five `@web/ui` mobile reds that look exactly like an
+  `isSmall` regression. They are the harness.
+- **An unscoped page on a database with `point_of_sale` is a POS world.**
+  `_assets_pos` patches `ConfirmationDialog.setup` to run `usePos()` and
+  `utils.isSmall` to `<= MD`, so 27 of `@web/ui` read red for POS's reasons.
+  `_run_hoot` sends the scope for a lane, and since `d47df8cfe02e` also for a
+  filtered `--test-tags '…[@web/ui/dialog]'` whose positive filters all name one
+  addon; a hand-driven URL has to carry it itself.
 
 > **Stale-source warning.** A long-lived `--dev=assets` server can serve the
 > *previous* `static/src` with no error — `*.test.js` edits rebuild while
@@ -143,9 +158,7 @@ to run individual groups instead of the full 1-2 hour suite.
 
 The two classes are not redundant: tests are selected by **tag**, not by
 directory, so each platform runs a different (overlapping, neither-a-superset)
-set. A change is only verified once both have run. The warm-server dev loop has
-the same split behind `hoot --preset desktop|mobile`, where the default hides a
-mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
+set. A change is only verified once both have run.
 
 | Method | Hoot suite(s) | Scope |
 |--------|---------------|-------|
@@ -190,7 +203,7 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 | `web_assets` | test_assets, test_design_system, test_esm_pipeline, test_web_bundle_size | Bundle generation, asset cursors, compiled-CSS invariants (incl. `web.assets_frontend`, which no other test compiles) |
 | `web_db` | test_db_manager | Database manager UI |
 | `web_domain` | test_domain | Domain validation endpoint |
-| `web_export` | test_export | Export endpoints (XLSX/CSV writers) |
+| `web_export` | test_export, test_ir_exports | Export endpoints (XLSX/CSV writers), export preset access |
 | `web_favorite` | test_favorite | Favorite management tour |
 | `web_health` | test_health | /web/health endpoint |
 | `web_image` | test_image | Image serving, resize, access tokens |
@@ -206,7 +219,7 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 | `web_properties` | test_res_partner_properties | Properties base definition |
 | `web_qweb` | test_ir_qweb | QWeb image field rendering |
 | `web_redirect` | test_web_redirect | URL redirect handling |
-| `web_report` | test_reports | PDF report session/cookies |
+| `web_report` | test_reports, test_ir_actions_report_audit, test_report_rendering, test_report_introspection, test_report_layout_audit, test_report_modernization | PDF report session/cookies; the WeasyPrint engine, fetcher, layouts, attachments and the two technical reports (from `base` at web 2.3) |
 | `web_router` | test_router | Action routing/resolution |
 | `web_search` | test_web_search_read | web_search_read, web_name_search |
 | `web_metrics` | test_health | `/web/metrics` Prometheus exposition + bearer-token gating |

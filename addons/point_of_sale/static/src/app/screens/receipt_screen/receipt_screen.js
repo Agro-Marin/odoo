@@ -5,10 +5,14 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useRouterParamsChecker } from "@point_of_sale/app/hooks/pos_router_hook";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { isValidEmail } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
+const log = makeLogger("pos.screen.receipt");
+
 export class ReceiptScreen extends Component {
     static template = "point_of_sale.ReceiptScreen";
     static components = { OrderReceipt };
@@ -17,6 +21,7 @@ export class ReceiptScreen extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.pos = usePos();
         useRouterParamsChecker();
@@ -78,8 +83,9 @@ export class ReceiptScreen extends Component {
         return false;
     }
 
-    generateTicketImage = async (basicReceipt = false) =>
-        await this.renderer.toJpeg(
+    generateTicketImage = async (basicReceipt = false) => {
+        const endRender = log.perf("generateTicketImage");
+        const image = await this.renderer.toJpeg(
             OrderReceipt,
             {
                 order: this.currentOrder,
@@ -87,8 +93,21 @@ export class ReceiptScreen extends Component {
             },
             { addClass: "pos-receipt-print p-3" },
         );
+        endRender({
+            order: this.currentOrder?.uuid,
+            basicReceipt,
+            bytes: image?.length,
+        });
+        return image;
+    };
     async _sendReceiptToCustomer({ action, destination }) {
         const order = this.currentOrder;
+        log.pipeline("sendReceiptToCustomer", () => ({
+            order: order.uuid,
+            action,
+            synced: order.isSynced,
+            basicReceipt: this.pos.config.basic_receipt,
+        }));
         if (!order.isSynced) {
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Unsynced order"),
@@ -103,12 +122,14 @@ export class ReceiptScreen extends Component {
         const basicTicketImage = this.pos.config.basic_receipt
             ? await this.generateTicketImage(true)
             : null;
+        const endSend = log.perf(`sendReceiptToCustomer ${action}`);
         await this.pos.data.call("pos.order", action, [
             [order.id],
             destination,
             fullTicketImage,
             basicTicketImage,
         ]);
+        endSend({ order: order.uuid });
     }
 }
 

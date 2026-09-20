@@ -1,6 +1,8 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class StockReturnPickingLine(models.TransientModel):
     _name = "stock.return.picking.line"
@@ -9,23 +11,24 @@ class StockReturnPickingLine(models.TransientModel):
 
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
     )
-    move_quantity = fields.Float(related="move_id.quantity", string="Move Quantity")
+    move_quantity = fields.Float(
+        related="move_id.quantity",
+        string="Move Quantity",
+    )
     quantity = fields.Float(
-        string="Quantity",
         digits="Product Unit",
-        required=True,
         default=1,
+        required=True,
     )
     uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
         compute="_compute_uom_id",
     )
-    wizard_id = fields.Many2one(comodel_name="stock.return.picking", string="Wizard")
-    move_id = fields.Many2one(comodel_name="stock.move", string="Move")
+    wizard_id = fields.Many2one(comodel_name="stock.return.picking")
+    move_id = fields.Many2one(comodel_name="stock.move")
 
     @api.depends("move_id.product_uom_id", "product_id.uom_id")
     def _compute_uom_id(self):
@@ -76,8 +79,21 @@ class StockReturnPickingLine(models.TransientModel):
                 )
                 vals["move_orig_ids"] = [Command.link(m.id) for m in move_orig_to_link]
                 vals["move_dest_ids"] = [Command.link(m.id) for m in move_dest_to_link]
+                dbg.pipeline.debug(
+                    "return line: move %s -> return move %s qty %s, orig %s dest %s",
+                    self.move_id.id,
+                    new_return_move.id,
+                    self.quantity,
+                    dbg.rec(move_orig_to_link),
+                    dbg.rec(move_dest_to_link),
+                )
                 new_return_move.write(vals)
             else:
+                dbg.pipeline.debug(
+                    "return line without move: new move for product %s qty %s",
+                    self.product_id.id,
+                    self.quantity,
+                )
                 self.env["stock.move"].create(vals)
             return True
         return False
@@ -105,16 +121,17 @@ class StockReturnPicking(models.TransientModel):
 
     picking_id = fields.Many2one(comodel_name="stock.picking")
     picking_type_code = fields.Selection(
-        related="picking_id.picking_type_code", readonly=True
+        related="picking_id.picking_type_code",
+        readonly=True,
     )
     product_return_moves = fields.One2many(
         comodel_name="stock.return.picking.line",
         inverse_name="wizard_id",
         string="Moves",
         compute="_compute_product_return_moves",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
     )
     company_id = fields.Many2one(related="picking_id.company_id")
 
@@ -178,7 +195,13 @@ class StockReturnPicking(models.TransientModel):
             "location_dest_id": location_dest.id,
         }
 
+    @dbg.timed
     def _create_return(self):
+        dbg.pipeline.debug(
+            "_create_return from picking %s: %d lines",
+            self.picking_id.id,
+            len(self.product_return_moves),
+        )
         if self.picking_id:
             for return_move in self.product_return_moves.move_id:
                 return_move.move_dest_ids.filtered(
@@ -204,13 +227,22 @@ class StockReturnPicking(models.TransientModel):
         if not returned_lines:
             raise UserError(_("Please specify at least one non-zero quantity."))
 
+        dbg.pipeline.debug(
+            "_create_return -> confirm + assign picking %s", new_picking.id
+        )
         new_picking.action_confirm()
         new_picking.action_assign()
         return new_picking
 
+    @dbg.timed
     def _create_exchange(self, return_picking):
         exchange_picking = return_picking.copy(
             self._prepare_picking_default_values_based_on(return_picking)
+        )
+        dbg.pipeline.debug(
+            "_create_exchange: return %s -> exchange %s",
+            return_picking.id,
+            exchange_picking.id,
         )
         exchange_picking.user_id = False
         exchange_picking.message_post_with_source(
@@ -262,6 +294,11 @@ class StockReturnPicking(models.TransientModel):
                     continue
                 quantity -= move.quantity
             quantity = max(stock_move.product_uom_id.round(quantity), 0)
+            dbg.logic.debug(
+                "action_create_returns_all: move %s returnable %s",
+                stock_move.id,
+                quantity,
+            )
             return_move.quantity = quantity
         return self.action_create_returns()
 
@@ -290,6 +327,10 @@ class StockReturnPicking(models.TransientModel):
                 )
             )
         if proc_list:
+            dbg.pipeline.debug(
+                "action_create_exchanges -> stock.rule.run %d procurements",
+                len(proc_list),
+            )
             self.env["stock.rule"].run(proc_list)
         return action
 

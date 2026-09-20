@@ -1,8 +1,11 @@
 import logging
 
-from odoo import models
+from odoo import api, models
+from odoo.fields import Domain
 from odoo.tools.misc import OrderedSet, groupby
 from odoo.tools.translate import _
+
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -10,29 +13,100 @@ _logger = logging.getLogger(__name__)
 class StockMovePicking(models.Model):
     _inherit = "stock.move"
 
+    @dbg.timed
     def _update_picking(self):
+        # the pickings the groups need are created together, then every group
+        # is attached and post-processed in one pass per kind: a picking's
+        # creation posts to its chatter, and mail batches what it is given
         Picking = self.env["stock.picking"]
-        grouped_moves = groupby(self, key=lambda m: m._get_picking_assignation_key())
-        for _group, moves in grouped_moves:
-            moves = self.env["stock.move"].concat(*moves)
-            new_picking = False
-            picking = moves[0]._get_picking_for_assignation()
+        grouped_moves = [
+            self.env["stock.move"].concat(*moves)
+            for _group, moves in groupby(
+                self, key=lambda m: m._get_picking_assignation_key()
+            )
+        ]
+        picking_by_lead = self._get_pickings_for_assignation(
+            [moves[0] for moves in grouped_moves]
+        )
+        existing = []
+        wanted = []
+        for moves in grouped_moves:
+            picking = picking_by_lead[moves[0]]
             if picking:
                 vals = moves._prepare_picking_vals(picking)
                 if vals:
                     picking.write(vals)
+                existing.append((moves, picking))
             else:
                 moves = moves.filtered(
                     lambda m: m.product_uom_id.compare(m.product_uom_qty, 0.0) >= 0,
                 )
                 if not moves:
+                    dbg.logic.debug("_update_picking: only negative moves, no picking")
                     continue
-                new_picking = True
-                picking = Picking.create(moves._prepare_new_picking_vals())
-
-            moves.write({"picking_id": picking.id})
-            moves._post_process_picking(new=new_picking)
+                pending = moves._pending_picking_for_assignation(wanted)
+                if pending is None:
+                    wanted.append([moves])
+                else:
+                    pending.append(moves)
+        created = Picking.create(
+            [groups[0]._prepare_new_picking_vals() for groups in wanted]
+        )
+        for groups, picking in zip(wanted, created, strict=True):
+            for joining in groups[1:]:
+                vals = joining._prepare_picking_vals(picking)
+                if vals:
+                    picking.write(vals)
+        for new_picking, pairs in (
+            (False, existing),
+            (
+                True,
+                (
+                    (self.env["stock.move"].concat(*groups), picking)
+                    for groups, picking in zip(wanted, created, strict=True)
+                ),
+            ),
+        ):
+            attached = self.env["stock.move"]
+            for moves, picking in pairs:
+                dbg.pipeline.debug(
+                    "_update_picking: %s -> picking %s (%s)",
+                    dbg.rec(moves),
+                    picking.id,
+                    "new" if new_picking else "existing",
+                )
+                moves.write({"picking_id": picking.id})
+                attached |= moves
+            if attached:
+                attached._post_process_picking(new=new_picking)
         return True
+
+    def _pending_picking_for_assignation(self, wanted):
+        if not self.reference_ids:
+            return None
+        first = self[0]
+        reference_set = set(first.reference_ids.ids)
+        covered = None
+
+        for groups in wanted:
+            lead = groups[0][0]
+            if (
+                lead.location_id != first.location_id
+                or lead._get_picking_destination() != first._get_picking_destination()
+                or lead.picking_type_id != first.picking_type_id
+            ):
+                continue
+            pending_set = set().union(*(set(g.reference_ids.ids) for g in groups))
+            if not pending_set & reference_set:
+                continue
+            if pending_set == reference_set:
+                return groups
+            if covered is None and pending_set <= reference_set:
+                covered = groups
+        return covered
+
+    def _get_picking_destination(self):
+        return self.location_dest_id or self.picking_type_id.default_location_dest_id
 
     def _prepare_picking_vals(self, picking):
         vals = {}
@@ -103,23 +177,56 @@ class StockMovePicking(models.Model):
 
     def _get_picking_for_assignation(self):
         self.check_singleton()
-        if not self.reference_ids:
-            return self.env["stock.picking"]
-        domain = self._get_domain_picking_for_assignation()
+        return self._get_pickings_for_assignation([self])[self]
+
+    @api.model
+    def _get_pickings_for_assignation(self, leads):
+        Picking = self.env["stock.picking"]
+        domains = {
+            lead: lead._get_domain_picking_for_assignation()
+            for lead in leads
+            if lead.reference_ids
+        }
+        candidates = Picking.search(Domain.OR(domains.values())) if domains else Picking
+        return {
+            lead: (
+                lead._pick_picking_for_assignation(candidates.filtered_domain(domain))
+                if (domain := domains.get(lead)) is not None
+                else Picking
+            )
+            for lead in leads
+        }
+
+    def _pick_picking_for_assignation(self, candidates):
         reference_set = set(self.reference_ids.ids)
         covered_picking = self.env["stock.picking"]
-        for picking in self.env["stock.picking"].search(domain):
+        for picking in candidates:
             picking_set = set(picking.reference_ids.ids)
             if picking_set == reference_set:
+                dbg.logic.debug(
+                    "[move:%s] picking %s matches references exactly",
+                    self.id,
+                    picking.id,
+                )
                 return picking
             if not covered_picking and picking_set <= reference_set:
                 covered_picking = picking
+        dbg.logic.debug(
+            "[move:%s] _get_picking_for_assignation: covered picking %s",
+            self.id,
+            covered_picking.id,
+        )
         return covered_picking
 
     def _update_references(self):
         to_set = self.filtered(lambda m: not m.reference_ids and m.picking_id)
         for picking, moves in to_set.grouped("picking_id").items():
             if picking.reference_ids:
+                dbg.lifecycle.debug(
+                    "_update_references: %s inherit references of picking %s",
+                    dbg.rec(moves),
+                    picking.id,
+                )
                 moves.reference_ids = picking.reference_ids
 
     def action_view_reference(self):

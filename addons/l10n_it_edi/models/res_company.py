@@ -42,10 +42,9 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     l10n_it_codice_fiscale = fields.Char(
+        related="partner_id.l10n_it_codice_fiscale",
         string="Codice Fiscale",
         size=16,
-        related="partner_id.l10n_it_codice_fiscale",
-        store=True,
         readonly=False,
         help="Fiscal code of your company",
     )
@@ -62,10 +61,10 @@ class ResCompany(models.Model):
     l10n_it_edi_purchase_journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Italian Default Purchase Journal",
-        domain=[("type", "=", "purchase")],
         compute="_compute_l10n_it_edi_purchase_journal_id",
         store=True,
         readonly=False,
+        domain=[("type", "=", "purchase")],
     )
 
     # Economic and Administrative Index
@@ -75,9 +74,9 @@ class ResCompany(models.Model):
         Civil Code)"
     )
     l10n_it_eco_index_office = fields.Many2one(
-        "res.country.state",
-        domain="[('country_id','=','IT')]",
+        comodel_name="res.country.state",
         string="Province of the register-of-companies office",
+        domain="[('country_id','=','IT')]",
     )
     l10n_it_eco_index_number = fields.Char(
         string="Number in register of companies",
@@ -93,7 +92,7 @@ class ResCompany(models.Model):
         financial statement",
     )
     l10n_it_eco_index_sole_shareholder = fields.Selection(
-        [
+        selection=[
             ("NO", "Not a limited liability company"),
             ("SU", "Socio unico"),
             ("SM", "Più soci"),
@@ -101,7 +100,7 @@ class ResCompany(models.Model):
         string="Shareholder",
     )
     l10n_it_eco_index_liquidation_state = fields.Selection(
-        [
+        selection=[
             ("LS", "The company is in a state of liquidation"),
             ("LN", "The company is not in a state of liquidation"),
         ],
@@ -116,7 +115,8 @@ class ResCompany(models.Model):
         Italy"
     )
     l10n_it_tax_representative_partner_id = fields.Many2one(
-        "res.partner", string="Tax representative partner"
+        comodel_name="res.partner",
+        string="Tax representative partner",
     )
 
     @api.constrains("l10n_it_edi_purchase_journal_id")
@@ -216,20 +216,30 @@ class ResCompany(models.Model):
 
     @api.depends("country_code")
     def _compute_l10n_it_edi_purchase_journal_id(self):
-        for company in self:
-            if (
+        missing = self.filtered(
+            lambda company: (
                 not company.l10n_it_edi_purchase_journal_id
                 and company.country_code == "IT"
-            ):
-                company.l10n_it_edi_purchase_journal_id = self.env[
-                    "account.journal"
-                ].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(company),
-                        ("type", "=", "purchase"),
-                        ("default_account_id", "!=", False),
-                    ],
-                    limit=1,
+            )
+        )
+        purchase_journals = self.env["account.journal"]
+        if missing:
+            purchase_journals = purchase_journals.search(
+                [
+                    *self.env["account.journal"]._check_company_domain(missing),
+                    ("type", "=", "purchase"),
+                    ("default_account_id", "!=", False),
+                ]
+            )
+        for company in self:
+            if company in missing:
+                company.l10n_it_edi_purchase_journal_id = next(
+                    (
+                        journal
+                        for journal in purchase_journals
+                        if not journal.company_id or journal.company_id == company
+                    ),
+                    self.env["account.journal"],
                 )
             else:
                 company.l10n_it_edi_purchase_journal_id = (

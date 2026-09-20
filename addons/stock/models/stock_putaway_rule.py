@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class StockPutawayRule(models.Model):
     _name = "stock.putaway.rule"
@@ -13,67 +15,60 @@ class StockPutawayRule(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
         default=lambda s: s.env.company.id,
         index=True,
+        required=True,
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         default=lambda self: self._default_product_id(),
-        check_company=True,
+        index="btree_not_null",
         domain="[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else [('type', '!=', 'service')]",
         ondelete="cascade",
-        index="btree_not_null",
+        check_company=True,
     )
     category_id = fields.Many2one(
         comodel_name="product.category",
         string="Product Category",
         default=lambda self: self._default_category_id(),
+        index="btree_not_null",
         domain=[("filter_for_stock_putaway_rule", "=", True)],
         ondelete="cascade",
-        index="btree_not_null",
     )
     location_in_id = fields.Many2one(
         comodel_name="stock.location",
         string="When product arrives in",
-        required=True,
         default=lambda self: self._default_location_in_id(),
-        check_company=True,
+        index=True,
+        required=True,
         domain="[('child_ids', '!=', False)]",
         ondelete="cascade",
-        index=True,
+        check_company=True,
     )
     location_out_id = fields.Many2one(
         comodel_name="stock.location",
         string="Store to sublocation",
         required=True,
-        check_company=True,
         domain="[('id', 'child_of', location_in_id)]",
         ondelete="cascade",
+        check_company=True,
     )
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-    )
+    active = fields.Boolean(default=True)
     sequence = fields.Integer(
         string="Priority",
         help="Give to the more specialized category, a higher priority to have them in top of the list.",
     )
     package_type_ids = fields.Many2many(
         comodel_name="stock.package.type",
-        string="Package Type",
         check_company=True,
     )
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
-        string="Storage Category",
         compute="_compute_storage_category_id",
         store=True,
         readonly=False,
-        check_company=True,
         ondelete="cascade",
+        check_company=True,
     )
     sublocation = fields.Selection(
         selection=[
@@ -177,7 +172,7 @@ class StockPutawayRule(models.Model):
 
     def _get_last_used_location(self, product):
         self.check_singleton()
-        return (
+        location = (
             self.env["stock.move.line"]
             .search(
                 domain=self._get_domain_last_used_search(product),
@@ -186,7 +181,15 @@ class StockPutawayRule(models.Model):
             )
             .location_dest_id
         )
+        dbg.logic.debug(
+            "[putaway_rule:%s] last used location for product %s: %s",
+            self.id,
+            product.id,
+            location.id,
+        )
+        return location
 
+    @dbg.timed
     def _get_putaway_location(
         self,
         product,
@@ -216,6 +219,11 @@ class StockPutawayRule(models.Model):
                 if location_out._can_be_used(
                     product, quantity, package, qty_by_location[location_out.id]
                 ):
+                    dbg.logic.debug(
+                        "[putaway_rule:%s] direct location %s",
+                        putaway_rule.id,
+                        location_out.id,
+                    )
                     return location_out
                 checked_locations.add(location_out)
                 continue
@@ -223,6 +231,13 @@ class StockPutawayRule(models.Model):
                 lambda loc, putaway_rule=putaway_rule: (
                     loc.storage_category_id == putaway_rule.storage_category_id
                 )
+            )
+            dbg.logic.debug(
+                "[putaway_rule:%s] storage category %s: %d candidate locations under %s",
+                putaway_rule.id,
+                putaway_rule.storage_category_id.id,
+                len(child_locations),
+                location_out.id,
             )
 
             capacity = child_locations._get_putaway_capacity(product, package)
@@ -268,7 +283,18 @@ class StockPutawayRule(models.Model):
                     qty_by_location[location.id],
                     capacity=capacity,
                 ):
+                    dbg.logic.debug(
+                        "[putaway_rule:%s] first free location %s",
+                        putaway_rule.id,
+                        location.id,
+                    )
                     return location
                 checked_locations.add(location)
 
+        dbg.logic.debug(
+            "_get_putaway_location: no rule of %s fits product %s (%d locations checked)",
+            dbg.rec(self),
+            product.id,
+            len(checked_locations),
+        )
         return None

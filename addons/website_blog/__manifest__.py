@@ -1,6 +1,6 @@
 {
     "name": "Blog",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Website/Website",
     "sequence": 200,
     "summary": "Publish blog posts, announces, news",
@@ -29,6 +29,7 @@
         "views/blog_post_add.xml",
         "security/ir.model.access.csv",
         "security/website_blog_security.xml",
+        "views/website_blog_menus.xml",
     ],
     "demo": [
         "demo/website_blog_demo.xml",
@@ -60,5 +61,4 @@
             "website_blog/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
 }

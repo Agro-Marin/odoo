@@ -1,9 +1,9 @@
 import { expect, test } from "@odoo/hoot";
 import {
-    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
+    prepareLabelAction,
 } from "@stock/components/reception_report_utils";
 
 const line = (vals) => ({

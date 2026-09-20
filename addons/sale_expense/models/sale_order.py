@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
@@ -9,19 +12,21 @@ class SaleOrder(models.Model):
         comodel_name="hr.expense",
         inverse_name="sale_order_id",
         string="Expenses",
-        domain=[("state", "in", ("posted", "in_payment", "paid"))],
         readonly=True,
+        domain=[("state", "in", ("posted", "in_payment", "paid"))],
     )
     expense_count = fields.Integer(
-        "# of Expenses", compute="_compute_expense_count", compute_sudo=True
+        string="# of Expenses",
+        compute="_compute_expense_count",
+        compute_sudo=True,
     )
 
     @api.model
     def _search_display_name(self, operator, value):
         if (
             self.env.context.get("sale_expense_all_order")
-            and self.env.user.has_group("sales_team.group_sale_salesman")
-            and not self.env.user.has_group("sales_team.group_sale_salesman_all_leads")
+            and self.env.user.has_group("sale.group_sale_salesman")
+            and not self.env.user.has_group("sale.group_sale_salesman_all_leads")
         ):
             if operator in Domain.NEGATIVE_OPERATORS:
                 return NotImplemented
@@ -32,6 +37,7 @@ class SaleOrder(models.Model):
                 self.env.companies.ids,
             )
             query = self.sudo()._search(domain & company_domain)
+            _debug.logic("expense_order_search_widened", user=self.env.user)
             return Domain("id", "in", query)
         return super()._search_display_name(operator, value)
 

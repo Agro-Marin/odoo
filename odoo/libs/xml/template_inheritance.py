@@ -3,11 +3,12 @@ import functools
 import itertools
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lxml import etree
 from lxml.builder import E
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text.html import html_escape
 
 if TYPE_CHECKING:
@@ -26,10 +27,12 @@ __all__ = [
     "add_text_before",
     "apply_inheritance_specs",
     "locate_node",
+    "merge_attribute_value",
     "remove_element",
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 RSTRIP_REGEXP = re.compile(r"\n[ \t]*$")
 
 
@@ -126,6 +129,10 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
                 f'Invalid Expression while parsing xpath "{expr}"'
             ) from e
         nodes = xPath(arch)
+        if len(nodes) > 1:
+            _debug.logic(
+                "template_inheritance.xpath_ambiguous", matches=len(nodes), expr=expr
+            )
         return nodes[0] if nodes else None
     elif spec.tag == "field":
         for node in arch.iter("field"):
@@ -181,6 +188,12 @@ def _replace_outer(
             spec_content = content
             break
         comment = content
+    if spec_content is None:
+        _debug.logic("template_inheritance.root_replace_refused", target=node.tag)
+        raise ValueError(
+            f"A replace of the root <{node.tag}> needs an element to put in its place, "
+            "and this specification holds none."
+        )
     source = copy.deepcopy(spec_content)
     if t_name := node.get("t-name"):
         source.set("t-name", t_name)
@@ -251,6 +264,20 @@ def _prepare_list_attribute_value(
     )
 
 
+def merge_attribute_value(
+    attribute: str, current: str, add: str, remove: str, separator: str | None
+) -> str:
+    """The value ``attribute`` takes after an ``add``/``remove`` edit of
+    ``current`` — a python expression joined by ``and``/``or`` for the
+    modifier and ``decoration-*`` attributes, a separated list otherwise.
+    One definition for the XML specs and the IR patches."""
+    if attribute in PYTHON_ATTRIBUTES or attribute.startswith("decoration-"):
+        return _prepare_python_attribute_value(
+            attribute, current, add, remove, separator
+        )
+    return _prepare_list_attribute_value(current, add, remove, separator)
+
+
 def _apply_attributes(spec: etree._Element, node: etree._Element) -> None:
     for child in spec.iter("attribute"):
         unknown = [
@@ -275,14 +302,9 @@ def _apply_attributes(spec: etree._Element, node: etree._Element) -> None:
                     f"Element <attribute> with 'add' or 'remove' cannot contain "
                     f"text {child.text!r}"
                 )
-            current = node.get(attribute, "")
-            separator = child.get("separator")
-            if attribute in PYTHON_ATTRIBUTES or attribute.startswith("decoration-"):
-                value = _prepare_python_attribute_value(
-                    attribute, current, add, remove, separator
-                )
-            else:
-                value = _prepare_list_attribute_value(current, add, remove, separator)
+            value = merge_attribute_value(
+                attribute, node.get(attribute, ""), add, remove, child.get("separator")
+            )
         else:
             value = child.text or ""
 
@@ -324,10 +346,8 @@ def apply_inheritance_specs(
     source: etree._Element,
     specs_tree: etree._Element | list[etree._Element],
     inherit_branding: bool = False,
-    pre_locate: Callable[[etree._Element], Any] | None = None,
 ) -> etree._Element:
     specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
-    pre_locate = pre_locate or (lambda _: True)
 
     def extract(spec: etree._Element) -> etree._Element:
         if len(spec):
@@ -335,7 +355,6 @@ def apply_inheritance_specs(
                 f"Invalid specification for moved nodes: "
                 f'"{etree.tostring(spec, encoding="unicode")}"'
             )
-        pre_locate(spec)
         to_extract = locate_node(source, spec)
         if to_extract is None:
             raise ValueError(
@@ -345,37 +364,56 @@ def apply_inheritance_specs(
         remove_element(to_extract)
         return to_extract
 
-    while specs:
-        spec = specs.pop(0)
-        if isinstance(spec, SKIPPED_ELEMENT_TYPES):
-            continue
-        if spec.tag == "data":
-            specs += list(spec)
-            continue
+    applied = 0  # debuglog
+    with _debug.perf("template_inheritance.specs", specs=len(specs)) as span:
+        while specs:
+            spec = specs.pop(0)
+            if isinstance(spec, SKIPPED_ELEMENT_TYPES):
+                continue
+            if spec.tag == "data":
+                specs += list(spec)
+                continue
+            applied += 1  # debuglog
 
-        pre_locate(spec)
-        node = locate_node(source, spec)
-        if node is None:
-            raise _prepare_unlocatable_error(spec)
+            node = locate_node(source, spec)
+            if node is None:
+                _debug.logic(
+                    "template_inheritance.unlocatable",
+                    spec_tag=spec.tag,
+                    expr=spec.get("expr"),
+                    position=spec.get("position", "inside"),
+                )
+                raise _prepare_unlocatable_error(spec)
 
-        pos = spec.get("position", "inside")
-        if pos == "replace":
-            mode = spec.get("mode", "outer")
-            if mode == "outer":
-                source = _replace_outer(source, spec, node, extract, inherit_branding)
-            elif mode == "inner":
-                _replace_inner(spec, node, extract)
+            pos = spec.get("position", "inside")
+            _debug.pipeline(
+                "template_inheritance.apply",
+                spec_tag=spec.tag,
+                target=node.tag,
+                position=pos,
+                mode=spec.get("mode") if pos == "replace" else None,
+                branding=inherit_branding,
+            )
+            if pos == "replace":
+                mode = spec.get("mode", "outer")
+                if mode == "outer":
+                    source = _replace_outer(
+                        source, spec, node, extract, inherit_branding
+                    )
+                elif mode == "inner":
+                    _replace_inner(spec, node, extract)
+                else:
+                    raise ValueError(f'Invalid mode attribute: "{mode}"')
+            elif pos == "attributes":
+                _apply_attributes(spec, node)
+            elif pos == "inside":
+                _apply_around(spec, node, extract, after=False)
+            elif pos == "after":
+                _apply_around(spec, node, extract, after=True)
+            elif pos == "before":
+                add_stripped_items_before(node, spec, extract)
             else:
-                raise ValueError(f'Invalid mode attribute: "{mode}"')
-        elif pos == "attributes":
-            _apply_attributes(spec, node)
-        elif pos == "inside":
-            _apply_around(spec, node, extract, after=False)
-        elif pos == "after":
-            _apply_around(spec, node, extract, after=True)
-        elif pos == "before":
-            add_stripped_items_before(node, spec, extract)
-        else:
-            raise ValueError(f"Invalid position attribute: '{pos}'")
+                raise ValueError(f"Invalid position attribute: '{pos}'")
 
+        span.set(applied=applied)
     return source

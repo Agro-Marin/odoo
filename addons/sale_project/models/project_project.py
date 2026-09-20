@@ -3,9 +3,12 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
+
+_debug = DebugLog(__name__)
 
 
 class ProjectProject(models.Model):
@@ -23,70 +26,75 @@ class ProjectProject(models.Model):
             ]
         )
 
-    allow_billable = fields.Boolean("Billable")
+    allow_billable = fields.Boolean(string="Billable")
     sale_line_id = fields.Many2one(
-        "sale.order.line",
-        "Sales Order Item",
-        copy=False,
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
         compute="_compute_sale_line_id",
         store=True,
-        readonly=False,
         index="btree_not_null",
+        copy=False,
+        readonly=False,
         domain=lambda self: str(self._domain_sale_line_id()),
         help="Sales order item that will be selected by default on the tasks and timesheets of this project,"
         " except if the employee set on the timesheets is explicitely linked to another sales order item on the project.\n"
         "It can be modified on each task and timesheet entry individually if necessary.",
     )
     sale_order_id = fields.Many2one(
-        related="sale_line_id.order_id", export_string_translation=False
+        related="sale_line_id.order_id",
+        export_string_translation=False,
     )
     has_any_so_to_invoice = fields.Boolean(
-        "Has SO to Invoice",
-        compute="_compute_has_any_so_to_invoice",
+        string="Has SO to Invoice",
         export_string_translation=False,
+        compute="_compute_has_any_so_to_invoice",
     )
     sale_order_line_count = fields.Integer(
-        compute="_compute_sale_order_count",
-        groups="sales_team.group_sale_salesman",
         export_string_translation=False,
+        compute="_compute_sale_order_count",
+        groups="sale.group_sale_salesman",
     )
     sale_order_count = fields.Integer(
-        compute="_compute_sale_order_count",
-        groups="sales_team.group_sale_salesman",
         export_string_translation=False,
+        compute="_compute_sale_order_count",
+        groups="sale.group_sale_salesman",
     )
     has_any_so_with_nothing_to_invoice = fields.Boolean(
-        "Has a SO with an invoice status of No",
-        compute="_compute_has_any_so_with_nothing_to_invoice",
+        string="Has a SO with an invoice status of No",
         export_string_translation=False,
+        compute="_compute_has_any_so_with_nothing_to_invoice",
     )
     invoice_count = fields.Integer(
+        export_string_translation=False,
         compute="_compute_invoice_count",
         groups="account.group_account_readonly",
-        export_string_translation=False,
     )
     vendor_bill_count = fields.Integer(
         related="account_id.vendor_bill_count",
-        groups="account.group_account_readonly",
-        compute_sudo=False,
         export_string_translation=False,
+        compute_sudo=False,
+        groups="account.group_account_readonly",
     )
     partner_id = fields.Many2one(
-        compute="_compute_partner_id", store=True, readonly=False
+        compute="_compute_partner_id",
+        store=True,
+        readonly=False,
     )
     display_sales_stat_buttons = fields.Boolean(
-        compute="_compute_display_sales_stat_buttons", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_display_sales_stat_buttons",
     )
     sale_order_state = fields.Selection(
-        related="sale_order_id.state", export_string_translation=False
+        related="sale_order_id.state",
+        export_string_translation=False,
     )
     reinvoiced_sale_order_id = fields.Many2one(
-        "sale.order",
+        comodel_name="sale.order",
         string="Sales Order",
-        groups="sales_team.group_sale_salesman",
+        index="btree_not_null",
         copy=False,
         domain="[('partner_id', '=', partner_id)]",
-        index="btree_not_null",
+        groups="sale.group_sale_salesman",
         help="Products added to stock pickings, whose operation type is configured to generate analytic costs, will be re-invoiced in this sales order if they are set up for it.",
     )
 
@@ -116,18 +124,22 @@ class ProjectProject(models.Model):
         defaults["sale_line_id"] = False
         return defaults
 
-    @api.depends("allow_billable", "partner_id.company_id")
-    def _compute_partner_id(self):
-        for project in self:
-            if not project.allow_billable or (
-                project.company_id
-                and project.partner_id.company_id
-                and project.company_id != project.partner_id.company_id
-            ):
-                project.partner_id = False
-
     @api.depends("partner_id")
     def _compute_sale_line_id(self):
+        if _debug.logic.enabled:
+            _debug.logic(
+                "sale_line_cleared_on_partner_mismatch",
+                projects=self.filtered(
+                    lambda p: (
+                        p.sale_line_id
+                        and (
+                            not p.partner_id
+                            or p.sale_line_id.partner_id.commercial_partner_id
+                            != p.partner_id.commercial_partner_id
+                        )
+                    )
+                ),
+            )
         self.filtered(
             lambda p: (
                 p.sale_line_id
@@ -162,6 +174,12 @@ class ProjectProject(models.Model):
                 invoice_state=invoice_state,
             )
         )
+        _debug.perf.count(
+            "projects_for_invoice_state",
+            projects=len(self),
+            state=invoice_state,
+            matched=len(result),
+        )
         return self.env["project.project"].browse(id_ for (id_,) in result)
 
     @api.depends("sale_order_id.invoice_state", "task_ids.sale_order_id.invoice_state")
@@ -189,7 +207,14 @@ class ProjectProject(models.Model):
             project.sale_order_count = len(
                 sale_order_lines.sudo().order_id or project.reinvoiced_sale_order_id
             )
+            _debug.logic(
+                "project_sale_counts",
+                project=project,
+                lines=project.sale_order_line_count,
+                orders=project.sale_order_count,
+            )
 
+    @api.depends("account_id")
     def _compute_invoice_count(self):
         data = self.env["account.move.line"]._read_group(
             [
@@ -200,6 +225,9 @@ class ProjectProject(models.Model):
             aggregates=["__count"],
         )
         data = {int(account_id): move_count for account_id, move_count in data}
+        _debug.perf.count(
+            "project_invoice_count", projects=len(self), accounts=len(data)
+        )
         for project in self:
             project.invoice_count = data.get(project.account_id.id, 0)
 
@@ -225,11 +253,26 @@ class ProjectProject(models.Model):
                 "is_service"
             )
         ):
+            _debug.logic(
+                "sale_line_from_reinvoiced_order",
+                project=self._origin,
+                line=service_sols[0],
+            )
             self.sale_line_id = service_sols[0]
 
     @api.onchange("sale_line_id")
     def _onchange_sale_line_id(self):
-        if not self.reinvoiced_sale_order_id and self.sale_line_id:
+        reinvoiced = self._fields["reinvoiced_sale_order_id"]
+        if (
+            self.sale_line_id
+            and self._has_field_access(reinvoiced, "write")
+            and not self.reinvoiced_sale_order_id
+        ):
+            _debug.logic(
+                "reinvoiced_order_from_sale_line",
+                project=self._origin,
+                order=self.sale_line_id.order_id,
+            )
             self.reinvoiced_sale_order_id = self.sale_line_id.order_id
 
     def _confirm_linked_sale_orders(self, sol_ids):
@@ -242,6 +285,9 @@ class ProjectProject(models.Model):
             )[0][0]
         )
         if quotations:
+            _debug.pipeline(
+                "linked_quotations_confirmed", projects=self, orders=quotations
+            )
             quotations.action_confirm()
 
     @api.model_create_multi
@@ -258,12 +304,16 @@ class ProjectProject(models.Model):
                 and not project.sudo().reinvoiced_sale_order_id.project_id
             ):
                 project.sudo().reinvoiced_sale_order_id.project_id = project.id
+        _debug.lifecycle(
+            "create", projects=projects, rows=len(vals_list), linked_lines=len(sol_ids)
+        )
         if sol_ids:
             projects._confirm_linked_sale_orders(list(sol_ids))
         return projects
 
     def write(self, vals):
         project = super().write(vals)
+        _debug.lifecycle("write", projects=self, fields=list(vals))
         if sol_id := vals.get("sale_line_id"):
             self._confirm_linked_sale_orders([sol_id])
         return project
@@ -443,6 +493,7 @@ class ProjectProject(models.Model):
             "active_id": so_ids[0] if len(so_ids) == 1 else False,
             "active_ids": so_ids,
         }
+        _debug.logic("project_invoice_action", project=self, orders=len(so_ids))
         if not self.has_any_so_to_invoice:
             action["context"]["default_advance_payment_method"] = "percentage"
         return action
@@ -503,6 +554,7 @@ class ProjectProject(models.Model):
 
     def _get_sale_order_item_ids(self, domain_per_model=None, limit=None, offset=None):
         if not self or not self.filtered("allow_billable"):
+            _debug.logic("sale_items_skipped", projects=self, reason="not_billable")
             return []
         query = self._get_sale_order_items_query(domain_per_model)
         query.limit = limit
@@ -776,7 +828,7 @@ class ProjectProject(models.Model):
         display_sol_action = (
             with_action
             and len(self) == 1
-            and self.env.user.has_group("sales_team.group_sale_salesman")
+            and self.env.user.has_group("sale.group_sale_salesman")
         )
         revenues_dict = {}
         total_to_invoice = total_invoiced = 0.0
@@ -824,7 +876,7 @@ class ProjectProject(models.Model):
                     "to_invoice": -downpayment_amount_invoiced,
                 }
                 if with_action and (
-                    self.env.user.has_group("sales_team.group_sale_salesman_all_leads,")
+                    self.env.user.has_group("sale.group_sale_salesman_all_leads,")
                     or self.env.user.has_group("account.group_account_invoice,")
                     or self.env.user.has_group("account.group_account_readonly")
                 ):
@@ -1014,9 +1066,7 @@ class ProjectProject(models.Model):
                         else "to_bill": amount_to_invoice,
                     }
                     if with_action and (
-                        self.env.user.has_group(
-                            "sales_team.group_sale_salesman_all_leads"
-                        )
+                        self.env.user.has_group("sale.group_sale_salesman_all_leads")
                         or self.env.user.has_group("account.group_account_invoice")
                         or self.env.user.has_group("account.group_account_readonly")
                     ):
@@ -1096,7 +1146,7 @@ class ProjectProject(models.Model):
 
     def _get_stat_buttons(self):
         buttons = super()._get_stat_buttons()
-        if self.env.user.has_group("sales_team.group_sale_salesman_all_leads"):
+        if self.env.user.has_group("sale.group_sale_salesman_all_leads"):
             buttons.append(
                 {
                     "icon": "dollar",
@@ -1155,9 +1205,6 @@ class ProjectProject(models.Model):
         if not self.allow_billable:
             return {}, False
         return super()._get_profitability_values()
-
-    def _is_partner_hidden(self):
-        return not self.allow_billable
 
     def _get_domain_projects_to_make_billable(self):
         return Domain.AND(

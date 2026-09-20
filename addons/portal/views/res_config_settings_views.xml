@@ -14,8 +14,8 @@
                     <div class="mt16 content-group">
                         <field name="portal_allow_api_keys" />
                         <label
-                            string="Customers can generate API Keys"
-                            for="portal_allow_api_keys" />
+                            for="portal_allow_api_keys"
+                            string="Customers can generate API Keys" />
                     </div>
                 </div>
             </xpath>

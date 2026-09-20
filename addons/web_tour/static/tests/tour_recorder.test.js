@@ -8,25 +8,29 @@ import {
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
+    preloadBundle,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/components/autocomplete";
 import { browser } from "@web/core/browser/browser";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { WebClient } from "@web/webclient/webclient";
-import { TourRecorder } from "@web_tour/js/tour_recorder/tour_recorder";
 import {
     TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
     tourRecorderState,
 } from "@web_tour/js/tour_recorder/tour_recorder_state";
 
 describe.current.tags("desktop");
+preloadBundle("web_tour.recorder");
 
 let tourRecorder;
 
 beforeEach(async () => {
     serverState.debug = "1";
     browser.localStorage.setItem(TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY, "1");
+    const { TourRecorder } = odoo.loader.modules.get(
+        "@web_tour/js/tour_recorder/tour_recorder",
+    );
     patchWithCleanup(TourRecorder.prototype, {
         setup() {
             tourRecorder = this;
@@ -399,7 +403,7 @@ test("Selecting item in autocomplete field through Enter", async () => {
 test("Edit input after autofocus", async () => {
     class Dummy extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <input type="text" class="o_input" t-ref="input"/>

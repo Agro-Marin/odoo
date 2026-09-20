@@ -13,7 +13,7 @@
             icon="'fa-exchange'"
             classAction="'o_wsale_products_opt_has_comparison'"
         />
-        <span/><!-- Spacer -->
+        <span/>
     </BuilderButton>
 </t>
 

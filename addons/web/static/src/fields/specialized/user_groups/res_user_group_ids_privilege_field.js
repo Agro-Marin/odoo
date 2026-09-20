@@ -7,7 +7,7 @@ import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { FieldComponent } from "@web/fields/field_component";
 import { SelectionField } from "@web/fields/selection/selection/selection_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { ResUserGroupIdsPopover } from "./res_user_group_ids_popover.js";
 

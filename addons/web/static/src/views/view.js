@@ -11,6 +11,8 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { useDebugCategory } from "@web/core/debug/debug_context";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { viewLog } from "@web/core/utils/asset_log";
@@ -22,6 +24,7 @@ import { useService } from "@web/core/utils/hooks";
 import { extractLayoutComponents } from "@web/search/layout";
 import { WithSearch } from "@web/search/with_search/with_search";
 import { session } from "@web/session";
+import { elementToIR, irToElement, literalNbsp } from "@web/views/ir/view_ir";
 import { useActionLinks } from "@web/views/view_hook";
 
 import {
@@ -46,6 +49,7 @@ import {
  * @property {Record<string, any>} [actionMenus]
  * @property {boolean} [loadActionMenus=false]
  * @property {string} [searchViewArch]
+ * @property {import("@web/views/ir/view_ir_schema").ViewIRNode} [searchViewIR]
  * @property {Record<string, any>} [searchViewFields]
  * @property {number|false} [searchViewId]
  * @property {Record<string, any>[]} [irFilters]
@@ -174,6 +178,8 @@ export function getDefaultConfig() {
     };
 }
 
+const log = makeLogger("web.view");
+
 export class ViewNotFoundError extends Error {}
 
 const CALLBACK_RECORDER_NAMES = [
@@ -198,6 +204,7 @@ export const viewProps = {
     loadActionMenus: { type: Boolean, optional: true },
 
     searchViewArch: { type: String, optional: true },
+    searchViewIR: { type: Object, optional: true },
     searchViewFields: { type: Object, optional: true },
     searchViewId: { type: [Number, Boolean], optional: true },
     irFilters: { type: Array, optional: true },
@@ -267,11 +274,13 @@ const ACTIONS = [
  * @typedef {{
  * viewDescription: any,
  * arch: string | undefined,
+ * ir: import("@web/views/ir/view_ir_schema").ViewIRNode | undefined,
  * fields: Record<string, any> | undefined,
  * relatedModels: Record<string, any> | undefined,
  * actionMenus: Record<string, any> | undefined,
  * searchViewId: number | false | undefined,
  * searchViewArch: string | undefined,
+ * searchViewIR: import("@web/views/ir/view_ir_schema").ViewIRNode | undefined,
  * searchViewFields: Record<string, any> | undefined,
  * irFilters: Record<string, any>[] | undefined,
  * }} LoadedView
@@ -305,18 +314,36 @@ function resolveViewSelection(props, configViews) {
 }
 
 /**
- * @param {string | undefined} arch
+ * The element every parser and compiler walks. The server's IR is the
+ * contract; the arch string is kept for a caller that hands one in through
+ * props (embedded views, tests) and for a payload that predates the IR.
+ *
+ * @param {Pick<LoadedView, "arch" | "ir">} loaded
  * @param {Record<string, any>} context
- * @returns {Element}
+ * @returns {{ archXmlDoc: Element, archIR: import("@web/views/ir/view_ir_schema").ViewIRNode }}
  */
-function parseViewArch(arch, context) {
-    const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
+function parseViewArch({ arch, ir }, context) {
+    const source = ir ? "ir" : "arch";
+    log.logic("archSource", { source });
+    const archXmlDoc =
+        source === "ir"
+            ? irToElement(/** @type {NonNullable<typeof ir>} */ (ir), {
+                  text: literalNbsp,
+              })
+            : parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
+    /** @type {Record<string, string>} */
+    const disabled = {};
     for (const action of ACTIONS) {
         if (action in context && !context[action]) {
             archXmlDoc.setAttribute(action, "0");
+            disabled[action] = "0";
         }
     }
-    return archXmlDoc;
+    // the payload's IR is cached by the ORM service: never mutate it, clone the root
+    const archIR = ir
+        ? { ...ir, attrs: { ...ir.attrs, ...disabled } }
+        : elementToIR(archXmlDoc);
+    return { archXmlDoc, archIR };
 }
 
 /**
@@ -374,8 +401,15 @@ export class View extends Component {
     withSearchProps;
 
     setup() {
-        const { arch, fields, resModel, searchViewArch, searchViewFields, type } =
-            this.props;
+        const {
+            arch,
+            fields,
+            resModel,
+            searchViewArch,
+            searchViewIR,
+            searchViewFields,
+            type,
+        } = this.props;
         if (!resModel) {
             throw Error(`View props should have a "resModel" key`);
         }
@@ -385,12 +419,10 @@ export class View extends Component {
         if ((arch && !fields) || (!arch && fields)) {
             throw new Error(`"arch" and "fields" props must be given together`);
         }
-        if (
-            (searchViewArch && !searchViewFields) ||
-            (!searchViewArch && searchViewFields)
-        ) {
+        const searchView = searchViewArch || searchViewIR;
+        if ((searchView && !searchViewFields) || (!searchView && searchViewFields)) {
             throw new Error(
-                `"searchViewArch" and "searchViewFields" props must be given together`,
+                `"searchViewArch"/"searchViewIR" and "searchViewFields" props must be given together`,
             );
         }
 
@@ -411,6 +443,7 @@ export class View extends Component {
 
         this.handleActionLinks = useActionLinks({ resModel });
 
+        useLifecycleLog(log);
         onWillStart(() => this.loadView(this.props));
         onWillUpdateProps((nextProps) => this.onWillUpdateProps(nextProps));
 
@@ -422,6 +455,13 @@ export class View extends Component {
         const loadId = ++this.loadViewId;
         const { resModel, type } = props;
         viewLog("load", type, resModel || "");
+        const endLoad = log.perf(`loadView ${type} ${resModel || ""}`);
+        log.pipeline("loadView", () => ({
+            loadId,
+            type,
+            resModel,
+            viewId: props.viewId,
+        }));
         const config = /** @type {ViewConfig & Record<string, any>} */ (
             this.env.config
         );
@@ -432,19 +472,26 @@ export class View extends Component {
         const selection = resolveViewSelection(props, config.views);
         const loaded = await this.loadViewDescriptions(props, selection, config);
         if (loadId !== this.loadViewId) {
+            endLoad({ loadId, superseded: true });
             return;
         }
         config.views = selection.views;
 
-        const archXmlDoc = parseViewArch(loaded.arch, props.context ?? {});
+        const { archXmlDoc, archIR } = parseViewArch(loaded, props.context ?? {});
         const jsClass = archXmlDoc.hasAttribute("js_class")
             ? /** @type {string} */ (archXmlDoc.getAttribute("js_class"))
             : props.jsClass || type;
         const descr = /** @type {any} */ (viewRegistry.get(jsClass));
+        log.logic("resolve", () => ({
+            loadId,
+            jsClass,
+            controller: descr.Controller?.name,
+        }));
 
         Object.assign(config, {
             rawArch: loaded.arch,
             viewArch: archXmlDoc,
+            viewIR: archIR,
             viewId: loaded.viewDescription.id,
             searchViewId: loaded.searchViewId,
             viewType: type,
@@ -459,6 +506,7 @@ export class View extends Component {
             /** @type {any} */ (this.constructor).searchMenuTypes;
         const controllerProps = this.getControllerProps(props, loaded, archXmlDoc, {
             searchMenuTypes,
+            archIR,
         });
         this.Controller = descr.Controller;
         this.componentProps = buildComponentProps(descr, controllerProps, config);
@@ -466,6 +514,7 @@ export class View extends Component {
             descr,
             searchMenuTypes,
         });
+        endLoad({ loadId, jsClass });
     }
 
     /**
@@ -480,13 +529,14 @@ export class View extends Component {
         const context = /** @type {Record<string, any>} */ (props.context ?? {});
         let { searchViewId } = selection;
         let { arch, fields, relatedModels, searchViewArch, searchViewFields } = props;
+        let { searchViewIR } = props;
         let { irFilters, actionMenus } = props;
 
         const hasSearchView = views.some((/** @type {any} */ v) => v[1] === "search");
         const mustLoadView = !arch || (!actionMenus && loadActionMenus);
         const mustLoadSearchView =
             hasSearchView &&
-            ((searchViewId !== undefined && !searchViewArch) ||
+            ((searchViewId !== undefined && !searchViewArch && !searchViewIR) ||
                 (!irFilters && loadIrFilters));
 
         /** @type {any} */
@@ -510,8 +560,9 @@ export class View extends Component {
             const searchViewDescription = /** @type {any} */ (result.views).search;
             if (mustLoadSearchView) {
                 searchViewId = searchViewId || searchViewDescription.id;
-                if (!searchViewArch) {
+                if (!searchViewArch && !searchViewIR) {
                     searchViewArch = searchViewDescription.arch;
+                    searchViewIR = searchViewDescription.ir;
                     searchViewFields = result.fields;
                 }
                 if (!irFilters) {
@@ -525,11 +576,13 @@ export class View extends Component {
         return {
             viewDescription,
             arch: arch || viewDescription.arch,
+            ir: arch ? undefined : viewDescription.ir,
             fields,
             relatedModels,
             actionMenus: actionMenus || viewDescription.actionMenus,
             searchViewId,
             searchViewArch,
+            searchViewIR,
             searchViewFields,
             irFilters,
         };
@@ -539,10 +592,10 @@ export class View extends Component {
      * @param {ViewProps} props
      * @param {LoadedView} loaded
      * @param {Element} archXmlDoc
-     * @param {{ searchMenuTypes: string[] }} params
+     * @param {{ searchMenuTypes: string[], archIR: import("@web/views/ir/view_ir_schema").ViewIRNode }} params
      * @returns {Record<string, any>}
      */
-    getControllerProps(props, loaded, archXmlDoc, { searchMenuTypes }) {
+    getControllerProps(props, loaded, archXmlDoc, { searchMenuTypes, archIR }) {
         const { resModel } = props;
         const { viewDescription, fields, relatedModels } = loaded;
         const info = {
@@ -550,6 +603,7 @@ export class View extends Component {
             mode: props.display?.mode,
             irFilters: loaded.irFilters,
             searchViewArch: loaded.searchViewArch,
+            searchViewIR: loaded.searchViewIR,
             searchViewFields: loaded.searchViewFields,
             searchViewId: loaded.searchViewId,
         };
@@ -564,6 +618,7 @@ export class View extends Component {
         const controllerProps = {
             info,
             arch: archXmlDoc,
+            ir: archIR,
             fields,
             relatedModels,
             resModel,
@@ -606,8 +661,9 @@ export class View extends Component {
         if (loaded.searchViewId !== undefined) {
             withSearchProps.searchViewId = loaded.searchViewId;
         }
-        if (loaded.searchViewArch) {
+        if (loaded.searchViewArch || loaded.searchViewIR) {
             withSearchProps.searchViewArch = loaded.searchViewArch;
+            withSearchProps.searchViewIR = loaded.searchViewIR;
             withSearchProps.searchViewFields = loaded.searchViewFields;
         }
         if (loaded.irFilters) {
@@ -639,6 +695,11 @@ export class View extends Component {
             nextProps.views ?? [],
             shallowEqual,
         );
+        log.logic("onWillUpdateProps", () => ({
+            reselected,
+            viewsChanged,
+            type: nextProps.type,
+        }));
         if (reselected || viewsChanged) {
             return this.loadView(nextProps);
         }

@@ -35,8 +35,6 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Remove a product from the cart or update its quantity to match the available quantity.
-     *
      * @param {Event} ev
      */
     async onClickUpdateProductQty(ev) {
@@ -47,15 +45,10 @@ patch(Checkout.prototype, {
                 quantity: parseInt(ev.currentTarget.dataset.availableQty || 0, 10),
             }),
         );
-        window.location.reload(); // Reload all cart values.
+        window.location.reload();
     },
 
-    // #=== DOM MANIPULATION ===#
-
     /**
-     * Change the delivery address title and the 'use delivery as billing' label depending on the
-     * selected delivery method.
-     *
      * @private
      * @return {void}
      */
@@ -82,9 +75,7 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Remove a warning if available pickup location is selected.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     _updatePickupLocation(button) {
         super._updatePickupLocation(...arguments);
@@ -98,15 +89,11 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Return false if there is a warning message, otherwise return the result of the parent method
-     * call.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     _isDeliveryMethodReady() {
         if (this.dmRadios.length === 0) {
-            // If there are no delivery methods.
-            return super._isDeliveryMethodReady(...arguments); // Skip override.
+            return super._isDeliveryMethodReady(...arguments);
         }
         const checkedRadio = this.el.querySelector(
             'input[name="o_delivery_radio"]:checked',
@@ -124,9 +111,7 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Also hide the warning message, if any.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     _hidePickupLocation() {
         super._hidePickupLocation(...arguments);
@@ -136,12 +121,8 @@ patch(Checkout.prototype, {
         }
     },
 
-    // #=== DELIVERY FLOW ===#
-
     /**
-     * Display a warning if any when selecting an in_store delivery method.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     async _showPickupLocation(radio) {
         super._showPickupLocation(...arguments);

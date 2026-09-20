@@ -3,6 +3,7 @@ from unittest.mock import patch
 from markupsafe import Markup
 
 from odoo.http import Request, SessionExpiredException
+from odoo.libs.guarded_http import GuardedSession
 from odoo.tests import JsonRpcException, tagged
 
 from odoo.addons.mail.controllers.webclient import WebclientController
@@ -418,7 +419,7 @@ class TestMailControllerContract(MailControllerCommon):
         self.assertTrue(result, "the well-formed params around them are answered")
 
     def test_gif_search_sends_no_absent_parameter(self):
-        self.env["ir.config_parameter"].sudo().set_param(
+        self.env["credential.credential"]._set_system_secret(
             "discuss.klipy_api_key", "test-key"
         )
         self.authenticate("contract_user", "contract_user")
@@ -431,11 +432,11 @@ class TestMailControllerContract(MailControllerCommon):
             def json(self):
                 return {"results": []}
 
-        def fake_get(url, **kwargs):
+        def fake_request(session, method, url, **kwargs):
             urls.append(url)
             return FakeResponse()
 
-        with patch("odoo.addons.mail.controllers.discuss.gif.requests.get", fake_get):
+        with patch.object(GuardedSession, "request", fake_request):
             self.call_jsonrpc("/discuss/gif/search", {"search_term": "cat"})
             self.call_jsonrpc(
                 "/discuss/gif/search", {"search_term": "cat", "position": "abc"}

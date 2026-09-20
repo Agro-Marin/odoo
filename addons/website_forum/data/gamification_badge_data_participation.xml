@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Biography: complet your profile -->
         <record id="badge_p_1" model="gamification.badge">
             <field name="name">Autobiographer</field>
             <field name="description">Completed own biography</field>
@@ -42,7 +41,6 @@
             <field name="challenge_id" ref="challenge_configure_profile" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Commentator: at least 10 comments posted on posts -->
         <record id="badge_p_2" model="gamification.badge">
             <field name="name">Commentator</field>
             <field name="description">Posted 10 comments</field>
@@ -81,7 +79,6 @@
             <field name="challenge_id" ref="challenge_commentator" />
             <field name="target_goal">10</field>
         </record>
-        <!-- Pundit: 10 answers with at least score of 10 -->
         <record id="badge_25" model="gamification.badge">
             <field name="name">Pundit</field>
             <field name="description">Left 10 answers with score of 10 or more</field>
@@ -118,7 +115,6 @@
             <field name="target_goal">10</field>
             <field name="challenge_id" ref="challenge_pundit" />
         </record>
-        <!-- Chief Commentator: 100 comments -->
         <record id="badge_p_4" model="gamification.badge">
             <field name="name">Chief Commentator</field>
             <field name="description">Posted 100 comments</field>

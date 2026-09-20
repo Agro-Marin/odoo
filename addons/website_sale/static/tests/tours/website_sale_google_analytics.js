@@ -2,13 +2,9 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import * as tourUtils from "@website_sale/js/tours/tour_utils";
 
-/**
- * Patch tracking to avoid third party calls during tests.
- */
 function patchTracking() {
     const { Tracking } = odoo.loader.modules.get("@website_sale/interactions/tracking");
     patch(Tracking.prototype, {
-        // Don't call super to avoid third party calls (GA).
         onViewItem(event) {
             const productTrackingInfo = event.detail;
             document.body.setAttribute("view-event-id", productTrackingInfo.item_id);
@@ -27,8 +23,6 @@ if (odoo.loader.modules.has("@website_sale/interactions/tracking")) {
     patchTracking();
 }
 
-let itemId;
-
 registry.category("web_tour.tours").add("google_analytics_view_item", {
     url: "/shop?search=Colored T-Shirt",
     steps: () => [
@@ -42,20 +36,31 @@ registry.category("web_tour.tours").add("google_analytics_view_item", {
             content: "wait until `_getCombinationInfo()` rpc is done",
             trigger: "body[view-event-id]",
             timeout: 25000,
+            // Clear the attribute so that the wait further down can only be
+            // satisfied by a *new* view event. Stashing the current id in a
+            // module variable and interpolating it into that trigger does not
+            // work: `steps()` is invoked once, eagerly, before any step runs,
+            // so the template literal captures `undefined` and the trigger
+            // degrades to `body[view-event-id]:not([view-event-id="undefined"])`
+            // — which the id set right here already satisfies.
             run: () => {
-                itemId = document.body.getAttribute("view-event-id");
+                document.body.removeAttribute("view-event-id");
             },
         },
         {
             content: "select another variant",
-            trigger:
-                "ul.js_add_cart_variants ul.d-flex li:has(label.active) + li:has(label) input:not(:visible)",
+            // Pick the non-default "Pink" value by name rather than "whatever
+            // radio follows the active one": that adjacency depends on the
+            // admin-editable `product_template_value_ids` sequence, not on a
+            // stable hook.
+            trigger: 'ul.js_add_cart_variants input[data-value-name="Pink"]:not(:visible)',
             run: "click",
         },
         {
             content: "wait until `_getCombinationInfo()` rpc is done (2)",
-            // a new view event should have been generated, for another variant
-            trigger: `body[view-event-id]:not([view-event-id="${itemId}"])`,
+            // The attribute was removed above, so it can only be back if a new
+            // view event was generated for the variant selected in between.
+            trigger: "body[view-event-id]",
             timeout: 25000,
         },
     ],

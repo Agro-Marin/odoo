@@ -9,8 +9,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//filter[@name='status']" position="inside">
                     <filter
-                        string="Veri*Factu State"
                         name="l10n_es_edi_verifactu_state"
+                        string="Veri*Factu State"
                         context="{'group_by': 'l10n_es_edi_verifactu_state'}" />
                 </xpath>
             </field>
@@ -24,11 +24,11 @@
                     <field
                         name="l10n_es_edi_verifactu_state"
                         widget="badge"
+                        optional="hide"
                         decoration-danger="l10n_es_edi_verifactu_state not in ('cancelled', 'accepted', 'registered_with_errors')"
-                        decoration-warning="l10n_es_edi_verifactu_state == 'registered_with_errors'"
-                        decoration-success="l10n_es_edi_verifactu_state == 'accepted'"
                         decoration-muted="l10n_es_edi_verifactu_state == 'cancelled'"
-                        optional="hide" />
+                        decoration-success="l10n_es_edi_verifactu_state == 'accepted'"
+                        decoration-warning="l10n_es_edi_verifactu_state == 'registered_with_errors'" />
                     <field
                         name="sequence_number"
                         string="Simplified Invoice Number"
@@ -56,24 +56,24 @@
                         role="alert"
                         invisible="not l10n_es_edi_verifactu_warning or l10n_es_edi_verifactu_warning_level != 'info'">
                         <field
-                            class="d-inline-block"
-                            name="l10n_es_edi_verifactu_warning" />
+                            name="l10n_es_edi_verifactu_warning"
+                            class="d-inline-block" />
                     </div>
                     <div
                         class="alert alert-warning"
                         role="alert"
                         invisible="not l10n_es_edi_verifactu_warning or l10n_es_edi_verifactu_warning_level != 'warning'">
                         <field
-                            class="d-inline-block"
-                            name="l10n_es_edi_verifactu_warning" />
+                            name="l10n_es_edi_verifactu_warning"
+                            class="d-inline-block" />
                     </div>
                     <div
                         class="alert alert-danger"
                         role="alert"
                         invisible="not l10n_es_edi_verifactu_warning or l10n_es_edi_verifactu_warning_level != 'danger'">
                         <field
-                            class="d-inline-block"
-                            name="l10n_es_edi_verifactu_warning" />
+                            name="l10n_es_edi_verifactu_warning"
+                            class="d-inline-block" />
                     </div>
                 </xpath>
                 <xpath expr="//notebook" position="inside">
@@ -104,8 +104,8 @@
                                         name="state"
                                         widget="badge"
                                         decoration-danger="state not in ('accepted', 'registered_with_errors')"
-                                        decoration-warning="state == 'registered_with_errors'"
-                                        decoration-success="state == 'accepted'" />
+                                        decoration-success="state == 'accepted'"
+                                        decoration-warning="state == 'registered_with_errors'" />
                                 </list>
                             </field>
                         </group>

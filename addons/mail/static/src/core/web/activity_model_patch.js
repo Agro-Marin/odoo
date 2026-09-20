@@ -3,10 +3,13 @@
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { Activity } from "@mail/core/common/activity_model";
 import { fields } from "@mail/core/common/record";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.activity");
 patch(Activity.prototype, {
     /** @this {import("models").Activity} */
     setup() {
@@ -31,6 +34,7 @@ patch(Activity.prototype, {
         return formatDateTime(this.create_date);
     },
     async edit() {
+        log.logic("edit", () => ({ id: this.id, res_model: this.res_model }));
         await new Promise((resolve) =>
             this.store.env.services.action.doAction(
                 {
@@ -55,6 +59,11 @@ patch(Activity.prototype, {
     },
     /** @param {number[]} attachmentIds */
     async markAsDone(attachmentIds = []) {
+        log.logic("markAsDone", () => ({
+            id: this.id,
+            attachments: attachmentIds.length,
+            hasFeedback: Boolean(this.feedback),
+        }));
         await this.store.env.services.orm.call(
             "mail.activity",
             "action_feedback",
@@ -71,6 +80,7 @@ patch(Activity.prototype, {
     },
     /** @returns {Promise<import("@web/webclient/actions/action_service").ActionDescription>} */
     async markAsDoneAndScheduleNext() {
+        log.logic("markAsDoneAndScheduleNext", () => ({ id: this.id }));
         const action = await this.store.env.services.orm.call(
             "mail.activity",
             "action_feedback_schedule_next",
@@ -91,6 +101,7 @@ patch(Activity.prototype, {
         if (!this.exists()) {
             return;
         }
+        log.lifecycle("remove", () => ({ id: this.id, broadcast }));
         this.delete();
         if (broadcast) {
             this.store.activityBroadcastChannel?.postMessage({

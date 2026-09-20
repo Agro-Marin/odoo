@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 import requests
@@ -33,7 +33,6 @@ class BankAccountVerification(models.Model):
                 "An error occurred during check with Government API",
             ),  # API called -> error
         ],
-        string="Verification Status",
         readonly=True,
         required=True,
         help="Flag the payment verification status with one of the following:\n"
@@ -44,31 +43,39 @@ class BankAccountVerification(models.Model):
         "- Error: An error occurred during check with Government API.\n",
     )
     # Timestamp received in PL tz by the API, stored in UTC
-    verification_timestamp = fields.Datetime("Verification Timestamp", readonly=True)
+    verification_timestamp = fields.Datetime(readonly=True)
     # Technical field to ease search
     verification_date = fields.Date(
         compute="_compute_verification_date",
         store=True,
         index=False,
     )
-    verification_request_id = fields.Char("Correlation ID", readonly=True)
+    verification_request_id = fields.Char(
+        string="Correlation ID",
+        readonly=True,
+    )
     partner_bank_id = fields.Many2one(
-        "res.partner.bank", readonly=True, string="Bank Account"
+        comodel_name="res.partner.bank",
+        string="Bank Account",
+        readonly=True,
     )
     # We need to store the bank account number itself to prevent changes on the res.partner.bank record
     partner_bank_account_number = fields.Char(
         compute="_compute_partner_bank_account_number",
-        readonly=True,
         store=True,
         index=False,
+        readonly=True,
     )
-    partner_id = fields.Many2one("res.partner", readonly=True, string="Partner")
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        readonly=True,
+    )
     # We need to store the partner VAT itself to prevent changes on the res.partner record
     partner_vat = fields.Char(
         compute="_compute_partner_vat",
-        readonly=True,
         store=True,
         index=False,
+        readonly=True,
     )
 
     def _auto_init(self):
@@ -167,7 +174,7 @@ class BankAccountVerification(models.Model):
                 )
             )
             if partners_to_create_verification_for:
-                create_vals += self._get_creation_vals(
+                create_vals += self._prepare_verification_vals(
                     "incomplete_partner", partners=partners_to_create_verification_for
                 )
 
@@ -204,7 +211,7 @@ class BankAccountVerification(models.Model):
                 vat = partner_bank.partner_id.vat
                 if not vat or vat in ["/", "na", "NA"]:  # void vat
                     if not partner_bank_verif or not partner_bank_verif.filtered(
-                        lambda verif: (
+                        lambda verif, partner_bank=partner_bank: (
                             verif.partner_id == partner_bank.partner_id
                             and (
                                 not verif.partner_vat
@@ -212,7 +219,7 @@ class BankAccountVerification(models.Model):
                             )
                         )
                     ):
-                        create_vals += self._get_creation_vals(
+                        create_vals += self._prepare_verification_vals(
                             "incomplete_partner", partner_banks=partner_bank
                         )
                     continue
@@ -257,7 +264,7 @@ class BankAccountVerification(models.Model):
                 response = self._get_api_response(endpoint, params={"date": date})
                 response_content = self._handle_response(response)
             except requests.RequestException, ValueError:
-                create_vals += self._get_creation_vals(
+                create_vals += self._prepare_verification_vals(
                     "error", partner_banks=partners.bank_ids
                 )
                 _logger.exception(error_message, partners.ids, endpoint)
@@ -287,7 +294,7 @@ class BankAccountVerification(models.Model):
                             "WL-115",
                         ]:  # 113: incorrect format, 115: vat not found
                             status = "not_found_partner"
-                        create_vals += self._get_creation_vals(
+                        create_vals += self._prepare_verification_vals(
                             status,
                             partner_banks=partner.bank_ids,
                             timestamp=timestamp,
@@ -299,7 +306,7 @@ class BankAccountVerification(models.Model):
                     if (
                         not subject
                     ):  # case where code = 200, but subject is null or empty
-                        create_vals += self._get_creation_vals(
+                        create_vals += self._prepare_verification_vals(
                             "invalid",
                             partner_banks=partner.bank_ids,
                             timestamp=timestamp,
@@ -319,7 +326,7 @@ class BankAccountVerification(models.Model):
                             if account_number in subject.get("accountNumbers", [])
                             else "invalid"
                         )
-                        create_vals += self._get_creation_vals(
+                        create_vals += self._prepare_verification_vals(
                             status,
                             partner_banks=partner_bank,
                             timestamp=timestamp,
@@ -327,7 +334,7 @@ class BankAccountVerification(models.Model):
                         )
 
             except KeyError, json.decoder.JSONDecodeError:
-                create_vals += self._get_creation_vals(
+                create_vals += self._prepare_verification_vals(
                     "error", partner_banks=partners.bank_ids
                 )
                 _logger.exception(error_message, partners.ids, endpoint)
@@ -391,14 +398,14 @@ class BankAccountVerification(models.Model):
         ):
             raise ValueError("Invalid Polish bank verification API endpoint")
         url = f"https://wl-api.mf.gov.pl{endpoint}"
-        response = requests.request(
+        return self.env["ir.egress"].request(
             "GET",
             url,
+            purpose="l10n_pl_bank_verification",
             headers={"Content-Type": "application/json"},
             params=params,
             timeout=5,
         )
-        return response
 
     @api.model
     def _handle_response(self, response):
@@ -411,9 +418,10 @@ class BankAccountVerification(models.Model):
             return response.content.decode()
 
         response.raise_for_status()
+        return None
 
-    def _get_creation_vals(
-        self, status, partner_banks=[], partners=[], timestamp=None, request_id=False
+    def _prepare_verification_vals(
+        self, status, partner_banks=(), partners=(), timestamp=None, request_id=False
     ):
         """
         partners should be filled only for partners without bank accounts ('incomplete_partner')

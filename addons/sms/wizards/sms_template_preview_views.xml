@@ -8,16 +8,16 @@
             <field name="model">sms.template.preview</field>
             <field name="arch" type="xml">
                 <form string="SMS Preview">
-                    <h3>Preview of <field name="sms_template_id" readonly="1" nolabel="1" class="oe_inline" /></h3>
+                    <h3>Preview of <field name="sms_template_id" readonly="1" class="oe_inline" /></h3>
                     <field name="no_record" invisible="1" />
                     <div class="o_row">
                         <span>Choose an example <field name="model_id" readonly="1" /> record:</span>
                         <div>
                             <field
                                 name="resource_ref"
-                                class="oe_inline"
                                 options="{'hide_model': True, 'no_create': True, 'no_open': True}"
-                                invisible="no_record" />
+                                invisible="no_record"
+                                class="oe_inline" />
                             <span class="text-warning" invisible="not no_record">No records</span>
                         </div>
                     </div>
@@ -26,15 +26,14 @@
                     <hr />
                         <field
                             name="body"
-                            readonly="1"
-                            nolabel="1"
-                            options="{&quot;safe&quot;: True}" />
+                            options="{&quot;safe&quot;: True}"
+                            readonly="1" />
                     <hr />
                     <footer>
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

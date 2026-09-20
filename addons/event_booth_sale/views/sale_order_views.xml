@@ -10,10 +10,10 @@
                 <button
                     name="action_view_booth_list"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-university"
-                    invisible="event_booth_count == 0">
-                    <field name="event_booth_count" widget="statinfo" string="Booths" />
+                    invisible="event_booth_count == 0"
+                    class="oe_stat_button">
+                    <field name="event_booth_count" string="Booths" widget="statinfo" />
                 </button>
             </button>
             <xpath
@@ -27,8 +27,8 @@
                 position="attributes">
                 <attribute
                     name="readonly"
-                    separator="or"
-                    add="service_tracking == 'event_booth'" />
+                    add="service_tracking == 'event_booth'"
+                    separator="or" />
             </xpath>
         </field>
     </record>

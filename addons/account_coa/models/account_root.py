@@ -12,9 +12,13 @@ class AccountRoot(models.Model):
     _description = "Account codes first 2 digits"
     _auto = False
     _table_query = "0"
+    _search_visibility_fields = ()
 
     name = fields.Char(compute="_compute_root")
-    parent_id = fields.Many2one("account.root", compute="_compute_root")
+    parent_id = fields.Many2one(
+        comodel_name="account.root",
+        compute="_compute_root",
+    )
 
     @api.private
     def browse(self, ids=()):

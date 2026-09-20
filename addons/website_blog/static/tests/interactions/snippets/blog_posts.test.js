@@ -83,10 +83,8 @@ test("dynamic snippet blog posts loads items and displays them through template"
     const itemEls = queryAll(".dynamic_snippet_template .s_test_item");
     expect(itemEls[0]).toHaveAttribute("data-test-param", "test");
     expect(itemEls[1]).toHaveAttribute("data-test-param", "test2");
-    // Make sure element interactions are started.
     expect(itemEls[0]).toHaveAttribute("data-started", "*test*");
     expect(itemEls[1]).toHaveAttribute("data-started", "*test2*");
     core.stopInteractions();
-    // Make sure element interactions are stopped.
     expect(core.interactions).toHaveLength(0);
 });

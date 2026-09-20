@@ -9,7 +9,10 @@ from odoo import _, fields, http, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import LazyTranslate
+
+_debug = DebugLog(__name__)
 
 _lt = LazyTranslate(__name__)
 
@@ -18,13 +21,7 @@ class WebsiteProfile(http.Controller):
     _users_per_page = 30
     _pager_max_pages = 5
 
-    # Profile
-    # ---------------------------------------------------
-
     def _check_avatar_access(self, user_id, **post):
-        """Base condition to see user avatar independently form access rights
-        is to see published users having karma, meaning they participated to
-        frontend applications like forum or elearning."""
         try:
             user = request.env["res.users"].sudo().browse(user_id).exists()
         except Exception:
@@ -34,28 +31,28 @@ class WebsiteProfile(http.Controller):
         return False
 
     def _check_user_profile_access(self, user_id):
-        """Takes a user_id and returns:
-        - (user record, False) when the user is granted access
-        - (False, str) when the user is denied access
-        Raises a Not Found Exception when the profile does not exist
-        """
         user_sudo = request.env["res.users"].sudo().browse(user_id)
         if not user_sudo.exists():
             raise request.prepare_not_found_error()
 
-        # User can access - no matter what - his own profile
         if user_sudo.id == request.env.user.id:
             return user_sudo, False
 
-        # Profile being published is more specific than general karma requirement (check it first!)
         if not user_sudo.website_published:
+            _debug.logic("profile_refused", reason="private", user=user_id)
             return False, _("This profile is private!")
         elif request.env.user.karma < request.website.karma_profile_min:
+            _debug.logic(
+                "profile_refused",
+                reason="karma",
+                user=user_id,
+                required=request.website.karma_profile_min,
+            )
             return False, _("Not have enough karma to view other users' profile.")
         return user_sudo, False
 
     def _prepare_user_values(self, **kwargs):
-        kwargs.pop("edit_translations", None)  # avoid nuking edit_translations
+        kwargs.pop("edit_translations", None)
         return {
             "user": request.env.user,
             "is_public_user": request.website.is_public_user(),
@@ -154,8 +151,6 @@ class WebsiteProfile(http.Controller):
         }
         return request.render("website_profile.user_profile_main", values)
 
-    # Edit Profile
-    # ---------------------------------------------------
     def _profile_edition_preprocess_values(self, user, **kwargs):
         values = {
             "name": kwargs.get("name"),
@@ -169,9 +164,7 @@ class WebsiteProfile(http.Controller):
         if "image_1920" in kwargs:
             values["image_1920"] = kwargs.get("image_1920")
 
-        if (
-            request.env.uid == user.id
-        ):  # the controller allows to edit only its own privacy settings; use partner management for other cases
+        if request.env.uid == user.id:
             values["website_published"] = kwargs.get("website_published")
         return values
 
@@ -205,12 +198,7 @@ class WebsiteProfile(http.Controller):
             )
         user.write(whitelisted_values)
 
-    # Ranks and Badges
-    # ---------------------------------------------------
     def _get_domain_badges(self, **kwargs):
-        """
-        Hook for other modules to restrict the badges showed on profile page, depending of the context
-        """
         domain = Domain("website_published", "=", True)
         if "badge_category" in kwargs:
             domain = (
@@ -259,8 +247,6 @@ class WebsiteProfile(http.Controller):
         }
         return request.render("website_profile.rank_badge_main", values)
 
-    # All Users Page
-    # ---------------------------------------------------
     def _prepare_all_users_values(self, users):
         return [
             {
@@ -288,7 +274,6 @@ class WebsiteProfile(http.Controller):
         User = request.env["res.users"]
         dom = [("karma", ">", 1), ("website_published", "=", True)]
 
-        # Searches
         search_term = kwargs.get("search")
         group_by = kwargs.get("group_by", False)
         render_values = {
@@ -329,7 +314,6 @@ class WebsiteProfile(http.Controller):
             )
             user_values = self._prepare_all_users_values(users)
 
-            # Get karma position for users (only website_published)
             position_domain = [("karma", ">", 1), ("website_published", "=", True)]
             position_map = self._get_position_map(position_domain, users, group_by)
 
@@ -348,7 +332,6 @@ class WebsiteProfile(http.Controller):
                 and my_user.karma
                 and my_user.id not in users.ids
             ):
-                # Need to keep the dom to search only for users that appear in the ranking page
                 current_user = User.sudo().search(
                     Domain.AND([[("id", "=", my_user.id)], dom])
                 )
@@ -392,8 +375,6 @@ class WebsiteProfile(http.Controller):
         return position_map
 
     def _get_user_tracking_karma_gain_position(self, domain, user_ids, group_by):
-        """Helper method computing boundaries to give to _get_tracking_karma_gain_position.
-        See that method for more details."""
         to_date = fields.Date.today()
         if group_by == "week":
             from_date = to_date - relativedelta(weeks=1)
@@ -409,9 +390,6 @@ class WebsiteProfile(http.Controller):
             )
         )
         return {item["user_id"]: dict(item) for item in results}
-
-    # User and validation
-    # --------------------------------------------------
 
     @http.route(
         "/profile/send_validation_email", type="jsonrpc", auth="user", website=True

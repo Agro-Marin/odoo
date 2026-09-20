@@ -23,8 +23,8 @@
                 <field name="description" />
                 <group>
                     <filter
-                        string="Industry"
                         name="group_by_sector"
+                        string="Industry"
                         context="{'group_by': 'sector'}" />
                 </group> 
             </search>

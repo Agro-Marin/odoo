@@ -1,5 +1,6 @@
 from odoo import _, models
 
+from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
 from odoo.addons.payment_custom.controllers.main import CustomController
 
@@ -9,21 +10,24 @@ _logger = get_payment_logger(__name__)
 class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
-    def _get_specific_rendering_values(self, processing_values):
+    def _prepare_redirect_form_values(self, processing_values):
         """Override of payment to return custom-specific rendering values.
 
-        Note: self.check_singleton() from `_get_processing_values`
+        Note: self.check_singleton() from `_prepare_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the transaction
         :return: The dict of provider-specific processing values
         :rtype: dict
         """
         if self.provider_code != "custom":
-            return super()._get_specific_rendering_values(processing_values)
+            return super()._prepare_redirect_form_values(processing_values)
 
         return {
             "api_url": CustomController._process_url,
             "reference": self.reference,
+            "access_token": payment_utils.generate_access_token(
+                self.reference, self.amount, env=self.env
+            ),
         }
 
     def _get_communication(self):

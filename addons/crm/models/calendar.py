@@ -22,10 +22,9 @@ class CalendarEvent(models.Model):
         return defaults
 
     opportunity_id = fields.Many2one(
-        "crm.lead",
-        "Opportunity",
-        domain="[('type', '=', 'opportunity')]",
+        comodel_name="crm.lead",
         index=True,
+        domain="[('type', '=', 'opportunity')]",
         ondelete="set null",
     )
 

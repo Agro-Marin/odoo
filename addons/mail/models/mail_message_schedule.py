@@ -6,12 +6,14 @@ from typing import Self
 
 from odoo import api, fields, models, modules
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 from odoo.service.transaction import PG_CONCURRENCY_ERRORS_TO_RETRY
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailMessageSchedule(models.Model):
@@ -21,19 +23,29 @@ class MailMessageSchedule(models.Model):
     _rec_name = "mail_message_id"
 
     mail_message_id: MailMessage = fields.Many2one(
-        "mail.message", string="Message", ondelete="cascade", required=True, index=True
-    )
-    notification_parameters = fields.Text("Notification Parameter")
-    scheduled_datetime = fields.Datetime(
-        "Scheduled Send Date",
-        required=True,
+        comodel_name="mail.message",
+        string="Message",
         index=True,
+        required=True,
+        ondelete="cascade",
+    )
+    notification_parameters = fields.Text(string="Notification Parameter")
+    scheduled_datetime = fields.Datetime(
+        string="Scheduled Send Date",
+        index=True,
+        required=True,
         help="Datetime at which notification should be sent.",
     )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         schedules = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(schedules),
+            messages=schedules.mail_message_id.ids,
+            dates=sorted(set(schedules.mapped("scheduled_datetime"))),
+        )
         if schedules:
             self.env.ref("mail.ir_cron_send_scheduled_message")._add_triggers(
                 set(schedules.mapped("scheduled_datetime"))
@@ -52,6 +64,12 @@ class MailMessageSchedule(models.Model):
         )
         has_more = len(messages_scheduled) > batch_size
         messages_scheduled = messages_scheduled[:batch_size]
+        _debug.pipeline(
+            "cron_pass",
+            due=len(messages_scheduled),
+            batch_size=batch_size,
+            more=has_more,
+        )
         if not messages_scheduled:
             return
         _logger.info("Send %s scheduled messages", len(messages_scheduled))
@@ -64,6 +82,13 @@ class MailMessageSchedule(models.Model):
             except Exception as error:
                 if auto_commit:
                     self.env.cr.rollback()
+                _debug.logic(
+                    "send_failed",
+                    schedule=schedule.id,
+                    error=type(error).__name__,
+                    retry=getattr(error, "sqlstate", None)
+                    in PG_CONCURRENCY_ERRORS_TO_RETRY,
+                )
                 if getattr(error, "sqlstate", None) in PG_CONCURRENCY_ERRORS_TO_RETRY:
                     _logger.warning(
                         "Transient DB error sending scheduled notification %s; "
@@ -100,6 +125,12 @@ class MailMessageSchedule(models.Model):
             if model:
                 res_ids = schedules.mapped("mail_message_id.res_id")
                 existing_ids = set(self.env[model].browse(res_ids).exists()._ids)
+            _debug.pipeline(
+                "notifications_sent",
+                model=model or None,
+                schedules=len(schedules),
+                existing=len(existing_ids),
+            )
 
             for schedule in schedules:
                 if model:
@@ -114,6 +145,9 @@ class MailMessageSchedule(models.Model):
                         schedule._deserialize_notification_parameters()
                     )
                 except Exception:
+                    _debug.logic(
+                        "notification_parameters_invalid", schedule=schedule.id
+                    )
                     _logger.warning(
                         "Invalid notification_parameters on mail.message.schedule %s; "
                         "using defaults.",
@@ -168,6 +202,9 @@ class MailMessageSchedule(models.Model):
         if not messages_scheduled:
             return False
 
+        _debug.lifecycle(
+            "rescheduled", schedules=messages_scheduled.ids, scheduled=new_datetime
+        )
         messages_scheduled.scheduled_datetime = new_datetime
         self.env.ref("mail.ir_cron_send_scheduled_message")._trigger(new_datetime)
         return True

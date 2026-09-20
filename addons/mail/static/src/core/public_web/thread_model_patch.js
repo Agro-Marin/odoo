@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { ConfirmationDialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.thread");
 /** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const modelPatch = {
     /** @param {import("models").Message} message */
@@ -13,7 +16,7 @@ const modelPatch = {
             this.self_member_id?.custom_notifications ||
             this.store.settings.channel_notifications;
         if (
-            !this.self_member_id?.mute_until_dt &&
+            !this.isMuted &&
             !this.store.self.im_status?.includes("busy") &&
             (this.channel_type !== "channel" ||
                 (this.channel_type === "channel" &&
@@ -21,10 +24,22 @@ const modelPatch = {
                         (channel_notifications === "mentions" &&
                             message.isSelfMentioned))))
         ) {
-            if (this.model === "discuss.channel" && this.inChathubOnNewMessage) {
+            log.logic("notifyMessageToUser", () => ({
+                thread: this.localId,
+                messageId: message.id,
+                inChathub: this.inChathubOnNewMessage,
+                notifyWhenOutOfFocus: this.notifyWhenOutOfFocus,
+            }));
+            if (this.isChannelKind && this.inChathubOnNewMessage) {
                 await this.store.chatHub.initPromise;
                 let chatWindow = this.store.ChatWindow.get({ thread: this });
                 if (!chatWindow) {
+                    log.logic("new message opens chat window", () => ({
+                        thread: this.localId,
+                        autoOpen: this.autoOpenChatWindowOnNewMessage,
+                        opened: this.store.chatHub.opened.length,
+                        maxOpened: this.store.chatHub.maxOpened,
+                    }));
                     chatWindow = this.store.ChatWindow.insert({ thread: this });
                     if (
                         this.autoOpenChatWindowOnNewMessage &&
@@ -55,11 +70,16 @@ const modelPatch = {
         if (pushState === undefined) {
             pushState = this.notEq(this.store.discuss.thread);
         }
+        log.logic("setAsDiscussThread", () => ({
+            thread: this.localId,
+            previous: this.store.discuss.thread?.localId,
+            pushState,
+        }));
         this.store.discuss.thread = this;
         this.store.discuss.activeTab = !this.store.env.services.ui.isSmall
             ? "notification"
             : this.isMailbox
-              ? this.store.self_partner?.main_user_id?.notification_type === "inbox"
+              ? this.store.selfUsesInbox
                   ? "inbox"
                   : "starred"
               : ["chat", "group"].includes(this.channel_type)
@@ -93,14 +113,16 @@ const modelPatch = {
         }
     },
     async unpin() {
+        log.logic("unpin", () => ({
+            thread: this.localId,
+            isDiscussThread: this.eq(this.store.discuss.thread),
+            serverPinned: this.self_member_id?.is_pinned,
+        }));
         this.isLocallyPinned = false;
         if (this.eq(this.store.discuss.thread)) {
             router.replaceState({ active_id: undefined });
         }
-        if (
-            this.model === "discuss.channel" &&
-            this.self_member_id?.is_pinned !== false
-        ) {
+        if (this.isChannelKind && this.self_member_id?.is_pinned !== false) {
             await this.store.env.services.orm.silent.call(
                 "discuss.channel",
                 "channel_pin",
@@ -109,15 +131,22 @@ const modelPatch = {
             );
         }
     },
-    /** @param {string} body */
-    async askLeaveConfirmation(body) {
-        await new Promise((resolve) => {
-            this.store.env.services.dialog.add(ConfirmationDialog, {
-                body: body,
-                confirmLabel: _t("Leave Conversation"),
-                confirm: resolve,
-                cancel: () => {},
-            });
+    /**
+     * @param {string} body
+     * @returns {Promise<boolean>} whether the user confirmed
+     */
+    askLeaveConfirmation(body) {
+        return new Promise((resolve) => {
+            this.store.env.services.dialog.add(
+                ConfirmationDialog,
+                {
+                    body,
+                    confirmLabel: _t("Leave Conversation"),
+                    confirm: () => resolve(true),
+                    cancel: () => resolve(false),
+                },
+                { onClose: () => resolve(false) },
+            );
         });
     },
 };

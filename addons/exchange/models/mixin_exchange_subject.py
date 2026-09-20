@@ -12,9 +12,7 @@ class MixinExchangeSubject(models.AbstractModel):
         comodel_name="exchange.transmission",
         compute="_compute_transmissions",
     )
-    count_transmission = fields.Integer(
-        compute="_compute_transmissions",
-    )
+    count_transmission = fields.Integer(compute="_compute_transmissions")
     exchange_state = fields.Selection(
         selection=[
             ("none", "Nothing sent"),
@@ -23,8 +21,8 @@ class MixinExchangeSubject(models.AbstractModel):
             ("rejected", "Rejected"),
             ("annulled", "Annulled"),
         ],
-        compute="_compute_exchange_state",
         string="Exchange Status",
+        compute="_compute_exchange_state",
         help="Rolled up from this record's transmissions. The counterparty's "
         "verdict, not whether a call completed.",
     )

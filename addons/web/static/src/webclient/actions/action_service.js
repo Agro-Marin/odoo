@@ -3,11 +3,11 @@
 
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { actionLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { Deferred, SupersededError } from "@web/core/utils/concurrency";
 import { View, ViewNotFoundError } from "@web/views/view";
@@ -220,6 +220,8 @@ function chainOnClose(own, stolen) {
     };
 }
 
+const log = makeLogger("web.action");
+
 export class ActionManager {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -310,26 +312,24 @@ export class ActionManager {
     /** @returns {Promise<any>} */
     async getCurrentAction() {
         const currentController = this.currentController;
-        let action = null;
-        if (currentController) {
-            if (currentController.virtual) {
-                try {
-                    action = await this.fetchAction(currentController.action.id);
-                } catch (error) {
-                    if (
-                        error.exceptionName ===
-                        "odoo.addons.web.controllers.action.MissingActionError"
-                    ) {
-                        action = null;
-                    } else {
-                        throw error;
-                    }
-                }
-            } else {
-                action = JSON.parse(currentController.action._originalAction || "null");
-            }
+        if (!currentController) {
+            return null;
         }
-        return action;
+        const { action } = currentController;
+        if (!currentController.virtual) {
+            return JSON.parse(action._originalAction || "null");
+        }
+        try {
+            return await this.fetchAction(action.path || action.id || action.tag);
+        } catch (error) {
+            if (
+                error.exceptionName ===
+                "odoo.addons.web.controllers.action.MissingActionError"
+            ) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     /** @returns {number} */
@@ -482,6 +482,11 @@ export class ActionManager {
         const index = this._computeStackIndex(options, baseStack);
         const spliceAt = index < 0 ? baseStack.length : index;
         const nextStack = [...baseStack.slice(0, spliceAt), controller];
+        log.pipeline("updateUI", () => ({
+            jsId: controller.jsId,
+            index,
+            size: nextStack.length,
+        }));
         if (action.target !== "new" && options.newWindow) {
             return this._openActionInNewWindow(action, makeActionState(nextStack));
         }
@@ -502,9 +507,15 @@ export class ActionManager {
         if (baseStack !== this.controllerStack) {
             this._pendingDispatch = dispatch;
         }
+        const endDispatch = log.perf("dispatch");
         try {
             return await this._dispatchInline(dispatch, options);
         } finally {
+            endDispatch({
+                jsId: controller.jsId,
+                type: action.type,
+                view: controller.view?.type,
+            });
             this.settlePendingDispatch(dispatch);
         }
     }
@@ -564,7 +575,7 @@ export class ActionManager {
         const { controller, action, removeDialogRef } = dispatch;
         const actionDialogProps = {
             ActionComponent: this.ControllerComponent,
-            actionProps: { ...controller.props, _context: dispatch },
+            actionProps: { ...controller.props, dispatch },
             actionType: action.type,
         };
         if (action.name) {
@@ -712,7 +723,7 @@ export class ActionManager {
         controller.__info__ = {
             id: this.nextId(),
             Component: this.ControllerComponent,
-            componentProps: { ...controller.props, _context: dispatch },
+            componentProps: { ...controller.props, dispatch },
         };
         // not awaited: web_studio's editor depends on the update firing first
         this.dialogService.closeAll({ noReload: true }).catch(reportUncaught);
@@ -754,10 +765,17 @@ export class ActionManager {
      * @returns {Promise<number | undefined | void>}
      */
     async _doAction(actionRequest, options = {}) {
-        actionLog("doAction", actionRequest, options);
+        log.logic("doAction", () => ({ request: actionRequest, options }));
         options = { ...options };
-        const actionProm = this.fetchAction(actionRequest, options.additionalContext);
-        let action = await this.navigation.guard(actionProm);
+        const endFetch = log.perf("fetchAction");
+        let action;
+        try {
+            action = await this.navigation.guard(
+                this.fetchAction(actionRequest, options.additionalContext),
+            );
+        } finally {
+            endFetch({ type: action?.type, id: action?.id, tag: action?.tag });
+        }
         action = this._preprocessAction(action, options.additionalContext);
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
 
@@ -768,12 +786,15 @@ export class ActionManager {
                         `the "action_handlers" entry registered for it will never run.`,
                 );
             }
-            actionLog("dispatch", action.type, action.id || action.tag || "");
+            log.pipeline("dispatch", () => ({
+                type: action.type,
+                target: action.target,
+            }));
             return this._actionExecutors[action.type](action, options);
         }
         const handler = actionHandlersRegistry.get(action.type, undefined);
         if (handler !== undefined) {
-            actionLog("handler", action.type);
+            log.pipeline("handler", () => ({ type: action.type }));
             return handler({ env: this.env, action, options });
         }
         throw new Error(
@@ -799,6 +820,11 @@ export class ActionManager {
      * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
+        log.logic("switchView", () => ({
+            viewType,
+            newWindow,
+            dialog: Boolean(this.dialog),
+        }));
         if (this.dialog || this._pendingDispatch) {
             return;
         }
@@ -851,6 +877,7 @@ export class ActionManager {
 
     /** @param {string} [jsId] */
     async restore(jsId) {
+        log.logic("restore", () => ({ jsId, stackSize: this.controllerStack.length }));
         let index;
         if (!jsId) {
             index = this.controllerStack.length - 2;
@@ -905,11 +932,13 @@ export class ActionManager {
     }
 
     destroy() {
+        log.lifecycle("destroy");
         this.uninstallActionCacheInvalidation();
         this.uninstallActionCacheInvalidation = () => {};
     }
 
     async loadState(/** @type {any} */ state = undefined) {
+        log.lifecycle("loadState", () => state);
         return loadState(this, state);
     }
 
@@ -927,6 +956,7 @@ export class ActionManager {
         }
 
         const newState = makeActionState(cStack);
+        log.logic("pushState", () => ({ state: newState, options }));
         actionStorage.setCurrentState(newState);
 
         cStack.at(-1).state = newState;

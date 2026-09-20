@@ -8,9 +8,13 @@ import { Thread } from "@mail/core/common/thread";
 import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("mail.discuss");
+
 export class DiscussContent extends Component {
     static components = {
         ActionList,
@@ -25,6 +29,7 @@ export class DiscussContent extends Component {
     static template = "mail.DiscussContent";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.ui = useService("ui");
@@ -44,6 +49,9 @@ export class DiscussContent extends Component {
             (a) => a.id === "member-list",
         );
         if (memberListAction && this.store.discuss.isMemberPanelOpenByDefault) {
+            log.logic("member panel auto-open", () => ({
+                thread: this.thread?.localId,
+            }));
             memberListAction.open();
         }
     }
@@ -53,7 +61,7 @@ export class DiscussContent extends Component {
     }
 
     get showImStatus() {
-        return this.thread.channel_type === "chat";
+        return this.thread.isDirectChat;
     }
 
     get showThreadAvatar() {
@@ -64,12 +72,13 @@ export class DiscussContent extends Component {
         return (
             !this.thread.parent_channel_id &&
             this.thread.is_editable &&
-            ["channel", "group"].includes(this.thread.channel_type)
+            this.thread.isMultiMemberChannel
         );
     }
 
     /** @param {{data: string}} file */
     async onFileUploaded(file) {
+        log.logic("avatar upload", () => ({ thread: this.thread.localId }));
         await this.thread.notifyAvatarToServer(file.data);
         this.notification.add(_t("The avatar has been updated!"), { type: "success" });
     }
@@ -84,6 +93,7 @@ export class DiscussContent extends Component {
 
     /** @param {string} name */
     async renameThread(name) {
+        log.logic("renameThread", () => ({ thread: this.thread.localId, name }));
         await this.thread.rename(name);
     }
 
@@ -94,6 +104,9 @@ export class DiscussContent extends Component {
             return;
         }
         if (newDescription !== this.thread.description) {
+            log.logic("updateThreadDescription", () => ({
+                thread: this.thread.localId,
+            }));
             await this.thread.notifyDescriptionToServer(newDescription);
         }
     }

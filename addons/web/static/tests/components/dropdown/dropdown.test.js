@@ -1943,3 +1943,113 @@ test("a swapped `state` prop is refused rather than silently ignored", async () 
     await animationFrame();
     expect.verifyErrors([/the `state` prop is read once/]);
 });
+
+test("an open menu is watched by one observer, however often the dropdown re-renders", async () => {
+    let updates = 0;
+    patchWithCleanup(Dropdown.prototype, {
+        setup() {
+            super.setup();
+            const navigator = this.navigation;
+            const update = navigator.update.bind(navigator);
+            navigator.update = () => {
+                updates++;
+                return update();
+            };
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown>
+                <button class="toggler">toggle</button>
+                <t t-set-slot="content">
+                    <t t-foreach="state.items" t-as="item" t-key="item">
+                        <DropdownItem class="'item'" t-esc="item"/>
+                    </t>
+                </t>
+            </Dropdown>
+        `;
+        setup() {
+            this.state = useState({ items: ["a", "b"] });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click(".toggler");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+
+    parent.state.items.push("c");
+    await animationFrame();
+    await animationFrame();
+    expect(DROPDOWN_ITEM).toHaveCount(3);
+
+    const before = updates;
+    queryOne(DROPDOWN_MENU).appendChild(document.createElement("span"));
+    await animationFrame();
+    expect(updates - before).toBe(1, {
+        message:
+            "one mutation, one navigation update, after a re-render of the open dropdown",
+    });
+});
+
+test("an open menu follows the dropdown's later renders: slot fields and items", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Dropdown };
+        static template = xml`
+            <Dropdown items="items">
+                <button class="toggler">toggle</button>
+                <t t-set-slot="content">
+                    <span class="plain" t-esc="plain"/>
+                </t>
+            </Dropdown>
+        `;
+        plain = "first";
+        items = [{ label: "one", onSelected: () => {} }];
+        setup() {
+            this.state = useState({ tick: 0 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click(".toggler");
+    await animationFrame();
+    expect(".plain").toHaveText("first");
+    expect(queryAllTexts(DROPDOWN_ITEM)).toEqual(["one"]);
+
+    parent.plain = "second";
+    parent.items = [...parent.items, { label: "two", onSelected: () => {} }];
+    parent.state.tick++;
+    await animationFrame();
+    await animationFrame();
+    expect(".plain").toHaveText("second", {
+        message: "a plain field read by the content slot follows the parent's render",
+    });
+    expect(queryAllTexts(DROPDOWN_ITEM)).toEqual(["one", "two"], {
+        message: "the items prop follows too",
+    });
+});
+
+test("a closed dropdown syncs its popover once, at mount, not again at setup", async () => {
+    let closes = 0;
+    patchWithCleanup(Dropdown.prototype, {
+        closePopover() {
+            closes++;
+            return super.closePopover();
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Dropdown };
+        static template = xml`<Dropdown><button class="toggler">toggle</button></Dropdown>`;
+    }
+    await mountWithCleanup(Parent);
+    expect(closes).toBe(1);
+    await click(".toggler");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+    await click(".toggler");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(0);
+    expect(closes).toBe(2);
+});

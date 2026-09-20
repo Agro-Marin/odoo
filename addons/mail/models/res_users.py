@@ -8,6 +8,7 @@ from odoo import Command, _, api, fields, models, modules, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import email_normalize, str2bool
 
 from odoo.addons.mail.models.mail_activity import ORPHAN_BUCKET
@@ -16,13 +17,14 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
 
+    from .ir_mail_server import IrMail_Server
     from .mail_activity import MailActivity
     from .mail_mail import MailMail
     from .mail_presence import MailPresence
     from .res_role import ResRole
-    from odoo.addons.base.models.ir_mail_server import IrMail_Server
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ActivityBucket = tuple[str, str]
 
@@ -34,57 +36,65 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     role_ids: ResRole = fields.Many2many(
-        "res.role",
+        comodel_name="res.role",
         relation="res_role_res_users_rel",
         string="User Roles",
         help="Users are notified whenever one of their roles is @-mentioned in a conversation.",
     )
     can_edit_role = fields.Boolean(compute="_compute_can_edit_role")
     notification_type = fields.Selection(
-        [("email", "By Emails"), ("inbox", "In Odoo")],
-        "Notification",
-        required=True,
+        selection=[("email", "By Emails"), ("inbox", "In Odoo")],
+        string="Notification",
         compute="_compute_notification_type",
         inverse="_inverse_notification_type",
-        store=True,
         precompute=True,
+        store=True,
+        required=True,
         help="Policy on how to handle Chatter notifications:\n"
         "- By Emails: notifications are sent to your email address\n"
         "- In Odoo: notifications appear in your Odoo Inbox",
     )
     presence_ids: MailPresence = fields.One2many(
-        "mail.presence", "user_id", groups="base.group_system"
+        comodel_name="mail.presence",
+        inverse_name="user_id",
+        groups="base.group_system",
     )
     out_of_office_from = fields.Datetime()
     out_of_office_to = fields.Datetime()
-    out_of_office_message = fields.Html("Vacation Responder")
+    out_of_office_message = fields.Html(string="Vacation Responder")
     is_out_of_office = fields.Boolean(
-        "Out of Office", compute="_compute_is_out_of_office"
+        string="Out of Office",
+        compute="_compute_is_out_of_office",
     )
     im_status = fields.Char(
-        "IM Status", compute="_compute_im_status", compute_sudo=True
+        string="IM Status",
+        compute="_compute_im_status",
+        compute_sudo=True,
     )
     manual_im_status = fields.Selection(
-        [("away", "Away"), ("busy", "Do Not Disturb"), ("offline", "Offline")],
+        selection=[
+            ("away", "Away"),
+            ("busy", "Do Not Disturb"),
+            ("offline", "Offline"),
+        ],
         string="IM status manually set by the user",
     )
 
     outgoing_mail_server_id: IrMail_Server = fields.Many2one(
-        "ir.mail_server",
-        "Outgoing Mail Server",
+        comodel_name="ir.mail_server",
         compute="_compute_outgoing_mail_server",
         groups="base.group_user",
     )
     outgoing_mail_server_type = fields.Selection(
-        [("default", "Default")],
-        "Outgoing Mail Server Type",
+        selection=[("default", "Default")],
         compute="_compute_outgoing_mail_server",
-        required=True,
         default="default",
+        required=True,
         groups="base.group_user",
     )
     has_external_mail_server = fields.Boolean(
-        compute="_compute_has_external_mail_server", groups="base.group_user"
+        compute="_compute_has_external_mail_server",
+        groups="base.group_user",
     )
 
     _notification_type = models.Constraint(
@@ -120,21 +130,18 @@ class ResUsers(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
         if any(vals.get("out_of_office_from") for vals in vals_list):
+            _debug.lifecycle(
+                "out_of_office_cache_cleared", users=users.ids, by="create"
+            )
             self.env.registry.clear_cache("stable")
         users._remove_inbox_group_from_shared_users()
 
         log_portal_access = not self.env.context.get(
             "mail_create_nolog"
         ) and not self.env.context.get("mail_notrack")
+        _debug.lifecycle("create", users=users.ids, log_portal_access=log_portal_access)
         if log_portal_access:
-            for user in users:
-                if user._is_portal():
-                    body = user._get_portal_access_update_body(True)
-                    user.partner_id.message_post(
-                        body=body,
-                        message_type="notification",
-                        subtype_xmlid="mail.mt_note",
-                    )
+            users.filtered(lambda user: user._is_portal())._log_portal_access(True)
         return users
 
     def write(self, vals: ValuesType) -> Literal[True]:
@@ -162,22 +169,26 @@ class ResUsers(models.Model):
             )
 
         write_res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            users=self.ids,
+            fields=list(vals),
+            email_changed=len(previous_email_by_user),
+            notification_type_changed=len(user_notification_type_modified),
+        )
         if "out_of_office_from" in vals:
+            _debug.lifecycle("out_of_office_cache_cleared", users=self.ids, by="write")
             self.env.registry.clear_cache("stable")
 
         if log_portal_access:
-            for user in self:
-                user_has_group = user._is_portal()
-                portal_access_changed = (
-                    user_has_group != user_portal_access_dict[user.id]
-                )
-                if portal_access_changed:
-                    body = user._get_portal_access_update_body(user_has_group)
-                    user.partner_id.message_post(
-                        body=body,
-                        message_type="notification",
-                        subtype_xmlid="mail.mt_note",
-                    )
+            changed = self.filtered(
+                lambda user: user._is_portal() != user_portal_access_dict[user.id]
+            )
+            for granted, users in changed.grouped(
+                lambda user: user._is_portal()
+            ).items():
+                _debug.logic("portal_access_changed", users=users.ids, granted=granted)
+                users._log_portal_access(granted)
 
         self._notify_security_settings_updated(vals, previous_email_by_user)
         for user in user_notification_type_modified:
@@ -188,6 +199,18 @@ class ResUsers(models.Model):
             self._remove_inbox_group_from_shared_users()
 
         return write_res
+
+    def _log_portal_access(self, granted: bool) -> None:
+        self.env["res.partner"]._message_post_values_all(
+            {
+                user.partner_id.id: {
+                    "body": user._get_portal_access_update_body(granted),
+                    "message_type": "notification",
+                    "subtype_xmlid": "mail.mt_note",
+                }
+                for user in self
+            }
+        )
 
     def unlink(self) -> Literal[True]:
         had_out_of_office = any(user.out_of_office_from for user in self)
@@ -214,6 +237,12 @@ class ResUsers(models.Model):
             ]
         else:
             users_to_blacklist = []
+        _debug.lifecycle(
+            "portal_user_deactivated",
+            users=self.ids,
+            by=current_user.id,
+            blacklisted=len(users_to_blacklist),
+        )
 
         super(
             ResUsers, self.with_context(mail_notify_security_skip=True)
@@ -367,6 +396,16 @@ class ResUsers(models.Model):
     ) -> None:
         if self.env.context.get("mail_notify_security_skip"):
             return
+        if _debug.logic.enabled and (
+            "login" in vals or "password" in vals or previous_email_by_user
+        ):
+            _debug.logic(
+                "security_notifications",
+                users=self.ids,
+                login="login" in vals,
+                password="password" in vals,
+                emails=len(previous_email_by_user),
+            )
         if "login" in vals:
             self._notify_security_setting_update(
                 _("Security Update: Login Changed"),
@@ -406,6 +445,7 @@ class ResUsers(models.Model):
             for user in self
         ]
         mails = self.env["mail.mail"].sudo().create(mail_create_values)
+        _debug.lifecycle("security_alert_mails", users=self.ids, mails=mails.ids)
         try:
             mails.send_after_commit()
         except Exception:
@@ -553,6 +593,12 @@ class ResUsers(models.Model):
             store.add_global_values(
                 self_guest=Store.One(guest.sudo(), ["avatar_128", "name"])
             )
+        _debug.pipeline(
+            "store_data_initialized",
+            user=user.id,
+            identified=is_identified,
+            guest=bool(guest),
+        )
 
     def _init_messaging(self, store: Store) -> None:
         self.check_singleton()
@@ -609,6 +655,12 @@ class ResUsers(models.Model):
                 order="id desc",
                 limit=limit,
             )
+        )
+        _debug.perf.count(
+            "systray_activities",
+            user=self.env.uid,
+            activities=len(activities),
+            limit=limit,
         )
         if len(activities) >= limit:
             _logger.warning(
@@ -747,6 +799,7 @@ class ResUsers(models.Model):
                 "id": model.id,
                 "name": _("Other activities") if is_orphan_bucket else model.name,
                 "model": model_name,
+                "subkey": subkey,
                 "type": "activity",
                 "icon": module and modules.module.get_module_icon_path(module),
                 "domain": []
@@ -788,7 +841,13 @@ class ResUsers(models.Model):
         return body
 
     def _remove_assigned_activities(self) -> None:
-        self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)]).unlink()
+        activities = (
+            self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)])
+        )
+        _debug.lifecycle(
+            "assigned_activities_removed", users=self.ids, activities=len(activities)
+        )
+        activities.unlink()
 
     def _remove_inbox_group_from_shared_users(self) -> None:
         inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
@@ -798,6 +857,7 @@ class ResUsers(models.Model):
             [("share", "=", True), ("group_ids", "in", inbox_group_id)]
         )
         if shared_with_inbox:
+            _debug.logic("inbox_group_removed_from_shared", users=shared_with_inbox.ids)
             shared_with_inbox.write({"group_ids": [Command.unlink(inbox_group_id)]})
 
     @api.model
@@ -860,11 +920,11 @@ class ResUsers(models.Model):
             "smtp_port": PERSONAL_MAIL_SERVER_SMTP_PORT,
             "smtp_encryption": PERSONAL_MAIL_SERVER_SMTP_ENCRYPTION,
             "owner_user_id": user.id,
-            **self._get_mail_server_values(server_type),
+            **self._prepare_mail_server_vals(server_type),
         }
 
     @api.model
-    def _get_mail_server_values(self, server_type: str) -> dict:
+    def _prepare_mail_server_vals(self, server_type: str) -> dict:
         return {}
 
     @api.model
@@ -880,10 +940,14 @@ class ResUsers(models.Model):
         cutoff = self.env.cr.now() - timedelta(
             minutes=IrMailServer._get_personal_mail_server_grace()
         )
-        servers.filtered(
+        stale = servers.filtered(
             lambda server: (
                 server.owner_user_id.outgoing_mail_server_id != server
                 if server.active
                 else server.create_date < cutoff
             )
-        ).unlink()
+        )
+        _debug.lifecycle(
+            "gc_personal_mail_servers", servers=len(servers), removed=len(stale)
+        )
+        stale.unlink()

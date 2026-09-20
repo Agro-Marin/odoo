@@ -11,10 +11,10 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
-import { parseXML } from "@web/core/utils/dom/xml";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { formView } from "@web/views/form/form_view";
@@ -36,6 +36,8 @@ const ACTION_SELECTORS = [
     ".o_kanban_load_more button",
     ".o-kanban-button-new",
 ];
+
+const log = makeLogger("web.view.kanban.quick_create");
 
 export class KanbanQuickCreateController extends Component {
     /** @type {ReturnType<typeof useOwnedDialogs>} */
@@ -141,6 +143,7 @@ export class KanbanQuickCreateController extends Component {
 
     /** @param {"add" | "edit"} mode */
     async validate(mode) {
+        log.logic("validate", () => ({ mode, disabled: this.state.disabled }));
         let resId = undefined;
         if (this.state.disabled) {
             return;
@@ -192,6 +195,7 @@ export class KanbanQuickCreateController extends Component {
 
     /** @param {boolean} force */
     async cancel(force) {
+        log.logic("cancel", () => ({ force, disabled: this.state.disabled }));
         if (this.state.disabled) {
             return;
         }
@@ -292,7 +296,7 @@ export class KanbanRecordQuickCreate extends Component {
             [props.group.resModel]: quickCreateFields,
         };
         const archInfo = new formView.ArchParser().parse(
-            parseXML(quickCreateForm.arch),
+            quickCreateForm.ir ?? quickCreateForm.arch,
             models,
             props.group.resModel,
         );

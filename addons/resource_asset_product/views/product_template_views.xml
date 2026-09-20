@@ -10,10 +10,10 @@
                 <button
                     name="action_view_assets"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-truck"
-                    invisible="not asset_kind_id">
-                    <field name="asset_count" widget="statinfo" string="Assets" />
+                    invisible="not asset_kind_id"
+                    class="oe_stat_button">
+                    <field name="asset_count" string="Assets" widget="statinfo" />
                 </button>
             </div>
             <field name="categ_id" position="after">

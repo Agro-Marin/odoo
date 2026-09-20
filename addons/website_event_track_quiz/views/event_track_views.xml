@@ -11,22 +11,22 @@
                 <button
                     name="action_add_quiz"
                     type="object"
-                    class="btn btn-primary"
                     string="Add Quiz"
+                    groups="event.group_event_user"
                     invisible="quiz_id"
-                    groups="event.group_event_user">
+                    class="btn btn-primary">
                 </button>
             </field>
             <field name="is_published" position="before">
                 <button
                     name="action_view_quiz"
                     type="object"
-                    class="oe_stat_button"
                     string="Go to Quiz"
-                    icon="fa-question-circle"
                     widget="stat_info"
+                    icon="fa-question-circle"
+                    groups="event.group_event_user"
                     invisible="not quiz_id"
-                    groups="event.group_event_user">
+                    class="oe_stat_button">
                 </button>
             </field>
         </field>

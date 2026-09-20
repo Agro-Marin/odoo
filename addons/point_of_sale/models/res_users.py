@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class ResUsers(models.Model):
     _name = "res.users"
@@ -23,4 +25,10 @@ class ResUsers(models.Model):
                 else "cashier"
             )
             del read_records[0]["all_group_ids"]
+            dbg.logic.debug(
+                "[load:res.users] uid %s role=%s on config %s",
+                read_records[0]["id"],
+                read_records[0]["_role"],
+                config.id,
+            )
         return read_records

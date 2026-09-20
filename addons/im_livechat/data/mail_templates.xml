@@ -139,15 +139,15 @@
                                     <b t-attf-style="color: {{header_background_color}};" t-out="company.name" /><br />
                                     <div style="color: #999999;">
                                         <t
-                                            t-esc="company.phone_ids._primary().number" />
+                                            t-out="company.phone_ids._primary().number" />
                                         <t t-if="company.email"> |
-                                            <a t-att-href="'mailto:%s' % company.email" style="text-decoration:none; color: #999999;"><t t-esc="company.email" /></a>
+                                            <a t-att-href="'mailto:%s' % company.email" style="text-decoration:none; color: #999999;"><t t-out="company.email" /></a>
                                         </t>
                                         <t t-if="company.website"> |
                                             <a
                                                 t-att-href="'%s' % company.website"
                                                 style="text-decoration:none; color: #999999;">
-                                                <t t-esc="company.website" />
+                                                <t t-out="company.website" />
                                             </a>
                                         </t>
                                     </div>

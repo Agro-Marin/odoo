@@ -184,9 +184,10 @@ grep "tests when loading" ./odoo.log
    unlock logic.
 
 2. **Don't call `_recompute_rank()` on large user sets unnecessarily.**
-   The method auto-switches to `_recompute_rank_bulk()` when the user count
-   exceeds `len(ranks) * 3`, but callers should still pre-filter to users
-   with `karma > 0 or rank_id`.
+   The method costs one query for the ranks and one write per distinct target
+   rank however many users move, but every user who actually changes rank
+   still gets a bus message and an email, so pre-filter to users with
+   `karma > 0 or rank_id`.
 
 3. **Don't assume `_get_user_streaks` has been called.**
    Streak records are lazily created when `get_gamification_dashboard_data()`
@@ -222,7 +223,7 @@ Other modules can extend gamification by:
 2. **Extending `_selection_origin_models()`** — add new models as karma
    sources if your module grants karma from a new origin.
 
-3. **Overriding `get_gamification_redirection_data()`** — add buttons to the
+3. **Overriding `prepare_rank_email_links()`** — add buttons to the
    rank-reached email (e.g., "Go to Forum").
 
 4. **Creating `gamification.streak.type` records** — define new streak types

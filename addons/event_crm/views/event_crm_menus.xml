@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="event_lead_rule_menu"
+        name="Lead Generation"
+        parent="event.menu_event_configuration"
+        action="event_lead_rule_action"
+        sequence="10"
+        groups="event.group_event_manager" />
+
+</odoo>

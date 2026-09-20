@@ -1,13 +1,18 @@
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProjectTemplateCreateWizard(models.TransientModel):
     _inherit = "project.template.create.wizard"
 
-    partner_id = fields.Many2one("res.partner")
+    partner_id = fields.Many2one(comodel_name="res.partner")
     allow_billable = fields.Boolean(related="template_id.allow_billable")
     role_to_users_ids = fields.One2many(
-        compute="_compute_role_to_users_ids", readonly=False, store=True
+        compute="_compute_role_to_users_ids",
+        store=True,
+        readonly=False,
     )
 
     @api.depends("template_id")
@@ -55,6 +60,12 @@ class ProjectTemplateCreateWizard(models.TransientModel):
 
     def action_create_project_from_so(self):
         self.check_singleton()
+        _debug.logic(
+            "project_from_so",
+            wizard=self,
+            by="template" if self.template_id else "blank",
+            template=self.template_id,
+        )
         if self.template_id:
             project = self._create_project_from_template()
         else:
@@ -76,4 +87,5 @@ class ProjectTemplateCreateWizard(models.TransientModel):
             else:
                 values["name"] = sale_order.name
             project = self.env["project.project"].create(values)
+        _debug.lifecycle("project_created_from_so_wizard", wizard=self, project=project)
         return project.action_view_tasks()

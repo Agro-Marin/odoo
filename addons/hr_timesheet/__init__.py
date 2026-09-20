@@ -6,7 +6,10 @@ from . import wizards
 from odoo import fields
 
 from odoo.addons.project import _update_project_sharing_rules_if_collaborators
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
+
+_debug = DebugLog(__name__)
 
 
 def create_internal_project(env):
@@ -16,6 +19,7 @@ def create_internal_project(env):
     if not admin:
         return
     project_ids = env["res.company"].search([])._create_internal_project_task()
+    _debug.lifecycle("install_internal_projects", projects=project_ids)
     env["account.analytic.line"].create(
         [
             {
@@ -55,6 +59,7 @@ def _uninstall_hook(env):
         .mapped("internal_project_id")
     )
     if project_ids:
+        _debug.lifecycle("uninstall_internal_projects_archived", projects=project_ids)
         project_ids.write({"active": False})
 
     env["ir.model.data"].search(
@@ -74,8 +79,6 @@ def _pre_init_hook(env):
        -- The project_id is defined as being the same as the one from the task, but task_id = False -> project_id = False
        ADD COLUMN IF NOT EXISTS project_id     INT4,
        -- The department_id is the one from the `employee_id`, but `employee_id` by default is False -> department_id = False
-       ADD COLUMN IF NOT EXISTS department_id  INT4,
-       -- The manager_id is the manager of the employee_id, but there is no `employee_id` by default -> manager_id = False
-       ADD COLUMN IF NOT EXISTS manager_id     INT4
+       ADD COLUMN IF NOT EXISTS department_id  INT4
     """)
     )

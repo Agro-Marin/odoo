@@ -1,5 +1,8 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, formatLang
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderDocumentMatch(models.AbstractModel):
@@ -12,12 +15,10 @@ class MixinOrderDocumentMatch(models.AbstractModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         readonly=True,
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Currency",
         readonly=True,
     )
     move_id = fields.Many2one(
@@ -27,22 +28,14 @@ class MixinOrderDocumentMatch(models.AbstractModel):
     )
     order_id = fields.Many2one(
         comodel_name="mixin.order",
-        string="Order",
         readonly=True,
     )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Partner",
         readonly=True,
     )
-    date = fields.Date(
-        string="Date",
-        readonly=True,
-    )
-    amount = fields.Float(
-        string="Amount",
-        readonly=True,
-    )
+    date = fields.Date(readonly=True)
+    amount = fields.Float(readonly=True)
     name = fields.Char(
         string="Reference",
         readonly=True,
@@ -122,6 +115,7 @@ class MixinOrderDocumentMatch(models.AbstractModel):
     @api.model
     def _get_move_types(self):
         if not self._move_types:
+            _debug.logic("move_types_undeclared", model=self._name)
             raise NotImplementedError(f"{self._name} must declare _move_types")
         return self._move_types
 
@@ -172,6 +166,7 @@ class MixinOrderDocumentMatch(models.AbstractModel):
     @api.model
     def _get_order_table(self):
         if not self._order_table:
+            _debug.logic("order_table_undeclared", model=self._name)
             raise NotImplementedError(f"{self._name} must declare _order_table")
         return self._order_table
 

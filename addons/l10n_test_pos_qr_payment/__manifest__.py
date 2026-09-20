@@ -22,5 +22,4 @@
             "l10n_test_pos_qr_payment/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

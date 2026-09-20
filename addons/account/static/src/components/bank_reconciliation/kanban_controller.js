@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { onWillDestroy, onWillRender, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
@@ -52,10 +54,13 @@ function matchedLinesSpec() {
     );
 }
 
+const log = makeLogger("account.bank_rec.controller");
+
 export class BankRecKanbanController extends KanbanController {
     static template = "account.BankRecoKanbanController";
 
     async setup() {
+        useLifecycleLog(log);
         super.setup();
         this.orm = useService("orm");
         this.bankReconciliation = useBankReconciliation();

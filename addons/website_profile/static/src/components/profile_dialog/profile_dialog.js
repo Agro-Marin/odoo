@@ -75,7 +75,7 @@ export class ProfileDialog extends Component {
                 this.orm.searchRead("res.country", [], ["id", "name"]),
             ]);
             const userData = users[0];
-            userData.country_id = userData.country_id && userData.country_id[0]; // keep only id
+            userData.country_id = userData.country_id && userData.country_id[0];
             userData.website_description = markup(userData.website_description || "");
             this.user = reactive(userData, () => this.validate());
             this.countries = countries;

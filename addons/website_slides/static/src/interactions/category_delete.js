@@ -19,10 +19,6 @@ export class CategoryDelete extends Interaction {
             body: _t("Are you sure you want to delete this category?"),
             confirmLabel: _t("Delete"),
             confirm: async () => {
-                /**
-                 * Calls 'unlink' method on slides.slide to delete the category and
-                 * reloads page after deletion to re-arrange the content on UI
-                 */
                 await this.waitFor(
                     this.services.orm.unlink("slide.slide", [categoryId]),
                 );

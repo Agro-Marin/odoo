@@ -6,6 +6,7 @@ from typing import Literal, Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 FOLLOWER_STATES = frozenset({"followers", "remove_followers"})
@@ -26,6 +27,8 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_model_fields import IrModelFields
     from odoo.addons.bus.models.res_users import ResUsers
 
+_debug = DebugLog(__name__)
+
 
 class IrActionsServer(models.Model):
     _name = "ir.actions.server"
@@ -42,7 +45,6 @@ class IrActionsServer(models.Model):
     webhook_url = fields.Char(tracking=True)
 
     state = fields.Selection(
-        tracking=True,
         selection_add=[
             ("next_activity", "Create Activity"),
             ("mail_post", "Send Email"),
@@ -56,97 +58,116 @@ class IrActionsServer(models.Model):
             "remove_followers": "cascade",
             "next_activity": "cascade",
         },
+        tracking=True,
     )
     followers_type = fields.Selection(
         selection=[
             ("specific", "Specific Followers"),
             ("generic", "Dynamic Followers"),
         ],
+        compute="_compute_followers_type",
+        store=True,
+        readonly=False,
         help="""
             - Specific Followers: select specific contacts to add/remove from record's followers.
             - Dynamic Followers: all contacts of the chosen record's field will be added/removed from followers.
         """,
-        string="Followers Type",
-        compute="_compute_followers_type",
-        readonly=False,
-        store=True,
     )
     followers_partner_field_name = fields.Char(
         string="Followers Field",
         compute="_compute_followers_info",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     partner_ids: ResPartner = fields.Many2many(
-        "res.partner", compute="_compute_followers_info", readonly=False, store=True
+        comodel_name="res.partner",
+        compute="_compute_followers_info",
+        store=True,
+        readonly=False,
     )
 
     template_id: MailTemplate = fields.Many2one(
-        "mail.template",
-        "Email Template",
-        domain="[('model_id', '=', model_id)]",
+        comodel_name="mail.template",
+        string="Email Template",
         compute="_compute_template_id",
-        ondelete="set null",
-        readonly=False,
         store=True,
+        readonly=False,
+        domain="[('model_id', '=', model_id)]",
+        ondelete="set null",
     )
-    mail_post_autofollow = fields.Boolean("Subscribe Recipients", default=True)
+    mail_post_autofollow = fields.Boolean(
+        string="Subscribe Recipients",
+        default=True,
+    )
     mail_post_method = fields.Selection(
         selection=[("email", "Email"), ("comment", "Message"), ("note", "Note")],
         string="Send Email As",
         compute="_compute_mail_post_method",
-        readonly=False,
         store=True,
+        readonly=False,
     )
 
     activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type",
+        comodel_name="mail.activity.type",
         string="Activity Type",
-        domain="['|', ('res_model', '=', False), ('res_model', '=', model_name)]",
         compute="_compute_activity_info",
-        readonly=False,
         store=True,
+        readonly=False,
+        domain="['|', ('res_model', '=', False), ('res_model', '=', model_name)]",
         ondelete="restrict",
     )
     activity_summary = fields.Char(
-        "Title", compute="_compute_activity_summaries", readonly=False, store=True
+        string="Title",
+        compute="_compute_activity_summaries",
+        store=True,
+        readonly=False,
     )
     automated_activity_summary = fields.Char(
-        compute="_compute_activity_summaries", store=True
+        compute="_compute_activity_summaries",
+        store=True,
     )
     activity_note = fields.Html(
-        "Note", compute="_compute_activity_info", readonly=False, store=True
+        string="Note",
+        compute="_compute_activity_info",
+        store=True,
+        readonly=False,
     )
     activity_date_deadline_range = fields.Integer(
         string="Due Date In",
         compute="_compute_activity_info",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     activity_date_deadline_range_type = fields.Selection(
-        time_unit_selection("day", "week", "month"),
+        selection=time_unit_selection("day", "week", "month"),
         string="Due type",
         compute="_compute_activity_info",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     activity_user_type = fields.Selection(
-        [("specific", "Specific User"), ("generic", "Dynamic User (based on record)")],
+        selection=[
+            ("specific", "Specific User"),
+            ("generic", "Dynamic User (based on record)"),
+        ],
         string="User Type",
         compute="_compute_activity_info",
-        readonly=False,
         store=True,
+        readonly=False,
         help="Use 'Specific User' to always assign the same user on the next activity. Use 'Dynamic User' to specify the field name of the user to choose on the record.",
     )
     activity_user_id: ResUsers = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Responsible",
         compute="_compute_activity_user_info",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     activity_user_field_name = fields.Char(
-        "User Field", compute="_compute_activity_user_info", readonly=False, store=True
+        string="User Field",
+        compute="_compute_activity_user_info",
+        store=True,
+        readonly=False,
     )
 
     @api.model
@@ -262,10 +283,10 @@ class IrActionsServer(models.Model):
                 "followers_partner_field_name", "res.partner"
             ):
                 action.followers_partner_field_name = (
-                    action._default_partner_field_name()
+                    action._get_partner_field_name()
                 )
 
-    def _default_partner_field_name(self) -> str | Literal[False]:
+    def _get_partner_field_name(self) -> str | Literal[False]:
         self.check_singleton()
         model = self._get_target_model()
         if model is None:
@@ -315,9 +336,9 @@ class IrActionsServer(models.Model):
             if action.activity_user_type != "generic":
                 action.activity_user_field_name = False
             elif not action._path_leads_to("activity_user_field_name", "res.users"):
-                action.activity_user_field_name = action._default_user_field_name()
+                action.activity_user_field_name = action._get_user_field_name()
 
-    def _default_user_field_name(self) -> str | Literal[False]:
+    def _get_user_field_name(self) -> str | Literal[False]:
         self.check_singleton()
         model = self._get_target_model()
         if model is None:
@@ -486,7 +507,16 @@ class IrActionsServer(models.Model):
         records = self._get_records_targeted().with_context(self._get_run_context())
         if not records:
             return
-        for partner_ids, batch in self._get_follower_batches(records).items():
+        batches = self._get_follower_batches(records)
+        _debug.pipeline(
+            "followers_action",
+            action=self.id,
+            subscribe=subscribe,
+            records=len(records),
+            batches=len(batches),
+            by=self.followers_type,
+        )
+        for partner_ids, batch in batches.items():
             if subscribe:
                 batch.message_subscribe(partner_ids=list(partner_ids))
             else:
@@ -529,6 +559,14 @@ class IrActionsServer(models.Model):
             pending |= records & self.env.get_records_to_compute(
                 records._fields[field_name]
             )
+        if _debug.logic.enabled and pending:
+            _debug.logic(
+                "recompute_pending",
+                action=self.id,
+                records=len(records),
+                pending=len(pending),
+                fields=sorted(field_names),
+            )
         return pending
 
     def _is_recompute(self) -> bool:
@@ -541,7 +579,7 @@ class IrActionsServer(models.Model):
             if not key.startswith("default_")
         }
 
-    def _get_mail_post_context(self) -> dict:
+    def _prepare_mail_post_context(self) -> dict:
         context = self._get_run_context()
         context["mail_post_autofollow_author_skip"] = True
         context["mail_post_autofollow"] = self.mail_post_autofollow
@@ -553,7 +591,14 @@ class IrActionsServer(models.Model):
         if not self.template_id or not records:
             return False
 
-        context = self._get_mail_post_context()
+        context = self._prepare_mail_post_context()
+        _debug.pipeline(
+            "mail_post_action",
+            action=self.id,
+            template=self.template_id.id,
+            records=len(records),
+            method=self.mail_post_method,
+        )
         if subtype_xmlid := POST_SUBTYPE_XMLIDS.get(self.mail_post_method):
             self._post_template_on(
                 records.with_context(context),
@@ -594,7 +639,16 @@ class IrActionsServer(models.Model):
             "summary": self.activity_summary or "",
             "note": self.activity_note or "",
         }
-        for user, batch in self._get_activity_assignees(records):
+        assignees = self._get_activity_assignees(records)
+        _debug.pipeline(
+            "next_activity_action",
+            action=self.id,
+            activity_type=self.activity_type_id.id,
+            records=len(records),
+            assignee_batches=len(assignees),
+            by=self.activity_user_type,
+        )
+        for user, batch in assignees:
             batch_vals = dict(vals)
             if user:
                 batch_vals["user_id"] = user.id

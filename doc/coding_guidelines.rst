@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.33
-:Date: 2026-09-11
+:Version: 6.58
+:Date: 2026-09-16
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -33,17 +33,21 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[ruff CODE]``
      - ``ruff check`` reports it.
    * - ``[test_lint CODE]``
-     - A ``test_lint`` rule fails on it. ``E8501``--``E8515`` are the AST
-       checkers; other ``test_lint`` gates have no code and are named by test.
+     - A ``test_lint`` rule fails on it. ``E8501``--``E8529`` are the Python
+       AST checkers; the XML rules are named by rule (``data-root``,
+       ``duplicate-field``, ...) and every other ``test_lint`` gate by test.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
    * - ``[ratchet NAME]``
-     - A committed floor in ``tooling/ratchet/baselines/`` holds the count;
-       with no file, the count is held at zero.
+     - A ``test_lint`` floor in ``odoo/addons/test_lint/tests/floors.json``
+       holds the count; with no entry, the count is held at zero. Every other
+       ratchet went with ``tooling/`` on 2026-09-11 and the label now reads as
+       ``[review]``.
    * - ``[gate NAME]``
-     - A ``tooling/`` gate checks it exactly, both directions. Where the gate
-       rewrites the text (``doc_restated_counts`` for prose figures and the
-       census table; ``--update <name>`` refreshes one), run it.
+     - A ``tooling/`` gate checked it exactly, both directions, until
+       ``tooling/`` was removed on 2026-09-11. Read as ``[review]``; the
+       figures such a gate rewrote (the census table below among them) are as
+       of the day they were last regenerated.
    * - ``[review]``
      - No tool checks this. A human does, using §9.
 
@@ -51,35 +55,14 @@ Do not infer enforcement from phrasing: several rules that read like lint rules
 are ``[review]`` because the ``ruff`` code is disabled with a rationale in
 ``ruff.toml``.
 
-The ratchets
-------------
+The floors
+----------
 
-``ruff check`` is not clean and the gate does not require it to be. Countable gates are
-*ratchets*: a total measured against a committed floor in
-``tooling/ratchet/baselines/``. Rationale: a baseline nothing enforces is a
-comment, and a floor turns any gate reducible to one number into a one-way
-contract that locks every improvement in.
-
-**A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact``, so
-an improvement fails the build as a regression does. Commit the new floor in the
-same PR:
-
-.. code-block:: bash
-
-   python tooling/ratchet/ratchet.py <gate> --count <N> --update
-
-``.pre-commit-config.yaml`` runs ``ruff-check --fix``, so touching a file that
-carries baseline findings can repair unrelated ones and drop the count. A green
-local commit is not a green gate run unless the floor moved with it.
-
-``pyfunclen_addons`` is this repository's one ``--mode no-increase`` floor: it
-measures the whole bundled-addons tree, which moves both ways continuously. The
-siblings' cross-repo floors take that mode for a different reason -- an exact
-floor across a repository boundary is red on every fix until ``odoo`` banks the
-new number. Prefer ``exact`` for a new floor here, and put the argument in the
-baseline note if you cannot have it.
-
-Thirteen of the floors, to fix the shape of the set:
+Until 2026-09-11 every countable gate was a *ratchet*: a total measured against
+a committed floor in ``tooling/ratchet/baselines/``, held exactly in both
+directions by ``ratchet.py``. That tree -- 84 floors, the architecture gates,
+the naming vocabulary, the length and complexity counts, the sibling-repo lint
+runner -- is deleted. What remains countable is held as follows:
 
 .. list-table::
    :header-rows: 1
@@ -87,90 +70,58 @@ Thirteen of the floors, to fix the shape of the set:
 
    * - Gate
      - Command
-     - Scope
+     - Held at
    * - ruff
      - ``ruff check odoo/ --no-cache --statistics``
      - ``odoo/`` only -- a **hard zero**
-   * - c901
-     - ``ruff check odoo/ --no-cache --select C901 --statistics``
-     - ``odoo/``, complexity > 20
-   * - c901_addons
-     - ``ruff check addons/ --no-cache --select C901 --statistics``
-     - ``addons/``, complexity > 20
+   * - ruff (tests)
+     - ``ruff check tests/ --no-cache`` and ``ruff format --check tests/``
+     - a **hard zero**
    * - mypy
      - ``mypy -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules``
-     - typed packages
+     - typed packages; last banked at zero. Measure with mypy alone installed,
+       never in the workspace venv, whose stubs move the count
    * - ESLint
-     - ``npx eslint . --format=json``
-     - every JS/MJS the config does not ignore (vendored ``static/lib`` is) -- a **hard zero**
+     - ``npx eslint .``
+     - every JS/MJS the config does not ignore -- a **hard zero**
    * - ``tsc``
      - ``npx tsc --project tsconfig.json --noEmit``
-     - all checked JS
-   * - naming vocabulary
-     - ``tooling/architecture/naming_vocabulary.py``
-     - §2.4 abolished verbs
-   * - Python function length
-     - ``tooling/architecture/py_function_length.py``
-     - core Python, **excess lines** over 90
-   * - Python function length (addons)
-     - ``tooling/architecture/py_function_length.py --addon addons``
-     - all of ``addons/``, same metric, **one-sided**
-   * - JS function length
-     - ``tooling/architecture/js_function_length.py``
-     - ``web`` JS
-   * - JS private access
-     - ``tooling/architecture/js_private_access.py``
-     - ``web`` JS, cross-module
-   * - JS service shape
-     - ``tooling/architecture/js_service_shape.py``
-     - ``web`` JS services
-   * - JS forced render
-     - ``tooling/architecture/js_forced_render.py``
-     - ``web`` JS
+     - all checked JS; last banked at zero
+   * - prettier (SCSS)
+     - ``npx prettier --list-different "**/*.scss"``
+     - last banked at zero
+   * - ``test_lint``
+     - ``odoo-bin -i test_lint --test-enable --test-tags /test_lint``
+     - ``odoo/addons/test_lint/tests/floors.json``, one integer per gate, exact
+       in both directions
 
-The directory holds many more, including per-addon scopes of the same script
-(``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes measured
-with ``--roots`` (``naming_enterprise``).
-``tooling/ratchet/baselines/`` is the authoritative list of *debt* -- one JSON
-per floor above zero, and the directory is the count. A gate with no file is a
-hard zero: ``ratchet.py`` passes it at 0 and fails it above, and ``--update``
-is what opens a floor. No number is written here on purpose:
-
-.. code-block:: bash
-
-   python tooling/ratchet/ratchet.py --list
+There is no tool to move a ``test_lint`` floor: edit the JSON in the same change
+that moves the count. A gate with no entry is a hard zero.
 
 Consequences:
 
-* **The ruff ratchet measures ``odoo/``, not ``addons/``.** For addons, ``ruff``
-  is pre-commit and review discipline.
+* **``ruff`` measures ``odoo/``, not ``addons/``.** For addons, ``ruff`` is
+  pre-commit and review discipline.
 * **A finding on a file you touched may predate you.** Compare against
   ``git diff``, not a whole-file lint report.
-* **``ruff`` is a hard zero over the whole selected ruleset.** A nonzero floor
-  launders a regression against an unrelated improvement.
-* **``ruff`` and ``c901`` are two floors over one command.** ``ruff.toml``
-  ignores ``C901`` to keep it out of the aggregate; the ``c901`` step re-selects
-  it on the CLI. Raising ``[lint.mccabe] max-complexity`` lowers the count
-  without fixing anything -- move it as deliberately as the floor, and say so in
-  the baseline note.
-* **The architecture gate is not a ratchet.** Layer crossings and JS import
-  cycles are held at zero (``tooling/architecture/js_cycle_check.py``;
-  ``py_cycle_check.py`` is the Python counterpart, since a permitted direction
-  on every edge does not rule out a loop), with pre-existing ones pinned in
-  ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``'s own
-  floors are in ``baselines/`` too, read by ``assert_ratchet`` and named
-  ``lint_<rule>``; a baseline that is absent means a floor of zero there as
-  everywhere else.
+* **``ruff`` is a hard zero over the whole selected ruleset.** ``ruff.toml``
+  ignores ``C901`` to keep complexity out of the aggregate;
+  ``ruff check odoo/ --select C901`` re-selects it, and raising
+  ``[lint.mccabe] max-complexity`` lowers that count without fixing anything.
+* **The architecture contracts are review rules now.** Layer crossings, the
+  façade boundary and import cycles were held at zero by ``layer_check.py``,
+  ``py_cycle_check.py`` and ``js_cycle_check.py``; ``doc/architecture/module.md``
+  still states the legal directions and nothing checks them.
 
-Each gate runs on ``pull_request`` and on ``push`` to ``19.0-marin`` / ``19.0``.
+Nothing runs any of this on a schedule; there is no CI.
 
 The ``test_lint`` module
 ------------------------
 
 ``odoo/addons/test_lint`` holds AST checkers and registry-level tests encoding
 Odoo-specific rules no general linter knows. **Every rule is an exact-match
-ratchet** (``LintCase.assert_ratchet``, floors in ``tooling/ratchet/baselines/``
-like every other gate): the count may not rise, and may not fall silently. No
+ratchet** (``LintCase.assert_ratchet``, floors in ``tests/floors.json`` beside
+it): the count may not rise, and may not fall silently. No
 rule is advisory and none fails outright -- the floor is what decides.
 
 Two scopes. Installing ``base`` + ``test_lint`` and running ``/test_lint``
@@ -273,7 +224,9 @@ The registry and tree gates carry no code and are named by test.
    * - ``test_override_signatures``
      - Override whose signature diverges from its parent (§2.4.15)
    * - ``test_manifests``
-     - Unknown or misordered ``__manifest__.py`` key (§1.2)
+     - ``__manifest__.py`` the fixer would rewrite (``lint_manifest_shape``),
+       or a value it cannot decide -- unknown key, wrong type, missing file,
+       unresolvable dependency, unbound hook (``lint_manifest_value``) (§1.2)
    * - ``test_test_holes``
      - Test file not imported exactly once in ``tests/__init__.py`` (§6.1)
    * - ``test_docstring``
@@ -478,14 +431,55 @@ feature folder. The flat ``js/`` + ``xml/`` + ``scss/`` split is legacy (§4.1).
 -----------------------
 
 Keys come from the known set, in the canonical order
-``[test_lint test_manifests]``; the fixer owns it ``[fixer _sort_manifests]``:
+``[test_lint lint_manifest_shape]``; the fixer owns the shape
+``[fixer _sort_manifests]`` and the vocabulary is its ``MANIFEST_KEY_ORDER``:
 
 ``name``, ``version``, ``category``, ``sequence``, ``summary``, ``description``,
-``author``, ``contributors``, ``website``, ``icon``, ``images``, ``license``,
-``depends``, ``external_dependencies``, ``countries``, ``data``, ``demo``,
-``assets``, ``esm``, ``installable``, ``application``, ``auto_install``,
-``post_load``,
-``pre_init_hook``, ``post_init_hook``, ``uninstall_hook``.
+``author``, ``contributors``, ``maintainer``, ``maintainers``, ``website``,
+``url``, ``support``, ``live_test_url``, ``price``, ``currency``, ``icon``,
+``images``, ``images_preview_theme``, ``license``, ``depends``,
+``external_dependencies``, ``countries``, ``data``, ``demo``,
+``oca_data_manual``, ``assets``, ``esm``, ``bootstrap``, ``web``,
+``configurator_snippets``, ``configurator_snippets_addons``,
+``new_page_templates``, ``theme_customizations``, ``iot_handlers_in_image``,
+``cloc_exclude``, ``installable``, ``application``, ``auto_install``,
+``post_load``, ``pre_init_hook``, ``post_init_hook``, ``uninstall_hook``.
+
+``init_xml``, ``update_xml``, ``demo_xml`` and ``test`` are deprecated: the
+loader defaults them and nothing reads them ``[test_lint lint_manifest_value]``.
+
+**The fixer normalises, and the shape gate reads "the fixer would rewrite
+it".** What it changes is loader-neutral or a rule of this section: a key
+restating its ``_DEFAULT_MANIFEST`` value is dropped (``installable: True``,
+``application: False``, ``auto_install: False``, ``data: []``, ``sequence:
+100`` -- ``version`` is kept, and ``auto_install: []`` is not the default, it
+means *always*); ``name``, ``category``, ``author``, ``license`` and the URL
+keys are stripped; ``summary`` is one line; a whitespace-only ``description``
+or ``website`` is dropped (a whitespace ``description`` is truthy, so it
+*blocks* the README fallback); ``countries`` is lowercase; an ``icon`` equal to
+``/<module>/static/description/icon.png`` is dropped; a ``set`` under
+``assets`` becomes a sorted list. Strings are written as they are, never
+``\uXXXX``-escaped.
+
+**What the fixer cannot decide is a value finding** ``[test_lint
+lint_manifest_value]``: an unknown key; a wrong type; a ``version`` the loader
+would mark uninstallable; a ``license`` outside ``ir.module.module``'s
+selection; a ``category`` with an empty segment or a root no
+``ir_module_category_data.xml`` declares; a URL key without a scheme;
+``depends`` naming itself, a duplicate, or a module on no addons path; an
+``auto_install`` trigger outside ``depends``; ``external_dependencies`` with a
+kind other than ``python``, ``bin``, ``apt``, or an ``apt`` hint for a
+dependency ``python`` does not declare; a ``countries`` code that is not two
+letters, or one country with no ``l10n`` in the module name; a ``data`` or
+``demo`` entry matching no file or listed twice, a ``demo`` entry outside
+``demo/``, a ``data`` entry under ``demo/`` or named ``*_demo``; an ``icon``
+matching no file; a hook ``__init__.py`` does not bind; an ``assets`` bundle
+not ``<module>.<bundle>``, not a list, or carrying a directive the asset
+pipeline does not know. Both gates read only this checkout; the sibling
+repositories run the same two scripts by hand, from the workspace root::
+
+   p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_sort_manifests.py --dry-run enterprise agromarin design-themes
+   p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_checker_manifest.py odoo/odoo/addons odoo/addons enterprise agromarin design-themes
 
 .. code-block:: python
 
@@ -521,6 +515,27 @@ Keys come from the known set, in the canonical order
   file is loaded only when the database has demo data, so the move changes
   what a fresh install without it loads not at all. **A file listed under both
   keys is a data file**: drop the ``demo`` entry rather than move it.
+* **Demo data reaches a workflow state through the workflow** ``[review]``. A
+  record whose ``state`` the model computes from decisions is created in its
+  initial state and driven by a ``<function>`` calling the same actions a user
+  would -- ``approval``'s demo confirms, approves, refuses and cancels its
+  requests through ``_load_demo_workflow`` -- never by writing ``state``,
+  ``date_confirmed`` or a refusal into the record. A model that guards those
+  fields refuses the forged record; one that does not gets a record no
+  transition produced, with every side effect (approver rows, activities,
+  chatter, dates) missing. The same rule as a test that reaches a state.
+* **A demo file must load** ``[review]``. The loader catches a failing demo
+  file, logs *installed without demo data* and carries on, so a broken one is
+  red in no lane anyone runs. Measured 2026-09-11 with ``--with-demo`` over
+  every module that ships a ``demo`` key: nine files named a field this fork
+  had renamed (``product_uom_qty``, ``date_planned``, ``deadline``,
+  ``product_category_id``), one forged a workflow state, one duplicated a
+  unique key, one carried an invalid VAT. Load your demo data before landing
+  it, on a server with nothing in its environment: a demo or data file
+  never stores a secret (``credential.credential`` exists unprovisioned
+  until one is entered, and a ``post_init_hook`` that generates one checks
+  ``_is_encryption_key_configured()`` first), because a file that needs
+  ``ODOO_API_ENCRYPTION_KEY`` fails on every server that lacks it.
 * **``license``** must match how the module is actually distributed. The fork
   ships ``LGPL-3``, ``OPL-1``, ``AGPL-3`` and ``OEEL-1``; do not copy a
   neighbour's value unchecked.
@@ -702,11 +717,14 @@ otherwise change costs twice:
 * ``# noqa`` is anchored to a **line**. Reflowing moves the diagnostic off the
   directive: the suppressed finding goes live and the orphaned directive is
   reported as ``RUF100``. Lint, format, then lint again.
-* Wrapping spends lines, and ``py_function_length.py`` ratchets excess over the
-  limit ``[ratchet pyfunclen]``, so a pure reformat can turn that gate red.
+* Wrapping spends lines. ``py_function_length.py`` ratcheted excess over the
+  limit until it was deleted with ``odoo/tooling/`` in ``7b0f58cb517f``, so a
+  pure reformat no longer turns a gate red and **method length is now measured by
+  nothing** ``[review]``. The scale, measured 2026-09-15 over the four
+  repositories: **6,893** production definitions exceed 40 lines and **952**
+  exceed 100, against a median of 11.
 
-Reformatting a whole file is its own commit, justified, with lint and length
-ratchets re-checked.
+Reformatting a whole file is its own commit, justified, with lint re-checked.
 
 2.2 Model class organisation
 ----------------------------
@@ -832,13 +850,63 @@ A mixin's ``depends`` beyond ``base`` is a third ground only when the mixin
 genuinely reads that module's models; a ``depends`` on ``mail`` for a
 ``_inherit`` of ``mail.thread`` is real, one copied from a neighbour is not.
 
-**``mixin_recurrence`` is the one that should move.** It depends on ``base``
-alone, ships one abstract model and nothing else, and is inherited by
-``project.task.recurrence``, ``maintenance`` and ``planning.recurrency``. The
-move is a follow-up for whoever next holds ``base/models/__init__.py``: the
-file relocates to ``odoo/addons/base/models/mixin_recurrence_rule.py``, the
-three consumers drop the ``depends`` entry, and the module directory goes.
-Nothing stored changes -- a mixin has no table (§2.2.1).
+**A mixin may instead live with the module that owns its subject matter**, when
+one clearly does and every consumer already reaches it. ``base`` is the default
+because it is free; a subject-matter home is worth the dependency when it is the
+place a reader would look and when it keeps a vocabulary whole rather than
+scattering it.
+
+**"Every consumer already reaches it" is a manifest closure, not an
+impression** ``[review]``. Compute it before choosing a subject-matter home,
+over the consumers the mixin is *for* and not only the ones folding onto it
+today:
+
+.. code-block:: python
+
+   # depends closure of each intended consumer; does it contain the home?
+   for name in intended_consumers:
+       assert home in closure(name), f"{name} cannot reach {home}"
+
+A module that fails this test is not an argument for adding the dependency. It
+may be an argument against the home, and if the module is at or below the home
+in the graph it is proof against it: the edge would be a cycle and no amount of
+subject-matter affinity buys it.
+
+**``mixin_recurrence`` is the worked example, and the test is why it is in
+``base``.** It went to ``resource`` first, on the grounds that recurrence is
+scheduling vocabulary and ``resource`` is where this fork's scheduling mixins
+live. The reasoning was sound about affinity and wrong about reach, because it
+was run over the five consumers then folding and not over the question "who
+asks how does this repeat".
+
+``ir.cron`` asks it: a count, a unit, ``nextcall`` and a positive-count CHECK
+that is the constraint ``mixin.recurrence.interval`` owns -- which is why it now
+takes that mixin, as ``repeat_interval`` / ``repeat_unit``, widened with minute
+and hour by ``selection_add``. It is the most-read recurrence in the tree
+and it lives in ``base``. ``resource`` depends on ``web``, ``web`` depends on
+``base``, so a ``base`` -> ``resource`` edge is a cycle: ``ir.cron`` could never
+take the mixin, at any price. Six more askers -- ``mail``, and ``event``,
+``lunch``, ``gamification``, ``data_recycle`` behind it, plus ``date_range`` --
+sit above ``web`` and carry no ``resource``, where the edge is possible and is
+not free: ``resource`` ships ``resource.calendar``, ``resource.resource``,
+views, menus and demo data, so putting it under ``mail`` installs Resource for
+every database that has Discuss.
+
+So the four recurrence mixins -- ``mixin.recurrence.interval``,
+``.rule``, ``.rrule``, ``.occurrence`` -- live in ``base``, which is free in
+every closure, and ``resource`` keeps the scheduling models that genuinely need
+it. ``maintenance`` and ``fleet`` gave back the ``depends`` on ``resource`` the
+first fold charged them; ``project``, ``calendar`` and ``planning`` keep theirs
+on their own merits. The recurrence-update **dialog** stays in ``resource``:
+only ``calendar`` and ``planning`` open it, both carry ``resource``, and
+``base`` is no home for a scheduling dialog. A vocabulary and a widget over it
+are allowed to live apart.
+
+Nothing stored moved either time -- a mixin has no table (§2.2.1). Both
+migrations only re-point ``ir_model_data``, and the second adopts from
+``mixin_recurrence`` as well as from ``resource``, because ``base`` upgrades
+first and a database that skipped the intermediate release still holds those
+rows under the dissolved module's name.
 
 2.3 Field conventions
 ---------------------
@@ -850,19 +918,19 @@ Nothing stored changes -- a mixin has no table (§2.2.1).
 
    class SaleOrder(models.Model):
        # Financial block
-       company_id = fields.Many2one("res.company")
-       currency_id = fields.Many2one("res.currency")
-       payment_term_id = fields.Many2one("account.payment.term")
+       company_id = fields.Many2one(comodel_name="res.company")
+       currency_id = fields.Many2one(comodel_name="res.currency")
+       payment_term_id = fields.Many2one(comodel_name="account.payment.term")
 
        # Partner block
-       partner_id = fields.Many2one("res.partner")
+       partner_id = fields.Many2one(comodel_name="res.partner")
 
        # Core identification
        name = fields.Char()
-       state = fields.Selection([...])
+       state = fields.Selection(selection=[...])
 
        # Order line block
-       line_ids = fields.One2many("sale.order.line", "order_id")
+       line_ids = fields.One2many(comodel_name="sale.order.line", inverse_name="order_id")
        amount_total = fields.Monetary(compute="_compute_amounts")
 
        # UI block
@@ -907,7 +975,82 @@ Defaults that must remain overridable use ``lambda self:``:
 
 .. code-block:: python
 
-   user_id = fields.Many2one("res.users", default=lambda self: self.env.user)
+   user_id = fields.Many2one(comodel_name="res.users", default=lambda self: self.env.user)
+
+**Every argument is a keyword, in one order, one per line** ``[test_lint E8525,
+E8526]``. A positional argument reads as a bare string and only the signature
+says whether it is the label, the comodel or the selection; ``comodel_name=``,
+``inverse_name=``, ``selection=``, ``string=`` say so. The keywords are read in
+the order of ``FIELD_ATTRIBUTE_ORDER`` in
+``odoo/addons/test_lint/tests/_checker_field_declaration.py``: what the field
+is (``comodel_name``, ``inverse_name``, ``relation``, ``selection``,
+``related``), what it says (``string``), its shape (``size``, ``digits``,
+``currency_field``, ``translate``, ``sanitize``), how its value is produced
+(``compute``, ``inverse``, ``search``, ``depends``, ``precompute``,
+``default``), how it is stored and read (``store``, ``index``, ``copy``,
+``readonly``, ``required``, ``company_dependent``), what it points at and under
+which conditions (``domain``, ``context``, ``ondelete``, ``check_company``),
+who tracks it (``tracking``); an attribute the table does not know sorts
+alphabetically after those; and last of all who may see it and the help text,
+``groups`` second to last and ``help`` last, so the two lines a reader skips
+sit together at the bottom. Two or more keywords go one per line, none on the
+line of the call -- ruff's magic-trailing-comma layout.
+``_sort_field_attributes.py`` in the same directory rewrites a tree to this
+form and refuses any rewrite that changes more than argument spelling and
+order; a comment inside the parentheses travels with the argument it trails or
+precedes.
+
+.. code-block:: python
+
+   partner_id = fields.Many2one(
+       comodel_name="res.partner",
+       string="Customer",
+       compute="_compute_partner_id",
+       store=True,
+       readonly=False,
+       domain="[('is_company', '=', True)]",
+       check_company=True,
+       tracking=True,
+       groups="base.group_user",
+       help="The company invoiced for this order.",
+   )
+
+**An attribute setup ignores is a dead attribute** ``[test_lint E8527]``:
+``index=`` on a One2many, a Many2many or a non-stored compute (no column to
+index), ``precompute=`` on a compute without ``store=True`` (dropped with a
+warning), and
+``compute=`` beside a truthy ``related=`` (replaced by the related path's own
+compute).
+
+**A boolean field attribute takes a Python bool.** ``store``, ``precompute``,
+``copy``, ``recursive``, ``compute_sudo``, ``related_sudo``, ``required``,
+``readonly`` and ``export_string_translation`` raise ``TypeError`` at
+declaration for anything else: ``store="True"`` was truthy, so was
+``store="False"``, and no rule that reads ``store=True`` could see either.
+
+**A related field is not stored to make it groupable** ``[test_lint E8529]``. A
+``related=`` whose hops are all many2one and whose last field has a column
+already filters, groups, sorts and aggregates in SQL through the join, and
+``fields_get`` reports it ``groupable``, ``sortable`` and ``searchable``;
+``store=True`` adds a copy that every write to the source rewrites on every
+child row. Two things need the column and keep it, each with
+``# noqa: E8529  <what needs the column>``: a UNIQUE or EXCLUDE constraint over
+it (PostgreSQL enforces none across two tables), and a composite index pairing
+it with a column of the model's own, where a measured plan says the join
+loses. ``Binary`` and ``Image`` are exempt: a stored ``image_128`` is a resize,
+not a copy. The existing copies are floored (``lint_stored_related``) and
+converted module by module.
+
+**An ``@api.constrains`` naming a related field fires when the source changes,
+stored or not** ``[review]``. A stored copy made that happen by accident -- the
+recompute is a write on the child, and a write runs its constraints. The ORM now
+does it on purpose: ``modified()`` selects a projected field that a constraint of
+its model names, finds the records through the trigger tree like any dependent,
+and runs those constraints (``recompute._fires_constraints``). So
+``@api.constrains("company_id")`` on a line keeps guarding the line when the
+*order's* company moves, and keeping ``store=True`` for the sake of a constraint
+is not a reason. What still needs the column: a One2many's ``inverse_name``, and
+the foreign key behind ``ondelete=``.
 
 2.4 Method naming
 -----------------
@@ -958,6 +1101,27 @@ Defaults that must remain overridable use ``lambda self:``:
      - ``_selection_<values>``
      - ``_selection_target_model`` -- named for the values, not the field: one
        method serves fields of several names on unrelated models
+
+**Nothing in this section is mechanically enforced, and its gate markers say
+otherwise** ``[review]``. ``odoo/tooling/`` was deleted in ``7b0f58cb517f`` and
+took every naming gate with it: ``naming_vocabulary.py``,
+``naming_core_vocabulary.py``, ``field_hook_naming.py``,
+``collection_head_order``, ``py_function_length.py``, ``ratchet.py`` and
+``doc_restated_counts.py``. **Thirty of the thirty-one ``[ratchet …]`` and
+``[gate …]`` markers below name one of those**, and the survivor is
+``[ruff RUF022]``. ``doc/architecture/gates.md`` is the list of what still runs
+and no entry of it reads a method name; ``test_lint``'s ``test_naming.py``
+checks one thing, that no public method takes ``ids`` or ``context``. **Read
+every naming marker in §2.4 as ``[review]``** until a gate is rebuilt, and read
+a sentence that says a gate "now sees" something as history.
+
+**The figures are re-derivable even though the gates are not** ``[review]``, and
+the instrument is
+agromarin-knowledge/research/2026-09-15-method-naming-census-refresh-evidence --
+named in prose because the doc-link gate resolves paths inside this repository
+alone. Its ``census.py`` and ``extend.py`` measure a **named commit from a
+detached worktree**, which is the condition §2.4.3 already states and which the
+shared checkout cannot meet. Re-derive before quoting any number here.
 
 2.4.1 Field hooks
 ~~~~~~~~~~~~~~~~~
@@ -1039,6 +1203,40 @@ is worst when the field exists: ``ir_cron``'s ``_compute_next_call`` was a
 **A ``_selection_*`` method with a parameter is not a hook**: ``selection=`` calls
 it with nothing to pass. There are **0** left.
 
+**A field's SQL is declared on the field, never spelled as a model-wide
+override** ``[review]``. Three declarations name the model method that composes
+a field's SQL, the way ``search=`` names the one that composes its domain:
+``value_sql`` (the expression that stands for the field in a query --
+``(field, alias, query) -> SQL``), ``group_by_sql`` (its GROUP BY expression --
+``(field, alias, query) -> SQL``) and ``order_by_sql`` (its ORDER BY term --
+``(field, alias, direction, nulls, query) -> SQL``, returned through
+``_order_value_to_sql`` so a term under a grouped query is shaped like a
+column's). Where the SQL is another field's, the stand-ins ``group_by_field``
+and ``order_by_field`` name it and no method is needed. Setup refuses a hook
+that names no method and a hook beside its stand-in. The hook is named for the
+declaration and the field, as every field hook is: ``_value_sql_company_currency``,
+``_group_by_sql_activity_state``; several fields sharing one body are named
+for what they share (``_order_by_sql_activity``).
+
+The reason is what an override hides. ``_field_to_sql``, ``_read_group_groupby``
+and ``_order_field_to_sql`` are model-wide: an override that acts on one field
+and defers to ``super()`` for the rest is invisible as a per-field fact to
+anything that reads the model by its methods -- a reader looking for where
+``activity_state`` gets its SQL, a tool keying on method identity, and the Rust
+engine's routing gate, which saw thirteen mail-thread models of a plain
+database as "read path overridden in python" and served every grouped read on
+them from Python for a groupby nobody was asking for. Declared on the field, the
+same SQL is a static fact: the engine's export drops a field carrying any of the
+three from the kernel's registry, so a query naming it falls back to Python and
+every other field on the model routes. **An aggregate of a non-stored compute needs no hook either**: ``_read_group``
+selects the group's ids and folds the computed values in Python
+(``_aggregates_through_records``), for ``sum``, ``avg``, ``min``, ``max``, the
+counts, the arrays, the booleans and ``sum_currency`` -- which is what
+``account.analytic.account`` spelled by hand for ``balance``, ``debit`` and
+``credit`` in two overrides. The model-method overrides that remain (a custom
+granularity, an order term that is not a declared field, an aggregate over a
+JSON column) are the ones no field can yet declare.
+
 **What the misused prefix costs is a collision, not a misreading** ``[review]``.
 A reserved prefix is a claim that a field declaration somewhere names this
 method; while the claim is false the spelling is unowned, and another model is
@@ -1076,6 +1274,63 @@ Two readings of the gate itself:
   names, and the definitions under them, that wear one while no field
   declaration and no binding decorator names them (census table). A candidate
   population, not a violation count.
+
+**"Unbound" is a claim about a search, and three things hide a binding from one**
+``[review]``. Measured 2026-09-15 by sweeping it: a ``_compute_``/``_default_``
+candidate list of **268** came down to **72** renames, and the 196 that fell out
+are the interesting part.
+
+#. **The binding is not a string.** A declaration reads
+   ``default=_default_company_id`` (a bare name), ``default=lambda self:
+   self._default_x()``, or ``default=self._default_x``, and only the *quoted*
+   form answers a grep for ``default="_default_x"``. Resolve the keyword's
+   **value node** — ``Name``, ``Attribute``, ``Lambda`` — against the AST, not
+   its text. In ``addons/project`` and ``addons/project_hr`` the string form is
+   the minority of the three, and 68 candidates were bound this way.
+#. **The prefix opens a protocol namespace**, which the rule above already
+   permits where the continuation names no field.
+#. **The tail comes from data.** ``_compute_formula_batch_with_engine_domain``
+   is reached through ``f"_compute_formula_batch_with_engine_{engine}"`` where
+   the engine is a stored selection value, so no literal caller exists and the
+   suffix is not renameable at all (§2.4.14).
+
+**The signature settles it where the body cannot** ``[review]``. A ``compute=``
+calls its method with nothing to pass, so **a definition taking arguments is not
+the hook it claims to be** — the same reasoning this section already applies to
+``_selection_*``, and a fact about the ORM rather than a judgement about the
+body. Of the survivors above, the 84 taking arguments were renamed on that
+evidence alone.
+
+**A zero-argument survivor is ambiguous, and the two readings have opposite
+repairs** ``[review]``. ``_compute_x`` that nothing binds is either a helper
+wearing a reserved prefix -- rename it -- or **a field that lost its
+``compute=``**, which is a defect the name is the last surviving evidence of.
+**Renaming it makes that defect unfindable**: the field stays uncomputed and the
+name no longer even claims it should be. So a rename campaign must not answer
+this class by construction. Triage it by asking whether a field of that exact
+name is declared on the model, then read the body, because the triage is a
+filter and not a verdict: of five candidates where the field existed, one
+(``document_sign``'s ``_default_folder_id``) was a dead method beside a field
+with no ``default=`` at all, while two were live helpers called by the field's
+*compute* and named for what they return to it. **When a name and the tree
+disagree, the question is which of them is wrong**, and only reading both
+answers it.
+
+**A third reading: the field exists nowhere, and the body is dead** ``[review]``.
+An ``@api.depends`` body that assigns a field no model declares, and that nothing
+binds or calls, serves nothing. Delete it rather than rename it, since a rename
+gives dead code a better name. Read in full on 2026-09-16 over the four
+repositories, the survivors were **73** definitions under 49 names. Five computed a
+field that exists nowhere and were deleted. Two sat beside a real field and were
+unbound in upstream 19.0 as well (``account_intrastat``'s
+``_compute_intrastat_supplementary_unit_amount``, ``pos_self_order``'s
+``_compute_self_order``); binding either changes what a database stores, so both
+are left for a decision. Twenty definitions under four names were reached by a
+constructed name, three were not on a model, and ``document_sign``'s
+``_default_folder_id`` is its owner's question. The other 42, under 34 names, were
+helpers and were renamed. **Constructed dispatch counts as a binding**:
+``"_default_%s_template_fields" % res_model_name`` binds as surely as ``default=``,
+and the whole family renames together or not at all.
 
 2.4.2 Decorator-bound families the gate cannot reach
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1200,18 +1455,77 @@ ways: stems are written with two or more verbs drawn from one semantic family,
 and groups of methods share a byte-identical body under different names; the
 census table below counts both.
 
-**Every figure in this section is measured, not stated**
-``[gate doc_restated_counts]``. The population is the non-test methods declared
-on a model class **in this repository** -- the population
-``naming_vocabulary.py`` ratchets, and the first §2.4.3 row of the census table.
-The census stops here, so every figure is a floor.
+**But the verb is no longer where the duplication is, and that is a measured
+result rather than a concession** ``[review]``. Canonical names make redundancy
+detectable only while the duplicate pair *differs by a verb*, and the sweeps
+have drained that population. Measured 2026-09-15 over ``odoo``, ``enterprise``,
+``agromarin`` and ``design-themes`` at ``42ea7357e265`` / ``e793e1375d6`` /
+``a8a1a081e`` / ``b284de453``: of **139** groups of definitions sharing an
+identical body, **118** already share a name, and applying the
+abolished→canonical substitution to the other 21 merges exactly **one**
+(``_save_label`` / ``save_label``, and the difference there is the underscore,
+not the verb). **The rule's own mechanism now reports one candidate.** Where the
+residual duplication actually lives is two shapes this section does not name:
 
-**The census table.** A count whose only job is to be current lives here and
-nowhere else in prose: ``doc_restated_counts.py --update census`` rewrites the
-block in full (``--update <row>`` one row), and ``--check`` names any row the
-tree has moved. A figure a sentence *reasons* from -- a ratio, a split, a zero --
-stays in its sentence, as a ``Figure`` the same tool checks and ``--update
-<figure>`` refreshes on its own.
+* **A namespace-prefixed sibling.** ``_l10n_ae_get_company_wps`` /
+  ``_l10n_sa_get_company_wps``, ``_dk_build_zip_response`` /
+  ``_ee_build_zip_response``, ``_envia_convert_weight`` /
+  ``_shiprocket_convert_weight``, ``_add_invoice_line_price_nodes`` /
+  ``_add_purchase_order_line_price_nodes`` / ``_add_sale_order_line_price_nodes``.
+  The verbs already agree; the discriminating token is the country, carrier or
+  document the body is identical across, which is the tell that the body belongs
+  one layer down.
+* **The same name copied into sibling modules.** ``debug_log.py`` is duplicated
+  verbatim into six addons, ``l10n_be_hr_payroll`` carries nine identical
+  ``default_get``, ``l10n_ch_hr_payroll`` four identical ``_get_declaration``.
+  No naming rule can see these, because nothing is misnamed.
+
+So **run the body comparison, not only the name search**: `clones.json` and
+`repeated-blocks.csv` in the evidence directory above are that report, and the
+block view is the sharper of the two -- **1,128** repeated three-statement
+windows across **2,527** sites, **1,375** of them inside a method longer than 40
+lines, which is the extraction backlog stated as a number. §2.4's order stands
+(naming → redundancy detection → logic improvement); what has changed is that
+step one is finished for verbs and step two now needs a different instrument.
+
+**Every figure in this section was measured, not stated** ``[review]``. The
+population is the non-test methods declared on a model class **in this
+repository** -- the population ``naming_vocabulary.py`` ratcheted, and the first
+§2.4.3 row of the census table. The census stops here, so every figure is a
+floor.
+
+**The census table is a FROZEN reading now, not a current one** ``[review]``.
+``doc_restated_counts.py`` was deleted with ``odoo/tooling/``, so no ``--update``
+and no ``--check`` exists: the block states the tree as it stood when the tool
+last ran and **nothing has refreshed it since**. Re-derived 2026-09-15 at
+``42ea7357e265`` with the instrument named at the head of §2.4, **10 of its 59
+rows are still true**, and the three ways a row fails are different problems:
+
+* **33 rows are reproducible** from the prose alone -- a prefix count, a
+  decorator count -- and 23 of those have moved. The loudest are the campaign's
+  own signal: ``_prepare_*`` 911 → **1,598** and ``_set_*`` 126 → **83**, which
+  is the payload sweep of §2.4.7 landing. ``_get_*`` 6,553 → 6,518,
+  ``_check_*`` 1,281 → 1,389, ``inverse=`` targets 269 → 374.
+* **19 rows are approximable but not exact**, because the prose fixes the
+  family and not the population: "field hooks the declaring model also calls on
+  ``self``" does not say whether a call from a sibling file counts.
+* **7 rows cannot be re-derived by anybody.** Their population lived in
+  ``naming_vocabulary.py``'s ``_COLLECTION_HEADS`` tuple and its
+  ``_HEADS_HEAD_FIRST`` regex -- which heads were searched, and the requirement
+  of a token after the head. Those are the five §2.4.4 head/tail rows and the two
+  §2.4.5 converter rows. A re-measurement answers a **different question** and
+  is not comparable; the cautions four paragraphs down in §2.4.4 describe a
+  measurement nobody can now run.
+
+**That is the durable lesson, and it is about where a definition lives rather
+than about a number** ``[review]``. A figure whose population is defined only
+inside a tool dies with the tool, while a figure whose population is defined in
+the sentence beside it survives. **State the population in the prose, in enough
+detail to re-derive it**, and treat a count that needs a deleted classifier to
+mean anything as prose that was never finished. A count whose only job is to be
+current still belongs in this block and nowhere else, and re-deriving the block
+is now a scripted measurement recorded in the vault rather than a ``--update``
+flag.
 
 **Who re-derives it, and when** ``[review]``. The block goes stale on every
 rename that touches ``odoo/`` or ``addons/``, which in a workspace where several
@@ -1285,15 +1599,15 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               287
 §2.4.2   ``@api.ondelete`` hooks                                       173
 §2.4.2   … spelled ``_unlink_except_*``                                114
-§2.4.2   ``@api.constrains`` hooks                                     729
-§2.4.2   … spelled ``_check_*``                                        674
+§2.4.2   ``@api.constrains`` hooks                                     728
+§2.4.2   … spelled ``_check_*``                                        673
 §2.4.2   … with a first token carrying no rule                          50
-§2.4.2   … binding exactly one field                                   330
-§2.4.2   … of those, spelled ``_check_<field>``                        146
+§2.4.2   … binding exactly one field                                   329
+§2.4.2   … of those, spelled ``_check_<field>``                        145
 §2.4.2   Multi-field constraints named for one trigger                  62
-§2.4.3   Non-test methods declared on a model class                 27,485
+§2.4.3   Non-test methods declared on a model class                 27,490
 §2.4.3   Stems spelled with two or more verbs of one family              1
-§2.4.3   Groups of methods sharing a byte-identical body               105
+§2.4.3   Groups of methods sharing a byte-identical body               106
 §2.4.4   Model methods with an abolished verb behind a noun            171
 §2.4.4   Canonical verb behind a first token carrying no rule          681
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
@@ -1305,15 +1619,15 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   197
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,551
+§2.4.7   ``_get_*`` definitions                                      6,553
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   122
 §2.4.7   ``_calculate_*`` model methods                                  0
 §2.4.7   ``_prepare_*`` definitions                                    911
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            37
-§2.4.8   ``_check_*`` definitions                                    1,282
+§2.4.8   ``_check_*`` definitions                                    1,281
 §2.4.8   ``_validate_*`` definitions                                     0
-§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
+§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
 §2.4.10  ``_raise_*`` model methods                                     21
 §2.4.10  … raising unconditionally                                      12
@@ -1321,7 +1635,7 @@ Section  Population                                                  Count
 §2.4.11  … performing an ORM read                                        1
 §2.4.11  … doing something else entirely                                15
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   33
+§2.4.11  ``_get_or_create_*`` methods                                   34
 §2.4.11  ``_resolve_*`` definitions                                     29
 §2.4.12  ``_set_*`` definitions                                        126
 §2.4.12  ``_update_*`` definitions                                     425
@@ -1376,13 +1690,25 @@ Section  Population                                                  Count
      - writes to records; an ``inverse=`` target is ``_inverse_<field>``
    * - Addition
      - ``_add_*``
-     - ``_append_``
-     - ``_insert_`` / ``_push_`` are reserved, not abolished
+     - ``_append_`` ``_fill_`` (of a caller's container)
+     - adds entries to a container — records' x2many, or a dict or list **the caller
+       passes in** and reads back; ``_insert_`` / ``_push_`` are reserved, not abolished
    * - Removal
      - ``_remove_*``
      - ``_delete_`` ``_purge_``
      - ``unlink`` stays reserved for the ORM operation; so do ``_drop_`` /
        ``_discard_``
+
+**An accumulator is Addition, not Payload and not Mutation** ``[review]``. A body that
+writes into a dict or list its caller hands it, and returns nothing, fits neither of
+the rows it resembles: ``_prepare_`` *returns* the payload, and ``_update_`` writes
+*records*. The shape is common where one report or document is assembled in passes —
+``account_saft``'s ``_saft_fill_report_*`` family filling one ``values`` dict, one
+section at a time — and it was spelled ``_fill_`` because no row claimed it. It is
+``_add_``: the method adds its section to a container the caller owns and will read
+back. **The discriminator is who holds the container**; a body that builds a dict and
+returns it is still ``_prepare_``, and one that writes onto records is still
+``_update_``.
 
 **Reserved, not abolished** ``[review]``. Each is a term of art from a layer
 below the ORM; collapsing it destroys information. Use them **only** with these
@@ -1620,8 +1946,34 @@ prefix, no ORM operation, none of the protocol namespaces below) and that carry
 after it. It is a candidate list for the same reason the abolished one is:
 ``_ubl_add_*`` and ``_stripe_get_*`` sit in it and are namespaces this section
 admits, and nothing mechanical separates a protocol prefix from a noun parked in
-front of the verb. Read it grouped by first token -- a token with one member is
-almost always a noun, one with sixty is almost always a namespace.
+front of the verb. Read it grouped by first token.
+
+**Grouping by first token sorts the list; the size of a group does not sort it**
+``[review]``. An earlier form of this rule said a token with one member is almost
+always a noun and one with sixty is almost always a namespace. The first half
+holds and **the second is false**, which matters because it was the half that
+licensed skipping the big groups. Measured 2026-09-15 over the four repositories:
+**18,148** production definitions open with a token carrying no rule from any
+table in §2.4, under **2,333** distinct tokens, of which **988** have exactly one
+member and **39** have sixty or more. Read those 39, and the majority are not
+namespaces but **verbs the table does not print** -- ``generate`` 400,
+``parse`` 279, ``format`` 273, ``convert`` 222, ``extract`` 177, ``merge`` 122,
+``filter`` 109, ``find`` 89, ``split`` 85, ``normalize`` 75, ``save`` 70,
+``sanitize`` 56 -- beside the genuine namespaces ``l10n`` 1,778, ``cron`` 208,
+``message`` 196, ``mail`` 121, ``web`` 108, ``ubl`` 91, ``portal`` 83. **A big
+group is the most likely place for an unlisted verb, not the safest place to
+stop**, and §2.4.20 is where an unlisted verb is resolved.
+
+**The discriminator is the token's grammar, not its frequency** ``[review]``.
+Ask the two questions that already appear in this section: could the token follow
+*which* or *whose* (then it is a qualifier or a namespace), and would the prefix
+survive being moved to another model (then it is a protocol). A token that
+answers *what does this do* is a verb wherever it sits, and ``l10n`` is the
+proof that size decides nothing: it is the largest ungoverned token in the tree,
+it is a namespace, and its 1,778 definitions average 33.4 lines against the
+tree's median of 11 -- the longest family in the census after the getters,
+which makes it the first place §2.4.9's splitting work should look rather than
+the last.
 
 * A noun-first prefix is legitimate only where it names a **protocol several
   models implement** (``_message_*``, ``_notify_*``, ``_track_*``,
@@ -1981,6 +2333,18 @@ Four limits:
   where the receiver is the source representation:
   ``attachment._to_http_stream()``.
 
+**``convert_to_*`` is the field protocol and is reserved, not an ``X_to_Y``
+spelled wrong** ``[review]``. ``Field.convert_to_cache``, ``convert_to_column``,
+``convert_to_record``, ``convert_to_read``, ``convert_to_write`` and
+``convert_to_export`` name one representation the *receiver* converts **into**,
+the receiver being the field, and an override of one is bound by the ORM calling
+it. Measured 2026-09-15 over the four repositories: ``convert`` leads **222**
+definitions, **157** of which carry ``to``, and the protocol is most of them.
+**So a leading ``_convert_`` is right only there.** Elsewhere it states the
+operation twice -- ``X_to_Y`` already says a conversion happens -- and
+``_convert_amount_to_company_currency`` is ``_amount_to_company_currency`` under
+the idiom above, or a ``_get_`` where the second limit bites.
+
 **``2`` is the ORM's cardinality notation and nothing else** ``[review]``. It is
 reserved the way the table in §2.4.3 means it: ``many2one``, ``one2many``,
 ``x2many`` and the abbreviations built on them (``_m2o``, ``_o2m``, ``_x2many``)
@@ -2032,7 +2396,7 @@ running the other way.
   half that costs a reader something. ``cli/db.py``'s ``Db.drop``, ``duplicate``
   and ``rename`` each wrap a ``service.db`` function of the very name the rule
   would give them, so ``self._drop_database(args)`` would sit four lines from
-  ``_drop_database(target)`` meaning something else -- §2.4.4's unsubstitutable
+  ``drop_database(target)`` meaning something else -- §2.4.4's unsubstitutable
   name, manufactured on purpose. ``Db.list`` is the same test with the sign
   flipped: there the *existing* name was the shadow, of a builtin the class
   annotates with, so it moved to ``list_databases``. **Ask which spelling
@@ -2333,8 +2697,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **337** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **312**
+**A ``bool`` return does not make a predicate** ``[review]``. **336** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **313**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -3513,18 +3877,12 @@ the opposite one: over ``odoo/odoo/addons/base`` the sibling gate's 0 is entirel
 every finding there was ``[review]`` tier. **The right gate reading 0 is the more
 dangerous of the two, because nothing about it looks wrong.**
 
-**Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods
-you create or substantially rework. ``naming_vocabulary.py`` counts definitions
-still using an abolished verb and feeds the shared ratchet; this section is
-counted rather than blocked because a backlog this size would fail every build
-and the gate would be off within a week. The sibling repositories carry their
-own floors (``naming_enterprise``, ``naming_agromarin``,
-``naming_design-themes``), measured with ``--roots`` and held
-``--mode no-increase``; the census figures in this
-section still stop at this repository, so every one of them is a floor::
-
-    python tooling/architecture/naming_vocabulary.py --count \
-        | xargs python tooling/ratchet/ratchet.py naming --count
+**Adoption** ``[review]``. As with §2.2, apply the vocabulary to methods
+you create or substantially rework. ``naming_vocabulary.py`` counted definitions
+still using an abolished verb in all four repositories and every scope had
+reached **zero** when the gate was removed with ``tooling/`` on 2026-09-11; the
+census figures in this section are as of that day. A new abolished verb is a
+review finding now.
 
 It measures the **mechanically decidable** rules only -- the abolished-verb list.
 The ``_get_``/``_prepare_`` split and the two *provisional* rules are excluded by
@@ -4335,7 +4693,7 @@ and no reviewer could put two of them side by side. ``file_data``,
 ``DocumentSource`` and ``raw_file`` are one concept under three names, in three
 modules, none of which cites another.
 
-**The cycle has four operations, and the stages after them are already
+**The cycle has five operations, and the stages after them are already
 governed** ``[review]``. Mapping values onto a record is a payload operation
 (``_prepare_*``, §2.4.7), writing them is a mutation (``_update_*``), checking
 them raises (``_check_*``) or answers (``_is_``/``_has_``), and reporting what
@@ -4350,6 +4708,11 @@ a verb for them is how a seventh dialect starts.
      - Canonical
      - Operand → result
      - Abolished
+   * - Acquire
+     - ``_download_*`` ``_import_*``
+     - a remote service → a document (``_download_``), or → local records made
+       from what it returned (``_import_``)
+     - ``_fetch_`` ``_retrieve_`` ``_grab_`` (of something remote)
    * - Identify
      - ``_guess_*``
      - bytes → a name for what they are: mimetype, encoding, separator,
@@ -4370,6 +4733,29 @@ a verb for them is how a seventh dialect starts.
      - ``_extract_*``
      - representations → **candidate field values**, with where each came from
      - ``_digitize_`` ``_mine_`` ``_pull_`` ``_ocr_``
+
+**Acquisition is the step before the bytes are in hand, and it had no verb**
+``[review]``. The four operations below it all start from a document the server
+already holds; getting one from a bank, a tax portal or a payroll service is a
+separate step that crosses a network boundary, and it was spelled ``_fetch_`` in
+forty-odd places — the word §2.4.13 keeps for the ORM's own read. Name what comes
+back, not the trip:
+
+* **``_download_*``** when the result is a document — bank statement files,
+  invoice PDFs and XML. The direction is *this server takes from a remote
+  service*; serving a file to a browser is a route or an ``action_``, never this
+  row, even though public ``download_*`` methods do both today.
+* **``_import_*``** when what comes back becomes **local records** — vendor bills
+  from a tax portal, transactions from a bank feed, payruns from a payroll
+  service. ``_import_`` already means external data in as records for 108
+  definitions, and remote acquisition is the same operation from a further source.
+* **``_get_*``** when the remote answer is **not stored** — a status, a
+  participant lookup, an access token held only in a cache. Crossing a network does
+  not change the Read row (§2.4.7); a cache write is not a record.
+
+A body that downloads **and** imports is ``_import_``, because the records are the
+product and the document an intermediate. A cron wrapping one keeps its namespace:
+``_cron_import_*``.
 
 **The Read/Extract line is the one that keeps being crossed** ``[review]``, and
 crossing it is what made the eight implementations impossible to compare.
@@ -4494,7 +4880,7 @@ in every database that already has it and the rename needs a migration script.
 ``model.notify_expiring_contract_work_permit()`` in an ``ir.cron`` under
 ``noupdate="1"``: a green tree there means nothing, and it is left as found for
 that reason and not because the name is right. **Check the flag on the enclosing
-``<data>``, not the file.**
+``<data>``, not the file**, and §3.9 for what the flag does and does not protect.
 
 **A nested function is the population §2.4.13 counts as ``nested_helpers``**,
 and the reason to read it there rather than here is that the three ungoverned
@@ -4595,6 +4981,68 @@ the Read row -- the core gate's ``accumulate`` rule reads the body for it); and
 ``locate_node`` is the view-inheritance spec resolver, so a row for it would be
 five allowlist entries and no tightening.
 
+**The edge of the table is now measurable, and ``sanitize`` is the row it is
+missing** ``[review]``. The argument above is that a synonym table nobody can see
+the edge of is a word list again; the edge is the set of leading tokens the
+vocabulary governs by nothing, and it is **2,333** tokens over **18,148**
+production definitions (§2.4.4). Read the large end of it against §2.4 as a
+whole, and the section already rules on most: ``generate`` in §2.4.7, ``parse``,
+``split`` and ``extract`` in §2.4.18, ``find`` in §2.4.11, ``convert`` in §2.4.5,
+``filter`` and ``iter`` against the receiver-shaping rule of §2.4.22. **Two
+spellings are ruled nowhere and name one operation between them**:
+``_normalize_`` at **75** definitions and ``_sanitize_`` at **56**, both
+reshaping a value and returning it -- ``_sanitize_number`` beside
+``_normalize_iban_acc_number``, ``_sanitize_vals`` beside ``_normalize_rfc``.
+**``_sanitize_`` is abolished**, because *sanitise* names a **motive** -- the
+input is untrusted -- and a motive is not an operation. That is also why it
+cannot be swapped for one word: read against their bodies, the 57 definitions
+wearing it were doing **five** different things, which is the cost of a motive
+verb stated as a count.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 30 46
+
+   * - Body
+     - Canonical
+     - Example
+   * - reshapes a value
+     - ``_normalize_``
+     - ``_sanitize_ean`` → ``_normalize_ean``
+   * - returns a subset
+     - ``_filter_`` (§2.4.22)
+     - ``_sanitize_fetch_params`` → ``_filter_fetch_params``
+   * - mutates in place
+     - ``_update_`` (§2.4.12)
+     - ``_sanitize_configuration`` → ``_update_configuration``
+   * - builds a payload
+     - ``_prepare_`` (§2.4.7)
+     - ``_sanitize_payload`` → ``_prepare_task_vals``
+   * - raises
+     - ``_check_`` (§2.4.8)
+     - ``sanitize_model_name`` → ``check_model_name``
+
+**Two neighbours are reserved rather than abolished, on §2.4.3's terms.**
+``escape`` is the operation that makes a value inert **inside a target syntax**
+and is not a normalisation -- prefixing a spreadsheet formula trigger with an
+apostrophe changes the value so the cell does not execute it, and
+``_escape_export_cell`` says which syntax. **HTML sanitisation keeps the word**:
+``libs/text/html``'s cleaner removes scripts, event handlers and foreign
+attributes, which destroys content on purpose, and *sanitise* is that layer's
+term of art exactly as ``_drop_`` is SQL's. The test between them is whether the
+output is the same value in another form (normalise), the same value made inert
+(escape), or **less** than the input on purpose (sanitise, and say what it
+strips).
+
+**``_save_`` is the reserved-table case, not a new row** ``[review]``. §2.4.3
+reserves ``read`` / ``write`` for a method whose object is a **file**;
+``_save_`` at **70** definitions is the same contract wearing a third word, and
+the census caught the pair that proves it -- ``_save_label`` and ``save_label``,
+byte-identical bodies, the **only** duplicate group in the tree that the
+abolished→canonical substitution merges. Where the object is a file the verb is
+``write``; where it is a record it is ``create`` or ``_update_``; where it is an
+attachment row, say which.
+
 **A predicate prefix suspends the infix rule, and that is not a fudge**
 ``[review]``. §2.4.4 flags a verb behind a noun because the noun hides it from a
 ``classify`` that partitions on the first token. Behind ``is_`` / ``has_`` /
@@ -4626,7 +5074,7 @@ statement about spelling and answers from the name; these two cannot.
   gate's proxy is mechanical -- the body returns a value and raises nothing --
   and it **is** a proxy: a check whose failure path is a helper's raise reads
   from here exactly like a read. ``safe_eval``'s ``check_values`` and
-  ``ir_mail_server``'s ``_check_hostname_callback`` are that shape and are
+  ``mail``'s ``ir_mail_server._check_hostname_callback`` are that shape and are
   argued into the allowlist rather than renamed. **A rule whose test is one
   frame deep should say so in the allowlist rather than in a comment nobody
   reads.**
@@ -4762,7 +5210,7 @@ leaves ``action_unlink_wizard`` alone, and a migration that gets this wrong is
 found by reading the column, not by any test.
 
 **Do not run a formatter over a directory to tidy up after a rename**
-``[review]``. ``ruff format`` blocks on ``tooling/`` and ``tests/`` only, so
+``[review]``. ``ruff format`` blocks on ``tests/`` only, so
 ``addons/`` and the sibling repositories are **not** format-clean at ``HEAD``, and
 a directory-wide run rewrites files the rename never touched -- 35 of them in the
 pass behind this entry, most of ``enterprise/helpdesk`` among them, in a workspace
@@ -4858,6 +5306,41 @@ protocol claims the protocol's dispatcher reaches this name, and the test is to
 go and find the call. Where the prefix instead claims something about the
 *return*, the test is the body. Neither test is expensive; what makes the claim
 worth checking is that nothing else in the tree records it.
+
+**A return annotation is the one thing that does record it, and it turns the
+claim from a reading into a check** ``[review]``. A name says *what* comes back
+in the only vocabulary a name has; ``-> Domain``, ``-> bool``, ``-> dict`` says
+it in a vocabulary ``mypy`` and a reviewer read the same way. §2.4.1 already
+rests a rule on exactly this -- the ``_get_*_domain`` exemption is read off the
+annotation and never off the name, *because the name cannot say which ``domain``
+it means and the annotation can*. **So annotate the return wherever the name
+makes a type claim**: a ``_get_*_domain``, a predicate, a ``_prepare_*``, a
+converter. That is where the annotation pays for itself, and it is not a call to
+annotate the tree.
+
+**The mechanism is real and almost unexercised, which is why it is written as an
+instruction here rather than reported as a backlog** ``[review]``. Measured
+2026-09-15 over the four repositories: **23.3 %** of production definitions carry
+a return annotation, and the coverage is a repository fact rather than a tree
+fact -- ``odoo`` 32.5 %, ``agromarin`` 24.8 %, ``enterprise`` **0.7 %**. Against
+the claim families: of **8** surviving ``_get_*_domain`` definitions, **2** are
+annotated and **none** returns an annotated ``Domain``, so §2.4.1's exemption
+test would today decide nothing; of **1,706** predicates, **603** are annotated
+and **595** of those say ``bool``, which is the family in the best shape and
+still a third of it; of **2,242** ``_prepare_*``, **339** are annotated. **Of
+the 952 definitions longer than 100 lines, 66 are annotated** -- the methods
+whose contract is hardest to read from the body are the ones that state it least.
+
+**And a type is a second axis for the duplicate search of §2.4.3** ``[review]``,
+which is the argument for annotating that has nothing to do with type checking.
+Two methods with the same object, the same return type and the same verb are
+candidates to be one method, and the census groups them that way: **357** groups
+of three or more share a verb and a full signature type. Naming alone cannot
+raise that question, because the pair is already spelled correctly --
+``_get_fields_select`` and ``_get_fields_pos_select`` both return ``dict`` and
+sit in the same group. **Name, body and type are three different detectors; the
+section has always argued the first, §2.4.3 now names the second, and this is
+the third.**
 
 **A protocol namespace is a claim about the caller** ``[review]``.
 ``point_of_sale`` declares its data-loading protocol on an ``AbstractModel``,
@@ -5085,18 +5568,18 @@ writing a wrong one still fails.
 ``help.py`` and fed to argparse by ``command.py``; the since-deleted
 ``upgrade_code.py`` string-replaced one and raised ``AttributeError`` the moment
 it became ``None``. A handful more are machine-checked contracts read by
-``tooling/architecture/`` and ``tests/service/``: ``orm/__init__.py``,
-``orm/models/mixins/_metadata.py``, ``http/tests/test_openapi.py``. Deleting one
-of those breaks a test, not a style gate.
+``tests/service/`` (``http/tests/test_openapi.py``; ``orm/__init__.py`` and
+``orm/models/mixins/_metadata.py`` were read by ``tooling/architecture/``,
+gone since 2026-09-11). Deleting one of those breaks a test, not a style gate.
 
 ``service/__init__.py`` and ``service/db/`` were on that list and are **no longer
 load-bearing**. Their reader was ``tests/service/test_module_layout.py``, which
 parsed a "Module layout:" block out of ``odoo.service.__doc__`` — and the
 prose-and-docstring strip emptied it, so the gate passed while detecting nothing,
 failing for exactly the reason it existed to prevent. It now reads
-``doc/architecture/module.md``: a gate-enforced document rather than a docstring,
-which a strip cannot empty. Verified: nothing under ``tooling/`` or ``tests/``
-reads either module's ``__doc__``, and ``service/db/listing.py`` sat at zero
+``doc/architecture/module.md``: a document rather than a docstring, which a
+strip cannot empty. Verified: nothing under ``tests/`` reads either module's
+``__doc__``, and ``service/db/listing.py`` sat at zero
 documented definitions with ``tests/service`` fully green.
 
 The general rule above still applies to both — a docstring there is optional and
@@ -5779,9 +6262,29 @@ last: the formatter preserves order, the sorter does not preserve formatting.
 
 The conventions they enforce:
 
-* 4-space indentation; root element ``<odoo>``, not ``<data>``.
+* The ``<?xml version="1.0" encoding="utf-8"?>`` declaration on line 1; 4-space
+  indentation; root element ``<odoo>``, not ``<data>``.
 * Double-quoted attribute values; empty elements self-close.
-* Attribute order: ``id`` then ``model`` on records; ``name`` first on fields.
+* Attribute order: ``id`` then ``model`` on records; ``name`` first on fields;
+  ``menuitem``, ``template``, ``delete`` and ``function`` each have their own
+  order (``ATTRIB_ORDER`` in ``odoo/addons/test_lint/tests/_sort_xml_records.py``).
+* Attribute order inside a view arch (``ARCH_ATTRIB_ORDER``, same file, every
+  view-semantic element, HTML left alone): what it is (``name``/``for``/``expr``,
+  ``position``, ``special``, ``type``) → what it says (``string``, ``placeholder``,
+  ``help``, ``confirm``) → how it renders (``widget``, ``icon``, ``col``,
+  ``nolabel``, ``optional`` ...) → what data it takes (``domain``, ``context``,
+  ``options``, ``default_order``, ``editable`` ...) → when it applies (``groups``,
+  ``invisible``, ``column_invisible``, ``readonly``, ``required``) → ``class``,
+  ``style`` → anything else alphabetically. The conditions a reviewer reads for
+  bugs sit together, just before the styling.
+* Field order inside a record: ``FIELD_ORDER`` in the same file is the canon,
+  one list per technical model (``ir.ui.view``, the ``ir.actions.*``,
+  ``ir.rule``, ``ir.cron``, ``res.groups``, ``mail.template``, ...): identity
+  first, the large ``arch`` / ``help`` / ``body_html`` last, fields outside the
+  list alphabetical after it. Every name in it is a field of its model
+  ``[test_lint test_fixers]``; a rename must carry the canon with it. Business
+  models (``res.partner``, ``product.product``, the ``account.*`` data) have no
+  canon and keep their written order.
 * One blank line between top-level records, and after ``<odoo>`` / before
   ``</odoo>``.
 * 88 columns; a tag exceeding it wraps one attribute per line. A single attribute
@@ -5789,6 +6292,29 @@ The conventions they enforce:
 * ``domain``, ``context`` and ``options`` values go on **one line**. XML
   normalises newlines inside an attribute value to spaces, so a multi-line form
   is purely cosmetic and cannot survive the formatter.
+
+The static rules over the same files -- ``[test_lint test_xml_lint]``, the
+vocabulary in ``odoo/addons/test_lint/tests/_xml_rules.py``, one ``lint_xml_*``
+ratchet each, zero unless ``floors.json`` says otherwise:
+
+* The root element is ``<odoo>`` (``data-root``); every data file is listed
+  under ``data`` or ``demo`` in the manifest, or loaded by path from the
+  module's Python (``orphan-data-file``) -- an unlisted file's records never
+  exist, and an ``env.ref(..., raise_if_not_found=False)`` of them degrades
+  silently.
+* A ``<field name>`` appears once per record (``duplicate-field``); the loader
+  keeps the last and the earlier one is dead.
+* ``eval=`` parses as Python and is never empty (``eval-syntax``); an x2many
+  ``eval`` writes ``Command.set/link/create/...``, not the ``(6, 0, ...)``
+  tuples (``legacy-x2many-command``) ``[fixer _modernize_commands]`` -- run
+  ``odoo/addons/test_lint/tests/_modernize_commands.py <dir>``, then the sorter
+  and the formatter.
+* Every ``model`` a record, view or action names has a ``_name`` in the tree
+  (``unknown-model``).
+* Every reference the loader resolves at install resolves statically
+  ``[test_lint test_record_refs]``: ``ref=``, ``ref()`` in ``eval``/
+  ``context``/``search``, ``%(xmlid)d`` inside an arch or a ``<template>``,
+  ``<template inherit_id>``, ``<menuitem parent/action>``, ``<delete id>``.
 
 3.2 XML IDs
 -----------
@@ -5861,7 +6387,7 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
      <chatter/>
    </form>
 
-**List** -- ``<list>``, never ``<tree>``:
+**List** -- ``<list>``, never ``<tree>`` (``tree-view``):
 
 .. code-block:: xml
 
@@ -5877,7 +6403,9 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
 ``expand``; both are rejected by view validation, while ``name``, ``invisible``,
 ``groups`` and ``colspan`` remain valid (the RNG is
 ``odoo/addons/base/rng/common.rng``). Every group and every filter needs a
-``name``, so inheritance can reach it by XPath:
+``name``, so inheritance can reach it by XPath (``search-item-name``). A
+group-by filter carries no ``domain`` -- the client promotes it to a
+``groupBy`` item and never reads one (``groupby-filter-domain``):
 
 .. code-block:: xml
 
@@ -5891,8 +6419,10 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
      </group>
    </search>
 
-**Kanban** -- the card template is ``t-name="card"``, and the CSS classes are
-``card`` and ``menu`` (not ``kanban-card`` / ``kanban-menu``):
+**Kanban** -- the card template is ``t-name="card"`` (``kanban-box``), and the
+CSS classes are ``card`` and ``menu`` (not ``kanban-card`` / ``kanban-menu``).
+Each ``t-name`` is its own OWL template: a ``t-set`` in ``menu`` is not visible
+in ``card`` (``kanban-template-scope``):
 
 .. code-block:: xml
 
@@ -5907,9 +6437,19 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
    </kanban>
 
 Across every view type: put ``name=""`` on groups, pages and divs so inheritance
-has something stable to target, and write conditions as Python expressions
-(``invisible=``, ``readonly=``, ``required=``). ``attrs=`` and ``states=`` were
-removed in 17.0; fields referenced only by an expression are auto-injected.
+has something stable to target -- and one name per arch, since an xpath by name
+reaches only the first and ``search_default_<name>`` toggles every filter of
+that name (``duplicate-arch-name``). Write conditions as Python expressions
+(``invisible=``, ``readonly=``, ``required=``) that parse -- an empty one is
+dead and belongs off the element (``expression-syntax``) -- spelled ``True`` /
+``False``, not ``true`` (``boolean-spelling``). ``attrs=`` and ``states=`` were
+removed in 17.0 (``removed-attribute``); fields referenced only by an
+expression are auto-injected. ``optional=`` is ``show`` or ``hide``
+(``optional-value``). Dead attributes the renderer never reads are findings:
+``nolabel=`` outside a ``<group>``/``<setting>`` (``nolabel-outside-group``),
+``column_invisible=`` in a form (``column-invisible-outside-list``),
+``readonly=`` equal to ``invisible=`` (``readonly-duplicates-invisible``),
+``type=`` beside ``special=`` on a button (``special-button-type``).
 
 3.4 Wizards
 -----------
@@ -5948,9 +6488,13 @@ and belongs here.
      </field>
    </record>
 
-Prefer ``name=`` targets over positional XPath. Positions are ``inside``,
-``after``, ``before``, ``replace`` and ``attributes``; ``position="replace"`` with
-empty content deletes an element. ``hasclass()`` targets by CSS class.
+Prefer ``name=`` targets over positional XPath; the expression must compile
+(``xpath-syntax``). Positions are ``inside``, ``after``, ``before``, ``replace``
+and ``attributes``; ``position="replace"`` with empty content deletes an
+element. ``hasclass()`` targets by CSS class. Under ``position="attributes"``
+only ``<attribute>`` children are read (``attributes-spec-child``): a
+``<field>`` there is never added, and a ``<t t-if>`` around an ``<attribute>``
+guards nothing.
 
 3.6 QWeb reports
 ----------------
@@ -5983,6 +6527,11 @@ Three parts -- document template, wrapper, action:
      <field name="binding_view_types">list,kanban</field>
    </record>
 
+Output with ``t-out``; ``t-esc`` and ``t-raw`` log a deprecation on every
+compile (``deprecated-output-directive``) ``[fixer _modernize_output_directives]``
+-- the fixer renames ``t-esc``; ``t-raw`` skips escaping and is rewritten by hand.
+An xpath that locates by ``@t-esc`` follows the rename.
+
 ``report_name`` is required and points at the QWeb template. ``report_file`` is
 optional -- a PDF base-filename hint core often omits. ``binding_type`` is
 ``"report"`` (Print menu) or ``"action"``; ``binding_view_types`` is
@@ -5994,7 +6543,11 @@ order-significant and is most often ``list,kanban``. Use ``t-lang=`` at the
 
 This fork renders ``qweb-pdf`` with **WeasyPrint** and real CSS Paged Media;
 wkhtmltopdf is gone, and so is its folklore. The engine is ``WeasyPrintEngine`` in
-``odoo/addons/base/models/ir_actions_report.py``; the paged-media CSS is
+``addons/web/models/ir_actions_report.py``, an ``_inherit`` of the action type
+``base`` declares: ``base`` owns the record, the bindings and the HTML and text
+renders, ``web`` owns every PDF path, ``report.layout``, the company's
+document-layout fields and the templates the PDF is poured into
+(``web.minimal_layout``, ``web.external_layout``). The paged-media CSS is
 ``addons/web/static/src/webclient/actions/reports/report_paged_media.css`` and
 ``report_pdf_layout.css``.
 
@@ -6052,7 +6605,7 @@ running elements in the page margin boxes.
 
 In test mode ``_render_qweb_pdf`` returns raw HTML unless
 ``force_report_rendering`` is set. Render-path tests are in
-``odoo/addons/base/tests/test_reports.py``.
+``addons/web/tests/test_report_rendering.py``.
 
 3.7 Actions and menus
 ---------------------
@@ -6075,8 +6628,15 @@ In test mode ``_render_qweb_pdf`` returns raw HTML unless
 reporting. ``path`` gives the action a readable URL. In XML domains use lists, not
 tuples, and ``uid`` unquoted for the current user.
 
-Every menuitem in a module goes in ``views/ir_ui_menu_views.xml``, not scattered
-across view files:
+Every menuitem in a module goes in ``views/<module>_menus.xml``, not scattered
+across view files ``[fixer _relocate_menus]`` ``[ratchet lint_xml_menuitem_placement]``
+-- the gate wants ``menu`` in the file name; ``ir_ui_menu_views.xml`` is where
+``base`` keeps the views *of* ``ir.ui.menu``. The menus file is listed after
+every file that defines an action a menu names -- last in ``data`` unless a
+data file needs a menu first. A record that only exists to bind a menu -- an
+``ir.actions.client`` whose ``params`` carry a ``menu_id``, an ``ir.ui.menu``
+record patching an ``action`` onto a menu declared elsewhere -- lives in the
+menus file too (or, for the patch, becomes the menuitem's own ``action=``):
 
 .. code-block:: xml
 
@@ -6085,6 +6645,35 @@ across view files:
      <menuitem id="menu_sale_order" name="Orders"
                parent="menu_sale_root" action="action_sale_order" sequence="1"/>
    </odoo>
+
+**Contextual (gear) menus.** The gear menu and the selection *Actions* dropdown
+render one grammar, sections in this order, a divider between non-empty ones.
+Each section is a ``COG_GROUP`` constant from ``@web/search/cog_menu/cog_menu_group``;
+a bare number is rejected by the ``cogMenu`` registry validation.
+
+=======================  =============================================================
+``COG_GROUP.DATA``       import and export: Import Records, Export All, Export…
+``COG_GROUP.RECORD``     the record at hand: Edit Properties…, Duplicate, Archive
+``COG_GROUP.APP``        the current app's own features
+``COG_GROUP.PRINT``      reports
+``COG_GROUP.ACTIONS``    server-bound actions (``binding_model_id``)
+``COG_GROUP.INTEGRATE``  send the view elsewhere: Knowledge, Dashboard, Spreadsheet
+``COG_GROUP.DANGER``     irreversible, alone and last: Delete
+=======================  =============================================================
+
+- Render items with ``CogMenuItem`` (``icon``, ``description``, ``danger``); a shared
+  verb (``duplicate``, ``delete``, ``versionHistory``, ``insertInSpreadsheet`` …) is
+  declared through ``prepareStaticActionMenuItems``, never restated as a raw object.
+- Labels are Title Case and end with ``…`` when the item opens a dialog, wizard or
+  file picker before acting ``[gate contextual_menu_title_case]``
+  ``[gate contextual_menu_dialog_ellipsis]``. No "Print" prefix inside Print.
+- Order bound actions with ``binding_sequence`` and give recurring verbs a
+  ``binding_icon``; ``sequence`` on a server action orders child actions only.
+- ``isDisplayed`` runs cheap synchronous checks first (``isActWindowView``), awaited
+  group or RPC checks last; mobile exclusion goes through ``env.isSmall`` there, not
+  in the template.
+- ``u`` belongs to the gear; a view button never claims it
+  ``[gate contextual_menu_hotkey_u]``.
 
 3.8 Settings views
 ------------------
@@ -6102,6 +6691,49 @@ across view files:
        </block>
      </app>
    </xpath>
+
+3.9 ``noupdate`` protects every write but the first
+---------------------------------------------------
+
+``noupdate="1"`` on an ``<odoo>`` or ``<data>`` block says *seed, do not manage*:
+the records inside it are a starting point a database is then free to change.
+Two halves of that follow, and each has cost a fix here.
+
+**The install writes regardless of the flag** ``[review]``. ``convert.py`` gates
+the skip on ``if self.noupdate and self.mode != "init"``, and a module being
+*installed* loads its data with ``"init"`` (``modules/loading.py`` picks
+``"update"`` only for an upgrade), so every record in the block is written --
+including one whose xml id already names a record the database had. A
+``pre_init_hook`` that hands a shipped xml id to an existing record, so the data
+file updates it instead of creating a twin, therefore also hands that record's
+fields to the data file for one write. ``fleet``'s brand catalogue adopts a
+manufacturer partner of the same name this way; on a production copy that first
+write replaced four logos the database already had and turned 77 partners into
+companies. ``noupdate`` stops the *next* ``-u fleet`` from doing it again and
+could not have stopped the first.
+
+The rule behind that: **a data file carries only the fields the module owns.**
+A field a user may have set on a record the module adopted is not one of them,
+so it belongs in a ``post_init_hook`` writing the records the module itself
+created, not in the data file.
+
+**The stored flag is never refreshed** ``[review]``.
+``ir.model.data._update_xmlids`` writes ``{"model", "res_id"}`` on an existing
+row and never its ``noupdate`` column, so removing the attribute from the tree
+reaches new databases only. A database that has the record keeps the flag it
+stored at install, and correcting the record in the tree is not delivery: it
+takes a **pre**-migration clearing ``ir_model_data.noupdate`` for that xml id,
+which runs before the data files load, so the same upgrade rewrites the record.
+Log how many rows still carried the broken content -- on a customer database
+that count is the only evidence it was ever broken. This is why a renamed method
+surviving inside a ``noupdate`` ``ir.cron`` needs a migration (§2.4.19).
+
+**Neither half shows on a fresh database**, which is where nearly everything here
+is tested: with no stored row there is nothing to freeze, and with no existing
+record there is nothing for the install to overwrite. Both are green there while
+wrong, so green is not evidence. The witness for both is ``-u <module>`` on a
+restored production copy, and the question to ask before running it is which xml
+ids the module hands over and which of them the database already has.
 
 ----
 
@@ -6519,7 +7151,7 @@ moment anything is mocked. Two rules keep it from rotting:
 * Assert on observables, never on internal state -- otherwise it is a slow unit
   test.
 * **Readiness is a served request, never a log line.** ``ThreadedServer.run``
-  spawns the WSGI server and logs "HTTP service (werkzeug) running" *before*
+  spawns the HTTP server and logs "HTTP service running" *before*
   ``preload_registries``, both under ``Registry._lock``, so the socket accepts and
   the log claims readiness while requests still block.
 
@@ -6564,6 +7196,19 @@ Naming: files ``test_<feature>.py``, classes ``TestFeatureName``, methods
 * **Mock external services.** Tests run offline.
 * **Test with minimal permissions** -- a user in only the group under test
   surfaces access-rule bugs early. ``@users("demo")`` covers multi-user cases.
+* **A fixture that reuses a shipped record states every setting it relies
+  on** ``[review]``. Demo data may have reconfigured the record before the
+  test runs, and a suite that is green without demo can be red with it:
+  ``approval``'s tests cleared ``approver_ids`` on
+  ``approval_category_data_business_trip`` and added one approver, while the
+  demo had set ``approval_minimum`` to 2 and ``approve_sequentially`` on the
+  same category -- 33 errors under ``--with-demo``, none without. Reset the
+  minimum and the sequencing beside the approvers, or build the record with
+  the class's own helper. Logins collide the same way: a test user named
+  ``approver1`` fails ``setUpClass`` on a database whose demo created one.
+  And so do windows: ``approval_sale``'s rate-limit tests counted the orders
+  the superuser had created in the last 24 hours, which on a demo database
+  are the demo's -- create the records under test as a user of your own.
 * **Never call ``cr.commit()``.** Test data lives in the test transaction and is
   rolled back; a commit permanently pollutes the database. The one exception is a
   concurrency or cron test that deliberately opens ``self.registry.cursor()``.
@@ -6630,6 +7275,14 @@ Structure each test as setup → action → assertion, separated by blank lines.
 * Use the ``Form`` simulator (``from odoo.tests import Form``) to test onchange
   behaviour without HTTP.
 * **Lock hot paths with ``assertQueryCount``.** ``@warmup`` primes caches first.
+* **Pin the shape before the number** ``[review]``. An absolute count moves
+  with the installed modules, the demo data and every constant-cost change;
+  what a batch must never do is grow with its size.
+  ``self.assertQueriesConstant(run, small=2, large=40)`` runs ``run(n)`` at
+  both sizes (each in a savepoint, after a warm-up run) and fails when the
+  counts differ, so an N+1 fails whatever the pin says and a constant-cost
+  change passes whatever the pin says. Keep the absolute pin beside it for
+  the constant itself.
 * **A moved count is a question, not a verdict** ``[review]``. A count changes
   when the work *moves* as readily as when it grows, and only the stack of the
   extra calls tells those apart: a pin asserting *exactly* one QWeb compile per
@@ -6730,19 +7383,11 @@ and keeps holding its HTTP port.
 6.9 Pre-existing failures
 -------------------------
 
-**Do not re-run a suite to find out whether a red test was already red.** Diff the
-run against its recorded failure set instead ``[review]``:
-
-.. code-block:: bash
-
-   odoo-bin -d <db> -i <module> --test-enable --test-tags /<module> \
-       --stop-after-init --logfile run.log
-   tooling/testbaseline/testbaseline.py /<module> run.log
-
-``0 new, 0 newly-passing`` means nothing in the run is attributable to your change.
-A newly-passing test is reported too, and is banked with ``--update`` in the commit
-that fixed it -- the same one-way discipline the ratchets apply to counts, for the
-same reason: a win nobody records is one that silently reverts.
+**Do not re-run a suite to find out whether a red test was already red.** Diff
+the run's failure *names* against a run of the same suite at ``HEAD`` in a
+detached worktree ``[review]``. (``tooling/testbaseline`` kept a recorded
+failure set per suite and diffed against it; it went with ``tooling/`` on
+2026-09-11, and its expected-failure files with it.)
 
 Two rules the tool exists to enforce, both measured rather than assumed:
 
@@ -6756,8 +7401,7 @@ Two rules the tool exists to enforce, both measured rather than assumed:
   across a day in which one recorded test was fixed and an unrecorded one broke:
   a matching count reads as "both known" and ships the regression.
 
-A suite with no baseline gets no verdict rather than a guess. ``tooling/testbaseline/README.md``
-carries the measurement behind each choice.
+A suite with no recorded set gets no verdict rather than a guess.
 
 ----
 
@@ -7145,6 +7789,17 @@ only when stored.) Do not reason from the field type; pick one of:
 * restrict it with ``groups="..."``, or
 * replace the related field with an explicit, ACL-respecting compute.
 
+**A ``_search`` override that narrows what a user sees declares
+``_search_visibility_fields``** ``[review]`` -- the tuple of field names the
+override reads to decide visibility (``ir.attachment``: ``res_model``,
+``res_id``, ``res_field``, ``public``, ``create_uid``). The ORM keeps one x2many
+cache slot per access scope and evicts a user's slots on the model's records
+when a write touches a field the user's read rule tests; a rule written in
+Python is invisible to it, so the override names its fields. An override that
+declares nothing is read as "every field", which is correct and costs a
+refetch on every write to the model. ``base/tests/test_x2many_cache_scope.py``
+checks each declared name is a field.
+
 10.6 Controllers
 ----------------
 
@@ -7227,7 +7882,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   optional-dependency idiom.
 
 * **A read-only tier is the lowest rung of its privilege**
-  ``[readonly_tiers]``. ``account``, ``stock``, ``sales_team``, ``purchase`` and
+  ``[readonly_tiers]``. ``account``, ``stock``, ``sale``, ``purchase`` and
   ``mrp`` each carry ``group_<app>_readonly``: sequence 5 or 10, ``privilege_id``
   set, implying ``base.group_user``. It reads every model the app shows and
   writes none (``grants_write``); where a rung of the same privilege narrows a
@@ -7240,7 +7895,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   purchase, User in stock and mrp, Invoicing in account -- and a gate on an
   affordance the tier must reach spells the pair
   ``groups="<transacting rung>,<tier>"``. A sixth app copies the rule, not a
-  module: ``tooling/architecture/readonly_tiers.py`` names the tiers.
+  module.
 
 10.9 Configuration and secrets
 ------------------------------
@@ -7282,9 +7937,14 @@ Every new model ships explicit access rules ``[review]``. A model with no
 ----------------
 
 A ``search()``, ``search_count()``, ``search_fetch()`` or ``_read_group()`` call
-inside a ``for`` loop over a recordset is a violation ``[test_lint E8507]``. Like
-every ``test_lint`` rule it is an exact ratchet, so a new one fails the build and
-a fix that is not banked fails it too.
+inside a ``for`` loop over a recordset is a violation ``[test_lint E8507]``. The
+rule is a hard zero: the 295 sites it reported on 2026-09-12 were each read, 40
+were hoisted and the rest carry ``# noqa: E8507 - <why>``. The rule is
+syntactic -- it sees the loop, not what the loop is over -- so a loop that runs
+one query per *distinct key* is not an N+1 and is waived with the key named:
+one query per company, per model, per timezone, per merged domain (records
+sharing a domain were grouped before the loop), or a transient wizard that is
+a single record. A loop over the records themselves is hoisted, never waived.
 
 Aggregate outside the loop and index the result:
 
@@ -7455,6 +8115,18 @@ The ORM defers writes, so bracket raw SQL accordingly:
    self.env.cr.execute(...)
    self.invalidate_model()     # drop the cache after writing behind the ORM's back
 
+**An expression that carries a parameter and appears twice is two expressions**
+``[review]``. psycopg 3 binds server-side, so each ``%s`` reaches PostgreSQL as its
+own ``$N``. When the same SQL object is interpolated into the SELECT list and into
+GROUP BY, the server sees ``"tag"."name"->>$2`` and ``->>$4``, and it refuses the
+query with ``GroupingError: column ... must appear in the GROUP BY clause`` whatever
+the values. psycopg2 inlined parameters, so upstream code of this shape worked. A
+translated field is the usual carrier, because ``_field_to_sql`` renders it with the
+language as a parameter; a company-dependent field inlines its company key and is
+safe. Repeat such an expression only after ``.inlined(self.env.cr)``, or group by
+the raw column or the select alias. ``l10n_ph_reports`` and ``l10n_vn_reports`` were
+red on this until enterprise ``669855605fa``.
+
 11.7 Cron batching
 ------------------
 
@@ -7598,7 +8270,8 @@ commented reference code by nature.
 
 The framework passes a **cursor**, not an environment. Guard ``pre-migrate`` SQL
 with the helpers in ``odoo.db.schema`` -- ``table_exists``, ``column_exists``,
-``index_exists``, ``create_column``, ``convert_column``, ``drop_constraint`` --
+``index_exists``, ``create_column``, ``convert_column``, ``drop_columns``,
+``drop_constraint`` --
 rather than hand-written ``information_schema`` queries. (There is no
 ``odoo.tools.sql`` in this fork.) ``openupgradelib`` is available but is not the
 house default.
@@ -7610,6 +8283,17 @@ the ``ir.model.fields`` row for a field the code no longer declares and issues
 -- which ``modules/loading.py`` runs *after* every ``post-migrate``. So a
 ``post-migrate`` that harvests the old values into their new home works, and there
 is nothing left for a later version to harvest.
+
+**A field that stops being stored keeps its column until a migration drops it**
+``[review]``. The row in ``ir.model.fields`` survives -- the field is still
+declared -- so ``_process_end`` has nothing to delete, and the ORM creates
+columns but never drops one: a ``related=`` that loses ``store=True`` (§2.3,
+``E8529``) leaves the column, its index and any constraint over it in place,
+read by nothing and written by no one. The same change ships a
+``post-migrate`` calling ``schema.drop_columns(cr, table, columns)`` -- one
+``ALTER TABLE`` for the table, since each takes an exclusive lock. It cascades:
+a report view selecting the column is taken down, logged by name, and rebuilt by
+its model's ``init()`` later in the same upgrade.
 
 **A Many2many is the exception: its relation table is never dropped**
 ``[review]``. ``_drop_m2m_tables`` skips any field whose ``state`` is not
@@ -7635,6 +8319,31 @@ field's type; renaming a model or field; any non-trivial data transformation.
 
 **Not required**: adding an optional field; installing a new module; view-only
 changes; adding or removing a Many2many relation.
+
+12.4 What a migration cannot reach
+----------------------------------
+
+**No migration phase runs late enough to see rows a model discovers from the
+registry.** In ``odoo/modules/loading.py``, ``run_end_migrations()`` is called
+before ``register_model_hooks()``, and a post-migration runs earlier still, while
+the modules that declare what is being discovered are not yet loaded. A migration
+written to fix up such rows therefore matches nothing, writes nothing and raises
+nothing — it reports success having done its work against an empty set. [review]
+
+This is §2.4.14's failure one level up: a binding no import graph reaches, and a
+migration no registry reaches, both report success having done their work against an
+empty set. Neither has a gate; both are caught by asking what the thing matched.
+
+Do it in the hook that produces the rows instead: ``_register_hook`` runs on every
+registry load, after every module is in, and is the only place that sees the whole
+declaration. A row it creates is a fact about the code, so it is derived rather than
+migrated, and a value carried over from a legacy parameter is carried there too.
+
+Corollary, for a hook that queries its own model: guard it with
+``table_exists(self.env.cr, self._table)``. The hook runs on every load, including
+the load of a database whose module predates the table, and the upgrade that would
+create the table has not run yet — without the guard that database cannot boot at
+all, not even to be upgraded.
 
 ----
 
@@ -7855,8 +8564,8 @@ converted from ``product_uom_id`` or compared with a BoM's ``product_qty``. Read
 line against free stock. ``stock.move.product_uom_qty`` is unrelated and
 unchanged: a real, writable field there.
 
-Counted by ``tooling/architecture/order_line_qty.py`` and ratcheted as
-``orderlineqty``, which was floored at 31 while the write was silent and driven
+Counted by ``order_line_qty.py`` (removed with ``tooling/`` on 2026-09-11) and
+ratcheted as ``orderlineqty``, which was floored at 31 while the write was silent and driven
 down module by module. The raise arrived first, so every remaining site was a
 red test rather than drift, and the floor went to **zero** in one sweep: **33**
 writes across 21 test files, every one a fixture building an order line, none of
@@ -7898,6 +8607,57 @@ approval request's state:
        and export lines on ``hr.expense``, so none of them silently reads the
        other field.
 
+``maintenance`` puts ``date_`` first on every date it owns and names what each
+one dates. ``maintenance.plan`` is the fork's own, and ``date_order`` was an
+earlier fork name for vanilla ``request_date``; both are listed so the list stays
+one. The 1.7 migration renames the columns and rewrites stored expressions on each
+model.
+
+``date_order`` defaulted to the day the order was created and nothing wrote it again,
+so it only repeated ``create_date`` as a date. ``date_confirmed`` is a datetime
+stamped when the order leaves draft and cleared when it returns there, and
+reliability counts its local day as the failure. The 1.7 migration takes it from
+each order's first tracked state change, or from ``create_date`` when there is
+none, and clears it on drafts.
+
+``maintenance.order.owner_user_id`` is dropped: an order is requested by whoever
+created it, ``create_uid``, as a sale, purchase or invoice is. It differed only
+under ``hr_maintenance``, which filled it from ``employee_id``; that module is
+retired by base 1.78, which drops ``employee_id`` and the implication that made
+every HR officer a maintenance manager. Maintenance 1.7 rewrites stored
+expressions naming ``owner_user_id`` to ``create_uid``.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Model
+     - Previous name
+     - This fork
+   * - ``maintenance.order``
+     - ``date_order`` (vanilla ``request_date``)
+     - ``date_confirmed``
+   * - ``maintenance.order``
+     - ``close_date``
+     - ``date_done``
+   * - ``maintenance.order``
+     - ``schedule_date`` / ``schedule_end``
+     - ``date_scheduled_start`` / ``date_scheduled_end``
+   * - ``maintenance.order``
+     - ``date_occurrence``
+     - ``date_plan_slot``
+   * - ``maintenance.plan``
+     - ``date_start`` / ``date_next``
+     - ``date_first_occurrence`` / ``date_next_scheduled``
+   * - ``resource.resource``, ``resource.asset``, ``mrp.workcenter``
+     - ``date_effective`` (vanilla ``effective_date``)
+     - ``date_in_service``
+   * - ``resource.resource``, ``resource.asset``, ``mrp.workcenter``
+     - ``latest_failure_date`` / ``estimated_next_failure``
+     - ``date_last_failure`` / ``date_next_failure``
+   * - ``team.team``
+     - ``maintenance_todo_order_count_date``
+     - ``maintenance_todo_order_count_scheduled``
+
 Appendix B — References
 ========================
 
@@ -7906,7 +8666,7 @@ In this repo:
 * ``ruff.toml`` -- linter and formatter configuration, with the rationale for
   every suppression
 * ``odoo/addons/test_lint/`` -- the fork's own checkers
-* ``tooling/ratchet/baselines/`` -- the committed floors
+* ``odoo/addons/test_lint/tests/floors.json`` -- the committed ``test_lint`` floors
 * ``pytest.ini`` -- the Tier 1 suite definition
 
 In the knowledge repository's ``reference/``:
@@ -7974,6 +8734,11 @@ file.
    * - wkhtmltopdf workarounds; ``dpi`` / ``header_spacing`` /
        ``disable_shrinking`` on paperformats
      - WeasyPrint paged media (§3.6.1)
+   * - ``_sanitize_*``
+     - The row the body belongs to, per §2.4.20's table -- ``_normalize_`` when
+       it reshapes a value, ``_filter_`` a subset, ``_update_`` an in-place
+       mutation, ``_prepare_`` a payload, ``_check_`` when it raises. Reserved
+       for HTML sanitisation and for a hook named after a ``sanitized_*`` field
 
 Appendix D — Document history
 ==============================
@@ -7987,6 +8752,147 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.58
+     - 2026-09-20
+     - §2.3: a boolean field attribute takes a Python bool; the ORM raises
+       ``TypeError`` on ``store="True"`` instead of reading it as true.
+   * - 6.57
+     - 2026-09-19
+     - ``stored-related`` is ``E8529``: it shared ``E8528`` with
+       ``receiver-fail-open``, so one ``noqa`` named both. The ``E85xx`` range
+       reads ``E8529``; ``test_checkers`` refuses a shared code.
+   * - 6.56
+     - 2026-09-19
+     - §2.3: an ``@api.constrains`` naming a related field fires when its source
+       changes, with or without a column; a constraint is no reason to store one.
+   * - 6.55
+     - 2026-09-18
+     - §2.3: a related field is not stored to make it groupable (``E8528``,
+       floored); a UNIQUE/EXCLUDE or a measured composite index keeps the copy,
+       with a ``noqa`` naming it. The ``E85xx`` range reads ``E8528``. §12.2: a
+       field that stops being stored keeps its column until a migration calls
+       ``schema.drop_columns``.
+   * - 6.54
+     - 2026-09-16
+     - §11.6: an expression with a bound parameter used twice (SELECT and GROUP BY)
+       reaches the server as two expressions under psycopg 3; inline it first.
+   * - 6.53
+     - 2026-09-16
+     - §2.4.1: a zero-argument ``_compute_`` assigning a field no model declares is
+       dead and is deleted, not renamed; constructed dispatch counts as a binding.
+   * - 6.52
+     - 2026-09-16
+     - §2.4.3: an accumulator — a body writing into a container its caller passes in
+       and returning nothing — is the Addition row's ``_add_``; ``_fill_`` of a
+       caller's container is abolished.
+   * - 6.51
+     - 2026-09-16
+     - §2.4.18: the ingestion cycle gains an Acquire row before Identify —
+       ``_download_`` for a document taken from a remote service, ``_import_``
+       for local records made from what it returned, ``_get_`` for a remote
+       answer that is not stored — retiring ``_fetch_`` of something remote.
+   * - 6.50
+     - 2026-09-16
+     - §3.9: ``noupdate`` protects every write but the first. A module being
+       installed loads its data with ``"init"``, which is the one mode
+       ``convert.py`` does not skip, so the flag cannot protect a record the
+       install writes -- including one a ``pre_init_hook`` handed the xml id to,
+       which is how ``fleet``'s catalogue replaced four manufacturer logos on a
+       production copy. The stored flag is never refreshed either
+       (``_update_xmlids`` writes ``model`` and ``res_id`` only), so unfreezing a
+       database takes a pre-migration, not a tree edit (agromarin ``f10b85a09`` /
+       ``marin`` 19.0.1.71). §2.4.19 points here.
+   * - 6.49
+     - 2026-09-15
+     - §2.4.1: "unbound" is a claim about a search — a binding hides behind a
+       non-string ``default=``, a protocol namespace, or a data-derived tail. The
+       signature settles the rest (a ``compute=`` passes nothing, so a definition
+       taking arguments is not that hook), and a zero-argument survivor is left
+       alone because renaming a field that lost its ``compute=`` makes the defect
+       unfindable.
+   * - 6.48
+     - 2026-09-15
+     - §12.4: no migration phase runs late enough to see rows a ``_register_hook``
+       discovers from the registry, so such a migration reports success against an
+       empty set; a hook querying its own model guards with ``table_exists``.
+   * - 6.47
+     - 2026-09-15
+     - §2.4 head: thirty of its thirty-one gate markers name a tool deleted with
+       ``odoo/tooling/``, so the section is review-held and its census table is a
+       frozen reading -- 10 of 59 rows still true, 7 unre-derivable. §2.4.3 gains
+       the measured limit of the redundancy claim; §2.4.4's first-token frequency
+       heuristic is replaced by a grammar test; §2.4.5 reserves ``convert_to_*``;
+       §2.4.20 abolishes ``_sanitize_``; §2.4.21 asks for a return annotation
+       wherever the name makes a type claim; §2.1's length ratchet is gone.
+   * - 6.46
+     - 2026-09-14
+     - §3.6.1: the PDF engine, ``report.layout``, the company document-layout
+       fields and the two technical reports live in ``web``; ``base`` keeps the
+       action type and the HTML and text renders.
+   * - 6.45
+     - 2026-09-12
+     - §11.1: ``E8507`` is a hard zero; a loop that runs one query per
+       distinct key is waived with the key named, a loop over the records is
+       hoisted.
+   * - 6.44
+     - 2026-09-12
+     - §3.1: the XML declaration is part of the canonical format the
+       formatter writes; it is not part of a document's identity.
+   * - 6.43
+     - 2026-09-12
+     - §3.7: menus are moved by ``_relocate_menus.py``; the menus file loads
+       after the actions it names and before the first file that needs a menu;
+       menu-binding records live with the menus. No XML rule is floored.
+   * - 6.42
+     - 2026-09-12
+     - §3.6: ``t-esc`` is fixer-owned (``_modernize_output_directives.py``);
+       no XML rule is floored any more.
+   * - 6.41
+     - 2026-09-12
+     - §3.1: the x2many command tuples are fixer-owned
+       (``_modernize_commands.py``) and the rule is a hard zero.
+   * - 6.40
+     - 2026-09-12
+     - §3.1: the record field-order canon covers 22 technical models and is
+       pinned to the registry; its four dead names (``groups_id``,
+       ``print_wizard``, ``filter``, ``mobile_view_filter``) are gone.
+   * - 6.39
+     - 2026-09-12
+     - §3: the static XML rules (``_xml_rules.py``, one ``lint_xml_*``
+       ratchet each) named beside the conventions they hold; menus go in
+       ``views/<module>_menus.xml``; ``t-out`` over ``t-esc``; every
+       reference shape the loader resolves is checked statically.
+   * - 6.38
+     - 2026-09-12
+     - §1.2: the manifest vocabulary is ``MANIFEST_KEY_ORDER`` alone, the
+       fixer normalises (defaults dropped, whitespace, case, set bundles,
+       unescaped strings) and the shape gate reads "would rewrite"; the
+       value rules the fixer cannot decide are listed, and the two scripts
+       run over the sibling repositories by hand.
+   * - 6.37
+     - 2026-09-12
+     - §2.2.2: "every consumer already reaches it" is a manifest closure, run
+       over who asks the question and not over who is folding today; the four
+       recurrence mixins move from ``resource`` to ``base`` because ``ir.cron``
+       asks it and a ``base`` -> ``resource`` edge is a cycle.
+   * - 6.36
+     - 2026-09-12
+     - §2.2.2: a mixin may live with the module that owns its subject matter
+       instead of in ``base``; ``mixin_recurrence`` is dissolved into
+       ``resource`` rather than ``base``, which is where the iCalendar engine
+       lifted out of ``calendar.recurrence`` joins it.
+   * - 6.35
+     - 2026-09-12
+     - §1.2: a demo or data file never stores a secret -- a
+       ``credential.credential`` exists unprovisioned until one is entered,
+       so a module installs and loads its demo on a server with no
+       ``ODOO_API_ENCRYPTION_KEY``.
+   * - 6.34
+     - 2026-09-12
+     - §1.2: demo data reaches a workflow state through the workflow, and a
+       demo file must load -- the ``--with-demo`` sweep that found twelve
+       that did not; §6.2: a fixture reusing a shipped record states every
+       setting it relies on, because demo may have reconfigured it.
    * - 6.33
      - 2026-09-11
      - Appendix A gains ``hr.expense.approval_state`` to ``review_state``: the
@@ -8507,6 +9413,14 @@ One row per change, one clause. The argument lives in the section it moved.
      - 2026-08-22
      - Full rewrite into a direct, rule-first style; §2.4 gains numbered
        subsections §2.4.1--§2.4.17.
+   * - 5.45
+     - 2026-09-16
+     - §10.5: a ``_search`` override that narrows visibility declares
+       ``_search_visibility_fields``.
+   * - 5.44
+     - 2026-09-16
+     - §6.4: ``assertQueriesConstant`` pins the shape of a batch's query count;
+       the gates run as one command (``./gates.sh``) with a pre-push hook.
    * - 5.43
      - 2026-09-04
      - Every gate runs by hand: the CI workflows are gone, and the gate table

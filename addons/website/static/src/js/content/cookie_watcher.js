@@ -1,9 +1,4 @@
 /** @odoo-module native */
-// This script is to be called directly in the <head>. It should not import any
-// other file or library, as it cannot be transformed into a module (because a
-// module is deferred): the function should be the very first thing launched on
-// the page to be able to bypass other IIFE of 3rd-party services that inject
-// new scripts client-side.
 
 // eslint-disable-next-line no-unused-vars
 function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
@@ -24,10 +19,6 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
         },
         set(val) {
             const cookiesBarCookie = document.cookie.match(cookieRegex)?.groups.value;
-            // This setter runs for EVERY script.src assignment on the page; a
-            // malformed/tampered cookie must not throw here (it would break all
-            // subsequent script loading). Treat a parse failure as "not
-            // consented".
             let optionalConsent = false;
             if (cookiesBarCookie) {
                 try {
@@ -59,8 +50,6 @@ function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
             for (const scriptEl of document.querySelectorAll(
                 "script[data-need-cookies-approval]",
             )) {
-                // We have to completely recreate the scripts for them to fire, we
-                // cannot just switch the src.
                 const newScript = document.createElement("script");
                 newScript._src = scriptEl.dataset.nocookieSrc;
                 scriptEl.insertAdjacentElement("beforebegin", newScript);

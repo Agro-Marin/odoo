@@ -12,20 +12,20 @@
                 <field name="message" />
                 <group>
                     <filter
-                        string="Database"
                         name="database"
+                        string="Database"
                         context="{'group_by': 'dbname'}" />
                     <filter
-                        string="Level"
                         name="group_by_level"
+                        string="Level"
                         context="{'group_by': 'level'}" />
                     <filter
-                        string="Type"
                         name="group_by_type"
+                        string="Type"
                         context="{'group_by': 'type'}" />
                     <filter
-                        string="Creation Date"
                         name="group_by_month"
+                        string="Creation Date"
                         context="{'group_by': 'create_date'}" />
                 </group>
             </search>

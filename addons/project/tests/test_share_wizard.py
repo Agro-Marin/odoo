@@ -1,11 +1,56 @@
+import logging
+
 from odoo import Command
 from odoo.tests import tagged
 
 from .test_project_base import TestProjectCommon
 
+_logger = logging.getLogger(__name__)
+
 
 @tagged("post_install", "-at_install")
 class TestShareWizardAppliesOnConfirm(TestProjectCommon):
+    def test_partial_defaults_preserve_the_requested_field_contract(self):
+        project = self.env["project.project"].create({"name": "Default target"})
+        project._add_collaborators(self.user_portal.partner_id, access_mode="edit")
+        model = self.env["project.share.wizard"].with_context(
+            active_model=project._name,
+            active_id=project.id,
+        )
+        defaults = model.default_get(["note"])
+        _logger.debug("Project share note defaults: %s", defaults)
+        self.assertLessEqual(defaults.keys(), {"note"})
+        defaults = model.default_get(["collaborator_ids"])
+        _logger.debug("Project share collaborator defaults: %s", defaults)
+        self.assertEqual(defaults.keys(), {"collaborator_ids"})
+        self.assertIn(
+            self.user_portal.partner_id.id,
+            [command[2]["partner_id"] for command in defaults["collaborator_ids"]],
+        )
+
+    def test_explicit_collaborator_defaults_are_preserved(self):
+        project = self.env["project.project"].create({"name": "Explicit defaults"})
+        project._add_collaborators(self.user_portal.partner_id, access_mode="edit")
+        defaults = (
+            self.env["project.share.wizard"]
+            .with_context(
+                active_model=project._name,
+                active_id=project.id,
+                default_collaborator_ids=[],
+            )
+            .default_get(["collaborator_ids"])
+        )
+        _logger.debug("Explicit project share collaborator defaults: %s", defaults)
+        self.assertEqual(defaults.keys(), {"collaborator_ids"})
+        wizard = self.env["project.share.wizard"].create(
+            {
+                "res_model": project._name,
+                "res_id": project.id,
+                **defaults,
+            }
+        )
+        self.assertFalse(wizard.collaborator_ids)
+
     def _wizard(self, project, partner, access_mode="edit"):
         return self.env["project.share.wizard"].create(
             {
@@ -51,6 +96,54 @@ class TestShareWizardAppliesOnConfirm(TestProjectCommon):
         )
         revoke.action_share_record()
         self.assertFalse(project.collaborator_ids)
+
+    def test_invitations_leave_one_credential_free_note(self) -> None:
+        project = self.env["project.project"].create(
+            {"name": "Shared", "privacy_visibility": "portal"}
+        )
+        reader = self.env["res.partner"].create(
+            {"name": "Read-only guest", "email": "guest@example.com"}
+        )
+        wizard = self.env["project.share.wizard"].create(
+            {
+                "res_model": "project.project",
+                "res_id": project.id,
+                "collaborator_ids": [
+                    Command.create(
+                        {
+                            "partner_id": self.user_portal.partner_id.id,
+                            "access_mode": "edit",
+                        }
+                    ),
+                    Command.create({"partner_id": reader.id, "access_mode": "view"}),
+                ],
+            }
+        )
+        wizard.action_send_mail()
+
+        readable = (
+            self.env["mail.message"]
+            .with_user(self.user_projectuser)
+            .search([("model", "=", project._name), ("res_id", "=", project.id)])
+        )
+        for message in readable:
+            self.assertNotIn("token=", str(message.body))
+            self.assertNotIn("hash=", str(message.body))
+        notes = readable.filtered(
+            lambda message: (
+                reader.name in str(message.body)
+                and self.user_portal.partner_id.name in str(message.body)
+            )
+        )
+        self.assertEqual(len(notes), 1)
+        invitations = self.env["mail.message"].search(
+            [
+                ("model", "=", project._name),
+                ("res_id", "=", project.id),
+                ("message_type", "=", "user_notification"),
+            ]
+        )
+        self.assertEqual(invitations.partner_ids, self.user_portal.partner_id | reader)
 
     def test_applying_twice_is_a_no_op(self) -> None:
         project = self.env["project.project"].create(

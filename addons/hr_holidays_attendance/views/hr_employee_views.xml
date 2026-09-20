@@ -11,10 +11,10 @@
                 <field name="total_overtime" invisible="1" />
                 <button
                     name="%(hr_leave_allocation_overtime_manager_action)d"
-                    string="Deduct Extra Hours"
                     type="action"
-                    groups="hr_holidays.group_hr_holidays_user"
+                    string="Deduct Extra Hours"
                     context="{'default_employee_id': id, 'deduct_extra_hours': True}"
+                    groups="hr_holidays.group_hr_holidays_user"
                     invisible="total_overtime &lt;= 1 or not active" />
             </xpath>
         </field>

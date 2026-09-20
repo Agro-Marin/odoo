@@ -34,11 +34,11 @@
             </xpath>
             <xpath expr="//button[@name='action_send_mail']" position="after">
                 <button
-                    string="Send Mass Mailing"
                     name="action_send_mail"
                     type="object"
-                    class="btn-primary o_mail_send"
+                    string="Send Mass Mailing"
                     invisible="mass_mailing_name == '' or not mass_mailing_name"
+                    class="btn-primary o_mail_send"
                     data-hotkey="q" />
             </xpath>
         </field>

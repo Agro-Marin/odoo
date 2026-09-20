@@ -2,11 +2,14 @@ import typing
 
 from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.parser import parse_res_ids
 
 if typing.TYPE_CHECKING:
     from ..models.res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MailFollowersEdit(models.TransientModel):
@@ -14,23 +17,32 @@ class MailFollowersEdit(models.TransientModel):
     _description = "Followers edit wizard"
 
     res_model = fields.Char(
-        "Related Document Model", required=True, help="Model of the followed resource"
+        string="Related Document Model",
+        required=True,
+        help="Model of the followed resource",
     )
-    res_ids = fields.Char("Related Document IDs", help="Ids of the followed resources")
+    res_ids = fields.Char(
+        string="Related Document IDs",
+        help="Ids of the followed resources",
+    )
     operation = fields.Selection(
-        [
+        selection=[
             ("add", "Add"),
             ("remove", "Remove"),
         ],
-        string="Operation",
-        required=True,
         default="add",
+        required=True,
     )
     partner_ids: ResPartner = fields.Many2many(
-        "res.partner", required=True, string="Followers"
+        comodel_name="res.partner",
+        string="Followers",
+        required=True,
     )
-    message = fields.Html("Message")
-    notify = fields.Boolean("Notify Recipients", default=False)
+    message = fields.Html()
+    notify = fields.Boolean(
+        string="Notify Recipients",
+        default=False,
+    )
 
     def edit_followers(self) -> dict:
         for wizard in self:
@@ -40,6 +52,15 @@ class MailFollowersEdit(models.TransientModel):
                 raise UserError(
                     self.env._("No documents found for the selected records.")
                 )
+            _debug.lifecycle(
+                "followers_edited",
+                wizard=wizard.id,
+                model=wizard.res_model,
+                documents=len(documents),
+                partners=len(wizard.partner_ids),
+                operation=wizard.operation,
+                notify=wizard.notify,
+            )
             if wizard.operation == "remove":
                 documents.message_unsubscribe(partner_ids=wizard.partner_ids.ids)
             else:

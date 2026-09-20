@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.option.cover_properties_option");
 
 export class CoverPropertiesOption extends BaseOptionComponent {
     static template = "website.CoverPropertiesOption";
@@ -9,6 +13,7 @@ export class CoverPropertiesOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState((editingElement) => ({
             useTextAlign: editingElement.dataset.use_text_align === "True",
             useSize: editingElement.dataset.use_size === "True",

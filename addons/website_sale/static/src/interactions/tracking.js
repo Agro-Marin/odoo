@@ -35,8 +35,6 @@ export class Tracking extends Interaction {
     }
 
     /**
-     * Virtual page view
-     *
      * @private
      */
     _vpv(page) {

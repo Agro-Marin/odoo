@@ -12,25 +12,25 @@
                 <field name="suggested_answer_id" />
                 <field name="question_id" />
                 <filter
+                    name="filter_question_type_text"
                     string="Text Questions"
-                    domain="[('question_id.question_type', 'in', ['char_box', 'text_box'])]"
-                    name="filter_question_type_text" />
+                    domain="[('question_id.question_type', 'in', ['char_box', 'text_box'])]" />
                 <filter
+                    name="filter_question_type_selection"
                     string="Selection Questions"
-                    domain="[('question_id.question_type', 'in', ['multiple_choice', 'dropdown', 'simple_choice'])]"
-                    name="filter_question_type_selection" />
+                    domain="[('question_id.question_type', 'in', ['multiple_choice', 'dropdown', 'simple_choice'])]" />
                 <group>
                     <filter
-                        string="Question"
                         name="group_by_question"
+                        string="Question"
                         context="{'group_by': 'question_id'}" />
                     <filter
-                        string="Customer"
                         name="group_by_customer"
+                        string="Customer"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Appointment Type"
                         name="group_by_appointment_type"
+                        string="Appointment Type"
                         context="{'group_by': 'appointment_type_id'}" />
                 </group>
             </search>
@@ -41,7 +41,7 @@
         <field name="name">survey.user_input.line.view.form</field>
         <field name="model">survey.user_input.line</field>
         <field name="arch" type="xml">
-            <form string="Answer Input" name="answer_input_form">
+            <form name="answer_input_form" string="Answer Input">
                 <field name="question_type" invisible="1" />
                 <sheet>
                     <group>
@@ -72,7 +72,7 @@
         <field name="name">survey.user_input.line.view.list</field>
         <field name="model">survey.user_input.line</field>
         <field name="arch" type="xml">
-            <list create="false" string="Answer Breakdown">
+            <list string="Answer Breakdown" create="false">
                 <field name="create_date" optional="hide" />
                 <field name="question_id" optional="show" />
                 <field name="value_char_box" />

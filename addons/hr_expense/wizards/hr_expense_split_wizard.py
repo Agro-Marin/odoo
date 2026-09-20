@@ -1,4 +1,7 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrExpenseSplitWizard(models.TransientModel):
@@ -6,19 +9,21 @@ class HrExpenseSplitWizard(models.TransientModel):
     _description = "Expense Split Wizard"
 
     expense_id = fields.Many2one(
-        comodel_name="hr.expense", string="Expense", required=True
+        comodel_name="hr.expense",
+        required=True,
     )
     expense_split_line_ids = fields.One2many(
-        comodel_name="hr.expense.split", inverse_name="wizard_id"
+        comodel_name="hr.expense.split",
+        inverse_name="wizard_id",
     )
     total_amount_currency = fields.Monetary(
         string="Total Amount",
-        compute="_compute_total_amount_currency",
         currency_field="currency_id",
+        compute="_compute_total_amount_currency",
     )
     total_amount_currency_original = fields.Monetary(
-        string="Total amount original",
         related="expense_id.total_amount_currency",
+        string="Total amount original",
         currency_field="currency_id",
         help="Total amount of the original Expense that we are splitting",
     )
@@ -28,11 +33,12 @@ class HrExpenseSplitWizard(models.TransientModel):
         compute="_compute_tax_amount_currency",
     )
     split_possible = fields.Boolean(
-        help="The sum of after split shut remain the same",
         compute="_compute_split_possible",
+        help="The sum of after split shut remain the same",
     )
     currency_id = fields.Many2one(
-        comodel_name="res.currency", related="expense_id.currency_id"
+        comodel_name="res.currency",
+        related="expense_id.currency_id",
     )
 
     @api.depends("expense_split_line_ids.total_amount_currency")
@@ -64,15 +70,21 @@ class HrExpenseSplitWizard(models.TransientModel):
         self.check_singleton()
         expense_split = self.expense_split_line_ids[0]
         copied_expenses = self.env["hr.expense"]
+        _debug.pipeline(
+            "split_start",
+            expense=self.expense_id,
+            lines=self.expense_split_line_ids,
+            possible=self.split_possible,
+        )
         if expense_split:
-            self.expense_id.write(expense_split._get_values())
+            self.expense_id.write(expense_split._prepare_expense_vals())
 
             self.expense_split_line_ids -= expense_split
             if self.expense_split_line_ids:
                 for split in self.expense_split_line_ids:
                     copied_expenses |= self.expense_id.with_context(
                         {"from_split_wizard": True}
-                    ).copy(split._get_values())
+                    ).copy(split._prepare_expense_vals())
 
                 attachment_ids = self.env["ir.attachment"].search(
                     [
@@ -81,6 +93,12 @@ class HrExpenseSplitWizard(models.TransientModel):
                     ]
                 )
 
+                _debug.lifecycle(
+                    "split_copies_created",
+                    origin=self.expense_id,
+                    copies=copied_expenses,
+                    attachments=attachment_ids,
+                )
                 for copied_expense in copied_expenses:
                     for attachment in attachment_ids:
                         attachment.copy(
@@ -102,5 +120,10 @@ class HrExpenseSplitWizard(models.TransientModel):
             self.expense_id.split_expense_origin_id or self.expense_id
         )
         all_related_expenses = copied_expenses | self.expense_id | split_expense_ids
+        _debug.pipeline(
+            "split_done",
+            origin=self.expense_id.split_expense_origin_id or self.expense_id,
+            related=all_related_expenses,
+        )
 
         return all_related_expenses._get_records_action(name=_("Split Expenses"))

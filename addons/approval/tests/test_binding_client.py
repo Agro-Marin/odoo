@@ -1,6 +1,8 @@
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import common, tagged
 
+from odoo.addons.approval.tests.common import add_category_approver
+
 
 @tagged("post_install", "-at_install")
 class TestApprovalBindingClient(common.TransactionCase):
@@ -21,18 +23,13 @@ class TestApprovalBindingClient(common.TransactionCase):
             )
         )
         cls.flat_category = cls.env["approval.category"].create(
-            {"name": "Client Flat", "approval_minimum": 1}
+            {"name": "Client Flat", "approval_minimum": 1, "allow_self_approval": True}
         )
-        cls.env["approval.category.approver"].create(
-            {
-                "category_id": cls.flat_category.id,
-                "user_id": cls.approver.id,
-                "required": True,
-                "sequence": 10,
-            }
+        add_category_approver(
+            cls.flat_category, cls.approver, required=True, sequence=10
         )
         cls.step_category = cls.env["approval.category"].create(
-            {"name": "Client Steps", "approval_minimum": 1}
+            {"name": "Client Steps", "approval_minimum": 1, "allow_self_approval": True}
         )
         for sequence, users in ((10, (cls.approver, cls.peer)), (20, (cls.later,))):
             cls.env["approval.category.step"].create(
@@ -167,7 +164,12 @@ class TestApprovalBindingClient(common.TransactionCase):
         member_b = self._user("client_member_b")
         member_b.write({"company_ids": [(4, company_b.id)], "company_id": company_b.id})
         category = self.env["approval.category"].create(
-            {"name": "Client Company Steps", "approval_minimum": 1, "company_id": False}
+            {
+                "name": "Client Company Steps",
+                "approval_minimum": 1,
+                "company_id": False,
+                "allow_self_approval": True,
+            }
         )
         first, _later = (
             self.env["approval.category.step"].create(
@@ -202,7 +204,11 @@ class TestApprovalBindingClient(common.TransactionCase):
 
     def test_the_button_decides_the_step_it_is_drawn_under(self):
         category = self.env["approval.category"].create(
-            {"name": "Client Two Pools", "approval_minimum": 1}
+            {
+                "name": "Client Two Pools",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         pool_a, pool_b = (
             self.env["approval.category.step"].create(
@@ -259,7 +265,11 @@ class TestApprovalBindingClient(common.TransactionCase):
     def test_a_click_after_the_decided_step_is_archived_decides_the_rest(self):
         """Studio's test_08_archive."""
         category = self.env["approval.category"].create(
-            {"name": "Client Archive", "approval_minimum": 1}
+            {
+                "name": "Client Archive",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         Step = self.env["approval.category.step"]
         exclusive = Step.create(
@@ -314,7 +324,9 @@ class TestApprovalBindingClient(common.TransactionCase):
         self.assertEqual(result["request"]["state"], "refused")
         self.assertTrue(result["request"]["can_reopen"])
         step = result["steps"][0]
-        self.assertEqual((step["id"], step["minimum"]), (False, 1))
+        self.assertEqual(
+            (step["id"], step["minimum"]), (self.flat_category.step_ids.id, 1)
+        )
         refusal = step["decisions"][0]
         self.assertEqual(refusal["state"], "refused")
         self.assertFalse(self._spec(partner, self.requester)["request"]["can_reopen"])

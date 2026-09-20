@@ -61,11 +61,19 @@ deployment.** Two databases served by one process have different model sets,
 different columns, and genuinely different runtime classes for the same `_name`.
 Nothing may be cached per process without a database key.
 
+The ORM reads and writes this meta-schema through one object, `registry.metaschema`
+(`orm/runtime/metaschema.py`): reflection at model init, the manual models and
+fields, a model's translated description and a field's labels and selection, a
+model's defaults and a column's company fallbacks, the constraint messages. The
+same object answers on the in-memory registry from its own storage, which is what
+lets a DB-free environment reflect its models into `ir.model` and `ir.model.fields`
+rows and register their external ids through `registry.xmlids`.
+
 ## 2. The signalling tables — cross-process coordination
 
-Nine tables, one for the registry and one for each key in `CACHES_BY_KEY`
+Ten tables, one for the registry and one for each key in `CACHES_BY_KEY`
 (`default`, `assets`, `stable`, `templates`, `routing`, `groups`,
-`product_variants`, `actions`), each created as:
+`product_variants`, `actions`, `mail`), each created as:
 
 ```sql
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())
@@ -73,9 +81,12 @@ CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT
 
 **There is no message and no payload — the row's generated `id` *is* the version
 number.** To invalidate, a worker inserts a row and keeps the id PostgreSQL
-assigned; every other worker compares the table's max id against the one it last
-saw, on its next `check_signaling()`, and rebuilds its registry or clears the
-named caches accordingly.
+assigned; every other worker compares the serial's last value (one sequence read
+per table, not a `max(id)` scan) against the one it last saw, on its next
+`check_signaling()`, and rebuilds its registry or clears the named caches
+accordingly. A serial moves even when the inserting transaction rolls back, so a
+rolled-back registry change costs the other workers one spare reload — rare, and
+cheaper than planning eleven subselects on every request.
 
 This is why the process model is architectural rather than a deployment knob
 (`workers > 0` means no shared memory), and why any process-lifetime cache must
@@ -84,7 +95,8 @@ no version, therefore no way to be told it is stale.
 
 `setup_signaling` creates each table **and inserts one row**: an empty table
 would read back as "no version", and a local sequence starting at `-1` would then
-treat every check as a change.
+treat every check as a change. `get_sequences` reads all ten in one `SELECT`
+of ten scalar subqueries.
 
 ## 3. The filestore — content-addressed, and its layout is not fixed
 
@@ -113,12 +125,9 @@ row still references.
 - `store_fname` — a path into the filestore
 - `db_datas` — the bytes, in the database
 
-They are alternatives, not layers, and which one is used is a per-attachment
+They are alternatives, not layers; which one is used is a per-attachment
 decision, and one column carries both *which store* and *which key* — which
-is why nothing can map a store back to the content it holds. Two proposals --
-an object-store layering with a key policy, and a placement row per copy of an
-attachment's content -- set out to change that and were withdrawn on
-2026-08-14 with the seam as described here.
+is why nothing can map a store back to the content it holds.
 **Any backup that captures PostgreSQL without the filestore, or the reverse,
 captures a torn state** — the most common way a restored database comes back
 subtly broken.
@@ -142,7 +151,7 @@ The question to ask of any change: *if these disagreed, which one wins?*
 |---|---|---|
 | Which fields a model has **in this database** | `ir_model_fields` | the Python class |
 | Which modules are installed | `ir_module_module` | `addons_path` contents |
-| Whether a cached value is stale | `orm_signaling_*` max id | process uptime |
+| Whether a cached value is stale | `orm_signaling_*_id_seq` last value | process uptime |
 | An attachment's bytes | `store_fname` **xor** `db_datas` | either alone |
 | The identity of a record across upgrades | `ir_model_data` XML id | the numeric `id` |
 
@@ -158,11 +167,18 @@ The question to ask of any change: *if these disagreed, which one wins?*
 ## What this view does not cover
 
 - **Replica topology.** There is a read-only replica path with a breaker —
-  `db/breaker.py` owns the mechanism, `db/replica.py` the policy
+  `libs/breaker.py` owns the mechanism, `db/replica.py` the policy
   (`ReplicaRouter`, and `REPLICA_RETRY_TIME`, the cooldown ceiling it
-  constructs the breaker with).
-  Which data may be read from a replica, and the staleness window, are not
-  described here.
+  constructs the breaker with). Two facts about what a replica read may
+  return *are* settled, because the router enforces them: the staleness
+  window is bounded by `db_replica_max_lag` (apply lag, sampled; a standby
+  with WAL outstanding and nothing replayed yet counts as infinitely
+  behind), and a session reads its own writes — for `db_replica_write_pin`
+  seconds after a transaction of its own assigned a transaction id, its
+  read-only requests go to the primary (`WritePins`, keyed by the session id
+  the http layer passes). Which data is *appropriate* to read from a
+  replica beyond that — a route's `readonly=True` — is the route author's
+  claim, not this view's.
 - **Retention.** Nothing here says how long sessions, attachments or log-like
   tables are kept.
 - **Encryption at rest**, for any of the four stores.

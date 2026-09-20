@@ -4,9 +4,10 @@ from odoo import fields, models
 class ReportPosOrder(models.Model):
     _inherit = "report.pos.order"
 
+    _depends = {"pos.order": ["employee_id"]}
+
     employee_id = fields.Many2one(
         comodel_name="hr.employee",
-        string="Employee",
         readonly=True,
     )
 

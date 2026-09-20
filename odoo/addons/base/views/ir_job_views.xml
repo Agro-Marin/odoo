@@ -13,46 +13,46 @@
                 <field name="identity_key" />
                 <separator />
                 <filter
-                    string="Waiting Dependencies"
                     name="wait_deps"
+                    string="Waiting Dependencies"
                     domain="[('state', '=', 'wait_deps')]" />
                 <filter
-                    string="Scheduled"
                     name="scheduled"
+                    string="Scheduled"
                     domain="[('state', '=', 'scheduled')]" />
                 <filter
-                    string="Pending"
                     name="pending"
+                    string="Pending"
                     domain="[('state', '=', 'pending')]" />
                 <filter
-                    string="Started"
                     name="started"
+                    string="Started"
                     domain="[('state', '=', 'started')]" />
-                <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
+                <filter name="done" string="Done" domain="[('state', '=', 'done')]" />
                 <filter
-                    string="Failed"
                     name="failed"
+                    string="Failed"
                     domain="[('state', '=', 'failed')]" />
                 <filter
-                    string="Cancelled"
                     name="cancelled"
+                    string="Cancelled"
                     domain="[('state', '=', 'cancelled')]" />
                 <group>
                     <filter
-                        string="State"
                         name="groupby_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Channel"
                         name="groupby_channel"
+                        string="Channel"
                         context="{'group_by': 'channel'}" />
                     <filter
-                        string="Model"
                         name="groupby_model"
+                        string="Model"
                         context="{'group_by': 'model_name'}" />
                     <filter
-                        string="Created on"
                         name="groupby_create_date"
+                        string="Created on"
                         context="{'group_by': 'create_date'}" />
                 </group>
             </search>
@@ -64,11 +64,11 @@
         <field name="arch" type="xml">
             <list
                 string="Background Jobs"
-                decoration-success="state == 'done'"
-                decoration-info="state == 'started'"
+                create="0"
                 decoration-danger="state == 'failed'"
+                decoration-info="state == 'started'"
                 decoration-muted="state == 'cancelled'"
-                create="0">
+                decoration-success="state == 'done'">
                 <field name="id" />
                 <field name="name" optional="show" />
                 <field name="model_name" />
@@ -78,17 +78,17 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'done'"
+                    decoration-danger="state == 'failed'"
                     decoration-info="state in ('pending', 'started')"
-                    decoration-warning="state in ('wait_deps', 'scheduled')"
-                    decoration-danger="state == 'failed'" />
+                    decoration-success="state == 'done'"
+                    decoration-warning="state in ('wait_deps', 'scheduled')" />
                 <field name="retry" optional="show" />
                 <field name="defer_count" optional="hide" />
                 <field name="eta" optional="show" />
                 <field name="create_date" />
                 <field name="started_at" optional="hide" />
                 <field name="done_at" optional="hide" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="worker_ident" optional="hide" />
                 <field name="exc_name" optional="hide" />
             </list>
@@ -104,8 +104,8 @@
                         name="action_run_now"
                         type="object"
                         string="Run Manually"
-                        class="oe_highlight"
-                        invisible="state not in ('scheduled', 'pending')" />
+                        invisible="state not in ('scheduled', 'pending')"
+                        class="oe_highlight" />
                     <button
                         name="action_cancel"
                         type="object"
@@ -115,8 +115,8 @@
                         name="action_requeue"
                         type="object"
                         string="Requeue"
-                        class="oe_highlight"
-                        invisible="state not in ('failed', 'cancelled')" />
+                        invisible="state not in ('failed', 'cancelled')"
+                        class="oe_highlight" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -163,7 +163,7 @@
                         </group>
                     </group>
                     <notebook invisible="not exc_name">
-                        <page string="Error" name="error">
+                        <page name="error" string="Error">
                             <group>
                                 <field name="exc_name" />
                                 <field name="exc_message" />
@@ -203,8 +203,8 @@
             <search string="Job Channels">
                 <field name="name" />
                 <filter
-                    string="Paused"
                     name="paused"
+                    string="Paused"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

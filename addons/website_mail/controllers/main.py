@@ -4,8 +4,10 @@ from collections import defaultdict
 from odoo import http
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class WebsiteMail(http.Controller):
@@ -13,7 +15,6 @@ class WebsiteMail(http.Controller):
     def website_message_subscribe(
         self, id=0, object=None, message_is_follower="on", email=False, **post
     ):
-        # TDE FIXME: check this method with new followers
         res_id = int(id)
         is_follower = message_is_follower == "on"
         record = request.env[object].browse(res_id).exists()
@@ -22,7 +23,6 @@ class WebsiteMail(http.Controller):
 
         record.check_access("read")
 
-        # search partner_id
         if request.env.user != request.website.user_id:
             partner_ids = request.env.user.partner_id.ids
         else:
@@ -45,12 +45,23 @@ class WebsiteMail(http.Controller):
                 .ids
             )
             if not partner_ids:
+                _debug.logic(
+                    "follow_partner_unresolved",
+                    model=object,
+                    res_id=res_id,
+                    no_create=no_create,
+                )
                 return False
-        # add or remove follower
         if is_follower:
+            _debug.lifecycle(
+                "unsubscribed", model=object, res_id=res_id, partners=partner_ids
+            )
             record.sudo().message_unsubscribe(partner_ids)
             return False
         else:
+            _debug.lifecycle(
+                "subscribed", model=object, res_id=res_id, partners=partner_ids
+            )
             request.session["partner_id"] = partner_ids[0]
             record.sudo().message_subscribe(partner_ids)
             return True
@@ -63,20 +74,6 @@ class WebsiteMail(http.Controller):
         readonly=True,
     )
     def is_follower(self, records, **post):
-        """Given a list of `models` containing a list of res_ids, return
-        the res_ids for which the user is follower and some practical info.
-
-        :param records: dict of models containing record IDS, eg: {
-                'res.model': [1, 2, 3..],
-                'res.model2': [1, 2, 3..],
-                ..
-            }
-
-        :returns: [
-                {'is_user': True/False, 'email': 'admin@yourcompany.example.com'},
-                {'res.model': [1, 2], 'res.model2': [1]}
-            ]
-        """
         user = request.env.user
         partner = None
         public_user = request.website.user_id
@@ -89,11 +86,17 @@ class WebsiteMail(http.Controller):
                 .browse(request.session.get("partner_id"))
             )
 
+        _debug.logic(
+            "is_follower_identity",
+            is_user=user != public_user,
+            partner=partner,
+            models=len(records),
+        )
         res = defaultdict(list)
         if partner:
             for model in records:
                 mail_followers_ids = (
-                    request.env["mail.followers"]
+                    request.env["mail.followers"]  # noqa: E8507 - one query per model of the request
                     .sudo()
                     ._read_group(
                         [
@@ -104,7 +107,6 @@ class WebsiteMail(http.Controller):
                         ["res_id"],
                     )
                 )
-                # `_read_group` will filter out the ones not matching the domain
                 res[model].extend(res_id for [res_id] in mail_followers_ids)
 
         return [

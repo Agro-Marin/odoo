@@ -26,7 +26,7 @@ class AccountMove(models.Model):
         return {"invoice_number": int(invoice_number), "point_of_sale": int(pos)}
 
     l10n_ar_afip_responsibility_type_id = fields.Many2one(
-        "l10n_ar.afip.responsibility.type",
+        comodel_name="l10n_ar.afip.responsibility.type",
         string="ARCA Responsibility Type",
         help="Defined by ARCA to"
         " identify the type of responsibilities that a person or a legal entity could have and that impacts in the"
@@ -35,9 +35,9 @@ class AccountMove(models.Model):
 
     # Mostly used on reports
     l10n_ar_afip_concept = fields.Selection(
-        compute="_compute_l10n_ar_afip_concept",
         selection="_selection_afip_invoice_concepts",
         string="ARCA Concept",
+        compute="_compute_l10n_ar_afip_concept",
         help="A concept is suggested regarding the type of the products on the invoice.",
     )
     l10n_ar_afip_service_start = fields.Date(string="ARCA Service Start Date")
@@ -369,15 +369,16 @@ class AccountMove(models.Model):
         return posted
 
     def _reverse_moves(self, default_values_list=None, cancel=False):
-        if not default_values_list:
-            default_values_list = [{} for move in self]
-        for move, default_values in zip(self, default_values_list):
-            default_values.update(
-                {
-                    "l10n_ar_afip_service_start": move.l10n_ar_afip_service_start,
-                    "l10n_ar_afip_service_end": move.l10n_ar_afip_service_end,
-                }
+        default_values_list = [
+            {
+                **default_values,
+                "l10n_ar_afip_service_start": move.l10n_ar_afip_service_start,
+                "l10n_ar_afip_service_end": move.l10n_ar_afip_service_end,
+            }
+            for move, default_values in zip(
+                self, default_values_list or [{} for move in self], strict=True
             )
+        ]
         return super()._reverse_moves(
             default_values_list=default_values_list, cancel=cancel
         )
@@ -403,7 +404,7 @@ class AccountMove(models.Model):
             )
             current_pos = int(number.split("-")[0])
             if current_pos != rec.journal_id.l10n_ar_afip_pos_number:
-                invoices = self.search(
+                invoices = self.search(  # noqa: E8507 - one probe per reviewed move, on its own point of sale
                     [
                         ("journal_id", "=", rec.journal_id.id),
                         ("posted_before", "=", True),
@@ -442,18 +443,18 @@ class AccountMove(models.Model):
         return super()._get_starting_sequence()
 
     def _get_domain_last_sequence(self, relaxed=False):
-        where_string, param = super()._get_domain_last_sequence(relaxed)
+        domain = super()._get_domain_last_sequence(relaxed)
         if (
             self.company_id.account_fiscal_country_id.code == "AR"
             and self.l10n_latam_use_documents
         ):
-            where_string += (
-                " AND l10n_latam_document_type_id = %(l10n_latam_document_type_id)s"
+            document_type = self.l10n_latam_document_type_id
+            domain &= (
+                Domain("l10n_latam_document_type_id", "=", document_type.id)
+                if document_type
+                else Domain.FALSE
             )
-            param["l10n_latam_document_type_id"] = (
-                self.l10n_latam_document_type_id.id or 0
-            )
-        return where_string, param
+        return domain
 
     def _l10n_ar_get_amounts(self, company_currency=False):
         """Method used to prepare data to present amounts and taxes related amounts when creating an

@@ -7,9 +7,21 @@ class SlideChannelTagGroup(models.Model):
     _inherit = ["mixin.website.published"]
     _order = "sequence asc"
 
-    name = fields.Char("Group Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=10, index=True, required=True)
-    tag_ids = fields.One2many("slide.channel.tag", "group_id", string="Tags")
+    name = fields.Char(
+        string="Group Name",
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(
+        default=10,
+        index=True,
+        required=True,
+    )
+    tag_ids = fields.One2many(
+        comodel_name="slide.channel.tag",
+        inverse_name="group_id",
+        string="Tags",
+    )
 
     def _default_is_published(self):
         return True
@@ -21,27 +33,31 @@ class SlideChannelTag(models.Model):
     _description = "Channel/Course Tag"
     _order = "group_sequence asc, sequence asc"
 
-    name = fields.Char("Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=10, index=True, required=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(
+        default=10,
+        index=True,
+        required=True,
+    )
     group_id = fields.Many2one(
-        "slide.channel.tag.group",
-        string="Group",
+        comodel_name="slide.channel.tag.group",
         index=True,
         required=True,
         ondelete="cascade",
     )
     group_sequence = fields.Integer(
-        "Group sequence",
         related="group_id.sequence",
-        index=True,
+        string="Group sequence",
         readonly=True,
-        store=True,
     )
     channel_ids = fields.Many2many(
-        "slide.channel",
-        "slide_channel_tag_rel",
-        "tag_id",
-        "channel_id",
+        comodel_name="slide.channel",
+        relation="slide_channel_tag_rel",
+        column1="tag_id",
+        column2="channel_id",
         string="Channels",
     )
     color = fields.Integer(
@@ -52,16 +68,6 @@ class SlideChannelTag(models.Model):
 
     @api.model
     def _search_by_slugs(self, slugs):
-        """Resolve a comma-separated slug list ("hotels-1,adventure-2") to tags.
-
-        The one parser. Both the course search on slide.channel and the
-        controller's tag filter had their own copy, each with its own bare
-        ``except``. Unparseable input yields an empty recordset rather than an
-        error: these arrive from a URL.
-
-        The search is what filters out ids that do not exist, so the caller
-        never has to check.
-        """
         try:
             tag_ids = [
                 tag_id

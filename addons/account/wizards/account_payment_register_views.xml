@@ -7,23 +7,23 @@
         <field name="arch" type="xml">
             <form string="Pay">
                 <field name="line_ids" invisible="1" />
-                <field name="can_edit_wizard" invisible="1" force_save="1" />
-                <field name="can_group_payments" invisible="1" force_save="1" />
+                <field name="can_edit_wizard" force_save="1" invisible="1" />
+                <field name="can_group_payments" force_save="1" invisible="1" />
                 <field
                     name="early_payment_discount_mode"
-                    invisible="1"
-                    force_save="1" />
+                    force_save="1"
+                    invisible="1" />
                 <field name="installments_mode" invisible="1" />
                 <field name="installments_switch_amount" invisible="1" />
                 <field name="installments_switch_html" invisible="1" />
-                <field name="payment_type" invisible="1" force_save="1" />
-                <field name="partner_type" invisible="1" force_save="1" />
-                <field name="source_amount" invisible="1" force_save="1" />
-                <field name="source_amount_currency" invisible="1" force_save="1" />
-                <field name="source_currency_id" invisible="1" force_save="1" />
-                <field name="company_id" invisible="1" force_save="1" />
-                <field name="partner_id" invisible="1" force_save="1" />
-                <field name="country_code" invisible="1" force_save="1" />
+                <field name="payment_type" force_save="1" invisible="1" />
+                <field name="partner_type" force_save="1" invisible="1" />
+                <field name="source_amount" force_save="1" invisible="1" />
+                <field name="source_amount_currency" force_save="1" invisible="1" />
+                <field name="source_currency_id" force_save="1" invisible="1" />
+                <field name="company_id" force_save="1" invisible="1" />
+                <field name="partner_id" force_save="1" invisible="1" />
+                <field name="country_code" force_save="1" invisible="1" />
                 <field name="currency_id" invisible="1" />
                 <field name="custom_user_amount" invisible="1" />
                 <field name="custom_user_currency_id" invisible="1" />
@@ -54,7 +54,7 @@
                     invisible="untrusted_payments_count == 0">
                     <span class="fw-bold"><field name="untrusted_payments_count" class="oe_inline" />
                         out of <field name="total_payments_amount" class="oe_inline" /> payments
-                        will be skipped due to <button class="oe_link p-0 align-baseline" type="object" name="action_view_untrusted_bank_accounts">untrusted bank
+                        will be skipped due to <button name="action_view_untrusted_bank_accounts" type="object" class="oe_link p-0 align-baseline">untrusted bank
                         accounts</button>.</span>
                 </div>
                 <div
@@ -62,7 +62,7 @@
                     class="alert alert-warning"
                     invisible="not missing_account_partners">
                     <span class="fw-bold">Payments related to partners with no bank account
-                        specified will be skipped. <button class="oe_link p-0 align-baseline" type="object" name="action_view_missing_account_partners">View
+                        specified will be skipped. <button name="action_view_missing_account_partners" type="object" class="oe_link p-0 align-baseline">View
                         Partner(s)</button></span>
                 </div>
                 <div
@@ -72,8 +72,8 @@
                     <span>This payment has the same partner, amount and date as </span>
                     <field
                         name="duplicate_payment_ids"
-                        widget="x2many_buttons"
-                        string="Duplicated Payments" />
+                        string="Duplicated Payments"
+                        widget="x2many_buttons" />
                 </div>
                 <div role="alert" invisible="not actionable_errors">
                     <field
@@ -90,15 +90,15 @@
                         <field
                             name="payment_channel_id"
                             context="{'hide_payment_journal_id': 1}"
-                            required="1"
-                            options="{'no_create': True, 'no_open': True}" />
+                            options="{'no_create': True, 'no_open': True}"
+                            required="1" />
                         <field
                             name="partner_bank_id"
+                            placeholder="Account Number"
+                            context="{'display_account_trust': True, 'default_partner_ids': [partner_id]}"
                             invisible="not show_partner_bank_account or not can_edit_wizard or (can_group_payments and not group_payment)"
                             readonly="payment_type == 'inbound'"
-                            required="require_partner_bank_account and can_edit_wizard and (not can_group_payments or not group_payment)"
-                            placeholder="Account Number"
-                            context="{'display_account_trust': True, 'default_partner_ids': [partner_id]}" />
+                            required="require_partner_bank_account and can_edit_wizard and (not can_group_payments or not group_payment)" />
                         <field
                             name="group_payment"
                             invisible="not can_group_payments" />
@@ -138,15 +138,15 @@
                                         class="o_cell o_wrap_label text-break text-900">
                                         <label
                                             for="writeoff_label"
-                                            class="oe_edit_only"
                                             string="Label"
-                                            invisible="writeoff_is_exchange_account" />
+                                            invisible="writeoff_is_exchange_account"
+                                            class="oe_edit_only" />
                                     </div>
                                     <div class="o_cell o_wrap_input text-break">
                                         <field
                                             name="writeoff_label"
-                                            required="payment_difference_handling == 'reconcile'"
-                                            invisible="writeoff_is_exchange_account" />
+                                            invisible="writeoff_is_exchange_account"
+                                            required="payment_difference_handling == 'reconcile'" />
                                     </div>
                                 </div>
                             </div>
@@ -161,10 +161,10 @@
                                 readonly="not can_edit_wizard or can_group_payments and not group_payment" />
                             <field
                                 name="currency_id"
-                                required="1"
                                 options="{'no_create': True, 'no_open': True}"
+                                groups="base.group_multi_currency"
                                 invisible="not can_edit_wizard or can_group_payments and not group_payment"
-                                groups="base.group_multi_currency" />
+                                required="1" />
                         </div>
                         <field
                             name="installments_switch_html"
@@ -183,23 +183,23 @@
                 </group>
                 <footer>
                     <button
+                        name="action_create_payments"
+                        type="object"
                         string="Create Payments"
+                        invisible="total_payments_amount == 1"
+                        class="oe_highlight"
+                        data-hotkey="q" />
+                    <button
                         name="action_create_payments"
                         type="object"
-                        class="oe_highlight"
-                        data-hotkey="q"
-                        invisible="total_payments_amount == 1" />
-                    <button
                         string="Create Payment"
-                        name="action_create_payments"
-                        type="object"
+                        invisible="total_payments_amount != 1"
                         class="oe_highlight"
-                        data-hotkey="q"
-                        invisible="total_payments_amount != 1" />
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

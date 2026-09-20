@@ -2,9 +2,7 @@
 const WISHLIST_PRODUCT_IDS_SESSION_NAME = "wishlist_product_ids";
 
 /**
- * Get the IDs of the products in the wishlist from the session.
- *
- * @return {Array<number>} The IDs of the products in the wishlist.
+ * @return {Array<number>}
  */
 function getWishlistProductIds() {
     return JSON.parse(
@@ -13,9 +11,7 @@ function getWishlistProductIds() {
 }
 
 /**
- * Set the IDs of the products in the wishlist in the session.
- *
- * @param {ArrayLike<number>} productIds The IDs of the products in the wishlist.
+ * @param {ArrayLike<number>} productIds
  */
 function setWishlistProductIds(productIds) {
     sessionStorage.setItem(
@@ -25,8 +21,6 @@ function setWishlistProductIds(productIds) {
 }
 
 /**
- * Add the specified product to the wishlist.
- *
  * @param {number} productId
  */
 function addWishlistProduct(productId) {
@@ -36,8 +30,6 @@ function addWishlistProduct(productId) {
 }
 
 /**
- * Remove the specified product from the wishlist.
- *
  * @param {number} productId
  */
 function removeWishlistProduct(productId) {
@@ -46,9 +38,6 @@ function removeWishlistProduct(productId) {
     setWishlistProductIds(productIds);
 }
 
-/**
- * Update the visibility and quantity of the wishlist button in the navbar.
- */
 function updateWishlistNavBar() {
     const wishlistProductIds = getWishlistProductIds();
     const wishButtons = document.querySelectorAll(".o_wsale_my_wish");
@@ -72,10 +61,8 @@ function updateWishlistView() {
 }
 
 /**
- * Update the disabled/enabled state of an element.
- *
- * @param {Element} el The element to disable/enable.
- * @param {boolean} isDisabled Whether the element should be disabled.
+ * @param {Element} el
+ * @param {boolean} isDisabled
  */
 function updateDisabled(el, isDisabled) {
     el.disabled = isDisabled;

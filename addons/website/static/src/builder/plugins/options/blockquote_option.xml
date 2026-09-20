@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website.BlockquoteOption">
-    <!-- Layout -->
     <BuilderRow label.translate="Edge Spacing">
         <BuilderRange action="'setClassRange'" actionParam="['p-1','p-2','p-3','p-4','p-5']" max="4"/>
     </BuilderRow>

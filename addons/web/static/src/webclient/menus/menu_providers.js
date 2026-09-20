@@ -5,7 +5,7 @@ import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { DefaultCommandItem } from "@web/ui/commands/command_palette";
+import { DefaultCommandItem } from "@web/ui/commands";
 
 import { menuUsage } from "./menu_usage.js";
 import { appSearchKey, flattenMenuTree, menuSearchKey } from "./menu_utils.js";

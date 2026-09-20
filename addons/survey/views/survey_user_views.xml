@@ -13,10 +13,10 @@
                     filter_domain="[                     '|',                     ('partner_id', 'ilike', self),                     ('email', 'ilike', self)]" />
                 <field name="partner_id" />
                 <field name="survey_id" />
-                <filter string="New" name="new" domain="[('state', '=', 'new')]" />
+                <filter name="new" string="New" domain="[('state', '=', 'new')]" />
                 <filter
-                    string="In Progress"
                     name="in_progress"
+                    string="In Progress"
                     domain="[('state', '=', 'in_progress')]" />
                 <filter
                     name="completed"
@@ -24,30 +24,30 @@
                     domain="[('state', '=', 'done')]" />
                 <separator />
                 <filter
-                    string="Quiz passed"
                     name="scoring_success"
+                    string="Quiz passed"
                     domain="[('scoring_success','=', True)]" />
                 <separator />
                 <filter
-                    string="Tests Only"
                     name="test"
+                    string="Tests Only"
                     domain="[('test_entry','=', True)]" />
                 <filter
-                    string="Exclude Tests"
                     name="not_test"
+                    string="Exclude Tests"
                     domain="[('test_entry','=', False)]" />
                 <separator />
                 <filter
-                    string="Low Quality"
                     name="low_quality"
+                    string="Low Quality"
                     domain="[('quality_score', '&lt;', 50)]" />
                 <filter
-                    string="Speeders"
                     name="speeders"
+                    string="Speeders"
                     domain="[('is_speeder', '=', True)]" />
                 <filter
-                    string="Straight-liners"
                     name="straight_liners"
+                    string="Straight-liners"
                     domain="[('is_straight_liner', '=', True)]" />
                 <group>
                     <filter
@@ -55,16 +55,16 @@
                         string="Survey"
                         context="{'group_by': 'survey_id'}" />
                     <filter
-                        string="Email"
                         name="group_by_email"
+                        string="Email"
                         context="{'group_by': 'email'}" />
                     <filter
-                        string="Partner"
                         name="group_by_partner"
+                        string="Partner"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Language"
                         name="group_by_lang"
+                        string="Language"
                         context="{'group_by': 'lang_id'}" />
                 </group>
             </search>
@@ -79,15 +79,15 @@
                 <header>
                     <button
                         name="action_resend"
-                        string="Resend Invitation"
                         type="object"
-                        class="oe_highlight"
-                        invisible="state == 'done' or not partner_id and not email" />
+                        string="Resend Invitation"
+                        invisible="state == 'done' or not partner_id and not email"
+                        class="oe_highlight" />
                     <button
                         name="action_print_answers"
-                        invisible="state != 'done'"
-                        string="Print"
                         type="object"
+                        string="Print"
+                        invisible="state != 'done'"
                         class="oe_highlight" />
                     <field name="state" widget="statusbar" />
                 </header>
@@ -97,12 +97,12 @@
                         <button
                             name="action_redirect_to_attempts"
                             type="object"
-                            class="oe_stat_button"
+                            icon="fa-regular fa-copy"
                             invisible="attempts_count == 1"
-                            icon="fa-regular fa-copy">
+                            class="oe_stat_button">
                             <field
-                                string="Attempts"
                                 name="attempts_count"
+                                string="Attempts"
                                 widget="statinfo" />
                         </button>
                     </div>
@@ -110,13 +110,13 @@
                     <widget
                         name="web_ribbon"
                         title="Test Entry"
-                        bg_color="text-bg-info"
-                        invisible="not test_entry" />
+                        invisible="not test_entry"
+                        bg_color="text-bg-info" />
                     <widget
                         name="web_ribbon"
                         title="Failed"
-                        bg_color="text-bg-danger"
-                        invisible="test_entry or scoring_type == 'no_scoring' or scoring_success" />
+                        invisible="test_entry or scoring_type == 'no_scoring' or scoring_success"
+                        bg_color="text-bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Passed"
@@ -159,7 +159,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Answers" name="page_answers">
+                        <page name="page_answers" string="Answers">
                             <field
                                 name="user_input_line_ids"
                                 mode="list"
@@ -193,8 +193,8 @@
         <field name="arch" type="xml">
             <list
                 string="Survey User inputs"
-                decoration-muted="test_entry == True"
-                create="false">
+                create="false"
+                decoration-muted="test_entry == True">
                 <field name="create_date" />
                 <field name="survey_id" />
                 <field name="nickname" optional="hide" />
@@ -215,8 +215,8 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'done'"
                     decoration-info="state == 'new'"
+                    decoration-success="state == 'done'"
                     decoration-warning="state == 'in_progress'" />
             </list>
         </field>

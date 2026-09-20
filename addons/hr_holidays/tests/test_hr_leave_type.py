@@ -12,7 +12,6 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         leave_type = self.env["hr.leave.type"].create(
             {
                 "name": "Paid Time Off",
-                "time_type": "leave",
                 "requires_allocation": False,
             }
         )
@@ -23,7 +22,7 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         worked_leave_type = self.env["hr.leave.type"].create(
             {
                 "name": "Worked Time",
-                "time_type": "other",
+                "time_type_id": self.env.ref("resource.time_type_work").id,
                 "requires_allocation": False,
             }
         )
@@ -42,10 +41,10 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         )
         leave_0.action_approve()
         self.assertEqual(
-            self.env["resource.calendar.leaves"]
+            self.env["resource.schedule.exception"]
             .search([("holiday_id", "=", leave_0.id)])
-            .time_type,
-            "other",
+            .time_type_id.code,
+            "work",
         )
         with freeze_time("2025-09-03 13:00:00"):
             employee._compute_leave_status()
@@ -75,9 +74,9 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         leave_1.action_approve()
 
         self.assertEqual(
-            self.env["resource.calendar.leaves"]
+            self.env["resource.schedule.exception"]
             .search([("holiday_id", "=", leave_1.id)])
-            .time_type,
+            .time_type_id.code,
             "leave",
         )
         with freeze_time("2025-09-03 13:00:00"):

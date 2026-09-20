@@ -280,6 +280,50 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(copied.index_content, attachment.index_content)
         self.assertEqual(copied.raw, self.blob1)
 
+    def test_copying_an_inline_row_keeps_its_index_without_extracting(self):
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
+        rows = self.Attachment.create(
+            [
+                {"name": f"n{i}.txt", "raw": f"alpha bravo {i}".encode()}
+                for i in range(3)
+            ]
+        )
+        self.assertFalse(rows[0].store_fname)
+        self.assertIn("bravo", rows[1].index_content)
+        with patch.object(
+            self.registry["ir.attachment"],
+            "_extract_index_content",
+            side_effect=AssertionError("a copy must not extract again"),
+        ):
+            copies = rows.copy()
+        for origin, copied in zip(rows, copies, strict=True):
+            self.assertEqual(copied.index_content, origin.index_content)
+            self.assertEqual(copied.checksum, origin.checksum)
+            self.assertEqual(copied.raw, origin.raw)
+        self.assertNotIn("attachment_index_from_origin", copies.env.context)
+
+    def test_streamed_create_honours_the_index_hook(self):
+        vals = self.Attachment._prepare_generated_asset_vals(
+            name="web.assets_web.min.js",
+            mimetype="text/javascript",
+            raw=b"",
+            url="/web/assets/abc123/web.assets_web.min.js",
+        )
+        vals.pop("raw")
+        with patch.object(
+            self.registry["ir.attachment"],
+            "_extract_index_content",
+            side_effect=AssertionError("a compiled bundle must not be indexed"),
+        ):
+            streamed = self.Attachment.sudo()._create_from_stream(
+                io.BytesIO(b"function f(){return 1}" * 100), **vals
+            )
+        self.addCleanup(
+            Path(self.filestore, streamed.store_fname).unlink, missing_ok=True
+        )
+        self.assertFalse(streamed.index_content)
+        self.assertTrue(streamed.file_size)
+
     def test_copying_a_legacy_dual_row_writes_no_new_content(self):
         attachment = self.Attachment.create({"name": "dual.bin", "raw": self.blob1})
         attachment.flush_recordset()
@@ -565,6 +609,106 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "a file whose marker was refreshed after the scan must be spared",
         )
 
+    def test_gc_sweep_flushes_before_reading_the_whitelist(self):
+        att = self.Attachment.create({"name": "unflushed", "raw": os.urandom(16)})
+        first = att.store_fname
+        self.env.flush_all()
+        att.write({"raw": os.urandom(16)})
+        fname = att.store_fname
+        self.assertNotEqual(fname, first)
+        store_path = Path(self.filestore, fname)
+        self.addCleanup(store_path.unlink, missing_ok=True)
+        self.assertTrue(store_path.is_file())
+
+        self.Attachment._gc_file_store_unsafe(
+            {fname: self._checklist_marker(fname)}, grace=0
+        )
+        self.assertTrue(
+            store_path.is_file(),
+            "a store key assigned in this transaction is referenced, flushed or not",
+        )
+
+    def test_prefix_read_of_zero_bytes_is_not_unreadable(self):
+        att = self.Attachment.create({"name": "head", "raw": b"0123456789"})
+        self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
+        with self.assertNoLogs("odoo.addons.base.models.ir_attachment", "ERROR"):
+            self.assertEqual(att._get_content_prefix(0), b"")
+            self.assertEqual(att._get_content_prefix(4), b"0123")
+
+    def test_autoresize_config_disables_on_a_bad_or_false_resolution(self):
+        icp = self.env["ir.config_parameter"]
+        icp.set_param("base.image_autoresize_max_px", "1920x1920")
+        subtypes, width, height, quality = (
+            self.Attachment._get_image_autoresize_config()
+        )
+        self.assertEqual((width, height), (1920, 1920))
+        self.assertIn("png", subtypes)
+        self.assertTrue(quality)
+        icp.set_param("base.image_autoresize_max_px", "False")
+        self.assertEqual(self.Attachment._get_image_autoresize_config()[1:], (0, 0, 0))
+        icp.set_param("base.image_autoresize_max_px", "wide")
+        with self.assertLogs("odoo.addons.base.models.ir_attachment", "WARNING"):
+            config = self.Attachment._get_image_autoresize_config()
+        self.assertEqual(config[1:], (0, 0, 0), "a bad value disables, not crashes")
+
+    def test_an_attachment_cannot_point_at_itself(self):
+        attachment = self.Attachment.create({"name": "self", "raw": b"x"})
+        self.addCleanup(
+            Path(self.filestore, attachment.store_fname).unlink, missing_ok=True
+        )
+        with self.assertRaises(ValidationError):
+            attachment.write({"res_model": "ir.attachment", "res_id": attachment.id})
+        other = self.Attachment.create({"name": "other", "raw": b"y"})
+        self.addCleanup(Path(self.filestore, other.store_fname).unlink, missing_ok=True)
+        attachment.write({"res_model": "ir.attachment", "res_id": other.id})
+        self.assertEqual(attachment.res_id, other.id)
+
+    def test_condition_values_read_only_a_conjunctive_positive_term(self):
+        get = ir_attachment_module._get_condition_values
+        model = self.Attachment
+        self.assertEqual(list(get(model, "res_id", Domain("res_id", "=", 7))), [7])
+        self.assertEqual(
+            sorted(get(model, "res_id", Domain("res_id", "in", [7, 8]))), [7, 8]
+        )
+        self.assertIsNone(
+            get(model, "res_id", Domain("res_id", "not in", [7])),
+            "a negative term bounds nothing",
+        )
+        self.assertIsNone(
+            get(model, "res_id", Domain("res_id", "=", 7) | Domain("name", "=", "x")),
+            "a term under OR bounds nothing",
+        )
+        self.assertEqual(
+            list(
+                get(
+                    model,
+                    "res_id",
+                    Domain("res_id", "=", 7) & Domain("name", "=", "x"),
+                )
+            ),
+            [7],
+        )
+
+    def test_xml_like_covers_every_xml_subtype(self):
+        forced = (
+            "application/x-xml",
+            "application/xml-dtd",
+            "text/xml",
+            "image/svg+xml",
+            "text/html",
+            "application/xhtml+xml",
+            "application/hta",
+        )
+        for mimetype in forced:
+            self.assertTrue(self.Attachment._is_xml_like_mimetype(mimetype), mimetype)
+        kept = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/png",
+            "text/plain",
+        )
+        for mimetype in kept:
+            self.assertFalse(self.Attachment._is_xml_like_mimetype(mimetype), mimetype)
+
     def test_to_http_stream_ignores_bin_size(self):
         payload = b"X" * 5000
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
@@ -700,7 +844,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 f"{path!r} escaped the filestore as {resolved}",
             )
 
-        self.patch(IrAttachment, "_sanitize_store_key", lambda self, path: path)
+        self.patch(IrAttachment, "_normalize_store_key", lambda self, path: path)
         with self.assertRaises(ValueError):
             self.Attachment._get_full_path("../../etc/passwd")
         with self.assertRaises(ValueError):
@@ -1186,6 +1330,20 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         att.invalidate_recordset()
         self.assertEqual(att.raw, payload)
 
+    def test_streamed_create_refuses_a_served_url_before_storing(self):
+        Attachment = self.Attachment.with_user(self.user_demo)
+        with (
+            patch.object(
+                self.registry["ir.attachment"],
+                "_write_file_stream",
+                side_effect=AssertionError("nothing must be stored"),
+            ),
+            self.assertRaises(ValidationError),
+        ):
+            Attachment._create_from_stream(
+                io.BytesIO(b"served"), name="s.txt", mimetype="text/plain", url="/x"
+            )
+
     def test_invalid_base64_datas_raises_user_error(self):
         bad = b"a"
         with self.assertRaises(UserError):
@@ -1427,6 +1585,32 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "the backstop truncation must agree with the bounded extraction",
         )
 
+    def test_generated_asset_rows_carry_no_index(self):
+        vals = self.Attachment._prepare_generated_asset_vals(
+            name="web.assets_web.min.js",
+            mimetype="text/javascript",
+            raw=b"function f(){return 1}" * 100,
+            url="/web/assets/abc123/web.assets_web.min.js",
+        )
+        with patch.object(
+            type(self.Attachment),
+            "_extract_index_content",
+            side_effect=AssertionError("a compiled bundle must not be indexed"),
+        ):
+            attachment = self.Attachment.sudo().create(vals)
+        self.assertFalse(attachment.index_content)
+        self.assertTrue(attachment.public)
+        plain = self.Attachment.create(
+            {"name": "notes.txt", "mimetype": "text/plain", "raw": b"alpha bravo"}
+        )
+        self.assertIn("bravo", plain.index_content)
+        self.assertIn(
+            attachment,
+            self.Attachment.sudo().search(
+                self.Attachment._get_domain_generated_assets(vals["url"])
+            ),
+        )
+
     def test_index_honours_a_disabled_limit(self):
         self.env["ir.config_parameter"].set_param("ir_attachment.index_max_chars", "0")
         blob = b"alpha bravo charlie delta " * 500
@@ -1651,6 +1835,36 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             any("previously reported" in rec.getMessage() for rec in second.records),
             "unresolved rows keep an INFO heartbeat",
         )
+
+    def test_audit_flags_exactly_what_the_fallback_refuses(self):
+        hidden, served = self.Attachment.sudo().create(
+            [
+                {
+                    "name": f"{name}.bin",
+                    "type": "binary",
+                    "url": f"/audit/{name}",
+                    "raw": b"x",
+                    "public": public,
+                }
+                for name, public in (("hidden", False), ("served", True))
+            ]
+        )
+        fallback_domain = [("public", "=", True)]
+        Attachment = self.Attachment.sudo()
+        self.assertFalse(
+            Attachment._get_serve_attachment(hidden.url, extra_domain=fallback_domain)
+        )
+        self.assertEqual(
+            Attachment._get_serve_attachment(served.url, extra_domain=fallback_domain),
+            served,
+        )
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment", level="WARNING"
+        ) as logs:
+            self.env["ir.attachment"]._audit_url_attachments()
+        warning = "\n".join(logs.output)
+        self.assertIn(hidden.url, warning)
+        self.assertNotIn(served.url, warning)
 
     def test_audit_url_attachments_silent_on_clean_fleet(self):
         self.env.cr.execute(
@@ -2260,6 +2474,10 @@ class TestPermissions(TransactionCaseWithUserDemo):
         effective, keyset = model._get_seek_order_and_keyset("name")
         self.assertEqual(effective, "name, id", "a caller order must be made total")
         self.assertIsNone(keyset, "an unvetted leading term must stay on OFFSET")
+
+        effective, keyset = model._get_seek_order_and_keyset("name desc, id")
+        self.assertEqual(effective, "name desc, id", "an order ending in id is total")
+        self.assertIsNone(keyset)
 
         effective, keyset = model._get_seek_order_and_keyset(None)
         self.assertEqual(
@@ -3462,7 +3680,9 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
         stray.write_bytes(b"")
         self.addCleanup(stray.unlink, True)
         self.assertNotEqual(
-            self.Attachment._sanitize_store_key(str(stray.relative_to(self.checklist))),
+            self.Attachment._normalize_store_key(
+                str(stray.relative_to(self.checklist))
+            ),
             str(stray.relative_to(self.checklist)),
             "this test needs a name the sanitizer rewrites",
         )

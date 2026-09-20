@@ -12,7 +12,6 @@ class CompanyTeamPlugin extends Plugin {
     };
 
     getEditableEls(rootEl) {
-        // To fix db in stable
         const contentEditableEls = [
             ...selectElements(rootEl, ".s_company_team .o_not_editable *"),
         ];

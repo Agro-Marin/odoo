@@ -6,13 +6,18 @@ class ResPartnerIap(models.Model):
     _description = "Partner IAP"
 
     partner_id = fields.Many2one(
-        "res.partner", string="Partner", ondelete="cascade", required=True
+        comodel_name="res.partner",
+        required=True,
+        ondelete="cascade",
     )
     iap_search_domain = fields.Char(
-        "Search Domain / Email", help="Domain used to find the company"
+        string="Search Domain / Email",
+        help="Domain used to find the company",
     )
     iap_enrich_info = fields.Text(
-        "IAP Enrich Info", help="IAP response stored as a JSON string", readonly=True
+        string="IAP Enrich Info",
+        readonly=True,
+        help="IAP response stored as a JSON string",
     )
 
     _unique_partner_id = models.Constraint(

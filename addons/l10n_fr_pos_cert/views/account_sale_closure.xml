@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="list_view_account_sale_closing" model="ir.ui.view">
@@ -21,7 +22,7 @@
         <field name="name">Sales Closings</field>
         <field name="model">account.sale.closing</field>
         <field name="arch" type="xml">
-            <form create="false" edit="false" string="Account Closing">
+            <form string="Account Closing" create="false" edit="false">
                 <sheet>
                     <div class="oe_title">
                         <h1>
@@ -69,11 +70,5 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="menu_account_closing_reporting"
-        parent="l10n_fr_account.account_reports_fr_statements_menu"
-        action="action_list_view_account_sale_closing"
-        sequence="90" />
 
 </odoo>

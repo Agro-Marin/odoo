@@ -2382,7 +2382,7 @@ test("Copy Message Link", async () => {
     await start();
     await openDiscuss(channelId);
     await click(".o-mail-Message:eq(0) [title='Expand']");
-    await contains(".o-dropdown-item:contains('Copy Link'_", { count: 0 });
+    await contains(".o-dropdown-item", { count: 0, text: "Copy Link" });
     await click(".o-mail-Message:eq(1) [title='Expand']");
     await click(".o-dropdown-item:contains('Copy Link')");
     await waitForSteps([url(`/mail/message/${messageId_2}`)]);

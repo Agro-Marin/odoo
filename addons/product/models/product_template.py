@@ -38,41 +38,35 @@ class ProductTemplate(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         index=True,
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Currency",
         compute="_compute_currency_id",
     )
     cost_currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Cost Currency",
         compute="_compute_cost_currency_id",
     )
     categ_id = fields.Many2one(
         comodel_name="product.category",
         string="Product Category",
-        tracking=True,
         index=True,
         group_expand="_read_group_categ_id",
         check_company=True,
+        tracking=True,
     )
 
     name = fields.Char(
-        string="Name",
-        required=True,
         translate=True,
         index="trigram",
+        required=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the product without removing it.",
     )
     sequence = fields.Integer(
-        string="Sequence",
         default=1,
         help="Gives the sequence order when displaying a product list",
     )
@@ -88,8 +82,8 @@ class ProductTemplate(models.Model):
             ("combo", "Combo"),
         ],
         string="Product Type",
-        required=True,
         default="consu",
+        required=True,
         help="Goods are tangible materials and merchandise you provide.\n"
         "A service is a non-material product you provide.",
     )
@@ -98,15 +92,18 @@ class ProductTemplate(models.Model):
             ("no", "Nothing"),
         ],
         string="Create on Order",
-        required=True,
-        default="no",
         compute="_compute_service_tracking",
+        default="no",
         store=True,
         readonly=False,
+        required=True,
     )
 
-    description = fields.Html(string="Description", translate=True)
-    description_purchase = fields.Text(string="Purchase Description", translate=True)
+    description = fields.Html(translate=True)
+    description_purchase = fields.Text(
+        string="Purchase Description",
+        translate=True,
+    )
     description_sale = fields.Text(
         string="Sales Description",
         translate=True,
@@ -117,8 +114,8 @@ class ProductTemplate(models.Model):
     uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
-        required=True,
         default=lambda self: self._default_uom_id(),
+        required=True,
         tracking=True,
         help="Default unit of measure used for all stock operations.",
     )
@@ -174,22 +171,20 @@ class ProductTemplate(models.Model):
     )
 
     volume = fields.Float(
-        string="Volume",
         digits="Volume",
         compute="_compute_volume",
-        store=True,
         inverse="_inverse_volume",
+        store=True,
     )
     volume_uom_name = fields.Char(
         string="Volume unit of measure label",
         compute="_compute_volume_uom_name",
     )
     weight = fields.Float(
-        string="Weight",
         digits="Stock Weight",
         compute="_compute_weight",
-        store=True,
         inverse="_inverse_weight",
+        store=True,
     )
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
@@ -229,12 +224,11 @@ class ProductTemplate(models.Model):
         compute="_compute_product_variant_id",
     )
     product_variant_count = fields.Count(
-        "product_variant_ids",
+        count_of="product_variant_ids",
         string="# Product Variants",
     )
 
     barcode = fields.Char(
-        string="Barcode",
         compute="_compute_barcode",
         inverse="_inverse_barcode",
         search="_search_barcode",
@@ -242,8 +236,8 @@ class ProductTemplate(models.Model):
     default_code = fields.Char(
         string="Internal Reference",
         compute="_compute_default_code",
-        store=True,
         inverse="_inverse_default_code",
+        store=True,
     )
     # The four manufacturer fields, their strings and the two hook names below
     # are OCA product-attribute's design (AGPL-3; see the note in
@@ -296,15 +290,12 @@ class ProductTemplate(models.Model):
     )
     purchase_ok = fields.Boolean(
         string="Purchase",
-        default=True,
         compute="_compute_purchase_ok",
+        default=True,
         store=True,
         readonly=False,
     )
-    is_dynamically_created = fields.Boolean(
-        string="Is Dynamically Created",
-        compute="_compute_is_dynamically_created",
-    )
+    is_dynamically_created = fields.Boolean(compute="_compute_is_dynamically_created")
 
     product_tooltip = fields.Char(compute="_compute_product_tooltip")
     product_tag_ids = fields.Many2many(
@@ -313,8 +304,8 @@ class ProductTemplate(models.Model):
         string="Tags",
     )
     product_properties = fields.Properties(
-        string="Properties",
         definition="categ_id.product_properties_definition",
+        string="Properties",
         copy=True,
     )
 
@@ -966,13 +957,15 @@ class ProductTemplate(models.Model):
             current_variants_to_activate = Product
 
             single_value_lines = lines_without_no_variants.filtered(
-                lambda ptal: len(ptal.product_template_value_ids._only_active()) == 1
+                lambda ptal: (
+                    len(ptal.product_template_value_ids._filtered_active()) == 1
+                )
             )
             if single_value_lines:
                 for variant in all_variants:
                     combination = (
                         variant.product_template_attribute_value_ids
-                        | single_value_lines.product_template_value_ids._only_active()
+                        | single_value_lines.product_template_value_ids._filtered_active()
                     )
                     if (
                         len(combination) == len(lines_without_no_variants)
@@ -989,7 +982,7 @@ class ProductTemplate(models.Model):
             if not tmpl_id.has_dynamic_attributes():
                 all_combinations = itertools.product(
                     *[
-                        ptal.product_template_value_ids._only_active()
+                        ptal.product_template_value_ids._filtered_active()
                         for ptal in lines_without_no_variants
                     ]
                 )
@@ -1060,7 +1053,7 @@ class ProductTemplate(models.Model):
         self.check_singleton()
         attribute_lines = self.valid_product_template_attribute_line_ids
         attribute_lines_active_values = (
-            attribute_lines.product_template_value_ids._only_active()
+            attribute_lines.product_template_value_ids._filtered_active()
         )
         if ignore_no_variant:
             attribute_lines = attribute_lines._without_no_variant_attributes()
@@ -1146,7 +1139,7 @@ class ProductTemplate(models.Model):
 
         return sum(self.env.context.get("current_attributes_price_extra", []))
 
-    def _get_product_price_context(self, combination):
+    def _prepare_product_price_context(self, combination):
         self.check_singleton()
         res = {}
 
@@ -1284,7 +1277,7 @@ class ProductTemplate(models.Model):
         product_template_attribute_values_per_line = []
         for ptal in attribute_lines:
             if ptal.attribute_id.display_type != "multi":
-                values_to_add = ptal.product_template_value_ids._only_active()
+                values_to_add = ptal.product_template_value_ids._filtered_active()
             else:
                 values_to_add = self.env["product.template.attribute.value"]
             product_template_attribute_values_per_line.append(values_to_add)

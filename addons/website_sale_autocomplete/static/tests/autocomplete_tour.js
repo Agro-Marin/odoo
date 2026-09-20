@@ -2,7 +2,7 @@ import { registry } from "@web/core/registry";
 import * as tourUtils from "@website_sale/js/tours/tour_utils";
 
 registry.category("web_tour.tours").add("autocomplete_tour", {
-    url: "/shop", // /shop/address is redirected if no sales order
+    url: "/shop",
     steps: () => [
         ...tourUtils.addToCart({
             productName: "A test product",
@@ -11,7 +11,6 @@ registry.category("web_tour.tours").add("autocomplete_tour", {
         tourUtils.goToCart(),
         tourUtils.goToCheckout(),
         {
-            // Actual test
             content: "Input in Street & Number field",
             trigger: 'input[name="street"]',
             run: "edit This is a test",
@@ -30,13 +29,7 @@ registry.category("web_tour.tours").add("autocomplete_tour", {
             trigger: ".dropdown-menu .js_autocomplete_result:first:contains(result 0)",
             run: "click",
         },
-        // TODO: Make this step work in headless mode
-        // {
-        //     content: "Verify the autocomplete box disappeared",
-        //     trigger: `body:not(:has(.dropdown-menu .js_autocomplete_result))`,
-        // },
         {
-            // Verify test data has been input
             content: "Check Street & number have been set",
             trigger: "input[name=street]:value(/^42 A fictional Street$/)",
         },

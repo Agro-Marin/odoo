@@ -3,12 +3,15 @@ from datetime import date, timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils
 
 from odoo.addons.account.models.res_company import (
     LOCK_DATE_FIELDS,
     SOFT_LOCK_DATE_FIELDS,
 )
+
+_debug = DebugLog(__name__)
 
 
 class AccountChangeLockDate(models.TransientModel):
@@ -17,17 +20,17 @@ class AccountChangeLockDate(models.TransientModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.company,
+        readonly=True,
+        required=True,
     )
 
     fiscalyear_lock_date = fields.Date(
         string="Lock Everything",
         compute="_compute_lock_dates",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Any entry up to and including that date will be postponed to a later time, in accordance with its journal's sequence.",
     )
     fiscalyear_lock_date_for_me = fields.Date(
@@ -50,9 +53,9 @@ class AccountChangeLockDate(models.TransientModel):
     tax_lock_date = fields.Date(
         string="Lock Tax Return",
         compute="_compute_lock_dates",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Any entry with taxes up to and including that date will be postponed to a later time, in accordance with its journal's sequence. "
         "The tax lock date is automatically set when the tax closing entry is posted.",
     )
@@ -76,9 +79,9 @@ class AccountChangeLockDate(models.TransientModel):
     sale_lock_date = fields.Date(
         string="Lock Sales",
         compute="_compute_lock_dates",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Any sales entry prior to and including this date will be postponed to a later date, in accordance with its journal's sequence.",
     )
     sale_lock_date_for_me = fields.Date(
@@ -101,9 +104,9 @@ class AccountChangeLockDate(models.TransientModel):
     purchase_lock_date = fields.Date(
         string="Lock Purchases",
         compute="_compute_lock_dates",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Any purchase entry prior to and including this date will be postponed to a later date, in accordance with its journal's sequence.",
     )
     purchase_lock_date_for_me = fields.Date(
@@ -126,32 +129,29 @@ class AccountChangeLockDate(models.TransientModel):
     hard_lock_date = fields.Date(
         string="Hard Lock",
         compute="_compute_lock_dates",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Any entry up to and including that date will be postponed to a later time, in accordance with its journal sequence. "
         "This lock date is irreversible and does not allow any exception.",
     )
     current_hard_lock_date = fields.Date(
-        string="Current Hard Lock",
         related="company_id.hard_lock_date",
+        string="Current Hard Lock",
         readonly=True,
     )
 
-    exception_needed_fields = fields.Char(
-        compute="_compute_exception_needed_fields",
-    )
+    exception_needed_fields = fields.Char(compute="_compute_exception_needed_fields")
     exception_applies_to = fields.Selection(
-        string="Exception applies",
         selection=[
             ("me", "for me"),
             ("everyone", "for everyone"),
         ],
+        string="Exception applies",
         default="me",
         required=True,
     )
     exception_duration = fields.Selection(
-        string="Exception Duration",
         selection=[
             ("5min", "for 5 minutes"),
             ("15min", "for 15 minutes"),
@@ -162,13 +162,10 @@ class AccountChangeLockDate(models.TransientModel):
         default="5min",
         required=True,
     )
-    exception_reason = fields.Char(
-        string="Exception Reason",
-    )
+    exception_reason = fields.Char()
 
     show_draft_entries_warning = fields.Boolean(
-        string="Show Draft Entries Warning",
-        compute="_compute_show_draft_entries_warning",
+        compute="_compute_show_draft_entries_warning"
     )
 
     show_posted_tax_closing_warning = fields.Boolean(
@@ -183,16 +180,17 @@ class AccountChangeLockDate(models.TransientModel):
 
     @api.depends("company_id")
     @api.depends_context("uid", "company")
+    @_debug.perf.timed
     def _compute_lock_date_exceptions(self):
         for wizard in self:
-            exceptions = self.env["account.lock_exception"].search(
+            exceptions = self.env["account.lock_exception"].search(  # noqa: E8507 - a transient wizard opened on one company
                 self.env["account.lock_exception"]._get_domain_active_exceptions(
                     wizard.company_id, SOFT_LOCK_DATE_FIELDS
                 )
             )
             for field in SOFT_LOCK_DATE_FIELDS:
                 field_exceptions = exceptions.filtered(
-                    lambda e: e.lock_date_field == field  # noqa: B023
+                    lambda e, field=field: e.lock_date_field == field
                 )
                 field_exceptions_for_me = field_exceptions.filtered(
                     lambda e: e.user_id.id == self.env.user.id
@@ -225,6 +223,11 @@ class AccountChangeLockDate(models.TransientModel):
                     if min_exception_for_everyone
                     else False
                 )
+            _debug.pipeline(
+                "active_lock_exceptions_found",
+                company=wizard.company_id,
+                exceptions=exceptions,
+            )
 
     def _get_domain_draft_moves_in_locked_period(self):
         self.check_singleton()
@@ -251,6 +254,12 @@ class AccountChangeLockDate(models.TransientModel):
                     ("line_ids.tax_ids", "!=", False),
                 ]
             )
+        _debug.logic(
+            "draft_moves_lock_domain_built",
+            wizard=self,
+            lock_dates=len(lock_date_domains),
+            no_lock_dates=not lock_date_domains,
+        )
         return (
             Domain("company_id", "child_of", self.company_id.id)
             & Domain("state", "=", "draft")
@@ -266,7 +275,7 @@ class AccountChangeLockDate(models.TransientModel):
     )
     def _compute_show_draft_entries_warning(self):
         for wizard in self:
-            draft_entries = self.env["account.move"].search(
+            draft_entries = self.env["account.move"].search(  # noqa: E8507 - a transient wizard opened on one company
                 wizard._get_domain_draft_moves_in_locked_period(), limit=1
             )
             wizard.show_draft_entries_warning = bool(draft_entries)
@@ -289,7 +298,7 @@ class AccountChangeLockDate(models.TransientModel):
         for wizard in self:
             wizard.show_posted_tax_closing_warning = bool(
                 wizard.tax_lock_date
-                and self.env["account.move"].search(
+                and self.env["account.move"].search(  # noqa: E8507 - a transient wizard opened on one company
                     wizard._get_domain_posted_tax_closings_in_locked_period(), limit=1
                 )
             )
@@ -309,12 +318,16 @@ class AccountChangeLockDate(models.TransientModel):
             changes_needing_exception = wizard._get_changes_needing_exception()
             wizard.exception_needed_fields = ",".join(changes_needing_exception)
 
+    @_debug.perf.timed
     def _prepare_lock_date_values(self, exception_vals_list=None):
         self.check_singleton()
         if self.company_id.hard_lock_date and (
             not self.hard_lock_date
             or self.hard_lock_date < self.company_id.hard_lock_date
         ):
+            _debug.logic(
+                "lock_date_change_rejected", wizard=self, reason="hard_lock_decreased"
+            )
             raise UserError(
                 _("It is not possible to decrease or remove the Hard Lock Date.")
             )
@@ -327,6 +340,12 @@ class AccountChangeLockDate(models.TransientModel):
 
         for lock_date in lock_date_values.values():
             if lock_date and lock_date > fields.Date.context_today(self):
+                _debug.logic(
+                    "lock_date_change_rejected",
+                    wizard=self,
+                    reason="future_date",
+                    lock_date=lock_date,
+                )
                 raise UserError(_("You cannot set a Lock Date in the future."))
 
         if exception_vals_list:
@@ -335,14 +354,36 @@ class AccountChangeLockDate(models.TransientModel):
                     if field in exception_vals:
                         lock_date_values.pop(field, None)
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "lock_date_values_prepared",
+                wizard=self,
+                fields=sorted(lock_date_values),
+                exceptions=len(exception_vals_list or ()),
+            )
         return lock_date_values
 
+    @_debug.perf.timed
     def _prepare_exception_values(self):
         self.check_singleton()
         changes_needing_exception = self._get_changes_needing_exception()
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "lock_changes_needing_exception",
+                company=self.company_id,
+                fields=sorted(changes_needing_exception or ()),
+            )
         if not changes_needing_exception:
             return False
+
+        _debug.logic(
+            "exception_scope_chosen",
+            applies_to=self.exception_applies_to,
+            duration=self.exception_duration,
+            skipped=self.exception_applies_to == "everyone"
+            and self.exception_duration == "forever",
+        )
 
         if (
             self.exception_applies_to == "everyone"
@@ -386,6 +427,13 @@ class AccountChangeLockDate(models.TransientModel):
         if self.exception_reason:
             exception_base_values["reason"] = self.exception_reason
 
+        _debug.pipeline(
+            "exception_values_prepared",
+            company=self.company_id,
+            count=len(changes_needing_exception),
+            expires=bool(exception_timedelta),
+            user_id=exception_base_values.get("user_id"),
+        )
         return [
             {
                 **exception_base_values,
@@ -432,6 +480,12 @@ class AccountChangeLockDate(models.TransientModel):
             if fiscal_lock_date != company_fiscal_lock_date:
                 self._create_default_report_external_values(field)
 
+        _debug.pipeline(
+            "company",
+            lockdate=self,
+            company_id=self.company_id,
+            lock_date_values=lock_date_values,
+        )
         self.company_id.sudo().write(lock_date_values)
 
     def change_lock_date(self):
@@ -443,6 +497,11 @@ class AccountChangeLockDate(models.TransientModel):
             )
 
             if exception_vals_list:
+                _debug.logic(
+                    "creating_exception",
+                    lockdate=self,
+                    exception_vals_list_count=len(exception_vals_list),
+                )
                 self.env["account.lock_exception"].create(exception_vals_list)
 
             self._change_lock_date(changed_lock_date_values)
@@ -452,7 +511,9 @@ class AccountChangeLockDate(models.TransientModel):
             )
         return {"type": "ir.actions.act_window_close"}
 
+    @_debug.perf.timed
     def action_show_draft_moves_in_locked_period(self):
+        _debug.lifecycle("action_show_draft_moves_in_locked_period", records=self)
         self.check_singleton()
         return {
             "view_mode": "list",
@@ -470,7 +531,11 @@ class AccountChangeLockDate(models.TransientModel):
             ],
         }
 
+    @_debug.perf.timed
     def action_show_posted_tax_closing_in_locked_period(self):
+        _debug.lifecycle(
+            "action_show_posted_tax_closing_in_locked_period", records=self
+        )
         self.check_singleton()
         posted_closings = self.env["account.move"].search(
             self._get_domain_posted_tax_closings_in_locked_period()
@@ -481,7 +546,9 @@ class AccountChangeLockDate(models.TransientModel):
             ]
         )
 
+    @_debug.perf.timed
     def action_reopen_wizard(self):
+        _debug.lifecycle("action_reopen_wizard", records=self)
         return {
             "type": "ir.actions.act_window",
             "res_model": self._name,
@@ -490,7 +557,9 @@ class AccountChangeLockDate(models.TransientModel):
             "target": "new",
         }
 
+    @_debug.perf.timed
     def action_revoke_min_exception(self):
+        _debug.lifecycle("action_revoke_min_exception", records=self)
         self.check_singleton()
         lock_date_field = self.env.context.get("lock_date_field")
         scope = self.env.context.get("exception_scope")
@@ -498,6 +567,12 @@ class AccountChangeLockDate(models.TransientModel):
             "me",
             "everyone",
         ):
+            _debug.logic(
+                "min_exception_revoke_rejected",
+                wizard=self,
+                lock_date_field=lock_date_field,
+                scope=scope,
+            )
             raise UserError(
                 _(
                     "Unknown lock date exception to revoke: %(field)s / %(scope)s.",
@@ -507,6 +582,13 @@ class AccountChangeLockDate(models.TransientModel):
             )
 
         exception = self[f"min_{lock_date_field}_exception_for_{scope}_id"]
+        _debug.logic(
+            "min_exception_revoke",
+            wizard=self,
+            lock_date_field=lock_date_field,
+            scope=scope,
+            exceptions=exception,
+        )
         if exception:
             exception.action_revoke()
             self._compute_lock_date_exceptions()

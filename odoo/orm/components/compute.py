@@ -1,10 +1,14 @@
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 from ._protocols import FieldKey
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
+
+_debug = DebugLog(__name__)
 
 
 class _ScopeStack[F: FieldKey = FieldKey]:
@@ -88,7 +92,13 @@ class ComputeEngine[F: FieldKey = FieldKey]:
         return [field for field, ids in self._pending.items() if any(ids)]
 
     def discard_field(self, field: F) -> None:
-        self._pending.pop(field, None)
+        discarded = self._pending.pop(field, None)
+        if _debug.lifecycle.enabled and discarded:
+            _debug.lifecycle(
+                "compute.pending_discarded",
+                field=str(field),
+                records=len(discarded),
+            )
 
     def is_protected(self, field: F, record_id: Any) -> bool:
         return record_id in (self._protected.get(field) or ())
@@ -110,6 +120,12 @@ class ComputeEngine[F: FieldKey = FieldKey]:
         self._protected[field] = existing.union(ids) if existing else ids
 
     def clear(self) -> None:
+        if _debug.lifecycle.enabled and self._pending:
+            _debug.lifecycle(
+                "compute.pending_cleared",
+                fields=len(self._pending),
+                records=sum(len(ids) for ids in self._pending.values()),
+            )
         self._pending.clear()
 
     def __repr__(self) -> str:

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.image_gallery.edit");
 
 export class ImageGalleryEdit extends Interaction {
     static selector = ".s_image_gallery";
@@ -12,10 +15,17 @@ export class ImageGalleryEdit extends Interaction {
         },
     };
     start() {
+        const endRender = log.perf(
+            "ImageGalleryEdit start: render empty gallery alert",
+        );
         this.renderAt("website.empty_image_gallery_alert", {}, this.el);
+        endRender();
     }
     onAddImage() {
         const applySpec = { editingElement: this.el };
+        log.logic("ImageGalleryEdit onAddImage: apply addImage", () => ({
+            id: this.el.id,
+        }));
         this.services["website_edit"].applyAction("addImage", applySpec);
     }
 }

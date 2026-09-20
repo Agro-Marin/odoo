@@ -1,12 +1,11 @@
-import datetime
 import logging
 
 from odoo import _, api, exceptions, fields, models
 from odoo.fields import Domain
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
 from ._canvas import NODE_SIZE_MAX, NODE_SIZE_MIN
-from .automation_rule import get_webhook_request_payload
 
 _logger = logging.getLogger(__name__)
 
@@ -20,7 +19,6 @@ class IrActionsServer(models.Model):
     )
     automation_rule_id = fields.Many2one(
         comodel_name="automation.rule",
-        string="Automation Rule",
         index="btree_not_null",
         ondelete="cascade",
     )
@@ -58,12 +56,31 @@ class IrActionsServer(models.Model):
         help="How long a Wait step pauses the run before its successors advance",
     )
     wait_unit = fields.Selection(
-        selection=[
-            ("minutes", "Minutes"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-        ],
-        default="hours",
+        selection=time_unit_selection("minute", "hour", "day"),
+        default="hour",
+        required=True,
+    )
+
+    start_delay = fields.Integer(
+        default=0,
+        help="For a step no edge leads to: how long after its run starts it "
+        "becomes ready. Ignored on a step with predecessors, whose edges carry "
+        "their own delays.",
+    )
+    start_delay_unit = fields.Selection(
+        selection=time_unit_selection("minute", "hour", "day", "week", "month"),
+        default="hour",
+        required=True,
+    )
+    validity_delay = fields.Integer(
+        string="Valid For",
+        default=0,
+        help="How long after the step becomes ready it may still run. A step "
+        "reached later is skipped instead. Zero means it never expires.",
+    )
+    validity_unit = fields.Selection(
+        selection=time_unit_selection("minute", "hour", "day", "week", "month"),
+        default="hour",
         required=True,
     )
 
@@ -179,9 +196,43 @@ class IrActionsServer(models.Model):
                     )
                 )
 
+    @api.constrains("validity_delay", "start_delay")
+    def _check_validity_delay(self):
+        for action in self:
+            if action.start_delay < 0:
+                raise exceptions.ValidationError(
+                    _(
+                        "Step '%(action)s' has a negative start delay.",
+                        action=action.name,
+                    ),
+                )
+            if action.validity_delay < 0:
+                raise exceptions.ValidationError(
+                    _(
+                        "Step '%(action)s' has a negative validity.",
+                        action=action.name,
+                    ),
+                )
+
+    def _get_start_delta(self):
+        self.check_singleton()
+        return get_timedelta(self.start_delay, self.start_delay_unit)
+
+    def _get_validity_delta(self):
+        self.check_singleton()
+        return get_timedelta(self.validity_delay, self.validity_unit)
+
+    def _workflow_step_detail(self):
+        return ""
+
+    def _execute_runtime_lines(self, lines):
+        self.check_singleton()
+        for line in lines:
+            line.action_execute()
+
     def _get_wait_delta(self):
         self.check_singleton()
-        return datetime.timedelta(**{self.wait_unit: self.wait_delay})
+        return get_timedelta(self.wait_delay, self.wait_unit)
 
     def _get_predecessors(self):
         return self.edge_in_ids.source_node_id
@@ -238,12 +289,6 @@ class IrActionsServer(models.Model):
         eval_context = super()._prepare_eval_context(action)
         if action.state == "code":
             eval_context["json"] = json_scriptsafe
-            payload = self.env.context.get("webhook_payload")
-            if payload is None:
-                payload = get_webhook_request_payload()
-            if payload is not None:
-                eval_context["payload"] = payload
-
             line_id = self.env.context.get("runtime_line_id")
             if line_id:
                 line = self.env["automation.runtime.line"].browse(line_id)

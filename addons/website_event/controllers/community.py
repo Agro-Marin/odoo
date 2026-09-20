@@ -11,5 +11,4 @@ class EventCommunityController(http.Controller):
         sitemap=False,
     )
     def community(self, event, lang=None, **kwargs):
-        """This skeleton route will be overridden in website_event_track_quiz."""
         return request.render("website.page_404")

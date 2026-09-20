@@ -117,6 +117,24 @@ test("simple rendering", async function () {
     expect(".o_toy_view.toy").toHaveInnerHTML(`<toy>Arch content (id=false)</toy>`);
 });
 
+test("the view is built from the payload's IR, the arch string is not parsed", async function () {
+    onRpc("get_views", ({ parent }) => {
+        const result = parent();
+        const toy = result.views.toy;
+        toy.arch = `<toy>Arch string (stale)</toy>`;
+        toy.ir = {
+            kind: "toy",
+            attrs: { "data-source": "ir" },
+            text: "Arch content (from ir)",
+        };
+        return result;
+    });
+    await mountWithCleanup(View, { props: { resModel: "animal", type: "toy" } });
+    expect(".o_toy_view.toy").toHaveInnerHTML(
+        `<toy data-source="ir">Arch content (from ir)</toy>`,
+    );
+});
+
 test("rendering with given viewId", async function () {
     expect.assertions(8);
     patchWithCleanup(ToyController.prototype, {
@@ -389,9 +407,9 @@ test("rendering with given searchViewId", async function () {
     patchWithCleanup(ToyController.prototype, {
         setup() {
             super.setup();
-            const { irFilters, searchViewArch, searchViewFields, searchViewId } =
+            const { irFilters, searchViewIR, searchViewFields, searchViewId } =
                 this.props.info;
-            expect(searchViewArch).toBe(`<search/>`);
+            expect(searchViewIR).toEqual({ kind: "search" });
             expect(searchViewFields).toEqual({
                 id: {
                     string: "Id",
@@ -918,7 +936,7 @@ test("'searchViewArch' cannot be passed as prop alone", async function () {
         expect.step(error.message);
     }
     expect.verifySteps([
-        `"searchViewArch" and "searchViewFields" props must be given together`,
+        `"searchViewArch"/"searchViewIR" and "searchViewFields" props must be given together`,
     ]);
 });
 
@@ -930,7 +948,7 @@ test("'searchViewFields' cannot be passed as prop alone", async function () {
         expect.step(error.message);
     }
     expect.verifySteps([
-        `"searchViewArch" and "searchViewFields" props must be given together`,
+        `"searchViewArch"/"searchViewIR" and "searchViewFields" props must be given together`,
     ]);
 });
 

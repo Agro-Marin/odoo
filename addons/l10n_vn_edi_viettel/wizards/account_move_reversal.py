@@ -11,15 +11,11 @@ class AccountMoveReversal(models.TransientModel):
             ("2", "Information adjustment"),
         ],
         string="Adjustment type",
-        required=True,
         default="1",
+        required=True,
     )
-    l10n_vn_edi_agreement_document_name = fields.Char(
-        string="Agreement Name",
-    )
-    l10n_vn_edi_agreement_document_date = fields.Datetime(
-        string="Agreement Date",
-    )
+    l10n_vn_edi_agreement_document_name = fields.Char(string="Agreement Name")
+    l10n_vn_edi_agreement_document_date = fields.Datetime(string="Agreement Date")
 
     def _prepare_default_reversal(self, move):
         # EXTEND 'account'
@@ -60,7 +56,7 @@ class AccountMoveReversal(models.TransientModel):
         for move in self.move_ids.filtered(lambda m: m._l10n_vn_edi_is_sent()):
             # If an invoice has a tax code (symbol starts with C) and the code has not been approved by the tax authorities, you cannot adjust/reverse it.
             if move.l10n_vn_edi_invoice_symbol.name.startswith("C"):
-                invoice_lookup, _error_message = move._l10n_vn_edi_lookup_invoice()
+                invoice_lookup, _error_message = move._l10n_vn_edi_get_invoice()
                 if (
                     "result" in invoice_lookup
                     and invoice_lookup["result"][0].get("exchangeStatus")

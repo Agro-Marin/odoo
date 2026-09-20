@@ -19,7 +19,12 @@ registry
  * @param {ActionManager} am
  * @returns {Promise<any>}
  */
-export function executeReportClientAction(action, options, am) {
+export async function executeReportClientAction(action, options, am) {
+    if (action.target !== "new" && !options.newWindow) {
+        if (!(await am.confirmLeave({ forceLeave: options.forceLeave }))) {
+            return;
+        }
+    }
     const props = {
         ...options.props,
         data: action.data,
@@ -62,12 +67,14 @@ function finishReport(action, options, am) {
  * @returns {Promise<any>}
  */
 export async function executeReportAction(action, options, am) {
+    const token = am.navigation.snapshot();
     const handlers = registry.category("ir.actions.report handlers").getAll();
     for (const handler of handlers) {
         const result = await handler(action, options, am.env);
         if (result) {
             return finishReport(action, options, am) ?? result;
         }
+        token.throwIfSuperseded();
     }
     if (action.report_type === "qweb-html") {
         return executeReportClientAction(action, options, am);

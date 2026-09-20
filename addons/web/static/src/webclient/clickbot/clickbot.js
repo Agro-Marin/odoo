@@ -6,7 +6,7 @@ import { App, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent, RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
-import { getPopoverForTarget } from "@web/ui/popover/popover";
+import { getPopoverForTarget } from "@web/ui/popover";
 import {
     clickbotHomeMenuSelectors,
     clickbotSkippedMenus,
@@ -313,7 +313,9 @@ class ClickBot {
     async getNextApp() {
         if (!this.apps || !this.apps.length) {
             await this.openHomeMenu();
-            this.apps = document.querySelectorAll(".o_apps .o_app");
+            this.apps = document.querySelectorAll(
+                ".o_apps .o_app, .o_pinned_apps .o_app",
+            );
         }
         const appName = /** @type {HTMLElement} */ (this.apps[this.state.appIndex])
             ?.dataset?.menuXmlid;

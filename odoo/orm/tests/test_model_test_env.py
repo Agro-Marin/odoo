@@ -221,7 +221,8 @@ def test_filtered_id_keeps_only_saved_records():
 
 
 def test_write_multi_aliased_vals_not_uniform():
-    with model_test_env(HWidget) as env:
+    # _write_multi bypasses the cache on purpose: no cache-against-rows check
+    with model_test_env(HWidget, check_cache=False) as env:
         recs = env["h.widget"].create([{"qty": 1}, {"qty": 2}, {"qty": 3}])
         a, b = {"qty": 100}, {"qty": 200}
         recs._write_multi([a, b, a])
@@ -259,8 +260,8 @@ def test_raw_sql_fails_loud_instead_of_returning_empty():
         env["h.widget"].create({"name": "A", "price": 10.0, "qty": 1})
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.execute("SELECT count(*) FROM h_widget")
-        with pytest.raises(InMemorySqlNotSupported):
-            env["h.widget"]._read_group([], ["name"], ["__count"])
+        # read_group answers in memory now; a grouped read is no longer raw SQL
+        assert env["h.widget"]._read_group([], ["name"], ["__count"]) == [("A", 1)]
 
 
 def test_fixtures_opt_in_for_raw_sql():
@@ -407,14 +408,30 @@ def test_rollback_fails_loud():
             env.cr.rollback()
 
 
-def test_savepoint_fails_loud_with_intentional_error():
+def test_savepoint_rolls_the_storage_back_to_its_snapshot():
     with model_test_env(HWidget) as env:
-        with pytest.raises(InMemorySqlNotSupported, match="savepoint"):
-            env.cr.savepoint()
-        with pytest.raises(InMemorySqlNotSupported) as exc_info:
-            env.cr.savepoint(flush=False)
-        assert "fixture" not in str(exc_info.value)
-        assert "TransactionCase" in str(exc_info.value)
+        kept = env["h.widget"].create({"name": "kept"})
+        with pytest.raises(ValueError):
+            with env.cr.savepoint():
+                env["h.widget"].create({"name": "dropped"})
+                kept.name = "renamed inside"
+                raise ValueError("boom")
+        names = env["h.widget"].search([]).mapped("name")
+        assert names == ["kept"], names
+        with env.cr.savepoint(flush=False) as sp:
+            env["h.widget"].create({"name": "dropped too"})
+            env.flush_all()
+            sp.rollback()
+        assert env["h.widget"].search_count([]) == 1
+
+
+def test_savepoint_keeps_what_completes_and_refuses_a_commit_inside():
+    with model_test_env(HWidget) as env:
+        with env.cr.savepoint():
+            env["h.widget"].create({"name": "committed"})
+            with pytest.raises(RuntimeError, match="commit inside a savepoint"):
+                env.cr.commit()
+        assert env["h.widget"].search([]).mapped("name") == ["committed"]
 
 
 def test_clear_cache_honors_names():
@@ -433,10 +450,20 @@ def test_clear_cache_honors_names():
             env.registry.clear_cache("templates.cached_values")
 
 
+def test_discard_fields_forgets_the_many2many_relation_pair():
+    with model_test_env(HPost) as env:
+        registry = env.registry
+        field = registry["h.post"]._fields["tag_ids"]
+        triple = (field.relation, field.column1, field.column2)
+        assert ("h.post", "tag_ids") in registry.many2many_relations[triple]
+        registry.discard_fields([field])
+        assert triple not in registry.many2many_relations
+
+
 def test_discard_fields_works_without_attributeerror():
     registry = ModelRegistry([HWidget])
     field = registry["h.widget"]._fields["total"]
-    registry._discard_fields([field])
+    registry.discard_fields([field])
     assert field not in registry.field_depends
 
 
@@ -472,6 +499,18 @@ def test_write_after_invalidate_with_log_access():
         assert env["res.users"].browse(1).login == "admin"
 
 
+def test_company_ids_are_a_tuple_like_the_protocol():
+    # runs before the custom res.users below replaces the stub in _MOD
+    with model_test_env(HWidget) as env:
+        c1, c2 = env["res.company"].create([{"name": "a"}, {"name": "b"}])
+        user = env["res.users"].create(
+            {"name": "u", "company_id": c1.id, "company_ids": [Command.link(c2.id)]}
+        )
+        ids = user._get_company_ids()
+        assert isinstance(ids, tuple)
+        assert ids == (c1.id, c2.id)
+
+
 def test_user_supplied_res_users_wins_over_stub():
     class MyUsers(models.Model):
         _name = "res.users"
@@ -484,3 +523,34 @@ def test_user_supplied_res_users_wins_over_stub():
 
     with model_test_env(HAudit, MyUsers) as env:
         assert "custom_flag" in env["res.users"]._fields
+
+
+def test_langs_do_not_leak_into_a_reused_registry():
+    registry = ModelRegistry((HWidget,), db_name=":memory:")
+    default_locale = type(registry).locale
+    with model_test_env(HWidget, registry=registry, langs=("en_US", "fr_FR")):
+        assert "locale" in registry.__dict__
+    assert "locale" not in registry.__dict__
+    with model_test_env(HWidget, registry=registry) as env:
+        assert env.registry.locale is default_locale
+
+
+def test_fetchmany_defaults_to_one_row_like_psycopg():
+    with model_test_env(HWidget, fixtures={"SELECT 1": [(1,), (2,)]}) as env:
+        env.cr.execute("SELECT 1")
+        assert env.cr.fetchmany() == [(1,)]
+        assert env.cr.fetchmany(2) == [(1,), (2,)]
+
+
+def test_a_fixture_keyed_by_params_answers_that_execution_only():
+    fixtures: dict[str | tuple[str, tuple], list[tuple]] = {
+        ("SELECT %s", (1,)): [(10,)],
+        "SELECT %s": [(99,)],
+    }
+    with model_test_env(HWidget, fixtures=fixtures) as env:
+        env.cr.execute("SELECT %s", (1,))
+        assert env.cr.fetchall() == [(10,)]
+        env.cr.execute("SELECT %s", (2,))  # falls back to the str-only fixture
+        assert env.cr.fetchall() == [(99,)]
+        env.cr.execute("SELECT %s")
+        assert env.cr.fetchall() == [(99,)]

@@ -12,9 +12,9 @@
     ],
     "data": [
         "data/livechat_ongoing_sessions_actions.xml",
+        "views/spreadsheet_dashboard_im_livechat_menus.xml",
         "data/dashboards.xml",
     ],
-    "installable": True,
     "auto_install": [
         "im_livechat",
     ],

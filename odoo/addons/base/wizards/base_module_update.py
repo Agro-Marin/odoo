@@ -1,24 +1,35 @@
 from typing import Any
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BaseModuleUpdate(models.TransientModel):
     _name = "base.module.update"
     _description = "Update Module"
 
-    updated = fields.Integer("Number of modules updated", readonly=True)
-    added = fields.Integer("Number of modules added", readonly=True)
-    state = fields.Selection(
-        [("init", "init"), ("done", "done")],
-        "Status",
+    updated = fields.Integer(
+        string="Number of modules updated",
         readonly=True,
+    )
+    added = fields.Integer(
+        string="Number of modules added",
+        readonly=True,
+    )
+    state = fields.Selection(
+        selection=[("init", "init"), ("done", "done")],
+        string="Status",
         default="init",
+        readonly=True,
     )
 
     def update_module(self) -> bool:
         for this in self:
-            updated, added = self.env["ir.module.module"].update_list()
+            with _debug.perf("update_list", cr=self.env.cr) as span:
+                updated, added = self.env["ir.module.module"].update_list()
+                span.set(updated=updated, added=added)
             this.write({"updated": updated, "added": added, "state": "done"})
         return False
 

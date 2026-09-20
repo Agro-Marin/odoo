@@ -6,36 +6,43 @@ from odoo.addons.sale_timesheet.models.hr_timesheet import TIMESHEET_INVOICE_TYP
 class TimesheetsAnalysisReport(models.Model):
     _inherit = "timesheets.analysis.report"
 
-    order_id = fields.Many2one("sale.order", string="Sales Order", readonly=True)
+    order_id = fields.Many2one(
+        comodel_name="sale.order",
+        string="Sales Order",
+        readonly=True,
+    )
     so_line = fields.Many2one(
-        "sale.order.line", string="Sales Order Item", readonly=True
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
+        readonly=True,
     )
     timesheet_invoice_type = fields.Selection(
-        TIMESHEET_INVOICE_TYPES, string="Billable Type", readonly=True
+        selection=TIMESHEET_INVOICE_TYPES,
+        string="Billable Type",
+        readonly=True,
     )
     timesheet_invoice_id = fields.Many2one(
-        "account.move",
+        comodel_name="account.move",
         string="Invoice",
         readonly=True,
         help="Invoice created from the timesheet",
     )
     timesheet_revenues = fields.Monetary(
-        "Timesheet Revenues",
         currency_field="currency_id",
         readonly=True,
         help="Number of hours spent multiplied by the unit price per hour/day.",
     )
     margin = fields.Monetary(
-        "Margin",
         currency_field="currency_id",
         readonly=True,
         help="Timesheets revenues minus the costs",
     )
     billable_time = fields.Float(
-        "Billable Time", readonly=True, help="Number of hours/days linked to a SOL."
+        readonly=True,
+        help="Number of hours/days linked to a SOL.",
     )
     non_billable_time = fields.Float(
-        "Non-billable Time",
+        string="Non-billable Time",
         readonly=True,
         help="Number of hours/days not linked to a SOL.",
     )
@@ -56,18 +63,18 @@ class TimesheetsAnalysisReport(models.Model):
         return (
             super()._select()
             + """,
-            A.order_id AS order_id,
+            SOL.order_id AS order_id,
             A.so_line AS so_line,
             A.timesheet_invoice_type AS timesheet_invoice_type,
             A.timesheet_invoice_id AS timesheet_invoice_id,
             CASE
-                WHEN A.order_id IS NULL OR T.service_type in ('manual', 'milestones')
+                WHEN SOL.order_id IS NULL OR T.service_type in ('manual', 'milestones')
                 THEN 0
                 WHEN T.invoice_policy = 'ordered' AND SOL.qty_transferred != 0
                 THEN (SOL.price_subtotal / SOL.qty_transferred) * (A.unit_amount / sol_product_uom.factor * a_product_uom.factor)
                 ELSE A.unit_amount * SOL.price_unit / sol_product_uom.factor * a_product_uom.factor
             END AS timesheet_revenues,
-            CASE WHEN A.order_id IS NULL THEN 0 ELSE A.unit_amount END AS billable_time
+            CASE WHEN SOL.order_id IS NULL THEN 0 ELSE A.unit_amount END AS billable_time
         """
         )
 

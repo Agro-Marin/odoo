@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record
+        id="base_module_install_request_view_form_record_approval"
+        model="ir.ui.view">
+        <field name="name">base.module.install.request.view.form.record.approval</field>
+        <field name="model">base.module.install.request</field>
+        <field
+            name="inherit_id"
+            ref="base_install_request.base_module_install_request_view_form_record" />
+        <field name="arch" type="xml">
+            <header position="inside">
+                <button
+                    name="action_open_install_review"
+                    type="object"
+                    string="Install App"
+                    groups="base.group_system"
+                    invisible="approval_state != 'approved'"
+                    class="btn-primary" />
+                <button
+                    name="action_view_approval_request"
+                    type="object"
+                    string="Approval Request"
+                    invisible="not approval_request_id" />
+                <field name="approval_state" widget="statusbar" />
+            </header>
+            <group name="decision" position="inside">
+                <field name="approval_request_id" readonly="1" />
+                <field
+                    name="pending_approver_ids"
+                    widget="many2many_tags"
+                    invisible="approval_state not in ['new', 'pending']" />
+            </group>
+        </field>
+    </record>
+
+</odoo>

@@ -16,7 +16,6 @@ test("pressing Enter in the .s_tabs_images_option doesn't add a new <li/>", asyn
     setSelection({
         anchorNode: queryOne(":iframe .s_tabs_images ul>li:last-child small"),
     });
-    // Simulate pressing "enter"
     await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
         inputType: "insertParagraph",
     });

@@ -1,27 +1,16 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.shared_popup");
 
 export class SharedPopup extends Interaction {
     static selector = ".s_popup";
     dynamicContent = {
-        // A popup element is composed of a `.s_popup` parent containing the
-        // actual `.modal` BS modal. Our internal logic and events are hiding
-        // and showing this inner `.modal` modal element without considering its
-        // `.s_popup` parent. It means that when the `.modal` is hidden, its
-        // `.s_popup` parent is not touched and kept visible.
-        // It might look like it's not an issue as it would just be an empty
-        // element (its only child is hidden) but it leads to some issues as for
-        // instance on chrome this div will have a forced `height` due to its
-        // `contenteditable=true` attribute in edit mode. It will result in a
-        // ugly white bar.
-        // tl;dr: this is keeping those 2 elements visibility synchronized.
         _root: {
             "t-on-show.bs.modal.noUpdate": () => {
                 this.popupShown = true;
-                // Combining noUpdate and `this.updateContent()` forces a
-                // repaint immediately to remove `.d-none` before the transition
-                // happens. Otherwise, the transition isn't visible.
                 this.updateContent();
             },
             "t-on-shown.bs.modal": () => (this.popupShown = true),
@@ -31,15 +20,18 @@ export class SharedPopup extends Interaction {
     };
 
     setup() {
+        log.lifecycle("SharedPopup setup", () => ({ id: this.el.id }));
         this.popupShown = false;
     }
 
     onModalHidden() {
         if (this.el.querySelector(".s_popup_no_backdrop")) {
-            // We trigger a scroll event here to call the
-            // '_hideBottomFixedElements' method and re-display any bottom fixed
-            // elements that may have been hidden (e.g. the live chat button
-            // hidden when the cookies bar is open).
+            log.logic(
+                "SharedPopup onModalHidden: no backdrop, dispatch scroll",
+                () => ({
+                    id: this.el.id,
+                }),
+            );
             window.dispatchEvent(new Event("scroll"));
         }
         this.popupShown = false;

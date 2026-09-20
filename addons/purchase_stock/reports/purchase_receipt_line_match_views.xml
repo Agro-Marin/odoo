@@ -6,13 +6,13 @@
         <field name="model">purchase.receipt.line.match</field>
         <field name="arch" type="xml">
             <list
+                type="object"
                 string="Purchase Receipt Lines"
-                decoration-info="order_line_id != False"
-                decoration-warning="transfer_state == 'over done'"
-                decoration-muted="state == 'cancel'"
                 editable="bottom"
                 edit="1"
-                type="object">
+                decoration-info="order_line_id != False"
+                decoration-muted="state == 'cancel'"
+                decoration-warning="transfer_state == 'over done'">
                 <header>
                     <button
                         name="action_match_lines"
@@ -33,8 +33,8 @@
                 <field name="product_uom_id" groups="uom.group_uom" />
                 <field name="lot_ids" widget="many2many_tags" optional="hide" />
                 <field name="date_expected" optional="show" />
-                <field name="transferred_qty" sum="Total Received" string="Received" />
-                <field name="ordered_qty" sum="Total Ordered" string="Ordered" />
+                <field name="transferred_qty" string="Received" sum="Total Received" />
+                <field name="ordered_qty" string="Ordered" sum="Total Ordered" />
                 <field name="transfer_state" optional="hide" />
             </list>
         </field>

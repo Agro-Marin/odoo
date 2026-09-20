@@ -13,6 +13,7 @@
         "website_mail",
         "portal_rating",
         "delivery",
+        "sale_team",
     ],
     "data": [
         "security/ir.model.access.csv",
@@ -173,9 +174,9 @@
             "website_sale/static/src/js/variant_mixin.js",
             "website_sale/static/src/js/website_sale_utils.js",
             "website_sale/static/src/js/components/website_sale_image_viewer.js",
+            "website_sale/static/src/js/notification/**/*",
         ],
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_post_init_hook",
     "uninstall_hook": "uninstall_hook",

@@ -3,7 +3,15 @@
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
+import {
+    DEFAULT_COLORS,
+    DEFAULT_GRAYSCALES,
+    DEFAULT_THEME_COLOR_VARS,
+} from "@web/core/colors/colors";
+export { DEFAULT_COLORS, DEFAULT_THEME_COLOR_VARS } from "@web/core/colors/colors";
 import { colorScheme } from "@web/core/color_scheme";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { POSITION_BUS } from "@web/core/position/position_hook";
 import { registry } from "@web/core/registry";
 import {
@@ -13,106 +21,13 @@ import {
 } from "@web/core/utils/format/colors";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
+const log = makeLogger("web.components.color_picker");
+
 registry.category("color_picker_tabs").addValidation({
     id: String,
     name: { type: [String, Object] },
     component: { validate: (c) => typeof c === "function" },
 });
-
-export const DEFAULT_COLORS = [
-    [
-        "#000000",
-        "#424242",
-        "#636363",
-        "#9C9C94",
-        "#CEC6CE",
-        "#EFEFEF",
-        "#F7F7F7",
-        "#FFFFFF",
-    ],
-    [
-        "#FF0000",
-        "#FF9C00",
-        "#FFFF00",
-        "#00FF00",
-        "#00FFFF",
-        "#0000FF",
-        "#9C00FF",
-        "#FF00FF",
-    ],
-    [
-        "#F7C6CE",
-        "#FFE7CE",
-        "#FFEFC6",
-        "#D6EFD6",
-        "#CEDEE7",
-        "#CEE7F7",
-        "#D6D6E7",
-        "#E7D6DE",
-    ],
-    [
-        "#E79C9C",
-        "#FFC69C",
-        "#FFE79C",
-        "#B5D6A5",
-        "#A5C6CE",
-        "#9CC6EF",
-        "#B5A5D6",
-        "#D6A5BD",
-    ],
-    [
-        "#E76363",
-        "#F7AD6B",
-        "#FFD663",
-        "#94BD7B",
-        "#73A5AD",
-        "#6BADDE",
-        "#8C7BC6",
-        "#C67BA5",
-    ],
-    [
-        "#CE0000",
-        "#E79439",
-        "#EFC631",
-        "#6BA54A",
-        "#4A7B8C",
-        "#3984C6",
-        "#634AA5",
-        "#A54A7B",
-    ],
-    [
-        "#9C0000",
-        "#B56308",
-        "#BD9400",
-        "#397B21",
-        "#104A5A",
-        "#085294",
-        "#311873",
-        "#731842",
-    ],
-    [
-        "#630000",
-        "#7B3900",
-        "#846300",
-        "#295218",
-        "#083139",
-        "#003163",
-        "#21104A",
-        "#4A1031",
-    ],
-];
-
-const DEFAULT_GRAYSCALES = {
-    solid: ["black", "900", "800", "600", "400", "200", "100", "white"],
-};
-
-export const DEFAULT_THEME_COLOR_VARS = [
-    "o-color-1",
-    "o-color-2",
-    "o-color-3",
-    "o-color-4",
-    "o-color-5",
-];
 
 export class ColorPicker extends Component {
     static template = "web.ColorPicker";
@@ -183,6 +98,7 @@ export class ColorPicker extends Component {
     getPreviewColor = () => {};
 
     setup() {
+        useLifecycleLog(log);
         this.tabHandlers = {
             applyColor: this.selectColor.bind(this),
             onColorClick: this.onColorApply.bind(this),
@@ -263,6 +179,7 @@ export class ColorPicker extends Component {
     }
 
     setTab(tab) {
+        log.logic("setTab", () => ({ tab }));
         this.state.activeTab = tab;
         this.setOperationCallbacks({ onPreviewRevertCallback: () => {} });
         this.resetColorPreview();
@@ -301,6 +218,7 @@ export class ColorPicker extends Component {
     }
 
     selectColor(color) {
+        log.logic("selectColor", () => ({ color, tab: this.state.activeTab }));
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
         this.updateFromApplied();

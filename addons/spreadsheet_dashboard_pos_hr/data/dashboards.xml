@@ -9,7 +9,7 @@
             file="spreadsheet_dashboard_pos_hr/data/files/pos_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('point_of_sale.model_report_pos_order')),(4, ref('point_of_sale.model_pos_order'))]" />
+            eval="[Command.link(ref('point_of_sale.model_report_pos_order')), Command.link(ref('point_of_sale.model_pos_order'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_pos_hr/data/files/pos_sample_dashboard.json</field>
         <field

@@ -2,13 +2,16 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
+
+_debug = DebugLog(__name__)
 
 
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    is_subcontract = fields.Boolean("The move is a subcontract receipt")
+    is_subcontract = fields.Boolean(string="The move is a subcontract receipt")
     show_subcontracting_details_visible = fields.Boolean(
         compute="_compute_show_subcontracting_details_visible"
     )
@@ -189,6 +192,7 @@ class StockMove(models.Model):
                 continue
             bom = move._get_subcontract_bom()
             if not bom:
+                _debug.logic("subcontract_skipped", reason="no_bom", move=move.id)
                 continue
             company = move.company_id
             subcontracting_location = (
@@ -196,6 +200,12 @@ class StockMove(models.Model):
                     company
                 ).property_stock_subcontractor
                 or company.subcontracting_location_id
+            )
+            _debug.lifecycle(
+                "subcontract_move_marked",
+                move=move.id,
+                bom=bom.id,
+                location=subcontracting_location.id,
             )
             move.write(
                 {
@@ -213,6 +223,11 @@ class StockMove(models.Model):
                 subcontract_details_per_picking[move.picking_id].append(
                     (move, move._get_subcontract_bom())
                 )
+        _debug.pipeline(
+            "subcontract_confirm",
+            moves=self,
+            pickings=len(subcontract_details_per_picking),
+        )
         for picking, subcontract_details in subcontract_details_per_picking.items():
             picking._produce_subcontracted_productions(subcontract_details)
 
@@ -293,6 +308,9 @@ class StockMove(models.Model):
             productions = move._get_subcontract_production()
             if not productions:
                 continue
+            _debug.pipeline(
+                "subcontract_sync", productions=productions, tracking=move.has_tracking
+            )
             if move.has_tracking == "none":
                 if (
                     productions.product_uom_id.compare(
@@ -332,13 +350,9 @@ class StockMove(models.Model):
                             lambda raw: raw.id in already_covered
                         )._run_procurement(already_covered)
             else:
-                qty_by_lot = dict(
-                    move.move_line_ids._read_group(
-                        [("move_id", "=", move.id)],
-                        ["lot_id"],
-                        ["quantity_product_uom:sum"],
-                    )
-                )
+                qty_by_lot = defaultdict(float)
+                for move_line in move.move_line_ids:
+                    qty_by_lot[move_line.lot_id] += move_line.quantity_product_uom
                 mos_to_assign = self.env["mrp.production"]
 
                 mos_to_create = {}

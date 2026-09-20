@@ -25,6 +25,7 @@ patch(EditWebsiteSystrayItem.prototype, {
                 path: pathname + search + hash,
                 edition: true,
             });
+            return;
         }
         super.onClickEditPage(...arguments);
     },

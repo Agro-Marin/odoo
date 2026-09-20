@@ -24,10 +24,10 @@
                 <button
                     name="action_view_project"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-puzzle-piece"
+                    groups="project.group_project_user"
                     invisible="not project_id"
-                    groups="project.group_project_user">
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Project</span>
                     </div>

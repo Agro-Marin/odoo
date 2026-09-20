@@ -127,13 +127,13 @@ class TestTaskPlanningFlow(TransactionCase):
                         {
                             "default_date_start": datum["dates"][0],
                             "default_date_end": datum["dates"][1],
+                            "default_user_ids": self.project_user.ids,
                             "scale": scale,
                         }
                     ),
                     form_view,
                 ) as task:
                     task.name = "Test"
-                    task.user_ids = self.project_user
                     task.project_id = self.project_test
                     self.assertEqual(
                         task.scheduled_hours,
@@ -714,3 +714,28 @@ class TestTaskPlanningFlow(TransactionCase):
             "2021-09-24 14:00:00",
             "Should take into account the allocated hours set on the task and the working calendar of users assigned",
         )
+
+    def test_calendar_default_start_yields_to_the_start_edited_in_the_form(self):
+        slot_start = datetime(2030, 3, 4, 7)
+        calendar = self.env["project.task"].with_context(
+            default_date_start_effective=slot_start,
+            default_date_start=slot_start,
+            default_date_end=slot_start + relativedelta(hours=12),
+        )
+        with Form(calendar) as task_form:
+            task_form.name = "Moved before its calendar slot"
+            task_form.project_id = self.project_test
+            task_form.date_start = datetime(2030, 3, 1, 8)
+            task_form.date_end = datetime(2030, 3, 2, 8)
+        self.assertEqual(task_form.record.date_start, datetime(2030, 3, 1, 8))
+        self.assertEqual(task_form.record.date_end, datetime(2030, 3, 2, 8))
+
+    def test_calendar_default_start_seeds_date_start_when_only_the_alias_is_given(self):
+        slot_start = datetime(2030, 3, 4, 7)
+        defaults = (
+            self.env["project.task"]
+            .with_context(default_date_start_effective=slot_start)
+            .default_get(["date_start", "date_start_effective"])
+        )
+        self.assertEqual(defaults.get("date_start"), slot_start)
+        self.assertNotIn("date_start_effective", defaults)

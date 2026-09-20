@@ -1,4 +1,2 @@
-from . import test_access_rights
-from . import test_cost_report
-from . import test_overdue
-from . import test_vehicle_model_values
+from . import test_brand_adoption
+from . import test_fleet_vehicle

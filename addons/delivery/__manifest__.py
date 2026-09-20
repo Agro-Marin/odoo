@@ -1,6 +1,6 @@
 {
     "name": "Delivery Costs",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Sales/Delivery",
     "description": """
 Allows you to add delivery methods in sale orders.
@@ -14,6 +14,7 @@ The system is able to add and compute the shipping line.
         "sale",
         "payment_custom",
         "credential",
+        "integration",
     ],
     "data": [
         "data/delivery_data.xml",
@@ -32,6 +33,7 @@ The system is able to add and compute the shipping line.
         "views/sale_order_views.xml",
         "wizards/res_config_settings_views.xml",
         "wizards/choose_delivery_carrier_views.xml",
+        "views/delivery_menus.xml",
     ],
     "demo": [
         "demo/delivery_demo.xml",
@@ -41,7 +43,6 @@ The system is able to add and compute the shipping line.
             "delivery/static/src/**/*",
         ],
     },
-    "installable": True,
     "post_init_hook": "post_init_hook",
     "uninstall_hook": "uninstall_hook",
 }

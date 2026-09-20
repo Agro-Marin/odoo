@@ -38,14 +38,14 @@
             <field name="code" position="after">
                 <field name="l10n_ar_letter" />
                 <filter
-                    string="Argentinean Documents"
                     name="localization"
+                    string="Argentinean Documents"
                     domain="[('country_id', '=', %(base.ar)d)]" />
             </field>
             <group>
                 <filter
-                    string="Document Letter"
                     name="l10n_ar_letter"
+                    string="Document Letter"
                     context="{'group_by':'l10n_ar_letter'}" />
             </group>
         </field>
@@ -56,11 +56,5 @@
         <field name="res_model">l10n_latam.document.type</field>
         <field name="context">{'search_default_localization': 1}</field>
     </record>
-
-    <menuitem
-        id="menu_document_type_argentina"
-        parent="menu_afip_config"
-        action="action_document_type_argentina"
-        sequence="5" />
 
 </odoo>

@@ -74,6 +74,35 @@ class TestCalendarReservation(TransactionCase):
             "a contact with no user holds no capacity in this database",
         )
 
+    def test_a_contractor_attendee_books_their_resource(self):
+        contractor = self.env["res.partner"].create({"name": "Outside Welder"})
+        (resource,) = contractor._get_or_create_resources(self.env.company)
+        event = self._make_event(
+            partner_ids=[(6, 0, [self.organizer.partner_id.id, contractor.id])]
+        )
+        self.assertFalse(contractor.user_ids, "the contractor has no login")
+        self.assertIn(
+            resource,
+            self._reservations(event).resource_id,
+            "a person is a resource through their party, login or not",
+        )
+        event.attendee_ids.filtered(
+            lambda attendee: attendee.partner_id == contractor
+        ).state = "declined"
+        self.assertNotIn(resource, self._reservations(event).resource_id)
+
+    def test_an_invitation_creates_no_resource(self):
+        Resource = self.env["resource.resource"].with_context(active_test=False)
+        before = Resource.search_count([])
+        self._make_event(
+            partner_ids=[(6, 0, [self.organizer.partner_id.id, self.external.id])]
+        )
+        self.assertEqual(
+            Resource.search_count([]),
+            before,
+            "being invited to a meeting does not make a contact a resource",
+        )
+
     def test_resource_ceiling_constrains_manual_meetings(self):
         self.organizer_resource.write(
             {"enforce_booking_limit": True, "booking_limit_percentage": 200}
@@ -292,10 +321,10 @@ class TestCalendarReservation(TransactionCase):
     def test_a_recurrence_books_every_occurrence_exactly_once(self):
         event = self._make_event(
             recurrency=True,
-            rrule_type="daily",
-            interval=1,
-            end_type="count",
-            count=3,
+            repeat_unit="day",
+            repeat_interval=1,
+            repeat_type="count",
+            repeat_number=3,
         )
         occurrences = event.recurrence_id.calendar_event_ids
         self.assertEqual(len(occurrences), 3)
@@ -309,15 +338,15 @@ class TestCalendarReservation(TransactionCase):
         automatic sync hook would not fire here at all."""
         event = self._make_event(
             recurrency=True,
-            rrule_type="daily",
-            interval=1,
-            end_type="count",
-            count=3,
+            repeat_unit="day",
+            repeat_interval=1,
+            repeat_type="count",
+            repeat_number=3,
         )
         base = event.recurrence_id.base_event_id
         base.write(
             {
-                "recurrence_update": "all_events",
+                "recurrence_update": "all",
                 "start": self.start + timedelta(hours=4),
                 "stop": self.start + timedelta(hours=6),
             }
@@ -363,9 +392,9 @@ class TestCalendarReservation(TransactionCase):
         )
         event = self._make_event(partner_ids=[(6, 0, user.partner_id.ids)])
         self.assertFalse(self._reservations(event))
-        resource = user._ensure_calendar_event_resource()
+        resource = user._get_or_create_calendar_event_resource()
         self.assertEqual(self._reservations(event).resource_id, resource)
-        self.assertEqual(user._ensure_calendar_event_resource(), resource)
+        self.assertEqual(user._get_or_create_calendar_event_resource(), resource)
 
     def test_clearing_then_restoring_attendees_has_no_duplicates(self):
         event = self._make_event()

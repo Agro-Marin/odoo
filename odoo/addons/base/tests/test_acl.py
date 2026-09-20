@@ -12,12 +12,12 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 @contextmanager
 def registry_loading(registry, loading):
-    previous = registry._init
-    registry._init = loading
+    previous = registry.ready
+    registry.ready = not loading
     try:
         yield
     finally:
-        registry._init = previous
+        registry.ready = previous
 
 
 @contextmanager
@@ -55,6 +55,23 @@ class TestACL(TransactionCaseWithUserDemo):
         self.patch(field, "groups", groups)
         self.env.invalidate_all()
         self.env.registry.clear_cache("templates")
+
+    def test_reading_every_field_leaves_out_an_x2many_whose_model_is_unreadable(self):
+        self.env["ir.model.access"].search(
+            [("model_id.model", "=", "res.partner.tag")]
+        ).perm_read = False
+        partner = self.user_demo.partner_id
+        demo_partner = partner.with_user(self.user_demo)
+        self.assertFalse(
+            self.env["res.partner.tag"].with_user(self.user_demo).has_access("read")
+        )
+        for rows in (
+            demo_partner.read(),
+            demo_partner.search_read([("id", "=", partner.id)]),
+        ):
+            self.assertIn("name", rows[0])
+            self.assertNotIn("tag_ids", rows[0])
+        self.assertIn("tag_ids", partner.read()[0])
 
     def test_field_visibility_restriction(self):
         currency = self.env["res.currency"].with_user(self.user_demo)
@@ -233,6 +250,31 @@ class TestACL(TransactionCaseWithUserDemo):
 
 
 class TestIrRule(TransactionCaseWithUserDemo):
+    def test_a_rule_evaluated_record_by_record_fetches_the_batch_once(self):
+        self.env["ir.rule"].create(
+            {
+                "name": "partners of a company",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "domain_force": "[('company_id', 'in', [False] + company_ids)]",
+                "groups": [Command.set(self.env.ref("base.group_user").ids)],
+            }
+        )
+        partners = self.env["res.partner"].create(
+            [{"name": f"rule batch {i}"} for i in range(60)]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        as_demo = partners.with_user(self.user_demo)
+        # the first write pays for the user, its groups, the rules and the
+        # batch's rows: every later write checks the rule on its one record,
+        # which keeps the batch's prefetch ids, so no row is fetched alone
+        as_demo[0].write({"comment": "note 0"})
+        with self.assertQueryCount(8):
+            for index, partner in enumerate(as_demo[1:], start=1):
+                partner.write({"comment": f"note {index}"})
+            self.env.flush_all()
+        self.assertEqual(partners[3].comment, "<p>note 3</p>")
+
     def test_ir_rule(self):
         model_res_partner = self.env.ref("base.model_res_partner")
         group_user = self.env.ref("base.group_user")
@@ -808,56 +850,6 @@ class TestIrModelAccessWhileLoading(TransactionCaseWithUserDemo):
                     "An answer computed before a module was loaded must not be "
                     "served once it is",
                 )
-
-
-class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.export_group = cls.env.ref("base.group_allow_export")
-        cls.user_demo.write({"group_ids": [Command.unlink(cls.export_group.id)]})
-        cls.user_exporter = cls.env["res.users"].create(
-            {
-                "name": "Exporter",
-                "login": "exporter_iexp_l1",
-                "group_ids": [
-                    Command.link(cls.env.ref("base.group_user").id),
-                    Command.link(cls.export_group.id),
-                ],
-            }
-        )
-        cls.preset = cls.env["ir.exports"].create(
-            {"name": "preset", "resource": "res.partner"}
-        )
-
-    def test_non_export_user_cannot_create_line(self):
-        with self.assertRaises(AccessError):
-            self.env["ir.exports.line"].with_user(self.user_demo).create(
-                {"name": "name", "export_id": self.preset.id}
-            )
-
-    def test_non_export_user_cannot_write_line(self):
-        line = self.env["ir.exports.line"].create(
-            {"name": "name", "export_id": self.preset.id}
-        )
-        with self.assertRaises(AccessError):
-            line.with_user(self.user_demo).write({"name": "other"})
-
-    def test_non_export_user_cannot_unlink_line(self):
-        line = self.env["ir.exports.line"].create(
-            {"name": "name", "export_id": self.preset.id}
-        )
-        with self.assertRaises(AccessError):
-            line.with_user(self.user_demo).unlink()
-
-    def test_export_user_can_crud_line(self):
-        Line = self.env["ir.exports.line"].with_user(self.user_exporter)
-        line = Line.create({"name": "name", "export_id": self.preset.id})
-        self.assertTrue(line)
-        line.write({"name": "renamed"})
-        self.assertEqual(line.name, "renamed")
-        line.unlink()
-        self.assertFalse(line.exists())
 
 
 class TestIrModelAccessUnknownModel(TransactionCaseWithUserDemo):

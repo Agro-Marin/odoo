@@ -9,6 +9,15 @@ _CORE = pathlib.Path(__file__).resolve().parents[2]
 _COMPONENTS = _CORE / "orm" / "components"
 
 
+def _is_env_core(node: ast.AST) -> bool:
+    if not (isinstance(node, ast.Attribute) and node.attr == "core"):
+        return False
+    owner = node.value
+    return (isinstance(owner, ast.Name) and owner.id == "env") or (
+        isinstance(owner, ast.Attribute) and owner.attr == "env"
+    )
+
+
 def _reaches_raw_collaborator() -> list[tuple[str, int, str]]:
     hits: list[tuple[str, int, str]] = []
     for path in sorted(_CORE.rglob("*.py")):
@@ -27,8 +36,7 @@ def _reaches_raw_collaborator() -> list[tuple[str, int, str]]:
                 continue
             if node.attr not in ("_cache", "_engine"):
                 continue
-            owner = node.value
-            if isinstance(owner, ast.Attribute) and owner.attr == "_core":
+            if _is_env_core(node.value):
                 hits.append((rel, node.lineno, node.attr))
     return hits
 
@@ -48,9 +56,7 @@ def _core_member_reaches() -> list[tuple[str, int, str]]:
         aliases = {
             target.id
             for node in ast.walk(tree)
-            if isinstance(node, ast.Assign)
-            and isinstance(node.value, ast.Attribute)
-            and node.value.attr == "_core"
+            if isinstance(node, ast.Assign) and _is_env_core(node.value)
             for target in node.targets
             if isinstance(target, ast.Name)
         }
@@ -59,7 +65,7 @@ def _core_member_reaches() -> list[tuple[str, int, str]]:
             if not isinstance(node, ast.Attribute):
                 continue
             owner = node.value
-            reached = (isinstance(owner, ast.Attribute) and owner.attr == "_core") or (
+            reached = _is_env_core(owner) or (
                 isinstance(owner, ast.Name) and owner.id in aliases
             )
             if reached:
@@ -83,7 +89,7 @@ def test_every_member_reached_through_the_facade_exists_on_it():
 
 def test_the_member_scan_sees_the_addon_tests_that_broke():
     reached = _core_member_reaches()
-    assert reached, "the _core member scan found nothing at all"
+    assert reached, "the env.core member scan found nothing at all"
     addon_files = {rel for rel, _, _ in reached if rel.startswith("addons/")}
     assert addon_files, (
         "the scan no longer reaches odoo/addons/**, which is where the callers "
@@ -96,7 +102,7 @@ def test_raw_collaborators_are_not_reachable_as_public_attributes():
     assert not public, (
         f"OrmCore exposes {public} publicly. Those slots hold the very "
         f"FieldCache/ComputeEngine that Transaction keeps private, so a public "
-        f"name here makes `env._core.<x>` a pass-through to the raw object and "
+        f"name here makes `env.core.<x>` a pass-through to the raw object and "
         f"makes ARCHITECTURE.md's 'the raw objects stay private' false."
     )
 

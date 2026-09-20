@@ -16,8 +16,8 @@
                     <span>The Bank Account could be a duplicate of</span>
                     <field
                         name="duplicate_bank_partner_ids"
-                        widget="x2many_buttons"
-                        string="Partners with same bank" />
+                        string="Partners with same bank"
+                        widget="x2many_buttons" />
                 </div>
             </xpath>
 
@@ -59,8 +59,8 @@
                         trusted by calling the vendor.<br />
                             <widget
                                 name="documentation_link"
-                                path="/applications/finance/accounting/payables/pay/trusted_accounts.html"
-                                label="Check why." />
+                                label="Check why."
+                                path="/applications/finance/accounting/payables/pay/trusted_accounts.html" />
                     </div>
                     <field name="has_iban_warning" invisible="1" />
                     <div invisible="not has_iban_warning">
@@ -68,8 +68,8 @@
                         not from the same country as the partner (<field name="partner_country_name" nolabel="1" class="oe_inline" />).<br />
                             <widget
                                 name="documentation_link"
-                                path="/applications/finance/accounting/payables/pay/trusted_accounts.html"
-                                label="Check why it's risky." />
+                                label="Check why it's risky."
+                                path="/applications/finance/accounting/payables/pay/trusted_accounts.html" />
                     </div>
                 </div>
             </xpath>
@@ -83,45 +83,45 @@
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">
                 <filter
-                    string="Trusted"
                     name="trusted"
+                    string="Trusted"
                     domain="[('allow_out_payment', '=', True)]" />
                 <filter
-                    string="Untrusted"
                     name="untrusted"
+                    string="Untrusted"
                     domain="[('allow_out_payment', '=', False)]" />
                 <filter
-                    string="To validate"
                     name="to_validate"
+                    string="To validate"
                     domain="[('allow_out_payment', '=', False), ('related_moves', '!=', False)]" />
                 <separator />
                 <filter
-                    string="Customers"
                     name="customer"
+                    string="Customers"
                     domain="[('partner_customer_rank','&gt;', 0)]" />
                 <filter
-                    string="Vendors"
                     name="supplier"
+                    string="Vendors"
                     domain="[('partner_supplier_rank','&gt;', 0)]" />
                 <separator />
                 <filter
-                    string="Phishing risk: High"
                     name="high_phishing_risk"
+                    string="Phishing risk: High"
                     domain="[('has_money_transfer_warning', '!=', False)]" />
                 <filter
-                    string="Phishing risk: Medium"
                     name="medium_phishing_risk"
+                    string="Phishing risk: Medium"
                     domain="[('has_iban_warning', '!=', False)]" />
                 <separator />
-                <filter string="Created On" name="create_date" date="create_date" />
+                <filter name="create_date" string="Created On" date="create_date" />
                 <group>
                     <filter
-                        string="Created On"
                         name="groupby_create_date"
+                        string="Created On"
                         context="{'group_by': 'create_date'}" />
                     <filter
-                        string="Created By"
                         name="groupby_create_by"
+                        string="Created By"
                         context="{'group_by': 'create_uid'}" />
                 </group>
             </xpath>

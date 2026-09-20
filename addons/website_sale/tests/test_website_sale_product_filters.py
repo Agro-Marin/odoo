@@ -24,7 +24,6 @@ class TestWebsiteSaleProductFilters(
             }
         )
 
-        # Computer accessories
         cls.color_attribute = cls.env["product.attribute"].create(
             {
                 "name": "Color",
@@ -78,7 +77,6 @@ class TestWebsiteSaleProductFilters(
             }
         )
 
-        # Computer alternatives
         cls.windows_pc = cls._create_product(
             name="Windows PC",
             lst_price=1000.0,
@@ -96,7 +94,6 @@ class TestWebsiteSaleProductFilters(
             ],
         ).product_tmpl_id
 
-        # More generic products to get the number of product templates to 17
         generics = cls.env["product.template"].create(
             [
                 {
@@ -117,10 +114,6 @@ class TestWebsiteSaleProductFilters(
             + generics
         )
 
-        # Archive all products not relevant to the test suite, bypassing ORM
-        # constraints. Run one execute() per table: psycopg3 forbids multiple
-        # statements in a single prepared execute (this used to join both
-        # UPDATEs with '; '), unlike psycopg2.
         cls.env.invalidate_all()
         for recs in (cls.product_tmpls.product_variant_ids, cls.product_tmpls):
             cls.env.cr.execute(
@@ -132,11 +125,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_latest_sold_filter(self):
-        """Check the latest sold filter after selling 1 computer and 3 different cases.
-
-        When showing variants, the computer should be the most sold product.
-        When hiding variants, the case should be the most sold product.
-        """
         computer = self.computer.product_variant_id
         self.empty_cart.write(
             {
@@ -201,11 +189,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_latest_viewed_filter(self):
-        """Check the latest viewed filter after viewing 2 different cases and 1 computer.
-
-        When showing variants, the filter should return 3 items.
-        When hiding variants, the filter should return 2 items.
-        """
         viewed_products = (
             self.black_case_M + self.pink_case_L + self.computer.product_variant_id
         )
@@ -247,11 +230,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_recently_sold_with_filter(self):
-        """Check the recently-sold-with filter after selling 1 computer, 1 monitor & 1 case.
-
-        When showing variants, the filter should return the sold variants.
-        When hiding variants, the filter should return the default variants.
-        """
         computer = self.computer.product_variant_id
         monitor = self.monitor.product_variant_id
         self.empty_cart.write(
@@ -299,11 +277,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_accessories_filter(self):
-        """Check the accessories filter on the computer product.
-
-        When showing variants, the filter should return 16 (limit) accessory products.
-        When hiding variants, the filter should return 2 products: monitor & case.
-        """
         dyn_filter = self.env.ref(
             "website_sale.dynamic_filter_cross_selling_accessories"
         )
@@ -329,11 +302,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_alternative_products_filter(self):
-        """Check the alternative products filter on the Mac product.
-
-        When showing variants, the filter should return 16 (limit) alternative products.
-        When hiding variants, the filter should return 2 products: computer & Windows PC.
-        """
         dyn_filter = self.env.ref(
             "website_sale.dynamic_filter_cross_selling_alternative_products"
         )
@@ -366,15 +334,6 @@ class TestWebsiteSaleProductFilters(
             )
 
     def test_newest_products_filter(self):
-        """Check the newest products filter.
-
-        When showing variants, the filter should return 16 variants with repeating templates.
-        When hiding variants, the filter should return 16 templates, all unique.
-
-        This filter is unique in that it's defined in `data/data.xml`, and hence can't be called
-        via the `_get_products` method.
-        """
-        # Ensure we're working with a known set of products
         self.env["product.template"].search(
             [("id", "not in", self.product_tmpls.ids)]
         ).write(

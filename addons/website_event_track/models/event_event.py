@@ -4,39 +4,43 @@ from odoo import _, api, fields, models
 class EventEvent(models.Model):
     _inherit = "event.event"
 
-    track_ids = fields.One2many("event.track", "event_id", "Tracks")
-    track_count = fields.Integer("Track Count", compute="_compute_track_count")
+    track_ids = fields.One2many(
+        comodel_name="event.track",
+        inverse_name="event_id",
+        string="Tracks",
+    )
+    track_count = fields.Integer(compute="_compute_track_count")
     website_track = fields.Boolean(
-        "Tracks on Website",
+        string="Tracks on Website",
         compute="_compute_website_track",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     website_track_proposal = fields.Boolean(
-        "Proposals on Website",
+        string="Proposals on Website",
         compute="_compute_website_track_proposal",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     track_menu_ids = fields.One2many(
-        "website.event.menu",
-        "event_id",
+        comodel_name="website.event.menu",
+        inverse_name="event_id",
         string="Event Tracks Menus",
         domain=[("menu_type", "=", "track")],
     )
     track_proposal_menu_ids = fields.One2many(
-        "website.event.menu",
-        "event_id",
+        comodel_name="website.event.menu",
+        inverse_name="event_id",
         string="Event Proposals Menus",
         domain=[("menu_type", "=", "track_proposal")],
     )
     allowed_track_tag_ids = fields.Many2many(
-        "event.track.tag",
+        comodel_name="event.track.tag",
         relation="event_allowed_track_tags_rel",
         string="Available Track Tags",
     )
     tracks_tag_ids = fields.Many2many(
-        "event.track.tag",
+        comodel_name="event.track.tag",
         relation="event_track_tags_rel",
         string="Track Tags",
         compute="_compute_tracks_tag_ids",
@@ -53,8 +57,6 @@ class EventEvent(models.Model):
 
     @api.depends("event_type_id", "website_menu")
     def _compute_website_track(self):
-        """Propagate event_type configuration (only at change); otherwise propagate
-        website_menu updated value. Also force True is track_proposal changes."""
         for event in self:
             if (
                 event.event_type_id
@@ -71,8 +73,6 @@ class EventEvent(models.Model):
 
     @api.depends("event_type_id", "website_track")
     def _compute_website_track_proposal(self):
-        """Propagate event_type configuration (only at change); otherwise propagate
-        website_track updated value (both together True or False at update)."""
         for event in self:
             if (
                 event.event_type_id
@@ -97,17 +97,9 @@ class EventEvent(models.Model):
                 .ids
             )
 
-    # ------------------------------------------------------------
-    # BUSINESS METHODS
-    # ------------------------------------------------------------
-
     def _has_published_track(self):
         self.check_singleton()
         return bool(self.track_ids.filtered("is_published"))
-
-    # ------------------------------------------------------------
-    # WEBSITE MENU MANAGEMENT
-    # ------------------------------------------------------------
 
     def toggle_website_track(self, val):
         self.website_track = val

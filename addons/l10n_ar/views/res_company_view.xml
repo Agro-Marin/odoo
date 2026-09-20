@@ -20,9 +20,9 @@
                     <field
                         name="l10n_ar_gross_income_number"
                         placeholder="Number..."
-                        class="oe_inline"
                         invisible="l10n_ar_gross_income_type in [False, 'exempt']"
-                        required="l10n_ar_gross_income_type not in [False, 'exempt']" />
+                        required="l10n_ar_gross_income_type not in [False, 'exempt']"
+                        class="oe_inline" />
                 </div>
                 <field
                     name="l10n_ar_afip_start_date"

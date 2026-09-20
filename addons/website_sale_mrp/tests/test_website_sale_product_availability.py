@@ -14,8 +14,6 @@ class TestWebsiteSaleMrpAvailability(
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Run the tests in another company, so the tests do not rely on the
-        # database state (eg the default company's warehouse)
         cls.company = cls.env["res.company"].create({"name": "Kit Company"})
         cls.env = cls.env["base"].with_company(cls.company).env
         cls.env.user.company_id = cls.company
@@ -25,7 +23,6 @@ class TestWebsiteSaleMrpAvailability(
             [("company_id", "=", cls.company.id)], limit=1
         )
 
-        # Create two storable products
         cls.super_kit_product, cls.kit_product, cls.component_A, cls.component_B = (
             cls.env["product.product"].create(
                 [
@@ -103,7 +100,6 @@ class TestWebsiteSaleMrpAvailability(
             ]
         )
 
-        # Add 100 Component A and Component B in stock
         cls.env["stock.quant"]._update_available_quantity(
             cls.component_A, cls.warehouse.lot_stock_id, 100
         )
@@ -112,13 +108,9 @@ class TestWebsiteSaleMrpAvailability(
         )
 
     def test_website_sale_availability_kit(self):
-        """
-        Check that the website availability of products is influenced by kits present in the cart.
-        """
         if (
             self.env["ir.module.module"]._get("website_sale_collect").state
             == "installed"
         ):
-            # Disable the Click & Collect as the Availability widget is modified when the option is enabled
             self.website.in_store_dm_id.is_published = False
         self.start_tour("/shop", "test_website_sale_availability_kit", login="")

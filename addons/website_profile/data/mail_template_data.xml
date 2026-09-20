@@ -2,9 +2,10 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Email template for email validation (for karma purpose) -->
         <record id="validation_email" model="mail.template">
             <field name="name">Forum: Email Verification</field>
+            <field
+                name="description">Sent to forum visitors to confirm their mail address</field>
             <field name="model_id" ref="base.model_res_users" />
             <field
                 name="subject">{{ object.company_id.name }} Profile validation</field>
@@ -12,8 +13,8 @@
                 name="email_from">{{ object.company_id.email_formatted or object.email_formatted }}</field>
             <field name="email_to" eval="False" />
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent to forum visitors to confirm their mail address</field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <table
@@ -23,7 +24,6 @@
                     width="590"
                     style="padding: 16px; background-color: white; color: #454748; border-collapse:separate;">
                 <tbody>
-                    <!-- HEADER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -59,7 +59,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- CONTENT -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -96,7 +95,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- FOOTER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -115,7 +113,7 @@
                                         style="opacity: 0.7;">
                                         <t t-out="user.company_id.phone_ids._primary().number or ''">+1 650-123-4567</t>
                                         <t t-if="user.company_id.email">
-                                            | <a t-attf-href="'mailto:%s' % {{ user.company_id.email }}" style="text-decoration:none; color: #454748;" t-out="user.company_id.email or ''">info@yourcompany.com</a>
+                                            | <a t-attf-href="mailto:{{ user.company_id.email }}" style="text-decoration:none; color: #454748;" t-out="user.company_id.email or ''">info@yourcompany.com</a>
                                         </t>
                                         <t t-if="user.company_id.website">
                                             | <a t-attf-href="{{ user.company_id.website }}" style="text-decoration:none; color: #454748;" t-out="user.company_id.website or ''">http://www.example.com</a>
@@ -128,7 +126,6 @@
                 </tbody>
                 </table>
                 </td></tr>
-                <!-- POWERED BY -->
                 <tr><td align="center" style="min-width: 590px;">
                     <table
                         border="0"
@@ -143,8 +140,6 @@
                 </td></tr>
                 </table>
             </field>
-            <field name="lang">{{ object.lang }}</field>
-            <field name="auto_delete" eval="True" />
         </record>
     </data>
 

@@ -58,7 +58,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
         payment_portal_controller = PaymentPortal()
 
         with patch.object(CustomerPortal, "_document_check_access") as mock:
-            payment_portal_controller._get_extra_payment_form_values()
+            payment_portal_controller._prepare_extra_payment_form_context()
             self.assertEqual(
                 mock.call_count,
                 0,
@@ -67,7 +67,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
 
             mock.reset_mock()
 
-            payment_portal_controller._get_extra_payment_form_values(
+            payment_portal_controller._prepare_extra_payment_form_context(
                 invoice_id=self.misc_entry.id, access_token="whatever"
             )
             self.assertEqual(
@@ -89,12 +89,12 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
                 CustomerPortal, "_document_check_access", _document_check_access_mock
             ),
             patch(
-                "odoo.addons.payment.utils.check_access_token",
+                "odoo.addons.payment.utils.is_access_token_valid",
                 return_value=False,
             ) as check_payment_access_token_mock,
         ):
             with self.assertRaises(AccessError):
-                payment_portal_controller._get_extra_payment_form_values(
+                payment_portal_controller._prepare_extra_payment_form_context(
                     invoice_id=self.misc_entry.id, access_token="whatever"
                 )
             self.assertEqual(
@@ -108,7 +108,7 @@ class TestFlows(AccountPaymentCommon, PaymentHttpCommon):
     def test_transaction_route_rejects_unexpected_kwarg(self):
         url = self._build_url(f"/invoice/transaction/{self.misc_entry.id}/")
         route_kwargs = {
-            "access_token": self.misc_entry._portal_ensure_token(),
+            "access_token": self.misc_entry._portal_get_or_create_token(),
             "partner_id": self.partner.id,  # This should be rejected.
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):

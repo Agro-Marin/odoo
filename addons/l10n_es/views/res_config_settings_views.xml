@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='account']/block" position="after">
                 <block
-                    title="Spain Localization"
                     name="spain_localization"
+                    title="Spain Localization"
                     invisible="1">
                     <setting string="Simplified Invoice Limit" title="">
                         <div class="text-muted">

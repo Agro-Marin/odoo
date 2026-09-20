@@ -197,7 +197,11 @@ class TestEsmRegistryInstallationScope(TransactionCase):
         misplaced = [
             (module, key, child)
             for module, esm in self._declarations()
-            for key in ("dynamic_children", "import_map_includes")
+            for key in (
+                "dynamic_children",
+                "import_map_includes",
+                "secondary_import_map_includes",
+            )
             for parent, children in (esm.get(key) or {}).items()
             for child in children
             if self._claims_a_live_foreign_namespace(module, child)
@@ -239,6 +243,40 @@ class TestEsmRegistryInstallationScope(TransactionCase):
             )
 
 
+class TestSatelliteReachIsProvidedToRuntimeChildren(TransactionCase):
+    PARENT = "web.assets_frontend"
+    SATELLITE = "web.assets_tests"
+
+    def test_what_the_satellite_registers_is_what_the_group_stubs(self):
+        q = self.env["ir.qweb"]
+        params = q.env["ir.asset"]._prepare_assets_params()
+        if self.SATELLITE not in esm_registry().secondary_import_map_includes.get(
+            self.PARENT, ()
+        ):
+            self.skipTest("the satellite is not declared under the parent")
+        inlined = q._get_secondary_inlined_reach(
+            self.SATELLITE, params, page_scope=(self.PARENT,)
+        )
+        if not inlined:
+            self.skipTest("the satellite reaches nothing the page lacks")
+        page = set(
+            q._get_asset_bundle(
+                self.PARENT,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=params,
+            ).get_native_module_data(with_bridges=False)["import_map"]
+        )
+        self.assertTrue(set(inlined).isdisjoint(page), "the page already carries it")
+        without = q._get_runtime_parent_specs((self.PARENT,), params, False)
+        with_satellites = q._get_runtime_parent_specs((self.PARENT,), params, True)
+        self.assertTrue(set(inlined).isdisjoint(without))
+        self.assertLessEqual(set(inlined), with_satellites)
+        for spec, url in inlined.items():
+            self.assertTrue(url.startswith("/") and url.endswith(".js"), (spec, url))
+
+
 class TestSecondarySingletonSurface(TransactionCase):
     BUNDLE = "web.assets_tests"
     PARENT = "web.assets_web"
@@ -276,12 +314,12 @@ class TestSecondarySingletonSurface(TransactionCase):
             self.skipTest("every direct import is provided by the page")
         reachable = discover_transitive_import_specifiers(
             inlined,
-            known_specifiers=own_specs,
+            known_specifiers=own_specs | shared,
             ext_libs=IrQweb._external_libs(),
             bundle_name=self.BUNDLE,
         )
         self.assertEqual(
-            (reachable & provider_specs) - shared,
+            reachable & provider_specs,
             set(),
             "a module the page already carries is reachable through an inlined "
             "import, so esbuild inlines a second instance of it",

@@ -2,10 +2,13 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 
 STATS_SAMPLE_LIMIT = 500
 
 HISTORY_RESULT_LIMIT = 20
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderLinePriceHistory(models.AbstractModel):
@@ -28,12 +31,8 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         required=True,
         help="Period the statistics and the shortlist below are computed over.",
     )
-    product_id = fields.Many2one(
-        comodel_name="product.product",
-    )
-    partner_id = fields.Many2one(
-        comodel_name="res.partner",
-    )
+    product_id = fields.Many2one(comodel_name="product.product")
+    partner_id = fields.Many2one(comodel_name="res.partner")
     include_draft = fields.Boolean(
         string="Include Draft Documents",
         help="Add unconfirmed documents to the shortlist. Statistics always "
@@ -42,29 +41,29 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         compute="_compute_currency_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         help="Currency every price on this screen is normalized to.",
     )
     avg_price_unit = fields.Monetary(
         string="Average Price",
-        compute="_compute_price_stats",
         currency_field="currency_id",
+        compute="_compute_price_stats",
         help="Quantity-weighted average over confirmed documents in the "
         "period, all partners, target line excluded. Prices are normalized to "
         "the currency above and to the product reference unit of measure.",
     )
     min_price_unit = fields.Monetary(
         string="Lowest Price",
-        compute="_compute_price_stats",
         currency_field="currency_id",
+        compute="_compute_price_stats",
         help="Lowest normalized price in the period sample.",
     )
     max_price_unit = fields.Monetary(
         string="Highest Price",
-        compute="_compute_price_stats",
         currency_field="currency_id",
+        compute="_compute_price_stats",
         help="Highest normalized price in the period sample.",
     )
     avg_price_unit_exact = fields.Float(
@@ -79,8 +78,8 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     )
     partner_avg_price_unit = fields.Monetary(
         string="Average with this Partner",
-        compute="_compute_price_stats",
         currency_field="currency_id",
+        compute="_compute_price_stats",
         help="Quantity-weighted average over the same period, restricted to "
         "the selected partner and its commercial group. Read against the "
         "all-partner average beside it: that comparison, not the global figure "
@@ -96,9 +95,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
         help="Relative difference between the partner average and the "
         "all-partner average.",
     )
-    partner_divergence_favorable = fields.Boolean(
-        compute="_compute_price_stats",
-    )
+    partner_divergence_favorable = fields.Boolean(compute="_compute_price_stats")
     avg_sample_truncated = fields.Boolean(
         compute="_compute_price_stats",
         help="The period holds more documents than the sample cap, so the "
@@ -106,8 +103,8 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     )
     current_price_unit = fields.Monetary(
         string="Current Price",
-        compute="_compute_price_stats",
         currency_field="currency_id",
+        compute="_compute_price_stats",
         help="Target line effective price, normalized like the average.",
     )
     divergence_pct = fields.Float(
@@ -158,8 +155,8 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     def _get_price_normalized(self, line) -> tuple[float, float]:
         sample = self._get_price_sample(line)
         reference_uom = line.product_id.uom_id
-        price = sample["uom"]._compute_price_report(sample["price"], reference_uom)
-        qty = sample["uom"]._compute_quantity_estimate(
+        price = sample["uom"]._get_price_report(sample["price"], reference_uom)
+        qty = sample["uom"]._get_quantity_estimate(
             sample["qty"], reference_uom, round=False
         )
         currency = sample["currency"]
@@ -175,6 +172,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
 
     def _get_domain_price_stats(self):
         if not self.product_id:
+            _debug.logic("price_stats_skipped", wizard=self, reason="no_product")
             return None
         return [
             ("product_id", "=", self.product_id.id),
@@ -213,10 +211,23 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
                 vals["divergence_favorable"] = (
                     divergence * self._get_price_direction() > 0
                 )
+        _debug.logic(
+            "price_stats",
+            wizard=self,
+            product=self.product_id,
+            market=market,
+            current=vals["current_price_unit"],
+            divergence=vals["divergence_pct"],
+            samples=vals["avg_sample_count"],
+            truncated=vals["avg_sample_truncated"],
+        )
         return vals
 
     def _get_partner_price_aggregates(self, domain, market_vals) -> dict:
         if not self.partner_id:
+            _debug.logic(
+                "partner_price_stats_skipped", wizard=self, reason="no_partner"
+            )
             return {}
         partner_domain = [
             *domain,
@@ -239,6 +250,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
 
     def _get_price_aggregates(self, domain) -> dict:
         if not self._price_history_sql:
+            _debug.logic("price_aggregates", wizard=self, by="python_sample")
             return self._get_price_sample_aggregates(domain)
         Line = self.env[self._price_history_line_model]
         groups = Line._read_group(
@@ -253,12 +265,22 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
             ],
         )
         if not groups:
+            _debug.logic("price_aggregates", wizard=self, by="no_history")
             return {}
         if len(groups) > 1 or groups[0][0] != self.currency_id:
+            _debug.logic(
+                "price_aggregates",
+                wizard=self,
+                by="python_sample",
+                reason="mixed_currency",
+                currencies=len(groups),
+            )
             return self._get_price_sample_aggregates(domain)
         _currency, amount, minimum, maximum, qty, count = groups[0]
         if not qty:
+            _debug.logic("price_aggregates", wizard=self, by="zero_quantity")
             return {}
+        _debug.perf.count("price_aggregates_sql", wizard=self, lines=count)
         return {
             "avg_price_unit": amount / qty,
             "avg_price_unit_exact": amount / qty,
@@ -284,6 +306,13 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
             count += 1
             min_price = price if min_price is None else min(min_price, price)
             max_price = price if max_price is None else max(max_price, price)
+        _debug.perf.count(
+            "price_aggregates_sample",
+            wizard=self,
+            fetched=len(lines),
+            used=count,
+            truncated=len(lines) == STATS_SAMPLE_LIMIT,
+        )
         if not total_qty:
             return {"avg_sample_truncated": len(lines) == STATS_SAMPLE_LIMIT}
         return {
@@ -313,10 +342,18 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     def _onchange_price_history_filters(self):
         self.line_ids = [Command.clear()]
         if not self.product_id:
+            _debug.logic("price_history_cleared", wizard=self, reason="no_product")
             return
         lines = self.env[self._price_history_line_model].search(
             self._get_domain_price_history(),
             order=self._price_history_order,
+            limit=HISTORY_RESULT_LIMIT,
+        )
+        _debug.pipeline(
+            "price_history_loaded",
+            wizard=self,
+            product=self.product_id,
+            lines=lines,
             limit=HISTORY_RESULT_LIMIT,
         )
         self.line_ids = [Command.create({"line_id": line.id}) for line in lines]
@@ -353,8 +390,8 @@ class MixinOrderLinePriceHistoryLine(models.AbstractModel):
     )
     price_unit_normalized = fields.Monetary(
         string="Normalized Price",
-        compute="_compute_divergence",
         currency_field="currency_id",
+        compute="_compute_divergence",
         help="This line's discounted price, converted to the wizard currency "
         "and to the product reference unit of measure. This is the only "
         "column comparable across units and currencies.",
@@ -365,9 +402,7 @@ class MixinOrderLinePriceHistoryLine(models.AbstractModel):
         help="Relative difference between this line's normalized price and "
         "the period average.",
     )
-    divergence_favorable = fields.Boolean(
-        compute="_compute_divergence",
-    )
+    divergence_favorable = fields.Boolean(compute="_compute_divergence")
 
     @api.depends("line_id", "wizard_id.avg_price_unit_exact", "wizard_id.currency_id")
     def _compute_divergence(self):
@@ -387,10 +422,10 @@ class MixinOrderLinePriceHistoryLine(models.AbstractModel):
             record.divergence_pct = divergence
             record.divergence_favorable = divergence * wizard._get_price_direction() > 0
 
-    def _get_price_vals(self) -> dict:
+    def _prepare_price_update_vals(self) -> dict:
         target = self.wizard_id.line_id
         return {
-            "price_unit": self.line_id.product_uom_id._compute_price(
+            "price_unit": self.line_id.product_uom_id._get_price_in_unit(
                 self.price_unit, target.product_uom_id
             ),
             "discount": self.discount,
@@ -398,5 +433,10 @@ class MixinOrderLinePriceHistoryLine(models.AbstractModel):
 
     def action_set_price(self):
         self.check_singleton()
-        self.wizard_id.line_id.write(self._get_price_vals())
+        _debug.lifecycle(
+            "price_set_from_history",
+            target=self.wizard_id.line_id,
+            source=self.line_id,
+        )
+        self.wizard_id.line_id.write(self._prepare_price_update_vals())
         return {"type": "ir.actions.act_window_close"}

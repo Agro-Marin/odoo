@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { getLNATargetAddressSpace } from "@point_of_sale/app/utils/init_lna";
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { getTemplate } from "@web/core/templates";
 import { _t } from "@web/core/translation";
 import { append, createElement, createTextNode } from "@web/core/utils/dom/xml";
+const log = makeLogger("pos.printer.epson");
 const STATUS_ROLL_PAPER_HAS_RUN_OUT = 0x00080000;
 const STATUS_ROLL_PAPER_HAS_ALMOST_RUN_OUT = 0x00020000;
 const ERROR_CODE_PRINTER_NOT_REACHABLE = "PRINTER_NOT_REACHABLE";
@@ -29,14 +31,23 @@ export class EpsonPrinter extends BasePrinter {
         if (odoo.use_lna) {
             this.lnaTargetAddressSpace = getLNATargetAddressSpace(this.address);
         }
+        log.lifecycle("setup", () => ({
+            url: this.url,
+            lna: odoo.use_lna,
+            targetAddressSpace: this.lnaTargetAddressSpace,
+        }));
     }
 
     /**
      * @override Create
      */
     processCanvas(canvas) {
+        const endRaster = log.perf("canvasToRaster");
         const rasterData = this.canvasToRaster(canvas);
+        endRaster({ width: canvas.width, height: canvas.height });
+        const endEncode = log.perf("encodeRaster");
         const encodedData = this.encodeRaster(rasterData);
+        endEncode({ bytes: encodedData.length });
         return ePOSPrint([
             createElement(
                 "image",
@@ -55,6 +66,7 @@ export class EpsonPrinter extends BasePrinter {
      * @override
      */
     openCashbox() {
+        log.pipeline("openCashbox", () => ({ url: this.url }));
         const pulse = ePOSPrint([createElement("pulse")]);
         this.sendPrintingJob(pulse);
     }
@@ -73,19 +85,23 @@ export class EpsonPrinter extends BasePrinter {
             params.targetAddressSpace = this.lnaTargetAddressSpace;
         }
 
+        const endSend = log.perf("sendPrintingJob");
         try {
             const res = await fetch(this.address, params);
             const body = await res.text();
             const parser = new DOMParser();
             const parsedBody = parser.parseFromString(body, "application/xml");
             const response = parsedBody.querySelector("response");
-            return {
+            const result = {
                 result: response.getAttribute("success") === "true",
                 errorCode: response.getAttribute("code"),
                 status: parseInt(response.getAttribute("status")) || 0,
                 canRetry: true,
             };
-        } catch {
+            endSend({ http: res.status, ...result });
+            return result;
+        } catch (error) {
+            endSend({ unreachable: true, error: error?.name });
             return {
                 result: false,
                 canRetry: true,

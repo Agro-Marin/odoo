@@ -1,9 +1,13 @@
 /** @odoo-module native */
 import { Component, EventBus, markup, useEffect, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("website.component.website_loader");
 
 export class WebsiteLoader extends Component {
     static props = {
@@ -12,6 +16,7 @@ export class WebsiteLoader extends Component {
     static template = "website.website_loader";
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
 
         const initialState = {
@@ -57,25 +62,27 @@ export class WebsiteLoader extends Component {
         useEffect(
             (selectedFeatures) => {
                 if (this.state.showWaitingMessages) {
-                    const messagesToDisplay = [...defaultMessages]; // Start with defaultMessages
+                    const messagesToDisplay = [...defaultMessages];
                     if (selectedFeatures.length > 0) {
-                        // Merge defaultMessages with the relevant waitingMessages
                         messagesToDisplay.push(
                             ...this.getWaitingMessages(selectedFeatures),
                         );
                     }
 
+                    log.pipeline("waiting messages prepared", () => ({
+                        features: selectedFeatures.length,
+                        messages: messagesToDisplay.length,
+                    }));
                     this.waitingMessages.splice(
                         0,
                         this.waitingMessages.length,
                         ...messagesToDisplay,
                     );
 
-                    // Request the number of modules/dependencies to install
-                    // and already installed
                     this.trackModules(selectedFeatures).catch(console.error);
 
                     return () => {
+                        log.lifecycle("trackModules timers cleared");
                         clearTimeout(this.trackModulesTimeout);
                         clearInterval(this.updateProgressInterval);
                     };
@@ -84,7 +91,6 @@ export class WebsiteLoader extends Component {
             () => [this.state.selectedFeatures],
         );
 
-        // Cycle through the waitingMessages every 6s
         useEffect(
             () => {
                 if (this.state.showWaitingMessages) {
@@ -94,9 +100,11 @@ export class WebsiteLoader extends Component {
                         const nextMessage = this.waitingMessages[msgIndex];
                         Object.assign(this.currentWaitingMessage, nextMessage);
                         if (this.waitingMessages.length - 1 === msgIndex) {
+                            log.lifecycle("messages interval finished", { msgIndex });
                             clearInterval(messagesInterval);
                         }
                     }, 6000);
+                    log.lifecycle("messages interval started");
 
                     return () => clearInterval(messagesInterval);
                 }
@@ -104,10 +112,10 @@ export class WebsiteLoader extends Component {
             () => [this.waitingMessages.length],
         );
 
-        // Prevent user from closing/refreshing the window
         useEffect(
             (isVisible) => {
                 if (isVisible) {
+                    log.lifecycle("visible: beforeunload guard attached");
                     window.addEventListener(
                         "beforeunload",
                         this.showRefreshConfirmation,
@@ -116,13 +124,11 @@ export class WebsiteLoader extends Component {
                         !this.state.selectedFeatures ||
                         this.state.selectedFeatures.length === 0
                     ) {
-                        // If there is no feature selected, we fake the progress
-                        // for theme installation and configurator_apply. If
-                        // there is at least 1 feature selected, the progress
-                        // bar will be initialized in trackModules().
+                        log.logic("no feature to install: plain progress bar");
                         this.initProgressBar();
                     }
                 } else {
+                    log.lifecycle("hidden: beforeunload guard removed");
                     window.removeEventListener(
                         "beforeunload",
                         this.showRefreshConfirmation,
@@ -142,13 +148,15 @@ export class WebsiteLoader extends Component {
 
         useBus(this.props.bus, "SHOW-WEBSITE-LOADER", (ev) => {
             const props = ev.detail;
+            log.lifecycle("SHOW-WEBSITE-LOADER", () => ({
+                title: props?.title,
+                features: props?.selectedFeatures?.length,
+                showWaitingMessages: props?.showWaitingMessages,
+                flag: props?.flag,
+            }));
             this.state.isVisible = true;
             for (const prop of [
                 "title",
-                // FIXME: website user/interactive tours are not properly
-                // working at the moment. This disables the "follow the tips"
-                // message in the website loader while waiting for a fix.
-                // "showTips",
                 "selectedFeatures",
                 "showWaitingMessages",
                 "bottomMessageTemplate",
@@ -161,8 +169,10 @@ export class WebsiteLoader extends Component {
         });
         useBus(this.props.bus, "HIDE-WEBSITE-LOADER", () => {
             if (!this.state.isVisible) {
+                log.logic("HIDE-WEBSITE-LOADER ignored: not visible");
                 return;
             }
+            log.lifecycle("HIDE-WEBSITE-LOADER");
             for (const key of Object.keys(initialState)) {
                 this.state[key] = initialState[key];
             }
@@ -170,31 +180,16 @@ export class WebsiteLoader extends Component {
             clearTimeout(this.trackModulesTimeout);
             clearInterval(this.updateProgressInterval);
         });
-        // Action needed if the app automatically refreshes or redirects the
-        // page without hiding/removing the WebsiteLoader. This should be
-        // called prior to any refresh/redirect if the loader is still visible.
         useBus(this.props.bus, "PREPARE-OUT-WEBSITE-LOADER", () => {
+            log.lifecycle("PREPARE-OUT-WEBSITE-LOADER");
             window.removeEventListener("beforeunload", this.showRefreshConfirmation);
         });
     }
 
-    /**
-     * Initializes the progress bar.
-     */
     initProgressBar() {
-        // The progress speed decreases as it approaches its limit. This way,
-        // users have the feeling that the website creation progressing is fast
-        // and we prevent them from leaving the page too early (because they
-        // already did XX% of the process).
-        // If there is no module to install, we fake the progress from 0 to 100.
-        // If there is at least 1 module to install, we take 70% of the progress
-        // bar that we divide by the number of modules to install. We fake the
-        // progress of each module individually and when all modules are
-        // installed, we fake the progress of the remaining 30%.
         const nbModulesToInstall = this.featuresInstallInfo.total || 0;
         const isSomethingToInstall = nbModulesToInstall > 0;
         let currentProgress = 0;
-        // This controls the speed of the progress bar.
         const progressStep = isSomethingToInstall ? 0.04 : 0.02;
         const progressForAfterModules = isSomethingToInstall ? 30 : 100;
         const progressForAllModules = 100 - progressForAfterModules;
@@ -203,13 +198,13 @@ export class WebsiteLoader extends Component {
             ? progressForAllModules / nbModulesToInstall
             : 0;
 
-        // initProgressBar() is called repeatedly (every ~1s from trackModules()
-        // and from the visibility effect); clear any previous interval first so
-        // orphan timers don't accumulate and fight over state.progressPercentage.
+        log.lifecycle("initProgressBar interval (re)started", () => ({
+            nbModulesToInstall,
+            installed: this.featuresInstallInfo.nbInstalled,
+        }));
         clearInterval(this.updateProgressInterval);
         this.updateProgressInterval = setInterval(() => {
             if (this.featuresInstallInfo.nbInstalled !== lastTotalInstalled) {
-                // A module just finished its install.
                 currentProgress = 0;
                 lastTotalInstalled = this.featuresInstallInfo.nbInstalled;
             }
@@ -224,13 +219,12 @@ export class WebsiteLoader extends Component {
         }, 100);
     }
     /**
-     * Makes a RPC call to track the features and dependencies being installed
-     * and, as long as the number of features installed is different from the
-     * total expected, recursively calls itself again after 1s.
-     *
      * @param {integer[]} selectedFeatures
      */
     async trackModules(selectedFeatures) {
+        const endTrack = log.perf("track_installing_modules", () => ({
+            features: selectedFeatures.length,
+        }));
         const installInfo = await rpc(
             "/website/track_installing_modules",
             {
@@ -239,6 +233,10 @@ export class WebsiteLoader extends Component {
             },
             { silent: true },
         );
+        endTrack(() => ({
+            nbInstalled: installInfo.nbInstalled,
+            total: installInfo.total,
+        }));
         if (
             !this.featuresInstallInfo.total ||
             this.featuresInstallInfo.nbInstalled !== installInfo.nbInstalled
@@ -247,6 +245,10 @@ export class WebsiteLoader extends Component {
         }
         this.initProgressBar();
         if (this.featuresInstallInfo.nbInstalled !== this.featuresInstallInfo.total) {
+            log.logic("trackModules not done: poll again in 1s", () => ({
+                nbInstalled: this.featuresInstallInfo.nbInstalled,
+                total: this.featuresInstallInfo.total,
+            }));
             this.trackModulesTimeout = setTimeout(
                 () => this.trackModules(selectedFeatures),
                 1000,
@@ -255,10 +257,8 @@ export class WebsiteLoader extends Component {
     }
 
     /**
-     * Depending on the features selected, returns the right waiting messages.
-     *
      * @param {integer[]} selectedFeatures
-     * @returns {Object[]} - the messages filtered by the selected features
+     * @returns {Object[]}
      */
     getWaitingMessages(selectedFeatures) {
         const websiteFeaturesMessages = [
@@ -305,7 +305,6 @@ export class WebsiteLoader extends Component {
                 flag: "generic",
             },
             {
-                // Always the last message if there is at least 1 feature selected.
                 id: "last",
                 title: _t("Finalizing."),
                 description: _t("Activating the last features."),
@@ -323,29 +322,27 @@ export class WebsiteLoader extends Component {
                 return true;
             }
         });
+        log.pipeline("getWaitingMessages", () => ({
+            selected: selectedFeatures.length,
+            messages: messagesList.length,
+        }));
         return messagesList;
     }
 
     /**
-     * Prevents refreshing/leaving the page if the loader is displayed (and
-     * thus some work is being done in the backend) by opening a prompt dialog.
-     *
      * @param {Event} ev
-     * @returns empty returnValue for Chrome & Safari
-     * cf. https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event#compatibility_notes
      */
     showRefreshConfirmation = (ev) => {
         if (this.state.isVisible) {
-            ev.preventDefault(); // Firefox
+            log.logic("beforeunload blocked: loader visible");
+            ev.preventDefault();
             ev.returnValue = "";
             return ev.returnValue;
         }
     };
 
-    /**
-     * Hide the loader.
-     */
     close() {
+        log.logic("close button");
         this.website.hideLoader();
     }
 }

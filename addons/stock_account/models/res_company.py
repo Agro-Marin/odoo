@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.stock_account.models.constants import (
     COST_METHOD_SELECTION,
@@ -15,26 +16,36 @@ from odoo.addons.stock_account.models.constants import (
 _logger = logging.getLogger(__name__)
 
 
+_debug = DebugLog(__name__)
+
+
 class ResCompany(models.Model):
     _inherit = "res.company"
 
     account_stock_journal_id = fields.Many2one(
-        "account.journal", string="Stock Journal", check_company=True
+        comodel_name="account.journal",
+        string="Stock Journal",
+        check_company=True,
     )
 
     account_stock_valuation_id = fields.Many2one(
-        "account.account", string="Stock Valuation Account", check_company=True
+        comodel_name="account.account",
+        string="Stock Valuation Account",
+        check_company=True,
     )
 
     account_production_wip_account_id = fields.Many2one(
-        "account.account", string="Production WIP Account", check_company=True
+        comodel_name="account.account",
+        string="Production WIP Account",
+        check_company=True,
     )
     account_production_wip_overhead_account_id = fields.Many2one(
-        "account.account", string="Production WIP Overhead Account", check_company=True
+        comodel_name="account.account",
+        string="Production WIP Overhead Account",
+        check_company=True,
     )
 
     inventory_period = fields.Selection(
-        string="Inventory Period",
         selection=[
             ("manual", "Manual"),
             ("daily", "Daily"),
@@ -45,13 +56,12 @@ class ResCompany(models.Model):
     )
 
     inventory_valuation = fields.Selection(
-        string="Valuation",
         selection=VALUATION_SELECTION,
+        string="Valuation",
         default="periodic",
     )
 
     cost_method = fields.Selection(
-        string="Cost Method",
         selection=COST_METHOD_SELECTION,
         default="standard",
         required=True,
@@ -71,6 +81,12 @@ class ResCompany(models.Model):
         }
 
     def _close_stock_valuation(self, at_date=None, auto_post=False):
+        _debug.pipeline(
+            "valuation_closing_enter",
+            company=self.id,
+            at_date=at_date,
+            auto_post=auto_post,
+        )
         self.check_singleton()
         if not self.try_lock_for_update(allow_referencing=True):
             raise UserError(
@@ -90,6 +106,12 @@ class ResCompany(models.Model):
             order="date desc, id desc",
         )
         if reset := pending.filtered("posted_before"):
+            _debug.logic(
+                "valuation_closing_refused",
+                reason="posted_entry_in_draft",
+                company=self.id,
+                entry=reset[0].id,
+            )
             _logger.info(
                 "Stock valuation closing for company %s has a previously-posted entry"
                 " %s back in draft; not computing another.",
@@ -109,9 +131,16 @@ class ResCompany(models.Model):
                     "It exists closing entries after the selected date. Cancel them before generate an entry prior to them"
                 )
             )
-        aml_vals_list = self.with_context(
-            allowed_company_ids=self.ids
-        )._action_close_stock_valuation(at_date=at_date)
+        with _debug.perf(
+            "valuation_closing_build",
+            cr=self.env.cr,
+            company=self.id,
+            at_date=at_date,
+        ) as span:
+            aml_vals_list = self.with_context(
+                allowed_company_ids=self.ids
+            )._action_close_stock_valuation(at_date=at_date)
+            span.set(aml_lines=len(aml_vals_list))
 
         if not aml_vals_list:
             return self.env["account.move"]
@@ -190,20 +219,21 @@ class ResCompany(models.Model):
         return account_data
 
     def _action_close_stock_valuation(self, at_date=None):
+        _debug.pipeline("valuation_closing_build", company=self.id, at_date=at_date)
         aml_vals_list = []
         accounts_by_product = self._get_accounts_by_product()
 
-        vals_list = self._get_location_valuation_vals(at_date)
+        vals_list = self._prepare_location_valuation_vals(at_date)
         if vals_list:
             aml_vals_list += vals_list
 
-        vals_list = self._get_stock_valuation_account_vals(
+        vals_list = self._prepare_stock_valuation_account_vals(
             accounts_by_product, at_date, aml_vals_list
         )
         if vals_list:
             aml_vals_list += vals_list
 
-        vals_list = self._get_continental_realtime_variation_vals(
+        vals_list = self._prepare_continental_realtime_variation_vals(
             accounts_by_product, at_date, aml_vals_list
         )
         if vals_list:
@@ -212,6 +242,7 @@ class ResCompany(models.Model):
 
     @api.model
     def _cron_post_stock_valuation(self):
+        _debug.lifecycle("cron_enter", cron="post_stock_valuation")
         today = fields.Date.today()
         periods = ["daily"]
         if today == today + relativedelta(day=31):
@@ -223,6 +254,7 @@ class ResCompany(models.Model):
             ]
         )
         companies = self.env["res.company"].search(domain)
+        _debug.logic("cron_scope", periods=periods, companies=companies)
         for company in companies:
             try:
                 with self.env.cr.savepoint():
@@ -267,7 +299,8 @@ class ResCompany(models.Model):
             extra_balance[vals["account_id"]] += vals["debit"] - vals["credit"]
         return extra_balance
 
-    def _get_location_valuation_vals(self, at_date=None, location_domain=False):
+    def _prepare_location_valuation_vals(self, at_date=None, location_domain=False):
+        _debug.perf.count("location_valuation_vals", company=self.id, at_date=at_date)
         location_domain = Domain.AND(
             [
                 location_domain or [],
@@ -348,7 +381,7 @@ class ResCompany(models.Model):
             amls_vals_list += amls_vals
         return amls_vals_list
 
-    def _get_stock_valuation_account_vals(
+    def _prepare_stock_valuation_account_vals(
         self, accounts_by_product, at_date=None, extra_aml_vals_list=None
     ):
         amls_vals_list = []
@@ -389,7 +422,7 @@ class ResCompany(models.Model):
 
         return amls_vals_list
 
-    def _get_continental_realtime_variation_vals(
+    def _prepare_continental_realtime_variation_vals(
         self, accounts_by_product, at_date=None, extra_aml_vals_list=None
     ):
         extra_balance = self._get_extra_balance(extra_aml_vals_list)
@@ -431,7 +464,7 @@ class ResCompany(models.Model):
             )
             if at_date:
                 current_balance_domain &= Domain([("date", "<=", at_date)])
-            [(existing_balance,)] = self.env["account.move.line"]._read_group(
+            [(existing_balance,)] = self.env["account.move.line"]._read_group(  # noqa: E8507 - one aggregate per company, on its own accounts
                 current_balance_domain, aggregates=["balance:sum"]
             )
             balance_over_period += existing_balance

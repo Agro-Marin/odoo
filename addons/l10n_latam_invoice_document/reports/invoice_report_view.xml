@@ -11,8 +11,8 @@
             </search>
             <filter name="user" position="after">
                 <filter
-                    string="Document Type"
                     name="l10n_latam_document_type"
+                    string="Document Type"
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </filter>
         </field>

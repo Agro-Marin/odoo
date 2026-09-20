@@ -3,20 +3,25 @@ import typing
 from typing import Self
 from urllib.parse import urlparse
 
-import requests
 from dateutil.relativedelta import relativedelta
 from lxml import html
 from psycopg import IntegrityError
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
-from odoo.addons.mail.tools.link_preview import get_link_preview_from_url
+from odoo.addons.mail.tools.link_preview import (
+    get_link_preview_from_url,
+    get_link_preview_session,
+)
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
     from .mail_message_link_preview import MessageMailLinkPreview
+
+_debug = DebugLog(__name__)
 
 
 class MailLinkPreview(models.Model):
@@ -25,24 +30,29 @@ class MailLinkPreview(models.Model):
     _description = "Store link preview data"
     _rec_name = "source_url"
 
-    source_url = fields.Char("URL", required=True)
+    source_url = fields.Char(
+        string="URL",
+        required=True,
+    )
     source_url_netloc = fields.Char(
-        "URL host",
+        string="URL host",
         compute="_compute_source_url_netloc",
         store=True,
         index=True,
         help="Parsed host of source_url, used for per-host throttling.",
     )
-    og_type = fields.Char("Type")
-    og_title = fields.Char("Title")
-    og_site_name = fields.Char("Site name")
-    og_image = fields.Char("Image")
-    og_description = fields.Text("Description")
-    og_mimetype = fields.Char("MIME type")
-    image_mimetype = fields.Char("Image MIME type")
+    og_type = fields.Char(string="Type")
+    og_title = fields.Char(string="Title")
+    og_site_name = fields.Char(string="Site name")
+    og_image = fields.Char(string="Image")
+    og_description = fields.Text(string="Description")
+    og_mimetype = fields.Char(string="MIME type")
+    image_mimetype = fields.Char(string="Image MIME type")
     create_date = fields.Datetime(index=True)
     message_link_preview_ids: MessageMailLinkPreview = fields.One2many(
-        "mail.message.link.preview", "link_preview_id", groups="base.group_erp_manager"
+        comodel_name="mail.message.link.preview",
+        inverse_name="link_preview_id",
+        groups="base.group_erp_manager",
     )
 
     _unique_source_url = models.UniqueIndex("(source_url)")
@@ -61,7 +71,7 @@ class MailLinkPreview(models.Model):
                     f"{re.escape(request_url)}(odoo|web|chat)(/|$|#|\\?)"
                 )
                 urls = list(filter(lambda url: not ignore_pattern.match(url), urls))
-        requests_session = requests.Session()
+        requests_session = get_link_preview_session(self.env)
         message_link_previews_ok = self.env["mail.message.link.preview"]
         link_previews_values = []
         message_link_previews_values = []
@@ -109,6 +119,14 @@ class MailLinkPreview(models.Model):
             message_link_previews_values.append(
                 (sequence, new_link_preview_by_url[values["source_url"]])
             )
+        _debug.pipeline(
+            "link_previews",
+            message=message.id,
+            urls=len(urls),
+            kept=len(message_link_previews_ok),
+            reused=len(message_link_previews_values) - len(link_previews_values),
+            fetched=len(link_previews_values),
+        )
         message_link_previews_ok += self.env["mail.message.link.preview"].create(
             [
                 {
@@ -152,6 +170,13 @@ class MailLinkPreview(models.Model):
         link_preview_throttle = self.env["ir.config_parameter"]._get_int_param(
             "mail.link_preview_throttle", 99
         )
+        if _debug.logic.enabled and call_counter > link_preview_throttle:
+            _debug.logic(
+                "domain_throttled",
+                domain=domain,
+                calls=call_counter,
+                throttle=link_preview_throttle,
+            )
         return call_counter > link_preview_throttle
 
     @api.model
@@ -165,6 +190,7 @@ class MailLinkPreview(models.Model):
             except IntegrityError:
                 raced_urls.append(values["source_url"])
         if raced_urls:
+            _debug.logic("previews_raced", urls=len(raced_urls))
             previews += self.search([("source_url", "in", raced_urls)])
         return previews
 
@@ -176,7 +202,9 @@ class MailLinkPreview(models.Model):
         if not preview:
             if self._is_domain_throttled(url):
                 return self.env["mail.link.preview"]
-            preview_values = get_link_preview_from_url(url)
+            preview_values = get_link_preview_from_url(
+                url, get_link_preview_session(self.env)
+            )
             if not preview_values:
                 return self.env["mail.link.preview"]
             preview = self._create_from_values_race_safe([preview_values])
@@ -197,9 +225,11 @@ class MailLinkPreview(models.Model):
     @api.autovacuum
     def _gc_link_previews(self) -> None:
         threshold = fields.Datetime.now() - relativedelta(weeks=2)
-        self.search(
+        stale = self.search(
             [
                 ("message_link_preview_ids", "=", False),
                 ("create_date", "<", threshold),
             ]
-        ).unlink()
+        )
+        _debug.lifecycle("gc_link_previews", removed=len(stale))
+        stale.unlink()

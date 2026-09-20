@@ -26,5 +26,4 @@ This module allows to manage onboardings and their progress
             "onboarding/static/src/scss/onboarding.variables.scss",
         ],
     },
-    "installable": True,
 }

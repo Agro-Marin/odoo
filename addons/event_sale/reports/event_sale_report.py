@@ -12,20 +12,40 @@ class EventSaleReport(models.Model):
     _auto = False
     _rec_name = "sale_order_line_id"
 
-    event_type_id = fields.Many2one("event.type", string="Event Type", readonly=True)
-    event_id = fields.Many2one("event.event", string="Event", readonly=True)
-    event_date_begin = fields.Date(string="Event Start Date", readonly=True)
-    event_date_end = fields.Date(string="Event End Date", readonly=True)
-    event_slot_id = fields.Many2one("event.slot", string="Event Slot", readonly=True)
-    event_ticket_id = fields.Many2one(
-        "event.event.ticket", string="Event Ticket", readonly=True
+    event_type_id = fields.Many2one(
+        comodel_name="event.type",
+        readonly=True,
     )
-    event_ticket_price = fields.Float(string="Ticket price", readonly=True)
+    event_id = fields.Many2one(
+        comodel_name="event.event",
+        readonly=True,
+    )
+    event_date_begin = fields.Date(
+        string="Event Start Date",
+        readonly=True,
+    )
+    event_date_end = fields.Date(
+        string="Event End Date",
+        readonly=True,
+    )
+    event_slot_id = fields.Many2one(
+        comodel_name="event.slot",
+        readonly=True,
+    )
+    event_ticket_id = fields.Many2one(
+        comodel_name="event.event.ticket",
+        readonly=True,
+    )
+    event_ticket_price = fields.Float(
+        string="Ticket price",
+        readonly=True,
+    )
     event_registration_create_date = fields.Date(
-        string="Registration Date", readonly=True
+        string="Registration Date",
+        readonly=True,
     )
     event_registration_state = fields.Selection(
-        [
+        selection=[
             ("draft", "Unconfirmed"),
             ("cancel", "Cancelled"),
             ("open", "Confirmed"),
@@ -34,37 +54,72 @@ class EventSaleReport(models.Model):
         string="Registration Status",
         readonly=True,
     )
-    active = fields.Boolean("Is registration active (not archived)?")
-    event_registration_id = fields.Many2one("event.registration", readonly=True)
-    event_registration_name = fields.Char("Attendee Name", readonly=True)
+    active = fields.Boolean(string="Is registration active (not archived)?")
+    event_registration_id = fields.Many2one(
+        comodel_name="event.registration",
+        readonly=True,
+    )
+    event_registration_name = fields.Char(
+        string="Attendee Name",
+        readonly=True,
+    )
 
-    product_id = fields.Many2one("product.product", string="Product", readonly=True)
-    sale_order_id = fields.Many2one("sale.order", readonly=True)
-    sale_order_date = fields.Datetime("Order Date", readonly=True)
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        readonly=True,
+    )
+    sale_order_id = fields.Many2one(
+        comodel_name="sale.order",
+        readonly=True,
+    )
+    sale_order_date = fields.Datetime(
+        string="Order Date",
+        readonly=True,
+    )
     sale_order_partner_id = fields.Many2one(
-        "res.partner", string="Customer", readonly=True
+        comodel_name="res.partner",
+        string="Customer",
+        readonly=True,
     )
     sale_order_state = fields.Selection(
-        selection=const.ORDER_STATE, string="Sale Order Status", readonly=True
+        selection=const.ORDER_STATE,
+        string="Sale Order Status",
+        readonly=True,
     )
     sale_order_user_id = fields.Many2one(
-        "res.users", string="Salesperson", readonly=True
+        comodel_name="res.users",
+        string="Salesperson",
+        readonly=True,
     )
-    sale_order_line_id = fields.Many2one("sale.order.line", readonly=True)
-    sale_price = fields.Float("Revenues", readonly=True)
-    sale_price_untaxed = fields.Float("Untaxed Revenues", readonly=True)
+    sale_order_line_id = fields.Many2one(
+        comodel_name="sale.order.line",
+        readonly=True,
+    )
+    sale_price = fields.Float(
+        string="Revenues",
+        readonly=True,
+    )
+    sale_price_untaxed = fields.Float(
+        string="Untaxed Revenues",
+        readonly=True,
+    )
     invoice_partner_id = fields.Many2one(
-        "res.partner", string="Invoice Address", readonly=True
+        comodel_name="res.partner",
+        string="Invoice Address",
+        readonly=True,
     )
     sale_status = fields.Selection(
-        string="Payment Status",
         selection=[
             ("to_pay", "Not Sold"),
             ("sold", "Sold"),
             ("free", "Free"),
         ],
+        string="Payment Status",
     )
-    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
 
     def init(self):
         drop_view_if_exists(self.env.cr, self._table)
@@ -100,7 +155,7 @@ SELECT
     ROW_NUMBER() OVER (ORDER BY event_registration.id) AS id,
 
     event_registration.id AS event_registration_id,
-    event_registration.company_id AS company_id,
+    event_event.company_id AS company_id,
     event_registration.event_id AS event_id,
     event_registration.event_slot_id AS event_slot_id,
     event_registration.event_ticket_id AS event_ticket_id,

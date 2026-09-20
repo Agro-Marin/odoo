@@ -10,8 +10,6 @@ export class ProductDetail extends Interaction {
     };
 
     /**
-     * Enable/disable the "add to wishlist" button based on the selected variant.
-     *
      * @param {Event} ev
      */
     onChangeVariant(ev) {

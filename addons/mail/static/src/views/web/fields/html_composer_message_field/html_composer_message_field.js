@@ -5,6 +5,7 @@ import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 
@@ -12,6 +13,8 @@ import { HtmlMailField, htmlMailField } from "../html_mail_field/html_mail_field
 import { ContentExpandablePlugin } from "./content_expandable_plugin.js";
 import { DisableBannerCommandsPlugin } from "./disable_banner_commands_plugin.js";
 import { MentionPlugin } from "./mention_plugin.js";
+
+const log = makeLogger("mail.composer.form");
 export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
         super.setup();
@@ -22,6 +25,9 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 /** @param {CustomEvent<{onAccidentalDiscard: (isEmpty: boolean) => void}>} ev */
                 (ev) => {
                     const elContent = this.getNoSignatureElContent();
+                    log.logic("ACCIDENTAL_DISCARD", () => ({
+                        empty: isEmpty(elContent),
+                    }));
                     ev.detail.onAccidentalDiscard(isEmpty(elContent));
                 },
             );
@@ -36,6 +42,10 @@ export class HtmlComposerMessageField extends HtmlMailField {
                     const composerHtml = markup(
                         this.getNoSignatureElContent().innerHTML,
                     );
+                    log.logic("SAVE_CONTENT", () => ({
+                        emailAddSignature,
+                        length: composerHtml.toString().length,
+                    }));
                     ev.detail.onSaveContent({ composerHtml, emailAddSignature });
                 },
             );
@@ -47,6 +57,10 @@ export class HtmlComposerMessageField extends HtmlMailField {
                     const attachmentElements = this.editor.editable.querySelectorAll(
                         `[data-attachment-id="${ev.detail.id}"]`,
                     );
+                    log.logic("ATTACHMENT_REMOVED", () => ({
+                        attachmentId: ev.detail.id,
+                        elements: attachmentElements.length,
+                    }));
                     attachmentElements.forEach((element) => {
                         const parent = element.parentElement;
                         element.remove();

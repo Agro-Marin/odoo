@@ -5,15 +5,20 @@ import { ActionList } from "@mail/core/common/action_list";
 import { CHAT_HUB_COMPACT_LS } from "@mail/core/common/chat_hub_model";
 import { ChatWindow } from "@mail/core/common/chat_window";
 import { useHover, useMovable } from "@mail/utils/common/hooks";
+import { removeLocalStorageItem } from "@mail/utils/common/local_storage";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 
 import { ChatBubble } from "./chat_bubble.js";
+const log = makeLogger("mail.chat_hub");
+
 export class ChatHub extends Component {
     static components = { ActionList, ChatBubble, ChatWindow, Dropdown };
     static props = [];
@@ -24,6 +29,7 @@ export class ChatHub extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.ui = useService("ui");
@@ -46,14 +52,20 @@ export class ChatHub extends Component {
         });
         this.onResize();
         useExternalListener(browser, "resize", this.onResize);
-        useEffect(() => {
-            if (
-                this.chatHub.folded.length &&
-                this.store.channels?.status === "not_fetched"
-            ) {
-                this.store.channels.fetch();
-            }
-        });
+        useEffect(
+            () => {
+                if (
+                    this.chatHub.folded.length &&
+                    this.store.channels?.status === "not_fetched"
+                ) {
+                    log.logic("folded windows trigger channels fetch", () => ({
+                        folded: this.chatHub.folded.length,
+                    }));
+                    this.store.channels.fetch();
+                }
+            },
+            () => [this.chatHub.folded.length, this.store.channels?.status],
+        );
         useMovable({
             enable: () => this.chatHub.compact || !this.chatHub.opened.length,
             cursor: "grabbing",
@@ -126,6 +138,7 @@ export class ChatHub extends Component {
      * @param {number} position.left
      */
     onDrop({ top, left }) {
+        log.logic("onDrop", () => ({ top, left }));
         this.position.bottom = "unset";
         this.position.right = "unset";
         this.position.top = `${top}px`;
@@ -145,42 +158,27 @@ export class ChatHub extends Component {
         this.options.close();
     }
 
+    /** @param {import("models").ChatWindow[]} chatWindows */
+    countImportant(chatWindows) {
+        return chatWindows.filter(
+            (chatWindow) => chatWindow.thread.importantCounter > 0,
+        ).length;
+    }
+
     get compactCounter() {
-        let counter = 0;
-        const cws = this.chatHub.opened.concat(this.chatHub.folded);
-        for (const chatWindow of cws) {
-            counter += chatWindow.thread.importantCounter > 0 ? 1 : 0;
-        }
-        return counter;
+        return this.countImportant(this.chatHub.opened.concat(this.chatHub.folded));
     }
 
     get hiddenCounter() {
-        let counter = 0;
-        for (const chatWindow of this.chatHub.folded.slice(this.chatHub.maxFolded)) {
-            counter += chatWindow.thread.importantCounter > 0 ? 1 : 0;
-        }
-        return counter;
-    }
-
-    get displayConversations() {
-        return this.chatHub.showConversations && !this.chatHub.compact;
-    }
-
-    get isShown() {
-        return true;
-    }
-
-    /**
-     * @param {import("models").ChatWindow} cw
-     * @returns {boolean}
-     */
-    shouldDisplayChatWindow(cw) {
-        return cw.canShow;
+        return this.countImportant(this.chatHub.folded.slice(this.chatHub.maxFolded));
     }
 
     expand() {
-        browser.localStorage.removeItem(CHAT_HUB_COMPACT_LS);
-        this.chatHub._recomputeCompact++;
+        log.logic("expand", () => ({
+            opened: this.chatHub.opened.length,
+            folded: this.chatHub.folded.length,
+        }));
+        removeLocalStorageItem(this.store, CHAT_HUB_COMPACT_LS);
         this.more.isOpen = this.chatHub.folded.length > this.chatHub.maxFolded;
         if (this.chatHub.opened.length > 0) {
             this.resetPosition();

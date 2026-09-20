@@ -6,12 +6,12 @@
         <field name="model">product.replenish</field>
         <field name="arch" type="xml">
             <form string="Replenish wizard">
-                <p> The forecasted quantity of <field name="product_id" domain="[('product_tmpl_id', '=', product_tmpl_id)]" readonly="not product_has_variants" options="{'no_open': 1, 'no_create': 1}" class="fw-bold" /> is <field name="forecasted_quantity" />
+                <p> The forecasted quantity of <field name="product_id" domain="[('product_tmpl_id', '=', product_tmpl_id)]" options="{'no_open': 1, 'no_create': 1}" readonly="not product_has_variants" class="fw-bold" /> is <field name="forecasted_quantity" />
                     <field
-                        class="ps-1"
                         name="forecast_uom_id"
                         groups="uom.group_uom"
-                        readonly="1" />
+                        readonly="1"
+                        class="ps-1" />
                 </p>
                 <group>
                     <group>
@@ -24,9 +24,9 @@
                             <field name="quantity" />
                             <field
                                 name="product_uom_id"
-                                groups="uom.group_uom"
                                 widget="many2one_uom"
-                                options="{'no_open': 1, 'no_create': 1, 'quantity_field': 'quantity'}" />
+                                options="{'no_open': 1, 'no_create': 1, 'quantity_field': 'quantity'}"
+                                groups="uom.group_uom" />
                         </div>
                         <field name="date_planned" />
                         <field
@@ -40,14 +40,14 @@
                 <footer>
                     <button
                         name="action_replenish"
-                        string="Confirm"
                         type="object"
-                        data-hotkey="q"
-                        class="btn-primary" />
+                        string="Confirm"
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

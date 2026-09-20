@@ -324,11 +324,11 @@ class TestResourceReservation(TransactionCase):
         )
         res2 = self.Reservation.create(
             {
-                "name": "From rooms",
+                "name": "From appointments",
                 "resource_id": self.resource_a.id,
                 "date_start": datetime(2025, 1, 6, 10, 0),
                 "date_end": datetime(2025, 1, 6, 14, 0),
-                "res_model": "room.booking",
+                "res_model": "calendar.event",
                 "res_id": 1,
             }
         )
@@ -342,7 +342,7 @@ class TestResourceReservation(TransactionCase):
 
     def test_sync_reservation_create(self):
         partner = self.env["res.partner"].create({"name": "Test Consumer"})
-        result = self.Reservation._sync_reservation(
+        result = self.Reservation._sync_projection(
             partner,
             [
                 {
@@ -361,7 +361,7 @@ class TestResourceReservation(TransactionCase):
 
     def test_sync_reservation_delete_all(self):
         partner = self.env["res.partner"].create({"name": "Consumer 2"})
-        self.Reservation._sync_reservation(
+        self.Reservation._sync_projection(
             partner,
             [
                 {
@@ -374,7 +374,7 @@ class TestResourceReservation(TransactionCase):
                 },
             ],
         )
-        result = self.Reservation._sync_reservation(partner, [])
+        result = self.Reservation._sync_projection(partner, [])
         self.assertEqual(len(result), 0)
         remaining = self.Reservation.search(
             [("res_model", "=", "res.partner"), ("res_id", "=", partner.id)]
@@ -383,7 +383,7 @@ class TestResourceReservation(TransactionCase):
 
     def test_sync_reservation_reconcile(self):
         partner = self.env["res.partner"].create({"name": "Consumer 3"})
-        self.Reservation._sync_reservation(
+        self.Reservation._sync_projection(
             partner,
             [
                 {
@@ -396,7 +396,7 @@ class TestResourceReservation(TransactionCase):
                 },
             ],
         )
-        result = self.Reservation._sync_reservation(
+        result = self.Reservation._sync_projection(
             partner,
             [
                 {
@@ -435,7 +435,7 @@ class TestResourceReservation(TransactionCase):
                 for i in range(2)
             ]
         )
-        result = self.Reservation._sync_reservation(
+        result = self.Reservation._sync_projection(
             partner,
             [
                 {
@@ -765,3 +765,58 @@ class TestResourceCapacity(TransactionCase):
                         "capacity": 0,
                     }
                 )
+
+
+@tagged("post_install", "-at_install")
+class TestResourceFreeWindow(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Resource = cls.env["resource.resource"]
+        cls.press = Resource.create(
+            {"name": "Press", "resource_type": "material", "tz": "UTC"}
+        )
+        cls.crane = Resource.create(
+            {"name": "Crane", "resource_type": "material", "tz": "UTC"}
+        )
+
+    def _book(self, resource, start, end, mode="soft"):
+        return self.env["resource.reservation"].create(
+            {
+                "name": "Busy",
+                "resource_id": resource.id,
+                "date_start": start,
+                "date_end": end,
+                "enforcement_mode": mode,
+            }
+        )
+
+    def test_a_free_window_is_the_one_asked_for(self):
+        start = datetime(2026, 5, 4, 8)
+        self.assertEqual(
+            (self.press | self.crane)._find_free_window(start, 2),
+            (start, datetime(2026, 5, 4, 10)),
+        )
+
+    def test_the_window_steps_past_every_booking_of_every_resource(self):
+        self._book(self.press, datetime(2026, 5, 4, 7), datetime(2026, 5, 4, 9))
+        self._book(self.crane, datetime(2026, 5, 4, 9), datetime(2026, 5, 4, 12))
+        self.assertEqual(
+            (self.press | self.crane)._find_free_window(datetime(2026, 5, 4, 8), 2),
+            (datetime(2026, 5, 4, 12), datetime(2026, 5, 4, 14)),
+        )
+
+    def test_an_archived_booking_does_not_count(self):
+        booking = self._book(
+            self.press, datetime(2026, 5, 4, 8), datetime(2026, 5, 4, 10)
+        )
+        booking.active = False
+        start = datetime(2026, 5, 4, 8)
+        self.assertEqual(self.press._find_free_window(start, 1)[0], start)
+
+    def test_no_window_within_the_horizon_is_none(self):
+        self._book(self.press, datetime(2026, 5, 4), datetime(2026, 5, 10))
+        self.assertEqual(
+            self.press._find_free_window(datetime(2026, 5, 4), 1, horizon_days=3),
+            (None, None),
+        )

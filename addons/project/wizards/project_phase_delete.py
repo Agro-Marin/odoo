@@ -2,25 +2,28 @@ from typing import Any
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectPhaseDeleteWizard(models.TransientModel):
     _name = "project.phase.delete.wizard"
     _description = "Project Phase Delete Wizard"
 
     phase_ids = fields.Many2many(
-        "project.phase",
+        comodel_name="project.phase",
         string="Phases To Delete",
-        ondelete="cascade",
-        context={"active_test": False},
         export_string_translation=False,
+        context={"active_test": False},
+        ondelete="cascade",
     )
     projects_count = fields.Integer(
-        "Number of Projects",
-        compute="_compute_projects_count",
+        string="Number of Projects",
         export_string_translation=False,
+        compute="_compute_projects_count",
     )
     phases_active = fields.Boolean(
-        compute="_compute_phases_active", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_phases_active",
     )
 
     @api.depends("phase_ids")
@@ -50,6 +53,11 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
             .env["project.project"]
             .search([("phase_id", "in", self.phase_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_archive: phases %s, projects %s",
+            dbg.rec(self.phase_ids),
+            dbg.rec(projects),
+        )
         projects.write({"active": False})
         self.phase_ids.write({"active": False})
         return self._prepare_action_redirect()
@@ -60,9 +68,16 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
             .with_context(active_test=False)
             .search([("active", "=", False), ("phase_id", "in", self.phase_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_unarchive_project: %s",
+            dbg.rec(inactive_projects),
+        )
         inactive_projects.action_unarchive()
 
     def action_unlink(self) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_unlink: %s", dbg.rec(self.phase_ids)
+        )
         self.phase_ids.unlink()
         return self._prepare_action_redirect()
 

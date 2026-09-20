@@ -6,8 +6,9 @@ import pytest
 
 import odoo.db
 from odoo.orm.runtime import registry as registry_module
-from odoo.orm.runtime._registry_signaling import _SIGNALING_TABLES, _RegistryCaches
+from odoo.orm.runtime._registry_signaling import SIGNALING_TABLES, _RegistryCaches
 from odoo.orm.runtime.registry import CACHES_BY_KEY, Registry
+from odoo.tests import result as result_module
 
 
 def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
@@ -314,26 +315,29 @@ def test_signalled_id_falls_back_when_no_row_comes_back():
     assert Registry._get_signalled_id(typing.cast("typing.Any", _NoRowCursor()), 7) == 8
 
 
-def test_get_sequences_coalesces_an_empty_signalling_table():
+def test_get_sequences_reads_every_serial_once_and_coalesces_an_unused_one():
 
-    class _EmptyTableCursor:
+    class _SequenceCursor:
         def __init__(self):
             self.sql = ""
+            self.params = ()
 
         def execute(self, query, params=None, **kwargs):
             self.sql = query.code if hasattr(query, "code") else str(query)
+            self.params = query.params if hasattr(query, "params") else params
 
         def fetchone(self):
             return (0, *([0] * len(CACHES_BY_KEY)))
 
-    cur = _EmptyTableCursor()
+    cur = _SequenceCursor()
     reg = _make_registry("_seq_empty_db", -1, -1)
     registry_sequence, cache_sequences = reg.get_sequences(cur)
 
-    assert "coalesce(max(id), 0)" in cur.sql, (
-        "the empty-table guard is gone from the signalling query; a truncated "
-        "signalling table will return NULL and brick check_signaling"
+    assert cur.sql.count("coalesce(pg_sequence_last_value(") == len(SIGNALING_TABLES), (
+        "one sequence read per watermark, guarded against a never-used serial"
     )
+    assert "max(id)" not in cur.sql, "a max(id) subselect plans per call"
+    assert tuple(cur.params) == tuple(f"{table}_id_seq" for table in SIGNALING_TABLES)
     assert registry_sequence == 0
     assert cache_sequences == dict.fromkeys(CACHES_BY_KEY, 0)
 
@@ -374,16 +378,16 @@ def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
 
     creates = [q for q in cur.queries if q.startswith("CREATE")]
     inserts = [q for q in cur.queries if q.startswith("INSERT")]
-    assert len(creates) == len(_SIGNALING_TABLES)
+    assert len(creates) == len(SIGNALING_TABLES)
     assert all(q.startswith("CREATE TABLE IF NOT EXISTS") for q in creates)
-    assert len(inserts) == len(_SIGNALING_TABLES)
+    assert len(inserts) == len(SIGNALING_TABLES)
     assert reg.registry_sequence == 1
     assert reg.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 1)
 
 
 def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
     reg, cur = _run_setup_signaling(
-        monkeypatch, existing_tables=tuple(_SIGNALING_TABLES)
+        monkeypatch, existing_tables=tuple(SIGNALING_TABLES)
     )
 
     assert not [q for q in cur.queries if q.startswith(("CREATE", "INSERT"))]
@@ -391,9 +395,9 @@ def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
 
 
 def test_setup_signaling_seeds_only_missing_tables(monkeypatch):
-    missing = _SIGNALING_TABLES[0]
+    missing = SIGNALING_TABLES[0]
     _reg, cur = _run_setup_signaling(
-        monkeypatch, existing_tables=tuple(_SIGNALING_TABLES[1:])
+        monkeypatch, existing_tables=tuple(SIGNALING_TABLES[1:])
     )
 
     creates = [q for q in cur.queries if q.startswith("CREATE")]
@@ -503,32 +507,35 @@ def test_registry_empty_db_name_rejected():
 
 def test_assertion_report_is_none_outside_test_mode(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", False)
-    assert registry_module._get_assertion_report("some_db") is None
+    assert result_module.assertion_report("some_db") is None
 
 
 def test_assertion_report_survives_a_registry_reload(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    first = registry_module._get_assertion_report("db_a")
+    first = result_module.assertion_report("db_a")
     assert first is not None
-    assert registry_module._get_assertion_report("db_a") is first
+    assert result_module.assertion_report("db_a") is first
 
 
 def test_assertion_report_is_per_database(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    assert registry_module._get_assertion_report(
-        "db_a"
-    ) is not registry_module._get_assertion_report("db_b")
+    assert result_module.assertion_report("db_a") is not result_module.assertion_report(
+        "db_b"
+    )
 
 
 def test_recorded_failure_is_still_visible_after_a_reload(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    report = registry_module._get_assertion_report("db_a")
+    report = result_module.assertion_report("db_a")
+    assert report is not None
     report.failures_count += 1
     assert not report.wasSuccessful()
-    assert not registry_module._get_assertion_report("db_a").wasSuccessful()
+    reloaded = result_module.assertion_report("db_a")
+    assert reloaded is not None
+    assert not reloaded.wasSuccessful()

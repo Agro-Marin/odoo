@@ -9,9 +9,12 @@ import {
 } from "@odoo/owl";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("pos.screen.feedback");
 export class FeedbackScreen extends Component {
     static template = "point_of_sale.FeedbackScreen";
     static storeOnOrder = false;
@@ -22,6 +25,7 @@ export class FeedbackScreen extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.pos = usePos();
         this.notification = useService("notification");
@@ -39,14 +43,27 @@ export class FeedbackScreen extends Component {
             () => {
                 const waiter = async () => {
                     let result;
+                    const endWait = log.perf("waitFor background validation");
                     try {
                         if (this.props.waitFor) {
                             result = await this.props.waitFor;
                         }
                     } finally {
                         this.state.loading = false;
+                        endWait({
+                            order: this.props.orderUuid,
+                            waited: Boolean(this.props.waitFor),
+                            ok: result?.ok,
+                        });
                     }
                     if (result && result.ok === false) {
+                        log.logic(
+                            "waitFor: validation failed, back to payment",
+                            () => ({
+                                order: this.props.orderUuid,
+                                error: result.error?.message,
+                            }),
+                        );
                         this.notification.add(
                             _t("The order could not be validated. Please try again."),
                             { type: "danger" },
@@ -84,6 +101,10 @@ export class FeedbackScreen extends Component {
     }
 
     onClick() {
+        log.logic("onClick", () => ({
+            order: this.props.orderUuid,
+            loading: this.state.loading,
+        }));
         if (this.state.loading) {
             this.notification.add(
                 _t(
@@ -100,6 +121,7 @@ export class FeedbackScreen extends Component {
     }
 
     goNext() {
+        log.pipeline("goNext", () => ({ order: this.props.orderUuid }));
         this.pos.orderDone(this.currentOrder);
     }
 }

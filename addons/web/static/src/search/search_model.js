@@ -3,6 +3,7 @@
 
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { user } from "@web/core/user";
@@ -67,6 +68,7 @@ import { getIntervalOptions } from "./utils/dates.js";
  * @typedef {Object} SearchModelConfig
  * @property {string} resModel
  * @property {string} [searchViewArch]
+ * @property {import("@web/views/ir/view_ir_schema").ViewIRNode} [searchViewIR]
  * @property {Record<string, any>} [searchViewFields]
  * @property {number|false} [searchViewId]
  * @property {Record<string, any>[]} [irFilters]
@@ -84,6 +86,8 @@ import { getIntervalOptions } from "./utils/dates.js";
  * @property {boolean} [canOrderByCount]
  * @property {string[]} [defaultGroupBy]
  */
+
+const log = makeLogger("web.search");
 
 export class SearchModel extends SearchQueryMixin(
     SearchSplitDomainMixin(
@@ -180,6 +184,12 @@ export class SearchModel extends SearchQueryMixin(
         }
         this.resModel = resModel;
         this._reset();
+        log.pipeline("load", () => ({
+            resModel,
+            searchViewId: config.searchViewId,
+            fromState: Boolean(config.state),
+            searchMenuTypes: config.searchMenuTypes,
+        }));
 
         this._applyGlobalConfig(config);
 
@@ -226,11 +236,14 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Promise<{searchViewDescription: Record<string, any>, searchViewFields: Record<string, any>}>}
      */
     async _resolveSearchView(config) {
-        const { irFilters, loadIrFilters, searchViewArch, searchViewId } = config;
+        const { irFilters, loadIrFilters, searchViewArch, searchViewIR, searchViewId } =
+            config;
         let { searchViewFields } = config;
         const loadSearchView =
             searchViewId !== undefined &&
-            (!searchViewArch || !searchViewFields || (!irFilters && loadIrFilters));
+            ((!searchViewArch && !searchViewIR) ||
+                !searchViewFields ||
+                (!irFilters && loadIrFilters));
 
         const searchViewDescription = {};
         if (loadSearchView) {
@@ -249,8 +262,9 @@ export class SearchModel extends SearchQueryMixin(
             Object.assign(searchViewDescription, result.views.search);
             searchViewFields = searchViewFields || result.fields;
         }
-        if (searchViewArch) {
+        if (searchViewArch || searchViewIR) {
             searchViewDescription.arch = searchViewArch;
+            searchViewDescription.ir = searchViewIR;
         }
         if (irFilters) {
             searchViewDescription.irFilters = irFilters;
@@ -377,6 +391,10 @@ export class SearchModel extends SearchQueryMixin(
      */
     async reload(config = {}) {
         this._reset();
+        log.pipeline("reload", () => ({
+            resModel: this.resModel,
+            keys: Object.keys(config),
+        }));
 
         const { context, domain, groupBy, orderBy } = config;
 
@@ -522,6 +540,10 @@ export class SearchModel extends SearchQueryMixin(
 
     search() {
         this._reset();
+        log.logic("search", () => ({
+            resModel: this.resModel,
+            query: this.query.length,
+        }));
         this.trigger(SearchModelEvent.UPDATE);
     }
 
@@ -827,6 +849,13 @@ export class SearchModel extends SearchQueryMixin(
             } while (this._pendingNotification);
         }
         this._pendingTrigger = false;
+        log.logic("notify", () => ({
+            resModel: this.resModel,
+            reloadSections,
+            domain: this.domain,
+            groupBy: this.groupBy,
+            orderBy: this.orderBy,
+        }));
 
         this.trigger(SearchModelEvent.UPDATE);
     }

@@ -4,7 +4,10 @@ import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action
 import { WelcomePage } from "@mail/discuss/core/public/welcome_page";
 import { useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.discuss.public");
 DiscussClientAction.components = { ...DiscussClientAction.components, WelcomePage };
 patch(DiscussClientAction.prototype, {
     setup() {
@@ -38,8 +41,13 @@ patch(DiscussClientAction.prototype, {
         await super.restoreDiscussThread(...arguments);
         this.store.is_welcome_page_displayed ||=
             this.store.discuss.thread?.default_display_mode === "video_full_screen";
+        log.lifecycle("public restore", () => ({
+            thread: this.store.discuss.thread?.localId,
+            welcomePage: this.store.is_welcome_page_displayed,
+        }));
     },
     closeWelcomePage() {
+        log.lifecycle("closeWelcomePage");
         this.store.is_welcome_page_displayed = false;
     },
 });

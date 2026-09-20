@@ -1,90 +1,89 @@
 from datetime import timedelta
 
 from odoo import _, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
+
+_debug = DebugLog(__name__)
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
 
     invoicing_switch_threshold = fields.Date(
-        string="Invoicing Switch Threshold",
-        help="Every payment and invoice before this date will receive the 'From Invoicing' status, hiding all the accounting entries related to it. Use this option after installing Accounting if you were using only Invoicing before, before importing all your actual accounting data in to Odoo.",
+        help="Every payment and invoice before this date will receive the 'From Invoicing' status, hiding all the accounting entries related to it. Use this option after installing Accounting if you were using only Invoicing before, before importing all your actual accounting data in to Odoo."
     )
-    predict_bill_product = fields.Boolean(string="Predict Bill Product")
+    predict_bill_product = fields.Boolean()
 
     sign_invoice = fields.Boolean(string="Display signing field on invoices")
     signing_user = fields.Many2one(comodel_name="res.users")
 
-    deferred_expense_journal_id = fields.Many2one(
-        comodel_name="account.journal",
-        string="Deferred Expense Journal",
-    )
-    deferred_expense_account_id = fields.Many2one(
-        comodel_name="account.account",
-        string="Deferred Expense Account",
-    )
+    deferred_expense_journal_id = fields.Many2one(comodel_name="account.journal")
+    deferred_expense_account_id = fields.Many2one(comodel_name="account.account")
     generate_deferred_expense_entries_method = fields.Selection(
-        string="Generate Deferred Expense Entries",
         selection=[
             ("on_validation", "On bill validation"),
             ("manual", "Manually & Grouped"),
         ],
+        string="Generate Deferred Expense Entries",
         default="on_validation",
         required=True,
     )
     deferred_expense_amount_computation_method = fields.Selection(
-        string="Deferred Expense Based on",
         selection=[
             ("day", "Days"),
             ("month", "Months"),
             ("full_months", "Full Months"),
         ],
+        string="Deferred Expense Based on",
         default="month",
         required=True,
     )
 
-    deferred_revenue_journal_id = fields.Many2one(
-        comodel_name="account.journal",
-        string="Deferred Revenue Journal",
-    )
-    deferred_revenue_account_id = fields.Many2one(
-        comodel_name="account.account",
-        string="Deferred Revenue Account",
-    )
+    deferred_revenue_journal_id = fields.Many2one(comodel_name="account.journal")
+    deferred_revenue_account_id = fields.Many2one(comodel_name="account.account")
     generate_deferred_revenue_entries_method = fields.Selection(
-        string="Generate Deferred Revenue Entries",
         selection=[
             ("on_validation", "On bill validation"),
             ("manual", "Manually & Grouped"),
         ],
+        string="Generate Deferred Revenue Entries",
         default="on_validation",
         required=True,
     )
     deferred_revenue_amount_computation_method = fields.Selection(
-        string="Deferred Revenue Based on",
         selection=[
             ("day", "Days"),
             ("month", "Months"),
             ("full_months", "Full Months"),
         ],
+        string="Deferred Revenue Based on",
         default="month",
         required=True,
     )
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         old_threshold_vals = {}
-        for record in self:
+        for record in self.exists():
             old_threshold_vals[record] = record.invoicing_switch_threshold
 
         rslt = super().write(vals)
 
-        for record in self:
+        for record in self.exists():
             if (
                 "invoicing_switch_threshold" in vals
                 and old_threshold_vals[record] != record.invoicing_switch_threshold
             ):
+                _debug.logic(
+                    "invoicing_switch_moved",
+                    company=record,
+                    previous=old_threshold_vals[record],
+                    threshold=record.invoicing_switch_threshold,
+                    mode="apply" if record.invoicing_switch_threshold else "clear",
+                )
                 self.env["account.move.line"].flush_model(["move_id", "parent_state"])
                 self.env["account.move"].flush_model(
                     [
@@ -112,6 +111,11 @@ class ResCompany(models.Model):
                     """,
                         params,
                     )
+                    _debug.perf.count(
+                        "legacy_lines_reposted",
+                        company=record,
+                        rows=self.env.cr.rowcount,
+                    )
                     self.env.cr.execute(
                         """
                         update account_move
@@ -123,6 +127,11 @@ class ResCompany(models.Model):
                         and company_id = %(company_id)s
                     """,
                         params,
+                    )
+                    _debug.perf.count(
+                        "legacy_moves_reposted",
+                        company=record,
+                        rows=self.env.cr.rowcount,
                     )
                     self.env.cr.execute(
                         """
@@ -136,6 +145,11 @@ class ResCompany(models.Model):
                     """,
                         params,
                     )
+                    _debug.perf.count(
+                        "pre_threshold_lines_cancelled",
+                        company=record,
+                        rows=self.env.cr.rowcount,
+                    )
                     self.env.cr.execute(
                         """
                         update account_move
@@ -147,6 +161,11 @@ class ResCompany(models.Model):
                         and company_id = %(company_id)s
                     """,
                         params,
+                    )
+                    _debug.perf.count(
+                        "pre_threshold_moves_cancelled",
+                        company=record,
+                        rows=self.env.cr.rowcount,
                     )
                 else:
                     params = {"company_id": record.id}
@@ -161,6 +180,11 @@ class ResCompany(models.Model):
                     """,
                         params,
                     )
+                    _debug.perf.count(
+                        "legacy_lines_restored",
+                        company=record,
+                        rows=self.env.cr.rowcount,
+                    )
                     self.env.cr.execute(
                         """
                         update account_move
@@ -172,6 +196,11 @@ class ResCompany(models.Model):
                     """,
                         params,
                     )
+                    _debug.perf.count(
+                        "legacy_moves_restored",
+                        company=record,
+                        rows=self.env.cr.rowcount,
+                    )
 
                 self.env["account.move.line"].invalidate_model(["parent_state"])
                 self.env["account.move"].invalidate_model(
@@ -180,6 +209,7 @@ class ResCompany(models.Model):
 
         return rslt
 
+    @_debug.perf.timed
     def compute_fiscalyear_dates(self, current_date):
         self.check_singleton()
         date_str = current_date.strftime(DEFAULT_SERVER_DATE_FORMAT)
@@ -191,6 +221,13 @@ class ResCompany(models.Model):
                 ("date_to", ">=", date_str),
             ],
             limit=1,
+        )
+        _debug.logic(
+            "fiscalyear_record_lookup",
+            company=self,
+            date=date_str,
+            fiscalyear=fiscalyear,
+            found=bool(fiscalyear),
         )
         if fiscalyear:
             return {
@@ -230,6 +267,14 @@ class ResCompany(models.Model):
         if fiscalyear_to:
             date_to = fiscalyear_to.date_from - timedelta(days=1)
 
+        _debug.logic(
+            "fiscalyear_dates_computed",
+            company=self,
+            date_from=date_from,
+            date_to=date_to,
+            clipped_from=bool(fiscalyear_from),
+            clipped_to=bool(fiscalyear_to),
+        )
         return {"date_from": date_from, "date_to": date_to}
 
     def _get_unreconciled_statement_lines_redirect_action(

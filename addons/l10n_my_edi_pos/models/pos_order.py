@@ -10,11 +10,11 @@ class PosOrder(models.Model):
     # ------------------
 
     consolidated_invoice_ids = fields.Many2many(
-        name="Consolidated Invoices",
         comodel_name="myinvois.document",
         relation="myinvois_document_pos_order_rel",
         column1="order_id",
         column2="document_id",
+        name="Consolidated Invoices",
         groups="account.group_account_invoice",
     )
 

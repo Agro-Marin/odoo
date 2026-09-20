@@ -14,15 +14,12 @@ class TestWebsiteSaleInvoice(AccountPaymentCommon, SaleCommon):
         cls.website = cls.env["website"].create({"name": "Test Website"})
 
     def test_automatic_invoice_website_id(self):
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
 
-        # Create SO on Test Website
         self.sale_order.website_id = self.website.id
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"

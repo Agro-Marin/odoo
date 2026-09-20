@@ -22,7 +22,6 @@ export class PurchaseOrderLineProductField extends ProductLabelSectionAndNoteFie
                     !this.currentValue ||
                     this.currentValue.id != record.data[this.props.name].id
                 ) {
-
                     this._onProductTemplateUpdate();
                 }
             }

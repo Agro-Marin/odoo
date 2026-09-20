@@ -1,59 +1,79 @@
 // @ts-check
 /** @odoo-module native */
+import {
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
 
 import { fields, Record } from "./record.js";
+
+const log = makeLogger("mail.settings");
 export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
+const DISABLE_CALL_AUTO_FOCUS_LS = "mail_user_setting_disable_call_auto_focus";
+const AUDIO_INPUT_DEVICE_LS = "mail_user_setting_audio_input_device_id";
+const AUDIO_OUTPUT_DEVICE_LS = "mail_user_setting_audio_output_device_id";
+const CAMERA_INPUT_DEVICE_LS = "mail_user_setting_camera_input_device_id";
+const SHOW_ONLY_VIDEO_LS = "mail_user_setting_show_only_video";
+const BACKGROUND_BLUR_AMOUNT_LS = "mail_user_setting_background_blur_amount";
+const EDGE_BLUR_AMOUNT_LS = "mail_user_setting_edge_blur_amount";
+const VOICE_THRESHOLD_LS = "mail_user_setting_voice_threshold";
 
 export class Settings extends Record {
     /** @type {number} */
     id;
 
-    /**
-     * @template {typeof Record} T
-     * @this {T}
-     * @param {import("@mail/model/record").RecordData} data
-     * @param {import("@mail/model/record").RecordData} ids
-     * @returns {InstanceType<T>}
-     */
-    static new(data, ids) {
-        /** @type {import("models").Settings} */
-        const record = /** @type {import("models").Settings} */ (
-            /** @type {unknown} */ (super.new(data, ids))
-        );
-        record.onStorage = record.onStorage.bind(record);
-        browser.addEventListener("storage", record.onStorage);
-        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
-    }
-
     setup() {
         super.setup();
         this.saveVoiceThresholdDebounce = debounce(() => {
             browser.localStorage.setItem(
-                "mail_user_setting_voice_threshold",
+                VOICE_THRESHOLD_LS,
                 this.voiceActivationThreshold.toString(),
+            );
+        }, 2000);
+        this.saveBackgroundBlurAmountDebounce = debounce(() => {
+            browser.localStorage.setItem(
+                BACKGROUND_BLUR_AMOUNT_LS,
+                this.backgroundBlurAmount.toString(),
+            );
+        }, 2000);
+        this.saveEdgeBlurAmountDebounce = debounce(() => {
+            browser.localStorage.setItem(
+                EDGE_BLUR_AMOUNT_LS,
+                this.edgeBlurAmount.toString(),
             );
         }, 2000);
         const canvasContext = document.createElement("canvas").getContext("2d");
         this.hasCanvasFilterSupport =
             Boolean(canvasContext) && typeof canvasContext.filter !== "undefined";
         this._loadLocalSettings();
+        log.lifecycle("setup", () => ({
+            id: this.id,
+            hasCanvasFilterSupport: this.hasCanvasFilterSupport,
+        }));
     }
 
     delete() {
-        browser.removeEventListener("storage", this.onStorage);
+        log.lifecycle("delete", () => ({
+            id: this.id,
+            pendingVolumeSaves: this.volumeSettingsTimeouts.size,
+        }));
         for (const timeoutId of this.volumeSettingsTimeouts.values()) {
             browser.clearTimeout(timeoutId);
         }
         this.volumeSettingsTimeouts.clear();
         browser.clearTimeout(this.globalSettingsTimeout);
         this.saveVoiceThresholdDebounce.cancel();
+        this.saveBackgroundBlurAmountDebounce.cancel();
+        this.saveEdgeBlurAmountDebounce.cancel();
         super.delete();
     }
 
@@ -66,39 +86,45 @@ export class Settings extends Record {
                 : this.channel_notifications;
         },
     });
-    _recomputeMessageSound = 0;
     messageSound = fields.Attr(true, {
         /** @this {import("models").Settings} */
         compute() {
-            void this._recomputeMessageSound;
-            return browser.localStorage.getItem(MESSAGE_SOUND) !== "false";
+            return readLocalStorageItem(this.store, MESSAGE_SOUND) !== "false";
         },
     });
     useCallAutoFocus = fields.Attr(true, {
         /** @this {import("models").Settings} */
         compute() {
-            return !browser.localStorage.getItem(
-                "mail_user_setting_disable_call_auto_focus",
-            );
+            return !readLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS);
         },
         /** @this {import("models").Settings} */
         onUpdate() {
             if (this.useCallAutoFocus) {
-                browser.localStorage.removeItem(
-                    "mail_user_setting_disable_call_auto_focus",
-                );
+                removeLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS);
                 return;
             }
-            browser.localStorage.setItem(
-                "mail_user_setting_disable_call_auto_focus",
-                "true",
-            );
+            setLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS, "true");
         },
     });
 
-    audioInputDeviceId = "";
-    audioOutputDeviceId = "";
-    cameraInputDeviceId = "";
+    audioInputDeviceId = fields.Attr("", {
+        /** @this {import("models").Settings} */
+        compute() {
+            return readLocalStorageItem(this.store, AUDIO_INPUT_DEVICE_LS) ?? "";
+        },
+    });
+    audioOutputDeviceId = fields.Attr("", {
+        /** @this {import("models").Settings} */
+        compute() {
+            return readLocalStorageItem(this.store, AUDIO_OUTPUT_DEVICE_LS) ?? "";
+        },
+    });
+    cameraInputDeviceId = fields.Attr("", {
+        /** @this {import("models").Settings} */
+        compute() {
+            return readLocalStorageItem(this.store, CAMERA_INPUT_DEVICE_LS) ?? "";
+        },
+    });
     use_push_to_talk = false;
     voice_active_duration = 200;
     volumes = fields.Many("Volume");
@@ -111,13 +137,16 @@ export class Settings extends Record {
 
     backgroundBlurAmount = 10;
     edgeBlurAmount = 10;
-    showOnlyVideo = false;
-    _recomputeUseBlur = 0;
+    showOnlyVideo = fields.Attr(false, {
+        /** @this {import("models").Settings} */
+        compute() {
+            return readLocalStorageItem(this.store, SHOW_ONLY_VIDEO_LS) === "true";
+        },
+    });
     useBlur = fields.Attr(false, {
         /** @this {import("models").Settings} */
         compute() {
-            void this._recomputeUseBlur;
-            return browser.localStorage.getItem(USE_BLUR_LS) === "true";
+            return readLocalStorageItem(this.store, USE_BLUR_LS) === "true";
         },
     });
     blurPerformanceWarning = fields.Attr(false, {
@@ -212,12 +241,12 @@ export class Settings extends Record {
 
     /** @param {boolean} newValue */
     setUseBlur(newValue) {
+        log.logic("setUseBlur", () => ({ newValue }));
         if (newValue) {
-            browser.localStorage.setItem(USE_BLUR_LS, "true");
+            setLocalStorageItem(this.store, USE_BLUR_LS, "true");
         } else {
-            browser.localStorage.removeItem(USE_BLUR_LS);
+            removeLocalStorageItem(this.store, USE_BLUR_LS);
         }
-        this._recomputeUseBlur++;
     }
 
     /**
@@ -238,6 +267,10 @@ export class Settings extends Record {
      * @param {import("models").Thread} thread
      */
     async setCustomNotifications(custom_notifications, thread = undefined) {
+        log.logic("setCustomNotifications", () => ({
+            custom_notifications,
+            thread: thread?.localId,
+        }));
         return rpc("/discuss/settings/custom_notifications", {
             custom_notifications:
                 !thread && custom_notifications === "mentions"
@@ -252,6 +285,7 @@ export class Settings extends Record {
      * @param {import("models").Thread} thread
      */
     async setMuteDuration(minutes, thread = undefined) {
+        log.logic("setMuteDuration", () => ({ minutes, thread: thread?.localId }));
         return rpc("/discuss/settings/mute", {
             minutes,
             channel_id: thread?.id,
@@ -260,31 +294,23 @@ export class Settings extends Record {
 
     /** @param {String} audioInputDeviceId */
     async setAudioInputDevice(audioInputDeviceId) {
-        this.audioInputDeviceId = audioInputDeviceId;
-        browser.localStorage.setItem(
-            "mail_user_setting_audio_input_device_id",
-            audioInputDeviceId,
-        );
+        log.logic("setAudioInputDevice", () => ({ audioInputDeviceId }));
+        setLocalStorageItem(this.store, AUDIO_INPUT_DEVICE_LS, audioInputDeviceId);
     }
     /** @param {String} audioOutputDeviceId */
     async setAudioOutputDevice(audioOutputDeviceId) {
-        this.audioOutputDeviceId = audioOutputDeviceId;
-        browser.localStorage.setItem(
-            "mail_user_setting_audio_output_device_id",
-            audioOutputDeviceId,
-        );
+        log.logic("setAudioOutputDevice", () => ({ audioOutputDeviceId }));
+        setLocalStorageItem(this.store, AUDIO_OUTPUT_DEVICE_LS, audioOutputDeviceId);
     }
     /** @param {String} cameraInputDeviceId */
     async setCameraInputDevice(cameraInputDeviceId) {
+        log.logic("setCameraInputDevice", () => ({ cameraInputDeviceId }));
         this.cameraFacingMode = undefined;
-        this.cameraInputDeviceId = cameraInputDeviceId;
-        browser.localStorage.setItem(
-            "mail_user_setting_camera_input_device_id",
-            cameraInputDeviceId,
-        );
+        setLocalStorageItem(this.store, CAMERA_INPUT_DEVICE_LS, cameraInputDeviceId);
     }
     /** @param {string} value */
     setDelayValue(value) {
+        log.logic("setDelayValue", () => ({ value }));
         this.voice_active_duration = parseInt(value, 10);
         this._saveSettings();
     }
@@ -297,6 +323,7 @@ export class Settings extends Record {
         if (!nonElligibleKeys.has(ev.key)) {
             pushToTalkKey += `.${ev.key === " " ? "Space" : ev.key}`;
         }
+        log.logic("setPushToTalkKey", () => ({ pushToTalkKey }));
         this.push_to_talk_key = pushToTalkKey;
         this._saveSettings();
     }
@@ -331,6 +358,20 @@ export class Settings extends Record {
     setThresholdValue(voiceActivationThreshold) {
         this.voiceActivationThreshold = voiceActivationThreshold;
         this.saveVoiceThresholdDebounce();
+    }
+    /** @param {boolean} showOnlyVideo */
+    setShowOnlyVideo(showOnlyVideo) {
+        setLocalStorageItem(this.store, SHOW_ONLY_VIDEO_LS, String(showOnlyVideo));
+    }
+    /** @param {number} backgroundBlurAmount */
+    setBackgroundBlurAmount(backgroundBlurAmount) {
+        this.backgroundBlurAmount = backgroundBlurAmount;
+        this.saveBackgroundBlurAmountDebounce();
+    }
+    /** @param {number} edgeBlurAmount */
+    setEdgeBlurAmount(edgeBlurAmount) {
+        this.edgeBlurAmount = edgeBlurAmount;
+        this.saveEdgeBlurAmountDebounce();
     }
 
     /**
@@ -390,44 +431,33 @@ export class Settings extends Record {
     }
     /** @param {boolean} value */
     setPushToTalk(value) {
+        log.logic("setPushToTalk", () => ({ value }));
         this.use_push_to_talk = value;
         this._saveSettings();
     }
     _loadLocalSettings() {
-        const voiceActivationThresholdString = browser.localStorage.getItem(
-            "mail_user_setting_voice_threshold",
-        );
+        const voiceActivationThresholdString =
+            browser.localStorage.getItem(VOICE_THRESHOLD_LS);
         this.voiceActivationThreshold = voiceActivationThresholdString
             ? parseFloat(voiceActivationThresholdString)
             : this.voiceActivationThreshold;
-        this.audioInputDeviceId =
-            browser.localStorage.getItem("mail_user_setting_audio_input_device_id") ??
-            "";
-        this.audioOutputDeviceId =
-            browser.localStorage.getItem("mail_user_setting_audio_output_device_id") ??
-            "";
-        this.cameraInputDeviceId =
-            browser.localStorage.getItem("mail_user_setting_camera_input_device_id") ??
-            "";
-        this.showOnlyVideo =
-            browser.localStorage.getItem("mail_user_setting_show_only_video") ===
-            "true";
         const backgroundBlurAmount = browser.localStorage.getItem(
-            "mail_user_setting_background_blur_amount",
+            BACKGROUND_BLUR_AMOUNT_LS,
         );
         this.backgroundBlurAmount = backgroundBlurAmount
             ? parseInt(backgroundBlurAmount)
             : 10;
-        const edgeBlurAmount = browser.localStorage.getItem(
-            "mail_user_setting_edge_blur_amount",
-        );
+        const edgeBlurAmount = browser.localStorage.getItem(EDGE_BLUR_AMOUNT_LS);
         this.edgeBlurAmount = edgeBlurAmount ? parseInt(edgeBlurAmount) : 10;
-        this.useCallAutoFocus = !browser.localStorage.getItem(
-            "mail_user_setting_disable_call_auto_focus",
-        );
+        log.lifecycle("localSettings loaded", () => ({
+            voiceActivationThreshold: this.voiceActivationThreshold,
+            backgroundBlurAmount: this.backgroundBlurAmount,
+            edgeBlurAmount: this.edgeBlurAmount,
+        }));
     }
     async _onSaveGlobalSettingsTimeout() {
         this.globalSettingsTimeout = undefined;
+        const endSave = log.perf("saveGlobalSettings");
         try {
             await this.store.env.services.orm.call(
                 "res.users.settings",
@@ -441,7 +471,9 @@ export class Settings extends Record {
                     },
                 },
             );
+            endSave();
         } catch {
+            endSave({ failed: true });
             this.store.env.services.notification.add(
                 _t("Failed to save your voice settings, please try again."),
                 { type: "warning" },
@@ -457,6 +489,7 @@ export class Settings extends Record {
      */
     async _onSaveVolumeSettingTimeout({ key, partnerId, guestId, volume }) {
         this.volumeSettingsTimeouts.delete(key);
+        log.logic("saveVolumeSetting", () => ({ key, partnerId, guestId, volume }));
         try {
             await this.store.env.services.orm.call(
                 "res.users.settings",
@@ -465,32 +498,16 @@ export class Settings extends Record {
                 { guest_id: guestId },
             );
         } catch {
+            log.logic("saveVolumeSetting failed", () => ({ key }));
             this.store.env.services.notification.add(
                 _t("Failed to save the volume setting, please try again."),
                 { type: "warning" },
             );
         }
     }
-    /** @param {StorageEvent} ev */
-    onStorage(ev) {
-        if (ev.key === MESSAGE_SOUND) {
-            this._recomputeMessageSound++;
-        }
-        if (ev.key === USE_BLUR_LS) {
-            this._recomputeUseBlur++;
-        }
-        if (ev.key === "mail_user_setting_audio_input_device_id") {
-            this.audioInputDeviceId = ev.newValue;
-        }
-        if (ev.key === "mail_user_setting_audio_output_device_id") {
-            this.audioOutputDeviceId = ev.newValue;
-        }
-        if (ev.key === "mail_user_setting_camera_input_device_id") {
-            this.cameraInputDeviceId = ev.newValue;
-        }
-    }
     async _saveSettings() {
         if (!this.store.self_partner) {
+            log.logic("_saveSettings skipped: no self partner");
             return;
         }
         browser.clearTimeout(this.globalSettingsTimeout);

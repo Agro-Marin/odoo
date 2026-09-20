@@ -10,7 +10,8 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
     _description = "User list of blocked 3rd-party domains"
 
     website_id = fields.Many2one(
-        "website", default=lambda s: s.env["website"].get_current_website()
+        comodel_name="website",
+        default=lambda s: s.env["website"].get_current_website(),
     )
     content = fields.Text(
         default=lambda s: (
@@ -39,9 +40,6 @@ class WebsiteCustom_Blocked_Third_Party_Domains(models.TransientModel):
                 if domain:
                     domains.append(domain)
 
-        # models/website.py's _compute_blocked_third_party_domains only
-        # recognizes "#ignore_default" as the very first line; normalize its
-        # position here so any ordering the user typed still takes effect.
         ignore_default_lines = [d for d in domains if d.startswith("#ignore_default")]
         if ignore_default_lines:
             for line in ignore_default_lines:

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import requests
 
+from odoo.libs.guarded_http import GuardedSession
 from odoo.tests.common import JsonRpcException, new_test_user, tagged
 from odoo.tools import mute_logger
 
@@ -45,7 +46,7 @@ class TestTranslationController(HttpCaseWithUserDemo):
         cls.env["res.lang"]._activate_lang("en_US")
         cls.env.ref("base.user_admin").write({"lang": "fr_FR"})
         cls.api_key = "VALIDKEY"
-        cls.env["ir.config_parameter"].set_param(
+        cls.env["credential.credential"]._set_system_secret(
             "mail.google_translate_api_key", cls.api_key
         )
         cls.message = cls.env["mail.message"].create(
@@ -73,7 +74,10 @@ class TestTranslationController(HttpCaseWithUserDemo):
         return None
 
     def _mock_translation_request(self, data):
-        with patch.object(requests, "post", self._patched_post):
+        def request(session, method, url, data=False, timeout=5, **kwargs):
+            return self._patched_post(url, data=data, timeout=timeout)
+
+        with patch.object(GuardedSession, "request", request):
             return self.call_jsonrpc("/mail/message/translate", data)
 
     def test_update_message(self):
@@ -115,7 +119,7 @@ class TestTranslationController(HttpCaseWithUserDemo):
         self.assertEqual(self.request_count, 3)
 
     def test_invalid_api_key(self):
-        self.env["ir.config_parameter"].set_param(
+        self.env["credential.credential"]._set_system_secret(
             "mail.google_translate_api_key", "INVALIDKEY"
         )
         self.authenticate("demo", "demo")

@@ -33,7 +33,7 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     l10n_hu_payment_mode = fields.Selection(
-        [
+        selection=[
             ("TRANSFER", "Transfer"),
             ("CASH", "Cash"),
             ("CARD", "Credit/debit card"),
@@ -67,8 +67,8 @@ class AccountMove(models.Model):
             ("cancelled", "Cancelled"),
         ],
         string="NAV 3.0 status",
-        copy=False,
         index="btree_not_null",
+        copy=False,
     )
     l10n_hu_edi_batch_upload_index = fields.Integer(
         string="Index of invoice within a batch upload",
@@ -107,13 +107,13 @@ class AccountMove(models.Model):
 
     l10n_hu_invoice_chain_index = fields.Integer(
         string="Invoice Chain Index",
+        copy=False,
         help="""
             Index in the chain of modification invoices:
                 -1 for a base invoice;
                 1, 2, 3, ... for modification invoices;
                 0 for rejected/cancelled invoices or if it has not yet been set.
             """,
-        copy=False,
     )
     l10n_hu_edi_attachment_filename = fields.Char(
         string="Invoice XML filename",
@@ -587,7 +587,7 @@ class AccountMove(models.Model):
             # before it was cancelled.
             # In that case, we want to keep it as a regular invoice attachment, for future reference.
             if invoice.l10n_hu_edi_state == "cancelled":
-                self.env["ir.attachment"].search(
+                self.env["ir.attachment"].search(  # noqa: E8507 - invoices are sent one at a time, in id order
                     [
                         ("res_model", "=", self._name),
                         ("res_id", "=", invoice.id),
@@ -609,7 +609,7 @@ class AccountMove(models.Model):
             )
 
             # Set name & mimetype on newly-created attachment.
-            attachment = self.env["ir.attachment"].search(
+            attachment = self.env["ir.attachment"].search(  # noqa: E8507 - invoices are sent one at a time, in id order
                 [
                     ("res_model", "=", self._name),
                     ("res_id", "=", invoice.id),
@@ -1286,7 +1286,7 @@ class AccountMove(models.Model):
                 )
 
             elif line.display_type == "rounding":
-                atk_tax = self.env["account.tax"].search(
+                atk_tax = self.env["account.tax"].search(  # noqa: E8507 - one lookup for the rounding line
                     [
                         ("type_tax_use", "=", "sale"),
                         ("l10n_hu_tax_type", "=", "ATK"),

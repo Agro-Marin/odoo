@@ -65,7 +65,7 @@ class AutoCompleteController(http.Controller):
                 ):  # if a value is already assigned, do not overwrite it.
                     continue
                 if field_standard == "country":
-                    country = request.env["res.country"].search(
+                    country = request.env["res.country"].search(  # noqa: E8507 - one lookup per field of the autocomplete response
                         [("code", "=", google_field["short_name"].upper())], limit=1
                     )
                     standard_data[field_standard] = [country.id, country.name]
@@ -76,7 +76,7 @@ class AutoCompleteController(http.Controller):
                             pformat(google_fields),
                         )
                         continue
-                    state = request.env["res.country.state"].search(
+                    state = request.env["res.country.state"].search(  # noqa: E8507 - one lookup per field of the autocomplete response
                         [
                             ("code", "=", google_field["short_name"].upper()),
                             ("country_id", "=", standard_data["country"][0]),
@@ -221,17 +221,23 @@ class AutoCompleteController(http.Controller):
         return standard_address
 
     def _call_google_route(self, route, params):
-        return requests.get(
-            f"{GOOGLE_PLACES_ENDPOINT}{route}", params=params, timeout=TIMEOUT
-        ).json()
+        return (
+            request.env["ir.egress"]
+            .request(
+                "GET",
+                f"{GOOGLE_PLACES_ENDPOINT}{route}",
+                purpose="google_places",
+                params=params,
+                timeout=TIMEOUT,
+            )
+            .json()
+        )
 
     def _get_api_key(self, use_employees_key):
         if not request.env.user._is_internal():
             raise AccessError(_("You don't have access to the internal API key."))
-        return (
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_param("google_address_autocomplete.google_places_api_key")
+        return request.env["credential.credential"]._get_system_secret(
+            "google_address_autocomplete.google_places_api_key"
         )
 
     @http.route(

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Multi record preview -->
     <template id="s_dynamic_snippet_blog_posts_preview_data" name="Blogs Preview Data">
         <div class="s_dialog_preview row">
             <div class="col-12 col-sm-6 col-lg-4">
@@ -287,7 +286,6 @@
         </div>
     </template>
 
-    <!-- Single record preview -->
     <template
         id="s_dynamic_snippet_blog_posts_single_full_preview_data"
         name="Single Blog Preview Data">

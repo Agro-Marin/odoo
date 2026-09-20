@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -8,10 +9,16 @@ import { Form } from "@website/snippets/s_website_form/form";
 
 const { DateTime } = luxon;
 
+const log = makeLogger("website.snippet.s_website_form.edit");
+
 export class FormEdit extends Interaction {
-    static selector = ".s_website_form form, form.s_website_form"; // !compatibility
+    static selector = ".s_website_form form, form.s_website_form";
     start() {
-        // We do not initialize the datetime picker in edit mode but want the dates to be formatted.
+        log.pipeline("FormEdit start: formatting datetime inputs", () => ({
+            inputs: this.el.querySelectorAll(
+                ".s_website_form_input.datetimepicker-input",
+            ).length,
+        }));
         for (const el of this.el.querySelectorAll(
             ".s_website_form_input.datetimepicker-input",
         )) {
@@ -26,7 +33,6 @@ export class FormEdit extends Interaction {
         }
     }
 
-    // Todo: remove in master
     _getDataForFields() {
         if (!this.dataForValues) {
             return [];
@@ -44,7 +50,6 @@ registry.category("public.interactions.edit").add("website.form", {
     Interaction: FormEdit,
 });
 
-// Translation mode.
 patch(Form.prototype, {
     setup() {
         super.setup();
@@ -52,6 +57,7 @@ patch(Form.prototype, {
     },
     prefillValues() {
         if (this.editTranslations) {
+            log.logic("Form prefillValues: skipped while editing translations");
             return;
         }
         super.prefillValues();

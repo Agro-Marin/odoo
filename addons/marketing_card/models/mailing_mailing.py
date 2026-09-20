@@ -6,12 +6,17 @@ class MailingMailing(models.Model):
     _inherit = "mailing.mailing"
 
     mailing_model_id = fields.Many2one(
-        compute="_compute_mailing_model_id", store=True, readonly=False
+        compute="_compute_mailing_model_id",
+        store=True,
+        readonly=False,
     )
     card_requires_sync_count = fields.Integer(
         compute="_compute_card_requires_sync_count"
     )
-    card_campaign_id = fields.Many2one("card.campaign", index="btree_not_null")
+    card_campaign_id = fields.Many2one(
+        comodel_name="card.campaign",
+        index="btree_not_null",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -62,10 +67,10 @@ class MailingMailing(models.Model):
             lambda mailing: mailing.card_campaign_id and mailing.state == "draft"
         )
         for mailing in card_mailings:
-            recipients = self.env[mailing.mailing_model_real].search(
+            recipients = self.env[mailing.mailing_model_real].search(  # noqa: E8507 - one query per mailing, on the mailing's own model and domain
                 self._parse_mailing_domain()
             )
-            out_of_date_count = self.env["card.card"].search_count(
+            out_of_date_count = self.env["card.card"].search_count(  # noqa: E8507 - one query per mailing, on the mailing's own model and domain
                 [
                     ("campaign_id", "=", mailing.card_campaign_id.id),
                     ("res_id", "in", recipients.ids),

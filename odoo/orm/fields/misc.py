@@ -4,6 +4,7 @@ from typing import override
 
 from psycopg.types.json import Json as PsycopgJson
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps as _fast_dumps
 from odoo.libs.json import fast_clone
 from odoo.libs.json import loads as _fast_loads
@@ -19,6 +20,8 @@ if typing.TYPE_CHECKING:
 
     from .._typing import ModelLike
     from ..models import BaseModel
+
+_debug = DebugLog(__name__)
 
 
 class Boolean(Field[bool]):
@@ -91,6 +94,13 @@ class Boolean(Field[bool]):
             else {True, False} - {bool(v) for v in value}
         )
         if len(possible_values) != 1:
+            _debug.logic(
+                "field.boolean.condition_constant",
+                model=model._name,
+                field_expr=field_expr,
+                operator=operator,
+                constant=bool(possible_values),
+            )
             return SQL("TRUE") if possible_values else SQL("FALSE")
         is_true = True in possible_values
         return (
@@ -231,6 +241,12 @@ class Id(Field[IdType | typing.Literal[False]]):
                 for v in value:
                     with contextlib.suppress(ValueError):
                         coerced.add(self.convert_to_column(v, records, validate=False))
+                _debug.logic(
+                    "field.id.filter_values_coerced",
+                    model=records._name,
+                    given=len(value),
+                    coerced=len(coerced),
+                )
                 if not coerced:
                     return lambda _: False
                 value = coerced

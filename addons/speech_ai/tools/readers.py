@@ -5,7 +5,7 @@ from typing import Any
 
 from odoo.libs.documents import CUES, EXPENSIVE, BaseReader, Cue, register_reader
 
-from .selection import TRANSCRIPTION_KIND, pick_model, run
+from .selection import TRANSCRIPTION_CAPABILITIES, TRANSCRIPTION_KIND, pick_model, run
 from odoo.addons.speech.tools.engines import SPOKEN_MIMETYPES, record_engine_error
 
 _logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class AiTranscription(BaseReader):
     cost = EXPENSIVE
 
     def available(self, env: Any) -> bool:
-        return bool(pick_model(env, TRANSCRIPTION_KIND))
+        return bool(_pick_timed_model(env))
 
     def read(self, document: Any) -> list[Cue]:
         env = document.options.get("env")
@@ -40,7 +40,7 @@ class AiTranscription(BaseReader):
                 document.name,
             )
             return []
-        model = pick_model(env, TRANSCRIPTION_KIND)
+        model = _pick_timed_model(env)
         if not model:
             return []
         language = document.options.get("language")
@@ -48,12 +48,15 @@ class AiTranscription(BaseReader):
         try:
             spans = run(
                 env,
+                "transcribe_timed",
                 model,
-                lambda client, ai_model: _transcribe(
-                    client, ai_model, document, language, prompt
-                ),
                 log_metadata={"feature": "speech.transcription"},
-            )
+                audio=document.data,
+                filename=document.name or "audio",
+                mimetype=document.mimetype or "",
+                language=language,
+                prompt=prompt or "",
+            ).cues
         except Exception as error:
             record_engine_error(document, error)
             raise
@@ -62,25 +65,9 @@ class AiTranscription(BaseReader):
         ]
 
 
-def _transcribe(
-    client: Any,
-    ai_model: Any,
-    document: Any,
-    language: str | None,
-    prompt: str | None,
-) -> list[dict]:
-    reader = getattr(client, "transcribe_cues", None)
-    if reader is None:
-        raise NotImplementedError(
-            f"{type(client).__name__} does not transcribe with timing"
-        )
-    return reader(
-        document.data,
-        filename=document.name or "audio",
-        mimetype=document.mimetype,
-        language=language,
-        prompt=prompt,
-        model=ai_model.code,
+def _pick_timed_model(env: Any) -> Any:
+    return pick_model(
+        env, TRANSCRIPTION_KIND, required_capabilities=TRANSCRIPTION_CAPABILITIES
     )
 
 

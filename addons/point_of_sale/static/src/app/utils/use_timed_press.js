@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { onMounted, onWillUnmount } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.press");
 
 /**
  * @param {Ref} ref
@@ -11,17 +13,20 @@ import { onMounted, onWillUnmount } from "@odoo/owl";
  */
 export function useTimedPress(ref, ranges = []) {
     let timerStart = null;
+    let pointerId = null;
     let holdTimers = [];
 
     const handlePointerDown = (event) => {
-        if (event.button !== 0) {
+        if (event.button !== 0 || pointerId !== null) {
             return;
         }
         timerStart = performance.now();
+        pointerId = event.pointerId;
 
         for (const { delay = 0, type = "release", callback } of ranges) {
             if (type === "hold" && typeof callback === "function") {
                 const timer = setTimeout(() => {
+                    log.logic("hold fired", () => ({ delay }));
                     callback(event, delay);
                 }, delay);
                 holdTimers.push(timer);
@@ -30,28 +35,43 @@ export function useTimedPress(ref, ranges = []) {
     };
 
     const handlePointerUp = (event) => {
-        if (timerStart === null) {
+        if (timerStart === null || event.pointerId !== pointerId) {
             return;
         }
 
         const elapsed = performance.now() - timerStart;
         timerStart = null;
+        pointerId = null;
         clearAllHoldTimers();
 
+        const fired = [];
         for (const { delay = 0, maxDelay, type = "release", callback } of ranges) {
             if (type === "release" && typeof callback === "function") {
                 if (
                     elapsed >= delay &&
                     (maxDelay === undefined || elapsed < maxDelay)
                 ) {
+                    fired.push(delay);
                     callback(event, elapsed);
                 }
             }
         }
+        log.logic("pointerup", () => ({
+            elapsed: Number(elapsed.toFixed(1)),
+            releaseFired: fired,
+        }));
     };
 
-    const cancel = () => {
+    const cancel = (event) => {
+        if (event && event.pointerId !== pointerId) {
+            return;
+        }
+        log.lifecycle("press canceled", () => ({
+            pointerId,
+            timers: holdTimers.length,
+        }));
         timerStart = null;
+        pointerId = null;
         clearAllHoldTimers();
     };
 
@@ -71,6 +91,7 @@ export function useTimedPress(ref, ranges = []) {
     });
 
     onWillUnmount(() => {
+        cancel();
         const el = ref.el;
         el?.removeEventListener("pointerdown", handlePointerDown);
         el?.removeEventListener("pointerup", handlePointerUp);

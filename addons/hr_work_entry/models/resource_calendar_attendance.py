@@ -10,8 +10,7 @@ class ResourceCalendarAttendance(models.Model):
         )
 
     work_entry_type_id = fields.Many2one(
-        "hr.work.entry.type",
-        "Work Entry Type",
+        comodel_name="hr.work.entry.type",
         default=_default_work_entry_type_id,
         groups="hr.group_hr_user",
     )

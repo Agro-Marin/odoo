@@ -64,40 +64,40 @@
         <field name="name">web.cwv.metric.list</field>
         <field name="model">web.cwv.metric</field>
         <field name="arch" type="xml">
-            <list string="Core Web Vitals" create="false" delete="false" edit="false">
+            <list string="Core Web Vitals" create="false" edit="false" delete="false">
                 <field name="recorded_at" />
                 <field name="url" />
                 <field name="user_id" optional="show" />
                 <field
                     name="lcp"
-                    decoration-success="lcp &gt; 0 and lcp &lt; 2500"
-                    decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000"
+                    optional="show"
                     decoration-danger="lcp &gt;= 4000"
-                    optional="show" />
+                    decoration-success="lcp &gt; 0 and lcp &lt; 2500"
+                    decoration-warning="lcp &gt;= 2500 and lcp &lt; 4000" />
                 <field
                     name="fcp"
-                    decoration-success="fcp &gt; 0 and fcp &lt; 1800"
-                    decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000"
+                    optional="show"
                     decoration-danger="fcp &gt;= 3000"
-                    optional="show" />
+                    decoration-success="fcp &gt; 0 and fcp &lt; 1800"
+                    decoration-warning="fcp &gt;= 1800 and fcp &lt; 3000" />
                 <field
                     name="cls"
-                    decoration-success="cls &lt; 0.1"
-                    decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25"
+                    optional="show"
                     decoration-danger="cls &gt;= 0.25"
-                    optional="show" />
+                    decoration-success="cls &lt; 0.1"
+                    decoration-warning="cls &gt;= 0.1 and cls &lt; 0.25" />
                 <field
                     name="ttfb"
-                    decoration-success="ttfb &gt; 0 and ttfb &lt; 800"
-                    decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800"
+                    optional="show"
                     decoration-danger="ttfb &gt;= 1800"
-                    optional="show" />
+                    decoration-success="ttfb &gt; 0 and ttfb &lt; 800"
+                    decoration-warning="ttfb &gt;= 800 and ttfb &lt; 1800" />
                 <field
                     name="inp"
-                    decoration-success="inp &gt; 0 and inp &lt; 200"
-                    decoration-warning="inp &gt;= 200 and inp &lt; 500"
+                    optional="show"
                     decoration-danger="inp &gt;= 500"
-                    optional="show" />
+                    decoration-success="inp &gt; 0 and inp &lt; 200"
+                    decoration-warning="inp &gt;= 200 and inp &lt; 500" />
                 <field name="user_agent" optional="hide" />
             </list>
         </field>
@@ -122,7 +122,7 @@
         <field name="name">web.cwv.metric.graph</field>
         <field name="model">web.cwv.metric</field>
         <field name="arch" type="xml">
-            <graph string="Core Web Vitals" type="line">
+            <graph type="line" string="Core Web Vitals">
                 <field name="recorded_at" interval="hour" />
                 <field name="lcp" type="measure" />
             </graph>

@@ -1,8 +1,7 @@
-from typing import TYPE_CHECKING
-
 from lxml import etree
 
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.xml import XPathExpressionError
 from odoo.libs.xml import (
     apply_inheritance_specs as _apply_inheritance_specs_base,
@@ -13,12 +12,10 @@ from odoo.libs.xml import (
 from odoo.libs.xml.template_inheritance import _compile_xpath
 from odoo.tools.translate import LazyTranslate
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 __all__ = ["apply_inheritance_specs", "locate_node"]
 
 _lt = LazyTranslate("base")
+_debug = DebugLog(__name__)
 
 
 def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | None:
@@ -31,10 +28,17 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
         try:
             xPath = _compile_xpath(expr)
         except etree.XPathSyntaxError as e:
+            _debug.logic("template_inheritance.xpath_invalid", expr=expr)
             raise ValidationError(
                 _lt('Invalid Expression while parsing xpath "%s"', expr)
             ) from e
         nodes = xPath(arch)
+        _debug.logic(
+            "template_inheritance.xpath_located",
+            expr=expr,
+            matches=len(nodes) if isinstance(nodes, list) else None,
+            position=spec.get("position"),
+        )
         return nodes[0] if nodes else None
     return _locate_node_base(arch, spec)
 
@@ -43,11 +47,14 @@ def apply_inheritance_specs(
     source: etree._Element,
     specs_tree: etree._Element,
     inherit_branding: bool = False,
-    pre_locate: Callable[[etree._Element], None] | None = None,
 ) -> etree._Element:
     try:
-        return _apply_inheritance_specs_base(
-            source, specs_tree, inherit_branding, pre_locate
-        )
+        with _debug.perf(
+            "template_inheritance.applied",
+            specs=len(specs_tree),
+            branding=inherit_branding,
+        ):
+            return _apply_inheritance_specs_base(source, specs_tree, inherit_branding)
     except XPathExpressionError as e:
+        _debug.logic("template_inheritance.spec_failed", error=type(e).__name__)
         raise ValidationError(str(e)) from e

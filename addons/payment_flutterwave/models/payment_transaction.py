@@ -14,7 +14,7 @@ class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
     @api.model
-    def _compute_reference(self, provider_code, prefix=None, separator="-", **kwargs):
+    def _get_unique_reference(self, provider_code, prefix=None, separator="-", **kwargs):
         """Override of `payment` to satisfy Flutterwave requirements for references.
 
         Flutterwave requirements for references are as follows:
@@ -32,21 +32,21 @@ class PaymentTransaction(models.Model):
         if provider_code == "flutterwave":
             if not prefix:
                 # If no prefix is provided, it could mean that a module has passed a kwarg intended
-                # for the `_compute_reference_prefix` method, as it is only called if the prefix is
+                # for the `_get_reference_prefix` method, as it is only called if the prefix is
                 # empty. We call it manually here because singularizing the prefix would generate a
                 # default value if it was empty, hence preventing the method from ever being called
                 # and the transaction from received a reference named after the related document.
                 prefix = (
-                    self.sudo()._compute_reference_prefix(separator, **kwargs) or None
+                    self.sudo()._get_reference_prefix(separator, **kwargs) or None
                 )
             prefix = payment_utils.singularize_reference_prefix(
                 prefix=prefix, separator=separator
             )
-        return super()._compute_reference(
+        return super()._get_unique_reference(
             provider_code, prefix=prefix, separator=separator, **kwargs
         )
 
-    def _get_specific_processing_values(self, processing_values):
+    def _prepare_provider_processing_values(self, processing_values):
         """Override of payment to redirect pending token-flow transactions.
 
         If the financial institution insists on 3-D Secure authentication, this
@@ -54,8 +54,8 @@ class PaymentTransaction(models.Model):
 
         Note: `self.check_singleton()`
         """
-        if not self._flutterwave_is_authorization_pending():
-            return super()._get_specific_processing_values(processing_values)
+        if not self._filtered_flutterwave_pending_authorizations():
+            return super()._prepare_provider_processing_values(processing_values)
 
         return {
             "redirect_form_html": self.env["ir.qweb"]._render(
@@ -64,16 +64,16 @@ class PaymentTransaction(models.Model):
             )
         }
 
-    def _get_specific_rendering_values(self, processing_values):
+    def _prepare_redirect_form_values(self, processing_values):
         """Override of payment to return Flutterwave-specific rendering values.
 
-        Note: self.check_singleton() from `_get_processing_values`
+        Note: self.check_singleton() from `_prepare_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the transaction
         :return: The dict of provider-specific processing values.
         :rtype: dict
         """
-        res = super()._get_specific_rendering_values(processing_values)
+        res = super()._prepare_redirect_form_values(processing_values)
         if self.provider_code != "flutterwave":
             return res
 
@@ -204,6 +204,7 @@ class PaymentTransaction(models.Model):
                 self.reference,
             )
             self._set_error(_("Unknown payment status: %s", payment_status))
+        return None
 
     def _extract_token_values(self, payment_data):
         """Override of `payment` to extract the token values from the payment data."""
@@ -219,7 +220,7 @@ class PaymentTransaction(models.Model):
             "flutterwave_customer_email": payment_data["customer"]["email"],
         }
 
-    def _flutterwave_is_authorization_pending(self):
+    def _filtered_flutterwave_pending_authorizations(self):
         """Filter Flutterwave token transactions that are awaiting external authorization.
 
         :return: Pending transactions awaiting authorization.

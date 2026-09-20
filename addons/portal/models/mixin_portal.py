@@ -1,8 +1,13 @@
 import uuid
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
+
+from odoo.addons.portal.utils import get_url_with_params
+
+_debug = DebugLog(__name__)
 
 
 class MixinPortal(models.AbstractModel):
@@ -10,13 +15,19 @@ class MixinPortal(models.AbstractModel):
     _description = "Portal Mixin"
 
     access_url = fields.Char(
-        "Portal Access URL",
+        string="Portal Access URL",
         compute="_compute_access_url",
         help="Portal URL for this record (overridden by concrete models).",
     )
-    access_token = fields.Char("Security Token", copy=False)
+    access_token = fields.Char(
+        string="Security Token",
+        copy=False,
+    )
 
-    access_warning = fields.Text("Access warning", compute="_compute_access_warning")
+    access_warning = fields.Text(
+        string="Access warning",
+        compute="_compute_access_warning",
+    )
 
     def _compute_access_warning(self):
         for record in self:
@@ -26,7 +37,7 @@ class MixinPortal(models.AbstractModel):
         for record in self:
             record.access_url = "#"
 
-    def _portal_ensure_token(self) -> str:
+    def _portal_get_or_create_token(self) -> str:
         self.check_singleton()
         if not self.access_token:
             self.sudo().write({"access_token": str(uuid.uuid4())})
@@ -39,7 +50,7 @@ class MixinPortal(models.AbstractModel):
         params = {"model": self._name, "res_id": self.id} if redirect else {}
         if share_token:
             self.check_access("read")
-            params["access_token"] = self._portal_ensure_token()
+            params["access_token"] = self._portal_get_or_create_token()
         if pid:
             params["pid"] = pid
             params["hash"] = self._sign_token(pid)
@@ -47,8 +58,7 @@ class MixinPortal(models.AbstractModel):
             params.update(self.partner_id.signup_get_auth_param()[self.partner_id.id])
 
         url_base = "/mail/view" if redirect else self.access_url
-        qs = urlencode(params)
-        return f"{url_base}?{qs}" if qs else url_base
+        return get_url_with_params(url_base, params)
 
     def _get_access_action(self, access_uid=None, force_website=False):
         self.check_singleton()
@@ -58,6 +68,12 @@ class MixinPortal(models.AbstractModel):
             try:
                 record.check_access("read")
             except AccessError:
+                _debug.logic(
+                    "access_action",
+                    by="super_no_read",
+                    model=self._name,
+                    record=self.id,
+                )
                 return super()._get_access_action(
                     access_uid=access_uid, force_website=force_website
                 )
@@ -68,6 +84,12 @@ class MixinPortal(models.AbstractModel):
                 record.check_access("read")
             except AccessError:
                 if force_website:
+                    _debug.logic(
+                        "access_action",
+                        by="access_url",
+                        model=self._name,
+                        record=self.id,
+                    )
                     return {
                         "type": "ir.actions.act_url",
                         "url": record.access_url,
@@ -75,6 +97,9 @@ class MixinPortal(models.AbstractModel):
                         "res_id": record.id,
                     }
             else:
+                _debug.logic(
+                    "access_action", by="share_url", model=self._name, record=self.id
+                )
                 return {
                     "type": "ir.actions.act_url",
                     "url": record._get_share_url(),
@@ -106,13 +131,21 @@ class MixinPortal(models.AbstractModel):
         anchor=None,
     ) -> str:
         self.check_singleton()
-        params = {"access_token": self._portal_ensure_token()}
+        params = {"access_token": self._portal_get_or_create_token()}
         if report_type:
             params["report_type"] = report_type
         if download:
             params["download"] = "true"
-        qs = urlencode(params)
+        url = urlsplit(self.access_url)
+        query = parse_qsl(url.query, keep_blank_values=True)
         if query_string:
-            qs = f"{qs}{query_string}"
-        fragment = f"#{anchor}" if anchor else ""
-        return f"{self.access_url}{suffix or ''}?{qs}{fragment}"
+            query.extend(parse_qsl(query_string.lstrip("?&"), keep_blank_values=True))
+        url = urlunsplit(
+            url._replace(
+                path=url.path + (suffix or ""),
+                query=urlencode(query),
+                fragment=anchor if anchor is not None else url.fragment,
+            )
+        )
+        # Credentials and explicit options take priority over query-string values.
+        return get_url_with_params(url, params)

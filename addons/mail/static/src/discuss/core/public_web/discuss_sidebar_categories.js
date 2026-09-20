@@ -8,10 +8,13 @@ import { DiscussSidebarChannelActions } from "@mail/discuss/core/public_web/disc
 import { useHover, UseHoverOverlay } from "@mail/utils/common/hooks";
 import { Component, useSubEnv } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss.sidebar");
 export const discussSidebarChannelIndicatorsRegistry = registry.category(
     "mail.discuss_sidebar_channel_indicators",
 );
@@ -105,9 +108,9 @@ export class DiscussSidebarChannel extends Component {
             "o-active": this.thread.eq(this.store.discuss.thread),
             "o-unread":
                 this.thread.self_member_id?.message_unread_counter > 0 &&
-                !this.thread.self_member_id?.mute_until_dt,
+                !this.thread.isMuted,
             "border-bottom-0 rounded-bottom-0": this.bordered,
-            "opacity-50": this.thread.self_member_id?.mute_until_dt,
+            "opacity-50": this.thread.isMuted,
             "position-relative justify-content-center o-compact mt-0 p-1":
                 this.store.discuss.isSidebarCompact,
             "px-0": !this.store.discuss.isSidebarCompact,
@@ -136,10 +139,10 @@ export class DiscussSidebarChannel extends Component {
         return {
             "o-unread fw-bolder":
                 this.thread.self_member_id?.message_unread_counter > 0 &&
-                !this.thread.self_member_id?.mute_until_dt,
+                !this.thread.isMuted,
             "opacity-75 opacity-100-hover":
                 this.thread.self_member_id?.message_unread_counter === 0 ||
-                this.thread.self_member_id?.mute_until_dt,
+                this.thread.isMuted,
         };
     }
 
@@ -167,19 +170,10 @@ export class DiscussSidebarChannel extends Component {
         if (!this.thread.discussAppCategory.open) {
             return false;
         }
-        if (
-            !this.thread.self_member_id?.mute_until_dt ||
-            sub.self_member_id?.message_unread_counter > 0
-        ) {
+        if (!this.thread.isMuted || sub.self_member_id?.message_unread_counter > 0) {
             return true;
         }
-        return (
-            this.isSelfOrThreadActive &&
-            !(
-                this.thread.self_member_id?.mute_until_dt &&
-                sub.self_member_id?.mute_until_dt
-            )
-        );
+        return this.isSelfOrThreadActive && !(this.thread.isMuted && sub.isMuted);
     }
 
     get isSelfOrThreadActive() {
@@ -207,7 +201,6 @@ export class DiscussSidebarCategory extends Component {
     setup() {
         super.setup();
         this.store = useService("mail.store");
-        this.discusscorePublicWebService = useService("discuss.core.public.web");
         this.hover = useHover(["root", "floating"], {
             onHover: () => {
                 if (this.store.discuss.isSidebarCompact) {
@@ -239,10 +232,12 @@ export class DiscussSidebarCategory extends Component {
 
     toggle() {
         if (this.store.channels.status === "fetching") {
+            log.logic("toggle ignored while fetching", () => ({
+                id: this.category.id,
+            }));
             return;
         }
         this.category.open = !this.category.open;
-        this.discusscorePublicWebService.broadcastCategoryState(this.category);
     }
 }
 
@@ -262,7 +257,6 @@ export class DiscussSidebarCategories extends Component {
     setup() {
         super.setup();
         this.store = useService("mail.store");
-        this.discusscorePublicWebService = useService("discuss.core.public.web");
         this.orm = useService("orm");
         useSubEnv({
             /** @param {import("models").Thread[]} threads */

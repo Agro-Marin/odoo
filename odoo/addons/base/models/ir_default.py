@@ -6,6 +6,9 @@ from odoo import api, fields, models, tools
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 INT4_MIN = -(2**31)
 INT4_MAX = 2**31 - 1
@@ -18,31 +21,28 @@ class IrDefault(models.Model):
     _allow_sudo_commands = False
 
     field_id = fields.Many2one(
-        "ir.model.fields",
-        string="Field",
+        comodel_name="ir.model.fields",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
-        ondelete="cascade",
+        comodel_name="res.users",
         index=True,
+        ondelete="cascade",
         help="If set, this default only applies for this user.",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        ondelete="cascade",
+        comodel_name="res.company",
         index=True,
+        ondelete="cascade",
         help="If set, this default only applies for this company",
     )
-    condition = fields.Char(
-        "Condition",
-        help="If set, applies the default upon condition.",
+    condition = fields.Char(help="If set, applies the default upon condition.")
+    json_value = fields.Char(
+        string="Default Value (JSON format)",
+        required=True,
     )
-    json_value = fields.Char("Default Value (JSON format)", required=True)
 
     _unique_scope = models.UniqueIndex(
         "(field_id, COALESCE(user_id, 0), COALESCE(company_id, 0),"
@@ -63,6 +63,12 @@ class IrDefault(models.Model):
             model = self.env.get(model_name)
             field = None if model is None else model._fields.get(field_rec.name)
             if field is None:
+                _debug.logic(
+                    "constraint.rejected",
+                    model=model_name,
+                    field=field_rec.name,
+                    reason="unknown_field",
+                )
                 raise ValidationError(
                     self.env._(
                         "Invalid field %(model)s.%(field)s",
@@ -73,12 +79,24 @@ class IrDefault(models.Model):
             try:
                 value = json.loads(record.json_value)
             except json.JSONDecodeError:
+                _debug.logic(
+                    "constraint.rejected",
+                    model=model_name,
+                    field=field_rec.name,
+                    reason="invalid_json",
+                )
                 raise ValidationError(
                     self.env._("Invalid JSON format in Default Value field.")
                 ) from None
             try:
                 parsed = field.convert_to_cache(value, model)
             except ValueError, TypeError:
+                _debug.logic(
+                    "constraint.rejected",
+                    model=model_name,
+                    field=field_rec.name,
+                    reason="type_mismatch",
+                )
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. Expected type '%(field_type)s' for '%(model_name)s.%(field_name)s'.",
@@ -88,6 +106,12 @@ class IrDefault(models.Model):
                     )
                 ) from None
             if not self._is_value_fitting_column(field, parsed):
+                _debug.logic(
+                    "constraint.rejected",
+                    model=model_name,
+                    field=field_rec.name,
+                    reason="out_of_bounds",
+                )
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. %(value)s is out of bounds for '%(model_name)s.%(field_name)s' (integers should be between -2,147,483,648 and 2,147,483,647).",
@@ -103,21 +127,34 @@ class IrDefault(models.Model):
         for record in self:
             if field := record.field_id:
                 model = self.env[field.model]
+                _debug.logic(
+                    "field_access_checked",
+                    model=field.model,
+                    field=field.name,
+                    uid=self.env.uid,
+                )
                 model._check_field_access(model._fields[field.name], "write")
 
     def _invalidate_defaults_cache(self) -> None:
+        _debug.lifecycle("defaults_cache_invalidated", count=len(self))
         self.env.invalidate_all()
         self.env.registry.clear_cache()
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         new_defaults = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(new_defaults),
+            fields=sorted({vals.get("field_id") or 0 for vals in vals_list}),
+        )
         new_defaults._check_accessible_field_id()
         if new_defaults:
             new_defaults._invalidate_defaults_cache()
         return new_defaults
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = super().write(vals)
         self._check_accessible_field_id()
         if self:
@@ -125,6 +162,7 @@ class IrDefault(models.Model):
         return result
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         result = super().unlink()
         if self:
             self._invalidate_defaults_cache()
@@ -172,6 +210,12 @@ class IrDefault(models.Model):
             model = self.env[model_name]
             orm_field = model._fields[field_name]
         except KeyError:
+            _debug.logic(
+                "set_default.rejected",
+                model=model_name,
+                field=field_name,
+                reason="unknown_field",
+            )
             raise ValidationError(
                 self.env._(
                     "Invalid field %(model)s.%(field)s",
@@ -188,6 +232,12 @@ class IrDefault(models.Model):
             )
             json_value = json.dumps(stored_value, ensure_ascii=False)
         except ValueError, TypeError:
+            _debug.logic(
+                "set_default.rejected",
+                model=model_name,
+                field=field_name,
+                reason="type_mismatch",
+            )
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s",
@@ -197,6 +247,12 @@ class IrDefault(models.Model):
                 )
             ) from None
         if not self._is_value_fitting_column(orm_field, parsed):
+            _debug.logic(
+                "set_default.rejected",
+                model=model_name,
+                field=field_name,
+                reason="out_of_bounds",
+            )
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s is out of bounds (integers should be between -2,147,483,648 and 2,147,483,647)",
@@ -208,6 +264,16 @@ class IrDefault(models.Model):
 
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
+        _debug.logic(
+            "set_default",
+            model=model_name,
+            field=field_name,
+            user=user_id,
+            company=company_id,
+            conditional=bool(condition),
+            by="update" if default else "create",
+            changed=not default or default.json_value != json_value,
+        )
         if default:
             if default.json_value != json_value:
                 default.write({"json_value": json_value})
@@ -235,6 +301,15 @@ class IrDefault(models.Model):
         user_id, company_id = self._get_scope(user_id, company_id)
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
+        _debug.logic(
+            "get_default",
+            model=model_name,
+            field=field_name,
+            user=user_id,
+            company=company_id,
+            conditional=bool(condition),
+            found=bool(default),
+        )
         return json.loads(default.json_value) if default else None
 
     @api.model
@@ -242,36 +317,40 @@ class IrDefault(models.Model):
     def _get_model_defaults(
         self, model_name: str, condition: str | bool = False
     ) -> dict[str, Any]:
-        cr = self.env.cr
-        self.flush_model()
         company_id = self.env.company.id or None
-        condition_clause = (
-            tools.SQL("d.condition = %s", condition)
-            if condition
-            else tools.SQL("d.condition IS NULL")
+        field_ids = self.env["ir.model.fields"]._get_ids_by_name(model_name)
+        name_by_field_id = {field_id: name for name, field_id in field_ids.items()}
+        defaults = self.sudo().search_fetch(
+            Domain("field_id", "in", list(field_ids.values()))
+            & Domain.OR(
+                [Domain("user_id", "=", False), Domain("user_id", "=", self.env.uid)]
+            )
+            & Domain.OR(
+                [
+                    Domain("company_id", "=", False),
+                    Domain("company_id", "=", company_id),
+                ]
+            )
+            & Domain("condition", "=", condition or False),
+            ["field_id", "user_id", "company_id", "json_value"],
         )
-        query = tools.SQL(
-            """ SELECT f.name, d.json_value
-                FROM ir_default d
-                JOIN ir_model_fields f ON d.field_id=f.id
-                WHERE f.model = %s
-                    AND (d.user_id IS NULL OR d.user_id = %s)
-                    AND (d.company_id IS NULL OR d.company_id = %s)
-                    AND %s
-                ORDER BY (d.user_id IS NOT NULL) DESC,
-                         (d.company_id IS NOT NULL) DESC,
-                         d.id
-            """,
-            model_name,
-            self.env.uid,
-            company_id,
-            condition_clause,
+        # the most specific default wins: user-bound before company-bound before global
+        defaults = defaults.sorted(
+            key=lambda d: (not d.user_id, not d.company_id, d.id)
         )
-        cr.execute(query)
         result = {}
-        for row in cr.fetchall():
-            if row[0] not in result:
-                result[row[0]] = json.loads(row[1])
+        for default in defaults:
+            name = name_by_field_id[default.field_id.id]
+            if name not in result:
+                result[name] = json.loads(default.json_value)
+        _debug.perf.count(
+            "model_defaults_computed",
+            model=model_name,
+            uid=self.env.uid,
+            company=company_id,
+            condition=condition,
+            fields=sorted(result),
+        )
         return result
 
     @api.model
@@ -282,14 +361,29 @@ class IrDefault(models.Model):
             ("field_id.relation", "=", records._name),
             ("json_value", "in", json_vals),
         ]
-        return self.search(domain).unlink()
+        stale = self.search(domain)
+        _debug.lifecycle(
+            "discard_records",
+            model=records._name,
+            records=len(records),
+            defaults=len(stale),
+        )
+        return stale.unlink()
 
     @api.model
     def discard_values(self, model_name: str, field_name: str, values: list) -> bool:
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         json_vals = [json.dumps(value, ensure_ascii=False) for value in values]
         domain = [("field_id", "=", field.id), ("json_value", "in", json_vals)]
-        return self.search(domain).unlink()
+        stale = self.search(domain)
+        _debug.lifecycle(
+            "discard_values",
+            model=model_name,
+            field=field_name,
+            values=len(values),
+            defaults=len(stale),
+        )
+        return stale.unlink()
 
     @api.model
     def rename_value(
@@ -300,17 +394,29 @@ class IrDefault(models.Model):
             ("field_id", "=", field.id),
             ("json_value", "=", json.dumps(old_value, ensure_ascii=False)),
         ]
-        return self.search(domain).write(
-            {"json_value": json.dumps(new_value, ensure_ascii=False)}
+        renamed = self.search(domain)
+        _debug.lifecycle(
+            "rename_value", model=model_name, field=field_name, defaults=len(renamed)
         )
+        return renamed.write({"json_value": json.dumps(new_value, ensure_ascii=False)})
 
     @tools.ormcache("model_name", "field_name")
     def _get_field_column_fallbacks(self, model_name: str, field_name: str) -> str:
-        cr = self.env.cr
-        cr.execute("SELECT ARRAY_AGG(id) FROM res_company")
-        company_ids = cr.fetchone()[0] or []
+        company_ids = (
+            self.env["res.company"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([])
+            .ids
+        )
         field = self.env[model_name]._fields[field_name]
         self_super = self.with_user(SUPERUSER_ID)
+        _debug.perf.count(
+            "column_fallbacks.cache_miss",
+            model=model_name,
+            field=field_name,
+            companies=len(company_ids),
+        )
         return json.dumps(
             {
                 id_: field._to_json_value(
@@ -336,4 +442,10 @@ class IrDefault(models.Model):
             record = model.new({field_name: field.convert_to_write(fallback, model)})
             return bool(record.filtered_domain(Domain(field_expr, operator, value)))
         except ValueError:
+            _debug.logic(
+                "condition_fallback.unevaluable",
+                model=model_name,
+                field=field_name,
+                operator=operator,
+            )
             return None

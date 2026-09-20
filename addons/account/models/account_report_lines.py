@@ -9,6 +9,7 @@ import markupsafe
 from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools import float_repr, get_lang, html2plaintext
 from odoo.tools.formatting import ROUNDING_UNIT_MAPPING
@@ -19,10 +20,13 @@ from .account_report_engine import (
     NUMBER_FIGURE_TYPES,
 )
 
+_debug = DebugLog(__name__)
+
 
 class AccountReportLines(models.Model):
     _inherit = "account.report"
 
+    @_debug.perf.timed
     def _prepare_columns_from_column_group_vals(
         self, options, all_column_group_vals_in_order
     ):
@@ -71,19 +75,37 @@ class AccountReportLines(models.Model):
                 )
 
             else:
-                for report_column in self.column_ids:
-                    columns.append(  # noqa: PERF401
-                        {
-                            "name": report_column.name,
-                            "column_group_key": column_group_key,
-                            "expression_label": report_column.expression_label,
-                            "sortable": report_column.sortable,
-                            "figure_type": report_column.figure_type,
-                            "blank_if_zero": report_column.blank_if_zero,
-                            "class": f"text-nowrap {'text-end' if report_column.figure_type in NUMBER_FIGURE_TYPES else 'text-center'}",
-                        }
-                    )
+                columns.extend(
+                    {
+                        "name": report_column.name,
+                        "column_group_key": column_group_key,
+                        "expression_label": report_column.expression_label,
+                        "sortable": report_column.sortable,
+                        "figure_type": report_column.figure_type,
+                        "blank_if_zero": report_column.blank_if_zero,
+                        "class": f"text-nowrap {('text-end' if report_column.figure_type in NUMBER_FIGURE_TYPES else 'text-center')}",
+                    }
+                    for report_column in self.column_ids
+                )
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "columns_prepared",
+                report=self,
+                column_groups=len(column_groups),
+                columns=len(columns),
+                horizontal_groups=sum(
+                    "horizontal_groupby_element" in group
+                    for group in column_groups.values()
+                ),
+                budget_groups=sum(
+                    any(
+                        budget_key in group["forced_options"]
+                        for budget_key in ("compute_budget", "budget_percentage")
+                    )
+                    for group in column_groups.values()
+                ),
+            )
         return columns, column_groups
 
     @api.model
@@ -98,6 +120,7 @@ class AccountReportLines(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _prepare_line_id(self, current):
         """Build a generic line id string from its list representation, converting
         the None values for model and value to empty strings.
@@ -134,6 +157,7 @@ class AccountReportLines(models.Model):
             for markup, model, value in current
         )
 
+    @_debug.perf.timed
     def _get_lines(
         self, options, all_column_groups_expression_totals=None, warnings=None
     ):
@@ -166,8 +190,15 @@ class AccountReportLines(models.Model):
                 )
             )
 
-        dynamic_lines = self._get_dynamic_lines(
-            options, all_column_groups_expression_totals, warnings=warnings
+        with _debug.perf("dynamic_lines", cr=self.env.cr, report=self):
+            dynamic_lines = self._get_dynamic_lines(
+                options, all_column_groups_expression_totals, warnings=warnings
+            )
+        _debug.pipeline(
+            "_get_lines",
+            report=self,
+            line_ids_count=len(self.line_ids),
+            dynamic_lines_count=len(dynamic_lines),
         )
 
         lines = []
@@ -190,15 +221,15 @@ class AccountReportLines(models.Model):
                 try:
                     parent_generic_id = line_cache[line.parent_id]["id"]
                 except KeyError as e:
-                    raise UserError(  # noqa: B904
+                    raise UserError(
                         _(
                             "Line '%(child)s' is configured to appear before its parent '%(parent)s'. This is not allowed.",
                             child=line.name,
                             parent=e.args[0].name,
                         )
-                    )
+                    ) from e
 
-            line_dict = self._get_static_line_dict(
+            line_dict = self._prepare_static_line_dict(
                 options,
                 line,
                 all_column_groups_expression_totals,
@@ -234,14 +265,14 @@ class AccountReportLines(models.Model):
                 if model == "account.report.line" and line_id:
                     report_line = self.env["account.report.line"].browse(line_id)
                     compared_expression = report_line.expression_ids.filtered(
-                        lambda expr: (
-                            expr.label == line["columns"][0]["expression_label"]  # noqa: B023
+                        lambda expr, line=line: (
+                            expr.label == line["columns"][0]["expression_label"]
                         )
                     )
                     green_on_positive = compared_expression.green_on_positive
 
                 line["column_percent_comparison_data"] = (
-                    self._compute_column_percent_comparison_data(
+                    self._get_column_percent_comparison_data(
                         options,
                         first_value,
                         second_value,
@@ -260,7 +291,7 @@ class AccountReportLines(models.Model):
                     line["columns"][1]["no_format"],
                 )
                 line["column_percent_comparison_data"] = (
-                    self._compute_column_percent_comparison_data(
+                    self._get_column_percent_comparison_data(
                         options, first_value, second_value, green_on_positive=False
                     )
                 )
@@ -324,9 +355,16 @@ class AccountReportLines(models.Model):
         self._update_line_names_for_consolidation(lines)
 
         if self.custom_handler_model_id:
-            lines = self.env[self.custom_handler_model_name]._custom_line_postprocessor(
-                self, options, lines
-            )
+            with _debug.perf(
+                "_custom_line_postprocessor",
+                cr=self.env.cr,
+                report=self,
+                custom_handler_model_name=self.custom_handler_model_name,
+                lines_count=len(lines),
+            ):
+                lines = self.env[
+                    self.custom_handler_model_name
+                ]._custom_line_postprocessor(self, options, lines)
 
         if warnings is not None:
             custom_handler_name = (
@@ -363,7 +401,16 @@ class AccountReportLines(models.Model):
 
         return lines
 
+    @_debug.perf.timed
     def _format_column_values(self, options, line_dict_list, force_format=False):
+        _debug.logic(
+            "column_format_mode",
+            report=self,
+            lines=len(line_dict_list),
+            force_format=force_format,
+            raw_file_values=options.get("export_mode") == "file",
+            horizontal_group_total=bool(options.get("show_horizontal_group_total")),
+        )
         for line_dict in line_dict_list:
             for column_dict in line_dict["columns"]:
                 if "name" in column_dict and not force_format:
@@ -420,6 +467,7 @@ class AccountReportLines(models.Model):
                 }
 
     @api.model
+    @_debug.perf.timed
     def _prepare_static_line_columns(
         self, line, options, all_column_groups_expression_totals, groupby_model=None
     ):
@@ -533,7 +581,7 @@ class AccountReportLines(models.Model):
 
                 formatter_params["digits"] = rounding
 
-            editable_cell_data = self._get_editable_cell_data(
+            editable_cell_data = self._prepare_editable_cell_data(
                 options, col_group_key, groupby_model, column_expression, column_value
             )
             if editable_cell_data:
@@ -569,8 +617,20 @@ class AccountReportLines(models.Model):
 
             columns.append(column_data)
 
+        if _debug.logic.enabled and any(
+            "edit_popup_data" in column or "info_popup_data" in column
+            for column in columns
+        ):
+            _debug.logic(
+                "line_cells_with_popups",
+                line=line,
+                columns=len(columns),
+                editable=sum("edit_popup_data" in column for column in columns),
+                carryover_info=sum("info_popup_data" in column for column in columns),
+            )
         return columns
 
+    @_debug.perf.timed
     def _prepare_column_dict(
         self,
         col_value,
@@ -650,6 +710,7 @@ class AccountReportLines(models.Model):
 
     @api.model
     @api.readonly
+    @_debug.perf.timed
     def sort_lines(self, lines, options, result_as_index=False):
         """Sort report lines based on the 'order_column' key inside the options.
         The value of options['order_column'] is a dict with keys 'expression_label' (the column to sort on)
@@ -757,6 +818,13 @@ class AccountReportLines(models.Model):
             ),
             None,
         )
+        _debug.logic(
+            "sort_column_resolved",
+            order_column=order_column,
+            column_index=column_index,
+            lines=len(lines),
+            result_as_index=result_as_index,
+        )
         if column_index is None:
             return list(range(len(lines))) if result_as_index else lines
 
@@ -794,9 +862,17 @@ class AccountReportLines(models.Model):
         for line in sorted(roots, key=comp_key, reverse=descending):
             merge_tree(line, sorted_list)
 
+        _debug.pipeline(
+            "lines_sorted",
+            descending=descending,
+            roots=len(roots),
+            lines=len(lines),
+            sorted=len(sorted_list),
+        )
         return sorted_list
 
-    def _get_column_headers_render_data(self, options):
+    @_debug.perf.timed
+    def _prepare_column_headers_render_data(self, options):
         column_headers_render_data = {}
 
         # We only want to consider the columns that are visible in the current report and don't rely on self.column_ids
@@ -861,8 +937,18 @@ class AccountReportLines(models.Model):
             "custom_columns_subheaders", []
         ) * len(options["column_groups"])
 
+        _debug.pipeline(
+            "column_headers_render_data",
+            report=self,
+            header_levels=len(options["column_headers"]),
+            columns_per_group=len(columns),
+            level_colspan=level_colspan_list,
+            level_repetitions=column_headers_render_data["level_repetitions"],
+            custom_subheaders=len(column_headers_render_data["custom_subheaders"]),
+        )
         return column_headers_render_data
 
+    @_debug.perf.timed
     def _expand_unfoldable_line(
         self,
         expand_function_name,
@@ -883,16 +969,32 @@ class AccountReportLines(models.Model):
         expand_function = self._get_custom_report_function(
             expand_function_name, "expand_unfoldable_line"
         )
-        expansion_result = expand_function(
-            line_dict_id,
-            groupby,
-            options,
-            progress,
-            offset,
-            unfold_all_batch_data=unfold_all_batch_data,
-        )
+        with _debug.perf(
+            "expand",
+            cr=self.env.cr,
+            report=self,
+            expand_function_name=expand_function_name,
+            line=line_dict_id,
+            groupby=groupby,
+            offset=offset,
+        ):
+            expansion_result = expand_function(
+                line_dict_id,
+                groupby,
+                options,
+                progress,
+                offset,
+                unfold_all_batch_data=unfold_all_batch_data,
+            )
 
         rslt = expansion_result["lines"]
+        _debug.logic(
+            "expanded",
+            report=self,
+            line_dict_id=line_dict_id,
+            rslt_count=len(rslt),
+            has_more=bool(expansion_result.get("has_more")),
+        )
 
         if horizontal_split_side:
             for line in rslt:
@@ -924,6 +1026,7 @@ class AccountReportLines(models.Model):
 
         return self._add_totals_below_sections(rslt, options)
 
+    @_debug.perf.timed
     def _report_expand_unfoldable_line_with_groupby(
         self,
         line_dict_id,
@@ -959,6 +1062,15 @@ class AccountReportLines(models.Model):
             limit_to_load = None
             offset = 0
 
+        _debug.logic(
+            "groupby_load_limit_decided",
+            report=self,
+            line=line,
+            groupby=groupby,
+            limit=limit_to_load,
+            offset=offset,
+            export_mode=options.get("export_mode"),
+        )
         rslt_lines = line._expand_groupby(
             line_dict_id,
             groupby,
@@ -982,6 +1094,14 @@ class AccountReportLines(models.Model):
                 parent_line_dict_id=line_dict_id,
             )
 
+        _debug.pipeline(
+            "groupby_lines_ready",
+            report=self,
+            line=line,
+            fetched=len(rslt_lines),
+            returned=len(lines_to_load),
+            prefix_regroup=not limit_to_load and options["export_mode"] is None,
+        )
         return {
             "lines": lines_to_load,
             "offset_increment": len(lines_to_load),
@@ -990,6 +1110,7 @@ class AccountReportLines(models.Model):
             else False,
         }
 
+    @_debug.perf.timed
     def _regroup_lines_by_name_prefix(
         self,
         options,
@@ -1023,6 +1144,15 @@ class AccountReportLines(models.Model):
             filter(lambda x: self._get_markup(x["id"]) != "total", lines_to_group)
         )
 
+        _debug.logic(
+            "prefix_grouping_checked",
+            report=self,
+            parent=parent_line_dict_id,
+            matched_prefix=matched_prefix,
+            threshold=threshold,
+            candidates=len(lines_to_group_without_totals),
+            export_mode=options.get("export_mode"),
+        )
         if (
             options["export_mode"] == "print"
             or threshold <= 0
@@ -1113,8 +1243,18 @@ class AccountReportLines(models.Model):
             }
             rslt.append(prefix_group_line)
 
+        _debug.pipeline(
+            "prefix_groups_built",
+            report=self,
+            parent=parent_line_dict_id,
+            prefix_groups=len(prefix_groups),
+            lines_in=len(lines_to_group_without_totals),
+            lines_out=len(rslt),
+            unfold_all=bool(unfold_all),
+        )
         return rslt
 
+    @_debug.perf.timed
     def _report_expand_unfoldable_line_groupby_prefix_group(
         self,
         line_dict_id,
@@ -1176,6 +1316,15 @@ class AccountReportLines(models.Model):
             parent_line_dict_id=line_dict_id,
         )
 
+        _debug.pipeline(
+            "prefix_group_expanded",
+            report=self,
+            line=report_line,
+            matched_prefix=matched_prefix,
+            parent_groupby_count=parent_groupby_count,
+            fetched=len(expanded_groupby_lines),
+            returned=len(lines),
+        )
         return {
             "lines": lines,
             "offset_increment": len(lines),
@@ -1199,6 +1348,12 @@ class AccountReportLines(models.Model):
                 lines_to_hide.add(line["id"])
             if line.get("parent_id") and line["id"] not in lines_to_hide:
                 has_visible_children.add(line["parent_id"])
+        _debug.pipeline(
+            "zero_lines_filtered",
+            report=self,
+            lines=len(lines),
+            hidden=len(lines_to_hide),
+        )
         return list(filter(lambda x: x["id"] not in lines_to_hide, lines))
 
     def _get_dict_hashable_key_tuple(self, dict_to_convert):
@@ -1232,6 +1387,11 @@ class AccountReportLines(models.Model):
         self.check_singleton()
         function_name_prefix = f"_report_{prefix}_"
         if not function_name.startswith(function_name_prefix):
+            _debug.logic(
+                "custom_function_bad_prefix",
+                report=self,
+                function_name=function_name,
+            )
             raise UserError(
                 _(
                     "Method '%(method_name)s' must start with the '%(prefix)s' prefix.",
@@ -1243,18 +1403,36 @@ class AccountReportLines(models.Model):
         if self.custom_handler_model_id:
             handler = self.env[self.custom_handler_model_name]
             if hasattr(handler, function_name):
+                _debug.logic(
+                    "custom_function_on_handler",
+                    report=self,
+                    function_name=function_name,
+                )
                 return getattr(handler, function_name)
 
         if not hasattr(self, function_name):
+            _debug.logic(
+                "custom_function_not_found",
+                report=self,
+                function_name=function_name,
+            )
             raise UserError(_("Invalid method “%s”", function_name))
         # function_name was already validated to start with the private prefix above.
+        _debug.logic(
+            "custom_function_on_report",
+            report=self,
+            function_name=function_name,
+        )
         return getattr(self, function_name)
 
+    @_debug.perf.timed
     def _fully_unfold_lines_if_needed(self, lines, options):
         def line_need_expansion(line_dict):
             return line_dict.get("unfolded") and line_dict.get("expand_function")
 
         custom_unfold_all_batch_data = None
+        lines_in = len(lines)  # debuglog
+        expansions = 0  # debuglog
 
         # If it's possible to batch unfold and we're unfolding all lines, compute the batch, so that individual expansions are more efficient
         if options["unfold_all"] and self.custom_handler_model_id:
@@ -1265,12 +1443,26 @@ class AccountReportLines(models.Model):
                         line_dict["expand_function"], []
                     ).append(line_dict)
 
-            custom_unfold_all_batch_data = self.env[
-                self.custom_handler_model_name
-            ]._custom_unfold_all_batch_data_generator(
-                self, options, lines_to_expand_by_function
-            )
+            with _debug.perf(
+                "_custom_unfold_all_batch_data_generator",
+                cr=self.env.cr,
+                report=self,
+                custom_handler_model_name=self.custom_handler_model_name,
+                expand_functions=len(lines_to_expand_by_function),
+            ):
+                custom_unfold_all_batch_data = self.env[
+                    self.custom_handler_model_name
+                ]._custom_unfold_all_batch_data_generator(
+                    self, options, lines_to_expand_by_function
+                )
 
+        _debug.logic(
+            "unfold_all_batch_decided",
+            report=self,
+            unfold_all=bool(options.get("unfold_all")),
+            batch_data=custom_unfold_all_batch_data is not None,
+            lines=lines_in,
+        )
         i = 0
         while i < len(lines):
             # We iterate in such a way that if the lines added by an expansion need expansion, they will get it as well
@@ -1289,11 +1481,20 @@ class AccountReportLines(models.Model):
                     unfold_all_batch_data=custom_unfold_all_batch_data,
                 )
                 lines = lines[: i + 1] + to_insert + lines[i + 1 :]
+                expansions += 1  # debuglog
             i += 1
 
+        _debug.pipeline(
+            "lines_fully_unfolded",
+            report=self,
+            lines_in=lines_in,
+            lines_out=len(lines),
+            expansions=expansions,
+        )
         return lines
 
-    def _get_static_line_dict(
+    @_debug.perf.timed
+    def _prepare_static_line_dict(
         self, options, line, all_column_groups_expression_totals, parent_id=None
     ):
         line_id = self._get_generic_line_id(
@@ -1325,6 +1526,15 @@ class AccountReportLines(models.Model):
             or None,
         }
 
+        if _debug.logic.enabled and groupby:
+            _debug.logic(
+                "static_line_groupby",
+                line=line,
+                groupby=groupby,
+                has_children=bool(has_children),
+                unfoldable=bool(rslt["unfoldable"]),
+                unfolded=bool(rslt["unfolded"]),
+            )
         if line.horizontal_split_side:
             rslt["horizontal_split_side"] = line.horizontal_split_side
 
@@ -1391,19 +1601,32 @@ class AccountReportLines(models.Model):
                 )
         return rslt
 
+    @_debug.perf.timed
     def _get_dynamic_lines(
         self, options, all_column_groups_expression_totals, warnings=None
     ):
         if self.custom_handler_model_id:
-            rslt = self.env[self.custom_handler_model_name]._dynamic_lines_generator(
-                self, options, all_column_groups_expression_totals, warnings=warnings
-            )
+            with _debug.perf(
+                "_dynamic_lines_generator",
+                cr=self.env.cr,
+                report=self,
+                custom_handler_model_name=self.custom_handler_model_name,
+            ):
+                rslt = self.env[
+                    self.custom_handler_model_name
+                ]._dynamic_lines_generator(
+                    self,
+                    options,
+                    all_column_groups_expression_totals,
+                    warnings=warnings,
+                )
             self._apply_integer_rounding_to_dynamic_lines(
                 options, (line for _sequence, line in rslt)
             )
             return rslt
         return []
 
+    @_debug.perf.timed
     def _apply_integer_rounding_to_dynamic_lines(self, options, dynamic_lines):
         if options.get("integer_rounding_enabled"):
             for line in dynamic_lines:
@@ -1420,8 +1643,17 @@ class AccountReportLines(models.Model):
                             rounding_method=options["integer_rounding"],
                         )
 
+    @_debug.perf.timed
     def _add_totals_below_sections(self, lines, options):
         """Returns a new list, corresponding to lines with the required total lines added as sublines of the sections it contains."""
+        if _debug.logic.enabled:
+            _debug.logic(
+                "totals_below_sections_checked",
+                report=self,
+                company_setting=self.env.company.totals_below_sections,
+                ignored=bool(options.get("ignore_totals_below_sections")),
+                lines=len(lines),
+            )
         if not self.env.company.totals_below_sections or options.get(
             "ignore_totals_below_sections"
         ):
@@ -1466,10 +1698,18 @@ class AccountReportLines(models.Model):
             while totals_below_stack:
                 lines_with_totals_below.append(totals_below_stack.pop())
 
+            _debug.pipeline(
+                "section_totals_added",
+                report=self,
+                sections=len(lines_needing_total_below),
+                totals=len(lines_with_totals_below) - len(lines),
+                lines_out=len(lines_with_totals_below),
+            )
             return lines_with_totals_below
 
         return lines
 
+    @_debug.perf.timed
     def _cleanup_empty_sections(self, lines):
         """Resets the fold state for parents left without visible children, and removes their orphaned total lines.
         The total line removal only applies when called after _add_totals_below_sections.
@@ -1486,6 +1726,7 @@ class AccountReportLines(models.Model):
                 parents_with_non_total_child.add(parent_id)
 
         result = []
+        folds_reset = 0  # debuglog
         for line in lines:
             # Lines with an expand_function load their children on demand, so hide_if_zero doesn't affect them.
             if line.get("expand_function"):
@@ -1504,10 +1745,20 @@ class AccountReportLines(models.Model):
                 line["unfoldable"] = False
                 line["unfolded"] = False
                 result.append(line)
+                folds_reset += 1  # debuglog
 
+        _debug.pipeline(
+            "empty_sections_cleaned",
+            report=self,
+            lines_in=len(lines),
+            lines_out=len(result),
+            parents_kept=len(parents_with_non_total_child),
+            folds_reset=folds_reset,
+        )
         return result
 
     @api.model
+    @_debug.perf.timed
     def _get_load_more_line(
         self, offset, parent_line_id, expand_function_name, groupby, progress, options
     ):
@@ -1528,6 +1779,14 @@ class AccountReportLines(models.Model):
 
         :param options: The options dict corresponding to this report's state.
         """
+        _debug.logic(
+            "load_more_line_added",
+            report=self,
+            parent=parent_line_id,
+            expand_function=expand_function_name,
+            groupby=groupby,
+            offset=offset,
+        )
         return {
             "id": self._get_generic_line_id(
                 None, None, parent_line_id=parent_line_id, markup="load_more"
@@ -1569,6 +1828,7 @@ class AccountReportLines(models.Model):
             format_params=format_params,
         )
 
+    @_debug.perf.timed
     def _format_value(self, options, value, figure_type, format_params=None):
         """Formats a value for display in a report (not especially numerical). figure_type provides the type of formatting we want."""
         if value is None:
@@ -1628,6 +1888,7 @@ class AccountReportLines(models.Model):
         return formatted_amount
 
     @api.model
+    @_debug.perf.timed
     def _is_value_zero(
         self, amount, figure_type, format_params, rounding_unit="decimals"
     ):
@@ -1663,6 +1924,7 @@ class AccountReportLines(models.Model):
     ####################################################
     # LINE IDS MANAGEMENT HELPERS
     ####################################################
+    @_debug.perf.timed
     def _get_generic_line_id(self, model_name, value, markup=None, parent_line_id=None):
         """Generates a generic line id from the provided parameters.
 
@@ -1710,6 +1972,7 @@ class AccountReportLines(models.Model):
         return markup
 
     @api.model
+    @_debug.perf.timed
     def _parse_line_id(self, line_id, markup_as_string=False):
         """Parse the provided string line id and convert it to its list representation.
         Empty strings for model and value will be converted to None.
@@ -1757,6 +2020,7 @@ class AccountReportLines(models.Model):
             parse_segment(key) for key in line_id.split(LINE_ID_HIERARCHY_DELIMITER)
         ]
 
+    @_debug.perf.timed
     def _generate_columns_group_vals_recursively(
         self, next_levels_headers, previous_levels_group_vals
     ):
@@ -1804,6 +2068,7 @@ class AccountReportLines(models.Model):
             return [previous_levels_group_vals]
 
     @api.model
+    @_debug.perf.timed
     def _prepare_parent_line_id(self, current):
         """Build the parent_line id based on the current position in the report.
 
@@ -1859,10 +2124,12 @@ class AccountReportLines(models.Model):
 
         return result
 
+    @_debug.perf.timed
     def _prepare_subline_id(self, parent_line_id, subline_id_postfix):
         """Creates a new subline id by concatanating parent_line_id with the provided id postfix."""
         return f"{parent_line_id}{LINE_ID_HIERARCHY_DELIMITER}{subline_id_postfix}"
 
+    @_debug.perf.timed
     def _generate_total_below_section_line(self, section_line_dict):
         return {
             **section_line_dict,
@@ -1903,6 +2170,7 @@ class AccountReportLines(models.Model):
 
         return options_per_group
 
+    @_debug.perf.timed
     def _convert_json_friendly_column_group_totals(
         self,
         json_friendly_column_group_totals,
@@ -1933,6 +2201,18 @@ class AccountReportLines(models.Model):
                         expression
                     ] = expr_totals
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "column_group_totals_converted",
+                report=self,
+                column_groups_in=len(json_friendly_column_group_totals),
+                column_groups_out=len(all_column_groups_expression_totals),
+                expressions=sum(
+                    len(expression_totals)
+                    for expression_totals in all_column_groups_expression_totals.values()
+                ),
+                expressions_excluded=len(expressions_to_exclude or ()),
+            )
         return all_column_groups_expression_totals
 
     def _get_json_friendly_column_group_totals(
@@ -1975,11 +2255,12 @@ class AccountReportLines(models.Model):
             # the date is parsable to a xlsx compatible date
             lg = get_lang(self.env, self.env.user.lang)
             return ("date", datetime.datetime.strptime(cell["name"], lg.date_format))
-        except:  # noqa: E722
+        except ValueError, TypeError:
             # the date is not parsable thus is returned as text
             return ("text", cell["name"])
 
-    def _compute_column_percent_comparison_data(
+    @_debug.perf.timed
+    def _get_column_percent_comparison_data(
         self, options, value1, value2, green_on_positive=True
     ):
         """Build the additional percentage column requested by options['column_percent_comparison'].
@@ -2046,8 +2327,10 @@ class AccountReportLines(models.Model):
                     "name": str(coverage) + "%",
                     "mode": "green" if float_compare(coverage, 100, 1) == 0 else "red",
                 }
+        _debug.logic("comparison_type_unsupported", comparison_type=comparison_type)
         return None
 
+    @_debug.perf.timed
     def get_expanded_lines(
         self,
         options,
@@ -2070,6 +2353,7 @@ class AccountReportLines(models.Model):
             offset,
             horizontal_split_side,
         )
+        expanded_count = len(lines)  # debuglog
         lines = self._fully_unfold_lines_if_needed(lines, options)
 
         if self.allow_account_audit_status_on_lines:
@@ -2084,6 +2368,16 @@ class AccountReportLines(models.Model):
 
         self._format_column_values(options, lines)
         self._postprocess_chatter_for_annotations(lines)
+        _debug.pipeline(
+            "expanded_lines_ready",
+            report=self,
+            line=line_dict_id,
+            expand_function=expand_function_name,
+            groupby=groupby,
+            offset=offset,
+            expanded=expanded_count,
+            lines=len(lines),
+        )
         return lines
 
     @api.readonly
@@ -2110,6 +2404,7 @@ class AccountReportLines(models.Model):
             horizontal_split_side,
         )
 
+    @_debug.perf.timed
     def get_annotations(self, options, lines):
         """Return the annotations to display on the report, based on its dates and their display mode.
 
@@ -2150,6 +2445,14 @@ class AccountReportLines(models.Model):
             domain &= dates_domain
 
         order = "create_date ASC" if options["export_mode"] else ""
+        _debug.logic(
+            "annotations_scope_decided",
+            report=self,
+            models=len(model_ids_map),
+            records=len(line_dict_ids_by_record),
+            dated=bool(options.get("date")),
+            order=order,
+        )
         report_annotations = self.env["account.report.annotation"].search(
             domain, order=order
         )
@@ -2166,6 +2469,13 @@ class AccountReportLines(models.Model):
                         "line_id": line_id,
                     }
                 )
+        _debug.pipeline(
+            "annotations_fetched",
+            report=self,
+            lines=len(lines),
+            annotations=len(report_annotations),
+            annotated_lines=len(annotations_by_line),
+        )
         return annotations_by_line
 
     def _get_last_comments_by_line(self, options, lines):

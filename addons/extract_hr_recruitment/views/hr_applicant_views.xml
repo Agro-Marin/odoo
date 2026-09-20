@@ -9,8 +9,8 @@
             <header position="inside">
                 <button
                     name="action_extract_document"
-                    string="Read the CV"
                     type="object"
+                    string="Read the CV"
                     invisible="not extract_can_be_read" />
                 <field name="extract_can_be_read" invisible="1" />
                 <field name="extract_state" invisible="1" />

@@ -5,6 +5,7 @@ from odoo import _, api, models
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
 
 
@@ -38,6 +39,7 @@ class StockPickingTypeDashboard(models.Model):
             ),
         }
 
+    @dbg.timed
     def _compute_picking_count(self):
         picking = self.env["stock.picking"]
         query = picking._search(
@@ -59,6 +61,11 @@ class StockPickingTypeDashboard(models.Model):
                 )
             )
             counts = {row[0]: row[1:] for row in rows}
+            dbg.performance.debug(
+                "_compute_picking_count: one grouped query for %d types, %d rows",
+                len(self),
+                len(rows),
+            )
         empty = (0,) * len(buckets)
         for record in self:
             for field_name, count in zip(
@@ -76,6 +83,7 @@ class StockPickingTypeDashboard(models.Model):
         for record in self:
             record.count_move_ready = count.get(record.id, 0)
 
+    @dbg.timed
     def _compute_kanban_dashboard_graph(self):
         summaries = {}
         for (
@@ -263,6 +271,7 @@ class StockPickingTypeDashboard(models.Model):
             "company_id": self.company_id.id,
         }
 
+    @dbg.timed
     def _update_reference_sequences(self, only=None):
         missing = self.browse()
         for picking_type in self:
@@ -282,8 +291,17 @@ class StockPickingTypeDashboard(models.Model):
                 != value
             }
             if changed:
+                dbg.lifecycle.debug(
+                    "[picking_type:%s] sequence %s updated: %s",
+                    picking_type.id,
+                    sequence.id,
+                    dbg.keys(changed),
+                )
                 sequence.write(changed)
         if missing:
+            dbg.lifecycle.debug(
+                "_update_reference_sequences: creating for %s", dbg.rec(missing)
+            )
             sequences = (
                 self.env["ir.sequence"]
                 .sudo()
@@ -302,6 +320,11 @@ class StockPickingTypeDashboard(models.Model):
             self.with_context(active_test=False)
             .search([("sequence_id", "in", sequences.ids)])
             .sequence_id
+        )
+        dbg.lifecycle.debug(
+            "_remove_orphaned_sequences: %s (kept %s)",
+            dbg.rec(sequences - still_referenced),
+            dbg.rec(still_referenced),
         )
         (sequences - still_referenced).sudo().unlink()
 

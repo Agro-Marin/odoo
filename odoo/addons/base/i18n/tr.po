@@ -15122,7 +15122,7 @@ msgstr ""
 "Etkinlik stantlarınızı satmak için e-ticaret uygulamasını kullanın.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_sales_team
+#: model:ir.module.module,description:base.module_sale_team
 msgid ""
 "\n"
 "Using this application you can manage Sales Teams with CRM and/or Sales\n"
@@ -23092,11 +23092,15 @@ msgid "Change My Preferences"
 msgstr "Tercihlerimi Değiştir"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.change_password_wizard_action
 #: model_terms:ir.ui.view,arch_db:base.change_password_own_form
 #: model_terms:ir.ui.view,arch_db:base.change_password_wizard_view
 msgid "Change Password"
 msgstr "Parolayı Değiştir"
+
+#. module: base
+#: model:ir.actions.act_window,name:base.change_password_wizard_action
+msgid "Change Password…"
+msgstr "Parolayı Değiştir…"
 
 #. module: base
 #: model:ir.model,name:base.model_change_password_wizard
@@ -23888,8 +23892,8 @@ msgstr "Çalışma çizelgelerini ve planlamaları karşılaştırın"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.reset_view_arch_wizard_action
-msgid "Compare/Reset"
-msgstr "Karşılaştır/Sıfırla"
+msgid "Compare/Reset…"
+msgstr "Karşılaştır/Sıfırla…"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_partner__contact_address
@@ -34818,8 +34822,8 @@ msgstr "Menüler"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_partner_merge
-msgid "Merge"
-msgstr "Birleştir"
+msgid "Merge…"
+msgstr "Birleştir…"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
@@ -36101,11 +36105,6 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:base.open_module_tree
 msgid "No module found!"
 msgstr "Modül bulunamadı!"
-
-#. module: base
-#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
-msgid "No of Views"
-msgstr "Görünümler"
 
 #. module: base
 #. odoo-python
@@ -43472,8 +43471,8 @@ msgid "Sales PDF Quotation Builder"
 msgstr "Satış PDF Fiyat Teklifi Oluşturucu"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_sales_team
-#: model:ir.module.module,summary:base.module_sales_team
+#: model:ir.module.module,shortdesc:base.module_sale_team
+#: model:ir.module.module,summary:base.module_sale_team
 msgid "Sales Teams"
 msgstr "Satış Ekipleri"
 
@@ -46141,7 +46140,7 @@ msgstr "Kullanıcı grubu ayarı için teknik alan"
 
 #. module: base
 #: model:ir.actions.report,name:base.ir_module_reference_print
-msgid "Technical guide"
+msgid "Technical Guide"
 msgstr "Teknik klavuz"
 
 #. module: base
@@ -49959,6 +49958,7 @@ msgid "View livechat sessions for leads"
 msgstr "Potansiyel müşteriler için Livechat oturumlarını görüntüleyin"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
 #: model:ir.actions.act_window,name:base.action_ui_view
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__views
 #: model:ir.model.fields,field_description:base.field_ir_model__view_ids

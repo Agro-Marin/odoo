@@ -20,7 +20,6 @@
         </BuilderButtonGroup>
     </BuilderRow>
 
-    <!-- TODO: check if that (should?) work in mass mailing -->
     <BorderConfigurator label.translate="Border" withRoundCorner="false"/>
 </t>
 

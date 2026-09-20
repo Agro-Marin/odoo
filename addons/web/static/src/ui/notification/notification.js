@@ -3,8 +3,11 @@
 
 import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 const AUTOCLOSE_DELAY = 4000;
+
+const log = makeLogger("web.ui.notification");
 
 export class Notification extends Component {
     static template = "web.NotificationWowl";
@@ -105,6 +108,12 @@ export class Notification extends Component {
         } else if (this.remainingDelay > 0) {
             this.startNotificationTimer();
         }
+        log.logic("hold", () => ({
+            reason,
+            held,
+            remainingDelay: Math.round(this.remainingDelay),
+            sticky: Boolean(this.props.sticky),
+        }));
     }
 
     pauseNotificationTimer() {
@@ -130,6 +139,7 @@ export class Notification extends Component {
         this.timerStart = browser.performance.now();
         this.closeTimeout = browser.setTimeout(() => {
             this.remainingDelay = 0;
+            log.logic("autoclose", () => ({ type: this.props.type }));
             this.props.close();
         }, this.remainingDelay);
         const progressEl = this.autocloseProgress.el;

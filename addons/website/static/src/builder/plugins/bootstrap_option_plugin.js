@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isElement } from "@html_editor/utils/dom_info";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.bootstrap_option");
 
 class BootstrapOptionPlugin extends Plugin {
     static id = "bootstrapOption";
@@ -16,7 +19,6 @@ class BootstrapOptionPlugin extends Plugin {
      * @param {import("@html_editor/core/history_plugin").HistoryMutationRecord} record
      */
     filterBootstrapMutations(record) {
-        // Dropdown attributes to ignore.
         const dropdownClasses = ["show"];
         const dropdownToggleAttributes = ["aria-expanded"];
         const dropdownMenuAttributes = [
@@ -24,30 +26,31 @@ class BootstrapOptionPlugin extends Plugin {
             "style",
             "data-bs-popper",
         ];
-        // Offcanvas attributes to ignore.
         const offcanvasClasses = ["show", "showing"];
         const offcanvasAttributes = ["aria-modal", "aria-hidden", "role", "style"];
 
         if (record.type === "classList") {
-            // Do not record when showing/hiding a dropdown.
             if (record.target.matches(".dropdown-toggle, .dropdown-menu")) {
+                log.logic("filterBootstrapMutations dropdown class", () => ({
+                    className: record.className,
+                }));
                 return !dropdownClasses.includes(record.className);
             }
-            // Do not record when showing/hiding an offcanvas.
             if (record.target.matches(".offcanvas, .offcanvas-backdrop")) {
+                log.logic("filterBootstrapMutations offcanvas class", () => ({
+                    className: record.className,
+                }));
                 return !offcanvasClasses.includes(record.className);
             }
             return true;
         }
         if (record.type === "attributes") {
-            // Do not record when showing/hiding a dropdown.
             if (record.target.matches(".dropdown-menu")) {
                 return !dropdownMenuAttributes.includes(record.attributeName);
             }
             if (record.target.matches(".dropdown-toggle")) {
                 return !dropdownToggleAttributes.includes(record.attributeName);
             }
-            // Do not record when showing/hiding an offcanvas.
             if (record.target.matches(".offcanvas")) {
                 return !offcanvasAttributes.includes(record.attributeName);
             }
@@ -56,7 +59,6 @@ class BootstrapOptionPlugin extends Plugin {
         if (record.type === "childList") {
             const addedOrRemovedNode = (record.addedTrees[0] || record.removedTrees[0])
                 .node;
-            // Do not record the addition/removal of the offcanvas backdrop.
             return !(
                 isElement(addedOrRemovedNode) &&
                 addedOrRemovedNode.matches(".offcanvas-backdrop")

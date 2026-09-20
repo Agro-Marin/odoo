@@ -19,13 +19,13 @@
                 <footer>
                     <button
                         name="print_all_invoices"
-                        string="Print All"
                         type="object"
+                        string="Print All"
                         class="btn-primary" />
                     <button
                         name="action_view_faulty_invoices"
-                        string="Check invalid invoices"
-                        type="object" />
+                        type="object"
+                        string="Check invalid invoices" />
                 </footer>
             </form>
         </field>

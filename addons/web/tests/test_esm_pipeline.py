@@ -5,6 +5,7 @@ import posixpath
 import re
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -190,14 +191,64 @@ class TestEsbuildCircuitBreaker(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestEsbuildAdvisoryLock(TransactionCase):
+    def test_contender_waits_past_the_old_fallback_deadline(self):
+        qweb = self.env["ir.qweb"]
+        db = db_connect(self.env.cr.dbname)
+        ready = threading.Event()
+        finished = threading.Event()
+        errors = []
+        pids = []
+
+        def contend():
+            try:
+                with db.cursor() as cr:
+                    cr.execute("SET LOCAL lock_timeout = '5s'")
+                    cr.execute("SELECT pg_backend_pid()")
+                    pids.append(cr.fetchone()[0])
+                    ready.set()
+                    qweb._acquire_esbuild_lock("test.lock.wait", cr=cr)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                finished.set()
+
+        with self.assertLogs(f"{ASSET_ROOT}.lock", level=logging.DEBUG) as logged:
+            with db.cursor() as holder:
+                qweb._acquire_esbuild_lock("test.lock.wait", cr=holder)
+                contender = threading.Thread(target=contend)
+                contender.start()
+                try:
+                    self.assertTrue(ready.wait(2), "contender did not connect")
+                    deadline = time.monotonic() + 2
+                    while time.monotonic() < deadline:
+                        holder.execute(
+                            "SELECT count(*) FROM pg_locks "
+                            "WHERE pid = %s AND locktype = 'advisory' AND NOT granted",
+                            (pids[0],),
+                        )
+                        if holder.fetchone()[0]:
+                            break
+                        time.sleep(0.01)
+                    else:
+                        self.fail("PostgreSQL never observed the contender waiting")
+                    self.assertFalse(
+                        finished.wait(0.3), "contention must not decline compilation"
+                    )
+                finally:
+                    holder.rollback()
+                    contender.join(6)
+            self.assertFalse(contender.is_alive())
+            self.assertEqual(errors, [])
+            self.assertTrue(finished.is_set())
+        self.assertEqual(sum("event=acquired" in line for line in logged.output), 2)
+
     def test_lock_acquired_in_own_cursor(self):
         IrQweb = self.env["ir.qweb"]
-        got = IrQweb._acquire_esbuild_lock("test.lock.alpha")
-        self.assertTrue(got)
+        IrQweb._acquire_esbuild_lock("test.lock.alpha")
 
     def test_lock_rejects_other_cursor_while_held(self):
         IrQweb = self.env["ir.qweb"]
-        self.assertTrue(IrQweb._acquire_esbuild_lock("test.lock.beta"))
+        IrQweb._acquire_esbuild_lock("test.lock.beta")
         with db_connect(self.env.cr.dbname).cursor() as cr2:
             cr2.execute(
                 "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
@@ -467,12 +518,12 @@ class TestPipelineIntegration(TransactionCase):
             msg="admin override must bypass the esbuild subprocess",
         )
 
-    def test_contention_falls_through_to_debug_nodes(self):
+    def test_unavailable_lock_cursor_falls_through_to_debug_nodes(self):
         ir_qweb = self.env["ir.qweb"]
         with patch.object(
             type(ir_qweb),
-            "_acquire_esbuild_lock",
-            return_value=False,
+            "_get_esbuild_lock_cursor",
+            side_effect=lambda *_a: contextlib.nullcontext(None),
         ):
             self.env["ir.attachment"].sudo().search(
                 [
@@ -1098,6 +1149,67 @@ class TestTransitiveImportClosure(TransactionCase):
         )
         self.assertNotIn("@web/dynamic_only", specs)
 
+    def _debug_importmap(self, bundle):
+        nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
+            bundle,
+            debug="assets",
+        )
+        importmaps = [
+            attrs
+            for tag, attrs in nodes
+            if tag == "script" and attrs.get("type") == "importmap"
+        ]
+        self.assertEqual(len(importmaps), 1)
+        return json.loads(importmaps[0]["text"])["imports"]
+
+    def _reachable_urls(self, imports, seeds):
+        queue = [(spec, imports.get(spec)) for spec in seeds]
+        seen_urls = set()
+        while queue:
+            _spec, url = queue.pop()
+            if url is None or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            source = self._read_static_url(url)
+            if source is None:
+                continue
+            for imported in _get_import_specifiers(source):
+                if imported.startswith("."):
+                    queue.append(
+                        (
+                            imported,
+                            posixpath.normpath(f"{posixpath.dirname(url)}/{imported}"),
+                        ),
+                    )
+                elif imported.startswith("/"):
+                    queue.append((imported, imported))
+                else:
+                    queue.append((imported, imports.get(imported)))
+        return seen_urls
+
+    def test_tour_bundle_does_not_load_the_hoot_runner(self):
+        imports = self._debug_importmap("web.assets_tests")
+        seeds = [
+            "@web/../tests/utils",
+            "@web/../tests/helpers/utils",
+            "@web/../tests/helpers/cleanup",
+        ]
+        for spec in seeds:
+            self.assertIn(spec, imports, msg=f"{spec} missing from import map")
+        reached = self._reachable_urls(imports, seeds)
+        runner_urls = sorted(
+            url
+            for url in reached
+            if url.endswith(("/lib/hoot/hoot.js", "/lib/hoot/core/runner.js"))
+        )
+        self.assertFalse(
+            runner_urls,
+            "The tour helpers reach the HOOT runner, which hooks window.onerror and "
+            "unhandledrejection at import and turns every handled RPC error in a "
+            "tour page into a console.error the browser harness fails on:"
+            "\n- " + "\n- ".join(runner_urls),
+        )
+
     def test_report_bundle_debug_importmap_is_transitively_complete(self):
         nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
             "web.report_assets_common",
@@ -1448,7 +1560,7 @@ class TestEsbuildLockCursor(TransactionCase):
     def test_the_lock_is_released_when_the_block_exits(self):
         free = "SELECT pg_try_advisory_xact_lock(hashtext(%s))"
         with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
-            self.assertTrue(self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr))
+            self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr)
             self.env.cr.execute(free, ("esbuild:b.x",))
             self.assertFalse(
                 self.env.cr.fetchone()[0],
@@ -1470,7 +1582,7 @@ class TestEsbuildLockCursor(TransactionCase):
                     "one, and an advisory lock is legal on a read-only "
                     "transaction outside recovery",
                 )
-                self.assertTrue(self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr))
+                self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr)
 
     def test_acquire_lock_runs_on_the_given_cursor(self):
         executed = []
@@ -1479,10 +1591,9 @@ class TestEsbuildLockCursor(TransactionCase):
             execute=lambda sql, params=None: executed.append(sql),
             fetchone=lambda: (True,),
         )
-        got = self._qweb._acquire_esbuild_lock("b.x", cr=fake_cr)
-        self.assertTrue(got)
+        self._qweb._acquire_esbuild_lock("b.x", cr=fake_cr)
         self.assertEqual(len(executed), 1)
-        self.assertIn("pg_try_advisory_xact_lock", executed[0])
+        self.assertIn("pg_advisory_xact_lock", executed[0])
 
     def test_readonly_test_cursor_builds_under_the_lock(self):
         ir_qweb = self._qweb
@@ -1516,6 +1627,18 @@ class TestEsbuildLockCursor(TransactionCase):
         self.assertEqual(result.code, "built")
         self.assertEqual(child_bundles, [])
         self.assertEqual(locked_on, [self.env.cr])
+
+
+@tagged("web_unit", "web_assets")
+class TestRuntimeGroupUrls(TransactionCase):
+    def test_a_child_with_no_file_of_its_own_gets_no_url(self):
+        urls = self.env["ir.qweb"]._save_esm_group(
+            "runtime:g5.parent",
+            {"g5.child.esm.js": b"export const x = 1;"},
+            ["g5.child", "g5.carried"],
+        )
+        self.assertEqual(set(urls), {"g5.child"})
+        self.assertTrue(urls["g5.child"].endswith("/g5.child.esm.js"))
 
 
 @tagged("web_unit", "web_assets")
@@ -1553,6 +1676,23 @@ class TestEsmRowsOutliveTheTest(TransactionCase):
         self.assertEqual(len(rows), 1, "the row is visible from another connection")
         self.env["ir.qweb"]._save_esm_attachment_rows([vals], bundle="outlives")
         self.assertEqual(len(self._rows_elsewhere()), 1, "saved once, by url")
+
+    def test_a_table_the_test_altered_does_not_hang_the_save(self):
+        self.addCleanup(self._forget_elsewhere)
+        self.env.cr.execute("LOCK TABLE res_company IN ACCESS EXCLUSIVE MODE")
+        vals = {
+            "name": "web.assets_test_outlives.esm.js",
+            "url": self.URL,
+            "mimetype": "text/javascript",
+            "raw": b"export const outlives = true;",
+            "public": True,
+            "res_model": "ir.ui.view",
+        }
+        self.env["ir.qweb"]._save_esm_attachment_rows([vals], bundle="outlives")
+        self.assertEqual(self._rows_elsewhere(), [])
+        self.assertEqual(
+            self.env["ir.attachment"].search_count([("url", "=", self.URL)]), 1
+        )
 
     def test_public_asset_persistence_does_not_wait_for_the_test_company(self):
         self.addCleanup(self._forget_elsewhere)
@@ -1694,6 +1834,43 @@ class TestProdNodesDeclineNotCached(TransactionCase):
                 )
         self.assertIn("declined=True", caught.output[0])
 
+    def test_a_failed_save_statement_leaves_the_transaction_usable(self):
+        # the touch of a row another connection updated is a serialization
+        # failure inside the caller's transaction; served inline, the caller
+        # must still be able to run the next statement
+        ir_qweb = self._qweb
+
+        def failing_touch(cr, touch_ids):
+            cr.execute("SELECT 1 / 0")
+
+        with (
+            patch.object(
+                type(ir_qweb),
+                "_plan_esm_row",
+                lambda self, rows, touch_ids, *a: touch_ids.append(1) or False,
+            ),
+            patch.object(
+                type(ir_qweb), "_touch_esm_attachment_rows", staticmethod(failing_touch)
+            ),
+            self.assertLogs(f"{ASSET_ROOT}.attach", level=logging.WARNING) as caught,
+        ):
+            _pre, post = ir_qweb._get_esm_nodes_prod(
+                self.BUNDLE,
+                self._fake_bundle(),
+                EsbuildResult("CODE;", None, None),
+                None,
+                [],
+            )
+        self.assertIn("err=DivisionByZero", caught.output[0])
+        module_nodes = [
+            attrs
+            for tag, attrs in post
+            if tag == "script" and attrs.get("type") == "module"
+        ]
+        self.assertEqual(module_nodes[0].get("text"), "CODE;")
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone(), (1,))
+
     def test_uncached_rerun_still_inlines(self):
         ir_qweb = self._qweb
         with patch.object(
@@ -1811,12 +1988,16 @@ class TestReadonlyDeclineIsRemembered(TransactionCase):
         attempts = []
         with patch.object(
             type(self.env["ir.qweb"]),
-            "_acquire_esbuild_lock",
-            lambda _self, bundle, cr=None: attempts.append(bundle) or False,
+            "_get_esbuild_lock_cursor",
+            lambda _self, bundle: (
+                attempts.append(bundle) or contextlib.nullcontext(None)
+            ),
         ):
             self._render()
             self._render()
-        self.assertEqual(len(attempts), 2, "lock contention is retried next time")
+        self.assertEqual(
+            len(attempts), 2, "an unavailable lock cursor is retried next time"
+        )
         self.assertEqual(self.compiles, 0)
 
     def test_a_readwrite_cursor_ignores_the_memo(self):
@@ -1903,9 +2084,13 @@ class TestImportMapMergeHelpers(TransactionCase):
             secondary_import_map_includes={},
             runtime_bundle_names=set(),
             exports=frozenset(),
+            bundle_owners={},
         )
         for key, value in overrides.items():
             setattr(reg, key, value)
+        reg.bundle_addon = lambda name: (
+            reg.bundle_owners.get(name) or name.partition(".")[0]
+        )
         children = {child for kids in reg.dynamic_children.values() for child in kids}
         reg.dynamic_bundle_names = set(reg.dynamic_bundle_names) | children
         reg.runtime_bundle_names = set(reg.runtime_bundle_names) | children
@@ -2245,11 +2430,39 @@ class TestGeneratedAssetDomains(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestSecondaryBundleSingletons(TransactionCase):
-    def _shared(self):
-        return self.env["ir.qweb"]._get_secondary_shared_specs("web.assets_tests", None)
+    def test_explicit_members_already_owned_by_the_page_are_shared(self):
+        qweb = self.env["ir.qweb"]
+        spec = "@example/shared"
+        asset = SimpleNamespace(module_path=spec, url="/example/static/src/shared.js")
+        bundle = SimpleNamespace(
+            native_modules=[asset],
+            get_native_module_data=lambda **kw: {"import_map": {spec: asset.url}},
+            _bridges=SimpleNamespace(
+                _discover_reachable_specifiers=lambda *a, **kw: ({}, set())
+            ),
+        )
+        with patch.object(
+            type(qweb), "_get_secondary_provider_specs", return_value={spec}
+        ):
+            shared, inlined = qweb._get_secondary_reach(
+                "web.assets_tests", {}, ("web.assets_web",), sec_ab=bundle
+            )
+        self.assertEqual(shared, {spec})
+        self.assertEqual(inlined, set())
+
+    # A declared parent may be a page carrying five modules (room's booking
+    # tablet) or one half of a split page (web.assets_frontend_minimal), so the
+    # scope-less safe set, the intersection over every declared parent, is
+    # allowed to be empty. The singletons are shared on a page that has them.
+    FULL_PAGE = ("web.assets_web",)
+
+    def _shared(self, page_scope=()):
+        return self.env["ir.qweb"]._get_secondary_shared_specs(
+            "web.assets_tests", None, page_scope
+        )
 
     def test_safe_set_contains_core_singletons(self):
-        shared = self._shared()
+        shared = self._shared(self.FULL_PAGE)
         for spec in ("@web/core/browser/browser", "@web/env"):
             self.assertIn(
                 spec,
@@ -2262,7 +2475,6 @@ class TestSecondaryBundleSingletons(TransactionCase):
 
         IrQweb = self.env["ir.qweb"]
         shared = self._shared()
-        self.assertTrue(shared, "expected a non-empty shared set for web.assets_tests")
         parents = esm_registry().secondary_parents.get("web.assets_tests", ())
         checked = 0
         for parent in parents:
@@ -2292,7 +2504,7 @@ class TestSecondaryBundleSingletons(TransactionCase):
 
     def test_stub_sources_read_the_loader(self):
         stubs = self.env["ir.qweb"]._get_secondary_parent_stubs(
-            "web.assets_tests", None
+            "web.assets_tests", None, self.FULL_PAGE
         )
         self.assertIn("@web/core/browser/browser", stubs)
         browser_stub = stubs["@web/core/browser/browser"]
@@ -2329,7 +2541,9 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
             debug_assets=False,
             assets_params=None,
         )
-        stubs = IrQweb._get_secondary_parent_stubs("web.assets_tests", None)
+        stubs = IrQweb._get_secondary_parent_stubs(
+            "web.assets_tests", None, ("web.assets_web",)
+        )
         self.assertTrue(stubs, "web.assets_tests should have shared-specifier stubs")
 
         inlined = ab.esbuild_native_bundle().code
@@ -2352,6 +2566,8 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
 @tagged("web_unit", "web_assets")
 class TestSecondaryBundlePageScopeKey(TransactionCase):
     BUNDLE = "web.assets_tests"
+    # rendered beside the parents, never declared as one
+    SIBLING = "web.assets_backend"
 
     def _scope(self, rendered):
         req = SimpleNamespace(_esm_page_bundles=rendered)
@@ -2361,8 +2577,9 @@ class TestSecondaryBundlePageScopeKey(TransactionCase):
     def test_only_declared_parents_key_the_variant(self):
         parents = esm_registry().secondary_parents[self.BUNDLE]
         self.assertIn("web.assets_frontend_lazy", parents)
+        self.assertNotIn(self.SIBLING, parents)
         self.assertEqual(
-            self._scope(("web.assets_frontend_lazy", "web.assets_frontend_minimal")),
+            self._scope(("web.assets_frontend_lazy", self.SIBLING)),
             ("web.assets_frontend_lazy",),
             msg="a sibling bundle on the page is not a provider the secondary "
             "bundle was declared against; keying on it splits one variant "
@@ -2378,7 +2595,7 @@ class TestSecondaryBundlePageScopeKey(TransactionCase):
         self.assertEqual(self._scope(parents), parents)
 
     def test_no_declared_parent_on_the_page_is_the_scope_less_variant(self):
-        self.assertEqual(self._scope(("web.assets_frontend_minimal",)), ())
+        self.assertEqual(self._scope((self.SIBLING,)), ())
 
 
 @tagged("web_unit", "web_assets")
@@ -2386,7 +2603,23 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
     BUNDLE = "web.assets_tests"
     BACKEND = "web.assets_web"
     FRONTEND = "web.assets_frontend_lazy"
-    STUB_RE = re.compile(r'odoo\.loader\.modules\.get\("([^"]+)"\)')
+    BRIDGE_RE = re.compile(r"\[asset\.loader\] bridge (\S+?): provider not registered")
+    STRICT_RE = re.compile(
+        r'"(\S+?)(?:" \+ ")? is not registered: the bundle importing'
+    )
+
+    def _pipeline_stubs(self, code):
+        return set(self.BRIDGE_RE.findall(code)) | set(self.STRICT_RE.findall(code))
+
+    def _pregenerate(self):
+        IrQweb = self.env["ir.qweb"]
+        IrQweb._get_native_module_nodes_cached(
+            self.BUNDLE,
+            assets_params=self.params,
+            with_test_satellites=self.satellites,
+            page_scope=(),
+        )
+        IrQweb._pregenerate_secondary_page_scopes(self.BUNDLE)
 
     @classmethod
     def setUpClass(cls):
@@ -2447,12 +2680,7 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
         if not self._specs(self.FRONTEND) or not self._specs(self.BACKEND):
             self.skipTest("parent bundles resolved empty (web assets unavailable)")
         IrQweb = self.env["ir.qweb"]
-        IrQweb._get_native_module_nodes_cached(
-            self.BUNDLE,
-            assets_params=self.params,
-            with_test_satellites=self.satellites,
-            page_scope=(),
-        )
+        self._pregenerate()
 
         backend_url, backend_code = self._render_on_page(self.BACKEND, readonly=False)
         frontend_url, frontend_code = self._render_on_page(self.FRONTEND, readonly=True)
@@ -2462,30 +2690,32 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
             (self.BACKEND, backend_code),
             (self.FRONTEND, frontend_code),
         ):
-            stubs = set(self.STUB_RE.findall(code))
+            stubs = self._pipeline_stubs(code)
             self.assertTrue(stubs, f"no loader stubs in the {page} artifact")
             self.assertLessEqual(
                 stubs,
                 self._specs(page),
                 msg=f"the {page} artifact aliases a module that page does not carry",
             )
+        inlined = {
+            page: set(
+                IrQweb._get_secondary_inlined_reach(
+                    self.BUNDLE, self.params, page_scope=(page,)
+                )
+            )
+            for page in (self.BACKEND, self.FRONTEND)
+        }
         self.assertLess(
-            set(self.STUB_RE.findall(frontend_code)),
-            set(self.STUB_RE.findall(backend_code)),
-            "the backend page shares more of its own modules than a page "
-            "every declared parent can serve",
+            len(inlined[self.BACKEND]),
+            len(inlined[self.FRONTEND]),
+            "the backend page provides more of what the bundle reaches, so its "
+            "artifact carries fewer modules of its own",
         )
 
     def test_the_backend_variant_does_not_evict_the_frontend_one(self):
         if not self._specs(self.FRONTEND) or not self._specs(self.BACKEND):
             self.skipTest("parent bundles resolved empty (web assets unavailable)")
-        IrQweb = self.env["ir.qweb"]
-        IrQweb._get_native_module_nodes_cached(
-            self.BUNDLE,
-            assets_params=self.params,
-            with_test_satellites=self.satellites,
-            page_scope=(),
-        )
+        self._pregenerate()
         with self.assertNoLogs(f"{ASSET_ROOT}.fallback", level=logging.INFO):
             first_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
             self._render_on_page(self.BACKEND, readonly=False)
@@ -2782,7 +3012,32 @@ class TestDynamicBundleIntegrity(TransactionCase):
             ).native_modules
         ]
         self.assertTrue(names, "no installed runtime bundle carries a module")
+        # under a test the page carries web_tour.automatic (web.assets_tests):
+        # such a child compiles to nothing and is served as bare specifiers
+        names = [
+            name
+            for name in names
+            if not IrQweb._get_esm_bundle_payload(name, debug_assets=False).get(
+                "carried"
+            )
+        ]
+        self.assertTrue(names, "every runtime bundle is carried by the test page")
         return names
+
+    def test_a_child_the_test_page_carries_is_served_as_bare_specifiers(self):
+        IrQweb = self.env["ir.qweb"]
+        payload = IrQweb._get_esm_bundle_payload(
+            "web_tour.automatic", debug_assets=False, page="web.assets_web"
+        )
+        self.assertTrue(payload.get("carried"))
+        self.assertNotIn("esm_url", payload)
+        self.assertIn(
+            "@web_tour/js/tour_automatic/tour_automatic", payload["specifiers"]
+        )
+        self.assertFalse(
+            [spec for spec in payload["import_map"] if spec.startswith("@web_tour/")],
+            "a carried child maps none of its modules: the page's map serves them",
+        )
 
     def _metafile_inputs(self, url):
         meta_url = url.removesuffix(".esm.js") + ".meta.json"
@@ -2837,14 +3092,12 @@ class TestDynamicBundleIntegrity(TransactionCase):
                 for parent, children in registry.dynamic_children.items()
                 if name in children and parent.partition(".")[0] in installed
             ]
-            parent_specs = set.intersection(
-                *(
-                    set(
-                        IrQweb._get_asset_bundle(
-                            parent, js=True, css=False, debug_assets=True
-                        ).get_native_module_data(with_bridges=False)["import_map"]
-                    )
-                    for parent in parents
+            # the set the group build itself stubs against: on a test page the
+            # secondary satellites (web.assets_tests) register what they
+            # inline for that page, so a child neither carries nor bridges it
+            parent_specs = set(
+                IrQweb._get_runtime_parent_specs(
+                    tuple(parents), None, IrQweb._has_esm_test_satellites("")
                 )
             )
             child = IrQweb._get_asset_bundle(
@@ -3069,6 +3322,84 @@ class TestEsmPersistenceDegradation(TransactionCase):
         self.assertTrue(issubclass(_StandaloneBundleDeclined, _BuildDeclined))
 
 
+@tagged("-at_install", "post_install", "web_assets")
+class TestEsmConcurrentPublication(TransactionCase):
+    def test_the_lock_sets_the_isolation_level_and_the_timeout_on_a_fresh_cursor(self):
+        with db_connect(self.env.cr.dbname).cursor() as cr:
+            self.env["ir.qweb"]._lock_esm_publication(cr, "1500ms")
+            cr.execute("SHOW transaction_isolation")
+            self.assertEqual(cr.fetchone()[0], "read committed")
+            cr.execute("SHOW lock_timeout")
+            self.assertEqual(cr.fetchone()[0], "1500ms")
+            cr.rollback()
+
+    def test_concurrent_publishers_recheck_after_the_preceding_commit(self):
+        qweb = self.env["ir.qweb"]
+        db = db_connect(self.env.cr.dbname)
+        url = "/web/assets/esm/concurrent-test/publication.esm.js"
+        errors = []
+        vals = [
+            {
+                "url": url,
+                "name": "publication.esm.js",
+                "raw": b"export {};",
+                "company_id": False,
+            }
+        ]
+
+        def publish():
+            try:
+                qweb._save_esm_attachment_rows_autonomously(vals)
+            except Exception as exc:
+                errors.append(exc)
+
+        def remove_rows():
+            with db.cursor() as cr:
+                cr.execute("DELETE FROM ir_attachment WHERE url = %s", (url,))
+                cr.commit()
+
+        remove_rows()
+        self.addCleanup(remove_rows)
+        with self.assertLogs(f"{ASSET_ROOT}.attach", level=logging.DEBUG) as logged:
+            with db.cursor() as holder:
+                holder.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext('esm:publication'))"
+                )
+                writers = [threading.Thread(target=publish) for _ in range(2)]
+                for writer in writers:
+                    writer.start()
+                try:
+                    deadline = time.monotonic() + 1
+                    while time.monotonic() < deadline:
+                        holder.execute(
+                            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                            "AND objid = hashtext('esm:publication')::oid "
+                            "AND database = (SELECT oid FROM pg_database "
+                            "WHERE datname = current_database()) AND NOT granted"
+                        )
+                        if holder.fetchone()[0] == 2:
+                            break
+                        time.sleep(0.01)
+                    else:
+                        self.fail(
+                            "both publishers must wait before checking stored URLs"
+                        )
+                finally:
+                    holder.rollback()
+                    for writer in writers:
+                        writer.join(6)
+            self.assertFalse(any(writer.is_alive() for writer in writers))
+            self.assertEqual(errors, [])
+        self.assertEqual(
+            sum("event=publication_acquired" in line for line in logged.output), 2
+        )
+        with db.cursor() as cr:
+            cr.execute("SELECT count(*) FROM ir_attachment WHERE url = %s", (url,))
+            self.assertEqual(
+                cr.fetchone()[0], 1, "the second writer must reuse the row"
+            )
+
+
 @tagged("web_unit", "web_assets")
 class TestEsmAttachmentRowsAreNotDuplicated(TransactionCase):
     def test_the_writing_cursor_re_checks_the_urls(self):
@@ -3217,7 +3548,7 @@ class TestBundleDescriptorFormat(HttpCase):
         ).unlink()
         self.env.registry.clear_cache("assets")
         response = self.url_open(
-            "/web/bundle/web_tour.automatic?debug=tests&page=web.assets_frontend"
+            "/web/bundle/web_tour.interactive?debug=tests&page=web.assets_frontend"
         )
         self.assertEqual(response.status_code, 200)
         asset_url = response.json()["esm_url"]
@@ -3261,7 +3592,11 @@ class TestBundleDescriptorFormat(HttpCase):
             if not IrQweb._is_runtime_child_compiled(name):
                 continue
             payload = self._descriptor(name)
-            if isinstance(payload, list) or not payload.get("specifiers"):
+            if (
+                isinstance(payload, list)
+                or not payload.get("specifiers")
+                or payload.get("carried")
+            ):
                 continue
             members = IrQweb._get_asset_bundle(
                 name, js=True, css=False, debug_assets=True
@@ -3326,6 +3661,83 @@ class TestBundleDescriptorFormat(HttpCase):
 
 
 @tagged("-at_install", "post_install", "web_assets")
+class TestPerFileSecondaryOnAPage(TransactionCase):
+    # a page-scoped secondary whose compiled file could not be saved (a
+    # read-only test cursor) is served per file next to the page's compiled
+    # bundles; what those bundles carry must reach it through bridges, or the
+    # page evaluates a second copy (`Duplicate add for key "tools" in
+    # "debug_section"` on /?debug=tests, from debug_menu -> debug_menu_basic)
+    BUNDLE = "web.assets_tests"
+    PAGE = ("web.assets_frontend_minimal", "web.assets_frontend_lazy")
+
+    def _debug_map(self, page_scope):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        bundle = IrQweb._get_asset_bundle(
+            self.BUNDLE, js=True, css=False, debug_assets=False, assets_params=params
+        )
+        native_data = IrQweb._get_native_module_data_cached(
+            self.BUNDLE, assets_params=params
+        )
+        import_map, _bridges = IrQweb._get_esm_import_map_debug(
+            self.BUNDLE,
+            bundle,
+            native_data,
+            params,
+            debug_assets=False,
+            with_test_satellites=False,
+            page_scope=page_scope,
+        )
+        provided = IrQweb._get_secondary_provider_specs(
+            self.BUNDLE, params, self.PAGE
+        ) - set(native_data["import_map"])
+        return import_map, provided
+
+    _BRIDGE = ("/web/assets/esm/bridges/", "data:")
+
+    def test_what_the_page_carries_is_bridged_not_served_again(self):
+        # what the tests bundle reaches AND the page carries -- derived from
+        # the install, not a fixed module name, since which page modules the
+        # bundle's test tours reach depends on what is installed
+        import_map, provided = self._debug_map(self.PAGE)
+        reached = sorted(provided & set(import_map))
+        self.assertTrue(
+            reached, "fixture: the tests bundle reaches modules the page carries"
+        )
+        served_again = [
+            s for s in reached if not import_map[s].startswith(self._BRIDGE)
+        ]
+        self.assertEqual(
+            served_again,
+            [],
+            "a page-carried module served per file is a second copy of it",
+        )
+
+    def test_a_page_scope_is_what_bridges_the_page_carried_modules(self):
+        # without the page scope the per-file branch does not bridge to the
+        # page's copies; at least one module the scoped map bridges is served
+        # per file (its own src url) unscoped -- the duplication the scope fixes
+        scoped, provided = self._debug_map(self.PAGE)
+        unscoped, _ = self._debug_map(())
+        bridged_by_scope = {
+            s for s in provided & set(scoped) if scoped[s].startswith(self._BRIDGE)
+        }
+        self.assertTrue(
+            bridged_by_scope, "fixture: the page scope bridges page-carried modules"
+        )
+        served_raw_unscoped = {
+            s
+            for s in bridged_by_scope
+            if s in unscoped and not unscoped[s].startswith(self._BRIDGE)
+        }
+        self.assertTrue(
+            served_raw_unscoped,
+            "the page scope must change the outcome: a module it bridges is "
+            "served per file without it",
+        )
+
+
+@tagged("-at_install", "post_install", "web_assets")
 class TestPageBundleExportSurface(TransactionCase):
     BUNDLE = "web.assets_web"
 
@@ -3349,6 +3761,33 @@ class TestPageBundleExportSurface(TransactionCase):
             "reading static imports as loader reads",
         )
 
+    def test_a_source_is_scanned_for_literals_once_per_descriptor(self):
+        from types import SimpleNamespace
+
+        from odoo.addons.base.models import ir_qweb_assets_esbuild as esbuild_module
+
+        IrQweb = self.env["ir.qweb"]
+        source = SimpleNamespace(
+            raw_content='import { a } from "@web/x"; odoo.loader.modules.get("@web/y");'
+        )
+        descriptor = f"/probe/{self.id()},1.0"
+        esbuild_module._SPECIFIER_LITERALS_CACHE.pop(descriptor, None)
+        first = IrQweb._get_specifier_literals(descriptor, source)
+        self.assertEqual(
+            first, frozenset({"@web/y"}), "an import target is not a literal"
+        )
+        source.raw_content = 'odoo.loader.modules.get("@web/z");'
+        self.assertEqual(
+            IrQweb._get_specifier_literals(descriptor, source),
+            first,
+            "the same url and mtime is served from the memo",
+        )
+        self.assertEqual(
+            IrQweb._get_specifier_literals(f"/probe/{self.id()},2.0", source),
+            frozenset({"@web/z"}),
+            "a new mtime is a new scan",
+        )
+
     def test_what_a_child_imports_and_what_a_literal_names_stay_registered(self):
         bundle, exported = self._exported()
         self.assertIn("@web/core/templates", exported)
@@ -3366,7 +3805,7 @@ class TestPageBundleExportSurface(TransactionCase):
         IrQweb = self.env["ir.qweb"]
         for child_name in esm_registry().dynamic_children.get(self.BUNDLE, ()):
             if (
-                child_name.partition(".")[0]
+                esm_registry().bundle_addon(child_name)
                 not in self.env["ir.asset"]._get_addons_installed()
             ):
                 continue
@@ -3382,6 +3821,40 @@ class TestPageBundleExportSurface(TransactionCase):
                 (set(discovered) & members) - exported,
                 f"{child_name} imports a parent module the parent does not register",
             )
+
+    def test_every_bridge_in_a_page_import_map_has_a_registered_provider(self):
+        # a bridge shim reads its provider from the loader; the per-file
+        # fallback of a secondary resolves a bare specifier through the page's
+        # map, so a bridged member nobody registers is "X is not a constructor"
+        # on the first request after the tests bundle changed
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        pages = {
+            "backend": ("web.assets_web",),
+            "frontend": ("web.assets_frontend_minimal", "web.assets_frontend_lazy"),
+        }
+        for page, names in pages.items():
+            with self.subTest(page=page):
+                registered: set[str] = set()
+                bridged: set[str] = set()
+                for name in names:
+                    bundle = IrQweb._get_asset_bundle(name, css=False, js=True)
+                    children = IrQweb._get_dynamic_child_bundles(
+                        name, params, debug_assets=False
+                    )
+                    registered |= IrQweb._get_exported_specs(
+                        name, bundle, params, children
+                    )
+                    import_map, _dyn, _inc = IrQweb._get_esm_import_map_prod(
+                        name, bundle, params, children, with_test_satellites=True
+                    )
+                    bridged |= {
+                        spec
+                        for spec, url in import_map.items()
+                        if url.startswith("/web/assets/esm/bridges/")
+                    }
+                self.assertTrue(bridged, "fixture: the page bridges something")
+                self.assertFalse(sorted(bridged - registered))
 
     def test_a_declared_export_is_registered_without_a_source_naming_it(self):
         # test_click_everywhere asks the loader for the clickbot loader by
@@ -3445,6 +3918,46 @@ class TestLogicalParentExportSurface(TransactionCase):
                 self.assertFalse(
                     (set(discovered) & members) - exported,
                     f"{name} imports from {physical} a module it does not register",
+                )
+
+
+@tagged("-at_install", "post_install", "web_assets")
+class TestRuntimeBundleExportSurface(TransactionCase):
+    PAGES = ("web.assets_web", "web.assets_unit_tests_setup")
+
+    def test_a_parentless_runtime_bundle_finds_its_imports_registered(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        registry = esm_registry()
+        declared_children = {
+            name for children in registry.dynamic_children.values() for name in children
+        }
+        runtime_bundles = [
+            name
+            for name in sorted(registry.runtime_bundle_names - declared_children)
+            if registry.bundle_addon(name) in installed
+        ]
+        if not runtime_bundles:
+            self.skipTest("no parentless runtime bundle is installed")
+        for page in self.PAGES:
+            bundle = IrQweb._get_asset_bundle(page, css=False, js=True)
+            members = {a.module_path for a in bundle.native_modules}
+            children = IrQweb._get_dynamic_child_bundles(
+                page, params, debug_assets=False
+            )
+            exported = IrQweb._get_exported_specs(page, bundle, params, children)
+            for name in runtime_bundles:
+                consumer = IrQweb._get_asset_bundle(
+                    name, css=False, js=True, debug_assets=True
+                )
+                own = {a.module_path for a in consumer.native_modules}
+                discovered, _ext = consumer._bridges._discover_bridge_specifiers(
+                    own, set(external_libs())
+                )
+                self.assertFalse(
+                    (set(discovered) & members) - exported,
+                    f"{name} imports from {page} a module it does not register",
                 )
 
 

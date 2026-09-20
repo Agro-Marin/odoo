@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import {
     ATTR_SYM,
@@ -16,6 +17,8 @@ import { Record } from "./record.js";
 import { RecordInternal } from "./record_internal.js";
 import { Store } from "./store.js";
 import { StoreInternal } from "./store_internal.js";
+
+const log = makeLogger("mail.model");
 
 /**
  * @param {import("@web/env").OdooEnv} env
@@ -276,6 +279,8 @@ function bootstrapStoreRecord(storeRef, Models) {
  * @returns {import("models").Store}
  */
 export function makeStore(env, { localRegistry } = {}) {
+    const endMakeStore = log.perf("makeStore");
+    log.lifecycle("makeStore", () => ({ localRegistry: Boolean(localRegistry) }));
     const storeRef = createProvisionalStore(env);
     /** @type {Object<string, typeof Record>} */
     const Models = {};
@@ -302,5 +307,7 @@ export function makeStore(env, { localRegistry } = {}) {
     linkInverseRelations(Models);
     attachStoreToModels(Models, storeRef);
     bootstrapStoreRecord(storeRef, Models);
+    log.lifecycle("storeReady", () => ({ models: Object.keys(Models).length }));
+    endMakeStore({ models: Object.keys(Models).length });
     return storeRef.current._proxy;
 }

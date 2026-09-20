@@ -1,6 +1,6 @@
 {
     "name": "Hungary - E-invoicing",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "category": "Accounting/Localizations/EDI",
     "description": """
 * Electronically report invoices to the NAV (Hungarian Tax Agency) when issuing physical (paper) invoices.
@@ -10,6 +10,7 @@
     "website": "https://www.odootech.hu",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "account_debit_note",
         "account_iban",
         "l10n_hu",
@@ -32,6 +33,7 @@
         "views/res_config_settings_views.xml",
         "wizards/l10n_hu_edi_cancellation.xml",
         "wizards/l10n_hu_edi_tax_audit_export.xml",
+        "views/l10n_hu_edi_menus.xml",
     ],
     "demo": [
         "demo/demo_partner.xml",

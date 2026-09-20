@@ -1,6 +1,6 @@
 {
     "name": "Romania - E-invoicing",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Accounting/Localizations/EDI",
     "summary": "E-Invoice implementation for Romania",
     "description": """
@@ -9,6 +9,7 @@ E-invoice implementation for Romania
     "author": "Odoo",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "account_edi_ubl_cii",
         "l10n_ro",
     ],
@@ -23,7 +24,6 @@ E-invoice implementation for Romania
             "l10n_ro_edi/static/src/components/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

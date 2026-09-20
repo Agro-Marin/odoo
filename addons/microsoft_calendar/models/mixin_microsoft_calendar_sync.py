@@ -10,6 +10,9 @@ from odoo.db import BaseCursor
 from odoo.fields import Domain
 from odoo.modules.registry import Registry
 
+from odoo.addons.base.models.mixin_recurrence_rrule import (
+    MAX_RECURRENT_OCCURRENCES,
+)
 from odoo.addons.microsoft_account.models.microsoft_service import TIMEOUT
 from odoo.addons.microsoft_calendar.utils.microsoft_calendar import (
     MicrosoftCalendarService,
@@ -17,8 +20,6 @@ from odoo.addons.microsoft_calendar.utils.microsoft_calendar import (
 from odoo.addons.microsoft_calendar.utils.microsoft_event import MicrosoftEvent
 
 _logger = logging.getLogger(__name__)
-
-MAX_RECURRENT_EVENT = 720
 
 
 # API requests are sent to Microsoft Calendar after the current transaction ends.
@@ -59,11 +60,22 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
     _name = "mixin.microsoft.calendar.sync"
     _description = "Synchronize a record with Microsoft Calendar"
 
-    microsoft_id = fields.Char("Organizer event Id", copy=False, index=True)
-    ms_universal_event_id = fields.Char("Universal event Id", copy=False, index=True)
+    microsoft_id = fields.Char(
+        string="Organizer event Id",
+        index=True,
+        copy=False,
+    )
+    ms_universal_event_id = fields.Char(
+        string="Universal event Id",
+        index=True,
+        copy=False,
+    )
 
     # This field helps to know when a microsoft event need to be resynced
-    need_sync_m = fields.Boolean(default=True, copy=False)
+    need_sync_m = fields.Boolean(
+        default=True,
+        copy=False,
+    )
     active = fields.Boolean(default=True)
 
     def write(self, vals):
@@ -217,8 +229,11 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                 need_sync_m=False,
             )
             to_create_values = []
-            if new_calendar_recurrence.get("end_type", False) in ["count", "forever"]:
-                to_create = list(to_create)[:MAX_RECURRENT_EVENT]
+            if new_calendar_recurrence.get("repeat_type", False) in [
+                "count",
+                "forever",
+            ]:
+                to_create = list(to_create)[:MAX_RECURRENT_OCCURRENCES]
             for recurrent_event in to_create:
                 if recurrent_event.type == "occurrence":
                     value = self.env[
@@ -300,8 +315,8 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         events_to_update = events.filter(
             lambda e: e.seriesMasterId == self.microsoft_id
         )
-        if self.end_type in ["count", "forever"]:
-            events_to_update = list(events_to_update)[:MAX_RECURRENT_EVENT]
+        if self.repeat_type in ["count", "forever"]:
+            events_to_update = list(events_to_update)[:MAX_RECURRENT_OCCURRENCES]
 
         # ... and update them
         rec_values = {}
@@ -417,7 +432,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                 if lower_bound_day_range:
                     update_time_diff = ms_event_updated_time - odoo_event_updated_time
                     old_event_update_condition = (
-                        odoo_event._check_old_event_update_required(
+                        odoo_event._is_old_event_update_required(
                             int(lower_bound_day_range), update_time_diff
                         )
                     )
@@ -444,7 +459,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
 
         return synced_events, synced_recurrences
 
-    def _check_old_event_update_required(self, lower_bound_day_range, update_time_diff):
+    def _is_old_event_update_required(self, lower_bound_day_range, update_time_diff):
         """
         Checks if an old event in Odoo should be updated locally. This verification is necessary because
         sometimes events in Odoo have the same state in Microsoft and even so they trigger updates locally

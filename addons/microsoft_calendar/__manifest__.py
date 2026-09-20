@@ -1,6 +1,6 @@
 {
     "name": "Outlook Calendar",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Productivity",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
@@ -25,6 +25,5 @@
             "microsoft_calendar/static/tests/**/*",
         ],
     },
-    "installable": True,
     "post_init_hook": "init_initiating_microsoft_uuid",
 }

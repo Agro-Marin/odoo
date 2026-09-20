@@ -13,11 +13,11 @@
                 position="inside">
                 <div class="mt8">
                     <button
-                        type="action"
                         name="%(website_slides_forum.forum_forum_action_channel)d"
+                        type="action"
                         string="Manage Forums"
-                        class="btn-link"
-                        icon="oi-arrow-right" />
+                        icon="oi-arrow-right"
+                        class="btn-link" />
                 </div>
             </xpath>
         </field>

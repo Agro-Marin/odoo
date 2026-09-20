@@ -1,5 +1,4 @@
 import collections
-import logging
 import typing
 
 from .. import decorators as api
@@ -34,9 +33,6 @@ from .mixins._magic_fields import _MagicFieldsMixin
 from .mixins._metadata import _ModelMetadataMixin
 from .mixins._properties import _PropertiesMixin
 from .mixins._query import _QueryMixin
-
-_logger = logging.getLogger("odoo.models")
-_orm_crud = logging.getLogger("odoo.orm.crud")
 
 
 class BaseModel(
@@ -82,7 +78,7 @@ class BaseModel(
     def get_base_url(self) -> str:
         if len(self) > 1:
             raise ValueError(f"Expected singleton or no record: {self}")
-        return self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        return self.env.registry.settings.get(self.env, "web.base.url")
 
 
 collections.abc.Set.register(BaseModel)

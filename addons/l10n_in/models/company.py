@@ -21,14 +21,13 @@ class ResCompany(models.Model):
     )
     l10n_in_edi_production_env = fields.Boolean(
         string="Indian Production Environment",
-        help="Enable the use of production credentials",
-        groups="base.group_system",
         default=True,
+        groups="base.group_system",
+        help="Enable the use of production credentials",
     )
     l10n_in_pan_entity_id = fields.Many2one(
         related="partner_id.l10n_in_pan_entity_id",
         string="PAN",
-        store=True,
         readonly=False,
         help="PAN enables the department to link all transactions of the person with the department.\n"
         "These transactions include taxpayments, TDS/TCS credits, returns of income/wealth/gift/FBT,"
@@ -36,10 +35,13 @@ class ResCompany(models.Model):
         "Thus, PAN acts as an identifier for the person with the tax department.",
     )
     l10n_in_pan_type = fields.Selection(
-        related="l10n_in_pan_entity_id.type", string="PAN Type"
+        related="l10n_in_pan_entity_id.type",
+        string="PAN Type",
     )
     l10n_in_tan = fields.Char(
-        related="partner_id.l10n_in_tan", string="TAN", readonly=False
+        related="partner_id.l10n_in_tan",
+        string="TAN",
+        readonly=False,
     )
     l10n_in_gst_state_warning = fields.Char(
         related="partner_id.l10n_in_gst_state_warning"
@@ -141,7 +143,7 @@ class ResCompany(models.Model):
             if not tax_group:
                 continue
             taxes = (
-                self.env["account.tax"]
+                self.env["account.tax"]  # noqa: E8507 - chart setup: one query per tax group of the company
                 .with_company(company)
                 .with_context(active_test=False)
                 .search(

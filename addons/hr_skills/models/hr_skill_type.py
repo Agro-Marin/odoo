@@ -1,5 +1,8 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrSkillType(models.Model):
@@ -8,21 +11,32 @@ class HrSkillType(models.Model):
     _description = "Skill Type"
     _order = "sequence, name"
 
-    active = fields.Boolean("Active", default=True)
-    sequence = fields.Integer("Sequence")
-    name = fields.Char(required=True, translate=True)
-    skill_ids = fields.One2many("hr.skill", "skill_type_id", string="Skills")
-    skill_level_ids = fields.One2many(
-        "hr.skill.level", "skill_type_id", string="Levels", copy=True
+    active = fields.Boolean(default=True)
+    sequence = fields.Integer()
+    name = fields.Char(
+        translate=True,
+        required=True,
     )
-    color = fields.Integer("Color", default=lambda self: self._default_color())
+    skill_ids = fields.One2many(
+        comodel_name="hr.skill",
+        inverse_name="skill_type_id",
+        string="Skills",
+    )
+    skill_level_ids = fields.One2many(
+        comodel_name="hr.skill.level",
+        inverse_name="skill_type_id",
+        string="Levels",
+        copy=True,
+    )
+    color = fields.Integer(default=lambda self: self._default_color())
     levels_count = fields.Integer(
         compute="_compute_levels_count",
         store=True,
         help="Number of levels linked to this skill type",
     )
     is_certification = fields.Boolean(
-        "Certification", help="if checked the skill type become a certification type"
+        string="Certification",
+        help="if checked the skill type become a certification type",
     )
 
     @api.model
@@ -36,6 +50,7 @@ class HrSkillType(models.Model):
             if not skill_type.skill_ids or not skill_type.skill_level_ids:
                 incorrect_skill_type |= skill_type
         if incorrect_skill_type:
+            _debug.logic("skill_type_incomplete", types=incorrect_skill_type)
             raise ValidationError(
                 self.env._(
                     "The following skills type must contain at least one skill and one level: %s",
@@ -53,15 +68,8 @@ class HrSkillType(models.Model):
 
     @api.depends("skill_level_ids")
     def _compute_levels_count(self):
-        level_count_by_skill_type = dict(
-            self.env["hr.skill.level"]._read_group(
-                domain=[("skill_type_id", "in", self.ids)],
-                groupby=["skill_type_id"],
-                aggregates=["__count"],
-            )
-        )
         for skill_type in self:
-            skill_type.levels_count = level_count_by_skill_type.get(skill_type, 0)
+            skill_type.levels_count = len(skill_type.skill_level_ids)
 
     @api.onchange("skill_level_ids")
     def _onchange_skill_level_ids(self):
@@ -72,21 +80,22 @@ class HrSkillType(models.Model):
                 break
 
     def copy_data(self, default=None):
+        default = default or {}
         vals_list = super().copy_data(default=default)
-        return [
-            {
-                **vals,
-                "name": self.env._(
+        _debug.lifecycle("skill_type_copied", types=self, overrides=list(default))
+        for skill_type, vals in zip(self, vals_list, strict=True):
+            if "name" not in default:
+                vals["name"] = self.env._(
                     "%(skill_type_name)s (copy)", skill_type_name=skill_type.name
-                ),
-                "color": 0,
-                "skill_ids": [
+                )
+            if "color" not in default:
+                vals["color"] = 0
+            if "skill_ids" not in default:
+                vals["skill_ids"] = [
                     Command.create(skill_vals)
                     for skill_vals in skill_type.skill_ids.copy_data()
-                ],
-            }
-            for skill_type, vals in zip(self, vals_list, strict=True)
-        ]
+                ]
+        return vals_list
 
     def copy_translations(self, new, excluded=()):
         super().copy_translations(new, excluded=(*excluded, "name"))

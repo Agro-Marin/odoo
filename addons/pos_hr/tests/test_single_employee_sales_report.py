@@ -1,9 +1,12 @@
+import logging
 from datetime import timedelta
 
 import odoo
 from odoo import fields
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
+
+_logger = logging.getLogger(__name__)
 
 
 @odoo.tests.tagged("post_install", "-at_install")
@@ -110,11 +113,15 @@ class TestSingleEmployeeSalesReport(TestPoSCommon):
         self.make_payment(order, self.bank_pm1, 100)
         employee = self.env["hr.employee"].sudo().create({"name": "Report Cashier"})
         order.sudo().employee_id = employee.id
+        analysis = self.env["report.pos.order"].search([("order_id", "=", order.id)])
+        self.assertEqual(analysis.employee_id, employee)
+        self.assertEqual(analysis.order_id, order)
+        self.assertAlmostEqual(sum(analysis.mapped("price_total")), 100)
 
         wizard = self.env["pos.daily.sales.reports.wizard"].create(
             {"pos_session_id": session.id}
         )
-        data = wizard._get_report_data()
+        data = wizard._prepare_report_params()
         self.assertIn(employee.id, data["employee_ids"])
 
         html = self.env["ir.actions.report"]._render_qweb_html(
@@ -122,3 +129,51 @@ class TestSingleEmployeeSalesReport(TestPoSCommon):
         )[0]
         self.assertIn(b"Employee Sales Report", html)
         self.assertIn(employee.name.encode(), html)
+
+    def test_employee_invoices_exclude_other_cashiers(self):
+        product = self.create_product("Cashier invoice", self.categ_basic, 100)
+        product.type = "service"
+        self._start_pos_session(self.bank_pm1, 0)
+        orders = self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": [(product, 1)],
+                    "payments": [(self.bank_pm1, 100)],
+                    "uuid": f"employee-report-{index}",
+                }
+                for index in range(2)
+            ]
+        )
+        employees = (
+            self.env["hr.employee"]
+            .sudo()
+            .create(
+                [
+                    {"name": "First report cashier"},
+                    {"name": "Second report cashier"},
+                ]
+            )
+        )
+        for order, employee in zip(orders.values(), employees, strict=True):
+            order.employee_id = employee
+            order.partner_id = self.partner_a
+            order.action_pos_order_invoice()
+        selected = orders["employee-report-0"]
+
+        report = self.employee_report.get_sale_details(
+            session_ids=selected.session_id.ids,
+            employee_id=employees[0].id,
+        )
+
+        invoices = [
+            row for group in report["invoice_list"] for row in group["invoices"]
+        ]
+        _logger.debug(
+            "Employee report invoices=%s payments=%s", invoices, report["payments"]
+        )
+        self.assertEqual(report["nbr_orders"], 1)
+        self.assertEqual(
+            [row["name"] for row in invoices], [selected.account_move.name]
+        )
+        self.assertEqual(report["invoice_total"], 100)
+        self.assertFalse(any(row["count"] for row in report["payments"]))

@@ -2,6 +2,8 @@
 /** @odoo-module native */
 
 import { Component, useComponent, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useChildRef } from "@web/core/utils/hooks";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
@@ -80,6 +82,8 @@ export class ViewLayout extends Component {
     }
 }
 
+const log = makeLogger("web.view.controller");
+
 /**
  * @param {{
  * model?: () => any,
@@ -90,6 +94,7 @@ export class ViewLayout extends Component {
  */
 export function useViewChassis(hooks = {}) {
     const component = /** @type {any} */ (useComponent());
+    useLifecycleLog(log);
     const searchBarToggler = useSearchBarToggler();
     const forwardRootRef = useChildRef();
     const rootRef = {

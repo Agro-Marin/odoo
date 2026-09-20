@@ -23,6 +23,7 @@ from odoo.exceptions import (
 )
 from odoo.fields import COLLECTION_TYPES, Domain
 from odoo.http import Stream, request, root
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     _olecf_mimetypes,
@@ -61,6 +62,8 @@ if TYPE_CHECKING:
     from odoo.tools.query import Query
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
+type ContentMemo = dict[tuple[str, str, bool], tuple[bytes, dict[str, Any]]]
 SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
 
 _INDEX_WORD_RE = re.compile(r"[^\x00-\x1f\x7f-\x9f]{4,}")
@@ -108,59 +111,85 @@ class IrAttachment(models.Model):
     _name = "ir.attachment"
     _description = "Attachment"
     _order = "id desc"
+    _search_visibility_fields = (
+        "res_model",
+        "res_id",
+        "res_field",
+        "public",
+        "create_uid",
+    )
 
-    name = fields.Char("Name", required=True)
-    description = fields.Text("Description")
+    name = fields.Char(required=True)
+    description = fields.Text()
     res_name = fields.Char(
-        "Resource Name",
+        string="Resource Name",
         compute="_compute_res_name",
     )
-    res_model = fields.Char("Resource Model")
-    res_field = fields.Char("Resource Field")
+    res_model = fields.Char(string="Resource Model")
+    res_field = fields.Char(string="Resource Field")
     res_id = fields.Many2oneReference(
-        "Resource ID",
         model_field="res_model",
+        string="Resource ID",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        change_default=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company,
+        change_default=True,
     )
     type = fields.Selection(
-        [("url", "URL"), ("binary", "File")],
-        string="Type",
-        required=True,
+        selection=[("url", "URL"), ("binary", "File")],
         default="binary",
         change_default=True,
+        required=True,
         help="You can either upload a file from your computer or copy/paste an internet link to your file.",
     )
-    url = fields.Char("Url", index="btree_not_null", size=1024)
-    public = fields.Boolean("Is public document")
-    access_token = fields.Char("Access Token", groups="base.group_user")
-
-    db_datas = fields.Binary("Database Data", attachment=False)
-    store_fname = fields.Char("Stored Filename", index=True, copy=False)
-    file_size = fields.Integer("File Size", readonly=True, copy=False)
-    checksum = fields.Char(
-        "Checksum", size=CONTENT_DIGEST_MAX_LEN, readonly=True, copy=False
+    url = fields.Char(
+        size=1024,
+        index="btree_not_null",
     )
-    mimetype = fields.Char("Mime Type", readonly=True)
+    public = fields.Boolean(string="Is public document")
+    access_token = fields.Char(groups="base.group_user")
+
+    db_datas = fields.Binary(
+        string="Database Data",
+        attachment=False,
+    )
+    store_fname = fields.Char(
+        string="Stored Filename",
+        index=True,
+        copy=False,
+    )
+    file_size = fields.Integer(
+        copy=False,
+        readonly=True,
+    )
+    checksum = fields.Char(
+        size=CONTENT_DIGEST_MAX_LEN,
+        copy=False,
+        readonly=True,
+    )
+    mimetype = fields.Char(
+        string="Mime Type",
+        readonly=True,
+    )
     index_content = fields.Text(
-        "Indexed Content", readonly=True, prefetch=False, copy=False
+        string="Indexed Content",
+        copy=False,
+        readonly=True,
+        prefetch=False,
     )
 
     raw = fields.Binary(
         string="File Content (raw)",
+        bin_size_field="file_size",
         compute="_compute_raw",
         inverse="_inverse_raw",
-        bin_size_field="file_size",
     )
     datas = fields.Binary(
         string="File Content (base64)",
+        bin_size_field="file_size",
         compute="_compute_datas",
         inverse="_inverse_datas",
-        bin_size_field="file_size",
     )
 
     _res_field_idx = models.Index("(res_model, res_field, res_id)")
@@ -204,6 +233,12 @@ class IrAttachment(models.Model):
         field = comodel._fields.get(res_field) if comodel is not None else None
         if field is None or self._is_attachment_backed_field(field):
             return
+        _debug.logic(
+            "res_field_refused",
+            model=res_model,
+            field=res_field,
+            reason="not_binary",
+        )
         raise ValidationError(
             _(
                 "%(field)s of %(model)s cannot be backed by an attachment: "
@@ -222,6 +257,13 @@ class IrAttachment(models.Model):
         comodel = self.env.get(self._coerce_model_name(res_model))
         field = comodel._fields.get(res_field) if comodel is not None else None
         if field is None or not comodel._has_field_access(field, "write"):
+            _debug.logic(
+                "res_field_access_refused",
+                model=res_model,
+                field=res_field,
+                uid=self.env.uid,
+                reason="missing" if field is None else "no_write_access",
+            )
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
     def _get_res_field_targets(self, vals: dict[str, Any]) -> OrderedSet:
@@ -240,6 +282,7 @@ class IrAttachment(models.Model):
         try:
             return base64.b64decode(datas or b"")
         except ValueError as exc:
+            _debug.logic("datas_decode_refused", reason="not_base64")
             raise UserError(_("Attachment is not encoded in base64.")) from exc
 
     def _normalize_content_vals(
@@ -276,11 +319,17 @@ class IrAttachment(models.Model):
                 values.get("res_id")
             )
         if any(self._get_comodel_records_inaccessible(model_and_ids, "write")):
+            _debug.logic(
+                "create_refused",
+                uid=self.env.uid,
+                models=[m for m in model_and_ids if m],
+                reason="comodel_inaccessible",
+            )
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
         backend = self._get_storage_backend()
         verify_collision = self._is_content_collision_check_enabled()
-        memo: dict[tuple[str, str], tuple[bytes, dict[str, Any]]] = {}
+        memo: ContentMemo = {}
         for index, values in enumerate(vals_list):
             values, has_content = self._normalize_content_vals(values)
 
@@ -294,15 +343,31 @@ class IrAttachment(models.Model):
                         values["mimetype"],
                         backend,
                         verify_collision=verify_collision,
+                        index=self._should_index_content(values),
                     )
                 )
 
+        _debug.pipeline(
+            "create_contents_prepared",
+            count=len(vals_list),
+            with_content=sum(1 for v in vals_list if "checksum" in v),
+        )
         records = super().create(vals_list)
         records._check_serving_attachments()
+        _debug.lifecycle(
+            "create",
+            count=len(records),
+            models=[m for m in model_and_ids if m],
+            backend=type(backend).__name__,
+            memoized=len(memo),
+        )
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if "res_model" in vals or "res_id" in vals:
+        if not self:
+            _debug.logic("write.skipped", reason="empty_recordset", fields=list(vals))
+            return True
+        if not self.env.su and ("res_model" in vals or "res_id" in vals):
             model_and_ids = defaultdict(OrderedSet)
             new_model = self._coerce_model_name(vals.get("res_model"))
             if "res_model" in vals and "res_id" in vals:
@@ -313,6 +378,12 @@ class IrAttachment(models.Model):
                         new_model if "res_model" in vals else record.res_model
                     ].add(vals.get("res_id", record.res_id))
             if any(self._get_comodel_records_inaccessible(model_and_ids, "write")):
+                _debug.logic(
+                    "write_refused",
+                    uid=self.env.uid,
+                    count=len(self),
+                    reason="comodel_inaccessible",
+                )
                 raise AccessError(
                     _("Sorry, you are not allowed to access this document.")
                 )
@@ -323,6 +394,9 @@ class IrAttachment(models.Model):
             if "mimetype" not in vals:
                 vals["mimetype"] = self._get_mimetype_for_write(vals)
             vals = self._prepare_contents(vals)
+        _debug.lifecycle(
+            "write", count=len(self), fields=list(vals), has_content=has_content
+        )
         res = super().write(vals)
         if "url" in vals or "type" in vals:
             self._check_serving_attachments()
@@ -332,43 +406,54 @@ class IrAttachment(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if not default.keys() & {"datas", "db_datas", "raw"}:
+            inlined = 0
             for attachment, vals in zip(
                 self._with_bin_size_disabled(), vals_list, strict=True
             ):
-                if attachment.store_fname:
-                    vals.pop("db_datas", None)
-                elif attachment.checksum or attachment.db_datas:
+                vals.pop("db_datas", None)
+                if not attachment.store_fname and (
+                    attachment.checksum or attachment.db_datas
+                ):
                     vals["raw"] = attachment.raw
+                    inlined += 1
+            _debug.logic("copy_data", count=len(vals_list), inlined_raw=inlined)
         return vals_list
 
     def copy(self, default: ValuesType | None = None) -> Self:
-        new_attachments = super().copy(default)
-        if not (default or {}).keys() & {"datas", "db_datas", "raw"}:
-            by_content: dict[tuple, list[int]] = defaultdict(list)
-            for origin, copied in zip(self, new_attachments, strict=True):
-                if origin.store_fname:
-                    by_content[
-                        origin.store_fname,
-                        origin.checksum,
-                        origin.file_size,
-                        origin.index_content,
-                    ].append(copied.id)
-            for (fname, checksum, size, index), ids in by_content.items():
-                super(IrAttachment, self.browse(ids).sudo()).write(
-                    {
-                        "store_fname": fname,
-                        "checksum": checksum,
-                        "file_size": size,
-                        "index_content": index,
-                        "db_datas": False,
-                    }
+        if (default or {}).keys() & {"datas", "db_datas", "raw"}:
+            return super().copy(default)
+        new_attachments = super(
+            IrAttachment, self.with_context(attachment_index_from_origin=True)
+        ).copy(default)
+        by_content: dict[tuple, list[int]] = defaultdict(list)
+        for origin, copied in zip(self, new_attachments, strict=True):
+            if origin.store_fname:
+                key = (
+                    origin.store_fname,
+                    origin.checksum,
+                    origin.file_size,
+                    origin.index_content,
                 )
-        return new_attachments
+            else:
+                key = (None, None, None, origin.index_content)
+            by_content[key].append(copied.id)
+        for (fname, checksum, size, index), ids in by_content.items():
+            values = {"index_content": index}
+            if fname:
+                values.update(store_fname=fname, checksum=checksum, file_size=size)
+            super(IrAttachment, self.browse(ids).sudo()).write(values)
+        _debug.lifecycle(
+            "copy_shared_content",
+            copied=len(new_attachments),
+            shared=len(by_content),
+        )
+        return new_attachments.with_env(self.env)
 
     def unlink(self) -> bool:
         to_delete = OrderedSet(
             attach.store_fname for attach in self if attach.store_fname
         )
+        _debug.lifecycle("unlink", count=len(self), stored_files=len(to_delete))
         res = super().unlink()
         self._remove_stored_file_multi(to_delete)
         return res
@@ -379,13 +464,23 @@ class IrAttachment(models.Model):
         (self - to_compute).res_name = False
         for res_model, attachments in to_compute.grouped("res_model").items():
             if res_model not in self.env:
+                _debug.logic(
+                    "res_name_unknown_model", model=res_model, count=len(attachments)
+                )
                 for attachment in attachments:
                     attachment.res_name = False
                 continue
             res_ids = attachments.mapped("res_id")
-            records = self.env[res_model].browse(res_ids).exists()
-            records = records._filtered_access("read")
-            name_map = {record.id: record.display_name for record in records}
+            with _debug.perf(
+                "res_name_lookup",
+                cr=self.env.cr,
+                model=res_model,
+                count=len(attachments),
+            ) as span:
+                records = self.env[res_model].browse(res_ids).exists()
+                records = records._filtered_access("read")
+                name_map = {record.id: record.display_name for record in records}
+                span.set(readable=len(name_map))
             for attachment in attachments:
                 attachment.res_name = name_map.get(attachment.res_id, False)
 
@@ -417,7 +512,7 @@ class IrAttachment(models.Model):
         bypass_access: bool = False,
     ) -> Query:
         assert not self._active_name, "active name not supported on ir.attachment"
-        disable_binary_fields_attachments = False
+        hide_field_rows = False
         domain = Domain(domain)
         if (
             not self.env.context.get("skip_res_field_check")
@@ -426,11 +521,18 @@ class IrAttachment(models.Model):
             )
             and not bypass_access
         ):
-            disable_binary_fields_attachments = True
+            hide_field_rows = True
             domain &= Domain("res_field", "=", False)
 
         domain = domain.optimize(self)
         if self.env.su or bypass_access or domain.is_false():
+            _debug.logic(
+                "search_unfiltered",
+                su=self.env.su,
+                bypass_access=bypass_access,
+                empty=domain.is_false(),
+                res_field_hidden=hide_field_rows,
+            )
             return super()._search(
                 domain,
                 offset,
@@ -451,8 +553,14 @@ class IrAttachment(models.Model):
 
         res_model_names = _get_condition_values(self, "res_model", domain)
         if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
+            _debug.logic(
+                "search_by_model",
+                uid=self.env.uid,
+                models=len(res_model_names),
+                res_ids=len(res_ids or ()),
+            )
             sec_domain |= self._get_domain_security_by_model(
-                domain, res_model_names, disable_binary_fields_attachments
+                domain, res_model_names, hide_field_rows
             )
             return super()._search(
                 domain & sec_domain,
@@ -465,6 +573,14 @@ class IrAttachment(models.Model):
         domain &= self._get_domain_security_prefilter(sec_domain)
         domain = domain.optimize_full(self)
         ordered = bool(order)
+        _debug.logic(
+            "search_by_seek",
+            uid=self.env.uid,
+            models=len(res_model_names or ()),
+            offset=offset,
+            limit=limit,
+            ordered=ordered,
+        )
         if limit is None:
             result = self._get_accessible_ids(domain, order, None)
             return self.browse(result[offset:])._as_query(ordered)
@@ -494,12 +610,15 @@ class IrAttachment(models.Model):
             full_path = self._get_full_path(fname)
         except ValueError:
             _logger.exception("_read_file refused the store key %r", fname)
+            _debug.logic("read_file_refused", fname=fname, reason="escapes_filestore")
             return b""
         try:
-            with Path(full_path).open("rb") as f:
-                return f.read(size)
+            with _debug.perf("read_file", fname=fname, size=size):
+                with Path(full_path).open("rb") as f:
+                    return f.read(size)
         except OSError:
             _logger.info("_read_file could not read %s", full_path, exc_info=True)
+            _debug.logic("read_file_missing", fname=fname)
         return b""
 
     @contextlib.contextmanager
@@ -512,6 +631,9 @@ class IrAttachment(models.Model):
         except Exception as exc:
             if isinstance(exc, OSError):
                 _logger.info("filestore staging failed for %s", tmp_path, exc_info=True)
+            _debug.lifecycle(
+                "temp_file_discarded", prefix=prefix, error=type(exc).__name__
+            )
             with contextlib.suppress(OSError):
                 tmp_path.unlink()
             raise
@@ -520,11 +642,14 @@ class IrAttachment(models.Model):
     def _write_file(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._prepare_file_destination(bin_value, checksum)
         self._mark_for_gc(fname)
-        if not self._is_stored_file_complete(full_path, len(bin_value)):
-            with self._stage_temp_file("write") as tmp_path:
-                with tmp_path.open("wb") as fp:
-                    fp.write(bin_value)
-                tmp_path.replace(full_path)
+        complete = self._is_stored_file_complete(full_path, len(bin_value))
+        _debug.logic("write_file", fname=fname, size=len(bin_value), existing=complete)
+        if not complete:
+            with _debug.perf("write_file_io", fname=fname, size=len(bin_value)):
+                with self._stage_temp_file("write") as tmp_path:
+                    with tmp_path.open("wb") as fp:
+                        fp.write(bin_value)
+                    tmp_path.replace(full_path)
         return fname
 
     @api.model
@@ -544,13 +669,16 @@ class IrAttachment(models.Model):
                     out.write(chunk)
             checksum = digest.hexdigest()
             if not size:
+                _debug.logic("write_file_stream_empty", chunk_size=chunk_size)
                 tmp_path.unlink(missing_ok=True)
                 return "", 0, checksum
             fname, full_path_str = self._prepare_file_destination(
                 None, checksum, source_path=str(tmp_path)
             )
             self._mark_for_gc(fname)
-            if self._is_stored_file_complete(full_path_str, size):
+            complete = self._is_stored_file_complete(full_path_str, size)
+            _debug.logic("write_file_stream", fname=fname, size=size, existing=complete)
+            if complete:
                 tmp_path.unlink(missing_ok=True)
             else:
                 tmp_path.replace(full_path_str)
@@ -566,14 +694,16 @@ class IrAttachment(models.Model):
     @api.model
     def _check_admin_access(self) -> None:
         if not self.env.is_admin():
+            _debug.logic("admin_access_refused", uid=self.env.uid)
             raise AccessError(_("Only administrators can execute this action."))
 
     @api.model
     def _get_full_path(self, path: str) -> str:
-        path = self._sanitize_store_key(path)
+        path = self._normalize_store_key(path)
         filestore = _get_filestore_root(self._get_filestore())
         full = os.path.realpath(Path(filestore, path))
         if full != filestore and not full.startswith(filestore + os.sep):
+            _debug.logic("store_key_refused", key=path, reason="escapes_filestore")
             raise ValueError(f"Attachment path {path!r} escapes the filestore")
         return full
 
@@ -592,6 +722,7 @@ class IrAttachment(models.Model):
         ]
         max_resolution = ICP("base.image_autoresize_max_px", "1920x1920")
         if not str2bool(max_resolution, True):
+            _debug.logic("autoresize_disabled", subtypes=len(subtypes))
             return subtypes, 0, 0, 0
         try:
             max_width, max_height = map(int, max_resolution.split("x"))
@@ -600,6 +731,7 @@ class IrAttachment(models.Model):
                 "Invalid base.image_autoresize_max_px value: %r, skipping image resize",
                 max_resolution,
             )
+            _debug.logic("autoresize_config_invalid", value=max_resolution)
             return subtypes, 0, 0, 0
         quality = (
             self.env["ir.config_parameter"]
@@ -617,12 +749,17 @@ class IrAttachment(models.Model):
         full_path.parent.mkdir(exist_ok=True, parents=True)
 
         if self._is_content_collision_check_enabled() and full_path.is_file():
-            same = (
-                self._is_same_file(source_path, str(full_path))
-                if source_path is not None
-                else self._is_same_bytes_as_file(bin_data or b"", str(full_path))
-            )
+            with _debug.perf(
+                "collision_check", fname=fname, streamed=source_path is not None
+            ) as span:
+                same = (
+                    self._is_same_file(source_path, str(full_path))
+                    if source_path is not None
+                    else self._is_same_bytes_as_file(bin_data or b"", str(full_path))
+                )
+                span.set(same=same)
             if not same:
+                _debug.logic("content_collision_refused", fname=fname)
                 raise UserError(_("The attachment collides with an existing file."))
         return fname, str(full_path)
 
@@ -634,21 +771,29 @@ class IrAttachment(models.Model):
             return None
         return self._with_bin_size_disabled().raw or None
 
+    @api.model
+    def _should_index_content(self, values: dict[str, Any]) -> bool:
+        return not self.env.context.get("attachment_index_from_origin")
+
     def _get_content_vals_memoized(
         self,
-        memo: dict[tuple[str, str], tuple[bytes, dict[str, Any]]],
+        memo: ContentMemo,
         data: bytes,
         mimetype: str,
         backend: AttachmentStorage,
         *,
         verify_collision: bool,
+        index: bool = True,
     ) -> dict[str, Any]:
         checksum = self._get_content_checksum(data)
-        key = (checksum, mimetype)
+        key = (checksum, mimetype, index)
         cached = memo.get(key)
         if cached is not None and (not verify_collision or cached[0] == data):
+            _debug.logic("content_memo_hit", checksum=checksum, size=len(data))
             return cached[1]
-        vals = self._prepare_content_vals(data, mimetype, backend, checksum=checksum)
+        vals = self._prepare_content_vals(
+            data, mimetype, backend, checksum=checksum, index=index
+        )
         memo[key] = (data, vals)
         return vals
 
@@ -658,17 +803,38 @@ class IrAttachment(models.Model):
         mimetype: str,
         backend: AttachmentStorage | None = None,
         checksum: str | None = None,
+        *,
+        index: bool = True,
     ) -> dict[str, Any]:
         if checksum is None:
             checksum = self._get_content_checksum(data)
-        index_content = self._extract_index_content(data, mimetype, checksum=checksum)
+        _debug.pipeline(
+            "content_vals",
+            size=len(data),
+            mimetype=mimetype,
+            indexed=index,
+            checksum_given=checksum is not None,
+        )
+        index_vals = (
+            {"index_content": self._extract_index_content(data, mimetype)}
+            if index
+            else {}
+        )
         if backend is None:
             backend = self._get_storage_backend()
+        with _debug.perf(
+            "store_content",
+            size=len(data),
+            mimetype=mimetype,
+            backend=type(backend).__name__,
+            indexed=bool(index_vals.get("index_content")),
+        ):
+            stored = backend.write(data, checksum)
         return {
             "file_size": len(data),
             "checksum": checksum,
-            "index_content": index_content,
-            **backend.write(data, checksum),
+            **index_vals,
+            **stored,
         }
 
     def _get_raw_access_token(self) -> str:
@@ -690,38 +856,6 @@ class IrAttachment(models.Model):
     def get_groups_allowed_to_serve(self) -> list[str]:
         return ["base.group_system"]
 
-    def _get_content_for_rewrite(self, attach: Self, operation: str) -> bytes | None:
-        raw = attach._with_bin_size_disabled().raw
-        if self._is_content_unreadable(
-            raw,
-            attach.file_size,
-            att_id=attach.id,
-            key=attach.store_fname,
-            action=f"skipping {operation}",
-        ):
-            return None
-        return raw
-
-    def _rewrite_stored_content(
-        self, attach: Self, values: dict[str, Any], old_fname: str | None
-    ) -> None:
-        super(IrAttachment, attach.sudo()).write(values)
-        attach.flush_recordset(
-            ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
-        )
-        if old_fname:
-            attach._remove_stored_file(old_fname)
-
-    def _get_rows_rewritable(
-        self, rows: Self, operation: str
-    ) -> Generator[tuple[int, Self, bytes]]:
-        for index, attach in enumerate(rows, 1):
-            raw = self._get_content_for_rewrite(attach, operation)
-            if raw is None:
-                continue
-            yield index, attach, raw
-            attach.invalidate_recordset()
-
     def _get_mimetype_from_values(self, values: dict[str, Any]) -> str:
         mimetype = None
         if values.get("mimetype"):
@@ -738,6 +872,7 @@ class IrAttachment(models.Model):
                 raw = self._decode_datas(values["datas"])
             if raw:
                 mimetype = guess_mimetype(raw)
+                _debug.logic("mimetype_sniffed", mimetype=mimetype, size=len(raw))
         return (mimetype and mimetype.lower()) or "application/octet-stream"
 
     def _get_mimetype_for_write(self, vals: dict[str, Any]) -> str:
@@ -756,6 +891,7 @@ class IrAttachment(models.Model):
         if stored is not None:
             return stored
         if static_path := self._get_static_file_path():
+            _debug.logic("content_prefix_static", attachment=self.id, size=size)
             with file_open(static_path, "rb") as file:
                 return file.read(size)
         return b""
@@ -790,12 +926,16 @@ class IrAttachment(models.Model):
     def _get_stored_content(self, size: int | None = None) -> bytes | None:
         self.check_singleton()
         if self.store_fname:
-            data = self._get_storage_backend_for_key(self.store_fname).read(
-                self.store_fname, size
-            )
+            with _debug.perf(
+                "stored_content_read", attachment=self.id, size=size
+            ) as span:
+                data = self._get_storage_backend_for_key(self.store_fname).read(
+                    self.store_fname, size
+                )
+                span.set(bytes=len(data) if data else 0)
             self._is_content_unreadable(
                 data,
-                self.file_size,
+                self.file_size if size is None else min(self.file_size, size),
                 att_id=self.id,
                 key=self.store_fname,
                 action="serving empty bytes",
@@ -823,6 +963,9 @@ class IrAttachment(models.Model):
             key,
             action,
         )
+        _debug.logic(
+            "content_unreadable", attachment=att_id, expected_size=expected_size
+        )
         return True
 
     def _get_static_file_path(self) -> str | None:
@@ -834,11 +977,15 @@ class IrAttachment(models.Model):
 
     @api.model
     def _is_same_stream(self, stream_a: Any, stream_b: Any) -> bool:
+        chunks = 0
         while True:
             chunk_a = stream_a.read(self._COMPARE_BLOCK_SIZE)
+            chunks += 1
             if chunk_a != stream_b.read(self._COMPARE_BLOCK_SIZE):
+                _debug.logic("stream_compare_differs", chunk=chunks)
                 return False
             if not chunk_a:
+                _debug.perf.count("stream_compared", chunks=chunks)
                 return True
 
     @api.model
@@ -862,12 +1009,12 @@ class IrAttachment(models.Model):
             return self._is_same_stream_as_file(fa, size, path_b)
 
     @api.model
-    def _sanitize_store_key(self, key: str) -> str:
+    def _normalize_store_key(self, key: str) -> str:
         return re.sub(r"[.:]", "", key).strip("/\\")
 
     @api.model
     def _is_canonical_store_key(self, fname: str) -> bool:
-        return bool(fname) and self._sanitize_store_key(fname) == fname
+        return bool(fname) and self._normalize_store_key(fname) == fname
 
     def _update_content(self, asbytes: Callable[[Any], bytes]) -> None:
         self._check_serving_attachments()
@@ -875,7 +1022,13 @@ class IrAttachment(models.Model):
         wrote_content = False
         backend = self._get_storage_backend()
         verify_collision = self._is_content_collision_check_enabled()
-        memo: dict[tuple[str, str], tuple[bytes, dict[str, Any]]] = {}
+        memo: ContentMemo = {}
+        _debug.pipeline(
+            "update_content_begin",
+            count=len(self),
+            backend=type(backend).__name__,
+            verify_collision=verify_collision,
+        )
 
         for attach in self._with_bin_size_disabled():
             bin_data = asbytes(attach)
@@ -895,8 +1048,12 @@ class IrAttachment(models.Model):
             if bin_data:
                 wrote_content = True
 
-        if old_fnames or wrote_content:
-            self.flush_recordset(["checksum", "store_fname"])
+        _debug.lifecycle(
+            "update_content",
+            count=len(self),
+            replaced=len(old_fnames),
+            wrote_content=wrote_content,
+        )
         self._remove_stored_file_multi(OrderedSet(old_fnames))
 
     @api.model
@@ -909,23 +1066,56 @@ class IrAttachment(models.Model):
 
     @api.model
     def _get_storage_backend(self) -> AttachmentStorage:
-        backend_cls = STORAGE_BACKENDS.get(self._get_storage_location(), FileStorage)
+        location = self._get_storage_location()
+        backend_cls = STORAGE_BACKENDS.get(location, FileStorage)
+        _debug.logic(
+            "storage_backend",
+            location=location,
+            backend=backend_cls.__name__,
+            fallback=location not in STORAGE_BACKENDS,
+        )
         return backend_cls(self.env)
 
     @api.model
     def _remove_stored_file(self, fname: str) -> None:
-        self._get_storage_backend_for_key(fname).delete(fname)
+        self._remove_stored_file_multi((fname,))
 
     @api.model
     def _remove_stored_file_multi(self, fnames: Collection[str]) -> None:
         plain_fnames = []
+        remote_fnames = []
         for fname in fnames:
-            if "://" in fname:
-                self._get_storage_backend_for_key(fname).delete(fname)
-            else:
-                plain_fnames.append(fname)
+            (remote_fnames if "://" in fname else plain_fnames).append(fname)
+        _debug.lifecycle(
+            "stored_files_released",
+            total=len(fnames),
+            remote=len(remote_fnames),
+            marked_for_gc=len(plain_fnames),
+        )
         if plain_fnames:
             self._mark_for_gc_multi(plain_fnames)
+        if remote_fnames:
+            # a remote delete cannot be rolled back with the transaction that
+            # dropped the reference, so it waits for the commit
+            self.env.cr.postcommit.add(
+                functools.partial(self._remove_remote_files, remote_fnames)
+            )
+
+    @api.model
+    def _remove_remote_files(self, fnames: Collection[str]) -> None:
+        self.env.cr.execute(
+            "SELECT store_fname FROM ir_attachment WHERE store_fname = ANY(%s)",
+            [list(fnames)],
+        )
+        referenced = {row[0] for row in self.env.cr.fetchall()}
+        _debug.lifecycle(
+            "remote_files_removed",
+            count=len(fnames) - len(referenced),
+            still_referenced=len(referenced),
+        )
+        for fname in fnames:
+            if fname not in referenced:
+                self._get_storage_backend_for_key(fname).remove(fname)
 
     @api.model
     def _is_content_collision_check_enabled(self) -> bool:
@@ -945,6 +1135,11 @@ class IrAttachment(models.Model):
             return values
         subtypes, max_width, max_height, quality = self._get_image_autoresize_config()
         if subtype not in subtypes or not max_width:
+            _debug.logic(
+                "autoresize_skipped",
+                subtype=subtype,
+                reason="disabled" if not max_width else "subtype_excluded",
+            )
             return values
 
         is_raw = bool(values.get("raw"))
@@ -953,18 +1148,38 @@ class IrAttachment(models.Model):
             img = image.ImageProcess(data, verify_resolution=False)
             if not img.image:
                 _logger.info("Post processing ignored : Empty source, SVG, or WEBP")
+                _debug.logic("autoresize_skipped", subtype=subtype, reason="no_image")
                 return values
             width, height = img.image.size
             if width <= max_width and height <= max_height:
+                _debug.logic(
+                    "autoresize_skipped",
+                    subtype=subtype,
+                    width=width,
+                    height=height,
+                    reason="within_bounds",
+                )
                 return values
-            img = img.resize(max_width, max_height)
-            image_data = img.image_quality(quality=quality if subtype == "jpeg" else 0)
+            with _debug.perf("image_resize", subtype=subtype, bytes_in=len(data)):
+                img = img.resize(max_width, max_height)
+                image_data = img.image_quality(
+                    quality=quality if subtype == "jpeg" else 0
+                )
+            _debug.logic(
+                "image_autoresized",
+                subtype=subtype,
+                width=width,
+                height=height,
+                bytes_in=len(data),
+                bytes_out=len(image_data),
+            )
             if is_raw:
                 values["raw"] = image_data
             else:
                 values["datas"] = base64.b64encode(image_data)
         except (UserError, OSError, image.Image.DecompressionBombError) as e:
             _logger.info("Post processing ignored : %s", e)
+            _debug.logic("autoresize_skipped", subtype=subtype, reason=type(e).__name__)
         return values
 
     @api.model
@@ -976,14 +1191,13 @@ class IrAttachment(models.Model):
         )
 
     @api.model
-    def _get_index_content(
-        self, bin_data: bytes, file_type: str, checksum: str | None = None
-    ) -> str | None:
+    def _get_index_content(self, bin_data: bytes, file_type: str) -> str | None:
         if not (file_type and file_type.startswith("text/")):
             return None
         text = bin_data[: self._INDEX_MAX_BYTES].decode("utf-8", errors="ignore")
         limit = self._get_index_max_chars()
         if limit <= 0:
+            _debug.logic("index_content_unbounded", mimetype=file_type, chars=len(text))
             return "\n".join(_INDEX_WORD_RE.findall(text))
         words = []
         budget = limit
@@ -992,13 +1206,14 @@ class IrAttachment(models.Model):
             budget -= len(words[-1]) + 1
             if budget <= 0:
                 break
+        _debug.perf.count(
+            "index_content", mimetype=file_type, words=len(words), limit=limit
+        )
         return "\n".join(words)
 
     @api.model
-    def _extract_index_content(
-        self, bin_data: bytes, mimetype: str, checksum: str | None = None
-    ) -> str | None:
-        index_content = self._get_index_content(bin_data, mimetype, checksum=checksum)
+    def _extract_index_content(self, bin_data: bytes, mimetype: str) -> str | None:
+        index_content = self._get_index_content(bin_data, mimetype)
         if not index_content:
             return index_content
         limit = self._get_index_max_chars()
@@ -1031,6 +1246,12 @@ class IrAttachment(models.Model):
             if not res_model or not res_ids:
                 continue
             if res_model not in self.env:
+                _debug.logic(
+                    "comodel_unknown",
+                    model=res_model,
+                    operation=operation,
+                    count=len(res_ids),
+                )
                 for res_id in res_ids:
                     yield res_model, res_id
                 continue
@@ -1042,8 +1263,15 @@ class IrAttachment(models.Model):
             try:
                 records = records._filtered_access(operation)
             except MissingError:
+                _debug.logic("comodel_records_missing", model=res_model)
                 records = records.exists()._filtered_access(operation)
             res_ids.difference_update(records._ids)
+            _debug.perf.count(
+                "comodel_access_checked",
+                model=res_model,
+                operation=operation,
+                inaccessible=len(res_ids),
+            )
             for res_id in res_ids:
                 yield res_model, res_id
 
@@ -1051,6 +1279,7 @@ class IrAttachment(models.Model):
     def _get_domain_security_prefilter(self, sec_domain: Domain) -> Domain:
         model_names, capped = self._get_model_names_attached()
         if capped:
+            _debug.logic("security_prefilter", models=len(model_names), capped=True)
             return sec_domain | Domain("res_model", "!=", False)
         unreadable = [
             name
@@ -1058,6 +1287,12 @@ class IrAttachment(models.Model):
             if (comodel := self.env.get(name)) is not None
             and not comodel.has_access("read")
         ]
+        _debug.logic(
+            "security_prefilter",
+            models=len(model_names),
+            unreadable=len(unreadable),
+            capped=False,
+        )
         if not unreadable:
             return sec_domain | Domain("res_model", "!=", False)
         return sec_domain | Domain("res_model", "not in", unreadable)
@@ -1066,11 +1301,15 @@ class IrAttachment(models.Model):
     @ormcache()
     def _get_model_names_attached(self) -> tuple[list[str], bool]:
         limit = self._SEARCH_MODEL_DISCOVERY_LIMIT + 1
-        self.env.cr.execute(
-            "SELECT res_model FROM ir_attachment GROUP BY res_model LIMIT %s",
-            [limit],
+        groups = (
+            self.sudo()
+            .with_context(skip_res_field_check=True)
+            ._read_group([], ["res_model"], limit=limit)
         )
-        rows = [row[0] for row in self.env.cr.fetchall()]
+        rows = [res_model for (res_model,) in groups]
+        _debug.perf.count(
+            "model_names_attached", models=len(rows), capped=len(rows) >= limit
+        )
         return sorted(name for name in rows if name), len(rows) >= limit
 
     @api.model
@@ -1078,7 +1317,7 @@ class IrAttachment(models.Model):
         self,
         domain: Domain,
         res_model_names: Collection[Any],
-        disable_binary_fields_attachments: bool,
+        hide_field_rows: bool,
     ) -> Domain:
         env = self.with_context(active_test=False).env
         models_domain = Domain.FALSE
@@ -1102,15 +1341,21 @@ class IrAttachment(models.Model):
                     else Domain.TRUE
                 )
             except AccessError:
+                _debug.logic(
+                    "security_model_skipped", model=comodel._name, reason="access"
+                )
                 continue
             if query.is_empty():
+                _debug.logic(
+                    "security_model_skipped", model=comodel._name, reason="empty"
+                )
                 continue
             codomain &= (
                 Domain("res_id", "in", query)
                 if query.where_clause
                 else Domain("res_id", "!=", False)
             )
-            if not disable_binary_fields_attachments and not self.env.is_system():
+            if not hide_field_rows and not self.env.is_system():
                 accessible_fields = [
                     field.name
                     for field in comodel._fields.values()
@@ -1118,6 +1363,11 @@ class IrAttachment(models.Model):
                 ]
                 accessible_fields.append(False)
                 codomain &= Domain("res_field", "in", accessible_fields)
+                _debug.logic(
+                    "security_model_fields",
+                    model=comodel._name,
+                    readable_fields=len(accessible_fields) - 1,
+                )
             models_domain |= codomain
         return models_domain
 
@@ -1126,8 +1376,11 @@ class IrAttachment(models.Model):
         self, order: str | None
     ) -> tuple[str, Callable[[Self], Domain] | None]:
         if order:
-            column, _, direction = order.split(",")[0].strip().partition(" ")
+            terms = [term.strip().partition(" ") for term in order.split(",")]
+            column, _, direction = terms[0]
             if column != "id":
+                if any(term[0] == "id" for term in terms):
+                    return order, None
                 return f"{order}, id", None
             operator = ">" if not direction.strip().lower().startswith("desc") else "<"
             return order, lambda last: Domain("id", operator, last.id)
@@ -1142,7 +1395,9 @@ class IrAttachment(models.Model):
         result: list[int] = []
         sub_offset = 0
         batch_domain = domain
+        batches = 0
         while bound is None or len(result) < bound:
+            batches += 1
             records = (
                 self.sudo()
                 .with_context(active_test=False)
@@ -1165,6 +1420,13 @@ class IrAttachment(models.Model):
             else:
                 sub_offset += PREFETCH_MAX
             records.invalidate_recordset(SECURITY_FIELDS)
+        _debug.perf.count(
+            "accessible_ids",
+            bound=bound,
+            found=len(result),
+            keyset=keyset is not None,
+            batches=batches,
+        )
         return result
 
     def _post_add_create(self, **kwargs: Any) -> None:
@@ -1180,10 +1442,13 @@ class IrAttachment(models.Model):
             token = self._prepare_access_token()
             new_tokens[attachment.id] = token
             tokens.append(token)
-        for attachment in self.browse(new_tokens):
-            super(IrAttachment, attachment).write(
-                {"access_token": new_tokens[attachment.id]}
+        for attachment_id, token in new_tokens.items():
+            super(IrAttachment, self.browse(attachment_id)).write(
+                {"access_token": token}
             )
+        _debug.lifecycle(
+            "access_tokens_generated", count=len(self), created=len(new_tokens)
+        )
         return tokens
 
     @api.model
@@ -1203,6 +1468,7 @@ class IrAttachment(models.Model):
         model_and_ids = defaultdict(OrderedSet)
         for values in values_list:
             if "mimetype" not in values:
+                _debug.logic("create_unique_refused", reason="missing_mimetype")
                 raise UserError(_("Attachment is missing its mimetype."))
             vals, has_content = self._normalize_content_vals(dict(values))
             vals = self._prepare_contents(vals)
@@ -1219,12 +1485,24 @@ class IrAttachment(models.Model):
                     *self._get_dedup_owner(vals),
                 )
                 if verify_collision and raw_by_key.setdefault(key, raw) != raw:
+                    _debug.logic("create_unique_digest_collision", size=len(raw))
                     key = None
             entries.append((vals, key))
         if any(self._get_comodel_records_inaccessible(model_and_ids, "write")):
+            _debug.logic(
+                "create_unique_refused",
+                uid=self.env.uid,
+                reason="comodel_inaccessible",
+            )
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
         all_checksums = list({key[0] for _vals, key in entries if key})
+        _debug.pipeline(
+            "create_unique_dedup_lookup",
+            entries=len(entries),
+            dedupable=sum(1 for _vals, key in entries if key),
+            checksums=len(all_checksums),
+        )
         existing_by_key: dict[tuple, int] = {}
         if all_checksums:
             for (
@@ -1261,6 +1539,12 @@ class IrAttachment(models.Model):
             if to_create
             else self.browse()
         )
+        _debug.logic(
+            "create_unique",
+            requested=len(values_list),
+            reused=len(existing_by_key),
+            created=len(created),
+        )
         return [
             (
                 created[own_index].id
@@ -1288,6 +1572,7 @@ class IrAttachment(models.Model):
         for key, att_id in list(existing_by_key.items()):
             if self.browse(att_id).sudo()._get_stored_content() != raw_by_key.get(key):
                 del existing_by_key[key]
+                _debug.logic("dedup_match_dropped", attachment=att_id)
                 _logger.warning(
                     "create_unique: attachment %s shares the digest of new "
                     "content but not its bytes; not reusing it",
@@ -1320,10 +1605,13 @@ class IrAttachment(models.Model):
         elif "/" in mimetype and all(mimetype.split("/", 1)):
             filename = fix_filename_extension(file.filename, mimetype)
         else:
+            _debug.logic("request_file_refused", reason="bad_mimetype_policy")
             raise ValueError(f"{mimetype=}")
 
         values = {"name": filename, "type": "binary", "mimetype": mimetype, **vals}
-        if self._is_stream_upload_required(mimetype):
+        streamed = self._is_stream_upload_required(mimetype)
+        _debug.pipeline("request_file_received", mimetype=mimetype, streamed=streamed)
+        if streamed:
             return self._create_from_stream(file, **values)
         return self.create({"raw": file.read(), **values})
 
@@ -1333,8 +1621,13 @@ class IrAttachment(models.Model):
         record = self.create(
             {"name": name, "type": "binary", "mimetype": mimetype, **vals}
         )
-        store_values = self._get_storage_backend().write_stream(fileobj)
+        with _debug.perf("stream_store", attachment=record.id, mimetype=mimetype):
+            store_values = self._get_storage_backend().write_stream(fileobj)
         read_size = self._get_index_read_size(record.mimetype)
+        if not self._should_index_content(
+            {"name": name, "type": "binary", "mimetype": mimetype, **vals}
+        ):
+            read_size = 0
         index_content = None
         if read_size != 0:
             content = b""
@@ -1355,12 +1648,16 @@ class IrAttachment(models.Model):
                 db_datas = store_values["db_datas"] or b""
                 content = db_datas if read_size is None else db_datas[:read_size]
             if readable:
-                index_content = self._extract_index_content(
-                    content, record.mimetype, checksum=store_values.get("checksum")
-                )
+                index_content = self._extract_index_content(content, record.mimetype)
         store_values["index_content"] = index_content
+        _debug.lifecycle(
+            "stream_stored",
+            attachment=record.id,
+            size=store_values.get("file_size"),
+            in_db="db_datas" in store_values,
+            indexed=bool(index_content),
+        )
         super(IrAttachment, record.sudo()).write(store_values)
-        record._check_serving_attachments()
         return record
 
     def _to_http_stream(self) -> Stream:
@@ -1374,6 +1671,7 @@ class IrAttachment(models.Model):
         )
 
         if self.store_fname:
+            _debug.logic("http_stream", attachment=self.id, source="storage")
             return self._get_storage_backend_for_key(self.store_fname).to_stream(
                 self, stream
             )
@@ -1384,18 +1682,24 @@ class IrAttachment(models.Model):
             stream.data = inline
             stream.last_modified = self.write_date
             stream.size = len(inline)
+            _debug.logic(
+                "http_stream", attachment=self.id, source="db", size=len(inline)
+            )
 
         elif self.url:
             if static_path := self._get_static_file_path():
                 stream = Stream.from_path(static_path, public=True)
+                _debug.logic("http_stream", attachment=self.id, source="static")
             else:
                 stream.type = "url"
                 stream.url = self.url
+                _debug.logic("http_stream", attachment=self.id, source="url")
 
         else:
             stream.type = "data"
             stream.data = b""
             stream.size = 0
+            _debug.logic("http_stream", attachment=self.id, source="empty")
 
         return stream
 
@@ -1417,6 +1721,7 @@ class IrAttachment(models.Model):
         )
         total = self.sudo().search_count(domain)
         if not total:
+            _debug.logic("url_attachments_audit_skipped", reason="none")
             return
         suspicious = self.sudo().search(
             domain, order="id", limit=self._URL_AUDIT_WINDOW
@@ -1432,8 +1737,9 @@ class IrAttachment(models.Model):
         if new:
             _logger.warning(
                 "Found %d non-public binary attachment(s) with `url` set "
-                "(showing %d); review that these are intended to be served via "
-                "ir.http._serve_fallback. First URLs: %s",
+                "(showing %d). ir.http._serve_fallback serves public rows only, "
+                "so these URLs answer 404; set `public` on the ones meant to be "
+                "served, or clear `url` on the rest. First URLs: %s",
                 total,
                 len(new),
                 new.mapped("url"),
@@ -1441,11 +1747,14 @@ class IrAttachment(models.Model):
         else:
             _logger.info(
                 "%d previously reported non-public binary attachment(s) with "
-                "`url` set remain unresolved (showing %d).",
+                "`url` set remain unresolved and unserved (showing %d).",
                 total,
                 len(suspicious),
             )
         current = set(suspicious.ids)
+        _debug.pipeline(
+            "url_attachments_audited", total=total, new=len(new), seen=len(seen)
+        )
         if current != seen:
             ICP.set_param(param, ",".join(map(str, sorted(current))))
 
@@ -1454,7 +1763,11 @@ class IrAttachment(models.Model):
         collected = 0
         capped = 0
         for backend_cls in tuple(STORAGE_BACKENDS.values()):
-            swept = backend_cls(self.env).autovacuum()
+            with _debug.perf(
+                "gc_backend", cr=self.env.cr, backend=backend_cls.__name__
+            ) as span:
+                swept = backend_cls(self.env).autovacuum()
+                span.set(locked=swept is False)
             if swept is False:
                 _logger.warning(
                     "filestore gc: %s could not take its lock and swept nothing "
@@ -1467,6 +1780,7 @@ class IrAttachment(models.Model):
                 capped |= int(bool(swept[1]))
             elif swept:
                 collected += swept
+        _debug.lifecycle("gc_file_store", collected=collected, capped=bool(capped))
         return collected, capped
 
     @api.model
@@ -1488,15 +1802,16 @@ class IrAttachment(models.Model):
         if ALGO_TAG == "s1":
             return 0, 0
         if limit is None:
-            limit = int(
+            limit = (
                 self.env["ir.config_parameter"]
                 .sudo()
-                .get_param("ir_attachment.rehash_legacy_keys_limit", 0)
-                or 0
+                .get_param_int("ir_attachment.rehash_legacy_keys_limit", 0)
             )
         if limit <= 0:
+            _debug.logic("rehash_skipped", reason="no_limit")
             return 0, 0
         if self._get_storage_location() != "file":
+            _debug.logic("rehash_skipped", reason="not_file_storage")
             return 0, 0
 
         domain = self._get_domain_legacy_keys()
@@ -1504,14 +1819,30 @@ class IrAttachment(models.Model):
         legacy = model.search(domain, order="id", limit=limit)
         rekeyed = 0
         backend = self._get_storage_backend()
-        for _index, attach, raw in self._get_rows_rewritable(legacy, "rehash"):
+        for attach in legacy:
+            raw = attach._with_bin_size_disabled().raw
+            if self._is_content_unreadable(
+                raw,
+                attach.file_size,
+                att_id=attach.id,
+                key=attach.store_fname,
+                action="skipping rehash",
+            ):
+                continue
+            old_fname = attach.store_fname
             checksum = self._get_content_checksum(raw)
-            self._rewrite_stored_content(
-                attach,
-                {**backend.write(raw, checksum), "checksum": checksum},
-                attach.store_fname,
+            super(IrAttachment, attach.sudo()).write(
+                {**backend.write(raw, checksum), "checksum": checksum}
+            )
+            attach._remove_stored_file(old_fname)
+            attach.invalidate_recordset()
+            _debug.lifecycle(
+                "legacy_key_rehashed", attachment=attach.id, old_key=old_fname
             )
             rekeyed += 1
+        _debug.lifecycle(
+            "legacy_keys_rehashed", candidates=len(legacy), rekeyed=rekeyed
+        )
         if not rekeyed:
             return 0, 0
         remaining = model.search_count(domain, limit=limit + 1)
@@ -1529,6 +1860,7 @@ class IrAttachment(models.Model):
     def _gc_stale_filestore_temps(self) -> tuple[int, int]:
         tmp_dir = self._get_filestore_dir("tmp")
         if not tmp_dir.is_dir():
+            _debug.logic("gc_stale_temps_skipped", reason="no_tmp_dir")
             return 0, 0
         cutoff = time.time() - self._FILESTORE_TMP_MAX_AGE
         removed = 0
@@ -1545,6 +1877,7 @@ class IrAttachment(models.Model):
                 _logger.info("temp gc could not remove %s", entry, exc_info=True)
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
+        _debug.lifecycle("gc_stale_temps", removed=removed, capped=bool(remaining))
         return removed, remaining
 
     def _get_gc_checklist(
@@ -1581,6 +1914,9 @@ class IrAttachment(models.Model):
                 "left for a later run",
                 skipped,
             )
+        _debug.perf.count(
+            "gc_checklist", entries=len(checklist), skipped=skipped, capped=capped
+        )
         return checklist
 
     def _gc_file_store_unsafe(
@@ -1592,12 +1928,15 @@ class IrAttachment(models.Model):
             grace = self._GC_CHECKLIST_GRACE
 
         removed = 0
+        dropped = 0
+        self.flush_model(["store_fname"])
         for names in batched(checklist, self.env.cr.BATCH_SIZE, strict=False):
             self.env.cr.execute(
                 "SELECT store_fname FROM ir_attachment WHERE store_fname = ANY(%s)",
                 [list(names)],
             )
             whitelist = {row[0] for row in self.env.cr.fetchall()}
+            _debug.perf.count("gc_batch", names=len(names), referenced=len(whitelist))
 
             for fname in names:
                 filepath = checklist[fname]
@@ -1608,7 +1947,8 @@ class IrAttachment(models.Model):
                         filepath,
                     )
                     with contextlib.suppress(OSError):
-                        Path(filepath).unlink()
+                        filepath.unlink()
+                    dropped += 1
                     continue
                 if fname not in whitelist:
                     if grace:
@@ -1626,7 +1966,8 @@ class IrAttachment(models.Model):
                             filepath,
                         )
                         with contextlib.suppress(OSError):
-                            Path(filepath).unlink()
+                            filepath.unlink()
+                        dropped += 1
                         continue
                     try:
                         Path(full_path).unlink(missing_ok=True)
@@ -1640,9 +1981,15 @@ class IrAttachment(models.Model):
                         )
                         continue
                 with contextlib.suppress(OSError):
-                    Path(filepath).unlink()
+                    filepath.unlink()
 
-        _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
+        _logger.debug("filestore gc %d checked, %d removed", len(checklist), removed)
+        _debug.lifecycle(
+            "gc_file_store_sweep",
+            checked=len(checklist),
+            removed=removed,
+            dropped=dropped,
+        )
         return removed
 
     def _mark_for_gc(self, fname: str) -> None:
@@ -1652,8 +1999,9 @@ class IrAttachment(models.Model):
         checklist_dir = self._get_filestore_dir("checklist")
         by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
         for fname in fnames:
-            full_path = checklist_dir / self._sanitize_store_key(fname)
+            full_path = checklist_dir / self._normalize_store_key(fname)
             by_shard_dir[full_path.parent].append(full_path)
+        _debug.lifecycle("marked_for_gc", count=len(fnames), shards=len(by_shard_dir))
         for shard_dir, paths in by_shard_dir.items():
             with contextlib.suppress(OSError):
                 shard_dir.mkdir(parents=True, exist_ok=True)
@@ -1677,13 +2025,19 @@ class IrAttachment(models.Model):
         attachment_sudo = self.sudo().with_context(prefetch_fields=False)
         if access_token:
             if not consteq(attachment_sudo.access_token or "", access_token):
+                _debug.logic(
+                    "return_content_refused", attachment=self.id, reason="bad_token"
+                )
                 msg = "Invalid access token"
                 raise AccessError(msg)
+            _debug.logic("return_content", attachment=self.id, via="token")
             return True
         if attachment_sudo.public:
+            _debug.logic("return_content", attachment=self.id, via="public")
             return True
         if self.env.user._is_portal():
             self.check_access("read")
+            _debug.logic("return_content", attachment=self.id, via="portal_read")
             return True
         return super()._can_return_content(field_name, access_token)
 
@@ -1695,6 +2049,14 @@ class IrAttachment(models.Model):
         if res:
             forbidden, error_func = res
             if forbidden == self:
+                _debug.logic(
+                    "check_access",
+                    operation=operation,
+                    uid=self.env.uid,
+                    count=len(self),
+                    forbidden=len(self),
+                    reason="base_rules",
+                )
                 return res
             remaining -= forbidden
             forbidden_ids.update(forbidden._ids)
@@ -1741,6 +2103,14 @@ class IrAttachment(models.Model):
         forbidden_ids.update(
             att_id for att_id, res in att_model_ids if res in forbidden_res_model_id
         )
+        _debug.logic(
+            "check_access",
+            operation=operation,
+            uid=self.env.uid,
+            count=len(self),
+            forbidden=len(forbidden_ids),
+            linked_models=len(model_ids),
+        )
 
         if forbidden_ids:
             forbidden = self.browse(forbidden_ids)
@@ -1767,6 +2137,7 @@ class IrAttachment(models.Model):
     def _check_circular_attachment(self) -> None:
         for record in self.sudo():
             if record.res_model == "ir.attachment" and record.id == record.res_id:
+                _debug.logic("circular_attachment_refused", attachment=record.id)
                 raise ValidationError(
                     _(
                         "You cannot attach an attachment to itself.\n"
@@ -1784,6 +2155,7 @@ class IrAttachment(models.Model):
         )
         if force_text:
             values["mimetype"] = "text/plain"
+            _debug.logic("xml_mimetype_forced_text", original=mimetype)
         if not self.env.context.get("image_no_postprocess"):
             values = self._prepare_contents_resized(values)
         return values
@@ -1794,8 +2166,14 @@ class IrAttachment(models.Model):
         served = self.filtered(lambda a: a.type == "binary" and a.url)
         if not served:
             return
+        _debug.logic(
+            "serving_attachments_checked", uid=self.env.uid, served=len(served)
+        )
         has_group = self.env.user.has_group
         if not any(has_group(g) for g in self.get_groups_allowed_to_serve()):
+            _debug.logic(
+                "serving_write_refused", uid=self.env.uid, attachments=served.ids
+            )
             raise ValidationError(
                 _("Sorry, you are not allowed to write on this document")
             )
@@ -1805,9 +2183,7 @@ class IrAttachment(models.Model):
         if mimetype.startswith("application/vnd.openxmlformats"):
             return False
         subtype = mimetype.partition("/")[2]
-        return (
-            "html" in subtype or subtype in {"hta", "xml"} or subtype.endswith("+xml")
-        )
+        return "html" in subtype or "xml" in subtype or subtype == "hta"
 
     def _is_remote_source(self) -> bool:
         self.check_singleton()
@@ -1824,4 +2200,6 @@ class IrAttachment(models.Model):
         if maintype != "image":
             return True
         subtypes, max_width, _height, _quality = self._get_image_autoresize_config()
-        return not (max_width and subtype in subtypes)
+        streamed = not (max_width and subtype in subtypes)
+        _debug.logic("stream_upload_decided", mimetype=mimetype, streamed=streamed)
+        return streamed

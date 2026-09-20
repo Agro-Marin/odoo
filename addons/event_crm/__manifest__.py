@@ -21,6 +21,7 @@
         "views/event_lead_rule_views.xml",
         "views/event_event_views.xml",
         "views/event_question_views.xml",
+        "views/event_crm_menus.xml",
     ],
     "demo": [
         "demo/event_crm_demo.xml",
@@ -30,6 +31,5 @@
             "event_crm/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

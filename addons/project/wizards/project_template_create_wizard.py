@@ -2,6 +2,8 @@ from typing import Any, Self
 
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTemplateCreateWizard(models.TransientModel):
     _name = "project.template.create.wizard"
@@ -19,19 +21,19 @@ class ProjectTemplateCreateWizard(models.TransientModel):
             ]
         return res
 
-    name = fields.Char(string="Name", required=True)
+    name = fields.Char(required=True)
     date_start = fields.Date(string="Start Date")
     date = fields.Date(string="Expiration Date")
-    alias_name = fields.Char(string="Alias Name")
-    alias_domain_id = fields.Many2one("mail.alias.domain", string="Alias Domain")
+    alias_name = fields.Char()
+    alias_domain_id = fields.Many2one(comodel_name="mail.alias.domain")
     template_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
         default=lambda self: self.env.context.get("template_id"),
     )
     template_has_dates = fields.Boolean(compute="_compute_template_has_dates")
     role_to_users_ids = fields.One2many(
-        "project.template.role.to.users.map",
-        "wizard_id",
+        comodel_name="project.template.role.to.users.map",
+        inverse_name="wizard_id",
         default=_default_role_to_users_ids,
     )
 
@@ -45,12 +47,20 @@ class ProjectTemplateCreateWizard(models.TransientModel):
     def _get_fields_template_whitelist(self) -> list[str]:
         return ["name", "date_start", "date", "alias_name", "alias_domain_id"]
 
+    @dbg.timed
     def _create_project_from_template(self) -> Self:
         field_values = self._convert_to_write(
             {
                 fname: self[fname]
                 for fname in self._fields.keys() & self._get_fields_template_whitelist()
             }
+        )
+        dbg.pipeline.debug(
+            "[template:%s] create wizard -> action_create_from_template values=%s "
+            "role mappings=%d",
+            self.template_id.id,
+            dbg.keys(field_values),
+            len(self.role_to_users_ids),
         )
         return self.template_id.action_create_from_template(
             values=field_values, role_to_users_mapping=self.role_to_users_ids
@@ -90,11 +100,16 @@ class ProjectTemplateRoleToUsersMap(models.TransientModel):
     _description = "Project role to users mapping"
 
     wizard_id = fields.Many2one(
-        "project.template.create.wizard", export_string_translation=False
+        comodel_name="project.template.create.wizard",
+        export_string_translation=False,
     )
-    role_id = fields.Many2one("resource.role", string="Project Role", required=True)
+    role_id = fields.Many2one(
+        comodel_name="resource.role",
+        string="Project Role",
+        required=True,
+    )
     user_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         string="Assignees",
         domain=[("share", "=", False), ("active", "=", True)],
     )

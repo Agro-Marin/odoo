@@ -5,12 +5,15 @@ from datetime import date, timedelta
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import LockError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, date_utils, format_list
 from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import format_date
 
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
 from odoo.addons.account.models.product import ACCOUNT_DOMAIN
+
+_debug = DebugLog(__name__)
 
 MONTH_SELECTION = [
     ("1", "January"),
@@ -134,7 +137,7 @@ class ResCompany(models.Model):
         required=True,
     )
     fiscalyear_last_month = fields.Selection(
-        MONTH_SELECTION,
+        selection=MONTH_SELECTION,
         default="12",
         required=True,
     )
@@ -160,23 +163,22 @@ class ResCompany(models.Model):
         help="Any purchase entry prior to and including this date will be postponed to a later date, in accordance with its journal's sequence.",
     )
     hard_lock_date = fields.Date(
-        string="Hard Lock Date",
         tracking=True,
         help="Any entry up to and including that date will be postponed to a later time, in accordance with its journal sequence. "
         "This lock date is irreversible and does not allow any exception.",
     )
     user_fiscalyear_lock_date = fields.Date(
-        compute="_compute_user_fiscalyear_lock_date",
+        compute="_compute_user_fiscalyear_lock_date"
     )
     user_tax_lock_date = fields.Date(compute="_compute_user_tax_lock_date")
     user_sale_lock_date = fields.Date(compute="_compute_user_sale_lock_date")
     user_purchase_lock_date = fields.Date(compute="_compute_user_purchase_lock_date")
     user_hard_lock_date = fields.Date(compute="_compute_user_hard_lock_date")
     transfer_account_id = fields.Many2one(
-        "account.account",
-        check_company=True,
-        domain="[('reconcile', '=', True), ('account_type', '=', 'asset_current')]",
+        comodel_name="account.account",
         string="Inter-Banks Transfer Account",
+        domain="[('reconcile', '=', True), ('account_type', '=', 'asset_current')]",
+        check_company=True,
         help="Intermediary account used when moving money from a liquidity account to another",
     )
     expects_chart_of_accounts = fields.Boolean(
@@ -187,17 +189,17 @@ class ResCompany(models.Model):
     bank_account_code_prefix = fields.Char(string="Prefix of the bank accounts")
     cash_account_code_prefix = fields.Char(string="Prefix of the cash accounts")
     default_cash_difference_income_account_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Cash Difference Income",
         check_company=True,
     )
     default_cash_difference_expense_account_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Cash Difference Expense",
         check_company=True,
     )
     account_journal_suspense_account_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Journal Suspense Account",
         check_company=True,
     )
@@ -213,54 +215,53 @@ class ResCompany(models.Model):
     )
     transfer_account_code_prefix = fields.Char(string="Prefix of the transfer accounts")
     account_sale_tax_id = fields.Many2one(
-        "account.tax",
+        comodel_name="account.tax",
         string="Default Sale Tax",
         check_company=True,
     )
     account_purchase_tax_id = fields.Many2one(
-        "account.tax",
+        comodel_name="account.tax",
         string="Default Purchase Tax",
         check_company=True,
     )
     account_purchase_receipt_fiscal_position_id = fields.Many2one(
-        "account.fiscal.position",
+        comodel_name="account.fiscal.position",
         string="Default Purchase Receipt Fiscal Position",
         check_company=True,
     )
     tax_calculation_rounding_method = fields.Selection(
-        [
+        selection=[
             ("round_globally", "Round per Tax"),
             ("round_per_line", "Round per Line"),
         ],
         default="round_globally",
-        string="Tax Calculation Rounding Method",
     )
     currency_exchange_journal_id = fields.Many2one(
-        "account.journal",
+        comodel_name="account.journal",
         string="Exchange Gain or Loss Journal",
         domain=[("type", "=", "general")],
     )
     income_currency_exchange_account_id = fields.Many2one(
         comodel_name="account.account",
         string="Gain Exchange Rate Account",
-        check_company=True,
         domain="[('internal_group', '=', 'income')]",
+        check_company=True,
     )
     expense_currency_exchange_account_id = fields.Many2one(
         comodel_name="account.account",
         string="Loss Exchange Rate Account",
-        check_company=True,
         domain="[('account_type', 'in', ('expense', 'expense_other'))]",
+        check_company=True,
     )
     anglo_saxon_accounting = fields.Boolean(string="Use anglo-saxon accounting")
     bank_journal_ids = fields.One2many(
-        "account.journal",
-        "company_id",
-        domain=[("type", "=", "bank")],
+        comodel_name="account.journal",
+        inverse_name="company_id",
         string="Bank Journals",
+        domain=[("type", "=", "bank")],
     )
     incoterm_id = fields.Many2one(
-        "account.incoterms",
+        comodel_name="account.incoterms",
         string="Default incoterm",
         help="International Commercial Terms are a series of predefined commercial terms used in international transactions.",
     )
@@ -276,26 +277,27 @@ class ResCompany(models.Model):
         default=True,
     )
     account_use_credit_limit = fields.Boolean(
-        string="Sales Credit Limit", help="Enable the use of credit limit on partners."
+        string="Sales Credit Limit",
+        help="Enable the use of credit limit on partners.",
     )
 
     batch_payment_sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
 
     account_opening_move_id = fields.Many2one(
-        string="Opening Journal Entry",
         comodel_name="account.move",
+        string="Opening Journal Entry",
         help="The journal entry containing the initial balance of all this company's accounts.",
     )
     account_opening_journal_id = fields.Many2one(
-        string="Opening Journal",
         comodel_name="account.journal",
         related="account_opening_move_id.journal_id",
-        help="Journal where the opening entry of this company's accounting has been posted.",
+        string="Opening Journal",
         readonly=False,
+        help="Journal where the opening entry of this company's accounting has been posted.",
     )
     account_opening_date = fields.Date(
         string="Opening Entry",
@@ -307,7 +309,7 @@ class ResCompany(models.Model):
         translate=True,
     )
     terms_type = fields.Selection(
-        [("plain", "Add a Note"), ("html", "Add a link to a Web Page")],
+        selection=[("plain", "Add a Note"), ("html", "Add a link to a Web Page")],
         string="Terms & Conditions format",
         default="plain",
     )
@@ -321,25 +323,25 @@ class ResCompany(models.Model):
     )
 
     account_default_pos_receivable_account_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Default PoS Receivable Account",
         check_company=True,
     )
 
     expense_accrual_account_id = fields.Many2one(
-        "account.account",
-        help="Account used to move the period of an expense",
-        check_company=True,
+        comodel_name="account.account",
         domain="[('internal_group', '=', 'liability'), ('account_type', 'not in', ('asset_receivable', 'liability_payable'))]",
+        check_company=True,
+        help="Account used to move the period of an expense",
     )
     revenue_accrual_account_id = fields.Many2one(
-        "account.account",
-        help="Account used to move the period of a revenue",
-        check_company=True,
+        comodel_name="account.account",
         domain="[('internal_group', '=', 'asset'), ('account_type', 'not in', ('asset_receivable', 'liability_payable'))]",
+        check_company=True,
+        help="Account used to move the period of a revenue",
     )
     automatic_entry_default_journal_id = fields.Many2one(
-        "account.journal",
+        comodel_name="account.journal",
         domain="[('type', '=', 'general')]",
         check_company=True,
         help="Journal used by default for moving the period of an entry",
@@ -351,8 +353,8 @@ class ResCompany(models.Model):
         store=True,
     )
     account_fiscal_country_id = fields.Many2one(
-        string="Fiscal Country",
         comodel_name="res.country",
+        string="Fiscal Country",
         compute="_compute_account_fiscal_country_id",
         store=True,
         readonly=False,
@@ -363,8 +365,8 @@ class ResCompany(models.Model):
     )
 
     account_enabled_tax_country_ids = fields.Many2many(
-        string="l10n-used countries",
         comodel_name="res.country",
+        string="l10n-used countries",
         compute="_compute_account_enabled_tax_country_ids",
         help="Technical field containing the countries for which this company is using tax-related features"
         "(hence the ones for which l10n modules need to show tax-related fields).",
@@ -372,21 +374,23 @@ class ResCompany(models.Model):
 
     tax_exigibility = fields.Boolean(string="Use Cash Basis")
     tax_cash_basis_journal_id = fields.Many2one(
-        comodel_name="account.journal", check_company=True, string="Cash Basis Journal"
+        comodel_name="account.journal",
+        string="Cash Basis Journal",
+        check_company=True,
     )
     account_cash_basis_base_account_id = fields.Many2one(
         comodel_name="account.account",
-        check_company=True,
         string="Base Tax Received Account",
+        check_company=True,
         help="Account that will be set on lines created in cash basis journal entry and used to keep track of the "
         "tax base amount.",
     )
 
     account_storno = fields.Boolean(
         string="Storno accounting",
-        readonly=False,
-        store=True,
         compute="_compute_account_storno",
+        store=True,
+        readonly=False,
     )
     display_account_storno = fields.Boolean(compute="_compute_display_account_storno")
 
@@ -395,10 +399,10 @@ class ResCompany(models.Model):
         inverse_name="company_id",
     )
     multi_vat_foreign_country_ids = fields.Many2many(
-        string="Foreign VAT countries",
-        help="Countries for which the company has a VAT number",
         comodel_name="res.country",
+        string="Foreign VAT countries",
         compute="_compute_multi_vat_foreign_country_ids",
+        help="Countries for which the company has a VAT number",
     )
 
     quick_edit_mode = fields.Selection(
@@ -420,7 +424,6 @@ class ResCompany(models.Model):
     )
 
     restrictive_audit_trail = fields.Boolean(
-        string="Restrictive Audit Trail",
         tracking=True,
         help="Enable this option to prevent deletion of journal item related logs",
     )
@@ -429,7 +432,10 @@ class ResCompany(models.Model):
         compute="_compute_force_restrictive_audit_trail",
     )
 
-    autopost_bills = fields.Boolean(string="Auto-validate bills", default=True)
+    autopost_bills = fields.Boolean(
+        string="Auto-validate bills",
+        default=True,
+    )
 
     account_price_include = fields.Selection(
         selection=[("tax_included", "Tax Included"), ("tax_excluded", "Tax Excluded")],
@@ -442,13 +448,11 @@ class ResCompany(models.Model):
 
     income_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Income Account",
         domain=ACCOUNT_DOMAIN,
         help="This account will be used when validating a customer invoice.",
     )
     expense_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Expense Account",
         domain=ACCOUNT_DOMAIN,
         help="The expense is accounted for when a vendor bill is validated, except in anglo-saxon"
         " accounting with perpetual inventory valuation in which case the expense (Cost of"
@@ -456,12 +460,12 @@ class ResCompany(models.Model):
     )
     price_difference_account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Price Difference Account",
         domain=ACCOUNT_DOMAIN,
         help="During perpetual valuation, this account will hold the price difference between the standard price and the bill price.",
     )
 
     @api.constrains("restrictive_audit_trail")
+    @_debug.perf.timed
     def _check_audit_trail_restriction(self):
         companies = self.filtered(
             lambda c: not c.restrictive_audit_trail and c.force_restrictive_audit_trail
@@ -472,6 +476,7 @@ class ResCompany(models.Model):
             )
 
     @api.constrains("account_price_include")
+    @_debug.perf.timed
     def _check_set_account_price_include(self):
         if any(company.sudo()._existing_accounting() for company in self):
             raise ValidationError(
@@ -483,6 +488,7 @@ class ResCompany(models.Model):
     @api.constrains(
         "account_opening_move_id", "fiscalyear_last_day", "fiscalyear_last_month"
     )
+    @_debug.perf.timed
     def _check_fiscalyear_last_day(self):
         for rec in self:
             if rec.fiscalyear_last_day == 29 and rec.fiscalyear_last_month == "2":
@@ -508,6 +514,7 @@ class ResCompany(models.Model):
         "fiscal_position_ids.country_id",
         "fiscal_position_ids.country_group_id",
     )
+    @_debug.perf.timed
     def _compute_domestic_fiscal_position_id(self):
         for company in self:
             potential_domestic_fps = company.fiscal_position_ids.filtered_domain(
@@ -613,6 +620,7 @@ class ResCompany(models.Model):
             )
 
     @api.depends("terms_type")
+    @_debug.perf.timed
     def _compute_invoice_terms_html(self):
         for company in self.filtered(
             lambda company: (
@@ -695,10 +703,23 @@ class ResCompany(models.Model):
             onboardings.with_company(company)._search_or_create_progress()
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         companies = super().create(vals_list)
         for company in companies:
             if root_template := company.root_id.chart_template:
+                _debug.pipeline(
+                    "created_under_root_template_chart",
+                    company=company,
+                    root_template=root_template,
+                )
 
                 def try_loading(company=company, root_template=root_template):
                     self.env["account.chart.template"]._load(
@@ -771,6 +792,7 @@ class ResCompany(models.Model):
             ("move_id.state", "in", ("draft", "posted")),
         ]
 
+    @_debug.perf.timed
     def _check_locks(self, values):
         new_locks = {
             field: fields.Date.to_date(values[field])
@@ -785,14 +807,35 @@ class ResCompany(models.Model):
             fiscal_lock_date = max(
                 fiscalyear_lock_date or date.min, hard_lock_date or date.min
             )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "locks_requested",
+                company=self,
+                fields=sorted(new_locks),
+                hard_lock_date=hard_lock_date,
+                fiscal_lock_date=fiscal_lock_date,
+            )
 
         if "hard_lock_date" in new_locks:
             for company in self:
                 if not company.hard_lock_date:
                     continue
                 if not hard_lock_date:
+                    _debug.logic(
+                        "lock_date_violated",
+                        company=company,
+                        reason="hard_lock_removed",
+                        previous=company.hard_lock_date,
+                    )
                     raise UserError(_("The Hard Lock Date cannot be removed."))
                 if hard_lock_date < company.hard_lock_date:
+                    _debug.logic(
+                        "lock_date_violated",
+                        company=company,
+                        reason="hard_lock_backdated",
+                        previous=company.hard_lock_date,
+                        requested=hard_lock_date,
+                    )
                     raise UserError(
                         _(
                             "A new Hard Lock Date must be posterior (or equal) to the previous one."
@@ -806,6 +849,13 @@ class ResCompany(models.Model):
                     ("state", "=", "draft"),
                     ("date", "<=", hard_lock_date),
                 ]
+            )
+            _debug.logic(
+                "hard_lock_draft_check",
+                company=self,
+                hard_lock_date=hard_lock_date,
+                draft_entries=draft_entries,
+                blocked=bool(draft_entries),
             )
             if draft_entries:
                 error_msg = _(
@@ -832,6 +882,13 @@ class ResCompany(models.Model):
             unreconciled_statement_lines = self.env[
                 "account.bank.statement.line"
             ].search(self._get_domain_unreconciled_statement_lines(fiscal_lock_date))
+            _debug.logic(
+                "fiscal_lock_stline_check",
+                company=self,
+                fiscal_lock_date=fiscal_lock_date,
+                unreconciled=len(unreconciled_statement_lines),
+                blocked=bool(unreconciled_statement_lines),
+            )
             if unreconciled_statement_lines:
                 error_msg = _(
                     "There are still unreconciled bank statement lines in the period you want to lock."
@@ -875,6 +932,13 @@ class ResCompany(models.Model):
                     )
                 else:
                     soft_lock_date = max(soft_lock_date, company[soft_lock_date_field])
+        _debug.logic(
+            "user_lock_date_resolved",
+            company=self,
+            field=soft_lock_date_field,
+            lock_date=soft_lock_date,
+            ignore_exceptions=ignore_exceptions,
+        )
         return soft_lock_date
 
     def _get_user_fiscal_lock_date(self, journal, ignore_exceptions=False):
@@ -902,6 +966,7 @@ class ResCompany(models.Model):
         ]
         return None if accounting_date > user_lock_date else user_lock_date
 
+    @_debug.perf.timed
     def _get_lock_date_violations(
         self,
         accounting_date,
@@ -935,6 +1000,13 @@ class ResCompany(models.Model):
             if accounting_date <= hard_lock_date:
                 locks.append((hard_lock_date, "hard_lock_date"))
 
+        if _debug.logic.enabled and locks:
+            _debug.logic(
+                "lock_dates_violated",
+                company=self,
+                accounting_date=accounting_date,
+                locks=locks,
+            )
         return locks
 
     @api.model
@@ -962,8 +1034,16 @@ class ResCompany(models.Model):
         locks.sort()
         return locks
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         self._check_locks(vals)
+        if _debug.lifecycle.enabled and vals.keys() & set(LOCK_DATE_FIELDS):
+            _debug.lifecycle(
+                "lock_dates",
+                company=self,
+                lock_changes={k: v for k, v in vals.items() if k in LOCK_DATE_FIELDS},
+            )
 
         self.env["res.company"].invalidate_model(
             fnames=[f"user_{field}" for field in LOCK_DATE_FIELDS if field in vals]
@@ -1002,7 +1082,14 @@ class ResCompany(models.Model):
                 )
                 for company in self
             )
-            LockException.search(domain)._recreate()
+            exceptions = LockException.search(domain)
+            _debug.logic(
+                "recreating_exception",
+                company=self,
+                exceptions_count=len(exceptions),
+                changed_soft_lock_fields=changed_soft_lock_fields,
+            )
+            exceptions._recreate()
 
         return res
 
@@ -1034,7 +1121,7 @@ class ResCompany(models.Model):
             "context": context,
         }
 
-    def _get_default_opening_move_values(self):
+    def _prepare_default_opening_move_values(self):
         self.check_singleton()
         default_journal = self.env["account.journal"].search(
             domain=[
@@ -1068,6 +1155,7 @@ class ResCompany(models.Model):
             and self.account_opening_move_id.state == "posted"
         )
 
+    @_debug.perf.timed
     def get_unaffected_earnings_account(self):
         unaffected_earnings_type = "equity_unaffected"
         account = (
@@ -1080,6 +1168,12 @@ class ResCompany(models.Model):
                 ],
                 limit=1,
             )
+        )
+        _debug.logic(
+            "unaffected_earnings_resolved",
+            company=self,
+            account=account,
+            found=bool(account),
         )
         if account:
             return account
@@ -1098,6 +1192,12 @@ class ResCompany(models.Model):
         code = 999999
         while str(code) in used_codes:
             code -= 1
+        _debug.logic(
+            "unaffected_earnings_created",
+            company=self,
+            code=code,
+            used_codes=len(used_codes),
+        )
         return (
             self.env["account.account"]
             .with_company(self)
@@ -1173,10 +1273,23 @@ class ResCompany(models.Model):
                 emit(account, "debit", debit, False)
             if credit is not None:
                 emit(account, "credit", -credit, False)
+        _debug.pipeline(
+            "opening_lines_planned",
+            accounts=len(to_update),
+            open_balance=open_balance,
+            commands=len(commands),
+        )
         emit(balancing_account, "debit", max(-open_balance, 0), True)
         emit(balancing_account, "credit", -max(open_balance, 0), True)
+        _debug.pipeline(
+            "opening_balancing_planned",
+            balancing_account=balancing_account,
+            open_balance=open_balance,
+            commands=len(commands),
+        )
         return commands
 
+    @_debug.perf.timed
     def _update_opening_move(self, to_update):
         self.check_singleton()
 
@@ -1212,11 +1325,20 @@ class ResCompany(models.Model):
             )
         )
 
+        _debug.pipeline(
+            "opening_move_state",
+            company=self,
+            move=opening_move,
+            existing_groups=len(existing_lines),
+            balancing_account=balancing_account,
+            initial_balance=initial_balance,
+            to_update=len(to_update),
+        )
         move_values = {}
         if opening_move:
             conversion_date = opening_move.date
         else:
-            move_values.update(self._get_default_opening_move_values())
+            move_values.update(self._prepare_default_opening_move_values())
             conversion_date = move_values["date"]
 
         company_currency = self.currency_id
@@ -1234,6 +1356,13 @@ class ResCompany(models.Model):
             balancing_name=_("Automatic Balancing Line"),
         )
 
+        _debug.logic(
+            "opening_move_decided",
+            company=self,
+            move=opening_move,
+            commands=len(commands),
+            action="noop" if not commands else ("write" if opening_move else "create"),
+        )
         if not commands:
             return
 
@@ -1243,12 +1372,16 @@ class ResCompany(models.Model):
         else:
             self.account_opening_move_id = self.env["account.move"].create(move_values)
 
+    @_debug.perf.timed
     def action_save_onboarding_sale_tax(self):
+        _debug.lifecycle("action_save_onboarding_sale_tax", records=self)
         self.env["onboarding.onboarding.step"].action_validate_step(
             "account.onboarding_onboarding_step_sales_tax"
         )
 
+    @_debug.perf.timed
     def action_save_onboarding_company_data(self):
+        _debug.lifecycle("action_save_onboarding_company_data", records=self)
         self.check_singleton()
         if self.street:
             ref = "account.onboarding_onboarding_step_company_data"
@@ -1270,6 +1403,12 @@ class ResCompany(models.Model):
                 template_code = company.parent_id.chart_template or self.env[
                     "account.chart.template"
                 ]._guess_chart_template(company.country_id)
+                _debug.logic(
+                    "install_l10n_modules_guessed_template_country",
+                    company=company,
+                    template_code=template_code,
+                    code=company.country_id.code,
+                )
                 if template_code != "generic_coa":
 
                     @self.env.cr.precommit.add
@@ -1295,11 +1434,14 @@ class ResCompany(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _action_check_hash_integrity(self):
+        _debug.lifecycle("_action_check_hash_integrity", records=self)
         return self.env.ref(
             "account.action_report_account_hash_integrity"
         ).report_action(self.id)
 
+    @_debug.perf.timed
     def _check_hash_integrity(self):
         if not self.env.user.has_group("account.group_account_user"):
             raise UserError(
@@ -1317,6 +1459,7 @@ class ResCompany(models.Model):
             "printing_date": format_date(self.env, fields.Date.context_today(self)),
         }
 
+    @_debug.perf.timed
     def _check_journal_hash_integrity(self, journal):
         restricted_flag = "V" if journal.restrict_mode_hash_table else "X"
         query = (
@@ -1339,6 +1482,8 @@ class ResCompany(models.Model):
         )
         last_move = self.env["account.move"]
         any_hashed_move = False
+        hashed_rows = 0  # debuglog
+        hashed_batches = 0  # debuglog
         self.env.execute_query(
             SQL("DECLARE hashed_moves CURSOR FOR %s", query.select())
         )
@@ -1346,6 +1491,8 @@ class ResCompany(models.Model):
             while move_ids := self.env.execute_query(
                 SQL("FETCH %s FROM hashed_moves", SQL(str(INTEGRITY_HASH_BATCH_SIZE)))
             ):
+                hashed_rows += len(move_ids)  # debuglog
+                hashed_batches += 1  # debuglog
                 self.env.invalidate_all()
                 moves = self.env["account.move"].browse(
                     move_id[0] for move_id in move_ids
@@ -1366,6 +1513,13 @@ class ResCompany(models.Model):
                         move, previous_move.inalterable_hash or "", hash_version
                     )
                     if move.inalterable_hash != computed_hash:
+                        _debug.logic(
+                            "hash_integrity_corrupted_prefix_version",
+                            journal=journal,
+                            move=move,
+                            sequence_prefix=move.sequence_prefix,
+                            hash_version=hash_version,
+                        )
                         prefix_result["corrupted_move"] = move
                         continue
                     if not prefix_result["first_move"]:
@@ -1374,7 +1528,23 @@ class ResCompany(models.Model):
                     last_move = move
         finally:
             self.env.execute_query(SQL("CLOSE hashed_moves"))
+        _debug.perf.count(
+            "hashed_moves_fetched",
+            journal=journal,
+            rows=hashed_rows,
+            batches=hashed_batches,
+        )
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "hash_integrity",
+                journal=journal,
+                hashed=any_hashed_move,
+                prefixes={
+                    p: (r["first_move"].id, r["last_move"].id, r["corrupted_move"].id)
+                    for p, r in prefix2result.items()
+                },
+            )
         if not any_hashed_move:
             return [self._hash_integrity_no_data_result(journal, restricted_flag)]
         return [
@@ -1472,6 +1642,14 @@ class ResCompany(models.Model):
 
     def _set_category_defaults(self, changed_fields=None):
         IrDefault = self.env["ir.default"].sudo()
+        if _debug.logic.enabled:
+            _debug.logic(
+                "category_defaults_scope",
+                companies=self,
+                all_fields=changed_fields is None,
+                expense="expense_account_id" in (changed_fields or ()),
+                income="income_account_id" in (changed_fields or ()),
+            )
         for company in self:
             if changed_fields is None or "expense_account_id" in changed_fields:
                 IrDefault.set(

@@ -30,16 +30,16 @@
                 <field name="category_id" />
                 <group>
                     <filter
-                        string="Author"
                         name="author"
+                        string="Author"
                         context="{'group_by':'author'}" />
                     <filter
-                        string="Category"
                         name="category"
+                        string="Category"
                         context="{'group_by':'category_id'}" />
                     <filter
-                        string="Status"
                         name="state"
+                        string="Status"
                         context="{'group_by':'state'}" />
                 </group>
                 <searchpanel>
@@ -69,8 +69,8 @@
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
             <list
-                create="0"
                 string="Apps"
+                create="0"
                 decoration-info="state == 'uninstalled'"
                 decoration-muted="state == 'uninstallable'">
                 <header>
@@ -93,8 +93,8 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-muted="state == 'uninstallable'"
                     decoration-info="state  == 'uninstalled'"
+                    decoration-muted="state == 'uninstallable'"
                     decoration-success="state == 'installed'" />
             </list>
         </field>
@@ -104,7 +104,7 @@
         <field name="name">Apps Kanban</field>
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
-            <kanban create="0" can_open="0" class="o_modules_kanban">
+            <kanban create="0" class="o_modules_kanban" can_open="0">
                 <field name="to_buy" />
                 <field name="name" />
                 <field name="state" />
@@ -136,38 +136,38 @@
                                 options="{'size': [50, 50]}"
                                 alt="Icon" />
                             <field
-                                t-if="record.icon_flag.raw_value"
                                 name="icon_flag"
-                                class="oe_module_flag" />
+                                class="oe_module_flag"
+                                t-if="record.icon_flag.raw_value" />
                         </aside>
                         <main class="me-4" t-att-title="record.shortdesc.value">
-                            <field class="fw-bold fs-5" name="shortdesc" />
+                            <field name="shortdesc" class="fw-bold fs-5" />
                             <p class="text-muted small my-0 lh-sm">
-                                <field groups="!base.group_no_one" name="summary" />
+                                <field name="summary" groups="!base.group_no_one" />
                                 <code groups="base.group_no_one">
                                     <field name="name" />
                                 </code>
                             </p>
                             <footer class="w-100 justify-content-between">
                                 <button
-                                    type="object"
-                                    class="btn btn-primary btn-sm"
                                     name="button_immediate_install"
+                                    type="object"
+                                    groups="base.group_system"
                                     invisible="state != 'uninstalled'"
-                                    t-if="! record.to_buy.raw_value"
-                                    groups="base.group_system">
+                                    class="btn btn-primary btn-sm"
+                                    t-if="! record.to_buy.raw_value">
                                     Activate</button>
                                 <button
-                                    t-if="record.state.raw_value === 'installed'"
-                                    class="d-flex align-items-center text-muted float-start">
+                                    class="d-flex align-items-center text-muted float-start"
+                                    t-if="record.state.raw_value === 'installed'">
                                     Installed</button>
                                 <a t-att-href="record.website.raw_value" target="_blank" invisible="website in (False, '')" class="btn btn-sm btn-secondary float-end o-hidden-ios" role="button">Learn More</a>
                                 <a type="open" class="btn btn-secondary btn-sm float-end" id="module_info" role="button" invisible="website != ''">Module
                                     Info</a>
                                 <a href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise" target="_blank" class="btn btn-info btn-sm" invisible="state not in ('uninstalled', 'uninstallable')" t-if="record.to_buy.raw_value" role="button" groups="base.group_system">Upgrade</a>
-                                <button invisible="state != 'to remove'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Removing</button>
-                                <button invisible="state != 'to upgrade'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Upgrading</button>
-                                <button invisible="state != 'to install'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Installing</button>
+                                <button groups="base.group_system" invisible="state != 'to remove'" class="btn btn-sm btn-secondary" disabled="1">Removing</button>
+                                <button groups="base.group_system" invisible="state != 'to upgrade'" class="btn btn-sm btn-secondary" disabled="1">Upgrading</button>
+                                <button groups="base.group_system" invisible="state != 'to install'" class="btn btn-sm btn-secondary" disabled="1">Installing</button>
                             </footer>
                         </main>
                     </t>
@@ -180,7 +180,7 @@
         <field name="name">ir.module.module.form</field>
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
-            <form create="0" edit="0" string="Module" class="o_module_form">
+            <form string="Module" create="0" edit="0" class="o_module_form">
                 <link rel="stylesheet" href="/base/static/src/css/description.css" />
                 <sheet>
                     <field name="icon_image" widget="image" class="oe_avatar" />
@@ -188,12 +188,12 @@
                         <h1 class="d-flex flex-column">
                             <field name="shortdesc" placeholder="Module Name" />
                             <field
-                                class="fs-2 text-muted"
                                 name="summary"
-                                invisible="not summary" />
+                                invisible="not summary"
+                                class="fs-2 text-muted" />
                         </h1>
                         <h4 class="text-muted d-flex flex-column">
-                            <div>By <field name="author" class="oe_inline" placeholder="Author Name" />
+                            <div>By <field name="author" placeholder="Author Name" class="oe_inline" />
                             </div>
                             <small>
                                 <field
@@ -206,35 +206,35 @@
                         <div>
                             <button
                                 name="button_immediate_install"
-                                string="Activate"
-                                invisible="to_buy or state != 'uninstalled'"
                                 type="object"
-                                class="btn btn-primary me-1"
-                                groups="base.group_system" />
+                                string="Activate"
+                                groups="base.group_system"
+                                invisible="to_buy or state != 'uninstalled'"
+                                class="btn btn-primary me-1" />
                             <a href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise" target="_blank" class="btn btn-primary me-1" invisible="not to_buy or state not in ('uninstalled', 'uninstallable')" role="button">Upgrade</a>
                             <button
                                 name="button_immediate_upgrade"
-                                invisible="state != 'installed'"
-                                string="Upgrade"
                                 type="object"
-                                class="btn btn-primary me-1"
-                                groups="base.group_system" />
+                                string="Upgrade"
+                                groups="base.group_system"
+                                invisible="state != 'installed'"
+                                class="btn btn-primary me-1" />
                             <button
                                 name="button_uninstall_wizard"
-                                invisible="state != 'installed'"
-                                string="Uninstall"
                                 type="object"
-                                class="btn btn-secondary me-1"
-                                groups="base.group_system" />
-                            <button invisible="state != 'to remove'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Removing</button>
-                            <button invisible="state != 'to upgrade'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Upgrading</button>
-                            <button invisible="state != 'to install'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Installing</button>
+                                string="Uninstall"
+                                groups="base.group_system"
+                                invisible="state != 'installed'"
+                                class="btn btn-secondary me-1" />
+                            <button groups="base.group_system" invisible="state != 'to remove'" class="btn btn-secondary me-1" disabled="1">Removing</button>
+                            <button groups="base.group_system" invisible="state != 'to upgrade'" class="btn btn-secondary me-1" disabled="1">Upgrading</button>
+                            <button groups="base.group_system" invisible="state != 'to install'" class="btn btn-secondary me-1" disabled="1">Installing</button>
                         </div>
                         <h6 class="text-muted mt-2" invisible="not has_iap">Contains In-App
                             Purchases</h6>
                     </div>
                     <notebook groups="base.group_no_one">
-                        <page string="Information" name="information">
+                        <page name="information" string="Information">
                             <group>
                                 <group>
                                     <field
@@ -246,7 +246,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Technical Data" name="technical_data">
+                        <page name="technical_data" string="Technical Data">
                             <group col="4">
                                 <field name="demo" />
                                 <field name="application" />
@@ -256,8 +256,8 @@
                                 <group string="Dependencies">
                                     <field
                                         name="dependencies_id"
-                                        nolabel="1"
-                                        colspan="2">
+                                        colspan="2"
+                                        nolabel="1">
                                         <list string="Dependencies">
                                             <field name="name" />
                                             <field name="state" />
@@ -265,7 +265,7 @@
                                     </field>
                                 </group>
                                 <group string="Exclusions">
-                                    <field name="exclusion_ids" nolabel="1" colspan="2">
+                                    <field name="exclusion_ids" colspan="2" nolabel="1">
                                         <list string="Exclusions">
                                             <field name="name" />
                                             <field name="state" />
@@ -275,8 +275,8 @@
                             </group>
                         </page>
                         <page
-                            string="Installed Features"
                             name="installed_features"
+                            string="Installed Features"
                             invisible="state != 'installed'">
                             <separator string="Created Menus" />
                             <field name="menus_by_module" />
@@ -288,8 +288,8 @@
                     </notebook>
                     <field
                         name="description_html"
-                        class="oe_styling_v8"
-                        invisible="not description_html" />
+                        invisible="not description_html"
+                        class="oe_styling_v8" />
                 </sheet>
             </form>
         </field>

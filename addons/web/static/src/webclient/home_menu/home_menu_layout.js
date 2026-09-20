@@ -241,6 +241,18 @@ export class HomeMenuLayout {
         } while (this.unsaved);
     }
 
+    // A refusal is already on screen as "Changes could not be saved"; failing
+    // the leave on top of it would keep the user on the home menu for good.
+    async flushBeforeLeave() {
+        try {
+            await this.flush();
+        } catch (error) {
+            if (this.state.status !== "error") {
+                throw error;
+            }
+        }
+    }
+
     async setCompanyDefault() {
         await this.flush();
         const config = JSON.parse(serializeHomeMenuConfig(this.config));

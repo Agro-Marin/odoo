@@ -4,7 +4,6 @@ import {
     testSwitchWebsite,
 } from "@website/js/tours/tour_utils";
 
-// TODO: This part should be moved in a QUnit test
 const checkKanbanGroupBy = [
     {
         content: "Click on Kanban View",
@@ -64,7 +63,6 @@ const verifySelectedWebsiteFilter = (website_name) => [
 ];
 
 const checkWebsiteFilters = [
-    // Check if there is a pre-selected website filter
     ...verifySelectedWebsiteFilter("My Website"),
     {
         content: "Check that the homepage is the one of 'My Website'",
@@ -72,7 +70,6 @@ const checkWebsiteFilters = [
             ".o_list_table .o_data_row .o_data_cell[name=name]:contains('Home') " +
             "~ .o_data_cell[name=website_id]:contains('My Website')",
     },
-    // Check if filters are added for all the websites in Filters column
     {
         content: "Open the search menu dropdown",
         trigger: ".o_searchview_dropdown_toggler",
@@ -86,7 +83,6 @@ const checkWebsiteFilters = [
         content: "Check if 'Test Website' is in the Filters menu",
         trigger: ".o_filter_menu .o-dropdown-item:contains('Test Website')",
     },
-    // Check if two website filters can be selected at once
     {
         content: "Select the 'Test Website' filter",
         trigger: ".o_filter_menu .o-dropdown-item:contains('Test Website')",
@@ -112,7 +108,6 @@ const checkWebsiteFilters = [
             ".o_list_table .o_data_row .o_data_cell[name=name]:contains('Home'):eq(1) " +
             "~ .o_data_cell[name=website_id]:contains('Test Website')",
     },
-    // Check if removing the website filter shows content from all the websites
     {
         content: "Remove the website filter",
         trigger: ".o_searchview_input_container .o_searchview_facet .o_facet_remove",
@@ -129,16 +124,6 @@ const checkWebsiteFilters = [
 
 const deleteSelectedPage = [
     {
-        // Scoped to `.o_selection_container` on purpose.  `web.ListCogMenu`
-        // (no selection) and `web.ActionMenus` (selection) BOTH carry
-        // `o_cp_action_menus`, and `list_controller.xml` swaps one for the
-        // other when `hasSelectedRecords` flips.  A bare
-        // `.o_cp_action_menus button` therefore resolves, one frame after the
-        // row is ticked, to the cog that is on its way out: the click opens
-        // its dropdown, the swap destroys it, and the Delete step below waits
-        // out its timeout against a menu nothing reopened.  The scoped
-        // selector exists only once the selection has reached the control
-        // panel, so it names the right button and waits for the right state.
         content: "Click on Action",
         trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
@@ -151,8 +136,6 @@ const deleteSelectedPage = [
     {
         content: "Click on I am sure about this",
         trigger: 'main.modal-body input[type="checkbox"]',
-        // The loading of the dependencies can take a while and
-        // sometimes reach the default 10s timeout
         timeout: 20000,
         run: "click",
     },
@@ -172,8 +155,6 @@ const duplicateSinglePage = [
         run: "click",
     },
     {
-        // See the note on `deleteSelectedPage`: the selection's Actions menu,
-        // not the cog the class also matches before the selection lands.
         content: "Click on Action button",
         trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
@@ -213,8 +194,6 @@ const duplicateMultiplePage = [
         run: "click",
     },
     {
-        // See the note on `deleteSelectedPage`: the selection's Actions menu,
-        // not the cog the class also matches before the selection lands.
         content: "Click on Action button",
         trigger: ".o_selection_container .o_cp_action_menus button",
         run: "click",
@@ -271,12 +250,6 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            // Toggling a filter reloads the list, and the tour has to see the
-            // reload land before it ticks a row.  Ticking a row of the previous
-            // result set looks like it works -- the checkbox is there, the
-            // selection reaches the control panel, the Actions menu opens --
-            // and is then discarded with the rows it belonged to, so the menu
-            // unmounts and the Delete step below waits out its timeout.
             content: "Wait for the list to hold 'My Website' pages only",
             trigger:
                 ".o_list_table:not(:has(.o_data_cell[name=website_id]:contains('Test Website')))",

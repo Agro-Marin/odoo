@@ -11,32 +11,32 @@
                     name="stripe_onboarding_group"
                     invisible="context.get('stripe_onboarding', False) or (code != 'stripe' or stripe_secret_key or stripe_publishable_key)">
                     <button
-                        string="Connect Stripe"
-                        type="object"
                         name="action_start_onboarding"
-                        class="btn-primary"
+                        type="object"
+                        string="Connect Stripe"
                         colspan="2"
-                        invisible="state == 'enabled'" />
+                        invisible="state == 'enabled'"
+                        class="btn-primary" />
                 </div>
             </group>
             <group name="provider_credentials" position="inside">
-                <group invisible="code != 'stripe'" name="stripe_credentials">
+                <group name="stripe_credentials" invisible="code != 'stripe'">
                     <field
                         name="stripe_publishable_key"
                         required="code == 'stripe' and state != 'disabled'" />
                     <field
                         name="stripe_secret_key"
-                        required="code == 'stripe' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'stripe' and state != 'disabled'" />
                     <label for="stripe_webhook_secret" />
                     <div class="o_row" col="2">
                         <field name="stripe_webhook_secret" password="True" />
                         <button
-                            string="Generate your webhook"
-                            type="object"
                             name="action_stripe_create_webhook"
-                            class="btn-primary"
-                            invisible="stripe_webhook_secret or not stripe_secret_key" />
+                            type="object"
+                            string="Generate your webhook"
+                            invisible="stripe_webhook_secret or not stripe_secret_key"
+                            class="btn-primary" />
                     </div>
                 </group>
                 <div
@@ -58,11 +58,11 @@
                 <div class="o_row" col="2" invisible="not support_express_checkout">
                     <field name="allow_express_checkout" />
                     <button
-                        string="Enable Apple Pay"
-                        type="object"
                         name="action_stripe_verify_apple_pay_domain"
-                        class="btn btn-primary"
-                        invisible="not allow_express_checkout or code != 'stripe'" />
+                        type="object"
+                        string="Enable Apple Pay"
+                        invisible="not allow_express_checkout or code != 'stripe'"
+                        class="btn btn-primary" />
                 </div>
             </field>
         </field>

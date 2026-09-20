@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
@@ -11,17 +12,17 @@ import { verifyHttpsUrl } from "@website/utils/misc";
 const DEFAULT_NUMBER_OF_ELEMENTS = 4;
 const DEFAULT_NUMBER_OF_ELEMENTS_SM = 1;
 
+const log = makeLogger("website.dynamic_snippet");
+
 export class DynamicSnippet extends Interaction {
     static selector = ".s_dynamic_snippet";
     dynamicContent = {
         "[data-url]": {
             "t-on-click": this.callToAction,
         },
-        _window: { "t-on-resize": this.throttled(this.render) },
+        _window: { "t-on-resize": this.throttled(this.onWindowResize) },
         _root: {
             "t-att-class": () => ({
-                // Compatibility code: A dynamic snippet may end up with one,
-                // several, or all of these classes as a default visibility one.
                 o_dynamic_empty: !this.isVisible,
                 s_dynamic_empty: !this.isVisible,
                 o_dynamic_snippet_empty: !this.isVisible,
@@ -37,10 +38,6 @@ export class DynamicSnippet extends Interaction {
 
     setup() {
         /**
-         * The dynamic filter data source data formatted with the chosen template.
-         * Can be accessed when overriding the _render_content() function in order to generate
-         * a new renderedContent from the original data.
-         *
          * @type {*|jQuery.fn.init|jQuery|HTMLElement}
          */
         this.data = [];
@@ -54,24 +51,28 @@ export class DynamicSnippet extends Interaction {
         this.isSingleMode =
             parseInt(this.el.dataset.numberOfRecords) === 1 &&
             !this.el.dataset.filterId;
+        log.logic("willStart: mode", () => ({
+            isSingleMode: this.isSingleMode,
+            filterId: this.el.dataset.filterId,
+            numberOfRecords: this.el.dataset.numberOfRecords,
+        }));
         await this.fetchData();
     }
 
     start() {
+        log.lifecycle("start", () => ({
+            templateKey: this.templateKey,
+            items: this.data.length,
+        }));
         this.render();
     }
 
     destroy() {
-        // Clear content.
+        log.lifecycle("destroy: clearing rendered content");
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
-        // Nested interactions are stopped implicitly.
         templateAreaEl.replaceChildren();
     }
 
-    /**
-     * To be overridden
-     * Check if additional configuration elements are required in order to fetch data.
-     */
     isConfigComplete() {
         const data = this.el.dataset;
         const isSingleModeConfigComplete =
@@ -82,18 +83,10 @@ export class DynamicSnippet extends Interaction {
         );
     }
 
-    /**
-     * To be overridden
-     * Provide a search domain if needed.
-     */
     getSearchDomain() {
         return [];
     }
 
-    /**
-     * To be overridden
-     * Add custom parameters if needed.
-     */
     getRpcParameters() {
         return this.isSingleMode
             ? {
@@ -106,6 +99,7 @@ export class DynamicSnippet extends Interaction {
     async fetchData() {
         if (this.isConfigComplete()) {
             const nodeData = this.el.dataset;
+            const endFetch = log.perf(`fetch filter ${nodeData.filterId}`);
             const filterFragments = await this.waitFor(
                 rpc(
                     "/website/snippet/filters",
@@ -122,27 +116,31 @@ export class DynamicSnippet extends Interaction {
                     ),
                 ),
             );
+            endFetch({
+                template: nodeData.templateKey,
+                fragments: filterFragments.length,
+            });
             this.data = filterFragments.map(markup);
         } else {
+            log.logic("fetchData", () => ({
+                complete: false,
+                dataset: { ...this.el.dataset },
+            }));
             this.data = [];
         }
     }
 
-    /**
-     * To be overridden
-     * Prepare the content before rendering.
-     */
     prepareContent() {
+        const endPrepare = log.perf("prepareContent renderToFragment", () => ({
+            templateKey: this.templateKey,
+        }));
         this.renderedContentNode = renderToFragment(
             this.templateKey,
             this.getQWebRenderOptions(),
         );
+        endPrepare();
     }
 
-    /**
-     * To be overridden
-     * Prepare QWeb options.
-     */
     getQWebRenderOptions() {
         const dataset = this.el.dataset;
         const numberOfRecords = parseInt(dataset.numberOfRecords);
@@ -166,7 +164,21 @@ export class DynamicSnippet extends Interaction {
         };
     }
 
+    onWindowResize() {
+        // The output reads the viewport only through the small-device
+        // breakpoint. Re-rendering on every resize looped in the website
+        // preview: new content resized the iframe, which fired resize again.
+        if (uiUtils.isSmall() !== this.renderedForSmallDevices) {
+            this.render();
+        }
+    }
+
     render() {
+        this.renderedForSmallDevices = uiUtils.isSmall();
+        log.pipeline("render", () => ({
+            items: this.data.length,
+            withSample: this.withSample,
+        }));
         if (this.data.length > 0 || this.withSample) {
             this.toggleVisibility(true);
             this.prepareContent();
@@ -175,29 +187,21 @@ export class DynamicSnippet extends Interaction {
             this.renderedContentNode = document.createDocumentFragment();
         }
         this.renderContent();
-        // TODO What was this about ? Rendered content is already started.
-        // for (const childEl of this.el.children) {
-        //     this.services["public.interactions"].startInteractions(childEl);
-        // }
     }
 
     renderContent() {
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
+        const endRenderContent = log.perf("renderContent restart interactions");
         this.services["public.interactions"].stopInteractions(templateAreaEl);
         templateAreaEl.replaceChildren(this.renderedContentNode);
-        // TODO this is probably not the only public widget which creates DOM
-        // which should be attached to another public widget. Maybe a generic
-        // method could be added to properly do this operation of DOM addition.
         this.services["public.interactions"].startInteractions(templateAreaEl);
-        // Same as above and probably should be done automatically for any
-        // bootstrap behavior (apparently needed since BS 5.3): start potential
-        // carousel in new content (according to their data-bs-ride and other
-        // dataset attributes). Note: done here and not in dynamic carousel
-        // extension, because: why not?
-        // (TODO review + See interaction with "slider" public widget).
+        endRenderContent(() => ({ nodes: templateAreaEl.childNodes.length }));
         this.waitForTimeout(() => {
             templateAreaEl.querySelectorAll(".carousel").forEach((carouselEl) => {
                 if (carouselEl.dataset.bsInterval === "0") {
+                    log.logic(
+                        "renderContent: disabling carousel autoplay for interval 0",
+                    );
                     delete carouselEl.dataset.bsRide;
                     delete carouselEl.dataset.bsInterval;
                 }
@@ -213,11 +217,12 @@ export class DynamicSnippet extends Interaction {
     }
 
     /**
-     * Navigates to the call to action url.
-     *
      * @param {Event} ev
      */
     callToAction(ev) {
+        log.logic("callToAction: navigating", () => ({
+            url: ev.currentTarget.dataset.url,
+        }));
         window.location = verifyHttpsUrl(ev.currentTarget.dataset.url);
     }
 }

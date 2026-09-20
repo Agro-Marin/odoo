@@ -49,9 +49,11 @@ function makeController(overrides = {}) {
 
 describe.current.tags("desktop");
 
-test("the home-menu pseudo-action is recognised by either spelling", async () => {
+test("the home-menu pseudo-action is recognised by its tag alone", async () => {
     expect(isMenuController({ tag: "menu" })).toBe(true);
-    expect(isMenuController({ id: "menu" })).toBe(true);
+    expect(isMenuController({ id: "menu" })).toBe(false, {
+        message: "a string in `id` is no longer how a virtual launcher is spelled",
+    });
     expect(isMenuController({ tag: "other", id: 3 })).toBe(false);
     expect(isMenuController(undefined)).toBe(false);
     expect(isMenuController({})).toBe(false);
@@ -233,6 +235,44 @@ test("restoring a stack that repeats a record asks the server for it once", asyn
 
     expect(fetchedKeys).toHaveLength(1);
     expect(controllers.map((c) => c.displayName)).toEqual(["Rec", "Rec"]);
+});
+
+test("a virtual controller carries the url key as an id, a path or a tag, never as a string id", async () => {
+    await makeMockServer();
+    onRpc("/web/action/load_breadcrumbs", async (request) => {
+        const { params } = await request.json();
+        return params.actions.map(() => ({ display_name: "Rec" }));
+    });
+    const am = makeFakeAm();
+    const controllers = await controllersFromState(
+        {
+            action: "menu",
+            actionStack: [
+                { action: 4, model: "partner", resId: 1 },
+                { action: "users", model: "partner", resId: 2 },
+                { action: "menu" },
+            ],
+        },
+        am,
+    );
+    expect(controllers.map((c) => c.action.id)).toEqual([4, undefined]);
+    expect(controllers.map((c) => c.action.path)).toEqual([undefined, "users"]);
+    expect(controllers.map((c) => c.action.tag)).toEqual([undefined, undefined]);
+    const lazy = await controllersFromState(
+        {
+            action: "users",
+            resId: 7,
+            actionStack: [
+                { action: "users", model: "partner" },
+                { action: "users", model: "partner", resId: 7 },
+            ],
+        },
+        am,
+    );
+    expect(lazy).toHaveLength(1);
+    expect(lazy[0].lazy).toBe(true, {
+        message: "the record entry is recognised by its path, as it was by its id",
+    });
 });
 
 test("a state with no actionStack yields no virtual controllers", async () => {

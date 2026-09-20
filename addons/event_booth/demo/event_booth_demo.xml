@@ -30,7 +30,7 @@
         </record>
         <!-- EVENT BOOTH FOR "Conference for Architects" EVENT -->
         <record id="event.event_2" model="event.event">
-            <field name="event_booth_ids" eval="[(5, 0)]" />
+            <field name="event_booth_ids" eval="[Command.clear()]" />
         </record>
         <record id="event_booth_0_event_2" model="event.booth">
             <field name="name">Showbooth 1</field>
@@ -54,7 +54,7 @@
         </record>
         <!-- EVENT BOOTH FOR "Live Music Festival" EVENT -->
         <record id="event.event_3" model="event.event">
-            <field name="event_booth_ids" eval="[(5, 0)]" />
+            <field name="event_booth_ids" eval="[Command.clear()]" />
         </record>
         <record id="event_booth_0_event_3" model="event.booth">
             <field name="name">Showbooth 1</field>

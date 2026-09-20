@@ -10,27 +10,29 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "nuvei_secret_key": "nuvei_secret_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("nuvei", "Nuvei")], ondelete={"nuvei": "set default"}
+        selection_add=[("nuvei", "Nuvei")],
+        ondelete={"nuvei": "set default"},
     )
     nuvei_merchant_identifier = fields.Char(
-        string="Nuvei Merchant Identifier",
-        help="The code of the merchant account to use with this provider.",
-        required_if_provider="nuvei",
         copy=False,
+        required_if_provider="nuvei",
+        help="The code of the merchant account to use with this provider.",
     )
     nuvei_site_identifier = fields.Char(
-        string="Nuvei Site Identifier",
-        help="The site identifier code associated with the merchant account.",
-        required_if_provider="nuvei",
         copy=False,
+        required_if_provider="nuvei",
         groups="base.group_system",
+        help="The site identifier code associated with the merchant account.",
     )
     nuvei_secret_key = fields.Char(
-        string="Nuvei Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="nuvei",
-        copy=False,
         groups="base.group_system",
     )
 
@@ -62,7 +64,7 @@ class PaymentProvider(models.Model):
         else:  # 'test'
             return "https://ppp-test.safecharge.com/ppp/purchase.do"
 
-    def _nuvei_calculate_signature(self, data, incoming=True):
+    def _get_nuvei_signature(self, data, incoming=True):
         """Compute the signature for the provided data according to the Nuvei documentation.
 
         :param dict data: The data to sign.

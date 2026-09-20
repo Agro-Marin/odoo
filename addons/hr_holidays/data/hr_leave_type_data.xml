@@ -10,7 +10,9 @@
             <field name="allocation_validation_type">hr</field>
             <field name="leave_notif_subtype_id" ref="mt_leave" />
             <field name="allocation_notif_subtype_id" ref="mt_leave_allocation" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_14" />
             <field name="color">2</field>
             <field name="company_id" eval="False" />
@@ -21,7 +23,9 @@
             <field name="name">Sick Time Off</field>
             <field name="requires_allocation">False</field>
             <field name="leave_notif_subtype_id" ref="mt_leave_sick" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="support_document">True</field>
             <field name="hide_on_dashboard">True</field>
             <field name="icon_id" ref="hr_holidays.icon_21" />
@@ -38,7 +42,9 @@
             <field name="allocation_validation_type">hr</field>
             <field name="request_unit">day</field>
             <field name="leave_notif_subtype_id" ref="mt_leave" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_4" />
             <field name="color">4</field>
             <field name="company_id" eval="False" />
@@ -54,7 +60,9 @@
             <field name="hide_on_dashboard">True</field>
             <field name="unpaid" eval="True" />
             <field name="leave_notif_subtype_id" ref="mt_leave_unpaid" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_28" />
             <field name="color">5</field>
             <field name="company_id" eval="False" />
@@ -70,7 +78,9 @@
             <field name="hide_on_dashboard">True</field>
             <field name="request_unit">half_day</field>
             <field name="leave_notif_subtype_id" ref="hr_holidays.mt_leave" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="sequence">4</field>
             <field name="country_id" eval="False" />
         </record>
@@ -495,7 +505,9 @@
             <field name="request_unit">hour</field>
             <field name="unpaid" eval="True" />
             <field name="leave_notif_subtype_id" ref="hr_holidays.mt_leave_unpaid" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_28" />
             <field name="color">5</field>
             <field name="company_id" eval="False" />
@@ -509,7 +521,9 @@
             <field name="request_unit">day</field>
             <field name="unpaid" eval="True" />
             <field name="leave_notif_subtype_id" ref="hr_holidays.mt_leave_unpaid" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_28" />
             <field name="color">5</field>
             <field name="company_id" eval="False" />
@@ -523,7 +537,9 @@
             <field name="request_unit">day</field>
             <field name="unpaid" eval="True" />
             <field name="leave_notif_subtype_id" ref="hr_holidays.mt_leave_unpaid" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_17" />
             <field name="color">5</field>
             <field name="company_id" eval="False" />
@@ -539,7 +555,9 @@
             <field name="request_unit">day</field>
             <field name="unpaid" eval="True" />
             <field name="leave_notif_subtype_id" ref="hr_holidays.mt_leave_unpaid" />
-            <field name="responsible_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field
+                name="responsible_ids"
+                eval="[Command.link(ref('base.user_admin'))]" />
             <field name="icon_id" ref="hr_holidays.icon_21" />
             <field name="color">5</field>
             <field name="company_id" eval="False" />

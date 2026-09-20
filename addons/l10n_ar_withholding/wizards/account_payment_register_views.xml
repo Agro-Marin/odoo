@@ -13,7 +13,7 @@
                     name="withholdings_page"
                     string="Withholdings"
                     invisible="country_code != 'AR'">
-                    <field name="l10n_ar_withholding_ids" nolabel="1" colspan="2">
+                    <field name="l10n_ar_withholding_ids" colspan="2" nolabel="1">
                         <list editable="bottom">
                             <field
                                 name="withholding_sequence_id"

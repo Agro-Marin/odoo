@@ -15,18 +15,18 @@
                     <field
                         name="aps_access_code"
                         string="Access Code"
-                        required="code == 'aps' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'aps' and state != 'disabled'" />
                     <field
                         name="aps_sha_request"
                         string="SHA Request Phrase"
-                        required="code == 'aps' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'aps' and state != 'disabled'" />
                     <field
                         name="aps_sha_response"
                         string="SHA Response Phrase"
-                        required="code == 'aps' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'aps' and state != 'disabled'" />
                 </group>
             </group>
         </field>

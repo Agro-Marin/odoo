@@ -1,6 +1,6 @@
 {
     "name": "POS - Sales",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Link module between Point of Sale and Sales",
@@ -12,7 +12,8 @@ This module adds a custom Sales Team for the Point of Sale. This enables you to 
     "license": "LGPL-3",
     "depends": [
         "point_of_sale",
-        "sale_management",
+        "sale",
+        "sale_team",
     ],
     "data": [
         "data/pos_sale_data.xml",
@@ -36,7 +37,6 @@ This module adds a custom Sales Team for the Point of Sale. This enables you to 
             "pos_sale/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_pos_sale_post_init",
 }

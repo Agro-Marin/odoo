@@ -17,8 +17,8 @@
                         <div class="mt16" invisible="not auth_totp_enforce">
                             <field
                                 name="auth_totp_policy"
-                                class="o_light_label"
-                                widget="radio" />
+                                widget="radio"
+                                class="o_light_label" />
                         </div>
                     </setting>
                 </xpath>

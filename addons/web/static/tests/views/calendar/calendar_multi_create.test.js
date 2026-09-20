@@ -1188,7 +1188,8 @@ test("multi_create: window blur clears a stuck ctrl for drag selection", async (
 });
 
 test.tags("desktop");
-test("multi_create: a failed view load is retried on the next selection", async () => {
+test("multi_create: a failed view load is reported and retried on the next selection", async () => {
+    expect.errors(1);
     let failNext = true;
     let multiCreateLoads = 0;
     onRpc("get_views", ({ kwargs }) => {
@@ -1219,9 +1220,13 @@ test("multi_create: a failed view load is retried on the next selection", async 
     await animationFrame();
 
     expect(multiCreateLoads).toBe(1);
+    expect.verifyErrors(["multi-create view unavailable"]);
     expect(".o_multi_selection_buttons").toHaveCount(0, {
         message: "the toolbar stays hidden while the view failed to load",
     });
+    expect(".o_error_dialog").toHaveCount(1);
+    await contains(".o_error_dialog .modal-footer .btn-primary").click();
+    expect(".o_error_dialog").toHaveCount(0);
 
     await press("escape");
     await animationFrame();

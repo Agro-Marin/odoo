@@ -3,8 +3,6 @@
         @extend %s_carousel_variants;
 
         .s_carousel_intro_controllers {
-            // TODO make an upgrade script to rather rename the old class with
-            // the new one and remove this.
             @extend %o_horizontal_controllers;
             height: $-o-carousel-controllers-size;
 

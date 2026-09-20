@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_website_configuration"
+        name="Website"
+        sequence="95"
+        groups="base.group_user"
+        web_icon="website,static/description/icon.png"
+        web_keywords="site, web page, cms, blog, seo, homepage" />
+
+    <menuitem
+        id="menu_site"
+        name="Site"
+        parent="website.menu_website_configuration"
+        sequence="10" />
+
+    <menuitem
+        id="menu_website_preview"
+        name="Homepage"
+        parent="menu_site"
+        action="website.website_preview"
+        sequence="10" />
+
+    <menuitem
+        id="menu_edit_menu"
+        name="Menu Editor"
+        parent="menu_site"
+        action="website.website_preview"
+        sequence="20" />
+
+    <menuitem id="menu_content" name="Content" parent="menu_site" sequence="30" />
+
+    <menuitem
+        id="menu_current_page"
+        name="This page"
+        parent="menu_site"
+        sequence="40" />
+
+    <menuitem
+        id="menu_page_properties"
+        name="Properties"
+        parent="menu_current_page"
+        action="website.website_preview"
+        sequence="10" />
+
+    <menuitem
+        id="menu_optimize_seo"
+        name="Optimize SEO"
+        parent="menu_current_page"
+        action="website.website_preview"
+        sequence="20" />
+
+    <menuitem
+        id="menu_ace_editor"
+        name="HTML / CSS Editor"
+        parent="menu_current_page"
+        action="website.website_preview"
+        sequence="30" />
+
+    <menuitem
+        id="custom_menu_edit_menu"
+        name="Edit Menu"
+        parent="menu_current_page"
+        action="website.website_preview"
+        sequence="40" />
+
+    <menuitem
+        id="menu_reporting"
+        name="Reporting"
+        parent="website.menu_website_configuration"
+        sequence="30" />
+
+    <menuitem
+        id="menu_website_dashboard"
+        name="eCommerce"
+        parent="menu_reporting"
+        action="website.ir_actions_server_website_dashboard"
+        sequence="20"
+        groups="base.group_system,website.group_website_designer"
+        active="0" />
+
+    <menuitem
+        id="menu_website_analytics"
+        name="Analytics"
+        parent="menu_reporting"
+        action="website.ir_actions_server_website_analytics"
+        sequence="10" />
+
+    <menuitem
+        id="menu_website_technical_pages"
+        name="Technical Pages"
+        parent="menu_content"
+        action="action_website_technical_pages"
+        sequence="90" />
+
+    <record id="action_open_website_configurator" model="ir.actions.client">
+        <field name="name">Open Website Configurator</field>
+        <field name="tag">reload</field>
+        <field
+            name="params"
+            eval="{'action_id': ref('website_configurator'), 'menu_id': ref('menu_website_configuration')}" />
+    </record>
+
+    <record id="website_configurator_todo" model="ir.actions.todo">
+        <field name="name">Start Website Configurator</field>
+        <field name="action_id" ref="action_open_website_configurator" />
+    </record>
+
+    <menuitem
+        id="menu_website_pages_list"
+        name="Pages"
+        parent="menu_content"
+        action="action_website_pages_list"
+        sequence="10" />
+
+    <menuitem
+        id="menu_website_controller_pages_list"
+        name="Model Pages"
+        parent="menu_content"
+        action="action_website_controller_pages_list"
+        sequence="10"
+        groups="base.group_no_one"
+        active="False" />
+
+    <menuitem
+        id="website_visitor_menu"
+        name="Visitors"
+        parent="website.menu_reporting"
+        action="website.website_visitors_action"
+        sequence="40" />
+
+    <menuitem
+        id="menu_visitor_view_menu"
+        name="Page Views"
+        parent="website.menu_reporting"
+        action="website.website_visitor_view_action"
+        sequence="50" />
+
+    <menuitem
+        id="menu_website_global_configuration"
+        name="Configuration"
+        parent="menu_website_configuration"
+        sequence="100"
+        groups="base.group_system" />
+
+    <menuitem
+        id="menu_website_website_settings"
+        name="Settings"
+        parent="menu_website_global_configuration"
+        action="action_website_configuration"
+        sequence="10"
+        groups="base.group_system" />
+
+    <menuitem
+        id="menu_website_add_features"
+        parent="website.menu_website_global_configuration"
+        action="action_website_add_features"
+        sequence="20"
+        groups="base.group_system" />
+
+    <menuitem
+        id="menu_website_websites_list"
+        name="Websites"
+        parent="menu_website_global_configuration"
+        action="action_website_list"
+        sequence="15"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_website_menu_list"
+        name="Menus"
+        parent="menu_website_global_configuration"
+        action="action_website_menu"
+        sequence="45"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_website_rewrite"
+        name="Redirects"
+        parent="menu_website_global_configuration"
+        action="action_website_rewrite_list"
+        sequence="30"
+        groups="base.group_no_one" />
+
+</odoo>

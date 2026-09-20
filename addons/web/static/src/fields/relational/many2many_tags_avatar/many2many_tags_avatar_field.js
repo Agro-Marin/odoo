@@ -10,7 +10,7 @@ import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 const EMPTY_SPECIFICATION = Object.freeze({});
 

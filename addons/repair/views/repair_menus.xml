@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_repair_order"
+        name="Repairs"
+        sequence="165"
+        groups="stock.group_stock_user"
+        web_icon="repair,static/description/icon.png" />
+
+    <menuitem
+        id="repair_order_menu"
+        name="Orders"
+        parent="menu_repair_order"
+        action="action_repair_order_tree"
+        sequence="10"
+        groups="stock.group_stock_user" />
+
+    <menuitem
+        id="repair_menu_reporting"
+        name="Reporting"
+        parent="menu_repair_order"
+        sequence="15"
+        groups="stock.group_stock_manager" />
+
+    <menuitem
+        id="repair_menu"
+        name="Repairs"
+        parent="repair_menu_reporting"
+        action="action_repair_order_graph" />
+
+    <menuitem
+        id="repair_menu_config"
+        name="Configuration"
+        parent="menu_repair_order"
+        sequence="20"
+        groups="stock.group_stock_manager" />
+
+    <menuitem
+        id="repair_menu_product_template"
+        name="Products"
+        parent="repair_menu_config"
+        action="stock.product_template_action_product"
+        sequence="2" />
+
+    <menuitem
+        id="repair_menu_product_product"
+        name="Product Variants"
+        parent="repair_menu_config"
+        action="stock.stock_product_normal_action"
+        sequence="3"
+        groups="product.group_product_variant" />
+
+    <menuitem
+        id="repair_menu_tag"
+        name="Repair Orders Tags"
+        parent="repair_menu_config"
+        action="action_repair_order_tag"
+        sequence="1000"
+        groups="base.group_no_one" />
+
+</odoo>

@@ -11,8 +11,8 @@
                 <field
                     name="level_progress"
                     type="measure"
-                    widget="percentage"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </pivot>
         </field>
     </record>
@@ -20,28 +20,15 @@
     <record id="hr_employee_certification_report_view_list" model="ir.ui.view">
         <field name="model">hr.employee.certification.report</field>
         <field name="arch" type="xml">
-            <list expand="0" edit="1" editable="bottom">
-                <field
-                    name="employee_id"
-                    widget="many2one_avatar_employee"
-                    options="{'no_create': True, 'no_open': True}" />
-                <field
-                    name="skill_type_id"
-                    options="{'no_create': True, 'no_open': True}"
-                    string="Certification Type" />
-                <field
-                    name="skill_id"
-                    options="{'no_create': True, 'no_open': True}"
-                    string="Certification" />
-                <field
-                    name="skill_level"
-                    options="{'no_create': True, 'no_open': True}"
-                    string="Certification Level" />
+            <list create="0" expand="0">
+                <field name="employee_id" widget="many2one_avatar_employee" />
+                <field name="skill_type_id" string="Certification Type" />
+                <field name="skill_id" string="Certification" />
+                <field name="skill_level" string="Certification Level" />
                 <field
                     name="level_progress"
-                    widget="percentage"
-                    options="{'no_create': True, 'no_open': True}"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </list>
         </field>
     </record>
@@ -56,26 +43,26 @@
                 <field name="skill_type_id" string="Certification Type" />
                 <separator />
                 <filter
-                    string="Expired Certification"
                     name="archived"
+                    string="Expired Certification"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    string="Employee"
                     name="employee"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <filter
-                    string="Department"
                     name="department"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
                 <separator />
                 <filter
-                    string="Certification Type"
                     name="skill_type"
+                    string="Certification Type"
                     context="{'group_by': 'skill_type_id'}" />
                 <filter
-                    string="Certification"
                     name="skill"
+                    string="Certification"
                     context="{'group_by': 'skill_id'}" />
             </search>
         </field>
@@ -100,12 +87,5 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="hr_employee_certification_report_menu"
-        name="Certifications"
-        parent="hr_skills.hr_employee_skill_report_menu"
-        action="hr_employee_certification_report_action"
-        sequence="25" />
 
 </odoo>

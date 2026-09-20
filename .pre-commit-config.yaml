@@ -38,19 +38,3 @@ repos:
     rev: v3.2.0
     hooks:
       - id: agromarin-commit-format
-  - repo: local
-    hooks:
-      - id: migration-version-guard
-        name: migration scripts are reachable by the version rule
-        entry: python3.14 tooling/lint/migration_version_guard.py --check
-        language: system
-        stages: [pre-push]
-        pass_filenames: false
-        always_run: true
-      - id: cross-repo-coherence
-        name: cross-repo symbol coherence (core -> consumers)
-        entry: python3.14 tooling/architecture/cross_repo_coherence.py --check
-        language: system
-        stages: [pre-push]
-        pass_filenames: false
-        always_run: true

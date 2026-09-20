@@ -95,6 +95,37 @@ export function assertCartContains({
 }
 
 /**
+ * Asserts the add-to-cart toast notification shows the given product, qty
+ * and price (and, optionally, a selected no-variant/custom attribute line).
+ */
+export function assertToastNotification({ productName, qty, price, combinationName = false }) {
+    const steps = [
+        {
+            content: `check that ${qty} ${productName} was added`,
+            trigger: `.toast-body span:contains("${productName}")`,
+        },
+        {
+            content: `check that ${qty} ${productName} was added`,
+            trigger: `.toast-body span:contains("${qty}")`,
+        },
+    ];
+
+    if (combinationName) {
+        steps.push({
+            content: "check that the novariants/custom attributes are displayed.",
+            trigger: `.toast-body span.text-muted.small:contains("${combinationName}")`,
+        });
+    }
+
+    steps.push({
+        content: `check the price of ${qty} ${productName}`,
+        trigger: `.toast-body div:contains("${price}")`,
+    });
+
+    return steps;
+}
+
+/**
  * The `aria-label` each price carries in `product_tile_templates.xml`.
  *
  * This used to select on `data-oe-expression`, which is the template's own
@@ -109,9 +140,6 @@ const PRICE_ARIA_LABELS = {
     base_price: "Original price",
 };
 
-/**
- * Used to assert if the price attribute of a given product is correct on the /shop view
- */
 export function assertProductPrice(attribute, value, productName) {
     const label = PRICE_ARIA_LABELS[attribute];
     if (!label) {
@@ -170,6 +198,14 @@ export function goToCart({
     };
 }
 
+/**
+ * Reads the current cart's order id off the cart-quantity badge's dataset,
+ * where the cart icon widget publishes it.
+ */
+export function getCartOrderId() {
+    return document.querySelector(".my_cart_quantity").dataset["orderId"];
+}
+
 export function goToCheckout() {
     return {
         content: "Checkout your order",
@@ -195,7 +231,6 @@ export function pay({
     const steps = [
         {
             content: "Pay",
-            //Either there are multiple payment methods, and one is checked, either there is only one, and therefore there are no radio inputs
             trigger: 'button[name="o_payment_submit_button"]',
             run: "click",
             expectUnloadPage,
@@ -258,7 +293,7 @@ export function payWithTransfer({
                     '[name="order_confirmation"]:contains("Please use the following transfer details")',
                 timeout: 30000,
                 run() {
-                    window.location.href = "/contactus"; // Redirect in JS to avoid the RPC loop (20x1sec)
+                    window.location.href = "/contactus";
                 },
                 expectUnloadPage: true,
             },
@@ -295,9 +330,6 @@ export function searchProduct(productName, { select = false } = {}) {
     return steps;
 }
 
-/**
- * Used to select a pricelist on the /shop view
- */
 export function selectPriceList(pricelist) {
     return [
         {
@@ -314,9 +346,6 @@ export function selectPriceList(pricelist) {
     ];
 }
 
-/**
- * Used for resolving indeterministic behavior of tours
- */
 export function waitForInteractionToLoad() {
     return {
         content: "Wait for interaction to be ready",

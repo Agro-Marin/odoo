@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_partner_tag_form"
+        name="Website Tags"
+        parent="partner.res_partner_menu_config"
+        action="action_partner_tag_form"
+        sequence="2" />
+
+</odoo>

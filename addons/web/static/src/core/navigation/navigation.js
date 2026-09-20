@@ -120,7 +120,7 @@ class NavigationItem {
 
     setActive(focus = true) {
         if (focus) {
-            scrollTo(this.target);
+            (this._options.scrollTo ?? scrollTo)(this.target);
         }
         this._navigator._setActiveItem(this.index);
         this.target.classList.add(this._options.activeClass ?? ACTIVE_ELEMENT_CLASS);
@@ -184,6 +184,14 @@ class NavigationItem {
 export class Navigator {
     /** @type {Array<NavigationItem>} */
     items = [];
+
+    /**
+     * Bound by `useNavigation`: points the navigator's mutation observer at
+     * a container, or at nothing. A bare Navigator watches no DOM.
+     *
+     * @type {(containerEl: HTMLElement | null) => void}
+     */
+    observe = () => {};
 
     /** @private @type {Array<() => void>} */ _hotkeyRemoves = [];
     /** @private @type {import("@web/core/hotkeys/hotkey_service").HotkeyService} */ _hotkeyService;
@@ -621,6 +629,7 @@ export class Navigator {
  * @property {string} [activeClass]
  * @property {"movement" | "armed"} [mouseActivation]
  * @property {(el: HTMLElement) => HTMLElement} [getHoverTarget]
+ * @property {(el: HTMLElement) => void} [scrollTo]
  * @property {boolean} [virtualFocus]
  * @property {boolean} [shouldFocusChildInput]
  * @property {boolean} [shouldFocusFirstItem]
@@ -717,24 +726,38 @@ export function useNavigation(containerRef, options = {}) {
 
     const onFocus = (/** @type {FocusEvent} */ { target }) =>
         navigator._checkFocus(/** @type {any} */ (target));
+    /** @type {HTMLElement | null} */
+    let observedEl = null;
+    /**
+     * Watches one container at a time: the effect below hands it the ref's
+     * element, and a component whose items live outside its own render
+     * (a dropdown menu in an overlay) hands it that element when it opens
+     * and null when it closes. Same element twice is a no-op, so the two
+     * routes never stack a second observer on one menu.
+     *
+     * @param {HTMLElement | null} containerEl
+     */
+    navigator.observe = (containerEl) => {
+        if (containerEl === observedEl) {
+            return;
+        }
+        observer.disconnect();
+        browser.removeEventListener("focus", onFocus, true);
+        observedEl = containerEl;
+        if (containerEl) {
+            navigator.update();
+            observer.observe(containerEl, { childList: true, subtree: true });
+            browser.addEventListener("focus", onFocus, true);
+        }
+    };
     useEffect(
-        (containerEl) => {
-            if (containerEl) {
-                navigator.update();
-                observer.observe(containerEl, {
-                    childList: true,
-                    subtree: true,
-                });
-                browser.addEventListener("focus", onFocus, true);
-            }
-            return () => {
-                observer.disconnect();
-                browser.removeEventListener("focus", onFocus, true);
-            };
-        },
+        (containerEl) => navigator.observe(containerEl),
         () => [/** @type {any} */ (containerRef).el],
     );
-    onWillDestroy(() => navigator._destroy());
+    onWillDestroy(() => {
+        navigator.observe(null);
+        navigator._destroy();
+    });
 
     return navigator;
 }

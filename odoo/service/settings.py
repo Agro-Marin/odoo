@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import os
+import socket
 from dataclasses import dataclass
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.settings import OptionSource, SettingsSlot
+
+_debug = DebugLog(__name__)
 
 __all__ = [
     "INHERIT_FROM_CRON",
+    "SD_LISTEN_FDS_START",
     "ServerSettings",
+    "adopt_activated_socket",
     "current",
     "installed",
     "override",
@@ -17,26 +23,64 @@ __all__ = [
 
 INHERIT_FROM_CRON = -1
 
+SD_LISTEN_FDS_START = 3
+
+
+def adopt_activated_socket(fileno: int) -> socket.socket:
+    """Adopt a systemd socket-activation fd, rejecting non-TCP sockets.
+
+    The server serves TCP: it reads ``getsockname()[:2]`` as (host, port) and
+    sets ``TCP_NODELAY`` on every connection.  A unit configured with
+    ``ListenStream=/path.sock`` hands over an ``AF_UNIX`` socket instead, which
+    survives adoption but fails cryptically at the first accept (``TCP_NODELAY``
+    raises ``OSError 95``, taking the accept loop or the worker down) after
+    producing a garbage server identity.  Reject it here, where the cause is
+    still nameable.
+    """
+    sock = socket.socket(fileno=fileno)
+    if sock.family not in (socket.AF_INET, socket.AF_INET6):
+        family = getattr(sock.family, "name", sock.family)
+        # Release the wrapper without closing the fd (the process exits below,
+        # which reclaims it); closing here would fight the fd's real owner.
+        sock.detach()
+        raise SystemExit(
+            f"Socket activation passed a {family} socket on fd {fileno}; the "
+            "server needs a TCP socket. Configure the unit with "
+            "ListenStream=<port> (or <address>:<port>), not a filesystem path."
+        )
+    return sock
+
 
 def _is_inherited(limit: int) -> bool:
     return limit <= INHERIT_FROM_CRON
 
 
 def _get_first_owned_limit(*limits: int) -> int:
-    limit = limits[0]
-    for candidate in limits[1:]:
-        if not _is_inherited(limit):
-            break
-        limit = candidate
-    return limit
+    return next((limit for limit in limits if not _is_inherited(limit)), limits[-1])
 
 
-def _is_socket_activated(config: OptionSource) -> bool:
-    return bool(
-        config["http_enable"]
-        and os.getenv("LISTEN_FDS") == "1"
+def _count_activated_sockets(config: OptionSource) -> int:
+    # sd_listen_fds(3): the unit's sockets arrive as fds 3.. in the order
+    # its [Socket] section lists them -- the HTTP port first, the websocket
+    # port second when the unit has one -- and only for the pid named.
+    listen_fds = os.getenv("LISTEN_FDS") or "0"
+    count = (
+        int(listen_fds)
+        if config["http_enable"]
+        and listen_fds.isdigit()
         and os.getenv("LISTEN_PID") == str(os.getpid())
+        else 0
     )
+    if _debug.logic.enabled and os.getenv("LISTEN_FDS"):
+        _debug.logic(
+            "settings.socket_activation",
+            activated=count > 0,
+            sockets=count,
+            http_enable=bool(config["http_enable"]),
+            listen_fds=listen_fds,
+            pid_matches=os.getenv("LISTEN_PID") == str(os.getpid()),
+        )
+    return count
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +91,7 @@ class ServerSettings:
     http_port: int = 8069
     gevent_port: int = 8072
     http_socket_activation: bool = False
+    websocket_socket_activation: bool = False
     max_cron_threads: int = 2
     job_workers: int = 1
     limit_request: int = 2**16
@@ -75,13 +120,15 @@ class ServerSettings:
 
     @classmethod
     def from_config(cls, config: OptionSource) -> Self:
+        activated_sockets = _count_activated_sockets(config)
         return cls(
             workers=int(config["workers"] or 0),
             http_enable=bool(config["http_enable"]),
             http_interface=config["http_interface"] or "0.0.0.0",
             http_port=int(config["http_port"]),
             gevent_port=int(config["gevent_port"]),
-            http_socket_activation=_is_socket_activated(config),
+            http_socket_activation=activated_sockets >= 1,
+            websocket_socket_activation=activated_sockets >= 2,
             max_cron_threads=int(config["max_cron_threads"] or 0),
             job_workers=int(config["job_workers"] or 0),
             limit_request=int(config["limit_request"] or 0),
@@ -132,19 +179,68 @@ class ServerSettings:
             0,
         )
 
+    def get_real_time_budget(self, kind: str) -> float:
+        if kind == "job":
+            return self.job_real_time_budget
+        if kind == "cron":
+            return self.cron_real_time_budget
+        return max(self.limit_time_real, 0)
+
     @property
     def update_module(self) -> bool:
         return bool(self.init or self.update or self.reinit)
 
 
+_last_seen: ServerSettings | None = None  # debuglog
+
+
 def _get_settings_from_live_config() -> ServerSettings:
+    global _last_seen  # debuglog
+
     import odoo.tools
 
-    return ServerSettings.from_config(odoo.tools.config)
+    settings = ServerSettings.from_config(odoo.tools.config)
+    # Derived once per config change; the event names the fields that moved.
+    previous, _last_seen = _last_seen, settings  # debuglog
+    if _debug.lifecycle.enabled and settings != previous:
+        _debug.lifecycle(
+            "settings.changed",
+            first=previous is None,
+            changed=sorted(
+                name
+                for name in ServerSettings.__dataclass_fields__
+                if previous is None
+                or getattr(previous, name) != getattr(settings, name)
+            ),
+            workers=settings.workers,
+            http_port=settings.http_port,
+            max_cron_threads=settings.max_cron_threads,
+            job_workers=settings.job_workers,
+            db_maxconn=settings.db_maxconn,
+            test_enable=settings.test_enable,
+        )
+    return settings
 
 
+def _get_live_inputs_version() -> object:
+    import odoo.tools
+
+    # Socket activation is read from the environment, not the option dict, so
+    # the two variables that decide it are part of the key.
+    return (
+        odoo.tools.config.generation,
+        os.getenv("LISTEN_FDS"),
+        os.getenv("LISTEN_PID"),
+    )
+
+
+# Derived once per change of its inputs, not per read; a key written after
+# boot still reaches the tier on the next read, and a test's override() or
+# installed() still wins.
 slot: SettingsSlot[ServerSettings] = SettingsSlot(
-    "odoo.service", _get_settings_from_live_config
+    "odoo.service",
+    _get_settings_from_live_config,
+    version=_get_live_inputs_version,
 )
 current = slot.current
 installed = slot.installed

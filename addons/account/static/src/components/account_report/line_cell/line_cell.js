@@ -1,11 +1,9 @@
 /** @odoo-module native */
-import { localization } from "@web/core/l10n/localization";
-import { useService } from "@web/core/utils/hooks";
-
 import { AccountReportCarryoverPopover } from "@account/components/account_report/line_cell/popover/carryover_popover";
 import { AccountReportEditPopover } from "@account/components/account_report/line_cell/popover/edit_popover";
-
 import { Component, markup, useState } from "@odoo/owl";
+import { localization } from "@web/core/l10n/localization";
+import { useService } from "@web/core/utils/hooks";
 
 export class AccountReportLineCell extends Component {
     static template = "account.AccountReportLineCell";
@@ -42,16 +40,22 @@ export class AccountReportLineCell extends Component {
 
         let classes = "";
 
-        if (this.props.cell.auditable) classes += " auditable";
+        if (this.props.cell.auditable) {
+            classes += " auditable";
+        }
 
-        if (this.props.cell.figure_type === "date") classes += " date";
+        if (this.props.cell.figure_type === "date") {
+            classes += " date";
+        }
 
-        if (this.props.cell.figure_type === "string") classes += " text";
+        if (this.props.cell.figure_type === "string") {
+            classes += " text";
+        }
 
         if (this.isNumeric(this.props.cell.figure_type)) {
             classes += " numeric text-end";
 
-            if (this.props.cell.no_format !== undefined)
+            if (this.props.cell.no_format !== undefined) {
                 switch (Math.sign(this.props.cell.no_format)) {
                     case 1:
                         break;
@@ -62,13 +66,16 @@ export class AccountReportLineCell extends Component {
                         classes += " text-danger";
                         break;
                 }
+            }
         }
 
         if (this.props.cellIndex % 2) {
             classes += " line_cell_odd";
         }
 
-        if (this.props.cell.class) classes += ` ${this.props.cell.class}`;
+        if (this.props.cell.class) {
+            classes += ` ${this.props.cell.class}`;
+        }
 
         return classes;
     }
@@ -111,7 +118,9 @@ export class AccountReportLineCell extends Component {
             this.popoverCloseFn = null;
         };
 
-        if (this.popoverCloseFn) close();
+        if (this.popoverCloseFn) {
+            close();
+        }
 
         this.popoverCloseFn = this.popover.add(
             ev.currentTarget,

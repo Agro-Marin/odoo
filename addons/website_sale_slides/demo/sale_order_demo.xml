@@ -2,8 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- CHANNEL 6: DIY Furniture -->
-        <!-- ================================================== -->
         <record id="sale_order_course_1" model="sale.order">
             <field name="create_date" eval="DateTime.now() - relativedelta(days=31)" />
             <field name="partner_id" ref="base.partner_demo" />
@@ -11,11 +9,11 @@
             <field name="partner_shipping_id" ref="base.partner_demo" />
             <field name="user_id" ref="base.user_admin" />
             <field name="date_order" eval="DateTime.now() - relativedelta(days=30)" />
-            <field name="team_id" ref="sales_team.salesteam_website_sales" />
+            <field name="team_id" ref="sale_team.salesteam_website_sales" />
             <field name="website_id" eval="1" />
             <field
                 name="tag_ids"
-                eval="[(4, ref('sales_team.categ_oppor2')), (4, ref('sales_team.categ_oppor5'))]" />
+                eval="[Command.link(ref('sale_team.categ_oppor2')), Command.link(ref('sale_team.categ_oppor5'))]" />
         </record>
         <record id="sale_order_course_1_line_1" model="sale.order.line">
             <field name="order_id" ref="sale_order_course_1" />
@@ -31,7 +29,7 @@
             <field name="partner_shipping_id" ref="base.partner_demo_portal" />
             <field name="user_id" ref="base.user_admin" />
             <field name="date_order" eval="DateTime.now() - relativedelta(days=100)" />
-            <field name="team_id" ref="sales_team.salesteam_website_sales" />
+            <field name="team_id" ref="sale_team.salesteam_website_sales" />
             <field name="website_id" eval="1" />
         </record>
         <record id="sale_order_course_2_line_1" model="sale.order.line">
@@ -48,8 +46,6 @@
                 ref="website_sale_slides.product_course_channel_6" />
             <field name="price_unit">100.0</field>
         </record>
-        <!-- CHANNEL 5: Basics of Furniture Creation -->
-        <!-- ================================================== -->
         <record id="sale_order_course_3" model="sale.order">
             <field name="create_date" eval="DateTime.now() - relativedelta(days=31)" />
             <field name="partner_id" ref="base.partner_demo" />
@@ -57,7 +53,7 @@
             <field name="partner_shipping_id" ref="base.partner_demo" />
             <field name="user_id" ref="base.user_admin" />
             <field name="date_order" eval="DateTime.now() - relativedelta(days=30)" />
-            <field name="team_id" ref="sales_team.salesteam_website_sales" />
+            <field name="team_id" ref="sale_team.salesteam_website_sales" />
             <field name="website_id" eval="1" />
         </record>
         <record id="sale_order_course_3_line_1" model="sale.order.line">
@@ -89,7 +85,6 @@
             <field name="create_uid" ref="base.user_admin" />
             <field name="user_id" ref="base.user_admin" />
         </record>
-        <!-- Confirm sales -->
         <function
             model="sale.order"
             name="action_confirm"

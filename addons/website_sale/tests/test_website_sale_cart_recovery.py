@@ -7,7 +7,6 @@ from odoo.addons.base.tests.common import HttpCaseWithUserPortal
 @tagged("post_install", "-at_install")
 class TestWebsiteSaleCartRecovery(HttpCaseWithUserPortal):
     def test_01_shop_cart_recovery_tour(self):
-        """The goal of this test is to make sure cart recovery works."""
         self.env.ref("base.user_admin").write(
             {
                 "email": "mitchell.admin@example.com",
@@ -86,7 +85,6 @@ class TestWebsiteSaleCartRecoveryServer(TransactionCase):
         )
 
     def test_cart_recovery_mail_template(self):
-        """Make sure that we get the correct cart recovery templates to send."""
         self.assertEqual(
             self.so1._get_cart_recovery_template(),
             self.recovery_template_custom1,
@@ -97,7 +95,6 @@ class TestWebsiteSaleCartRecoveryServer(TransactionCase):
             self.recovery_template_custom2,
             "We do not return the correct mail template",
         )
-        # Orders that belong to different websites; we should get the default template
         self.assertEqual(
             (self.so1 + self.so2)._get_cart_recovery_template(),
             self.recovery_template_default,
@@ -105,7 +102,6 @@ class TestWebsiteSaleCartRecoveryServer(TransactionCase):
         )
 
     def test_cart_recovery_mail_template_send(self):
-        """The goal of this test is to make sure cart recovery works."""
         orders = self.so0 + self.so1 + self.so2
 
         self.assertFalse(

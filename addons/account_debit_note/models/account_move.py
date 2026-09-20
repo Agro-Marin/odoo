@@ -1,24 +1,26 @@
 from odoo import _, api, fields, models
+from odoo.fields import Domain
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
     debit_origin_id = fields.Many2one(
-        "account.move",
-        "Original Invoice Debited",
-        readonly=True,
-        copy=False,
+        comodel_name="account.move",
+        string="Original Invoice Debited",
         index="btree_not_null",
+        copy=False,
+        readonly=True,
     )
     debit_note_ids = fields.One2many(
-        "account.move",
-        "debit_origin_id",
-        "Debit Notes",
+        comodel_name="account.move",
+        inverse_name="debit_origin_id",
+        string="Debit Notes",
         help="The debit notes created for this invoice",
     )
     debit_note_count = fields.Integer(
-        "Number of Debit Notes", compute="_compute_debit_count"
+        string="Number of Debit Notes",
+        compute="_compute_debit_count",
     )
 
     @api.depends("debit_note_ids")
@@ -47,12 +49,12 @@ class AccountMove(models.Model):
         return action
 
     def _get_domain_last_sequence(self, relaxed=False):
-        where_string, param = super()._get_domain_last_sequence(relaxed)
+        domain = super()._get_domain_last_sequence(relaxed)
         if self.journal_id.debit_sequence:
-            where_string += " AND debit_origin_id IS " + (
-                "NOT NULL" if self.debit_origin_id else "NULL"
+            domain &= Domain(
+                "debit_origin_id", "!=" if self.debit_origin_id else "=", False
             )
-        return where_string, param
+        return domain
 
     def _get_starting_sequence(self):
         starting_sequence = super()._get_starting_sequence()

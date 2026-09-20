@@ -27,7 +27,7 @@ export class ProductStickyCol extends Interaction {
     }
 
     _adaptToHeaderChange() {
-        let position = 16; // Add 1rem equivalent in px to provide a visual gap by default
+        let position = 16;
 
         for (const el of document.querySelectorAll(".o_top_fixed_element")) {
             position += el.offsetHeight;

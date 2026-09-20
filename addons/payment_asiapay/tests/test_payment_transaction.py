@@ -18,7 +18,7 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
     )  # Freeze time for consistent singularization behavior.
     def test_reference_is_singularized(self):
         """Test the singularization of reference prefixes."""
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             self.asiapay.code
         )
         self.assertEqual(reference, "tx-20111102120021")
@@ -59,7 +59,7 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
             }
         )
         invoice.action_post()
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             self.asiapay.code, invoice_ids=[Command.set([invoice.id])]
         )
         self.assertEqual(reference, "MISC/2011/11/0001-20111102120021")
@@ -69,7 +69,7 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
     )  # Freeze time for consistent singularization behavior.
     def test_reference_is_stripped_at_max_length(self):
         """Test that reference prefixes are stripped to have a length of at most 35 chars."""
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             self.asiapay.code,
             prefix="this is a long reference of more than 35 characters",
         )
@@ -81,10 +81,10 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
         tx = self._create_transaction(flow="redirect")
         with patch(
             "odoo.addons.payment_asiapay.models.payment_provider.PaymentProvider"
-            "._asiapay_calculate_signature",
+            "._get_asiapay_signature",
             return_value="dummy_signature",
         ):
-            rendering_values = tx._get_specific_rendering_values(None)
+            rendering_values = tx._prepare_redirect_form_values(None)
             self.assertDictEqual(
                 rendering_values,
                 {
@@ -120,7 +120,7 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
             "payMethod",
             "secureHash",
         ]
-        processing_values = tx._get_processing_values()
+        processing_values = tx._prepare_processing_values()
         form_info = self._extract_values_from_html_form(
             processing_values["redirect_form_html"]
         )

@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { status, useComponent } from "@odoo/owl";
-import { ColorList } from "@web/components/colorlist/colorlist";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { useAction } from "@web/core/action_port";
 import { getFieldCodec } from "@web/core/field_codec";
@@ -12,9 +11,10 @@ import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
+import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { session } from "@web/session";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { nodeAttrs } from "@web/views/ir/view_ir";
 
 /**
  * @typedef ViewActiveActions
@@ -88,20 +88,21 @@ export function getFormattedValue(record, fieldName, fieldInfo = null) {
 }
 
 /**
- * @param {Element} rootNode
+ * @param {import("@web/views/ir/view_ir_schema").ViewIRNode | Element} rootNode
  * @returns {ViewActiveActions}
  */
 export function getActiveActions(rootNode) {
+    const attrs = nodeAttrs(rootNode);
     /** @type {ViewActiveActions} */
     const activeActions = {
         type: "view",
-        edit: exprToBoolean(rootNode.getAttribute("edit"), true),
-        create: exprToBoolean(rootNode.getAttribute("create"), true),
-        delete: exprToBoolean(rootNode.getAttribute("delete"), true),
+        edit: exprToBoolean(attrs.edit, true),
+        create: exprToBoolean(attrs.create, true),
+        delete: exprToBoolean(attrs.delete, true),
         duplicate: false,
     };
     activeActions.duplicate =
-        activeActions.create && exprToBoolean(rootNode.getAttribute("duplicate"), true);
+        activeActions.create && exprToBoolean(attrs.duplicate, true);
     return activeActions;
 }
 
@@ -282,8 +283,12 @@ export function getMultiRecordModelParams({
  * @returns {Record<string, any>}
  */
 export function defaultViewProps(genericProps, view) {
-    const { arch, relatedModels, resModel } = genericProps;
-    const archInfo = new view.ArchParser().parse(arch, relatedModels, resModel);
+    const { arch, ir, relatedModels, resModel } = genericProps;
+    // `View` supplies both; a caller that builds its props from an arch
+    // element alone (web studio's editors) hands the element to an IR
+    // parser, whose toIR() converts it
+    const input = view.ArchParser.consumes === "ir" ? (ir ?? arch) : arch;
+    const archInfo = new view.ArchParser().parse(input, relatedModels, resModel);
     return {
         ...genericProps,
         Model: view.Model,
@@ -381,39 +386,57 @@ export function computeArchiveEnabled(fields, { presentIn = fields } = {}) {
 }
 
 /**
- * @type {Record<string, { sequence: number, icon: string, description: any, class?: string }>}
+ * @type {Record<string, { groupNumber: number, sequence: number, icon: string, description: any, danger?: boolean }>}
  */
 const STATIC_ACTION_MENU_DESCRIPTORS = {
-    addPropertyFieldValue: {
-        sequence: 10,
-        icon: "fa-solid fa-cogs",
-        description: _t("Edit Properties"),
-    },
     export: {
-        sequence: 10,
+        groupNumber: COG_GROUP.DATA,
+        sequence: 20,
         icon: "fa-solid fa-upload",
-        description: _t("Export"),
+        description: _t("Export…"),
+    },
+    addPropertyFieldValue: {
+        groupNumber: COG_GROUP.RECORD,
+        sequence: 10,
+        icon: "fa-solid fa-gears",
+        description: _t("Edit Properties…"),
     },
     duplicate: {
+        groupNumber: COG_GROUP.RECORD,
         sequence: 30,
         icon: "fa-regular fa-clone",
         description: _t("Duplicate"),
     },
     archive: {
+        groupNumber: COG_GROUP.RECORD,
         sequence: 40,
         icon: "oi oi-archive",
         description: _t("Archive"),
     },
     unarchive: {
+        groupNumber: COG_GROUP.RECORD,
         sequence: 45,
         icon: "oi oi-unarchive",
         description: _t("Unarchive"),
     },
-    delete: {
+    versionHistory: {
+        groupNumber: COG_GROUP.RECORD,
         sequence: 50,
+        icon: "fa-solid fa-clock-rotate-left",
+        description: _t("Version History…"),
+    },
+    insertInSpreadsheet: {
+        groupNumber: COG_GROUP.INTEGRATE,
+        sequence: 10,
+        icon: "oi oi-view-list",
+        description: _t("Insert in Spreadsheet…"),
+    },
+    delete: {
+        groupNumber: COG_GROUP.DANGER,
+        sequence: 10,
         icon: "fa-regular fa-trash-can",
         description: _t("Delete"),
-        class: "text-danger",
+        danger: true,
     },
 };
 
@@ -484,7 +507,12 @@ export function getActionMenuItems(staticItems, actionMenus) {
         .sort(([, item1], [, item2]) => (item1.sequence || 0) - (item2.sequence || 0))
         .map(([key, item]) =>
             Object.assign(
-                { key, groupNumber: STATIC_ACTIONS_GROUP_NUMBER },
+                {
+                    key,
+                    groupNumber:
+                        STATIC_ACTION_MENU_DESCRIPTORS[key]?.groupNumber ??
+                        COG_GROUP.APP,
+                },
                 omit(item, "isAvailable", "sequence"),
             ),
         );
@@ -565,33 +593,4 @@ function makeModelUIHooks({ action, dialog, notification, isAlive = () => true }
 
 sharedComponents.add("computeViewClassName", computeViewClassName);
 
-/**
- * The palette slot a record's colour value selects: a number wraps into the
- * palette (negatives included), a string hashes by code points, a relational
- * value -- `{ id }` or `[id, name]` -- colours by its id, anything else takes
- * slot 0. Kanban and gantt each carried a copy that agreed on none of the
- * four branches.
- *
- * @param {any} value
- * @param {number} [paletteSize]
- * @returns {number}
- */
-export function getColorIndex(value, paletteSize = ColorList.COLORS.length) {
-    if (typeof value === "number") {
-        return ((Math.round(value) % paletteSize) + paletteSize) % paletteSize;
-    }
-    if (typeof value === "string") {
-        const codePointSum = [...value].reduce(
-            (acc, char) => acc + (char.codePointAt(0) ?? 0),
-            0,
-        );
-        return codePointSum % paletteSize;
-    }
-    if (Array.isArray(value)) {
-        return getColorIndex(value[0], paletteSize);
-    }
-    if (value && typeof value === "object" && typeof value.id === "number") {
-        return getColorIndex(value.id, paletteSize);
-    }
-    return 0;
-}
+export { getColorIndex } from "@web/core/colors/colors";

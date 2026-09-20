@@ -1,6 +1,8 @@
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class HrDepartureWizard(models.TransientModel):
     _name = "hr.departure.wizard"
@@ -13,6 +15,11 @@ class HrDepartureWizard(models.TransientModel):
         else:
             departure_date = False
 
+        dbg.logic.debug(
+            "hr.departure.wizard default date: active_ids=%s -> %s",
+            active_ids,
+            departure_date or "today",
+        )
         return departure_date or fields.Date.today()
 
     def _default_employee_ids(self):
@@ -29,21 +36,23 @@ class HrDepartureWizard(models.TransientModel):
         return [("active", "=", True), ("company_id", "in", self.env.companies.ids)]
 
     departure_reason_id = fields.Many2one(
-        "hr.departure.reason",
-        required=True,
+        comodel_name="hr.departure.reason",
         default=lambda self: self.env["hr.departure.reason"].search([], limit=1),
+        required=True,
     )
     departure_description = fields.Html(string="Additional Information")
     departure_date = fields.Date(
-        string="Contract End Date", required=True, default=_default_departure_date
+        string="Contract End Date",
+        default=_default_departure_date,
+        required=True,
     )
     employee_ids = fields.Many2many(
-        "hr.employee",
+        comodel_name="hr.employee",
         string="Employees",
-        required=True,
         default=_default_employee_ids,
-        context={"active_test": False},
+        required=True,
         domain=_domain_employee_ids,
+        context={"active_test": False},
     )
 
     is_user_employee = fields.Boolean(
@@ -102,6 +111,12 @@ class HrDepartureWizard(models.TransientModel):
                 archivable |= user
             else:
                 kept |= user
+        dbg.logic.debug(
+            "hr.departure.wizard %s: users archivable %s, kept (other employees) %s",
+            self.id,
+            dbg.rec(archivable),
+            dbg.rec(kept),
+        )
         return archivable, kept
 
     def _check_departure_date_against_contracts(self, versions):
@@ -116,9 +131,21 @@ class HrDepartureWizard(models.TransientModel):
                 )
             )
 
+    @dbg.timed
     def action_register_departure(self):
         employee_ids = self.employee_ids
         active_versions = employee_ids.version_id
+        dbg.lifecycle.debug(
+            "[departure:%s] start: employees %s, date %s, reason %s, termination=%s "
+            "remove_user=%s set_date_end=%s",
+            self.id,
+            dbg.rec(employee_ids),
+            self.departure_date,
+            self.departure_reason_id.id,
+            bool(self.env.context.get("employee_termination")),
+            self.remove_related_user,
+            self.set_date_end,
+        )
         self._check_departure_date_against_contracts(active_versions)
 
         allow_archived_users, unarchived_users = self._split_users_archivable_and_kept()
@@ -130,12 +157,25 @@ class HrDepartureWizard(models.TransientModel):
             if self.remove_related_user:
                 archived_users = archived_employees.user_id & allow_archived_users
 
+        dbg.pipeline.debug(
+            "[departure:%s] archiving employees %s",
+            self.id,
+            dbg.rec(archived_employees),
+        )
         archived_employees.with_context(no_wizard=True).action_archive()
         archived_users = archived_users.filtered(
             lambda u: u.id not in (self.env.uid, SUPERUSER_ID)
         )
+        dbg.pipeline.debug(
+            "[departure:%s] archiving users %s", self.id, dbg.rec(archived_users)
+        )
         archived_users.sudo().action_archive()
 
+        dbg.pipeline.debug(
+            "[departure:%s] writing departure fields on %s",
+            self.id,
+            dbg.rec(employee_ids),
+        )
         employee_ids.write(
             {
                 "departure_reason_id": self.departure_reason_id,
@@ -145,9 +185,14 @@ class HrDepartureWizard(models.TransientModel):
         )
 
         if self.set_date_end:
-            active_versions.filtered(lambda v: v.contract_date_start).write(
-                {"contract_date_end": self.departure_date}
+            contracts = active_versions.filtered(lambda v: v.contract_date_start)
+            dbg.pipeline.debug(
+                "[departure:%s] contract end %s on versions %s",
+                self.id,
+                self.departure_date,
+                dbg.rec(contracts),
             )
+            contracts.write({"contract_date_end": self.departure_date})
 
         next_action = {"type": "ir.actions.act_window_close"}
         for users, message_type, message in (
@@ -172,4 +217,5 @@ class HrDepartureWizard(models.TransientModel):
                 next_action = self._prepare_action_user_archive_notification(
                     message, message_type, next_action
                 )
+        dbg.lifecycle.debug("[departure:%s] done", self.id)
         return next_action

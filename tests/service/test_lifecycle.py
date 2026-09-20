@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 import signal
 import threading
@@ -8,6 +9,8 @@ import pytest
 
 from odoo.service import _process_state
 from odoo.service import settings as server_settings
+
+from .conftest import threaded_server
 
 
 @pytest.fixture(scope="module")
@@ -246,13 +249,16 @@ class TestPreloadRegistriesReturnCode:
             unrun=0,
         ):
             registry = MagicMock()
-            registry._assertion_report = report
             registry_cls = MagicMock()
             registry_cls.new = new or MagicMock(return_value=registry)
             registry_cls.registries.count = 1
             logger = MagicMock()
             with (
                 patch.object(mod, "Registry", registry_cls),
+                patch(
+                    "odoo.tests.result.assertion_report",
+                    MagicMock(return_value=report),
+                ),
                 server_settings.override(**preload_config(**(config_overrides or {}))),
                 patch.object(
                     mod, "_run_post_install_tests", return_value=unrun
@@ -373,11 +379,47 @@ class TestPreloadRegistriesReturnCode:
         logger.critical.assert_called_once()
         assert "db1" in str(logger.critical.call_args)
 
+    def test_a_broken_database_marks_its_test_report_aborted(self, preload):
+        report = make_report(tests_run=96)
+        boom = MagicMock(side_effect=RuntimeError("registry is toast"))
+        rc, _, _, _ = preload(
+            ["db1"],
+            report=report,
+            new=boom,
+            config_overrides={"test_enable": True},
+        )
+        assert rc == -1
+        report.record_abort.assert_called_once_with("RuntimeError: registry is toast")
+
     def test_the_registry_cache_grows_to_hold_every_database(self, preload):
         _, _, registry_cls, _ = preload(
             [f"db{i}" for i in range(40)], report=make_report()
         )
         assert registry_cls.registries.count >= 40
+
+
+class TestAbortedRunReport:
+    def test_an_aborted_run_is_not_summarised_as_clean(self):
+        from odoo.tests.result import OdooTestResult
+
+        report = OdooTestResult()
+        report.testsRun = 96
+        report.record_abort("FileNotFoundError: esbuild is required")
+
+        assert not report.wasSuccessful()
+        assert str(report).startswith("0 failed, 1 error(s) of 96 tests")
+        assert "aborted before it finished: FileNotFoundError" in str(report)
+
+    def test_merging_a_report_keeps_its_abort(self):
+        from odoo.tests.result import OdooTestResult
+
+        aborted = OdooTestResult()
+        aborted.record_abort("RuntimeError: boom")
+        merged = OdooTestResult()
+        merged.update(aborted)
+
+        assert not merged.wasSuccessful()
+        assert merged.aborted == "RuntimeError: boom"
 
 
 class TestReexecNtServiceRestart:
@@ -486,7 +528,7 @@ class TestRestartGuard:
 
         with (
             patch("odoo.service._process_state.server", fake_server),
-            patch("odoo.service.lifecycle._IS_WINDOWS", False),
+            patch("odoo.service.lifecycle.IS_WINDOWS", False),
             patch.object(os, "kill") as mock_kill,
         ):
             srv.restart()
@@ -494,20 +536,20 @@ class TestRestartGuard:
         mock_kill.assert_called_once_with(12345, signal.SIGHUP)
 
     def test_threaded_server_reload_delegates_to_lifecycle(self, srv):
-        ts = object.__new__(srv.ThreadedServer)
+        ts = threaded_server()
         ts.pid = 12345
         with patch("odoo.service._threaded.restart") as mock_restart:
             ts.reload()
         mock_restart.assert_called_once_with()
 
     def test_threaded_server_reload_is_windows_safe(self, srv):
-        ts = object.__new__(srv.ThreadedServer)
+        ts = threaded_server()
         ts.pid = 12345
         from odoo.service import lifecycle
 
         with (
             patch("odoo.service._process_state.server", ts),
-            patch.object(lifecycle, "_IS_WINDOWS", True),
+            patch.object(lifecycle, "IS_WINDOWS", True),
             patch.object(lifecycle, "_reexec_server") as mock_reexec,
             patch.object(lifecycle.threading, "Thread") as mock_thread,
         ):
@@ -526,8 +568,8 @@ class TestSigHupSentinel:
     def test_local_sentinel_exported(self):
         from odoo.service import _base_server
 
-        assert hasattr(_base_server, "_SIGHUP_AVAILABLE")
-        assert isinstance(_base_server._SIGHUP_AVAILABLE, bool)
+        assert hasattr(_base_server, "SIGHUP_AVAILABLE")
+        assert isinstance(_base_server.SIGHUP_AVAILABLE, bool)
 
     def test_on_posix_sentinel_is_true(self):
         import os
@@ -535,15 +577,87 @@ class TestSigHupSentinel:
         from odoo.service import _base_server
 
         if os.name == "posix":
-            assert _base_server._SIGHUP_AVAILABLE is True
+            assert _base_server.SIGHUP_AVAILABLE is True
 
     def test_the_facade_advertises_only_what_it_exports(self):
         """`server` is the public face; private module state lives at home."""
         from odoo.service import server
 
-        for private in ("_on_stop_hooks", "_SIGHUP_AVAILABLE", "FSWatcherBase"):
+        for private in ("_on_stop_hooks", "SIGHUP_AVAILABLE", "FSWatcherBase"):
             assert not hasattr(server, private), (
                 f"odoo.service.server re-exports {private}, which is in no "
                 f"__all__ and has no consumer outside this suite"
             )
         assert set(server.__all__) <= set(vars(server))
+
+
+class TestTheOpenFileBudgetIsEnsuredAtBoot:
+    """`db_maxconn` × the HTTP slots × the idle-connection budget can exceed
+    the default 1024 descriptors; the process finds out on accept()."""
+
+    def test_the_threaded_demand_counts_every_descriptor_holder(self):
+        from odoo.service import lifecycle
+
+        with (
+            server_settings.override(
+                workers=0, db_maxconn=64, max_cron_threads=2, job_workers=1
+            ),
+            patch.dict(
+                os.environ,
+                {
+                    "ODOO_MAX_HTTP_THREADS": "30",
+                    "ODOO_HTTP_MAX_IDLE_CONNECTIONS": "500",
+                },
+            ),
+        ):
+            demand = lifecycle._get_descriptor_budget_demand()
+        assert demand == 64 + 30 + 500 + 3 + lifecycle.DESCRIPTOR_HEADROOM
+
+    def test_the_prefork_demand_is_the_largest_child(self):
+        from odoo.service import lifecycle
+
+        with (
+            server_settings.override(workers=4, db_maxconn=64, db_maxconn_gevent=8),
+            patch.dict(
+                os.environ,
+                {
+                    "ODOO_MAX_HTTP_THREADS": "30",
+                    "ODOO_HTTP_MAX_IDLE_CONNECTIONS": "500",
+                },
+            ),
+        ):
+            demand = lifecycle._get_descriptor_budget_demand()
+        assert demand == max(64 + 1, 8 + 30 + 500) + lifecycle.DESCRIPTOR_HEADROOM
+
+    def _run(self, soft, hard, demand, caplog):
+        import resource
+
+        from odoo.service import lifecycle
+
+        calls = []
+        with (
+            patch.object(
+                lifecycle, "_get_descriptor_budget_demand", return_value=demand
+            ),
+            patch.object(resource, "getrlimit", return_value=(soft, hard)),
+            patch.object(resource, "setrlimit", side_effect=lambda *a: calls.append(a)),
+            caplog.at_level(logging.INFO, logger="odoo.service.server"),
+        ):
+            lifecycle._ensure_descriptor_budget()
+        return calls, [r.getMessage() for r in caplog.records]
+
+    def test_enough_soft_limit_touches_nothing(self, caplog):
+        calls, said = self._run(4096, 4096, 800, caplog)
+        assert calls == [] and said == []
+
+    def test_a_low_soft_limit_is_raised_to_the_hard_one(self, caplog):
+        import resource
+
+        calls, said = self._run(1024, 524288, 4000, caplog)
+        assert calls == [(resource.RLIMIT_NOFILE, (524288, 524288))]
+        assert any("raised from 1024 to 524288" in m for m in said)
+
+    def test_a_hard_limit_below_the_demand_is_named_with_the_remedy(self, caplog):
+        calls, said = self._run(1024, 1024, 4000, caplog)
+        assert calls == []
+        assert any("LimitNOFILE" in m and "4000" in m for m in said)

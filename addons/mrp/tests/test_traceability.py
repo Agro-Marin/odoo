@@ -332,7 +332,9 @@ class TestTraceability(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         mo_form = Form(mo_backorder)
         mo_form.lot_producing_ids.set(
             self.env["stock.lot"].create(

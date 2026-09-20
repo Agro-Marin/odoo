@@ -4,6 +4,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from .ir_model_common import (
@@ -18,6 +19,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrModelAccess(models.Model):
@@ -27,20 +29,24 @@ class IrModelAccess(models.Model):
     _allow_sudo_commands = False
     _PERM_COLUMNS = access_mode_columns("a")
 
-    name = fields.Char(required=True, index=True)
+    name = fields.Char(
+        index=True,
+        required=True,
+    )
     active = fields.Boolean(
         default=True,
         help="If you uncheck the active field, it will disable the ACL without deleting it (if you delete a native ACL, it will be re-created when you reload the module).",
     )
     model_id = fields.Many2one(
-        "ir.model",
-        string="Model",
-        required=True,
+        comodel_name="ir.model",
         index=True,
+        required=True,
         ondelete="cascade",
     )
     group_id = fields.Many2one(
-        "res.groups", string="Group", ondelete="restrict", index=True
+        comodel_name="res.groups",
+        index=True,
+        ondelete="restrict",
     )
     perm_read = fields.Boolean(string="Read Access")
     perm_write = fields.Boolean(string="Write Access")
@@ -52,30 +58,28 @@ class IrModelAccess(models.Model):
     @api.model
     def group_names_with_access(self, model_name: str, access_mode: str) -> list[str]:
         self._check_access_mode(access_mode)
-        lang = self.env.lang or "en_US"
-        perm_column = SQL.identifier(f"perm_{access_mode}")
-        self.env.cr.execute(
-            SQL(
-                """
-            SELECT COALESCE(c.name->>(%s::text), c.name->>'en_US'), COALESCE(g.name->>(%s::text), g.name->>'en_US')
-              FROM ir_model_access a
-              JOIN ir_model m ON (a.model_id = m.id)
-              JOIN res_groups g ON (a.group_id = g.id)
-         LEFT JOIN res_groups_privilege c ON (c.id = g.privilege_id)
-             WHERE m.model = %s
-               AND a.active = TRUE
-               AND %s = TRUE
-          ORDER BY COALESCE(c.name->>(%s::text), c.name->>'en_US') NULLS LAST, COALESCE(g.name->>(%s::text), g.name->>'en_US')
-            """,
-                lang,
-                lang,
-                model_name,
-                perm_column,
-                lang,
-                lang,
-            )
+        rows = self.sudo()._read_group(
+            [
+                ("model_id.model", "=", model_name),
+                (f"perm_{access_mode}", "=", True),
+                ("group_id", "!=", False),
+            ],
+            ["group_id", "group_id.privilege_id.name", "group_id.name"],
+            [],
         )
-        return [f"{x[0]}/{x[1]}" if x[0] else x[1] for x in self.env.cr.fetchall()]
+        names = sorted(
+            ((privilege or None, group) for _group, privilege, group in rows),
+            key=lambda pair: (pair[0] is None, pair[0] or "", pair[1]),
+        )
+        _debug.perf.count(
+            "group_names_with_access",
+            model=model_name,
+            mode=access_mode,
+            groups=len(names),
+        )
+        return [
+            f"{privilege}/{group}" if privilege else group for privilege, group in names
+        ]
 
     @api.model
     @tools.ormcache("model_name", "access_mode", cache="stable")
@@ -93,9 +97,25 @@ class IrModelAccess(models.Model):
 
         group_definitions = self.env["res.groups"]._get_group_definitions()
         if not accesses:
+            _debug.logic(
+                "groups_with_access", model=model_name, mode=access_mode, result="empty"
+            )
             return group_definitions.empty
         if not all(access.group_id for access in accesses):
+            _debug.logic(
+                "groups_with_access",
+                model=model_name,
+                mode=access_mode,
+                result="universe",
+            )
             return group_definitions.universe
+        _debug.logic(
+            "groups_with_access",
+            model=model_name,
+            mode=access_mode,
+            result="groups",
+            groups=len(accesses.group_id),
+        )
         return group_definitions.from_ids(accesses.group_id.ids)
 
     @tools.ormcache(
@@ -127,6 +147,13 @@ class IrModelAccess(models.Model):
             )
         )
 
+        _debug.perf.count(
+            "models_allowed_computed",
+            mode=mode,
+            uid=self.env.uid,
+            groups=len(group_ids),
+            models=len(rows),
+        )
         return frozenset(v[0] for v in rows)
 
     def _get_unloaded_module_scope(self) -> tuple[int, str | None] | None:
@@ -140,11 +167,18 @@ class IrModelAccess(models.Model):
             return True
 
         if not isinstance(model, str):
+            _debug.logic("acl_check.rejected", mode=mode, reason="model_not_str")
             raise TypeError(
                 f"Model name must be a string, got {type(model).__name__}: {model!r}"
             )
 
         if model not in self.env:
+            _debug.logic(
+                "acl_check.unknown_model",
+                model=model,
+                mode=mode,
+                raise_exception=raise_exception,
+            )
             if raise_exception:
                 raise ValueError(
                     f"Unknown model {model!r}: it does not exist in the registry"
@@ -153,7 +187,19 @@ class IrModelAccess(models.Model):
             _logger.warning("Missing model %s", model)
             return False
 
-        has_access = model in self._get_models_allowed(mode)
+        allowed = self._get_models_allowed(mode)
+        has_access = any(
+            name in allowed
+            for name in self.env["ir.rule"]._get_model_names_bound_by_rules(model)
+        )
+        if _debug.logic.enabled and not has_access:
+            _debug.logic(
+                "acl_denied",
+                model=model,
+                mode=mode,
+                uid=self.env.uid,
+                raise_exception=raise_exception,
+            )
         if not has_access and raise_exception:
             raise self._prepare_access_error(model, mode) from None
         return has_access
@@ -177,6 +223,7 @@ class IrModelAccess(models.Model):
         if groups:
             group_info = str(ACCESS_ERROR_GROUPS) % {"groups_list": groups}
         else:
+            _debug.logic("access_error.no_group_grants", model=model, mode=mode)
             group_info = str(ACCESS_ERROR_NOGROUP)
 
         resolution_info = str(ACCESS_ERROR_RESOLUTION)
@@ -187,6 +234,7 @@ class IrModelAccess(models.Model):
 
     @api.model
     def call_cache_clearing_methods(self) -> None:
+        _debug.lifecycle("acl_cache_cleared")
         self.env.invalidate_all()
         self.env.registry.clear_cache("stable")
 
@@ -196,20 +244,24 @@ class IrModelAccess(models.Model):
             if not vals.get("group_id") and any(
                 vals.get(f"perm_{mode}") for mode in self._PERM_COLUMNS
             ):
+                _debug.logic("create.groupless_acl", name=vals.get("name"))
                 _logger.warning(
                     "Rule %s has no group, this is a deprecated feature. Every access-granting rule should specify a group.",
                     vals.get("name"),
                 )
         records = super().create(vals_list)
+        _debug.lifecycle("create", count=len(records))
         self.call_cache_clearing_methods()
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         self.call_cache_clearing_methods()
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
         self.call_cache_clearing_methods()
         return res

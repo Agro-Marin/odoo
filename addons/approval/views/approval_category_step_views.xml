@@ -13,12 +13,21 @@
                     <group>
                         <group string="Who">
                             <field name="group_id" options="{'no_create': True}" />
+                            <field name="asks_group_members" invisible="not group_id" />
                             <field name="minimum" />
                             <field name="exclusive" />
+                            <field name="in_order" />
+                            <field name="counts_added_approvers" />
                             <field
                                 name="subject_user_path"
                                 placeholder="e.g. employee_id.leave_manager_id"
                                 invisible="not subject_model_id" />
+                            <field
+                                name="subject_user_sequence"
+                                invisible="not subject_user_path or not in_order" />
+                            <field
+                                name="subject_user_required"
+                                invisible="not subject_user_path" />
                         </group>
                         <group string="When">
                             <field name="sequence" />
@@ -31,14 +40,38 @@
                                 widget="domain"
                                 options="{'model': 'subject_model_name'}"
                                 invisible="not subject_model_id" />
+                            <field name="condition_field" />
+                            <field
+                                name="operator"
+                                invisible="not condition_field"
+                                required="condition_field" />
+                            <field name="threshold" invisible="not condition_field" />
+                            <field
+                                name="threshold_max"
+                                invisible="operator != 'between'" />
+                            <field
+                                name="currency_id"
+                                groups="base.group_multi_currency"
+                                invisible="condition_field != 'amount'" />
+                            <field
+                                name="when_rule_ids"
+                                widget="many2many_tags"
+                                domain="[('category_id', '=', category_id)]" />
+                            <field
+                                name="unless_rule_ids"
+                                widget="many2many_tags"
+                                domain="[('category_id', '=', category_id)]" />
                             <field name="active" invisible="1" />
+                            <field name="category_id" invisible="1" />
                         </group>
                     </group>
                     <notebook>
                         <page name="members" string="Members">
                             <field name="member_ids">
                                 <list editable="bottom">
+                                    <field name="sequence" widget="handle" />
                                     <field name="user_id" />
+                                    <field name="required" />
                                     <field name="date_end" />
                                     <field name="delegated_by_id" optional="show" />
                                 </list>
@@ -77,13 +110,13 @@
                     <field name="name" placeholder="e.g. Finance review" />
                     <field
                         name="user_ids"
+                        placeholder="Select users..."
                         widget="many2many_tags"
-                        required="not group_id"
-                        placeholder="Select users..." />
+                        required="not group_id" />
                     <field
                         name="group_id"
-                        required="not user_ids"
-                        options="{'no_create': True}" />
+                        options="{'no_create': True}"
+                        required="not user_ids" />
                     <field name="notify_user_ids" widget="many2many_tags" />
                     <field name="exclusive" widget="boolean_toggle" />
                 </group>
@@ -115,8 +148,8 @@
                             <field
                                 name="user_ids"
                                 widget="many2many_avatar_user"
-                                class="ms-auto"
-                                readonly="1" />
+                                readonly="1"
+                                class="ms-auto" />
                         </footer>
                     </t>
                 </templates>

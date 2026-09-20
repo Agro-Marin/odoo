@@ -21,7 +21,7 @@
         "views/myinvois_document_pos_views.xml",
         "views/pos_order_views.xml",
         "views/product_view.xml",
+        "views/l10n_my_edi_pos_menus.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

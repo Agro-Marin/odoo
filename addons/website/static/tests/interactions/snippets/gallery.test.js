@@ -10,7 +10,6 @@ setupInteractionWhiteList("website.gallery");
 
 describe.current.tags("interaction_dev");
 
-// TODO Obtain rendering from `website.s_images_wall` template ?
 const defaultGallery = `
     <div id="wrapwrap">
         <section class="s_image_gallery o_spc-small o_masonry pt24 pb24 o_colored_level" data-vcss="002" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">

@@ -1724,13 +1724,13 @@ class TestUi(TestPointOfSaleHttpCommon):
 
     def test_07_product_combo_max_free_qty(self):
         setup_product_combo_items(self)
-        self.office_combo.combo_ids[0].write(
+        self.desks_combo.write(
             {
                 "qty_free": 2,
                 "qty_max": 2,
             }
         )
-        self.office_combo.combo_ids[1].write(
+        self.chairs_combo.write(
             {
                 "qty_free": 2,
                 "qty_max": 5,
@@ -5381,9 +5381,7 @@ class TestTaxCommonPOS(TestPointOfSaleHttpCommon, TestTaxCommon):
         self.assertRecordValues(order, [expected_amounts])
 
     def assert_pos_orders_and_invoices(self, tour, tests_with_orders):
-        if self.main_pos_config.current_session_id:
-            self.main_pos_config.current_session_id.update_closing_cash_details(0)
-            self.main_pos_config.current_session_id.close_session_from_ui()
+        self._close_current_pos_session()
 
         self.start_pos_tour(tour)
         orders = self.env["pos.order"].search(
@@ -5405,3 +5403,9 @@ class TestTaxCommonPOS(TestPointOfSaleHttpCommon, TestTaxCommon):
                 self.assert_pos_order_totals(order, expected_values)
                 if order.account_move:
                     self.assert_invoice_totals(order.account_move, expected_values)
+        self._close_current_pos_session()
+
+    def _close_current_pos_session(self):
+        if session := self.main_pos_config.current_session_id:
+            session.update_closing_cash_details(0)
+            session.close_session_from_ui()

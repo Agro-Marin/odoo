@@ -4,6 +4,7 @@ import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
+import { navigateIndex } from "@mail/utils/common/misc";
 import {
     Component,
     onWillDestroy,
@@ -19,11 +20,15 @@ import {
     isIOS,
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { DiscussContent } from "./discuss_content.js";
+
+const log = makeLogger("mail.messaging_menu");
 
 export class MessagingMenu extends Component {
     static components = {
@@ -37,6 +42,7 @@ export class MessagingMenu extends Component {
     static template = "mail.MessagingMenu";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.isIosPwa = isIOS() && isDisplayStandalone();
         this.store = useService("mail.store");
@@ -63,6 +69,12 @@ export class MessagingMenu extends Component {
      * @param {import("models").Message} [message]
      */
     onClickThread(isMarkAsRead, thread, message) {
+        log.logic("onClickThread", () => ({
+            thread: thread.localId,
+            isMarkAsRead,
+            messageId: message?.id,
+            userNotification: message?.message_type === "user_notification",
+        }));
         if (!isMarkAsRead) {
             if (message?.needaction && message.message_type === "user_notification") {
                 this.store.inbox.highlightMessage = message;
@@ -81,13 +93,11 @@ export class MessagingMenu extends Component {
      * @param {import("models").Message} msg
      */
     onClickInboxMsg(isMarkAsRead, msg) {
+        log.logic("onClickInboxMsg", () => ({ messageId: msg.id, isMarkAsRead }));
         if (!isMarkAsRead) {
             this.store.inbox.highlightMessage = msg;
-            this.env.services.action.doAction({
-                tag: "mail.action_discuss",
-                type: "ir.actions.client",
-                context: { active_id: "mail.box_inbox" },
-            });
+            this.store.inbox.open();
+            this.dropdown.close();
             return;
         }
         msg.setDone();
@@ -95,6 +105,10 @@ export class MessagingMenu extends Component {
 
     /** @param {import("models").Thread} thread */
     markAsRead(thread) {
+        log.logic("markAsRead", () => ({
+            thread: thread.localId,
+            needaction: thread.needactionMessages.length,
+        }));
         if (thread.needactionMessages.length > 0) {
             thread.markAllMessagesAsRead();
         }
@@ -102,35 +116,13 @@ export class MessagingMenu extends Component {
 
     /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
-        if (this.notificationItems.length === 0) {
+        const targetId = navigateIndex(
+            direction,
+            this.state.activeIndex,
+            this.notificationItems.length,
+        );
+        if (targetId === undefined) {
             return;
-        }
-        const activeOptionId =
-            this.state.activeIndex !== null ? this.state.activeIndex : 0;
-        let targetId;
-        switch (direction) {
-            case "first":
-                targetId = 0;
-                break;
-            case "last":
-                targetId = this.notificationItems.length - 1;
-                break;
-            case "previous":
-                targetId = activeOptionId - 1;
-                if (targetId < 0) {
-                    this.navigate("last");
-                    return;
-                }
-                break;
-            case "next":
-                targetId = activeOptionId + 1;
-                if (targetId > this.notificationItems.length - 1) {
-                    this.navigate("first");
-                    return;
-                }
-                break;
-            default:
-                return;
         }
         this.state.activeIndex = targetId;
         this.notificationItems[targetId]?.scrollIntoView({ block: "nearest" });
@@ -220,6 +212,10 @@ export class MessagingMenu extends Component {
         if (this.store.discuss.activeTab === tabId) {
             return;
         }
+        log.logic("onClickNavTab", () => ({
+            from: this.store.discuss.activeTab,
+            to: tabId,
+        }));
         this.store.discuss.activeTab = tabId;
         if (
             this.store.discuss.activeTab === "inbox" &&

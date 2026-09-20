@@ -9,6 +9,8 @@ from odoo.fields import Domain
 from odoo.libs.numbers import float_round
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
+
 
 class StockReplenishmentInfo(models.TransientModel):
     _name = "stock.replenishment.info"
@@ -19,23 +21,23 @@ class StockReplenishmentInfo(models.TransientModel):
 
     orderpoint_id = fields.Many2one(comodel_name="stock.warehouse.orderpoint")
     product_id = fields.Many2one(
-        related="orderpoint_id.product_id",
         comodel_name="product.product",
+        related="orderpoint_id.product_id",
     )
     product_uom_name = fields.Char(related="orderpoint_id.product_uom_name")
     product_min_qty = fields.Float(
         related="orderpoint_id.product_min_qty",
         string="Min",
-        required=True,
-        readonly=False,
         related_sudo=False,
+        readonly=False,
+        required=True,
     )
     product_max_qty = fields.Float(
         related="orderpoint_id.product_max_qty",
         string="Max",
-        required=True,
-        readonly=False,
         related_sudo=False,
+        readonly=False,
+        required=True,
     )
     qty_to_order = fields.Float(related="orderpoint_id.qty_to_order")
     json_lead_days = fields.Char(compute="_compute_json_lead_days")
@@ -52,14 +54,17 @@ class StockReplenishmentInfo(models.TransientModel):
             ("last_year_quarter", "Last year quarter"),
         ],
         string="Based on",
-        required=True,
         default="one_month",
+        required=True,
         help="Estimate the sales volume for the period based on past period or order the forecasted quantity for that period.",
     )
-    percent_factor = fields.Integer(required=True, default=100)
+    percent_factor = fields.Integer(
+        default=100,
+        required=True,
+    )
 
     warehouseinfo_ids = fields.One2many(
-        related="orderpoint_id.warehouse_id.resupply_route_ids",
+        related="orderpoint_id.warehouse_id.resupply_route_ids"
     )
     wh_replenishment_option_ids = fields.One2many(
         comodel_name="stock.replenishment.option",
@@ -98,12 +103,18 @@ class StockReplenishmentInfo(models.TransientModel):
                 }
                 for route in routes
             ]
+            dbg.logic.debug(
+                "replenishment info %s: %d warehouse routes for product %s",
+                replenishment_info.id,
+                len(routes),
+                product.id,
+            )
         self.env["stock.replenishment.option"].create(option_vals)
 
     def _get_lead_days_and_description(self):
         self.check_singleton()
         orderpoint = self.orderpoint_id
-        orderpoints_values = orderpoint._get_lead_days_values()
+        orderpoints_values = orderpoint._prepare_lead_time_params()
         return orderpoint.rule_ids.with_context(
             global_horizon_days=orderpoint._get_horizon_days(),
         )._get_lead_days(
@@ -322,12 +333,12 @@ class StockReplenishmentOption(models.TransientModel):
     product_id = fields.Many2one(comodel_name="product.product")
     replenishment_info_id = fields.Many2one(comodel_name="stock.replenishment.info")
     location_id = fields.Many2one(
-        related="warehouse_id.lot_stock_id",
         comodel_name="stock.location",
+        related="warehouse_id.lot_stock_id",
     )
     warehouse_id = fields.Many2one(
-        related="route_id.supplier_wh_id",
         comodel_name="stock.warehouse",
+        related="route_id.supplier_wh_id",
     )
     uom = fields.Char(related="product_id.uom_name")
     qty_to_order = fields.Float(related="replenishment_info_id.qty_to_order")
@@ -376,6 +387,12 @@ class StockReplenishmentOption(models.TransientModel):
 
     def action_select_route(self):
         if self.product_id.uom_id.compare(self.qty_free, self.qty_to_order) < 0:
+            dbg.logic.debug(
+                "action_select_route: free %s < to order %s on route %s, warning",
+                self.qty_free,
+                self.qty_to_order,
+                self.route_id.id,
+            )
             return {
                 "type": "ir.actions.act_window",
                 "res_model": "stock.replenishment.option",
@@ -392,10 +409,21 @@ class StockReplenishmentOption(models.TransientModel):
         return self.action_order_full_quantity()
 
     def action_order_available_quantity(self):
+        dbg.lifecycle.debug(
+            "[orderpoint:%s] route %s, qty_to_order capped to free %s",
+            self.replenishment_info_id.orderpoint_id.id,
+            self.route_id.id,
+            self.qty_free,
+        )
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         self.replenishment_info_id.orderpoint_id.qty_to_order = self.qty_free
         return {"type": "ir.actions.act_window_close"}
 
     def action_order_full_quantity(self):
+        dbg.lifecycle.debug(
+            "[orderpoint:%s] route %s",
+            self.replenishment_info_id.orderpoint_id.id,
+            self.route_id.id,
+        )
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         return {"type": "ir.actions.act_window_close"}

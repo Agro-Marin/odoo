@@ -26,6 +26,6 @@ Allow users to sign up and reset their password
             "auth_signup/static/**/*",
         ],
     },
-    "auto_install": True,
     "bootstrap": True,
+    "auto_install": True,
 }

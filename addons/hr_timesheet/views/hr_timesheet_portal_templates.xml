@@ -98,10 +98,10 @@
                                 </t>
                                 <th colspan="1" class="text-end text-muted">
                                     <t t-if="is_uom_day">
-                                        Total: <span t-esc="timesheets._convert_hours_to_days(hours_spent)" t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
+                                        Total: <span t-out="timesheets._convert_hours_to_days(hours_spent)" t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                                     </t>
                                     <t t-else="">
-                                        Total: <span t-esc="hours_spent" t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
+                                        Total: <span t-out="hours_spent" t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                                     </t>
                                 </th>
                             </tr>
@@ -113,13 +113,13 @@
                                     <td t-if="not groupby == 'employee_id'"><span t-field="timesheet.employee_id" t-att-title="timesheet.employee_id.display_name" /></td>
                                     <td t-if="not groupby == 'project_id'"><span t-field="timesheet.project_id" t-att-title="timesheet.project_id.display_name" /></td>
                                     <td t-if="not groupby == 'task_id'"><span t-field="timesheet.task_id" t-att-title="timesheet.task_id.display_name" /></td>
-                                    <td><span t-esc="timesheet.name" t-att-title="timesheet.name" /></td>
+                                    <td><span t-out="timesheet.name" t-att-title="timesheet.name" /></td>
                                     <td
                                         class="text-end"
                                         t-att-colspan="2 if groupby != 'none' else 0">
                                         <span
                                             t-if="is_uom_day"
-                                            t-esc="timesheet._get_timesheet_time_day()"
+                                            t-out="timesheet._get_timesheet_time_day()"
                                             t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                                         <span
                                             t-else=""
@@ -146,13 +146,13 @@
                 </tr>
             </thead>
             <tr t-foreach="timesheets" t-as="timesheet" valign="middle">
-                <td><t t-esc="timesheet.date" t-options="{&quot;widget&quot;: &quot;date&quot;}" /></td>
-                <td t-attf-title="#{timesheet.employee_id.name}"><t t-esc="timesheet.employee_id.name" /></td>
-                <td><t t-esc="timesheet.name" /></td>
+                <td><t t-out="timesheet.date" t-options="{&quot;widget&quot;: &quot;date&quot;}" /></td>
+                <td t-attf-title="#{timesheet.employee_id.name}"><t t-out="timesheet.employee_id.name" /></td>
+                <td><t t-out="timesheet.name" /></td>
                 <td class="text-end">
                     <span
                         t-if="is_uom_day"
-                        t-esc="timesheet._get_timesheet_time_day()"
+                        t-out="timesheet._get_timesheet_time_day()"
                         t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                     <span
                         t-else=""
@@ -171,11 +171,11 @@
                             <td class="text-end">
                                 <span
                                     t-if="is_uom_day"
-                                    t-esc="timesheets._convert_hours_to_days(task.effective_hours)"
+                                    t-out="timesheets._convert_hours_to_days(task.effective_hours)"
                                     t-options="{'widget': 'timesheet_uom'}" />
                                 <span
                                     t-else=""
-                                    t-esc="task.effective_hours"
+                                    t-out="task.effective_hours"
                                     t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                             </td>
                         </tr>
@@ -185,11 +185,11 @@
                                 <td class="text-end">
                                     <span
                                         t-if="is_uom_day"
-                                        t-esc="timesheets._convert_hours_to_days(task.subtask_effective_hours)"
+                                        t-out="timesheets._convert_hours_to_days(task.subtask_effective_hours)"
                                         t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                                     <span
                                         t-else=""
-                                        t-esc="task.subtask_effective_hours"
+                                        t-out="task.subtask_effective_hours"
                                         t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                                 </td>
                             </div>
@@ -202,7 +202,7 @@
                                     <td><strong>Total Days: </strong></td>
                                     <td class="text-end">
                                         <span
-                                            t-esc="timesheets._convert_hours_to_days(task.total_hours_spent)"
+                                            t-out="timesheets._convert_hours_to_days(task.total_hours_spent)"
                                             t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                                     </td>
                                 </t>
@@ -210,7 +210,7 @@
                                     <td><strong>Total Hours: </strong></td>
                                     <td class="text-end">
                                         <span
-                                            t-esc="task.total_hours_spent"
+                                            t-out="task.total_hours_spent"
                                             t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                                     </td>
                                 </t>
@@ -225,11 +225,11 @@
                                 <td class="text-end">
                                     <span
                                         t-if="is_uom_day"
-                                        t-esc="timesheets._convert_hours_to_days(task.remaining_hours)"
+                                        t-out="timesheets._convert_hours_to_days(task.remaining_hours)"
                                         t-options="{&quot;widget&quot;: &quot;timesheet_uom&quot;}" />
                                     <span
                                         t-else=""
-                                        t-esc="task.remaining_hours"
+                                        t-out="task.remaining_hours"
                                         t-options="{&quot;widget&quot;: &quot;float_time&quot;}" />
                                 </td>
                             </div>

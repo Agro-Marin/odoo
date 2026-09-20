@@ -7,7 +7,7 @@ class ProductCategory(models.Model):
     _inherit = "product.category"
 
     property_account_income_categ_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Income Account",
         company_dependent=True,
         domain=ACCOUNT_DOMAIN,
@@ -16,7 +16,7 @@ class ProductCategory(models.Model):
         help="This account will be used when validating a customer invoice.",
     )
     property_account_expense_categ_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Expense Account",
         company_dependent=True,
         domain=ACCOUNT_DOMAIN,

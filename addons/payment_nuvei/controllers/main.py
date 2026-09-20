@@ -38,7 +38,12 @@ class NuveiController(http.Controller):
             ._search_by_reference("nuvei", tx_data)
         )
         if tx_sudo:
-            self._check_signature(tx_sudo, data, error_access_token=error_access_token)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id,
+                lambda: self._check_signature(
+                    tx_sudo, data, error_access_token=error_access_token
+                ),
+            )
             tx_sudo._process("nuvei", data)
         return request.redirect("/payment/status")
 
@@ -61,7 +66,9 @@ class NuveiController(http.Controller):
             ._search_by_reference("nuvei", data)
         )
         if tx_sudo:
-            self._check_signature(tx_sudo, data)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id, lambda: self._check_signature(tx_sudo, data)
+            )
             tx_sudo._process("nuvei", data)
 
         return "OK"  # Acknowledge the notification.
@@ -82,20 +89,20 @@ class NuveiController(http.Controller):
         ):  # The access token is not included when the payment goes through.
             # Verify the request based on the provided access token.
             ref = tx_sudo.reference
-            if not payment_utils.check_access_token(error_access_token, ref):
+            if not payment_utils.is_access_token_valid(error_access_token, ref):
                 _logger.warning("Received cancel/error with invalid access token.")
-                raise Forbidden()
+                raise Forbidden
         else:  # The payment went through.
             received_signature = payment_data.get("advanceResponseChecksum")
             if not received_signature:
                 _logger.warning("Received payment data with missing signature")
-                raise Forbidden()
+                raise Forbidden
 
             # Compare the received signature with the expected signature computed from the data.
-            expected_signature = tx_sudo.provider_id._nuvei_calculate_signature(
+            expected_signature = tx_sudo.provider_id._get_nuvei_signature(
                 payment_data,
                 incoming=True,
             )
             if not consteq(received_signature, expected_signature):
                 _logger.warning("Received payment data with invalid signature")
-                raise Forbidden()
+                raise Forbidden

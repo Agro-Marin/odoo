@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.mega_menu_dropdown");
 
 export class MegaMenuDropdown extends Interaction {
     static selector = "header#top";
@@ -12,8 +15,8 @@ export class MegaMenuDropdown extends Interaction {
             "t-on-keyup.withTarget": this.onTriggerMegaMenu,
         },
         _root: {
-            "t-on-mousedown": this.onTriggerExtraMenu, // delegated to ".o_extra_menu_items"
-            "t-on-keyup": this.onTriggerExtraMenu, // delegated to ".o_extra_menu_items"
+            "t-on-mousedown": this.onTriggerExtraMenu,
+            "t-on-keyup": this.onTriggerExtraMenu,
         },
     };
 
@@ -28,17 +31,27 @@ export class MegaMenuDropdown extends Interaction {
                 this.desktopMegaMenuToggleEls.push(megaMenuToggleEl);
             }
         }
+        log.pipeline("MegaMenuDropdown setup: toggles split", () => ({
+            mobile: this.mobileMegaMenuToggleEls.length,
+            desktop: this.desktopMegaMenuToggleEls.length,
+        }));
         this.updateActiveMenuLinks();
     }
 
     updateActiveMenuLinks() {
-        // Prevent having several active links in the menu.
         if (this.el.querySelector(".navbar #top_menu a.nav-link.active")) {
+            log.logic(
+                "MegaMenuDropdown updateActiveMenuLinks: top menu link already active",
+                () => ({
+                    pathname: window.location.pathname,
+                }),
+            );
             return;
         }
+        const endScan = log.perf(
+            "MegaMenuDropdown updateActiveMenuLinks: scan mega menus",
+        );
         const currentHrefWithoutHash = `${window.location.origin}${window.location.pathname}`;
-        // Check and update the active state of menu items based on the current
-        // page
         const megaMenuEls = this.el.querySelectorAll(".o_mega_menu");
         let matchingLink = null;
         megaMenuEls.forEach((megaMenuEl, position) => {
@@ -57,9 +70,6 @@ export class MegaMenuDropdown extends Interaction {
                 const megaMenuToggleEl = megaMenuEl
                     .closest(".nav-item")
                     .querySelector(".o_mega_menu_toggle");
-                // Target the corresponding link in the mobile navigation. Since the
-                // mega-menu for mobile is dynamically rendered, it is not
-                // accessible at this moment.
                 const mobileMegaMenuToggleEl = this.el.querySelectorAll(
                     "#top_menu_collapse_mobile .top_menu .o_mega_menu_toggle",
                 )[position];
@@ -67,19 +77,19 @@ export class MegaMenuDropdown extends Interaction {
                 mobileMegaMenuToggleEl.classList.add("active");
             }
         });
+        endScan(() => ({ megaMenus: megaMenuEls.length }));
     }
 
     /**
-     * If the mega menu dropdown on which we are clicking/hovering does not have
-     * a mega menu (i.e. it is in the other navbar), brings the corresponding
-     * mega menu into it.
-     *
      * @param {HTMLElement} megaMenuToggleEl
      */
     moveMegaMenu(megaMenuToggleEl) {
         const hasMegaMenu =
             !!megaMenuToggleEl.parentElement.querySelector(".o_mega_menu");
         if (hasMegaMenu) {
+            log.logic("MegaMenuDropdown moveMegaMenu: already in place", () => ({
+                toggle: megaMenuToggleEl.className,
+            }));
             return;
         }
         const isMobileNavbar = !!megaMenuToggleEl.closest(".o_header_mobile");
@@ -95,8 +105,10 @@ export class MegaMenuDropdown extends Interaction {
         const megaMenuEl =
             previousMegaMenuToggleEl.parentElement.querySelector(".o_mega_menu");
 
-        // Hiding the dropdown where the mega menu comes from before moving it,
-        // so everything is in a consistent state.
+        log.pipeline("MegaMenuDropdown moveMegaMenu: move across navbars", () => ({
+            toMobile: isMobileNavbar,
+            index: megaMenuToggleIndex,
+        }));
         Dropdown.getOrCreateInstance(previousMegaMenuToggleEl).hide();
         megaMenuToggleEl.insertAdjacentElement("afterend", megaMenuEl);
     }
@@ -106,7 +118,6 @@ export class MegaMenuDropdown extends Interaction {
      * @param {HTMLElement} currentTargetEl
      */
     onTriggerMegaMenu(ev, currentTargetEl) {
-        // Hoverable menus are clicked in mobile view
         if (
             this.el.classList.contains("o_hoverable_dropdown") &&
             !currentTargetEl.closest(".o_header_mobile") &&
@@ -122,7 +133,6 @@ export class MegaMenuDropdown extends Interaction {
      * @param {HTMLElement} currentTargetEl
      */
     onHoverMegaMenu(ev, currentTargetEl) {
-        // Hoverable menus are clicked in mobile view
         if (
             !this.el.classList.contains("o_hoverable_dropdown") ||
             currentTargetEl.closest(".o_header_mobile")
@@ -133,9 +143,6 @@ export class MegaMenuDropdown extends Interaction {
     }
 
     /**
-     * Delegatation to the ".o_extra_menu_items" element(s)
-     * The ".o_extra_menu_items" elements may not be on the page at all time
-     *
      * @param {Event} ev
      */
     onTriggerExtraMenu(ev) {
@@ -145,6 +152,9 @@ export class MegaMenuDropdown extends Interaction {
         const megaMenuToggleEls = ev.target
             .closest(".o_extra_menu_items")
             .querySelectorAll(".o_mega_menu_toggle");
+        log.pipeline("MegaMenuDropdown onTriggerExtraMenu", () => ({
+            toggles: megaMenuToggleEls.length,
+        }));
         megaMenuToggleEls.forEach((el) => this.moveMegaMenu(el));
     }
 }

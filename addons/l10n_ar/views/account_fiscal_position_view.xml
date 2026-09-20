@@ -9,10 +9,10 @@
             <field name="auto_apply" position="after">
                 <field
                     name="l10n_ar_afip_responsibility_type_ids"
+                    widget="many2many_tags"
                     options="{'no_open': True, 'no_create': True}"
-                    invisible="'AR' not in fiscal_country_codes or not auto_apply"
                     groups="base.group_no_one"
-                    widget="many2many_tags" />
+                    invisible="'AR' not in fiscal_country_codes or not auto_apply" />
             </field>
         </field>
     </record>

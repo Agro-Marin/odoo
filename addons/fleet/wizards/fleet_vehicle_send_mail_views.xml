@@ -13,11 +13,10 @@
                 </group>
                 <field
                     name="body"
-                    nolabel="1"
-                    class="oe-bordered-editor"
-                    widget="html_mail"
                     placeholder="Write your message here..."
-                    force_save="1" />
+                    widget="html_mail"
+                    force_save="1"
+                    class="oe-bordered-editor" />
                 <group>
                     <field name="attachment_ids" widget="many2many_binary" />
                     <field name="template_id" string="Load template" />
@@ -25,19 +24,19 @@
                 <footer>
                     <button
                         name="action_send"
-                        string="Send"
                         type="object"
+                        string="Send"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                     <button
                         name="action_save_as_template"
-                        string="Save as new template"
                         type="object"
+                        string="Save as new template"
                         class="btn-secondary" />
                 </footer>
             </form>

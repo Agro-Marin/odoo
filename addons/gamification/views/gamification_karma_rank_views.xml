@@ -29,8 +29,8 @@
                     <separator />
                     <group>
                         <filter
-                            string="Karma Threshold"
                             name="group_karma"
+                            string="Karma Threshold"
                             context="{'group_by': 'karma_min'}" />
                     </group>
                 </search>
@@ -56,10 +56,10 @@
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button
+                                name="%(action_current_rank_users)d"
                                 type="action"
-                                class="oe_stat_button"
                                 icon="fa-users"
-                                name="%(action_current_rank_users)d">
+                                class="oe_stat_button">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_value">
                                         <field name="rank_users_count" />
@@ -71,8 +71,8 @@
                         <field
                             name="image_1920"
                             widget="image"
-                            class="oe_avatar"
-                            options="{'preview_image': 'image_128'}" />
+                            options="{'preview_image': 'image_128'}"
+                            class="oe_avatar" />
                         <div class="oe_title">
                             <label for="name" />
                             <h1>
@@ -92,17 +92,17 @@
                             <field name="create_date" invisible="1" />
                         </group>
                         <notebook>
-                            <page string="Description" name="description">
+                            <page name="description" string="Description">
                                 <field
                                     name="description"
                                     placeholder="e.g. A Master Chief knows quite everything on the forum! You cannot beat him!" />
                             </page>
-                            <page string="Motivational" name="motivational">
+                            <page name="motivational" string="Motivational">
                                 <field
                                     name="description_motivational"
                                     placeholder="e.g. Reach this rank to gain a free mug!" />
                             </page>
-                            <page string="Unlocked Perks" name="perks">
+                            <page name="perks" string="Unlocked Perks">
                                 <field
                                     name="description_perks"
                                     placeholder="e.g. Can post answers without moderation, access to advanced reporting..." />

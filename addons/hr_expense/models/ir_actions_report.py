@@ -1,8 +1,11 @@
 import io
 
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import pdf
 from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsReport(models.Model):
@@ -14,12 +17,22 @@ class IrActionsReport(models.Model):
             return res
         report = self._get_report(report_ref)
         if report.report_name == "hr_expense.report_expense":
+            attachments_by_res_id = (
+                self.env["ir.attachment"]
+                .search([("res_id", "in", res_ids), ("res_model", "=", "hr.expense")])
+                .grouped("res_id")
+            )
+            _debug.pipeline(
+                "expense_report_streams",
+                expenses=len(res_ids),
+                with_attachments=len(attachments_by_res_id),
+            )
             for expense in self.env["hr.expense"].browse(res_ids):
                 stream_list = []
                 stream = res[expense.id]["stream"]
                 stream_list.append(stream)
-                attachments = self.env["ir.attachment"].search(
-                    [("res_id", "in", expense.ids), ("res_model", "=", "hr.expense")]
+                attachments = attachments_by_res_id.get(
+                    expense.id, self.env["ir.attachment"]
                 )
                 expense_report = OdooPdfFileReader(stream, strict=False)
                 output_pdf = OdooPdfFileWriter()
@@ -41,6 +54,9 @@ class IrActionsReport(models.Model):
 
                 new_pdf_stream = io.BytesIO()
                 output_pdf.write(new_pdf_stream)
+                _debug.perf.count(
+                    "expense_report_merged", expense=expense, streams=len(stream_list)
+                )
                 res[expense.id]["stream"] = new_pdf_stream
 
                 for stream in stream_list:

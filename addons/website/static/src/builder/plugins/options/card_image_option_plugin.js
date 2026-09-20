@@ -2,8 +2,11 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("website.builder.plugin.card_image_option");
 
 /**
  * @typedef { Object } CardImageOptionShared
@@ -47,14 +50,16 @@ class CardImageOptionPlugin extends Plugin {
     setup() {
         super.setup();
         this.classAction = new ClassAction(this);
+        log.lifecycle("CardImageOptionPlugin setup");
     }
-    /**
-     * Change unsupported ratios to the square ratio when the cover image is
-     * positioned horizontally.
-     */
     adaptRatio(editingElement, imagePositionClass) {
         if (["card-img-top", "card-img-bottom"].includes(imagePositionClass)) {
-            // All ratios are supported for top/bottom image
+            log.logic(
+                "adaptRatio skipped: top or bottom image keeps its ratio",
+                () => ({
+                    imagePositionClass,
+                }),
+            );
             return;
         }
         const imageWrapper = editingElement.querySelector(".o_card_img_wrapper");
@@ -64,8 +69,11 @@ class CardImageOptionPlugin extends Plugin {
         });
         for (const ratioClasses of ratiosOnlySupportedForTopBottomImage) {
             if (this.classAction.isApplied(asMainParam(ratioClasses))) {
+                log.logic("adaptRatio reset unsupported ratio to 1x1", () => ({
+                    ratioClasses,
+                    imagePositionClass,
+                }));
                 this.classAction.clean(asMainParam(ratioClasses));
-                // Only square ratio is supported for horizontal image
                 this.classAction.apply(asMainParam("ratio ratio-1x1"));
                 return;
             }
@@ -78,6 +86,7 @@ export class SetCoverImagePositionAction extends BuilderAction {
     static dependencies = ["cardImageOption"];
     apply({ editingElement, params: { mainParam: className } }) {
         const imageEl = editingElement.querySelector(".o_card_img");
+        log.pipeline("SetCoverImagePositionAction apply", () => ({ className }));
         imageEl.classList.add(className);
         this.dependencies.cardImageOption.adaptRatio(editingElement, className);
     }
@@ -91,8 +100,10 @@ export class RemoveCoverImageAction extends BuilderAction {
     static dependencies = ["history", "builderOptions", "remove"];
     apply({ editingElement }) {
         const imageWrapperEl = editingElement.querySelector(".o_card_img_wrapper");
+        log.pipeline("RemoveCoverImageAction apply", () => ({
+            hadWrapper: !!imageWrapperEl,
+        }));
         imageWrapperEl.remove();
-        // Remove the classes and styles linked to the wrapper.
         editingElement.classList.remove(...imageRelatedClasses);
         imageRelatedStyles.forEach((prop) => editingElement.style.removeProperty(prop));
     }
@@ -100,7 +111,9 @@ export class RemoveCoverImageAction extends BuilderAction {
 export class AddCoverImageAction extends BuilderAction {
     static id = "addCoverImage";
     apply({ editingElement }) {
+        const endRender = log.perf("AddCoverImageAction render image wrapper");
         const imageWrapper = renderToElement("website.s_card.imageWrapper");
+        endRender();
         editingElement.prepend(imageWrapper);
         editingElement.classList.add("o_card_img_top");
     }
@@ -109,6 +122,7 @@ export class AlignCoverImageAction extends BuilderAction {
     static id = "alignCoverImage";
     apply({ editingElement, params: { mainParam: direction } }) {
         const imgWrapper = editingElement.querySelector(".o_card_img_wrapper");
+        log.pipeline("AlignCoverImageAction apply", () => ({ direction }));
         imgWrapper.classList.toggle("o_card_img_adjust_v", direction === "vertical");
         imgWrapper.classList.toggle("o_card_img_adjust_h", direction === "horizontal");
     }

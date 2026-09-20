@@ -24,17 +24,18 @@ class ProductProduct(models.Model):
         "mixin.product.price",
     ]
     _order = "default_code, name, id"
+    _search_visibility_fields = ()
     _check_company_domain = models.check_company_domain_parent_of
 
     product_tmpl_id = fields.Many2one(
         comodel_name="product.template",
         string="Product Template",
-        required=True,
-        bypass_search_access=True,
-        ondelete="cascade",
         index=True,
+        required=True,
+        ondelete="cascade",
+        bypass_search_access=True,
     )
-    is_favorite = fields.Boolean(
+    is_favorite = fields.Boolean(  # noqa: E8529  index (is_favorite) partial
         related="product_tmpl_id.is_favorite",
         store=True,
         readonly=False,
@@ -46,13 +47,10 @@ class ProductProduct(models.Model):
         readonly=False,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the product without removing it.",
     )
-    is_product_variant = fields.Boolean(
-        compute="_compute_is_product_variant",
-    )
+    is_product_variant = fields.Boolean(compute="_compute_is_product_variant")
     default_code = fields.Char(
         string="Internal Reference",
         index=True,
@@ -62,9 +60,8 @@ class ProductProduct(models.Model):
         compute="_compute_code",
     )
     barcode = fields.Char(
-        string="Barcode",
-        copy=False,
         index="btree_not_null",
+        copy=False,
         help="International Article Number used for product identification.",
     )
     partner_ref = fields.Char(
@@ -110,14 +107,8 @@ class ProductProduct(models.Model):
         Used to value the product when the purchase cost is not known (e.g. inventory adjustment).
         Used to compute margins on sale orders.""",
     )
-    volume = fields.Float(
-        string="Volume",
-        digits="Volume",
-    )
-    weight = fields.Float(
-        string="Weight",
-        digits="Stock Weight",
-    )
+    volume = fields.Float(digits="Volume")
+    weight = fields.Float(digits="Stock Weight")
 
     product_template_attribute_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
@@ -129,9 +120,9 @@ class ProductProduct(models.Model):
         comodel_name="product.template.attribute.value",
         relation="product_variant_combination",
         string="Variant Values",
+        readonly=True,
         domain=[("attribute_line_id.value_count", ">", 1)],
         ondelete="restrict",
-        readonly=True,
     )
     import_attribute_values = fields.Char(
         string="Product Values",
@@ -172,7 +163,7 @@ class ProductProduct(models.Model):
     )
 
     is_in_selected_section_of_order = fields.Boolean(
-        search="_search_is_in_selected_section_of_order",
+        search="_search_is_in_selected_section_of_order"
     )
 
     image_variant_1920 = fields.Image(
@@ -220,10 +211,10 @@ class ProductProduct(models.Model):
         compute="_compute_image_1920",
         inverse="_inverse_image_1920",
     )
-    image_1024 = fields.Image(string="Image 1024", compute="_compute_image_1024")
-    image_512 = fields.Image(string="Image 512", compute="_compute_image_512")
-    image_256 = fields.Image(string="Image 256", compute="_compute_image_256")
-    image_128 = fields.Image(string="Image 128", compute="_compute_image_128")
+    image_1024 = fields.Image(compute="_compute_image_1024")
+    image_512 = fields.Image(compute="_compute_image_512")
+    image_256 = fields.Image(compute="_compute_image_256")
+    image_128 = fields.Image(compute="_compute_image_128")
     can_image_1024_be_zoomed = fields.Boolean(
         string="Can Image 1024 be zoomed",
         compute="_compute_can_image_1024_be_zoomed",
@@ -1058,7 +1049,7 @@ class ProductProduct(models.Model):
                 if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
                     if not uom_id._has_common_reference(seller.product_uom_id):
                         continue
-                    quantity_uom_seller = uom_id._compute_quantity(
+                    quantity_uom_seller = uom_id._get_quantity_in_unit(
                         quantity_uom_seller,
                         seller.product_uom_id,
                     )
@@ -1074,7 +1065,7 @@ class ProductProduct(models.Model):
             matching_ids.append(seller.id)
         return self.env["product.supplierinfo"].browse(matching_ids)
 
-    def _get_product_price_context(self, combination):
+    def _prepare_product_price_context(self, combination):
         self.check_singleton()
         res = {}
 
@@ -1174,14 +1165,14 @@ class ProductProduct(models.Model):
             attribute_name = attribute_name and attribute_name.strip()
             value_name = value_name.strip()
             if not attribute_name:
-                raise ValueError(
+                raise ValueError(  # noqa: E8511  the import wizard shows this text
                     self.env._(
                         "Unable to import products with attribute value without attribute name (defined as: attribute:value): %s",
                         raw,
                     )
                 )
             if attribute_name in seen_attributes:
-                raise ValueError(
+                raise ValueError(  # noqa: E8511  the import wizard shows this text
                     self.env._(
                         "It is not possible to import different values for the same attribute: %s",
                         raw,
@@ -1253,7 +1244,7 @@ class ProductProduct(models.Model):
         for vals in with_import_values:
             name = (vals.get("name") or "").strip()
             if not name and not vals.get("product_tmpl_id"):
-                raise ValueError(
+                raise ValueError(  # noqa: E8511  the import wizard shows this text
                     self.env._(
                         "Unable to import products with attribute values but without name of product set"
                     )

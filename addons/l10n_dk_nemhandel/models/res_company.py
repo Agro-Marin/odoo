@@ -36,22 +36,23 @@ class ResCompany(models.Model):
             ("rejected", "Rejected"),
         ],
         string="Nemhandel status",
-        required=True,
         default="not_registered",
+        required=True,
     )
     nemhandel_identifier_type = fields.Selection(
-        related="partner_id.nemhandel_identifier_type", readonly=False
+        related="partner_id.nemhandel_identifier_type",
+        readonly=False,
     )
     nemhandel_identifier_value = fields.Char(
-        related="partner_id.nemhandel_identifier_value", readonly=False
+        related="partner_id.nemhandel_identifier_value",
+        readonly=False,
     )
     nemhandel_purchase_journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Nemhandel Purchase Journal",
-        domain=[("type", "=", "purchase")],
         compute="_compute_nemhandel_purchase_journal_id",
         store=True,
         readonly=False,
+        domain=[("type", "=", "purchase")],
     )
     nemhandel_edi_user = fields.Many2one(
         comodel_name="account_edi_proxy_client.user",
@@ -67,7 +68,7 @@ class ResCompany(models.Model):
         if not phonenumbers:
             raise ValidationError(_("Please install the phonenumbers library."))
 
-    def _sanitize_nemhandel_phone_number(self, phone_number=None):
+    def _normalize_nemhandel_phone_number(self, phone_number=None):
         self.check_singleton()
 
         error_message = _(
@@ -104,7 +105,7 @@ class ResCompany(models.Model):
     def _check_nemhandel_phone_number(self):
         for company in self:
             if company.nemhandel_phone_number:
-                company._sanitize_nemhandel_phone_number()
+                company._normalize_nemhandel_phone_number()
 
     @api.constrains("nemhandel_purchase_journal_id")
     def _check_nemhandel_purchase_journal_id(self):
@@ -129,7 +130,7 @@ class ResCompany(models.Model):
                 and company.l10n_dk_nemhandel_proxy_state
                 not in {"not_registered", "rejected"}
             ):
-                company.nemhandel_purchase_journal_id = self.env[
+                company.nemhandel_purchase_journal_id = self.env[  # noqa: E8507 - one lookup per company, on its own journals
                     "account.journal"
                 ].search(
                     [
@@ -157,7 +158,7 @@ class ResCompany(models.Model):
                 company_phone = company.phone_ids._primary().number
                 try:
                     # precompute only if it's a valid phone number
-                    company._sanitize_nemhandel_phone_number(company_phone)
+                    company._normalize_nemhandel_phone_number(company_phone)
                     company.nemhandel_phone_number = company_phone
                 except ValidationError:
                     continue

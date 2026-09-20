@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Snippet template -->
     <template id="s_facebook_page" name="Facebook">
         <div
             class="o_facebook_page o_not_editable"

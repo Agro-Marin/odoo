@@ -1,14 +1,19 @@
 // @ts-check
 
-import { describe, expect, getFixture, test } from "@odoo/hoot";
+import { after, describe, expect, getFixture, test } from "@odoo/hoot";
+import { Deferred, microTick } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
 import {
     getService,
     makeMockEnv,
     mockService,
+    mountWithCleanup,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { useService } from "@web/core/utils/hooks";
+import { pwaService } from "@web/ui/pwa/pwa_service";
 
 describe.current.tags("headless");
 
@@ -193,4 +198,194 @@ test("a native prompt that rejects leaves no install affordance behind", async (
 
     expect(pwaService.nativePrompt).toBe(null);
     expect(pwaService.canPromptToInstall).toBe(false);
+});
+
+test("two live services share a native prompt and consume it only once", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    const env = await makeMockEnv();
+    const first = getService("pwa");
+    const second = pwaService.start(env, { dialog: getService("dialog") });
+    after(() => second.destroy());
+    const event = Object.assign(new Event("beforeinstallprompt"), {
+        prompt: async () => {
+            expect.step("prompt");
+            return { outcome: "accepted" };
+        },
+    });
+    browser.dispatchEvent(event);
+    expect(first.canPromptToInstall).toBe(true);
+    expect(second.canPromptToInstall).toBe(true);
+    await Promise.all([first.show(), second.show()]);
+    expect(first.canPromptToInstall).toBe(false);
+    expect(second.canPromptToInstall).toBe(false);
+    expect(first.isAvailable).toBe(false);
+    expect(second.isAvailable).toBe(false);
+    expect.verifySteps(["prompt"]);
+});
+
+test("destroying the newest service does not silence a surviving service", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    const env = await makeMockEnv();
+    const first = getService("pwa");
+    const second = pwaService.start(env, { dialog: getService("dialog") });
+    second.destroy();
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => ({ outcome: "accepted" }),
+        }),
+    );
+    expect(first.canPromptToInstall).toBe(true);
+    expect(second.canPromptToInstall).toBe(false);
+});
+
+test("an older prompt completion cannot hide a newer prompt", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    await makeMockEnv();
+    const service = getService("pwa");
+    const outcome = new Deferred();
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: () => outcome,
+        }),
+    );
+    const showing = service.show();
+    const newer = Object.assign(new Event("beforeinstallprompt"), {
+        prompt: async () => ({ outcome: "accepted" }),
+    });
+    browser.dispatchEvent(newer);
+    outcome.resolve({ outcome: "dismissed" });
+    await showing;
+    expect(service.nativePrompt).toBe(newer);
+    expect(service.canPromptToInstall).toBe(true);
+});
+
+test("destroying a service releases its unused native prompt", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    await makeMockEnv();
+    const service = getService("pwa");
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => {
+                expect.step("prompt");
+                return { outcome: "accepted" };
+            },
+        }),
+    );
+    service.destroy();
+    await service.show();
+    expect(service.nativePrompt).toBe(null);
+    expect(service.canPromptToInstall).toBe(false);
+    expect(service.isAvailable).toBe(false);
+    expect.verifySteps([]);
+});
+
+test("Safari dismissal survives a throwing completion callback", async () => {
+    patchWithCleanup(browser.navigator, {
+        userAgent:
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    });
+    /** @type {() => void} */
+    let close;
+    mockService("dialog", {
+        add(_component, _props, options) {
+            close = async () => options.onClose();
+            return async () => {};
+        },
+    });
+    await makeMockEnv();
+    const service = getService("pwa");
+    await service.show({
+        onDone: () => {
+            throw new Error("consumer failure");
+        },
+    });
+    await expect(close()).rejects.toThrow("consumer failure");
+    expect(service.canPromptToInstall).toBe(false);
+    expect(service.hasScopeBeenInstalled("/odoo")).toBe(false);
+    expect(
+        JSON.parse(browser.localStorage.getItem("pwaService.installationState")),
+    ).toEqual({ "/odoo": "dismissed" });
+});
+
+test("late subscribers inherit only an unconsumed prompt", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    const env = await makeMockEnv();
+    const first = getService("pwa");
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => ({ outcome: "accepted" }),
+        }),
+    );
+    const second = pwaService.start(env, { dialog: getService("dialog") });
+    after(() => second.destroy());
+    expect(second.canPromptToInstall).toBe(true);
+    await first.show();
+    const third = pwaService.start(env, { dialog: getService("dialog") });
+    after(() => third.destroy());
+    expect(third.canPromptToInstall).toBe(false);
+    expect(third.isAvailable).toBe(false);
+    expect(second.canPromptToInstall).toBe(false);
+});
+
+test("show waits for the native prompt's asynchronous completion callback", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    await makeMockEnv();
+    const service = getService("pwa");
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => ({ outcome: "accepted" }),
+        }),
+    );
+    const done = new Deferred();
+    let settled = false;
+    const showing = service.show({ onDone: () => done }).then(() => {
+        settled = true;
+    });
+    await microTick();
+    await microTick();
+    expect(settled).toBe(false);
+    done.resolve();
+    await showing;
+    expect(settled).toBe(true);
+});
+
+test("declining an app synchronizes its live services without dismissing another scope", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    const env = await makeMockEnv();
+    const first = getService("pwa");
+    const second = pwaService.start(env, { dialog: getService("dialog") });
+    const otherScope = pwaService.start(env, { dialog: getService("dialog") });
+    otherScope.startUrl = "/scoped_app/other";
+    after(() => second.destroy());
+    after(() => otherScope.destroy());
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => ({ outcome: "accepted" }),
+        }),
+    );
+    first.decline();
+    expect(first.canPromptToInstall).toBe(false);
+    expect(second.canPromptToInstall).toBe(false);
+    expect(otherScope.canPromptToInstall).toBe(true);
+    expect(second.isAvailable).toBe(true);
+});
+
+test("destroying PWA through a component's service view removes its subscription", async () => {
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    class Owner extends Component {
+        static template = xml`<div/>`;
+        static props = {};
+        setup() {
+            this.pwa = useService("pwa");
+        }
+    }
+    const owner = await mountWithCleanup(Owner);
+    owner.pwa.destroy();
+    browser.dispatchEvent(
+        Object.assign(new Event("beforeinstallprompt"), {
+            prompt: async () => ({ outcome: "accepted" }),
+        }),
+    );
+    expect(getService("pwa").canPromptToInstall).toBe(false);
+    expect(getService("pwa").isAvailable).toBe(false);
 });

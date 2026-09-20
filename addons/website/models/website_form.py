@@ -6,6 +6,9 @@ from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class Website(models.Model):
@@ -25,19 +28,19 @@ class IrModel(models.Model):
     _inherit = ["ir.model"]
 
     website_form_access = fields.Boolean(
-        "Allowed to use in forms",
+        string="Allowed to use in forms",
         help="Enable the form builder feature for this model.",
     )
     website_form_default_field_id = fields.Many2one(
-        "ir.model.fields",
-        "Field for custom form data",
+        comodel_name="ir.model.fields",
+        string="Field for custom form data",
         domain="[('model', '=', model), ('ttype', '=', 'text')]",
         help="Specify the field which will contain meta and custom form fields datas.",
     )
     website_form_label = fields.Char(
-        "Label for form action",
-        help="Form action label. Ex: crm.lead could be 'Send an e-mail' and project.issue could be 'Create an Issue'.",
+        string="Label for form action",
         translate=True,
+        help="Form action label. Ex: crm.lead could be 'Send an e-mail' and project.issue could be 'Create an Issue'.",
     )
     website_form_key = fields.Char(help="Used in FormBuilder Registry")
 
@@ -66,7 +69,9 @@ class IrModel(models.Model):
             }
         return {
             k: v
-            for k, v in self.get_fields_authorized(self.model, property_origins).items()
+            for k, v in self._get_fields_authorized(
+                self.model, property_origins
+            ).items()
             if k in included
             or ("_property" in v and v["_property"]["field"] in included)
         }
@@ -74,9 +79,23 @@ class IrModel(models.Model):
     @api.model
     def get_fields_authorized(self, model_name, property_origins):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
+            _debug.logic(
+                "form_fields_refused",
+                reason="not_restricted_editor",
+                model=model_name,
+            )
             raise AccessError(
                 _("Only website editors can introspect form model fields.")
             )
+        model_record = self.sudo().search(
+            [("model", "=", model_name), ("website_form_access", "=", True)], limit=1
+        )
+        if not model_record:
+            raise AccessError(_("This model cannot be used in website forms."))
+        return self._get_fields_authorized(model_name, property_origins)
+
+    @api.model
+    def _get_fields_authorized(self, model_name, property_origins):
         model = self.env[model_name]
         fields_get = model.fields_get()
 
@@ -149,17 +168,19 @@ class IrModel(models.Model):
                                     property_definition["domain"] = list(
                                         Domain(property_definition["domain"])
                                     )
-                                except Exception:  # noqa: S112
+                                except Exception:  # noqa: S112  a malformed property domain is skipped, not fatal
                                     continue
                             fields_get[property_definition.get("name")] = (
                                 property_definition
                             )
 
+        _debug.pipeline("form_fields", model=model_name, fields=len(fields_get))
         return fields_get
 
     @api.model
     def get_compatible_form_models(self):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
+            _debug.logic("form_models_refused", reason="not_restricted_editor")
             return []
         return self.sudo().search_read(
             [("website_form_access", "=", True)],
@@ -184,22 +205,32 @@ class IrModelFields(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_in_website_form(self):
-        for field in self:
-            for model_name, field_name in self.env["website"]._get_fields_html():
-                domain = [(field_name, "ilike", f'data-model_name="{field.model}"')]
-                records = (
-                    self.env[model_name].with_context(active_test=False).search(domain)
-                )
-                for record in records:
-                    content = record[field_name]
-                    if not content:
-                        continue
-                    try:
-                        arch_parsed = html.fromstring(content)
-                    except etree.ParserError, etree.XMLSyntaxError, ValueError:
-                        continue
+        for model_name, field_name in self.env["website"]._get_fields_html():
+            domain = Domain.OR(
+                Domain(field_name, "ilike", f'data-model_name="{model}"')
+                for model in set(self.mapped("model"))
+            )
+            records = (
+                self.env[model_name].with_context(active_test=False).search(domain)
+            )  # noqa: E8507 - one query per (model, html field) pair, over every field at once
+            for record in records:
+                content = record[field_name]
+                if not content:
+                    continue
+                try:
+                    arch_parsed = html.fromstring(content)
+                except etree.ParserError, etree.XMLSyntaxError, ValueError:
+                    continue
+                for field in self:
                     xpath_selector = f'//form[@data-model_name="{field.model}"]//*[@name="{field.name}"]'
                     if arch_parsed.xpath(xpath_selector):
+                        _debug.logic(
+                            "field_unlink_refused",
+                            reason="used_in_website_form",
+                            model=field.model,
+                            field=field.name,
+                            record=record.id,
+                        )
                         raise ValidationError(
                             _(
                                 "The field '%(field)s' cannot be deleted because it is referenced in a website view.\n"
@@ -227,6 +258,7 @@ class IrModelFields(models.Model):
             return False
 
         if not self.env.user.has_group("website.group_website_designer"):
+            _debug.logic("form_whitelist_refused", reason="not_designer", model=model)
             return False
 
         fields = [self._formbuilder_field_name(model, field) for field in fields]
@@ -234,6 +266,12 @@ class IrModelFields(models.Model):
             field for field in fields if field not in self.env[model]._fields
         ]
         if unexisting_fields:
+            _debug.logic(
+                "form_whitelist_refused",
+                reason="unknown_fields",
+                model=model,
+                fields=sorted(unexisting_fields),
+            )
             raise ValueError(
                 "Unable to whitelist field(s) %r for model %r."
                 % (unexisting_fields, model)
@@ -245,10 +283,11 @@ class IrModelFields(models.Model):
             " WHERE model=%s AND name = ANY(%s)",
             (model, list(fields)),
         )
+        _debug.lifecycle("form_fields_whitelisted", model=model, fields=sorted(fields))
         return True
 
     website_form_blacklisted = fields.Boolean(
-        "Blacklisted in web forms",
+        string="Blacklisted in web forms",
         default=True,
         index=True,
         help="Blacklist this field for web forms",

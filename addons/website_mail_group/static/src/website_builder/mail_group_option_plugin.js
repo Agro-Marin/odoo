@@ -41,7 +41,7 @@ class MailGroupOptionPlugin extends Plugin {
         }
         const id = group[0]?.[0] || (await this.createGroup());
         if (!id) {
-            return true; // cancel snippet
+            return true;
         }
         snippetEl.dataset.id = id;
     }

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--     Opportunity list view  -->
     <record id="view_report_crm_partner_assign_filter" model="ir.ui.view">
         <field name="name">crm.partner.report.assign.select</field>
         <field name="model">crm.partner.report.assign</field>
@@ -14,21 +13,21 @@
                 <filter name="filter_date_review" date="date_review" />
                 <group>
                     <filter
-                        string="Salesperson"
                         name="user"
+                        string="Salesperson"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Partner"
                         name="partner"
+                        string="Partner"
                         context="{'group_by':'partner_id'}" />
                     <separator />
                     <filter
-                        string="Date Partnership"
                         name="group_date_partnership"
+                        string="Date Partnership"
                         context="{'group_by':'date_partnership'}" />
                     <filter
-                        string="Date Review"
                         name="group_date_review"
+                        string="Date Review"
                         context="{'group_by':'date_review'}" />
                 </group>
             </search>
@@ -50,7 +49,6 @@
         </field>
     </record>
 
-    <!-- Leads by user and team Action -->
     <record id="action_report_crm_partner_assign" model="ir.actions.act_window">
         <field name="name">Partnership Analysis</field>
         <field name="res_model">crm.partner.report.assign</field>
@@ -63,12 +61,5 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="menu_report_crm_partner_assign_tree"
-        name="Partnerships"
-        parent="crm.crm_menu_report"
-        action="action_report_crm_partner_assign"
-        sequence="5" />
 
 </odoo>

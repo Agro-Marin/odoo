@@ -19,7 +19,7 @@ registerWebsitePreviewTour(
         }),
         {
             content: "Edit s_popup snippet",
-            trigger: ':iframe #wrap.o_editable [data-snippet="s_popup"] .row > div', // Click deep in the snippet structure
+            trigger: ':iframe #wrap.o_editable [data-snippet="s_popup"] .row > div',
             run: "click",
         },
         {
@@ -37,15 +37,10 @@ registerWebsitePreviewTour(
             content: "Edit s_popup snippet(2)",
             trigger: ':iframe #wrap.o_editable [data-snippet="s_popup"] h2',
             run: function () {
-                // Simulating pressing enter.
                 const anchor = this.anchor;
-                // Trick the editor into keyboardType === 'PHYSICAL' and press
-                // enter.
                 anchor.dispatchEvent(
                     new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
                 );
-                // Trigger editor's '_onInput' handler, which leads to
-                // historyRollback.
                 anchor.dispatchEvent(
                     new InputEvent("input", {
                         inputType: "insertLineBreak",
@@ -68,8 +63,6 @@ registerWebsitePreviewTour(
             content: "Check the s_popup was removed",
             trigger: ":iframe #wrap.o_editable:not(:has([data-snippet='s_popup']))",
         },
-        // Test that undoing dropping the snippet removes the invisible elements
-        // panel.
         ...insertSnippet({
             name: "Popup",
             id: "s_popup",

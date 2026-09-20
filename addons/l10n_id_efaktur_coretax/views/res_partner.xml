@@ -25,8 +25,8 @@
                             <span class="d-flex gap-2 w-10">
                                 <field
                                     name="l10n_id_buyer_document_number"
-                                    invisible="l10n_id_buyer_document_type == 'TIN'"
-                                    placeholder="e.g. 0123456" />
+                                    placeholder="e.g. 0123456"
+                                    invisible="l10n_id_buyer_document_type == 'TIN'" />
                             </span>
                         </div> 
                     </group>

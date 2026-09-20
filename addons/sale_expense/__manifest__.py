@@ -13,7 +13,7 @@ This module allow to reinvoice employee expense, by setting the SO directly on t
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
-        "sale_management",
+        "sale",
         "hr_expense",
     ],
     "data": [
@@ -22,6 +22,5 @@ This module allow to reinvoice employee expense, by setting the SO directly on t
         "views/hr_expense_views.xml",
         "views/sale_order_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

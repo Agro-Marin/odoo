@@ -1,6 +1,6 @@
 {
-    "name": "Customer Portal",
-    "version": "19.0.1.0",
+    "name": "Partner Portal",
+    "version": "19.0.1.1",
     "category": "Hidden",
     "sequence": 9000,
     "summary": "Shared base for portal-user pages: templates, mixin, and controllers for external authenticated access",
@@ -55,6 +55,10 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "portal/static/src/chatter/boot/boot_service.js",
         ],
         "web.assets_unit_tests_setup": [
+            "portal/static/src/chatter/frontend/chatter_patch.js",
+            "portal/static/src/chatter/boot/boot_service.js",
+            "portal/static/src/chatter/frontend/portal_chatter.js",
+            "portal/static/src/chatter/frontend/portal_chatter_service.js",
             "portal/static/src/interactions/**/*",
             "portal/static/src/js/components/input_confirmation_dialog/*",
             "portal/static/src/xml/**/*",
@@ -77,6 +81,7 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
             "web/static/src/views/view.js",
+            "web/static/src/views/ir/view_ir.js",
             "web/static/src/views/view_hook.js",
             "web/static/src/webclient/actions/action_dialog.js",
             "web/static/src/webclient/actions/reports/utils.js",

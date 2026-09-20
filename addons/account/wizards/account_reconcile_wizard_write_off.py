@@ -1,9 +1,13 @@
 from odoo import Command, _, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountReconcileWizard(models.TransientModel):
     _inherit = "account.reconcile.wizard"
 
+    @_debug.perf.timed
     def _prepare_write_off_taxes_data(self, partner):
         AccountTax = self.env["account.tax"]
         amount_currency = self.edit_mode_amount_currency or self.amount_currency
@@ -17,6 +21,14 @@ class AccountReconcileWizard(models.TransientModel):
             )
         else:
             rate = abs(amount_currency / amount)
+        _debug.logic(
+            "write_off_rate_resolved",
+            recwizard=self,
+            edit_mode=bool(self.edit_mode_amount_currency),
+            amount=amount,
+            amount_currency=amount_currency,
+            rate=rate,
+        )
         tax_type = self.tax_id.type_tax_use if self.tax_id else None
         is_refund = (tax_type == "sale" and amount_currency > 0.0) or (
             tax_type == "purchase" and amount_currency < 0.0
@@ -42,17 +54,25 @@ class AccountReconcileWizard(models.TransientModel):
         tax_results = AccountTax._prepare_tax_lines(base_lines, self.company_id)
         _base_line, base_to_update = tax_results["base_lines_to_update"][0]
         tax_lines_data = []
-        for tax_line_vals in tax_results["tax_lines_to_add"]:
-            tax_lines_data.append(  # noqa: PERF401
-                {
-                    "tax_amount": tax_line_vals["balance"],
-                    "tax_amount_currency": tax_line_vals["amount_currency"],
-                    "tax_tag_ids": tax_line_vals["tax_tag_ids"],
-                    "tax_account_id": tax_line_vals["account_id"],
-                }
-            )
+        tax_lines_data.extend(
+            {
+                "tax_amount": tax_line_vals["balance"],
+                "tax_amount_currency": tax_line_vals["amount_currency"],
+                "tax_tag_ids": tax_line_vals["tax_tag_ids"],
+                "tax_account_id": tax_line_vals["account_id"],
+            }
+            for tax_line_vals in tax_results["tax_lines_to_add"]
+        )
         base_amount_currency = base_to_update["amount_currency"]
         base_amount = amount - sum(entry["tax_amount"] for entry in tax_lines_data)
+        _debug.pipeline(
+            "write_off_taxes_computed",
+            recwizard=self,
+            tax=self.tax_id,
+            is_refund=is_refund,
+            tax_lines=len(tax_lines_data),
+            base_amount=base_amount,
+        )
 
         return {
             "base_amount": base_amount,
@@ -61,6 +81,7 @@ class AccountReconcileWizard(models.TransientModel):
             "tax_lines_data": tax_lines_data,
         }
 
+    @_debug.perf.timed
     def _create_write_off_lines(self, partner=None):
         if not partner:
             partner = self.env["res.partner"]
@@ -99,20 +120,27 @@ class AccountReconcileWizard(models.TransientModel):
             ),
         ]
         if tax_data:
-            for tax_datum in tax_data["tax_lines_data"]:
-                line_ids_commands.append(  # noqa: PERF401
-                    Command.create(
-                        {
-                            "name": self.tax_id.name,
-                            "account_id": tax_datum["tax_account_id"],
-                            "partner_id": to_partner.id,
-                            "currency_id": self.reco_currency_id.id,
-                            "tax_tag_ids": tax_datum["tax_tag_ids"],
-                            "amount_currency": tax_datum["tax_amount_currency"],
-                            "balance": tax_datum["tax_amount"],
-                        }
-                    )
+            line_ids_commands.extend(
+                Command.create(
+                    {
+                        "name": self.tax_id.name,
+                        "account_id": tax_datum["tax_account_id"],
+                        "partner_id": to_partner.id,
+                        "currency_id": self.reco_currency_id.id,
+                        "tax_tag_ids": tax_datum["tax_tag_ids"],
+                        "amount_currency": tax_datum["tax_amount_currency"],
+                        "balance": tax_datum["tax_amount"],
+                    }
                 )
+                for tax_datum in tax_data["tax_lines_data"]
+            )
+        _debug.pipeline(
+            "write_off_lines_built",
+            recwizard=self,
+            to_partner=to_partner,
+            with_taxes=bool(tax_data),
+            commands=len(line_ids_commands),
+        )
         return line_ids_commands
 
     def create_write_off(self):

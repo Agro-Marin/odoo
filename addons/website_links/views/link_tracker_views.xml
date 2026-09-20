@@ -16,11 +16,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_link_tracker"
-        name="Link Tracker"
-        parent="website.menu_current_page"
-        action="website.website_preview"
-        sequence="25" />
-
 </odoo>

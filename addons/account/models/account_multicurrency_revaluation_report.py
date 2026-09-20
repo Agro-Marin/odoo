@@ -2,7 +2,10 @@ from itertools import chain
 
 from odoo import _, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, float_is_zero
+
+_debug = DebugLog(__name__)
 
 
 # In multi-currency environments, the risk related to fluctuating currencies must be
@@ -16,6 +19,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
     _inherit = ["account.report.custom.handler"]
     _description = "Multicurrency Revaluation Report Custom Handler"
 
+    @_debug.perf.timed
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
@@ -72,6 +76,15 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             not float_is_zero(cr["rate"] - rates[cr["currency_id"]], 20)
             for cr in options["currency_rates"].values()
         )
+        _debug.logic(
+            "revaluation_rates_resolved",
+            report=report,
+            companies=len(options["companies"]),
+            active_currencies=len(active_currencies),
+            foreign_currencies=len(options["currency_rates"]),
+            custom_rate=options["custom_rate"],
+            date_to=options.get("date").get("date_to"),
+        )
 
         options["multi_currency"] = True
         options["buttons"].append(
@@ -104,6 +117,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                 "account.multi_currency_revaluation_report_warning_custom_rate"
             ] = {"alert_type": "warning"}
 
+    @_debug.perf.timed
     def _custom_line_postprocessor(self, report, options, lines):
         line_to_adjust_id = self.env.ref(
             "account.multicurrency_revaluation_to_adjust"
@@ -145,6 +159,13 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
 
             rslt.append(line)
 
+        _debug.pipeline(
+            "revaluation_lines_postprocessed",
+            report=report,
+            lines=len(lines),
+            kept=len(rslt),
+            hidden_empty_sections=len(lines) - len(rslt),
+        )
         return rslt
 
     def _custom_groupby_line_completer(
@@ -155,8 +176,12 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             line_dict["unfolded"] = True
             line_dict["unfoldable"] = False
 
+    @_debug.perf.timed
     def action_multi_currency_revaluation_open_revaluation_wizard(self, options):
         """Open the revaluation wizard."""
+        _debug.lifecycle(
+            "action_multi_currency_revaluation_open_revaluation_wizard", records=self
+        )
         form = self.env.ref(
             "account.view_account_multicurrency_revaluation_wizard", False
         )
@@ -176,7 +201,11 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
         }
 
     # ACTIONS
+    @_debug.perf.timed
     def action_multi_currency_revaluation_open_general_ledger(self, options, params):
+        _debug.lifecycle(
+            "action_multi_currency_revaluation_open_general_ledger", records=self
+        )
         report = self.env["account.report"].browse(options["report_id"])
         account_id = report._get_res_id_from_line_id(
             params["line_id"], "account.account"
@@ -197,8 +226,12 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
 
         return general_ledger_action
 
+    @_debug.perf.timed
     def action_multi_currency_revaluation_toggle_provision(self, options, params):
         """Include/exclude an account from the provision."""
+        _debug.lifecycle(
+            "action_multi_currency_revaluation_toggle_provision", records=self
+        )
         res_ids_map = self.env["account.report"]._get_res_ids_from_line_id(
             params["line_id"], ["res.currency", "account.account"]
         )
@@ -213,10 +246,14 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             "tag": "reload",
         }
 
+    @_debug.perf.timed
     def action_multi_currency_revaluation_open_currency_rates(
         self, options, params=None
     ):
         """Open the currency rate list."""
+        _debug.lifecycle(
+            "action_multi_currency_revaluation_open_currency_rates", records=self
+        )
         currency_id = self.env["account.report"]._get_res_id_from_line_id(
             params["line_id"], "res.currency"
         )
@@ -236,6 +273,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             "domain": [("currency_id", "=", currency_id)],
         }
 
+    @_debug.perf.timed
     def _report_custom_engine_multi_currency_revaluation_to_adjust(
         self,
         expressions,
@@ -256,6 +294,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @_debug.perf.timed
     def _report_custom_engine_multi_currency_revaluation_excluded(
         self,
         expressions,
@@ -276,6 +315,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @_debug.perf.timed
     def _multi_currency_revaluation_get_custom_lines(
         self, options, line_code, current_groupby, next_groupby, offset=0, limit=None
     ):
@@ -299,6 +339,14 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             + ([current_groupby] if current_groupby else [])
         )
 
+        _debug.logic(
+            "revaluation_engine_mode",
+            report=report,
+            line_code=line_code,
+            groupby=current_groupby,
+            next_groupby=next_groupby,
+            header_only=not current_groupby,
+        )
         # No need to run any SQL if we're computing the main line: it does not display any total
         if not current_groupby:
             return {
@@ -370,6 +418,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                   FROM %(table_references)s,
                        account_account AS account,
                        res_currency AS aml_currency,
+                       res_company AS aml_company,
                        res_currency AS aml_comp_currency,
                        custom_currency_table,
 
@@ -389,7 +438,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                                       account_move_line.currency_id AS currency_id,
                                       account_move_line.id AS aml_id
                                  FROM account_partial_reconcile part
-                                 JOIN res_currency curr ON curr.id = part.debit_currency_id
+                                 JOIN res_currency curr ON curr.id = account_move_line.currency_id
                                 WHERE account_move_line.id = part.debit_move_id
                                   AND part.max_date <= %(date_to)s
                              GROUP BY aml_id,
@@ -406,7 +455,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                                       account_move_line.currency_id AS currency_id,
                                       account_move_line.id AS aml_id
                                  FROM account_partial_reconcile part
-                                 JOIN res_currency curr ON curr.id = part.credit_currency_id
+                                 JOIN res_currency curr ON curr.id = account_move_line.currency_id
                                 WHERE account_move_line.id = part.credit_move_id
                                   AND part.max_date <= %(date_to)s
                              GROUP BY aml_id,
@@ -415,14 +464,15 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                  WHERE %(search_condition)s
                    AND account_move_line.account_id = account.id
                    AND account_move_line.currency_id = aml_currency.id
-                   AND account_move_line.company_currency_id = aml_comp_currency.id
+                   AND account_move_line.company_id = aml_company.id
+                   AND aml_company.currency_id = aml_comp_currency.id
                    AND account_move_line.currency_id = custom_currency_table.currency_id
                    AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
                    AND (
-                        account.currency_id != account_move_line.company_currency_id
+                        account.currency_id != aml_company.currency_id
                         OR (
                             account.account_type IN ('asset_receivable', 'liability_payable')
-                            AND (account_move_line.currency_id != account_move_line.company_currency_id)
+                            AND (account_move_line.currency_id != aml_company.currency_id)
                         )
                    )
                    AND %(exist_condition)s (
@@ -449,13 +499,14 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                   FROM %(table_references)s
                   JOIN account_account account ON account_move_line.account_id = account.id
                   JOIN custom_currency_table ON custom_currency_table.currency_id = account_move_line.currency_id
+                  JOIN res_company aml_company ON aml_company.id = account_move_line.company_id
                  WHERE %(search_condition)s
                    AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
                    AND (
-                        account.currency_id != account_move_line.company_currency_id
+                        account.currency_id != aml_company.currency_id
                         OR (
                             account.account_type IN ('asset_receivable', 'liability_payable')
-                            AND (account_move_line.currency_id != account_move_line.company_currency_id)
+                            AND (account_move_line.currency_id != aml_company.currency_id)
                         )
                    )
                    AND %(exist_condition)s (
@@ -491,6 +542,16 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
         )
         self.env.cr.execute(full_query)
         query_res_lines = self.env.cr.dictfetchall()
+        _debug.pipeline(
+            "revaluation_rows_fetched",
+            report=report,
+            line_code=line_code,
+            groupby=current_groupby,
+            rows=len(query_res_lines),
+            currencies=len(options["currency_rates"]),
+            offset=offset,
+            limit=limit,
+        )
 
         rslt = []
         for query_res in query_res_lines:

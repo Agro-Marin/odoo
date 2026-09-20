@@ -75,7 +75,6 @@ patch(WebsiteSale.prototype, {
     },
 
     /**
-     * Adds the stock checking to the regular _onChangeCombination method
      * @override
      */
     _onChangeCombination() {
@@ -83,9 +82,6 @@ patch(WebsiteSale.prototype, {
         this._onChangeCombinationStock(...arguments);
     },
 
-    /**
-     * Recomputes the combination after adding a product to the cart
-     */
     async onClickAdd(ev) {
         const quantity = await this.waitFor(super.onClickAdd(...arguments));
         if (this.el.querySelector("div.availability_messages")) {

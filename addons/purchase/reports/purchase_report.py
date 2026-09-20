@@ -11,13 +11,12 @@ class PurchaseReport(models.Model):
     _order = "date_order desc, price_total desc"
 
     order_reference = fields.Reference(
-        string="Order",
         selection=[("purchase.order", "Purchase Order")],
+        string="Order",
         aggregator="count_distinct",
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Currency",
         readonly=True,
     )
     partner_id = fields.Many2one(
@@ -37,7 +36,6 @@ class PurchaseReport(models.Model):
     )
     fiscal_position_id = fields.Many2one(
         comodel_name="account.fiscal.position",
-        string="Fiscal Position",
         readonly=True,
     )
     user_id = fields.Many2one(
@@ -56,7 +54,6 @@ class PurchaseReport(models.Model):
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         readonly=True,
     )
     product_tmpl_id = fields.Many2one(
@@ -69,9 +66,18 @@ class PurchaseReport(models.Model):
         string="Reference Unit of Measure",
         readonly=True,
     )
-    qty_transferred = fields.Float(string="Qty Received", readonly=True)
-    qty_invoiced = fields.Float(string="Qty Billed", readonly=True)
-    qty_to_invoice = fields.Float(string="Qty to be Billed", readonly=True)
+    qty_transferred = fields.Float(
+        string="Qty Received",
+        readonly=True,
+    )
+    qty_invoiced = fields.Float(
+        string="Qty Billed",
+        readonly=True,
+    )
+    qty_to_invoice = fields.Float(
+        string="Qty to be Billed",
+        readonly=True,
+    )
     price_average = fields.Monetary(
         string="Average Cost",
         readonly=True,

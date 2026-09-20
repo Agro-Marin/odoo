@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockMove(models.Model):
@@ -7,9 +10,8 @@ class StockMove(models.Model):
 
     sale_line_id = fields.Many2one(
         comodel_name="sale.order.line",
-        string="Sale Line",
-        ondelete="set null",
         index="btree_not_null",
+        ondelete="set null",
     )
     created_sale_line_ids = fields.Many2many(
         comodel_name="sale.order.line",
@@ -29,6 +31,16 @@ class StockMove(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if "product_id" in vals:
+            if _debug.lifecycle.enabled:
+                _debug.lifecycle(
+                    "sale_line_unlinked",
+                    reason="product_changed",
+                    moves=self.filtered(
+                        lambda m: (
+                            m.sale_line_id and m.product_id != m.sale_line_id.product_id
+                        )
+                    ),
+                )
             self.filtered(
                 lambda m: m.sale_line_id and m.product_id != m.sale_line_id.product_id,
             ).sale_line_id = False
@@ -78,6 +90,7 @@ class StockMove(models.Model):
                     and l.state != "cancel"
                 ),
             ):
+                _debug.logic("move_matched_order_line", move=move, line=line[:1])
                 move.sale_line_id = line[:1]
                 continue
 
@@ -107,6 +120,11 @@ class StockMove(models.Model):
             sale_order_lines_vals.append(so_line_vals)
 
         if sale_order_lines_vals:
+            _debug.lifecycle(
+                "order_lines_created_from_moves",
+                moves=self,
+                lines=len(sale_order_lines_vals),
+            )
             self.env["sale.order.line"].with_context(skip_procurement=True).create(
                 sale_order_lines_vals,
             )
@@ -117,13 +135,12 @@ class StockMove(models.Model):
         super()._post_process_picking(new=new)
         if not new:
             return
-        for picking, moves in self.filtered("picking_id").grouped("picking_id").items():
-            for sale_order in moves.sale_line_id.order_id:
-                picking.message_post_with_source(
-                    "mail.message_origin_link",
-                    render_values={"self": picking, "origin": sale_order},
-                    subtype_xmlid="mail.mt_note",
-                )
+        self.picking_id._message_post_origin_links(
+            (picking.id, order)
+            for picking, moves in self.grouped("picking_id").items()
+            if picking
+            for order in moves.sale_line_id.order_id
+        )
 
     def _get_related_invoices(self):
         rslt = super()._get_related_invoices()
@@ -151,6 +168,7 @@ class StockMove(models.Model):
             ),
         )
         if created_sl:
+            _debug.logic("upstream_document", move=self, by="created_sale_line")
             return [(sl.order_id, sl.order_id.user_id, visited) for sl in created_sl]
         documents = super()._get_upstream_documents_and_responsibles(visited)
         if documents:
@@ -176,6 +194,7 @@ class StockMove(models.Model):
     def _update_sale_lines_for_order(self, sale_order):
         movable = self.filtered(lambda m: m.sale_line_id.order_id != sale_order)
         if not movable:
+            _debug.logic("sale_lines_kept", moves=self, reason="already_on_order")
             return
 
         ids_to_reset = set()
@@ -199,6 +218,9 @@ class StockMove(models.Model):
                     ids_to_reset.add(move.id)
 
         if ids_to_reset:
+            _debug.lifecycle(
+                "sale_line_cleared", moves=len(ids_to_reset), order=sale_order
+            )
             self.env["stock.move"].browse(ids_to_reset).sale_line_id = False
 
     def _get_sale_line_price_unit(self):

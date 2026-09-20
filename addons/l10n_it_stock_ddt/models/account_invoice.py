@@ -7,7 +7,10 @@ from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPE
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    l10n_it_ddt_ids = fields.Many2many("stock.picking", compute="_compute_ddt_ids")
+    l10n_it_ddt_ids = fields.Many2many(
+        comodel_name="stock.picking",
+        compute="_compute_ddt_ids",
+    )
     l10n_it_ddt_count = fields.Integer(compute="_compute_ddt_ids")
 
     def _l10n_it_edi_document_type_mapping(self):
@@ -79,7 +82,7 @@ class AccountMove(models.Model):
                 )
                 total_invs = [
                     (
-                        i.product_uom_id._compute_quantity(
+                        i.product_uom_id._get_quantity_in_unit(
                             i.quantity, i.product_id.uom_id
                         ),
                         i,

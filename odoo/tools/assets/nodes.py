@@ -2,6 +2,7 @@ import json
 from collections.abc import Container, Iterable, Mapping, Sequence
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.constants import (
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
@@ -33,6 +34,8 @@ LOADER_SHIM_MARKER = "data-loader-shim"
 BRIDGE_URL_PREFIX = "/web/assets/esm/bridges/"
 
 SOURCE_MAP_DIRECTIVE = "//# sourceMappingURL="
+
+_debug = DebugLog(__name__)
 
 
 def is_debug_assets(debug: Any) -> bool:
@@ -67,11 +70,16 @@ def import_map_specs(nodes: Iterable[AssetNode]) -> frozenset[str]:
 def narrow_import_map_node(
     node: AssetNode, already_mapped: Container[str]
 ) -> AssetNode | None:
+    declared = json.loads(node[1]["text"])["imports"]
     imports = {
-        spec: url
-        for spec, url in json.loads(node[1]["text"])["imports"].items()
-        if spec not in already_mapped
+        spec: url for spec, url in declared.items() if spec not in already_mapped
     }
+    _debug.logic(
+        "assets.import_map_narrowed",
+        declared=len(declared),
+        kept=len(imports),
+        dropped=len(declared) - len(imports),
+    )
     if not imports:
         return None
     return (node[0], {**node[1], "text": json.dumps({"imports": imports})})
@@ -126,21 +134,30 @@ def link_to_node(
     return None
 
 
-def combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
-    if not esm_tpl:
-        return esbuild_code
+INLINED_TEMPLATES_MARKER = "/* ── Inlined templates registration ── */\n"
+
+
+def split_inlined_templates(esbuild_code: str) -> tuple[str, str]:
     body = esbuild_code
     directive = ""
     tail = esbuild_code.rfind(SOURCE_MAP_DIRECTIVE)
     if tail != -1 and "\n" not in esbuild_code[tail:].rstrip("\n"):
         directive = esbuild_code[tail:].rstrip("\n")
         body = esbuild_code[:tail].rstrip("\n") + "\n"
-    return (
-        body
-        + "/* ── Inlined templates registration ── */\n"
-        + esm_tpl
-        + ("\n" + directive + "\n" if directive else "")
-    )
+    marker = body.find(INLINED_TEMPLATES_MARKER)
+    if marker != -1:
+        body = body[:marker]
+    return body, directive
+
+
+def combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
+    # A bundle reused from the attachment store still carries the templates it
+    # was built with; the current ones replace them rather than pile on.
+    if not esm_tpl and INLINED_TEMPLATES_MARKER not in esbuild_code:
+        return esbuild_code
+    body, directive = split_inlined_templates(esbuild_code)
+    templates = INLINED_TEMPLATES_MARKER + esm_tpl if esm_tpl else ""
+    return body + templates + ("\n" + directive + "\n" if directive else "")
 
 
 def is_hoot_test_specifier(specifier: str, *, by_directory: bool = True) -> bool:
@@ -172,6 +189,13 @@ def bridge_external_specifiers(
     own_specifiers: Iterable[str], aliases: Mapping[str, str]
 ) -> set[str]:
     own = set(own_specifiers)
-    return {"@odoo/owl"} | {
+    bridged = {"@odoo/owl"} | {
         alias for alias, aliased in aliases.items() if aliased in own
     }
+    _debug.logic(
+        "assets.external_specifiers_bridged",
+        own=len(own),
+        aliases=len(aliases),
+        bridged=sorted(bridged),
+    )
+    return bridged

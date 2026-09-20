@@ -20,17 +20,17 @@
                 <header>
                     <button
                         name="mail_action_blacklist_remove"
-                        string="Unblacklist"
                         type="object"
-                        class="oe_highlight"
+                        string="Unblacklist"
                         context="{'default_email': email}"
-                        invisible="not active or not email" />
+                        invisible="not active or not email"
+                        class="oe_highlight" />
                     <button
                         name="action_add"
-                        string="Blacklist"
                         type="object"
-                        class="oe_highlight"
-                        invisible="active or not email" />
+                        string="Blacklist"
+                        invisible="active or not email"
+                        class="oe_highlight" />
                 </header>
                 <sheet>
                     <div class="badge rounded-pill text-bg-danger float-end fs-6 border-0" invisible="active">Archived</div>
@@ -50,8 +50,8 @@
             <search>
                 <field name="email" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
             </search>
         </field>

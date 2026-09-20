@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useRef, useState, onMounted } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
 
 export class AccountReportSearchBar extends Component {
     static template = "account.AccountReportSearchBar";
@@ -32,7 +32,9 @@ export class AccountReportSearchBar extends Component {
 
         if (query.length) {
             for (const line of this.controller.lines) {
-                if (!line.name) continue;
+                if (!line.name) {
+                    continue;
+                }
 
                 const lineName = line.name.trim().toLowerCase();
                 const match = lineName.indexOf(query) !== -1;

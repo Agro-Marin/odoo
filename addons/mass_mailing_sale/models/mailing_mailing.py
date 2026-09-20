@@ -2,16 +2,21 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models, tools
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MailingMailing(models.Model):
     _inherit = "mailing.mailing"
 
     sale_quotation_count = fields.Integer(
-        "Quotation Count", compute="_compute_sale_quotation_count"
+        string="Quotation Count",
+        compute="_compute_sale_quotation_count",
     )
     sale_invoiced_amount = fields.Integer(
-        "Invoiced Amount", compute="_compute_sale_invoiced_amount"
+        string="Invoiced Amount",
+        compute="_compute_sale_invoiced_amount",
     )
 
     @api.depends("mailing_domain")
@@ -26,6 +31,9 @@ class MailingMailing(models.Model):
             )
         )
         mapped_data = {source.id: count for source, count in quotation_data}
+        _debug.perf.count(
+            "mailing_quotation_count", mailings=len(self), rows=len(mapped_data)
+        )
         for mass_mailing in self:
             mass_mailing.sale_quotation_count = mapped_data.get(
                 mass_mailing.source_id.id, 0
@@ -52,6 +60,9 @@ class MailingMailing(models.Model):
             source.id: amount_untaxed_signed
             for source, amount_untaxed_signed in moves_data
         }
+        _debug.perf.count(
+            "mailing_invoiced_amount", mailings=len(self), rows=len(mapped_data)
+        )
         for mass_mailing in self:
             mass_mailing.sale_invoiced_amount = mapped_data.get(
                 mass_mailing.source_id.id, 0

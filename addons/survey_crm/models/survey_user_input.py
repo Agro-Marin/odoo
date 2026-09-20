@@ -6,7 +6,10 @@ from odoo import _, fields, models
 class SurveyUser_Input(models.Model):
     _inherit = "survey.user_input"
 
-    lead_id = fields.Many2one("crm.lead", ondelete="set null")
+    lead_id = fields.Many2one(
+        comodel_name="crm.lead",
+        ondelete="set null",
+    )
 
     def _mark_done(self):
         super()._mark_done()
@@ -42,11 +45,11 @@ class SurveyUser_Input(models.Model):
 
     def _prepare_common_survey_lead_values(self, survey):
         salesperson = self.env["res.users"]
-        sales_team = survey.team_id or self.env["crm.team"]
+        sales_team = survey.team_id or self.env["team.team"]
         if sales_team:
             salesperson = (
                 self.survey_id.user_id
-                if survey.team_id in self.survey_id.user_id.sudo().crm_team_ids
+                if survey.team_id in self.survey_id.user_id.sudo().sale_team_ids
                 else self.env["res.users"]
             )
             if not salesperson:

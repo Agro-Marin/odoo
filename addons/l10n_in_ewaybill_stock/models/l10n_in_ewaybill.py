@@ -3,6 +3,9 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class L10nInEwaybill(models.Model):
@@ -10,20 +13,24 @@ class L10nInEwaybill(models.Model):
     _check_company_auto = True
 
     state = fields.Selection(
-        selection_add=[("challan", "Challan")], ondelete={"challan": "cascade"}
+        selection_add=[("challan", "Challan")],
+        ondelete={"challan": "cascade"},
     )
     type_description = fields.Char(string="Description")
 
     # Stock picking details
-    picking_id = fields.Many2one("stock.picking", "Stock Transfer", copy=False)
+    picking_id = fields.Many2one(
+        comodel_name="stock.picking",
+        string="Stock Transfer",
+        copy=False,
+    )
     move_ids = fields.One2many(related="picking_id.move_ids")
     fiscal_position_id = fields.Many2one(
         comodel_name="account.fiscal.position",
-        string="Fiscal Position",
         compute="_compute_fiscal_position_id",
-        check_company=True,
         store=True,
         readonly=False,
+        check_company=True,
     )
 
     @api.depends("name", "state")
@@ -47,6 +54,7 @@ class L10nInEwaybill(models.Model):
         :return: {'document_number': document_number, 'document_date': document_date}
         :rtype: dict
         """
+        _debug.logic("ewaybill_document_details", ewaybills=self)
         self.check_singleton()
         if picking_id := self.picking_id:
             return {
@@ -56,6 +64,7 @@ class L10nInEwaybill(models.Model):
         return super()._get_ewaybill_document_details()
 
     def _get_seller_buyer_details(self):
+        _debug.logic("ewaybill_parties", ewaybills=self)
         self.check_singleton()
         if picking_id := self.picking_id:
             if self._is_incoming():
@@ -86,6 +95,7 @@ class L10nInEwaybill(models.Model):
         return super()._get_seller_buyer_details()
 
     def _is_incoming(self):
+        _debug.logic("ewaybill_is_incoming", ewaybills=self)
         self.check_singleton()
         if self.picking_id:
             return self.picking_id.picking_type_id.code == "incoming"
@@ -104,6 +114,7 @@ class L10nInEwaybill(models.Model):
                 )
 
     def action_reset_to_pending(self):
+        _debug.lifecycle("ewaybill_reset_to_pending", ewaybills=self)
         self.check_singleton()
         if self.picking_id:
             if self.state not in ("cancel", "challan"):
@@ -124,6 +135,7 @@ class L10nInEwaybill(models.Model):
             return super().action_reset_to_pending()
 
     def action_set_to_challan(self):
+        _debug.lifecycle("ewaybill_set_to_challan", ewaybills=self)
         self.check_singleton()
         if self.state != "pending":
             raise UserError(
@@ -135,18 +147,22 @@ class L10nInEwaybill(models.Model):
             }
         )
 
-    def action_print(self):
-        self.check_singleton()
-        if self.state == "generated":
-            return super().action_print()
-        if self.state != "challan":
+    def _check_printable(self):
+        _debug.logic("edi_delivery_validate", regime="in", ewaybills=self)
+        if self.filtered(
+            lambda ewaybill: ewaybill.state not in ["generated", "challan"]
+        ):
             raise UserError(
                 _(
                     "Please generate the E-Waybill or mark the document as a Challan to print it."
                 )
             )
 
-        return self._generate_and_attach_pdf(_("Challan"))
+    def _get_print_label(self):
+        self.check_singleton()
+        if self.state == "challan":
+            return _("Challan")
+        return super()._get_print_label()
 
     def _check_lines(self):
         if self.picking_id:

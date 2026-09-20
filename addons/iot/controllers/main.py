@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import io
 import itertools
 import json
@@ -39,6 +40,10 @@ def get_unique_name(name):
     return name
 
 
+def _known_box_identifier():
+    return None
+
+
 class IoTBoxLookup:
     def _search_box(self, identifier):
         return (
@@ -76,6 +81,15 @@ class IoTController(IoTBoxLookup, http.Controller):
                 description="No IoT box found with identifier '%s' or auto update disabled on the box."
                 % identifier
             )
+        receiver = request.env["integration.receiver"]._for_record(
+            box, request.env._("%(box)s handler downloads", box=box.name), "handlers"
+        )
+        if not receiver._admit_checked_request(
+            _known_box_identifier, event_type="iot_handlers"
+        ):
+            raise Unauthorized(
+                description="The handler download for this box was refused."
+            )
 
         # '_L.py' files for Linux and '_W.py' for Windows
         incompatible_filename = "_L.py" if box.version[0] == "W" else "_W.py"
@@ -111,7 +125,7 @@ class IoTController(IoTBoxLookup, http.Controller):
         ).prepare_response()
 
     @http.route("/iot/keyboard_layouts", type="http", auth="public", csrf=False)
-    def load_keyboard_layouts(self, available_layouts):
+    def load_keyboard_layouts(self, available_layouts):  # noqa: E8528 - an IoT box seeds the layout table once, before any box is paired
         if not request.env["iot.keyboard.layout"].sudo().search_count([], limit=1):
             request.env["iot.keyboard.layout"].sudo().create(
                 json.loads(available_layouts)
@@ -239,14 +253,14 @@ class IoTController(IoTBoxLookup, http.Controller):
                 box.write(create_update_value)
             return box
 
-        icp_sudo = request.env["ir.config_parameter"].sudo()
-        iot_token = icp_sudo.get_param("iot.iot_token")
-        if not iot_token or iot_token != iot_box["token"]:
+        iot_token = request.env["iot.box"]._get_pairing_token()
+        if not iot_token or not hmac.compare_digest(
+            iot_token, str(iot_box.get("token") or "")
+        ):
             _logger.warning(
-                "Token mismatch for IoT %s expected %s got %s",
+                "IoT %s offered no pairing token this database handed out in the "
+                "last 15 minutes",
                 iot_identifier,
-                iot_token,
-                iot_box["token"],
             )
             return request.env["iot.box"]
 
@@ -255,7 +269,7 @@ class IoTController(IoTBoxLookup, http.Controller):
         _logger.info("Creating IoT with data: %s", create_update_value)
         box = request.env["iot.box"].sudo().create(create_update_value)
         # Clear the used token to force creating a new one for next IoT Box
-        icp_sudo.set_param("iot.iot_token", "")
+        request.env["ir.config_parameter"].sudo().set_param("iot.iot_token", "")
         return box
 
     def _find_moved_device(self, known, device_identifier, data_device):
@@ -405,6 +419,20 @@ class IoTLogController(IoTBoxLookup, http.Controller):
         identifier = identifier_details[len(IOT_IDENTIFIER_PREFIX) :]
         iot_box = self._search_box(identifier)
         if not iot_box:
+            request.env["inbound.access.log"]._record_unknown_caller(
+                "iot.box",
+                identifier.decode(errors="replace")[:64],
+                request.httprequest.remote_addr,
+                user_agent=request.httprequest.headers.get("User-Agent"),
+                status_code=200,
+            )
+            return finish_request()
+        receiver = request.env["integration.receiver"]._for_record(
+            iot_box, request.env._("%(box)s logs", box=iot_box.name), "logs"
+        )
+        if not receiver._admit_checked_request(
+            _known_box_identifier, event_type="iot_log"
+        ):
             return finish_request()
 
         log_details = map(log_line_transformation, request_data_split)

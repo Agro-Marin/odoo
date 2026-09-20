@@ -17,6 +17,7 @@ This module includes:
     "license": "LGPL-3",
     "depends": [
         "automation",
+        "automation_webhook",
         "test_mail",
     ],
     "data": [
@@ -27,6 +28,5 @@ This module includes:
             "test_automation/static/tests/**/*",
         ],
     },
-    "installable": True,
     "post_init_hook": "_post_init_hook",
 }

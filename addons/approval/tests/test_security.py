@@ -1,7 +1,7 @@
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, add_category_approver, add_rule_step
 
 
 @tagged("post_install", "-at_install")
@@ -45,13 +45,7 @@ class TestApproverAccessControl(common.TransactionCase):
             }
         )
 
-        cls.env["approval.category.approver"].create(
-            {
-                "user_id": cls.user_2.id,
-                "category_id": cls.category.id,
-                "required": True,
-            }
-        )
+        add_category_approver(cls.category, cls.user_2, required=True)
 
     def _create_pending_request(self, owner):
         request = self.env["approval.request"].create(
@@ -72,7 +66,7 @@ class TestApproverAccessControl(common.TransactionCase):
                 {
                     "user_id": self.user_3.id,
                     "request_id": request.id,
-                    "state": "pending",
+                    "flow_state": "pending",
                 }
             )
 
@@ -80,7 +74,7 @@ class TestApproverAccessControl(common.TransactionCase):
         request = self._create_pending_request(self.user_1)
         approver = request.approver_ids[0]
 
-        approver.sudo().write({"state": "new"})
+        approver.sudo().write({"flow_state": "new"})
 
         with self.assertRaises(AccessError):
             approver.with_user(self.user_3).unlink()
@@ -100,12 +94,7 @@ class TestApproverAccessControl(common.TransactionCase):
                 "approval_minimum": 1,
             }
         )
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.user_1.id,
-                "category_id": category.id,
-            }
-        )
+        add_category_approver(category, self.user_1)
 
         request = (
             self.env["approval.request"]
@@ -119,11 +108,59 @@ class TestApproverAccessControl(common.TransactionCase):
             )
         )
 
-        request.action_confirm()
+        with self.assertRaises(UserError, msg="the owner is the only approver"):
+            request.action_confirm()
+        self.assertFalse(
+            request.approver_ids.filtered(lambda a: a.user_id == self.user_1),
+            "the owner is never staged as an approver of their own request",
+        )
 
-        approver = request.approver_ids.filtered(lambda a: a.user_id == self.user_1)
-        if approver:
-            self.assertEqual(approver.state, "pending")
+    def test_owner_may_approve_own_request_where_the_category_allows_it(self):
+        category = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0054",
+                "name": "Self Approval Allowed",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
+        )
+        add_category_approver(category, self.user_1)
+        request = (
+            self.env["approval.request"]
+            .with_user(self.user_1)
+            .create({"request_owner_id": self.user_1.id, "category_id": category.id})
+        )
+        request.action_confirm()
+        request.approver_ids.with_user(self.user_1).with_context(
+            skip_wizard=True
+        ).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_owner_cannot_decide_their_row_once_the_policy_forbids_it(self):
+        """The policy is read when deciding, not only when routing, and under
+        sudo too: a row staged while the category allowed self-approval cannot
+        carry the owner's decision after it stops allowing it."""
+        category = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0055",
+                "name": "Policy tightened",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
+        )
+        add_category_approver(category, self.user_1)
+        request = (
+            self.env["approval.request"]
+            .with_user(self.user_1)
+            .create({"request_owner_id": self.user_1.id, "category_id": category.id})
+        )
+        request.action_confirm()
+        category.allow_self_approval = False
+        own_row = request.approver_ids.filtered(lambda a: a.user_id == self.user_1)
+        self.assertTrue(own_row)
+        with self.assertRaises(AccessError):
+            request.with_user(self.user_1).sudo().action_approve(own_row)
+        self.assertEqual(request.state, "pending")
 
 
 @tagged("post_install", "-at_install")
@@ -150,13 +187,7 @@ class TestBusinessRuleEnforcement(common.TransactionCase):
             }
         )
 
-        cls.env["approval.category.approver"].create(
-            {
-                "user_id": cls.approver_user.id,
-                "category_id": cls.category.id,
-                "required": True,
-            }
-        )
+        add_category_approver(cls.category, cls.approver_user, required=True)
 
     def test_cannot_add_approver_to_pending_request(self):
         request = self.env["approval.request"].create(
@@ -174,7 +205,7 @@ class TestBusinessRuleEnforcement(common.TransactionCase):
                 {
                     "user_id": self.admin_user.id,
                     "request_id": request.id,
-                    "state": "pending",
+                    "flow_state": "pending",
                 }
             )
 
@@ -201,12 +232,7 @@ class TestBusinessRuleEnforcement(common.TransactionCase):
             }
         )
 
-        self.env["approval.category.approver"].create(
-            {
-                "user_id": self.approver_user.id,
-                "category_id": category.id,
-            }
-        )
+        add_category_approver(category, self.approver_user)
 
         request = self.env["approval.request"].create(
             {
@@ -342,12 +368,7 @@ class TestRecordRuleVisibility(common.TransactionCase):
             }
         )
 
-        cls.env["approval.category.approver"].create(
-            {
-                "user_id": cls.user_approver.id,
-                "category_id": cls.category.id,
-            }
-        )
+        add_category_approver(cls.category, cls.user_approver)
 
     def test_owner_can_see_own_request(self):
         request = (
@@ -404,21 +425,6 @@ class TestRecordRuleVisibility(common.TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestReportModelAccess(ApprovalCommon):
-    def test_reports_not_readable_by_plain_user(self):
-        for model in ("approval.dashboard", "approval.metrics", "approver.performance"):
-            with self.assertRaises(
-                AccessError,
-                msg=f"{model} must not be readable by a non-manager user",
-            ):
-                self.env[model].with_user(self.owner_user).search([])
-
-    def test_reports_readable_by_manager(self):
-        for model in ("approval.dashboard", "approval.metrics", "approver.performance"):
-            self.env[model].with_user(self.manager_user).search([])
-
-
-@tagged("post_install", "-at_install")
 class TestManualApproverCreation(ApprovalCommon):
     def test_h9_regular_user_cannot_create_approver_manually(self):
         with self.assertRaises(
@@ -441,7 +447,6 @@ class TestApproverDraftWriteAccess(ApprovalCommon):
         cls.category = cls._make_category(
             name="Draft Write Cat",
             approvers=[(cls.approver_1, False, 10), (cls.approver_2, False, 20)],
-            has_amount="optional",
         )
 
     def test_approver_cannot_write_a_draft_they_do_not_own(self):
@@ -471,28 +476,22 @@ class TestApproverDraftWriteAccess(ApprovalCommon):
             request.with_user(self.approver_1).write({"amount": 1.0})
 
     def test_approver_cannot_reroute_a_request_through_priority(self):
-        self.env["approval.rule"].create(
-            {
-                "name": "urgent adds approver two",
-                "category_id": self.category.id,
-                "condition_field": "priority",
-                "operator": "gte",
-                "threshold": 3,
-                "action_type": "add_approver",
-                "approver_ids": [(4, self.approver_2.id)],
-            }
+        add_rule_step(
+            self.category,
+            self.approver_2,
+            name="urgent adds approver two",
+            condition_field="priority",
+            operator="gte",
+            threshold=3,
         )
         category = self._make_category(name="Reroute", approvers=[self.approver_1])
-        self.env["approval.rule"].create(
-            {
-                "name": "urgent adds approver two (reroute)",
-                "category_id": category.id,
-                "condition_field": "priority",
-                "operator": "gte",
-                "threshold": 3,
-                "action_type": "add_approver",
-                "approver_ids": [(4, self.approver_2.id)],
-            }
+        add_rule_step(
+            category,
+            self.approver_2,
+            name="urgent adds approver two (reroute)",
+            condition_field="priority",
+            operator="gte",
+            threshold=3,
         )
         request = self._prepare_request(category)
         self.assertEqual(request.approver_ids.user_id, self.approver_1)

@@ -63,6 +63,27 @@ class TestPlanDaysEndOfDay(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestResourceZoneSeeding(TransactionCase):
+    def test_a_falsy_tz_in_the_values_is_seeded_not_inserted(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Seed 40h", "tz": "Europe/Brussels"}
+        )
+        user = self.env["res.users"].create(
+            {"name": "No Zone", "login": "no_zone_seed", "tz": False}
+        )
+        self.assertFalse(user.tz)
+        resource = self.env["resource.resource"].create(
+            {
+                "name": user.name,
+                "user_id": user.id,
+                "calendar_id": calendar.id,
+                "tz": user.tz,
+            }
+        )
+        self.assertEqual(resource.tz, "Europe/Brussels")
+
+
+@tagged("post_install", "-at_install")
 class TestAllocatedPercentageBounds(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -274,7 +295,7 @@ class TestCalendarlessIntervalApi(TransactionCase):
 
     def test_empty_calendar_does_not_sweep_other_calendars_leaves(self):
         calendar = self.env["resource.calendar"].create({"name": "Owner", "tz": "UTC"})
-        self.env["resource.calendar.leaves"].create(
+        self.env["resource.schedule.exception"].create(
             {
                 "name": "owned leave",
                 "calendar_id": calendar.id,
@@ -329,14 +350,14 @@ class TestOriginDisplayAccess(TransactionCase):
         )
 
     def test_unreadable_source_falls_back_to_raw_reference(self):
-        server = self.env["ir.mail_server"].create(
-            {"name": "secret smtp", "smtp_host": "h"}
+        parameter = self.env["ir.config_parameter"].create(
+            {"key": "resource.secret", "value": "secret"}
         )
-        reservation = self._reservation("ir.mail_server", server.id, 1)
+        reservation = self._reservation("ir.config_parameter", parameter.id, 1)
         reservation.invalidate_recordset(["origin_display"])
         self.assertEqual(
             reservation.with_user(self.user).origin_display,
-            f"ir.mail_server,{server.id}",
+            f"ir.config_parameter,{parameter.id}",
         )
 
     def test_readable_source_still_resolves(self):

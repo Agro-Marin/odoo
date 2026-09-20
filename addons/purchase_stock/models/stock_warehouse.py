@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.fields import Command
 from odoo.tools.translate import _
 
@@ -8,9 +8,9 @@ class StockWarehouse(models.Model):
 
     buy_to_resupply = fields.Boolean(
         string="Buy to Resupply",
-        default=True,
         compute="_compute_buy_to_resupply",
         inverse="_inverse_buy_to_resupply",
+        default=True,
         help="When products are bought, they can be delivered to this warehouse",
     )
     buy_pull_id = fields.Many2one(
@@ -19,6 +19,7 @@ class StockWarehouse(models.Model):
         copy=False,
     )
 
+    @api.depends("buy_pull_id.route_id.warehouse_ids")
     def _compute_buy_to_resupply(self):
         for warehouse in self:
             buy_route = warehouse.buy_pull_id.route_id
@@ -87,10 +88,12 @@ class StockWarehouse(models.Model):
         ).buy_pull_id.route_id
         return routes
 
-    def _get_rules_dict(self):
-        result = super()._get_rules_dict()
+    def _prepare_rule_routings(self):
+        result = super()._prepare_rule_routings()
         for warehouse in self:
-            result[warehouse.id].update(warehouse._get_receive_rules_dict())
+            result[warehouse.id].update(
+                warehouse._prepare_internal_reception_routings()
+            )
         return result
 
     def _prepare_route_vals(self):

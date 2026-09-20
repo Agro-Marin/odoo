@@ -5,8 +5,11 @@ import { discussSidebarItemsRegistry } from "@mail/core/public_web/discuss_sideb
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useRef } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss.sidebar");
 export class Mailbox extends Component {
     static template = "mail.Mailbox";
     static props = ["mailbox"];
@@ -39,6 +42,7 @@ export class Mailbox extends Component {
     /** @param {MouseEvent} ev */
     openThread(ev) {
         markEventHandled(ev, "sidebar.openThread");
+        log.logic("openThread", () => ({ mailbox: this.mailbox.id }));
         this.mailbox.setAsDiscussThread();
     }
 }

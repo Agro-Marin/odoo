@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 
 
@@ -9,65 +10,64 @@ class ProjectHistory(models.Model):
     _order = "date_completed desc, id desc"
 
     project_id = fields.Many2one(
-        "project.project",
-        ondelete="set null",
+        comodel_name="project.project",
         index=True,
+        ondelete="set null",
         help="Link to the original project (may be archived or deleted).",
     )
     name = fields.Char(
-        "Project Name (snapshot)",
+        string="Project Name (snapshot)",
         required=True,
         help="Frozen project name at time of archival.",
     )
-    date_completed = fields.Date("Date Completed", required=True)
-    date_start = fields.Date("Date Started")
+    date_completed = fields.Date(required=True)
+    date_start = fields.Date(string="Date Started")
     planned_duration_days = fields.Integer(
-        "Planned Duration (days)",
+        string="Planned Duration (days)",
         help="Days from date_start to planned end date.",
     )
     actual_duration_days = fields.Integer(
-        "Actual Duration (days)",
+        string="Actual Duration (days)",
         help="Days from date_start to actual completion.",
     )
     duration_variance_pct = fields.Float(
-        "Duration Variance %",
+        string="Duration Variance %",
+        export_string_translation=False,
         compute="_compute_variances",
         store=True,
         help="(actual - planned) / planned * 100. Positive = over-schedule.",
-        export_string_translation=False,
     )
-    planned_hours = fields.Float("Planned Hours (sum of task.planned_hours)")
+    planned_hours = fields.Float(string="Planned Hours (sum of task.planned_hours)")
     actual_hours = fields.Float(
-        "Actual Hours",
-        help="Sum of effective_hours (requires timesheet module).",
+        help="Sum of effective_hours (requires timesheet module)."
     )
     hours_variance_pct = fields.Float(
-        "Hours Variance %",
+        string="Hours Variance %",
+        export_string_translation=False,
         compute="_compute_variances",
         store=True,
         help="(actual - planned) / planned * 100. Positive = over-budget.",
-        export_string_translation=False,
     )
-    task_count = fields.Integer("Total Tasks")
-    team_size = fields.Integer("Team Size (distinct assignees)")
+    task_count = fields.Integer(string="Total Tasks")
+    team_size = fields.Integer(string="Team Size (distinct assignees)")
     tag_ids = fields.Many2many(
-        "project.tags",
-        "project_history_tags_rel",
-        "history_id",
-        "tag_id",
+        comodel_name="project.tags",
+        relation="project_history_tags_rel",
+        column1="history_id",
+        column2="tag_id",
         string="Tags",
         help="Copied from project tags for reference class search.",
     )
     avg_lead_time = fields.Float(
-        "Avg Lead Time (hours)",
+        string="Avg Lead Time (hours)",
         help="Average lead_time_hours (create→end) at project completion.",
     )
     avg_cycle_time = fields.Float(
-        "Avg Cycle Time (hours)",
+        string="Avg Cycle Time (hours)",
         help="Average cycle_time_hours (assign→end) at project completion.",
     )
     deadline_compliance_pct = fields.Float(
-        "Deadline Compliance %",
+        string="Deadline Compliance %",
         help="Percentage of tasks that met their deadlines.",
     )
 
@@ -94,6 +94,7 @@ class ProjectHistory(models.Model):
             else:
                 rec.hours_variance_pct = 0.0
 
+    @dbg.timed
     @api.model
     def create_from_project(self, project) -> ProjectHistory:
         task_domain = [
@@ -147,6 +148,22 @@ class ProjectHistory(models.Model):
             )
             dl_pct = len(met) / len(dl_tasks) * 100
 
+        dbg.logic.debug(
+            "project.history.create_from_project [project:%s]: tasks=%d closed=%d "
+            "delivered=%d planned_days=%s actual_days=%s planned_h=%.1f "
+            "actual_h=%.1f lead=%.1f cycle=%.1f deadline_pct=%.1f",
+            project.id,
+            len(tasks),
+            len(closed_tasks),
+            len(delivered_tasks),
+            planned_days,
+            actual_days,
+            planned_hours,
+            actual_hours,
+            avg_lt,
+            avg_ct,
+            dl_pct,
+        )
         return self.create(
             {
                 "project_id": project.id,

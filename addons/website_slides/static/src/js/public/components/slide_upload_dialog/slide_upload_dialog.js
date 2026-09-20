@@ -53,7 +53,7 @@ export class SlideUploadDialog extends Component {
     static props = {
         canPublish: Boolean,
         canUpload: Boolean,
-        categoryId: { type: String, optional: true },
+        categoryId: { type: Number, optional: true },
         channelId: Number,
         close: Function,
         modulesToInstall: { type: Array, optional: true },
@@ -62,7 +62,7 @@ export class SlideUploadDialog extends Component {
     static template = "website_slides.SlideUploadDialog";
 
     setup() {
-        this.defaultCategoryID = parseInt(this.props.categoryId, 10);
+        this.defaultCategoryID = this.props.categoryId;
         this.modulesToInstallStatus = null;
         this.dialog = useService("dialog");
         this.orm = useService("orm");
@@ -74,15 +74,10 @@ export class SlideUploadDialog extends Component {
                 this.props.openModal &&
                 this.props.openModal in this.slideCategoryData
             ) {
-                // Sets the appropriate category's upload template if one has to be opened on load.
                 this.onClickSlideCategoryIcon(this.props.openModal);
             }
         });
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     onClickSlideCategoryIcon(slideCategory) {
         this.state.page = slideCategory;
@@ -101,9 +96,6 @@ export class SlideUploadDialog extends Component {
         Object.assign(this.state, SlideUploadDialog.baseSettings);
     }
 
-    /**
-     * Show the upload page while processing new slide submission
-     */
     async uploadSlide(formValues, previousPage) {
         this.state.page = "upload";
         this.state.size = "md";
@@ -115,9 +107,6 @@ export class SlideUploadDialog extends Component {
             return;
         }
         if (data.url.includes("enable_editor")) {
-            // If we need to enter edit mode, it should be done to the top
-            // window so that we end up refreshing the backend client action
-            // in edit mode.
             const { origin, pathname } = window.top.location;
             const url = new URL(data.url, `${origin}${pathname}`);
             if (url.origin === origin) {

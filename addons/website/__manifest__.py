@@ -1,6 +1,6 @@
 {
     "name": "Website",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Website/Website",
     "sequence": 20,
     "summary": "Enterprise website builder",
@@ -8,6 +8,7 @@
     "website": "https://www.odoo.com/app/website",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "digest",
         "social_media",
         "google_recaptcha",
@@ -209,6 +210,7 @@
         "wizards/website_robots.xml",
         "data/update_theme_images.xml",
         "views/website_templates_svg.xml",
+        "views/website_menus.xml",
     ],
     "demo": [
         "demo/website_demo.xml",
@@ -262,12 +264,12 @@
             "website/static/src/xml/website.xml",
             "website/static/src/xml/website.background.video.xml",
             "website/static/src/xml/website.cookies_warning.xml",
-            "website/static/src/js/text_processing.js",
             "website/static/src/js/highlight_utils.js",
             "website/static/src/client_actions/website_preview/website_builder_action.editor.scss",
             "website/static/src/components/user_switch.*",
         ],
         "web.assets_frontend_minimal": [
+            "website/static/src/utils/video_urls.js",
             "website/static/src/utils/misc.js",
             "website/static/src/js/content/inject_dom.js",
             "website/static/src/js/content/auto_hide_menu.js",
@@ -276,6 +278,10 @@
             "website/static/src/js/content/generate_video_iframe.js",
         ],
         "web.assets_frontend_lazy": [
+            (
+                "remove",
+                "website/static/src/utils/video_urls.js",
+            ),
             (
                 "remove",
                 "website/static/src/utils/misc.js",
@@ -342,7 +348,6 @@
             "website/static/src/scss/website_visitor_views.scss",
             "website/static/src/js/backend/**/*",
             "website/static/src/js/tours/tour_utils.js",
-            "website/static/src/js/text_processing.js",
             "website/static/src/js/highlight_utils.js",
             "website/static/src/client_actions/*/*",
             (
@@ -506,10 +511,6 @@
             ],
         },
     },
-    "installable": True,
-    "application": True,
-    "post_init_hook": "post_init_hook",
-    "uninstall_hook": "uninstall_hook",
     "configurator_snippets": {
         "homepage": [
             "s_cover",
@@ -790,4 +791,7 @@
             ],
         },
     },
+    "application": True,
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
 }

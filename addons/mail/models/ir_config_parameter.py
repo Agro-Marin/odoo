@@ -4,8 +4,10 @@ from typing import Any, Literal, Self
 
 from odoo import api, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 RESTRICT_TEMPLATE_RENDERING_KEY = "mail.restrict.template.rendering"
 
@@ -41,8 +43,10 @@ class IrConfig_Parameter(models.Model):
         group_user = self.env.ref("base.group_user")
         group_mail_template_editor = self.env.ref("mail.group_mail_template_editor")
         if not restrict and group_mail_template_editor not in group_user.implied_ids:
+            _debug.lifecycle("template_editor_group", restrict=False, action="implied")
             group_user._add_implied_group(group_mail_template_editor)
         elif restrict and group_mail_template_editor in group_user.implied_ids:
+            _debug.lifecycle("template_editor_group", restrict=True, action="removed")
             group_user._remove_group(group_mail_template_editor)
 
     @api.model
@@ -57,23 +61,24 @@ class IrConfig_Parameter(models.Model):
             self._sync_template_editor_group(self._restricts_template_rendering(value))
         elif key == "mail.catchall.domain.allowed":
             value = (
-                self.env["mail.alias.domain"]._sanitize_allowed_domains(value)
+                self.env["mail.alias.domain"]._normalize_allowed_domains(value)
                 if value
                 else False
             )
+            _debug.logic("allowed_domains_sanitized", value=value)
 
         return super().set_param(key, value)
 
-    def _sanitize_param_value(self, key: str, value: Any) -> str:
+    def _normalize_param_value(self, key: str, value: Any) -> str:
         if key == "mail.catchall.domain.allowed" and value:
-            return self.env["mail.alias.domain"]._sanitize_allowed_domains(value)
+            return self.env["mail.alias.domain"]._normalize_allowed_domains(value)
         return value
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             if vals.get("key") and "value" in vals:
-                vals["value"] = self._sanitize_param_value(vals["key"], vals["value"])
+                vals["value"] = self._normalize_param_value(vals["key"], vals["value"])
         params = super().create(vals_list)
         params._sync_template_editor_group_from_rows()
         return params
@@ -85,7 +90,7 @@ class IrConfig_Parameter(models.Model):
             records_by_value = defaultdict(self.browse)
             for record in self:
                 key = vals.get("key", record.key)
-                records_by_value[self._sanitize_param_value(key, vals["value"])] |= (
+                records_by_value[self._normalize_param_value(key, vals["value"])] |= (
                     record
                 )
             result = True

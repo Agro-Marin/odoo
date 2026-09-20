@@ -4,6 +4,7 @@ import inspect
 import itertools
 import json
 import logging
+import operator
 import threading
 import time
 from contextlib import ExitStack, contextmanager
@@ -17,8 +18,10 @@ import requests
 
 import odoo.http
 from odoo import api
+from odoo.libs.debug_log import DebugLog
 from odoo.logutils import RUNBOT
 from odoo.service import security
+from odoo.service.server import get_server
 from odoo.tools import profiler
 
 from . import common
@@ -34,6 +37,11 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
+
+
+def _tag(case: Any) -> str | None:
+    return getattr(case, "canonical_tag", None)
 
 
 class Opener(requests.Session):
@@ -45,8 +53,18 @@ class Opener(requests.Session):
         assert self.test_case.opener == self
         self.test_case.cr.flush()
         self.test_case.cr.clear()
-        with self.test_case.allow_requests():
-            return super().request(*args, **kwargs)
+        with (
+            _debug.perf(
+                "test.http.request",
+                test=_tag(self.test_case),
+                method=args[0] if args else kwargs.get("method"),
+                url=args[1] if len(args) > 1 else kwargs.get("url"),
+            ) as span,
+            self.test_case.allow_requests(),
+        ):
+            response = super().request(*args, **kwargs)
+            span.set(status=response.status_code, history=len(response.history))
+            return response
 
 
 class Transport(xmlrpclib.Transport):
@@ -57,7 +75,14 @@ class Transport(xmlrpclib.Transport):
     def request(self, *args: Any, **kwargs: Any) -> Any:
         self.test_case.cr.flush()
         self.test_case.cr.clear()
-        with self.test_case.allow_requests(all_requests=True):
+        with (
+            _debug.perf(
+                "test.http.xmlrpc",
+                test=_tag(self.test_case),
+                handler=args[1] if len(args) > 1 else None,
+            ),
+            self.test_case.allow_requests(all_requests=True),
+        ):
             return super().request(*args, **kwargs)
 
 
@@ -80,6 +105,7 @@ class HttpCase(TransactionCase):
     @classmethod
     def setUpClass(cls) -> None:
         if cls.http_port() is None:
+            _debug.logic("test.http.no_server", cls=cls.__qualname__)
             raise InfrastructureUnavailable(
                 f"{cls.__name__} requires a running HTTP server (--no-http?)"
             )
@@ -89,9 +115,17 @@ class HttpCase(TransactionCase):
 
         ICP = cls.env["ir.config_parameter"]
         ICP.set_param("web.base.url", cls.base_url())  # type: ignore[attr-defined]  # ir.config_parameter is an addon model
-        ICP.env.flush_all()
+        cls.env.flush_all()
         cls.xmlrpc_url = f"{cls.base_url()}/xmlrpc/2/"
         cls._logger = logging.getLogger("%s.%s" % (cls.__module__, cls.__name__))
+        _debug.lifecycle(
+            "test.http.class_ready",
+            cls=cls.__qualname__,
+            port=cls.http_port(),
+            test_mode=cls.registry_test_mode,
+            browser_size=cls.browser_size,
+            touch=cls.touch_enabled,
+        )
 
     @classmethod
     def base_url(cls) -> str:
@@ -99,7 +133,7 @@ class HttpCase(TransactionCase):
 
     @classmethod
     def http_port(cls) -> int | None:
-        httpd = getattr(odoo.service._process_state.server, "httpd", None)
+        httpd = getattr(get_server(), "httpd", None)
         return httpd.server_port if httpd is not None else None
 
     def setUp(self) -> None:
@@ -123,17 +157,21 @@ class HttpCase(TransactionCase):
         self.opener = Opener(self)
         self.addCleanup(self._close_opener)
         self.http_key_sequence = itertools.count()
+        _debug.lifecycle("test.http.setup", test=_tag(self))
 
     def _close_opener(self) -> None:
+        _debug.lifecycle("test.http.opener_closed", test=_tag(self))
         self.opener.close()
 
     @contextmanager
     def enter_registry_test_mode(self) -> Generator[None]:
+        _debug.logic("test.registry.test_mode_redundant", test=_tag(self))
         _logger.warning("HTTPCase is already in test mode")
         yield
 
     @contextmanager
     def allow_pdf_render(self) -> Generator[None]:
+        _debug.logic("test.registry.pdf_render_redundant", test=_tag(self))
         _logger.warning("HTTPCase does not require calling allow_pdf_render")
         yield
 
@@ -161,13 +199,22 @@ class HttpCase(TransactionCase):
                     HOST,
                     http_only=True,
                 )
+            _debug.lifecycle(
+                "test.http.requests_allowed",
+                key=new_key,
+                all=all_requests,
+                browser=browser is not None,
+                had_cookie=bool(old_cookie),
+            )
+            defer.callback(_debug.lifecycle, "test.http.requests_closed", key=new_key)
             yield
 
     def parse_http_location(self, location: str | None) -> Any:
         if not location:
             return urlsplit("")
         s = urlsplit(urljoin(self.base_url(), location))
-        return s._replace(query=urlencode(parse_qsl(s.query)))
+        params = sorted(parse_qsl(s.query), key=operator.itemgetter(0))
+        return s._replace(query=urlencode(params))
 
     def assertURLEqual(
         self, test_url: str, truth_url: str, message: str | None = None
@@ -204,6 +251,14 @@ class HttpCase(TransactionCase):
         method = method or "GET"
         if url.startswith("/"):
             url = self.base_url() + url
+        _debug.pipeline(
+            "test.http.url_open",
+            method=method,
+            url=url,
+            timeout=timeout,
+            redirects=allow_redirects,
+            cookies=bool(cookies),
+        )
         return self.opener.request(
             method,
             url,
@@ -235,13 +290,29 @@ class HttpCase(TransactionCase):
 
         self._logger.info("waiting for threads: %s", request_threads)
 
-        for thread in request_threads:
-            thread.join(timeout - (time.monotonic() - start_time))
-
-        request_threads = get_http_request_threads()
+        # A pooled worker outlives its request and is renamed when it goes back
+        # to idle, so joining it would wait out the whole timeout: poll instead.
+        deadline = start_time + timeout
+        with _debug.perf(
+            "test.http.wait_requests",
+            test=_tag(self),
+            threads=len(request_threads),
+            timeout=timeout,
+        ) as span:
+            while request_threads and time.monotonic() < deadline:
+                for thread in request_threads:
+                    thread.join(min(0.05, max(deadline - time.monotonic(), 0)))
+                request_threads = get_http_request_threads()
+            span.set(remaining=len(request_threads))
         if not request_threads:
             return
 
+        _debug.logic(
+            "test.http.request_threads_leaked",
+            test=_tag(self),
+            count=len(request_threads),
+            strict=strict,
+        )
         odoo.tools.misc.dumpstacks()
         leaked = ", ".join(
             f"{thread.name} ({getattr(thread, 'url', '<UNKNOWN>')})"
@@ -263,6 +334,15 @@ class HttpCase(TransactionCase):
         self._wait_remaining_requests(strict=exc_type is None)
 
     def logout(self, keep_db: bool = True) -> None:
+        # The browser may have followed a rotation since authenticate().
+        sid = self.opener.cookies.get("session_id", self.session.sid)
+        _debug.lifecycle(
+            "test.http.logout",
+            test=_tag(self),
+            rotated=sid != self.session.sid,
+            keep_db=keep_db,
+        )
+        self.session = odoo.http.root.session_store.get(sid)
         self.session.logout(keep_db=keep_db)
         odoo.http.root.session_store.save(self.session)
 
@@ -275,8 +355,16 @@ class HttpCase(TransactionCase):
         session_extra: dict | None = None,
     ) -> Any:
         if getattr(self, "session", None):
+            _debug.logic("test.http.session_replaced", test=_tag(self))
             odoo.http.root.session_store.delete(self.session)
 
+        _debug.pipeline(
+            "test.http.authenticate",
+            test=_tag(self),
+            user=user,
+            browser=browser is not None,
+            extra=sorted(session_extra) if session_extra else [],
+        )
         self.session = session = odoo.http.root.session_store.new()
         session.update(
             odoo.http.prepare_default_session(),
@@ -301,9 +389,12 @@ class HttpCase(TransactionCase):
                     "mfa": "default",
                 }
 
-            with patch(
-                "odoo.addons.base.models.res_users.ResUsersPatchedInTest._check_credentials",
-                new=patched_check_credentials,
+            with (
+                patch(
+                    "odoo.addons.base.models.res_users.ResUsersPatchedInTest._check_credentials",
+                    new=patched_check_credentials,
+                ),
+                _debug.perf("test.http.authenticate_user", cr=self.cr, user=user),
             ):
                 credential = {
                     "login": user,
@@ -329,18 +420,27 @@ class HttpCase(TransactionCase):
         if browser:
             self._logger.info("Setting session cookie in browser")
             browser.set_cookie("session_id", session.sid, "/", HOST, http_only=True)
+        _debug.lifecycle(
+            "test.http.authenticated",
+            test=_tag(self),
+            uid=session.uid,
+            opener_replaced=old_opener is not None,
+            browser=browser is not None,
+        )
 
         return session
 
     def prepare_proxy_response(self, url: str) -> dict:
 
         if "https://fonts.googleapis.com/css" in url:
+            _debug.logic("test.http.proxy", kind="fonts", url=url)
             _logger.info(
                 "External chrome request during tests: Return empty file for %s",
                 url,
             )
             return self.prepare_proxy_response_from_content("")
 
+        _debug.logic("test.http.proxy", kind="404", url=url)
         _logger.info("External chrome request during tests: returning 404 for %s", url)
         return {
             "body": "",
@@ -380,11 +480,21 @@ class HttpCase(TransactionCase):
             timeout = 1e6
         if watch:
             self._logger.warning("watch mode is only suitable for local testing")
+        _debug.logic(
+            "test.browser.budget",
+            test=_tag(self),
+            timeout=timeout,
+            watch=watch,
+            debug=debug is not False,
+            registry_loaded=self.env.registry.loaded,
+        )
         return timeout, watch
 
     def _browser_js_patch_bus(self, atexit: contextlib.ExitStack) -> None:
         if "bus.bus" not in self.env.registry:
+            _debug.logic("test.browser.bus_patched", present=False)
             return
+        _debug.logic("test.browser.bus_patched", present=True)
 
         from odoo.addons.bus.models.bus import BusBus
         from odoo.addons.bus.websocket import (
@@ -438,13 +548,30 @@ class HttpCase(TransactionCase):
     ):
         timeout, watch = self._browser_js_budget(timeout, watch, debug)
 
+        _debug.pipeline(
+            "test.browser.js_start",
+            test=_tag(self),
+            url=url_path,
+            login=login,
+            ready=bool(ready),
+            code=bool(code),
+            success_signal=success_signal,
+            cookies=len(cookies or ()),
+            error_checker=error_checker is not None,
+        )
         browser = common.ChromeBrowser(
             self, headless=not watch, success_signal=success_signal, debug=debug
         )
-        with contextlib.ExitStack() as atexit:
-            atexit.callback(browser.stop)
+        with (
+            _debug.perf(
+                "test.browser.js", cr=self.cr, test=_tag(self), url=url_path
+            ) as span,
+            contextlib.ExitStack() as atexit,
+        ):
             atexit.enter_context(self.allow_requests(browser=browser))
             atexit.push(self._wait_for_requests_unless_already_failing)
+            # Registered last so it runs first: the browser is gone before the
+            # wait for its requests starts, and before the cookie is withdrawn.
             atexit.callback(browser.stop)
             self._browser_js_patch_bus(atexit)
 
@@ -463,6 +590,12 @@ class HttpCase(TransactionCase):
             cpu_throttling = cpu_throttling_os or cpu_throttling
 
             if cpu_throttling:
+                _debug.logic(
+                    "test.browser.throttled",
+                    factor=cpu_throttling,
+                    source="env" if cpu_throttling_os else "arg",
+                    timeout=timeout * cpu_throttling,
+                )
                 _logger.log(
                     logging.INFO if cpu_throttling_os else logging.WARNING,
                     "CPU throttling mode is only suitable for local testing - "
@@ -474,8 +607,12 @@ class HttpCase(TransactionCase):
 
             browser.navigate_to(url, wait_stop=not bool(ready))
 
+            ready_ok = browser._wait_ready(ready, timeout)
+            span.set(ready=ready_ok)
+            if not ready_ok:
+                _debug.logic("test.browser.ready_failed", test=_tag(self))
             self.assertTrue(
-                browser._wait_ready(ready, timeout),
+                ready_ok,
                 'The ready "%s" code was always falsy' % ready,
             )
 
@@ -484,6 +621,7 @@ class HttpCase(TransactionCase):
                 browser._wait_code_ok(code, timeout, error_checker=error_checker)
             except ChromeBrowserException as chrome_browser_exception:
                 error = chrome_browser_exception
+            span.set(failed=error is not None)
             if error:
                 if code:
                     message = 'The test code "%s" failed' % code
@@ -523,6 +661,16 @@ class HttpCase(TransactionCase):
                 "Tour %s is launched with mode: check for undeterminisms.",
                 tour_name,
             )
+        _debug.pipeline(
+            "test.browser.tour",
+            test=_tag(self),
+            tour=tour_name,
+            url=url_path,
+            step_delay=options["stepDelay"],
+            undeterminisms=options["delayToCheckUndeterminisms"],
+            timeout=timeout,
+            watch=options["keepWatchBrowser"],
+        )
         Users = self.registry["res.users"]
 
         def setup(_):
@@ -551,6 +699,11 @@ class HttpCase(TransactionCase):
                 description=request.httprequest.full_path, db=_profiler.db
             )
             _profiler.sub_profilers.append(_route_profiler)
+            _debug.lifecycle(
+                "test.profile.route",
+                path=request.httprequest.path,
+                sub_profilers=len(_profiler.sub_profilers),
+            )
             return _route_profiler
 
         return profiler.Nested(
@@ -584,8 +737,15 @@ class HttpCase(TransactionCase):
         response.raise_for_status()
         decoded_response = response.json()
         if "error" in decoded_response:
+            _debug.logic(
+                "test.http.jsonrpc_error",
+                route=route,
+                code=decoded_response["error"]["code"],
+                name=decoded_response["error"]["data"]["name"],
+            )
             raise JsonRpcException(
                 code=decoded_response["error"]["code"],
                 message=decoded_response["error"]["data"]["name"],
             )
+        _debug.pipeline("test.http.jsonrpc", route=route, params=sorted(params or ()))
         return decoded_response.get("result")

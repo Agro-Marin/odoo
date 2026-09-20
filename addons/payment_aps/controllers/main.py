@@ -6,6 +6,7 @@ from werkzeug.exceptions import Forbidden
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
 
 _logger = get_payment_logger(__name__)
@@ -44,7 +45,9 @@ class APSController(http.Controller):
             request.env["payment.transaction"].sudo()._search_by_reference("aps", data)
         )
         if tx_sudo:
-            self._check_signature(data, tx_sudo)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id, lambda: self._check_signature(data, tx_sudo)
+            )
             tx_sudo._process("aps", data)
         return request.redirect("/payment/status")
 
@@ -65,7 +68,9 @@ class APSController(http.Controller):
             request.env["payment.transaction"].sudo()._search_by_reference("aps", data)
         )
         if tx_sudo:
-            self._check_signature(data, tx_sudo)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id, lambda: self._check_signature(data, tx_sudo)
+            )
             tx_sudo._process("aps", data)
         return ""  # Acknowledge the notification.
 
@@ -81,12 +86,12 @@ class APSController(http.Controller):
         received_signature = payment_data.get("signature")
         if not received_signature:
             _logger.warning("Received payment data with missing signature.")
-            raise Forbidden()
+            raise Forbidden
 
         # Compare the received signature with the expected signature computed from the data.
-        expected_signature = tx_sudo.provider_id._aps_calculate_signature(
+        expected_signature = tx_sudo.provider_id._get_aps_signature(
             payment_data, incoming=True
         )
         if not hmac.compare_digest(received_signature, expected_signature):
             _logger.warning("Received payment data with invalid signature.")
-            raise Forbidden()
+            raise Forbidden

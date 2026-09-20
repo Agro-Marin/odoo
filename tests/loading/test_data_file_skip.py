@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.modules import loading
+from odoo.orm.runtime._loading_phase import LoadingPhase
 
 
 class TestDataFileDigestAndDynamicFlag:
@@ -81,16 +82,15 @@ def loader(tmp_path):
 
         def fake_convert(env, name, fname, idref, cmode, noupdate=False):
             converted.append(fname)
-            if getattr(env.registry, "_xmlid_recorder", None) is not None:
-                env.registry._xmlid_recorder.update(recorded_xmlids)
+            if env.registry.loading.xmlid_recorder is not None:
+                env.registry.loading.xmlid_recorder.update(recorded_xmlids)
 
         env = MagicMock()
         env.cr.fetchone.return_value = (stored,)
         env.cr.fetchall.return_value = [[xmlid] for xmlid in missing]
         registry = env.registry
         registry.loaded_xmlids = set()
-        registry._xmlids_written = set(written)
-        registry._xmlid_recorder = None
+        registry.loading = LoadingPhase(xmlids_written=set(written))
 
         package = MagicMock()
         package.name, package.id = "mymod", 42
@@ -281,7 +281,7 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
 
     def test_applying_a_file_publishes_what_it_wrote(self, loader):
         loader(stored=self._stored({}))
-        assert {"mymod.a", "mymod.b"} <= loader.registry._xmlids_written, (
+        assert {"mymod.a", "mymod.b"} <= loader.registry.loading.xmlids_written, (
             "a later file can only detect contention if earlier writes are "
             "recorded as they happen"
         )
@@ -291,14 +291,14 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
             stored=self._stored({"data/x.xml": _entry(_digest())}),
             written={"mymod.unrelated"},
         )
-        assert loader.registry._xmlids_written == {"mymod.unrelated"}, (
+        assert loader.registry.loading.xmlids_written == {"mymod.unrelated"}, (
             "a file that never ran wrote nothing, so it must not make a later "
             "file look contended"
         )
 
     def test_the_untracked_path_records_too(self, loader):
         loader(stored=self._stored({}), track=False)
-        assert {"mymod.a", "mymod.b"} <= loader.registry._xmlids_written, (
+        assert {"mymod.a", "mymod.b"} <= loader.registry.loading.xmlids_written, (
             "tracking off for one module does not make its writes invisible to "
             "a module that is tracked"
         )

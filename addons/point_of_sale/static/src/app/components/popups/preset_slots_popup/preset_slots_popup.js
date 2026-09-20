@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
+const log = makeLogger("pos.popup.preset_slots");
 
 export class PresetSlotsPopup extends Component {
     static template = "point_of_sale.PresetSlotsPopup";
@@ -16,6 +19,7 @@ export class PresetSlotsPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.state = useState({
             selectedPresetId: this.pos.getOrder().preset_id.id,
@@ -25,8 +29,14 @@ export class PresetSlotsPopup extends Component {
         });
 
         onWillStart(async () => {
-            for (const preset of this.timedPresets) {
-                await this.pos.syncPresetSlotAvaibility(preset);
+            const endSync = log.perf("willStart: sync slot availability");
+            const presets = this.timedPresets;
+            try {
+                await Promise.all(
+                    presets.map((preset) => this.pos.syncPresetSlotAvaibility(preset)),
+                );
+            } finally {
+                endSync({ presets: presets.length });
             }
         });
     }
@@ -87,6 +97,13 @@ export class PresetSlotsPopup extends Component {
     }
 
     confirm(slot, preset) {
+        log.pipeline("confirm", () => ({
+            order: this.pos.getOrder()?.uuid,
+            preset: preset.id,
+            slot: slot.datetime?.toISO?.(),
+            isFull: slot.isFull,
+            orders: slot.order_ids?.size,
+        }));
         this.props.getPayload({ slot, presetId: preset.id });
         this.props.close();
     }

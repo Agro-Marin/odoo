@@ -81,7 +81,6 @@ class TestSnippets(HttpCase):
         )
 
     def test_website_category_url(self):
-        # Create a public category with a cover image
         category = self.env["product.public.category"].create(
             {
                 "name": "Test Category",
@@ -97,7 +96,6 @@ class TestSnippets(HttpCase):
             }
         )
 
-        # Simulate a request with correct context
         with MockRequest(self.env, website=website):
             original_get_base_url = (
                 self.env["product.public.category"].sudo().get_base_url()
@@ -110,6 +108,5 @@ class TestSnippets(HttpCase):
                 )
             )
 
-        # Assert that the returned cover_image uses the mocked base URL
         self.assertTrue(data[0]["cover_image"].startswith(original_get_base_url))
         self.assertNotIn(website.domain, data[0]["cover_image"])

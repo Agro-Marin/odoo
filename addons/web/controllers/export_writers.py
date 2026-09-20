@@ -13,6 +13,8 @@ from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.documents import ROWS, BaseWriter, mimetype_for, register_writer
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 XLSX_MIMETYPE = mimetype_for("xlsx")
@@ -79,6 +81,12 @@ class GroupsTreeNode:
 
         aggregate_func = OPERATOR_MAPPING.get(aggregator)
         if not aggregate_func:
+            dbg.logic.debug(
+                "[groups:%s] %s: aggregator %r unsupported",
+                self._model._name,
+                field_name,
+                aggregator,
+            )
             _logger.warning(
                 "Unsupported export of aggregator '%s' for field %s on model %s",
                 aggregator,
@@ -121,16 +129,23 @@ class GroupsTreeNode:
     def aggregated_values(self) -> dict[str, Any]:
         aggregated_values = {}
 
-        field_values = zip(*self.data, strict=True)
+        columns = list(zip(*self.data, strict=True))
         aggregated_field_names = self._get_aggregated_field_names()
-        for field_name in self._export_field_names:
-            field_data = (self.data and next(field_values)) or []
-
-            if field_name in aggregated_field_names:
-                field = self._model._fields[field_name]
-                aggregated_values[field_name] = self._get_aggregate(
-                    field_name, field_data, field.aggregator
-                )
+        dbg.performance.debug(
+            "[groups:%s] aggregate %s node: %d rows, %d children, %d aggregated fields",
+            self._model._name,
+            "leaf" if self.data else "inner",
+            len(self.data),
+            len(self.children),
+            len(aggregated_field_names),
+        )
+        for index, field_name in enumerate(self._export_field_names):
+            if field_name not in aggregated_field_names:
+                continue
+            field = self._model._fields[field_name]
+            aggregated_values[field_name] = self._get_aggregate(
+                field_name, iter(columns[index] if columns else ()), field.aggregator
+            )
 
         return aggregated_values
 
@@ -154,6 +169,14 @@ class GroupsTreeNode:
             node = node.child(node_key)
             node.count += count
 
+        if node.data:
+            dbg.logic.debug(
+                "[groups:%s] leaf %s already has %d rows, overwritten with %d",
+                self._model._name,
+                leaf_path,
+                len(node.data),
+                len(data),
+            )
         node.data = data
 
 
@@ -173,6 +196,20 @@ class ExportXlsxWriter:
             self.output,
             {"in_memory": True, "constant_memory": True, "strings_to_formulas": False},
         )
+        self.worksheet = self.workbook.add_worksheet()
+        if row_count + 1 > self.worksheet.xls_rowmax:
+            dbg.logic.debug(
+                "[xlsx] %d rows exceed xls_rowmax %d, refused",
+                row_count,
+                self.worksheet.xls_rowmax,
+            )
+            raise UserError(
+                self.env._(
+                    "There are too many rows (%(count)s rows, limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
+                    count=row_count,
+                    limit=self.worksheet.xls_rowmax,
+                )
+            )
         self.header_style = self.workbook.add_format({"bold": True})
         self.date_style = self.workbook.add_format(
             {"text_wrap": True, "num_format": "yyyy-mm-dd"}
@@ -185,9 +222,10 @@ class ExportXlsxWriter:
             {"text_wrap": True, "num_format": "#,##0.00"}
         )
 
-        decimal_places = self.env["res.currency"]._read_group(
-            [], aggregates=["decimal_places:max"]
-        )[0][0]
+        with dbg.timer(self.env, "[xlsx] max currency decimal_places"):
+            decimal_places = self.env["res.currency"]._read_group(
+                [], aggregates=["decimal_places:max"]
+            )[0][0]
         self.monetary_decimal_places = decimal_places or 2
         self.monetary_style = self.workbook.add_format(
             {
@@ -212,17 +250,13 @@ class ExportXlsxWriter:
             )
         )
 
-        self.worksheet = self.workbook.add_worksheet()
         self.value = False
-
-        if row_count + 1 > self.worksheet.xls_rowmax:
-            raise UserError(
-                self.env._(
-                    "There are too many rows (%(count)s rows, limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
-                    count=row_count,
-                    limit=self.worksheet.xls_rowmax,
-                )
-            )
+        dbg.lifecycle.debug(
+            "[xlsx] writer: %d columns, %d rows, monetary decimals=%d",
+            len(columns_headers),
+            row_count,
+            self.monetary_decimal_places,
+        )
 
     def __enter__(self) -> Self:
         self.write_header()
@@ -242,13 +276,24 @@ class ExportXlsxWriter:
         self.worksheet.freeze_panes(1, 0)
 
     def close(self) -> None:
-        self.worksheet.autofit()
-        self.workbook.close()
+        with dbg.timer(None, "[xlsx] autofit"):
+            self.worksheet.autofit()
+        with dbg.timer(None, "[xlsx] workbook close"):
+            self.workbook.close()
         with self.output:
             self.value = self.output.getvalue()
+        dbg.performance.debug("[xlsx] closed: %d bytes", len(self.value))
 
     def write(self, row: int, column: int, cell_value: Any, style: Any = None) -> None:
         error_code = self.worksheet.write(row, column, cell_value, style)
+        if error_code:
+            dbg.logic.debug(
+                "[xlsx] write (%d, %d) %s -> error %s",
+                row,
+                column,
+                type(cell_value).__name__,
+                error_code,
+            )
         if error_code == -1:
             raise UserError(
                 self.env._(
@@ -272,6 +317,9 @@ class ExportXlsxWriter:
             try:
                 cell_value = cell_value.decode()
             except UnicodeDecodeError:
+                dbg.logic.debug(
+                    "[xlsx] (%d, %d) binary not base64 text, refused", row, column
+                )
                 raise UserError(
                     self.env._(
                         "Binary fields can not be exported to Excel unless their content is base64-encoded. That does not seem to be the case for %s.",
@@ -283,6 +331,12 @@ class ExportXlsxWriter:
 
         if isinstance(cell_value, str):
             if len(cell_value) > self.worksheet.xls_strmax:
+                dbg.logic.debug(
+                    "[xlsx] (%d, %d) %d chars > xls_strmax, replaced",
+                    row,
+                    column,
+                    len(cell_value),
+                )
                 cell_value = self.env._(
                     "The content of this cell is too long for an XLSX file (more than %s characters). Please use the CSV format for this export.",
                     self.worksheet.xls_strmax,
@@ -296,7 +350,9 @@ class ExportXlsxWriter:
         elif isinstance(cell_value, float):
             field = self.fields[column]
             cell_style = (
-                self.monetary_style if field["type"] == "monetary" else self.float_style
+                self.monetary_style
+                if field.get("type") == "monetary"
+                else self.float_style
             )
         self.write(row, column, cell_value, cell_style)
 
@@ -317,6 +373,15 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         )
         if group._groupby_type[group_depth] != "boolean":
             group_name = group_name or self.env._("Undefined")
+        dbg.pipeline.debug(
+            "[xlsx] group depth=%d %r: count=%d children=%d rows=%d at row %d",
+            group_depth,
+            group_name,
+            group.count,
+            len(group.children),
+            len(group.data),
+            row,
+        )
         row, column = self._write_group_header(
             row, column, group_name, group, group_depth
         )
@@ -360,9 +425,9 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
             column += 1
             aggregated_value = aggregates.get(field["name"])
             header_style = self.header_bold_style
-            if field["type"] == "monetary":
+            if field.get("type") == "monetary":
                 header_style = self.header_bold_style_monetary
-            elif field["type"] == "float":
+            elif field.get("type") == "float":
                 header_style = self.header_bold_style_float
             else:
                 aggregated_value = str(
@@ -382,6 +447,14 @@ class XlsxRowsWriter(BaseWriter):
         columns_headers = list(options.get("columns_headers") or [])
         width = max((len(row) for row in rows), default=len(columns_headers))
         fields = list(options.get("fields") or [])
+        dbg.lifecycle.debug(
+            "[xlsx] rows writer: %d rows, width %d, %d fields, %d headers, env=%s",
+            len(rows),
+            width,
+            len(fields),
+            len(columns_headers),
+            options.get("env") is not None,
+        )
         fields += [{"name": "", "type": "char"}] * (width - len(fields))
         with ExportXlsxWriter(
             fields, columns_headers, len(rows), env=options.get("env")

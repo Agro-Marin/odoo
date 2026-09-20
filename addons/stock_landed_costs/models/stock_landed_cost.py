@@ -1,7 +1,11 @@
+import logging
 from collections import defaultdict
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_logger = logging.getLogger(__name__)
 
 SPLIT_METHOD = [
     ("equal", "Equal"),
@@ -10,6 +14,9 @@ SPLIT_METHOD = [
     ("by_weight", "By Weight"),
     ("by_volume", "By Volume"),
 ]
+
+
+_debug = DebugLog(__name__)
 
 
 class StockLandedCost(models.Model):
@@ -25,89 +32,89 @@ class StockLandedCost(models.Model):
         ].get_company_dependent_fallback(ProductCategory)
 
     name = fields.Char(
-        "Name", default=lambda self: _("New"), copy=False, readonly=True, tracking=True
+        default=lambda self: _("New"),
+        copy=False,
+        readonly=True,
+        tracking=True,
     )
     date = fields.Date(
-        "Date",
         default=fields.Date.context_today,
         copy=False,
         required=True,
         tracking=True,
     )
-    target_model = fields.Selection(
-        [("picking", "Transfers")],
-        string="Apply On",
-        required=True,
-        default="picking",
+    picking_ids = fields.Many2many(
+        comodel_name="stock.picking",
+        string="Transfers",
         copy=False,
     )
-    picking_ids = fields.Many2many("stock.picking", string="Transfers", copy=False)
     cost_lines = fields.One2many(
-        "stock.landed.cost.lines", "cost_id", "Cost Lines", copy=True
+        comodel_name="stock.landed.cost.lines",
+        inverse_name="cost_id",
+        copy=True,
     )
     valuation_adjustment_lines = fields.One2many(
-        "stock.valuation.adjustment.lines",
-        "cost_id",
-        "Valuation Adjustments",
+        comodel_name="stock.valuation.adjustment.lines",
+        inverse_name="cost_id",
+        string="Valuation Adjustments",
     )
-    description = fields.Text("Item Description")
+    description = fields.Text(string="Item Description")
     amount_total = fields.Monetary(
-        "Total", compute="_compute_amount_total", store=True, tracking=True
+        string="Total",
+        compute="_compute_amount_total",
+        store=True,
+        tracking=True,
     )
     state = fields.Selection(
-        [("draft", "Draft"), ("done", "Posted"), ("cancel", "Cancelled")],
-        "State",
+        selection=[("draft", "Draft"), ("done", "Posted"), ("cancel", "Cancelled")],
         default="draft",
         copy=False,
         readonly=True,
         tracking=True,
     )
     account_move_id = fields.Many2one(
-        "account.move",
-        "Journal Entry",
+        comodel_name="account.move",
+        string="Journal Entry",
         index="btree_not_null",
         copy=False,
         readonly=True,
     )
     account_journal_id = fields.Many2one(
-        "account.journal",
-        "Account Journal",
-        required=True,
+        comodel_name="account.journal",
         default=lambda self: self._default_account_journal_id(),
+        required=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        required=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company,
+        required=True,
     )
     vendor_bill_id = fields.Many2one(
-        "account.move",
-        "Vendor Bill",
+        comodel_name="account.move",
+        index="btree_not_null",
         copy=False,
         domain=[("move_type", "=", "in_invoice")],
-        index="btree_not_null",
     )
-    currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        related="company_id.currency_id",
+    )
 
     @api.depends("cost_lines.price_unit")
     def _compute_amount_total(self):
         for cost in self:
             cost.amount_total = sum(line.price_unit for line in cost.cost_lines)
 
-    @api.onchange("target_model")
-    def _onchange_target_model(self):
-        if self.target_model != "picking":
-            self.picking_ids = False
-
     @api.model_create_multi
     def create(self, vals_list):
+        _debug.lifecycle("landed_cost_create", count=len(vals_list))
         for vals in vals_list:
             if vals.get("name", _("New")) == _("New"):
                 vals["name"] = self.env["ir.sequence"].next_by_code("stock.landed.cost")
         return super().create(vals_list)
 
     def unlink(self):
+        _debug.lifecycle("landed_cost_unlink", costs=self)
         self.button_cancel()
         return super().unlink()
 
@@ -117,6 +124,7 @@ class StockLandedCost(models.Model):
         return super()._track_subtype(init_values)
 
     def button_cancel(self):
+        _debug.lifecycle("landed_cost_cancel", costs=self)
         if any(cost.state == "done" for cost in self):
             raise UserError(
                 _(
@@ -126,13 +134,14 @@ class StockLandedCost(models.Model):
         return self.write({"state": "cancel"})
 
     def button_validate(self):
+        _debug.pipeline("landed_cost_validate_enter", costs=self)
         self._check_can_validate()
         cost_without_adjusment_lines = self.filtered(
             lambda c: not c.valuation_adjustment_lines
         )
         if cost_without_adjusment_lines:
             cost_without_adjusment_lines.compute_landed_cost()
-        if not self._check_sum():
+        if not self._is_valuation_balanced():
             raise UserError(
                 _(
                     "Cost and adjustments lines do not match. You should maybe recompute the landed costs."
@@ -170,6 +179,7 @@ class StockLandedCost(models.Model):
         return True
 
     def get_valuation_lines(self):
+        _debug.perf.count("landed_cost_valuation_lines", costs=self)
         self.check_singleton()
         lines = []
 
@@ -180,7 +190,7 @@ class StockLandedCost(models.Model):
                 or not move.quantity
             ):
                 continue
-            qty = move.product_uom_id._compute_quantity(
+            qty = move.product_uom_id._get_quantity_in_unit(
                 move.quantity, move.product_id.uom_id
             )
 
@@ -195,18 +205,15 @@ class StockLandedCost(models.Model):
             lines.append(vals)
 
         if not lines:
-            target_model_descriptions = dict(
-                self._fields["target_model"]._description_selection(self.env)
-            )
             raise UserError(
                 _(
-                    "You cannot apply landed costs on the chosen %s(s). Landed costs can only be applied for products with FIFO or average costing method.",
-                    target_model_descriptions[self.target_model],
+                    "You cannot apply landed costs on the chosen Transfer(s). Landed costs can only be applied for products with FIFO or average costing method."
                 )
             )
         return lines
 
     def compute_landed_cost(self):
+        _debug.pipeline("landed_cost_compute_enter", costs=self)
         AdjustementLines = self.env["stock.valuation.adjustment.lines"]
         AdjustementLines.search([("cost_id", "in", self.ids)]).unlink()
 
@@ -257,6 +264,15 @@ class StockLandedCost(models.Model):
                             per_unit = line.price_unit / total_cost
                             value = valuation.former_cost * per_unit
                         else:
+                            if line.split_method != "equal":
+                                _logger.warning(
+                                    "Landed cost %s: split method %r could not be "
+                                    "applied on cost line %s (its total was zero); "
+                                    "falling back to an equal split.",
+                                    cost.id,
+                                    line.split_method,
+                                    line.id,
+                                )
                             value = line.price_unit / total_line
 
                         if rounding:
@@ -282,21 +298,19 @@ class StockLandedCost(models.Model):
         return self.picking_ids.move_ids
 
     def _check_can_validate(self):
+        _debug.logic("landed_cost_validate_check", costs=self)
         if any(cost.state != "draft" for cost in self):
             raise UserError(_("Only draft landed costs can be validated"))
         for cost in self:
             if not cost._get_targeted_move_ids():
-                target_model_descriptions = dict(
-                    self._fields["target_model"]._description_selection(self.env)
-                )
                 raise UserError(
                     _(
-                        "Please define %s on which those additional costs should apply.",
-                        target_model_descriptions[cost.target_model],
+                        "Please define Transfer(s) on which those additional costs should apply."
                     )
                 )
 
-    def _check_sum(self):
+    def _is_valuation_balanced(self):
+        _debug.logic("landed_cost_sum_check", costs=self)
         for landed_cost in self:
             total_amount = sum(
                 landed_cost.valuation_adjustment_lines.mapped("additional_landed_cost")
@@ -323,19 +337,24 @@ class StockLandedCostLines(models.Model):
     _name = "stock.landed.cost.lines"
     _description = "Stock Landed Cost Line"
 
-    name = fields.Char("Description")
+    name = fields.Char(string="Description")
     cost_id = fields.Many2one(
-        "stock.landed.cost",
-        "Landed Cost",
-        required=True,
+        comodel_name="stock.landed.cost",
+        string="Landed Cost",
         index=True,
+        required=True,
         ondelete="cascade",
     )
-    product_id = fields.Many2one("product.product", "Product", required=True)
-    price_unit = fields.Monetary("Cost", required=True)
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        required=True,
+    )
+    price_unit = fields.Monetary(
+        string="Cost",
+        required=True,
+    )
     split_method = fields.Selection(
-        SPLIT_METHOD,
-        string="Split Method",
+        selection=SPLIT_METHOD,
         required=True,
         help="Equal: Cost will be equally divided.\n"
         "By Quantity: Cost will be divided according to product's quantity.\n"
@@ -343,8 +362,11 @@ class StockLandedCostLines(models.Model):
         "By Weight: Cost will be divided depending on its weight.\n"
         "By Volume: Cost will be divided depending on its volume.",
     )
-    account_id = fields.Many2one("account.account", "Account")
-    currency_id = fields.Many2one("res.currency", related="cost_id.currency_id")
+    account_id = fields.Many2one(comodel_name="account.account")
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        related="cost_id.currency_id",
+    )
 
     @api.onchange("product_id")
     def onchange_product_id(self):
@@ -363,27 +385,55 @@ class StockValuationAdjustmentLines(models.Model):
     _name = "stock.valuation.adjustment.lines"
     _description = "Valuation Adjustment Lines"
 
-    name = fields.Char("Description", compute="_compute_name", store=True)
+    name = fields.Char(
+        string="Description",
+        compute="_compute_name",
+        store=True,
+    )
     cost_id = fields.Many2one(
-        "stock.landed.cost",
-        "Landed Cost",
-        ondelete="cascade",
-        required=True,
+        comodel_name="stock.landed.cost",
+        string="Landed Cost",
         index=True,
+        required=True,
+        ondelete="cascade",
     )
     cost_line_id = fields.Many2one(
-        "stock.landed.cost.lines", "Cost Line", readonly=True
+        comodel_name="stock.landed.cost.lines",
+        readonly=True,
+        ondelete="cascade",
     )
-    move_id = fields.Many2one("stock.move", "Stock Move", readonly=True)
-    product_id = fields.Many2one("product.product", "Product", required=True)
-    quantity = fields.Float("Quantity", default=1.0, digits=0, required=True)
-    weight = fields.Float("Weight", default=1.0, digits="Stock Weight")
-    volume = fields.Float("Volume", default=1.0, digits="Volume")
-    former_cost = fields.Monetary("Original Value")
-    additional_landed_cost = fields.Monetary("Additional Landed Cost")
-    final_cost = fields.Monetary("New Value", compute="_compute_final_cost", store=True)
+    move_id = fields.Many2one(
+        comodel_name="stock.move",
+        string="Stock Move",
+        readonly=True,
+    )
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        required=True,
+    )
+    quantity = fields.Float(
+        digits=0,
+        default=1.0,
+        required=True,
+    )
+    weight = fields.Float(
+        digits="Stock Weight",
+        default=1.0,
+    )
+    volume = fields.Float(
+        digits="Volume",
+        default=1.0,
+    )
+    former_cost = fields.Monetary(string="Original Value")
+    additional_landed_cost = fields.Monetary()
+    final_cost = fields.Monetary(
+        string="New Value",
+        compute="_compute_final_cost",
+        store=True,
+    )
     currency_id = fields.Many2one(
-        "res.currency", related="cost_id.company_id.currency_id"
+        comodel_name="res.currency",
+        related="cost_id.company_id.currency_id",
     )
 
     @api.depends("cost_line_id.name", "product_id.code", "product_id.name")
@@ -398,6 +448,9 @@ class StockValuationAdjustmentLines(models.Model):
             line.final_cost = line.former_cost + line.additional_landed_cost
 
     def _create_accounting_entries(self, remaining_qty):
+        _debug.pipeline(
+            "landed_cost_entries_create", lines=self, remaining=remaining_qty
+        )
         cost_product = self.cost_line_id.product_id
         if not cost_product:
             return False
@@ -410,6 +463,14 @@ class StockValuationAdjustmentLines(models.Model):
             self.cost_line_id.account_id.id
             or cost_product._get_product_accounts()["expense"].id
         )
+
+        if not debit_account_id:
+            raise UserError(
+                _(
+                    "Please configure Stock Valuation Account for product: %s.",
+                    self.product_id.name,
+                )
+            )
 
         if not credit_account_id:
             raise UserError(

@@ -2,10 +2,13 @@
 import { Plugin } from "@html_editor/plugin";
 import { makeContentsInline, unwrapContents } from "@html_editor/utils/dom";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 
 import { AttributeTranslateDialog } from "../translation_components/attributeTranslateDialog.js";
 import { SelectTranslateDialog } from "../translation_components/selectTranslateDialog.js";
+
+const log = makeLogger("website.builder.translation.translation_plugin");
 
 /**
  * @typedef {((editableEls: HTMLElement[]) => void)[]} mark_translatable_nodes
@@ -19,8 +22,6 @@ export const translationAttributeSelector =
 
 export function getTranslationAttributeEls(rootEl) {
     const translationSavableEls = rootEl.querySelectorAll(translationAttributeSelector);
-    // filter, not find: a page can have several translatable textareas and all
-    // of them need the o_editable_attribute / readonly handling, not just one.
     const textAreaEls = Array.from(rootEl.querySelectorAll("textarea")).filter((el) =>
         el.textContent.includes("data-oe-translation-source-sha"),
     );
@@ -28,15 +29,11 @@ export function getTranslationAttributeEls(rootEl) {
 }
 
 /**
- *
  * @param {HTMLElement} containerEl
  * @returns {HTMLElement[]}
  */
 function findOEditable(containerEl) {
     const isOEditable = (node) => {
-        // Ideally, we should entirely rely on the contenteditable mechanism.
-        // The problem is that the translatable attributes are not branded DOM
-        // nodes hence the o_editable_attribute hack.
         if (
             node.isContentEditable ||
             (node.classList.contains("o_editable_attribute") &&
@@ -60,13 +57,15 @@ export class TranslationPlugin extends Plugin {
         clean_for_save_handlers: this.cleanForSave.bind(this),
         get_dirty_els: this.getDirtyTranslations.bind(this),
         after_setup_editor_handlers: () => {
+            const endSetupScan = log.perf(
+                "after_setup_editor mark editable attributes",
+            );
             const translationSavableEls = getTranslationAttributeEls(
                 this.services.website.pageDocument,
             );
             for (const translationSavableEl of translationSavableEls) {
                 translationSavableEl.classList.add("o_editable_attribute");
             }
-            // Apply data-oe-readonly on wrapping editor
             const editableElSelector = ".o_editable, .o_editable_attribute";
             const editableEls = [
                 ...translationSavableEls,
@@ -78,6 +77,10 @@ export class TranslationPlugin extends Plugin {
                     editableEl.classList.remove("o_editable", "o_editable_attribute");
                 }
             }
+            endSetupScan(() => ({
+                savableAttributes: translationSavableEls.length,
+                editables: editableEls.length,
+            }));
             return true;
         },
         start_edition_handlers: withSequence(5, () => {
@@ -85,6 +88,9 @@ export class TranslationPlugin extends Plugin {
         }),
         system_classes: ["o_editable_attribute"],
         before_insert_processors: withSequence(20, (container) => {
+            log.pipeline("before_insert_processors: inline and unwrap", () => ({
+                children: container.childElementCount,
+            }));
             makeContentsInline(container);
             for (const el of container.querySelectorAll(this.nonTranslatedSelector)) {
                 unwrapContents(el);
@@ -100,13 +106,24 @@ export class TranslationPlugin extends Plugin {
         this.nonTranslatedSelector =
             `:not(${this.config.translatedElements.join(", ")})` +
             `:not(.o_translate_inline)`;
+        log.lifecycle("setup", () => ({
+            translatedElements: this.config.translatedElements.length,
+        }));
     }
 
     prepareTranslation() {
+        const endPrepare = log.perf("prepareTranslation");
         this.editableEls = findOEditable(this.editable);
+        log.pipeline("prepareTranslation: found editables", () => ({
+            editables: this.editableEls.length,
+        }));
         this.buildTranslationInfoMap(this.editableEls);
         this.handleSelectTranslation(this.editableEls);
         this.markTranslatableNodes();
+        log.pipeline("prepareTranslation: translation info built", () => ({
+            translated: this.elToTranslationInfoMap.size,
+            selectOptions: this.translateSelectEls.length,
+        }));
         for (const [translatedEl] of this.elToTranslationInfoMap) {
             if (
                 translatedEl.matches("input[type=hidden].o_translatable_input_hidden")
@@ -115,8 +132,6 @@ export class TranslationPlugin extends Plugin {
             }
         }
 
-        // We don't want the BS dropdown to close when clicking in a element to
-        // translate.
         const menuEls =
             this.websiteService.pageDocument.querySelectorAll(".dropdown-menu");
         for (const menuEl of menuEls) {
@@ -130,14 +145,14 @@ export class TranslationPlugin extends Plugin {
         }
 
         const showNotification = (ev) => {
-            // Prevent duplicate notifications for the same click but allow the
-            // event to bubble (i.e. for carousel sliding)
             if (ev.__shownNotification) {
+                log.logic("showNotification: already shown for this event");
                 return;
             }
             ev.__shownNotification = true;
             let message = _t("This translation is not editable.");
             if (ev.target.closest(".s_table_of_content_navbar_wrap")) {
+                log.logic("showNotification: table of content navbar");
                 message = _t(
                     "Translate header in the text. Menu is generated automatically.",
                 );
@@ -156,8 +171,10 @@ export class TranslationPlugin extends Plugin {
         for (const savableInsideNotEditableEl of savableInsideNotEditableEls) {
             this.addDomListener(savableInsideNotEditableEl, "click", showNotification);
         }
-        // Keep the original values of elToTranslationInfoMap so that we know
-        // which translations have been updated.
+        log.pipeline("prepareTranslation: listeners attached", () => ({
+            menus: menuEls.length,
+            savableInsideNotEditable: savableInsideNotEditableEls.length,
+        }));
         this.originalElToTranslationInfoMap = new Map();
         for (const [translateEl, translationInfo] of this.elToTranslationInfoMap) {
             this.originalElToTranslationInfoMap.set(
@@ -165,22 +182,12 @@ export class TranslationPlugin extends Plugin {
                 JSON.parse(JSON.stringify(translationInfo)),
             );
         }
+        endPrepare(() => ({
+            snapshot: this.originalElToTranslationInfoMap.size,
+        }));
     }
 
     /**
-     * Creates a map that links html elements to their attributes to translate.
-     * It has the form:
-     * {translateEl1: {
-     *     attribute1: {
-     *         oeModel: "ir.ui.view",
-     *         oeId: "5",
-     *         oeField: "arch_db",
-     *         oeTranslationState: "translated",
-     *         oeTranslationSourceSha: "123",
-     *         translation: "traduction",
-     *     },
-     * }};
-     *
      * @param {HTMLElement[]} editableEls
      */
     buildTranslationInfoMap(editableEls) {
@@ -227,18 +234,19 @@ export class TranslationPlugin extends Plugin {
             const match = translation.match(translationRegex);
             if (match) {
                 textEditEl.value = match[2];
-                // Update the text content of textarea too
                 textEditEl.innerText = match[2];
             }
             textEditEl.classList.add("o_translatable_text");
             textEditEl.classList.remove("o_text_content_invisible");
         }
+        log.pipeline("buildTranslationInfoMap", () => ({
+            editables: editableEls.length,
+            textareas: textEditEls.length,
+            translated: this.elToTranslationInfoMap.size,
+        }));
     }
 
     handleSelectTranslation(editableEls) {
-        // Hack: we add a temporary element to handle option's text translations
-        // from the linked <select/>. The final values are copied to the
-        // original element right before save.
         const selectEls = editableEls.filter((editableEl) =>
             editableEl.matches("[data-oe-translation-source-sha] > select"),
         );
@@ -257,11 +265,14 @@ export class TranslationPlugin extends Plugin {
             }
             selectEl.before(selectTranslationEl);
         }
+        log.pipeline("handleSelectTranslation", () => ({
+            selects: selectEls.length,
+            options: this.translateSelectEls.length,
+        }));
     }
 
     handleToC(translateEl) {
         if (translateEl.closest(".s_table_of_content_navbar_wrap")) {
-            // Make sure the same translation ids are used
             const href = translateEl.closest("a").getAttribute("href");
             const headerEl = translateEl
                 .closest(".s_table_of_content")
@@ -271,30 +282,22 @@ export class TranslationPlugin extends Plugin {
                     translateEl.dataset.oeTranslationSourceSha !==
                     headerEl.dataset.oeTranslationSourceSha
                 ) {
-                    // Use the same identifier for the generated navigation
-                    // label and its associated header so that the general
-                    // synchronization mechanism kicks in.
-                    // The initial value is kept to be restored before save in
-                    // order to keep the translation of the unstyled label
-                    // distinct from the one of the header.
+                    log.logic("handleToC: header sha differs, keep save sha", () => ({
+                        href,
+                    }));
                     translateEl.dataset.oeTranslationSaveSha =
                         translateEl.dataset.oeTranslationSourceSha;
                     translateEl.dataset.oeTranslationSourceSha =
                         headerEl.dataset.oeTranslationSourceSha;
                 }
-                // TODO: handle o_translation_without_style
                 translateEl.classList.add("o_translation_without_style");
             }
         }
     }
 
     markTranslatableNodes() {
-        // attributes
         for (const [translateEl, translationInfo] of this.elToTranslationInfoMap) {
             for (const translationData of Object.values(translationInfo)) {
-                // If a node has an already translated attribute, we don't need
-                // to update its state, since it can be set again as
-                // "to_translate" by other attributes...
                 if (translateEl.dataset.oeTranslationState !== "translated") {
                     translateEl.setAttribute(
                         "data-oe-translation-state",
@@ -305,6 +308,9 @@ export class TranslationPlugin extends Plugin {
             this.addDomListener(translateEl, "click", (ev) => {
                 const translateEl = ev.target;
                 const elToTranslationInfoMap = this.elToTranslationInfoMap;
+                log.lifecycle("AttributeTranslateDialog open", () => ({
+                    tagName: translateEl.tagName,
+                }));
                 this.dialogService.add(AttributeTranslateDialog, {
                     node: translateEl,
                     elToTranslationInfoMap: elToTranslationInfoMap,
@@ -316,12 +322,18 @@ export class TranslationPlugin extends Plugin {
         for (const translateSelectEl of this.translateSelectEls) {
             this.addDomListener(translateSelectEl, "click", (ev) => {
                 const translateSelectEl = ev.target;
+                log.lifecycle("SelectTranslateDialog open");
                 this.dialogService.add(SelectTranslateDialog, {
                     node: translateSelectEl,
                     addStep: this.dependencies.history.addStep,
                 });
             });
         }
+        log.pipeline("dispatch mark_translatable_nodes", () => ({
+            translated: this.elToTranslationInfoMap.size,
+            selectOptions: this.translateSelectEls.length,
+            editables: this.editableEls.length,
+        }));
         this.dispatchTo("mark_translatable_nodes", this.editableEls);
     }
 
@@ -332,8 +344,7 @@ export class TranslationPlugin extends Plugin {
             "[data-oe-translation-source-sha]",
         );
         if (!translationEl) {
-            // The parsed translation did not contain the expected node; record
-            // nothing rather than throwing on `translationEl.dataset`.
+            log.logic("updateTranslationMap: no translation span", { attrName });
             return;
         }
         if (!this.elToTranslationInfoMap.get(translateEl)) {
@@ -345,7 +356,6 @@ export class TranslationPlugin extends Plugin {
     }
 
     /**
-     * Gets the modified translations
      * @returns {HTMLElement[]}
      */
     getDirtyTranslations() {
@@ -367,6 +377,10 @@ export class TranslationPlugin extends Plugin {
                 }
             }
         }
+        log.pipeline("getDirtyTranslations", () => ({
+            tracked: this.elToTranslationInfoMap.size,
+            dirty: dirtyEls.length,
+        }));
         return dirtyEls;
     }
 
@@ -374,13 +388,16 @@ export class TranslationPlugin extends Plugin {
         root.querySelectorAll(".o_editable_attribute").forEach((el) => {
             el.classList.remove("o_editable_attribute");
         });
-        // Remove the `.o_translation_select` temporary element
         const optionsEl = root.querySelector(".o_translation_select");
         if (optionsEl) {
             const selectEl = optionsEl.nextElementSibling;
             const translatedOptions = optionsEl.children;
             const selectOptions =
                 selectEl.tagName === "SELECT" ? [...selectEl.options] : [];
+            log.logic("cleanForSave: restore translated select options", () => ({
+                selectOptions: selectOptions.length,
+                translatedOptions: translatedOptions.length,
+            }));
             if (selectOptions.length === translatedOptions.length) {
                 selectOptions.map((option, i) => {
                     option.text = translatedOptions[i].textContent;
@@ -389,6 +406,7 @@ export class TranslationPlugin extends Plugin {
             optionsEl.remove();
         }
         if (root.dataset.oeTranslationSaveSha) {
+            log.logic("cleanForSave: restore source sha from save sha");
             root.dataset.oeTranslationSourceSha = root.dataset.oeTranslationSaveSha;
             delete root.dataset.oeTranslationSaveSha;
         }

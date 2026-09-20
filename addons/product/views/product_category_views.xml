@@ -31,11 +31,11 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
                             name="%(action_product_template_all)d"
-                            icon="fa-th-list"
                             type="action"
-                            context="{'search_default_categ_id': id, 'default_categ_id': id, 'group_expand': True}">
+                            icon="fa-th-list"
+                            context="{'search_default_categ_id': id, 'default_categ_id': id, 'group_expand': True}"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_value"><field name="product_count" /></span>
                                 <span class="o_stat_text"> Products</span>
@@ -50,9 +50,9 @@
                         <field name="parent_id" class="oe_inline" />
                         <field
                             name="company_id"
-                            class="oe_inline"
+                            placeholder="All Companies"
                             groups="base.group_multi_company"
-                            placeholder="All Companies" />
+                            class="oe_inline" />
                     </group>
                 </sheet>
                 <chatter />

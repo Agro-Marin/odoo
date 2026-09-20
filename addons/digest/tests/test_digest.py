@@ -665,7 +665,7 @@ class TestDigestDefects(TestDigestCommon):
         """A KPI that collapsed to nothing is a plain -100%, and the old guard
         was the reason it showed no badge at all. Growth FROM zero stays
         badge-less on purpose: it has no percentage, and
-        `account._compute_column_percent_comparison_data` answers the
+        `account._get_column_percent_comparison_data` answers the
         same case with a muted n/a rather than a made-up figure."""
         digest = self.digest_1.with_user(self.env.user)
         for value, previous, expected in [
@@ -861,7 +861,7 @@ class TestDigestDefects(TestDigestCommon):
         `kpi_mail_message_total` never calls the helper, and
         `res.users.login_date` is not stored. The eight KPIs that do take it all
         come from other addons (crm x2, hr_recruitment, point_of_sale, project,
-        sale_management, website_sale, helpdesk)."""
+        sale, website_sale, helpdesk)."""
         digest = self.env["digest.digest"].browse(self.digest_1.ids)
         windows = tuple(
             (fields.Datetime.to_string(s), fields.Datetime.to_string(e))

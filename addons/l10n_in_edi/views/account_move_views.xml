@@ -29,10 +29,10 @@
                         <button
                             name="action_l10n_in_edi_force_cancel"
                             type="object"
-                            class="oe_link oe_inline"
+                            string="Force Cancel"
                             confirm="Are you sure you want to cancel this invoice without waiting for the EDI document to be canceled?"
                             invisible="l10n_in_edi_status != 'sent'"
-                            string="Force Cancel" />
+                            class="oe_link oe_inline" />
                     </div>
                 </div>
             </xpath>
@@ -40,10 +40,10 @@
                 <button
                     name="action_export_l10n_in_edi_content_json"
                     type="object"
-                    class="btn-secondary"
-                    invisible="not l10n_in_edi_error"
+                    string="Download EDI JSON"
                     groups="base.group_no_one"
-                    string="Download EDI JSON" />
+                    invisible="not l10n_in_edi_error"
+                    class="btn-secondary" />
             </xpath>
             <xpath expr="//div[@name='journal_div']" position="after">
                 <field
@@ -61,11 +61,11 @@
             <field name="display_state" position="before">
                 <field
                     name="l10n_in_edi_status"
-                    optional="hide"
                     widget="badge"
-                    decoration-success="l10n_in_edi_status == 'sent'"
+                    optional="hide"
+                    decoration-danger="l10n_in_edi_status == 'cancelled'"
                     decoration-info="l10n_in_edi_status == 'to_send'"
-                    decoration-danger="l10n_in_edi_status == 'cancelled'" />
+                    decoration-success="l10n_in_edi_status == 'sent'" />
             </field>
         </field>
     </record>
@@ -78,11 +78,11 @@
             <field name="display_state" position="before">
                 <field
                     name="l10n_in_edi_status"
-                    optional="hide"
                     widget="badge"
-                    decoration-success="l10n_in_edi_status == 'sent'"
+                    optional="hide"
+                    decoration-danger="l10n_in_edi_status == 'cancelled'"
                     decoration-info="l10n_in_edi_status == 'to_send'"
-                    decoration-danger="l10n_in_edi_status == 'cancelled'" />
+                    decoration-success="l10n_in_edi_status == 'sent'" />
             </field>
         </field>
     </record>

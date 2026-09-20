@@ -3,9 +3,12 @@
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
 import { useEffect } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.messaging_menu");
 Object.assign(MessagingMenu.components, { MessagingMenuQuickSearch });
 
 patch(MessagingMenu.prototype, {
@@ -18,18 +21,13 @@ patch(MessagingMenu.prototype, {
             searchOpen: false,
         });
         useEffect(
-            () => {
-                if (
-                    this.store.discuss.searchTerm &&
-                    this.lastSearchTerm !== this.store.discuss.searchTerm &&
-                    this.state.activeIndex
-                ) {
+            /** @param {string} searchTerm */
+            (searchTerm) => {
+                if (!searchTerm) {
+                    this.state.activeIndex = null;
+                } else if (this.state.activeIndex) {
                     this.state.activeIndex = 0;
                 }
-                if (!this.store.discuss.searchTerm) {
-                    this.state.activeIndex = null;
-                }
-                this.lastSearchTerm = this.store.discuss.searchTerm;
             },
             () => [this.store.discuss.searchTerm],
         );
@@ -51,6 +49,10 @@ patch(MessagingMenu.prototype, {
                 this.store.inbox.status !== "loading" &&
                 this.store.inbox.counter !== this.store.inbox.messages.length
             ) {
+                log.logic("beforeOpen fetches inbox", () => ({
+                    counter: this.store.inbox.counter,
+                    loaded: this.store.inbox.messages.length,
+                }));
                 this.store.inbox.fetchNewMessages();
             }
         });
@@ -103,28 +105,23 @@ patch(MessagingMenu.prototype, {
                 label: _t("Notifications"),
                 sequence: 10,
             },
-            {
-                counter:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? this.store.inbox.counter
-                        : this.store.starred.counter,
-                icon:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? "fa-solid fa-inbox"
-                        : "fa-regular fa-star",
-                activeIcon:
-                    this.store.self.main_user_id?.notification_type !== "inbox" &&
-                    "fa-solid fa-star",
-                id:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? "inbox"
-                        : "starred",
-                label:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? _t("Inbox")
-                        : _t("Starred"),
-                sequence: 100,
-            },
+            this.store.selfUsesInbox
+                ? {
+                      counter: this.store.inbox.counter,
+                      icon: "fa-solid fa-inbox",
+                      activeIcon: false,
+                      id: "inbox",
+                      label: _t("Inbox"),
+                      sequence: 100,
+                  }
+                : {
+                      counter: this.store.starred.counter,
+                      icon: "fa-regular fa-star",
+                      activeIcon: "fa-solid fa-star",
+                      id: "starred",
+                      label: _t("Starred"),
+                      sequence: 100,
+                  },
             ...super._tabs,
         ];
     },
@@ -135,6 +132,11 @@ patch(MessagingMenu.prototype, {
                 .map(({ mail_message_id: message }) => message.thread?.id)
                 .filter((id) => id !== undefined),
         );
+        log.logic("onClickFailure", () => ({
+            type: failure.type,
+            resModel: failure.resModel,
+            threads: threadIds.size,
+        }));
         if (threadIds.size === 1) {
             const message = failure.notifications.find(
                 (n) => n.mail_message_id?.thread,
@@ -147,6 +149,7 @@ patch(MessagingMenu.prototype, {
     },
     /** @param {import("models").Thread} thread */
     async openThread(thread) {
+        log.logic("openThread", () => ({ thread: thread.localId }));
         thread.open({ focus: true, fromMessagingMenu: true });
         this.dropdown.close();
     },
@@ -175,6 +178,11 @@ patch(MessagingMenu.prototype, {
      * @returns {Promise<any>}
      */
     cancelNotifications(failure) {
+        log.logic("cancelNotifications", () => ({
+            type: failure.type,
+            resModel: failure.resModel,
+            notifications: failure.notifications.length,
+        }));
         return this.env.services.orm.call(
             failure.resModel,
             "notify_cancel_by_type",
@@ -185,16 +193,14 @@ patch(MessagingMenu.prototype, {
         );
     },
     toggleSearch() {
+        log.logic("toggleSearch", () => ({ open: !this.state.searchOpen }));
         this.store.discuss.searchTerm = "";
         this.state.searchOpen = !this.state.searchOpen;
     },
     get counter() {
         let value =
             this.store.globalCounter +
-            this.store.failures.reduce(
-                (acc, f) => acc + parseInt(f.notifications.length),
-                0,
-            );
+            this.store.failures.reduce((acc, f) => acc + f.notifications.length, 0);
         if (this.canPromptToInstall) {
             value++;
         }

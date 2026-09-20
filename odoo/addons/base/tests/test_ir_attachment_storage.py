@@ -57,6 +57,59 @@ class TestIrAttachmentStorage(TransactionCase):
         finally:
             STORAGE_BACKENDS.pop("fake_s3")
 
+    def test_remote_key_removal_waits_for_the_commit(self):
+        removed = []
+
+        class FakeRemoteStorage(AttachmentStorage):
+            location = "fake_remote"
+            key_scheme = "fake-remote"
+
+            def remove(self, key):
+                removed.append(key)
+
+        register_storage(FakeRemoteStorage)
+        self.addCleanup(STORAGE_BACKENDS.pop, "fake_remote", None)
+        attachment = self.Attachment.create({"name": "remote", "raw": b"x"})
+        attachment.flush_recordset()
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET store_fname = %s WHERE id = %s",
+            ["fake-remote://bucket/key", attachment.id],
+        )
+        attachment.invalidate_recordset()
+
+        attachment.unlink()
+        self.assertEqual(removed, [], "a remote delete must not precede the commit")
+        self.env.cr.postcommit.run()
+        self.assertEqual(removed, ["fake-remote://bucket/key"])
+
+    def test_remote_key_referenced_again_before_the_commit_is_kept(self):
+        removed = []
+
+        class FakeRemoteStorage(AttachmentStorage):
+            location = "fake_remote"
+            key_scheme = "fake-remote"
+
+            def remove(self, key):
+                removed.append(key)
+
+        register_storage(FakeRemoteStorage)
+        self.addCleanup(STORAGE_BACKENDS.pop, "fake_remote", None)
+        key = "fake-remote://bucket/shared"
+        first, second = self.Attachment.create(
+            [{"name": "a", "raw": b"x"}, {"name": "b", "raw": b"y"}]
+        )
+        (first + second).flush_recordset()
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET store_fname = %s WHERE id = %s", [key, first.id]
+        )
+        first.invalidate_recordset()
+        first.unlink()
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET store_fname = %s WHERE id = %s", [key, second.id]
+        )
+        self.env.cr.postcommit.run()
+        self.assertEqual(removed, [], "a key another row took back must survive")
+
     def test_unknown_scheme_warns_once(self):
         dbname = self.env.cr.dbname
         self.addCleanup(
@@ -290,7 +343,7 @@ class MemoryStorage(AttachmentStorage):
         data = type(self).blobs.get(key, b"")
         return data if size is None else data[:size]
 
-    def delete(self, key):
+    def remove(self, key):
         self.env.cr.execute(
             "SELECT 1 FROM ir_attachment WHERE store_fname = %s LIMIT 1", [key]
         )
@@ -341,15 +394,23 @@ class TestMemoryStorageCRUD(TransactionCase):
             copy.invalidate_recordset()
             self.assertEqual(copy.raw, payload)
 
+            shared_key = copy.store_fname
             att.write({"raw": b"mem-rewritten"})
+            self.env.cr.postcommit.run()
+            self.assertIn(
+                shared_key,
+                MemoryStorage.blobs,
+                "the rewrite must not delete the key the copy still holds",
+            )
             att.invalidate_recordset()
             self.assertEqual(att.raw, b"mem-rewritten")
             copy.invalidate_recordset()
             self.assertEqual(copy.raw, payload)
 
-            old_key = copy.store_fname
             copy.unlink()
-            self.assertNotIn(old_key, MemoryStorage.blobs)
+            self.assertIn(shared_key, MemoryStorage.blobs, "not before the commit")
+            self.env.cr.postcommit.run()
+            self.assertNotIn(shared_key, MemoryStorage.blobs)
 
     def test_streamed_upload_lifecycle(self):
         payload = b"streamed-into-a-custom-backend-" * 40

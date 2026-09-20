@@ -2,6 +2,7 @@ import typing
 
 import pytest
 
+from odoo.db import settings as pool_settings
 from odoo.db.replica import ReplicaRouter
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.orm.runtime.registry import Registry
@@ -30,7 +31,7 @@ class _Router(ReplicaRouter):
         super().__init__(typing.cast("typing.Any", _Conn("primary")))
         self.decisions = list(decisions)
 
-    def cursor(self, readonly=False):
+    def cursor(self, readonly=False, *, pin_key=None):
         cr, mode = self.decisions.pop(0)
         return typing.cast("typing.Any", cr), mode
 
@@ -109,11 +110,11 @@ def test_the_real_router_is_what_init_builds(monkeypatch):
 
     monkeypatch.setattr(odoo.db, "db_connect", fake_connect)
     monkeypatch.setattr(registry_module, "is_readonly_cursor_enabled", lambda: True)
-    monkeypatch.setitem(registry_module.config.options, "db_replica_max_lag", 12.0)
     monkeypatch.setattr(Registry, "_probe_capabilities", lambda self, cr, name: None)
 
     reg = object.__new__(Registry)
-    reg.init("_router_db")
+    with pool_settings.override(replica_max_lag=12.0):
+        reg.init("_router_db")
 
     assert isinstance(reg._replica, ReplicaRouter)
     assert connections == [("_router_db", False), ("_router_db", True)]

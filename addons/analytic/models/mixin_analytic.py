@@ -13,7 +13,6 @@ class MixinAnalytic(models.AbstractModel):
     _description = "Analytic Mixin"
 
     analytic_distribution = fields.Json(
-        "Analytic Distribution",
         compute="_compute_analytic_distribution",
         search="_search_analytic_distribution",
         store=True,
@@ -21,10 +20,10 @@ class MixinAnalytic(models.AbstractModel):
         readonly=False,
     )
     analytic_precision = fields.Integer(
-        store=False,
         default=lambda self: self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         ),
+        store=False,
     )
     distribution_analytic_account_ids = fields.Many2many(
         comodel_name="account.analytic.account",
@@ -250,7 +249,7 @@ class MixinAnalytic(models.AbstractModel):
         decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         )
-        vals = self._sanitize_values(vals, decimal_precision)
+        vals = self._normalize_values(vals, decimal_precision)
         return super().write(vals)
 
     @api.model_create_multi
@@ -260,7 +259,7 @@ class MixinAnalytic(models.AbstractModel):
             "Percentage Analytic"
         )
         vals_list = [
-            self._sanitize_values(vals, decimal_precision) for vals in vals_list
+            self._normalize_values(vals, decimal_precision) for vals in vals_list
         ]
         return super().create(vals_list)
 
@@ -314,10 +313,10 @@ class MixinAnalytic(models.AbstractModel):
         """
         # Only models that actually consume the marker (via `_merge_distribution`)
         # may let it reach persistence; for every other model it is stripped in
-        # `_sanitize_values` so it never corrupts the stored JSON.
+        # `_normalize_values` so it never corrupts the stored JSON.
         return False
 
-    def _sanitize_values(self, vals, decimal_precision):
+    def _normalize_values(self, vals, decimal_precision):
         """Normalize the distribution floats and drop the unused ``__update__`` marker"""
         if "analytic_distribution" in vals:
             distribution = vals.get("analytic_distribution")

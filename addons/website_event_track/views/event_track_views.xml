@@ -22,8 +22,8 @@
                 <group>
                     <field
                         name="event_id"
-                        invisible="context.get('default_event_id', False)"
-                        placeholder="All Events" />
+                        placeholder="All Events"
+                        invisible="context.get('default_event_id', False)" />
                     <field name="name" placeholder="e.g. Inspiring Business Talk" />
                     <field name="date" />
                 </group>
@@ -36,8 +36,8 @@
         <field name="model">event.track</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
                 default_group_by="stage_id"
+                highlight_color="color"
                 quick_create_view="website_event_track.event_track_view_form_quick_create">
                 <field name="website_url" />
                 <templates>
@@ -91,10 +91,10 @@
         <field name="priority" eval="2" />
         <field name="arch" type="xml">
             <calendar
-                date_start="date"
-                date_stop="date_end"
                 string="Event Tracks"
                 color="location_id"
+                date_start="date"
+                date_stop="date_end"
                 event_limit="5">
                 <field name="location_id" filters="1" />
                 <field name="event_id" />
@@ -119,72 +119,72 @@
                 <field name="event_id" />
                 <field name="stage_id" />
                 <filter
-                    string="My Tracks"
                     name="my_tracks"
+                    string="My Tracks"
                     domain="[('user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="Published"
                     name="filter_published"
+                    string="Published"
                     domain="[('website_published', '=', True)]" />
                 <separator />
                 <filter
-                    string="Unread Messages"
                     name="message_needaction"
+                    string="Unread Messages"
                     domain="[('message_needaction', '=', True)]"
                     groups="mail.group_mail_notification_type_inbox" />
                 <separator />
                 <filter
-                    string="Always Wishlisted"
                     name="filter_wishlisted_by_default"
+                    string="Always Wishlisted"
                     domain="[('wishlisted_by_default', '=', True)]" />
                 <separator />
                 <filter name="filter_date" date="date" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <group>
                     <filter
-                        string="Responsible"
                         name="responsible"
+                        string="Responsible"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Stage"
                         name="stage"
+                        string="Stage"
                         context="{'group_by': 'stage_id'}" />
-                    <filter string="Date" name="date" context="{'group_by': 'date'}" />
+                    <filter name="date" string="Date" context="{'group_by': 'date'}" />
                     <filter
-                        string="Event"
                         name="event"
+                        string="Event"
                         context="{'group_by': 'event_id'}" />
                     <filter
-                        string="Location"
                         name="location"
+                        string="Location"
                         context="{'group_by': 'location_id'}" />
                 </group>
             </search>
@@ -209,10 +209,10 @@
                         <button
                             name="%(website_event_track.website_visitor_action_from_track)d"
                             type="action"
-                            class="oe_stat_button"
                             icon="fa-bell"
                             groups="event.group_event_user"
-                            invisible="wishlist_visitor_count == 0">
+                            invisible="wishlist_visitor_count == 0"
+                            class="oe_stat_button">
                             <field
                                 name="wishlist_visitor_count"
                                 string="Wishlisted By"
@@ -223,8 +223,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="d-flex gap-4 mb-3">
                         <div class="flex-grow-1">
                             <label for="name" />
@@ -261,7 +261,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Speaker" name="speaker">
+                        <page name="speaker" string="Speaker">
                             <group
                                 string="Contact Details"
                                 class="display-flex justify-content-between">
@@ -273,8 +273,8 @@
                                     <field
                                         name="contact_phone_ids"
                                         widget="many2many_tags"
-                                        class="o_force_ltr"
-                                        readonly="partner_id" />
+                                        readonly="partner_id"
+                                        class="o_force_ltr" />
                                 </group>
                             </group>
                             <group
@@ -293,8 +293,8 @@
                                 <group>
                                     <field
                                         name="image"
-                                        nolabel="1"
                                         widget="image"
+                                        nolabel="1"
                                         class="oe_avatar" />
                                 </group>
                             </group>
@@ -305,12 +305,12 @@
                                     placeholder="e.g. &quot;John Doe was born in...&quot;" />
                             </group>
                         </page>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="description"
                                 placeholder="e.g. &quot;This talk will be about...&quot;" />
                         </page>
-                        <page string="Interactivity" name="interactivity">
+                        <page name="interactivity" string="Interactivity">
                             <group>
                                 <group name="event_track_cta_group">
                                     <field name="website_cta" />
@@ -328,7 +328,7 @@
                                         for="website_cta_delay"
                                         invisible="not website_cta" />
                                     <div invisible="not website_cta">
-                                        <field name="website_cta_delay" class="oe_inline" required="website_cta" /> minutes after Track start
+                                        <field name="website_cta_delay" required="website_cta" class="oe_inline" /> minutes after Track start
                                     </div>
                                 </group>
                             </group>

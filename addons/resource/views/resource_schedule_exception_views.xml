@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_resource_schedule_exception_search" model="ir.ui.view">
+        <field name="name">resource.schedule.exception.search</field>
+        <field name="model">resource.schedule.exception</field>
+        <field name="arch" type="xml">
+            <search string="Search Working Period Time Off">
+                <field name="name" />
+                <field name="resource_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="calendar_id" />
+                <filter
+                    name="filter_date"
+                    string="Period"
+                    date="date_from"
+                    default_period="year" />
+                <group>
+                    <filter
+                        name="resource"
+                        string="Resource"
+                        context="{'group_by':'resource_id'}" />
+                    <filter
+                        name="company"
+                        string="Company"
+                        context="{'group_by':'company_id'}"
+                        groups="base.group_multi_company" />
+                    <filter
+                        name="leave_month"
+                        string="Date"
+                        help="Starting Date of Time Off"
+                        context="{'group_by':'date_from'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_resource_calendar" model="ir.ui.view">
+        <field name="name">resource.schedule.exception.calendar</field>
+        <field name="model">resource.schedule.exception</field>
+        <field name="arch" type="xml">
+            <calendar
+                string="Resource"
+                mode="month"
+                color="resource_id"
+                date_start="date_from"
+                date_stop="date_to"
+                event_limit="5">
+                <field name="resource_id" avatar_field="avatar_128" filters="1" />
+                <field name="company_id" />
+                <field name="name" />
+            </calendar>
+        </field>
+    </record>
+
+    <record id="resource_schedule_exception_form" model="ir.ui.view">
+        <field name="name">resource.schedule.exception.form</field>
+        <field name="model">resource.schedule.exception</field>
+        <field name="arch" type="xml">
+            <form string="Time Off Detail">
+                <field name="company_id" invisible="1" />
+                <sheet>
+                    <group>
+                        <group name="leave_details">
+                            <field name="name" string="Reason" />
+                            <!-- A resource's exception takes its calendar from the
+                                schedule covering the day, which is known only once the
+                                local day has become an instant, at save. Left editable,
+                                the form would send the value it computed from a
+                                date_from the inverse had not written yet. -->
+                            <field name="calendar_id" readonly="resource_id" />
+                            <field
+                                name="company_id"
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company"
+                                invisible="not calendar_id" />
+                            <field name="resource_id" />
+                        </group>
+                        <group name="leave_dates">
+                            <label for="local_date_from" string="From" />
+                            <div class="o_row">
+                                <field name="local_date_from" />
+                                <field name="local_hour_from" widget="float_time" />
+                            </div>
+                            <label for="local_date_to" string="To" />
+                            <div class="o_row">
+                                <field name="local_date_to" />
+                                <field name="local_hour_to" widget="float_time" />
+                            </div>
+                            <field name="tz" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="resource_schedule_exception_tree" model="ir.ui.view">
+        <field name="name">resource.schedule.exception.list</field>
+        <field name="model">resource.schedule.exception</field>
+        <field name="priority">1</field>
+        <field name="arch" type="xml">
+            <list string="Time Off Detail">
+                <field name="name" string="Reason" />
+                <field name="resource_id" />
+                <field
+                    name="company_id"
+                    optional="hide"
+                    groups="base.group_multi_company" />
+                <field name="calendar_id" />
+                <field name="local_date_from" />
+                <field name="local_hour_from" widget="float_time" optional="hide" />
+                <field name="local_date_to" />
+                <field name="local_hour_to" widget="float_time" optional="hide" />
+                <field name="tz" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="action_resource_schedule_exception_tree" model="ir.actions.act_window">
+        <field name="name">Resource Time Off</field>
+        <field name="res_model">resource.schedule.exception</field>
+        <field name="view_mode">list,form,calendar</field>
+        <field name="search_view_id" ref="view_resource_schedule_exception_search" />
+    </record>
+
+    <record
+        id="resource_schedule_exception_action_from_calendar"
+        model="ir.actions.act_window">
+        <field name="name">Resource Time Off</field>
+        <field name="res_model">resource.schedule.exception</field>
+        <field name="view_mode">list,form,calendar</field>
+        <field name="search_view_id" ref="view_resource_schedule_exception_search" />
+        <field
+            name="context">{
+            'default_calendar_id': active_id,
+            'search_default_calendar_id': active_id}</field>
+    </record>
+
+    <record id="resource_calendar_closing_days" model="ir.actions.act_window">
+        <field name="name">Closing Days</field>
+        <field name="res_model">resource.schedule.exception</field>
+        <field name="view_mode">calendar,list,form</field>
+        <field
+            name="domain">[('calendar_id','=',active_id), ('resource_id','=',False)]</field>
+        <field name="context">{'default_calendar_id': active_id}</field>
+        <field name="binding_model_id" ref="model_resource_calendar" />
+        <field name="binding_view_types">form</field>
+    </record>
+
+    <record id="resource_calendar_resources_leaves" model="ir.actions.act_window">
+        <field name="name">Resources Time Off</field>
+        <field name="res_model">resource.schedule.exception</field>
+        <field name="view_mode">calendar,list,form</field>
+        <field
+            name="domain">[('calendar_id','=',active_id), ('resource_id','!=',False)]</field>
+        <field name="context">{'default_calendar_id': active_id}</field>
+        <field name="binding_model_id" ref="model_resource_calendar" />
+        <field name="binding_view_types">form</field>
+    </record>
+
+</odoo>

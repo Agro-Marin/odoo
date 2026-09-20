@@ -6,11 +6,12 @@ import pytest
 import werkzeug.exceptions
 import werkzeug.wrappers
 
+from odoo.http._session_store import FilesystemSessionStore
 from odoo.http.application import Application
 from odoo.http.constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT
 from odoo.http.dispatcher import Json2Dispatcher
 from odoo.http.routing import prepare_routing_map
-from odoo.http.session import FilesystemSessionStore, Session
+from odoo.http.session import Session
 from odoo.http.wrappers import Response
 
 
@@ -43,7 +44,7 @@ def nodb_app(tmp_path):
     app = Application()
     app.__dict__["nodb_routing_map"] = prepare_routing_map([])
     app.__dict__["session_store"] = FilesystemSessionStore(
-        str(tmp_path), session_class=Session, renew_missing=True
+        str(tmp_path), session_class=Session
     )
     return app
 
@@ -56,8 +57,7 @@ def _serve(app, environ):
         captured["headers"] = {k.lower(): v for k, v in headers}
 
     with (
-        mock.patch("odoo.http.helpers.get_dbs_served", return_value=[]),
-        mock.patch("odoo.http.get_dbs_served", return_value=[]),
+        mock.patch.object(app, "get_dbs_served", lambda host: []),
     ):
         body = b"".join(app(environ, start_response))
     return captured["status"], captured["headers"], body
@@ -75,7 +75,7 @@ def test_a_json_client_gets_the_nodb_message_as_json(nodb_app):
     status, headers, body = _serve(nodb_app, _environ(content_type="application/json"))
 
     assert status.startswith("404")
-    assert headers["content-type"].startswith("application/json")
+    assert headers["content-type"].startswith("application/problem+json")
     assert NOT_FOUND_NODB_TEXT.encode() in body
     assert b"<!DOCTYPE html>" not in body
 

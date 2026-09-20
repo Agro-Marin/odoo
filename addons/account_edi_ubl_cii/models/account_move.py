@@ -29,8 +29,8 @@ class AccountMove(models.Model):
         depends=["ubl_cii_xml_file"],
     )
     ubl_cii_xml_file = fields.Binary(
-        attachment=True,
         string="UBL/CII File",
+        attachment=True,
         copy=False,
     )
     ubl_cii_xml_filename = fields.Char(
@@ -283,7 +283,7 @@ class AccountMove(models.Model):
         )
 
     @api.model
-    def _get_line_vals_list(self, lines_vals):
+    def _prepare_edi_line_vals(self, lines_vals):
         """Get invoice line values list.
 
         :param list[tuple] lines_vals: List of values ``[(name, qty, price, tax), ...]``.

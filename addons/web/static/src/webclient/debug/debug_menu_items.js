@@ -56,12 +56,12 @@ export function regenerateAssets({ env }) {
 
 /**
  * @param {{ env: import("@web/env").OdooEnv }} params
- * @returns {DebugMenuItemDescriptor | false}
+ * @returns {DebugMenuItemDescriptor | null}
  */
 export function becomeSuperuser({ env }) {
     const becomeSuperuserURL = `${browser.location.origin}/web/become`;
     if (!user.isAdmin) {
-        return false;
+        return null;
     }
     return {
         type: "item",

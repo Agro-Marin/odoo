@@ -55,7 +55,7 @@ class TestProxyAttr(unittest.TestCase):
         self.assertIsNone(self.proxy.maybe_none)
 
     def test_set_writes_through_to_the_wrapped_instance(self):
-        self.proxy.raw = "9"
+        self.proxy.raw = "9"  # type: ignore[assignment]  # writing uncast is the case under test
         self.assertEqual(self.wrapped.raw, "9")
 
 

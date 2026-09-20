@@ -3,8 +3,6 @@ from odoo.addons.survey.tests.common import TestSurveyCommon
 
 class TestCourseCertificationFailureFlow(TestSurveyCommon):
     def test_course_certification_failure_flow(self):
-        # Step 1: create a simple certification
-        # --------------------------------------------------
         with self.with_user("survey_user"):
             certification = self.env["survey.survey"].create(
                 {
@@ -51,7 +49,6 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
                 ],
             )
 
-        # Step 1.1: create a simple channel
         self.channel = (
             self.env["slide.channel"]
             .sudo()
@@ -66,7 +63,6 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             )
         )
 
-        # Step 2: link the certification to a slide of category 'certification'
         self.slide_certification = (
             self.env["slide.slide"]
             .sudo()
@@ -80,9 +76,7 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
                 }
             )
         )
-        # Step 3: add portal user as member of the channel
         self.channel._action_add_members(self.user_portal.partner_id)
-        # forces recompute of partner_ids as we create directly in relation
         self.channel.invalidate_model()
         slide_partner = self.slide_certification._action_set_viewed(
             self.user_portal.partner_id
@@ -98,14 +92,12 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
         )
 
         first_attempt_in_first_pool = slide_partner.user_input_ids[0]
-        # Step 4: fill in the created user_input with wrong answers
         self.fill_in_answer(slide_partner.user_input_ids[0], certification.question_ids)
 
         self.assertFalse(
             slide_partner.survey_scoring_success,
             "Quizz should not be marked as passed with wrong answers",
         )
-        # forces recompute of partner_ids as we delete directly in relation
         self.channel.invalidate_model()
         self.assertIn(
             self.user_portal.partner_id,
@@ -120,7 +112,6 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             slide_partner.user_input_ids[0].get_start_url(),
             "Make sure that the url generated is the same even if we enter again the certification without doing retry.",
         )
-        # Step 5: simulate a 'retry'
         retry_user_input = self.slide_certification.survey_id.sudo()._create_answer(
             partner=self.user_portal.partner_id,
             slide_id=self.slide_certification.id,
@@ -128,9 +119,7 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             invite_token=slide_partner.user_input_ids[0].invite_token,
         )
         second_attempt_in_first_pool = retry_user_input
-        # Step 6: fill in the new user_input with wrong answers again
         self.fill_in_answer(retry_user_input, certification.question_ids)
-        # forces recompute of partner_ids as we delete directly in relation
         self.channel.invalidate_model()
         channel_partner = (
             self.env["slide.channel.partner"]
@@ -147,9 +136,7 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             "Portal user membership should have been archived from the course attendee because he failed his last attempt",
         )
 
-        # Step 7: add portal user as member of the channel once again
         self.channel._action_add_members(self.user_portal.partner_id)
-        # forces recompute of partner_ids as we create directly in relation
         self.channel.invalidate_model()
 
         self.slide_certification.with_user(
@@ -165,7 +152,6 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             "A new user input should have been automatically created upon slide view",
         )
         first_attempt_in_second_pool = slide_partner.user_input_ids[0]
-        # Step 8: fill in the created user_input with correct answers this time
         self.fill_in_answer(
             slide_partner.user_input_ids, certification.question_ids, good_answers=True
         )
@@ -173,14 +159,12 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
             slide_partner.survey_scoring_success,
             "Quizz should be marked as passed with correct answers",
         )
-        # forces recompute of partner_ids as we delete directly in relation
         self.channel.invalidate_model()
         self.assertIn(
             self.user_portal.partner_id,
             self.channel.partner_ids,
             "Portal user should still be a member of the course",
         )
-        # Checking the attempts numbers
         self.assertEqual(
             1,
             first_attempt_in_first_pool.attempts_number,
@@ -198,9 +182,6 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
         )
 
     def fill_in_answer(self, answer, questions, good_answers=False):
-        """Fills in the user_input with answers for all given questions.
-        You can control whether the answer will be correct or not with the 'good_answers' param.
-        (It's assumed that wrong answers are at index 0 of question.suggested_answer_ids and good answers at index 1)"""
         answer.write(
             {
                 "state": "done",

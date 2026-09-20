@@ -1,6 +1,5 @@
 import { registry } from "@web/core/registry";
 
-// This tour relies on a data created from the python test.
 registry.category("web_tour.tours").add("tour_variants_modal_window", {
     url: "/shop?search=Short (TEST)",
     steps: () => [

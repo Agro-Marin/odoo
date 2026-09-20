@@ -1,5 +1,6 @@
 import contextlib
 import socket
+import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -8,8 +9,10 @@ import psycopg
 import pytest
 
 from odoo.db import PoolError
-from odoo.service import _cron, _threaded
+from odoo.service import _cron, _limits, _threaded
 from odoo.service import settings as server_settings
+
+from .conftest import threaded_server
 
 
 class _Stop(SystemExit):
@@ -18,11 +21,12 @@ class _Stop(SystemExit):
 
 @pytest.fixture
 def server():
-    srv = object.__new__(_threaded.ThreadedServer)
+    srv = threaded_server()
     srv.logger = MagicMock()
     srv.quit_signals_received = 0
     srv.limit_reached_time = None
     srv.limits_reached_threads = set()
+    srv._overrun_start_times = {}
     srv._stop_after_init = False
     return srv
 
@@ -55,6 +59,7 @@ def listen(server):
                 channel="ch",
                 process_jobs=MagicMock(),
                 label="cron",
+                max_age=max_age,
             )
         return backoffs, connect, server.logger.getChild.return_value
 
@@ -175,12 +180,10 @@ class TestRunStopAfterInit:
 
 
 class TestRunServing:
-    def test_serving_returns_none_whatever_the_preload_said(self, run_server):
-        rc, _ = run_server(stop=False, preload_rc=3)
-        assert rc is None, (
-            "the preload code is only an exit status for --stop-after-init; a "
-            "server that ran and was signalled exited normally"
-        )
+    def test_failed_preload_stops_without_starting_background_work(self, run_server):
+        rc, calls = run_server(stop=False, preload_rc=3)
+        assert rc == 3
+        assert calls == ["start", "stop"]
 
     def test_it_spawns_cron_and_job_workers_before_the_loop(self, run_server):
         _, calls = run_server(stop=False)
@@ -278,12 +281,9 @@ def report_run(server):
         return report
 
     def _run(reports):
-        registries = {
-            name: MagicMock(_assertion_report=_make_report(**kwargs))
-            for name, kwargs in reports.items()
-        }
+        registries = {name: _make_report(**kwargs) for name, kwargs in reports.items()}
         registry_cls = MagicMock()
-        registry_cls.registries.items.return_value = list(registries.items())
+        registry_cls.registries.__iter__.return_value = iter(list(registries))
         registry_cls.registries._lock = contextlib.nullcontext()
         logger = MagicMock()
         server.start = MagicMock()
@@ -294,7 +294,11 @@ def report_run(server):
             patch.object(_threaded, "Registry", registry_cls),
             patch.dict(
                 "sys.modules",
-                {"odoo.tests.result": MagicMock(_logger=logger)},
+                {
+                    "odoo.tests.result": MagicMock(
+                        _logger=logger, assertion_report=registries.__getitem__
+                    )
+                },
             ),
         ):
             rc = _threaded.ThreadedServer.run(server, ["db"], stop=True)
@@ -344,7 +348,7 @@ class TestStopAfterInitReportLevel:
 
 class TestHasOtherHttpRequests:
     def _ask(self, over_limit, threads):
-        srv = object.__new__(_threaded.ThreadedServer)
+        srv = threaded_server()
         srv.limits_reached_threads = set(over_limit)
         with patch.object(_threaded.threading, "enumerate", return_value=threads):
             return srv._has_other_http_requests()
@@ -374,3 +378,61 @@ class TestHasOtherHttpRequests:
             "getattr(t, 'type', None) — a plain library thread has no `type`, "
             "and treating it as a request holds off every reload"
         )
+
+
+class TestAnOverLimitThreadIsNamedByItsWork:
+    def _thread(self, kind, **attrs):
+        # A real thread's attribute surface: an unset attribute is absent,
+        # not a truthy mock, and the object is hashable for the ledgers.
+        thread = threading.Thread(name=f"fake.{kind}")
+        thread.type = kind
+        for name, value in attrs.items():
+            setattr(thread, name, value)
+        return thread
+
+    def test_an_http_thread_by_its_url_and_rpc_target(self):
+        t = self._thread(
+            "http",
+            url="http://h/web/dataset/call_kw",
+            rpc_model_method="res.partner.read",
+        )
+        assert _limits.describe_thread_work(t) == (
+            "serving http://h/web/dataset/call_kw (res.partner.read)"
+        )
+
+    def test_the_request_id_rides_along_for_the_join(self):
+        t = self._thread("http", url="http://h/web/login", request_id="req-42")
+        assert _limits.describe_thread_work(t) == (
+            "serving http://h/web/login, request req-42"
+        )
+
+    def test_an_http_thread_before_the_http_layer_stamped_it(self):
+        t = self._thread("http", url="", rpc_model_method="")
+        assert _limits.describe_thread_work(t) == ""
+
+    def test_a_cron_thread_by_the_database_it_sweeps(self):
+        assert _limits.describe_thread_work(self._thread("cron", dbname="prod")) == (
+            "sweeping prod"
+        )
+        assert _limits.describe_thread_work(self._thread("job", dbname=None)) == ""
+
+    def test_the_warning_carries_it(self, server, caplog):
+        import logging
+        import time
+
+        thread = self._thread(
+            "cron",
+            dbname="prod",
+            start_time=time.monotonic() - 500,
+            is_alive=lambda: True,
+        )
+        server.logger = logging.getLogger("odoo.service.server.test")
+        with (
+            server_settings.override(limit_time_real=120, limit_time_real_cron=60),
+            patch.object(_threaded.threading, "enumerate", return_value=[thread]),
+            patch.object(_threaded.Registry, "_evict_idle_registries"),
+            patch.object(server, "get_memory_over_soft_limit", return_value=None),
+            caplog.at_level(logging.WARNING, logger=server.logger.name),
+        ):
+            server.check_limits()
+        assert any("while sweeping prod" in r.getMessage() for r in caplog.records)

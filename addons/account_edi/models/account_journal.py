@@ -10,11 +10,11 @@ class AccountJournal(models.Model):
     edi_format_ids = fields.Many2many(
         comodel_name="account.edi.format",
         string="Electronic invoicing",
-        help="Send XML/EDI invoices",
-        domain="[('id', 'in', compatible_edi_ids)]",
         compute="_compute_edi_format_ids",
-        readonly=False,
         store=True,
+        readonly=False,
+        domain="[('id', 'in', compatible_edi_ids)]",
+        help="Send XML/EDI invoices",
     )
 
     compatible_edi_ids = fields.Many2many(

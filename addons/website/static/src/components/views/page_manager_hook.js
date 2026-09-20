@@ -1,17 +1,13 @@
 /** @odoo-module native */
 import { onWillStart, useEnv, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 
-/**
- * Used to share code and keep the same behaviour on different types of 'website
- * content' views:
- * - Trigger the 'new content' dialogs when 'CREATE' button is clicked.
- * - Add a website selector on ControlPanel (that will be used by the renderer
- * to filter content).
- */
+const log = makeLogger("website.view.page_manager_hook");
+
 export function usePageManager({ resModel, createAction }) {
     const env = useEnv();
     const website = useService("website");
@@ -23,12 +19,14 @@ export function usePageManager({ resModel, createAction }) {
     });
 
     onWillStart(async () => {
-        // `fetchWebsites()` already done by parent PageSearchModel
         websiteSelection.push(...website.websites);
+        const endCurrent = log.perf("usePageManager getCurrentWebsite");
         state.activeWebsite = await env.searchModel.getCurrentWebsite();
+        endCurrent(() => ({ websites: websiteSelection.length }));
     });
 
     async function createWebsiteContent() {
+        log.logic("createWebsiteContent", { resModel, createAction });
         if (resModel === "website.page") {
             return dialog.add(AddPageDialog, {
                 websiteId: state.activeWebsite.id,
@@ -36,13 +34,20 @@ export function usePageManager({ resModel, createAction }) {
         }
         if (createAction) {
             if (/^\//.test(createAction)) {
+                const endCreate = log.perf("createWebsiteContent rpc route", {
+                    createAction,
+                });
                 const url = await rpc(createAction);
+                endCreate({ url });
                 website.goToWebsite({ path: url, edition: true });
                 return;
             }
             actionService.doAction(createAction, {
                 onClose: (infos) => {
                     if (infos) {
+                        log.logic("createWebsiteContent closed: go to website", () => ({
+                            path: infos.path,
+                        }));
                         website.goToWebsite({ path: infos.path });
                     }
                 },

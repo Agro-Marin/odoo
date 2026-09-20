@@ -7,16 +7,19 @@ from collections.abc import (
 from typing import override
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, unique
-from odoo.tools.misc import SENTINEL, Sentinel
+from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from ..._recordset import is_search_overridden
 from ...primitives import NewId
 from ...validation import check_pg_name
 from .. import _field_ddl as _ddl
 from ..base import Field
-from ._base import _RelationalMulti
+from ._base import _is_cache_order_stable, _RelationalMulti
 from ._commands import CommandDelta
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools.misc import Collector
@@ -98,6 +101,15 @@ class Many2many(_RelationalMulti):
                     self.column1 = f"{model._table}_id"
                 if not self.column2:
                     self.column2 = f"{comodel._table}_id"
+                _debug.logic(
+                    "field.many2many.relation_defaulted",
+                    model=self.model_name,
+                    field=self.name,
+                    relation=self.relation,
+                    column1=self.column1,
+                    column2=self.column2,
+                    explicit=self._explicit,
+                )
             check_pg_name(self.relation)
         else:
             self.relation = self.column1 = self.column2 = None
@@ -118,12 +130,28 @@ class Many2many(_RelationalMulti):
                         self.model_name != field.model_name
                         and not (model._auto and model.env[field.model_name]._auto)
                     )
+                    or self._shares_inheritance_tree(model, field)
                 ):
                     continue
                 raise TypeError(
                     f"Many2many fields {self} and {field} use the same table and columns"
                 )
             fields.add((self.model_name, self.name))
+
+    def _shares_inheritance_tree(self, model, field) -> bool:
+        if self.comodel_name != field.comodel_name:
+            return False
+        root = model._table_inheritance_root
+        shared = (
+            bool(root) and root == model.env[field.model_name]._table_inheritance_root
+        )
+        if shared:
+            _debug.logic(
+                "field.many2many.relation_shared_in_tree",
+                relation=self.relation,
+                models=(self.model_name, field.model_name),
+            )
+        return shared
 
     def _get_relation_triple(self) -> tuple[str, str, str]:
         if not (self.relation and self.column1 and self.column2):
@@ -175,46 +203,66 @@ class Many2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        group = defaultdict(list)
         relation, column1, column2 = self._get_relation_columns()
-        backend = records.env.backend
-        if not backend.supports_joined_m2m_read:
-            position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
-            pairs = backend.read_m2m_pairs(
-                records, relation, column1, column2, records.ids
-            )
-            for id1, id2 in pairs:
-                if id2 in position:
-                    group[id1].append(id2)
-            for ids2 in group.values():
-                ids2.sort(key=position.__getitem__)
-        else:
-            sql_id1 = SQL.identifier(relation, column1)
-            sql_id2 = SQL.identifier(relation, column2)
-            query.add_join(
-                "JOIN",
-                relation,
-                None,
-                SQL(
-                    "%s = %s",
-                    sql_id2,
-                    SQL.identifier(comodel._table, "id"),
-                ),
-            )
-            query.add_where(SQL("%s = ANY(%s)", sql_id1, list(records.ids)))
-            for id1, id2 in records.env.execute_query(query.select(sql_id1, sql_id2)):
-                group[id1].append(id2)
+        group = records.env.backend.read_m2m_groups(
+            records, relation, column1, column2, query
+        )
+        _debug.logic(
+            "field.many2many.read_groups",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            filter_access=filter_access,
+        )
 
         if filter_access and group:
             corecord_ids = OrderedSet(id_ for ids in group.values() for id_ in ids)
             accessible_corecords = comodel.browse(corecord_ids)._filtered_access("read")
             if len(accessible_corecords) < len(corecord_ids):
+                _debug.logic(
+                    "field.many2many.read.filtered_by_access",
+                    model=self.model_name,
+                    field=self.name,
+                    corecords=len(corecord_ids),
+                    dropped=len(corecord_ids) - len(accessible_corecords),
+                )
                 accessible_ids = set(accessible_corecords._ids)
                 for id1, ids in group.items():
                     group[id1] = [id_ for id_ in ids if id_ in accessible_ids]
 
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
+        _debug.pipeline(
+            "field.many2many.read",
+            model=self.model_name,
+            field=self.name,
+            comodel=self.comodel_name,
+            records=len(records),
+            links=sum(len(ids) for ids in values),
+        )
+
+    def _invalidate_relation_siblings(self, records: BaseModel) -> None:
+        # Two fields of one model may read the same relation table the same way
+        # round, one of them through a domain (product.product's variant values
+        # beside its attribute values). A write through one changes what the
+        # other reads, and `create` has already cached the other as empty.
+        model = records.pool[self.model_name]
+        for mname, fname in records.pool.many2many_relations[
+            self._get_relation_triple()
+        ]:
+            if fname == self.name or mname not in (self.model_name, records._name):
+                continue
+            sibling = model._fields.get(fname)
+            if sibling is None or sibling is self:
+                continue
+            _debug.logic(
+                "field.many2many.sibling_invalidated",
+                model=self.model_name,
+                field=self.name,
+                sibling=fname,
+                records=len(records),
+            )
+            sibling._invalidate_cache(records.env, records._ids)
 
     def _apply_relation_delta(
         self,
@@ -224,9 +272,29 @@ class Many2many(_RelationalMulti):
         new_relation: dict,
         *,
         store: bool,
+        created: bool = False,
     ) -> None:
         for record in records:
-            self._update_cache(record, tuple(new_relation[record.id]))
+            ids = tuple(new_relation[record.id])
+            if store and not _is_cache_order_stable(comodel, ids):
+                # a stored slot reads as a fetch would: in the comodel's order
+                # when the sort keys are in memory, else in the commands'
+                # order; a computed value keeps the order its compute produced
+                sorted_ids = comodel.browse(ids)._sorted_by_ids(comodel._order, False)
+                if sorted_ids is not None:
+                    ids = sorted_ids
+                elif _debug.logic.enabled:
+                    _debug.logic(
+                        "field.many2many.written_unsorted",
+                        model=self.model_name,
+                        field=self.name,
+                        record=record.id,
+                        ids=len(ids),
+                    )
+            self._update_cache(record, ids, created=created)
+
+        if store:
+            self._invalidate_relation_siblings(records)
 
         modified_corecord_ids = set()
 
@@ -242,24 +310,40 @@ class Many2many(_RelationalMulti):
                 y_to_xs[y].add(x)
                 modified_corecord_ids.add(y)
             for invf in records.pool.field_inverses[self]:
+                invf = typing.cast("_RelationalMulti", invf)
                 domain = invf.get_comodel_domain(comodel)
                 valid_ids = set(records.filtered_domain(domain)._ids)
                 if not valid_ids:
                     continue
                 inv_cache = invf._get_cache(comodel.env)
-                for y, xs in y_to_xs.items():
+                linked_by_y = {
+                    y: tuple(x for x in xs if x in valid_ids)
+                    for y, xs in y_to_xs.items()
+                }
+                invf._sync_added_to_other_scopes(comodel.env, linked_by_y)
+                for y, linked in linked_by_y.items():
                     corecord = comodel.browse((y,))
                     ids0 = inv_cache.get(corecord.id, SENTINEL)
                     if ids0 is SENTINEL:
                         if corecord.id:
                             continue
                         ids0 = ()
-                    ids1 = tuple(
-                        unique(itertools.chain(ids0, (x for x in xs if x in valid_ids)))
-                    )
-                    invf._update_cache(corecord, ids1)
+                    ids1 = tuple(unique(itertools.chain(ids0, linked)))
+                    invf._update_cache(corecord, ids1, keep_other_scopes=True)
 
-        pairs = [(x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]]
+        unlink_pairs = [
+            (x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]
+        ]
+        _debug.logic(
+            "field.many2many.relation_delta",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            linked=len(pairs),
+            unlinked=len(unlink_pairs),
+            store=store,
+        )
+        pairs = unlink_pairs
         if pairs:
             y_to_xs = defaultdict(set)
             for x, y in pairs:
@@ -272,18 +356,28 @@ class Many2many(_RelationalMulti):
                 )
 
             for invf in records.pool.field_inverses[self]:
+                invf = typing.cast("_RelationalMulti", invf)
                 inv_cache = invf._get_cache(comodel.env)
                 for y, xs in y_to_xs.items():
                     corecord = comodel.browse((y,))
+                    invf._sync_other_scopes(comodel.env, y, removed=xs)
                     try:
                         ids0 = inv_cache[corecord.id]
                         ids1 = tuple(id_ for id_ in ids0 if id_ not in xs)
-                        invf._update_cache(corecord, ids1)
+                        invf._update_cache(corecord, ids1, keep_other_scopes=True)
                     except KeyError:
                         pass
 
         if modified_corecord_ids:
             corecords = comodel.browse(modified_corecord_ids)
+            _debug.pipeline(
+                "field.many2many.corecords_modified",
+                model=self.model_name,
+                field=self.name,
+                comodel=comodel._name,
+                corecords=len(corecords),
+                inverses=len(records.pool.field_inverses[self]),
+            )
             corecords.modified(
                 [
                     invf.name
@@ -297,6 +391,18 @@ class Many2many(_RelationalMulti):
     ) -> None:
         for recs, commands in records_commands_list:
             delta = CommandDelta.fold(commands)
+            _debug.logic(
+                "field.many2many.delta",
+                model=self.model_name,
+                field=self.name,
+                records=len(recs),
+                created=len(delta.created),
+                updated=len(delta.updated),
+                deleted=len(delta.deleted),
+                unlinked=len(delta.unlinked),
+                linked=len(delta.linked),
+                replaced=delta.replaced,
+            )
             for line_id, vals in delta.updated:
                 prefetch_ids = recs[self.name]._prefetch_ids
                 comodel.browse(line_id).with_prefetch(prefetch_ids).write(vals)
@@ -340,9 +446,16 @@ class Many2many(_RelationalMulti):
         records = model.browse(ids)
 
         if self.store:
-            missing_ids = tuple(self._iter_cache_missing_ids(records))
+            missing_ids = set(self._iter_cache_missing_ids(records))
             if missing_ids:
-                self.read(records.browse(missing_ids))
+                _debug.logic(
+                    "field.many2many.write.read_before_write",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                    missing=len(missing_ids),
+                )
+                self._read_missing_with_batch(records_commands_list, missing_ids)
 
         old_relation = {
             record.id: OrderedSet(self._get_raw_ids(record))
@@ -355,11 +468,39 @@ class Many2many(_RelationalMulti):
         )
 
         if not model.env.su:
+            _debug.logic(
+                "field.many2many.new_links_access_checked",
+                model=self.model_name,
+                field=self.name,
+                uid=model.env.uid,
+                records=len(records),
+            )
             self._check_new_relation_access(model, comodel, old_relation, new_relation)
 
         self._apply_relation_delta(
-            records, comodel, old_relation, new_relation, store=self.store
+            records,
+            comodel,
+            old_relation,
+            new_relation,
+            store=self.store,
+            created=create,
         )
+
+    def _read_missing_with_batch(
+        self,
+        records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]],
+        missing_ids: set,
+    ) -> None:
+        # a compute assigning the field record by record over a batch hands
+        # each record with the batch as its prefetch: the relation is read for
+        # the batch once, as a getter would, not once per assignment
+        for recs, _commands in records_commands_list:
+            field_cache = self._get_cache(recs.env)
+            for record in recs:
+                if record.id in missing_ids and (
+                    record.id not in field_cache or field_cache[record.id] is PENDING
+                ):
+                    self.read(self._to_prefetch(record))
 
     @override
     def write_new(
@@ -390,6 +531,12 @@ class Many2many(_RelationalMulti):
                 new_relation[id_] = delta.get_final_ids(new_relation[id_], created_ids)
 
         if new_relation == old_relation:
+            _debug.logic(
+                "field.many2many.write_new_unchanged",
+                model=self.model_name,
+                field=self.name,
+                records=len(old_relation),
+            )
             return
 
         records = model.browse(old_relation)
@@ -406,6 +553,17 @@ class Many2many(_RelationalMulti):
         coquery: Query,
         query: Query,
     ) -> SQL:
+        _debug.logic(
+            "field.many2many.condition_strategy",
+            model=model._name,
+            field=self.name,
+            exists=exists,
+            strategy="empty_subquery"
+            if coquery.is_empty()
+            else "any_link"
+            if not coquery.where_clause
+            else "exists_in",
+        )
         if coquery.is_empty():
             return SQL("FALSE") if exists else SQL("TRUE")
         rel_table, rel_id1, rel_id2 = self._get_relation_columns()

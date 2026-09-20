@@ -31,8 +31,8 @@ class MixinOauth2MailProvider(models.AbstractModel):
     oauth2_credential_id = fields.Many2one(
         comodel_name="credential.credential",
         string="OAuth2 Credential",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
         groups="base.group_system",
         help="Holds this record's OAuth tokens.",
     )
@@ -40,9 +40,12 @@ class MixinOauth2MailProvider(models.AbstractModel):
     def _oauth2_stored_tokens(self):
         self.check_singleton()
         credential = self.oauth2_credential_id.sudo()
+        tokens = (
+            credential._use_secret_payload("mail_oauth2:tokens") if credential else {}
+        )
         return (
-            credential.oauth_access_token or False,
-            credential.oauth_refresh_token or False,
+            tokens.get("oauth_access_token") or False,
+            tokens.get("oauth_refresh_token") or False,
         )
 
     def _oauth2_store_tokens(self, access_token=_UNSET, refresh_token=_UNSET):
@@ -86,7 +89,9 @@ class MixinOauth2MailProvider(models.AbstractModel):
         Config = self.env["ir.config_parameter"].sudo()
         return (
             Config.get_param(provider.field("client_id")),
-            Config.get_param(provider.field("client_secret")),
+            self.env["credential.credential"]._get_system_secret(
+                provider.field("client_secret")
+            ),
         )
 
     def _oauth2_redirect_uri(self, provider):
@@ -182,11 +187,14 @@ class MixinOauth2MailProvider(models.AbstractModel):
         )
 
         try:
-            response = requests.get(
+            response = self.env["ir.egress"].request(
+                "GET",
                 url_join(
                     self._oauth2_iap_endpoint(provider),
                     f"/api/mail_oauth/1/{provider.iap_service}",
                 ),
+                purpose="mail_oauth2",
+                policy="private",
                 params={"db_uuid": db_uuid, "callback_url": callback_url},
                 timeout=OAUTH2_TOKEN_REQUEST_TIMEOUT,
             )
@@ -213,6 +221,29 @@ class MixinOauth2MailProvider(models.AbstractModel):
             int(time.time()) + int(response["expires_in"]),
         )
 
+    def _oauth2_refresh_access_token(self, provider):
+        self.check_singleton()
+        client_id, client_secret = self._oauth2_credentials(provider)
+        extra = {"redirect_uri": self._oauth2_redirect_uri(provider)}
+        if provider.token_sends_scope:
+            extra["scope"] = provider.resolve(provider.scope, self)
+        try:
+            access_token, seconds = self.oauth2_credential_id._oauth2_refresh(
+                provider.resolve(provider.token_url, self),
+                client_id,
+                client_secret,
+                purpose="mail_oauth2",
+                policy="private",
+                timeout=OAUTH2_TOKEN_REQUEST_TIMEOUT,
+                extra=extra,
+            )
+        except requests.HTTPError as error:
+            raise UserError(
+                self._oauth2_token_error(provider, error.response)
+            ) from error
+        self.invalidate_recordset()
+        return access_token, int(time.time()) + seconds
+
     def _oauth2_get_token(self, provider, grant_type, **values):
         client_id, client_secret = self._oauth2_credentials(provider)
         data = {
@@ -225,8 +256,11 @@ class MixinOauth2MailProvider(models.AbstractModel):
         if provider.token_sends_scope:
             data["scope"] = provider.resolve(provider.scope, self)
 
-        response = requests.post(
+        response = self.env["ir.egress"].request(
+            "POST",
             provider.resolve(provider.token_url, self),
+            purpose="mail_oauth2",
+            policy="private",
             data=data,
             timeout=OAUTH2_TOKEN_REQUEST_TIMEOUT,
         )
@@ -248,11 +282,14 @@ class MixinOauth2MailProvider(models.AbstractModel):
     def _oauth2_get_access_token_iap(self, provider, refresh_token):
         db_uuid = self.env["ir.config_parameter"].sudo().get_param("database.uuid")
 
-        response = requests.get(
+        response = self.env["ir.egress"].request(
+            "GET",
             url_join(
                 self._oauth2_iap_endpoint(provider),
                 f"/api/mail_oauth/1/{provider.iap_service}_access_token",
             ),
+            purpose="mail_oauth2",
+            policy="private",
             params={"refresh_token": refresh_token, "db_uuid": db_uuid},
             timeout=OAUTH2_TOKEN_REQUEST_TIMEOUT,
         )

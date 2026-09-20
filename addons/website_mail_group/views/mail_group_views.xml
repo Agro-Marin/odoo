@@ -8,9 +8,9 @@
         <field name="arch" type="xml">
             <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
                 <button
+                    name="action_go_to_website"
                     type="object"
-                    class="oe_stat_button"
-                    name="action_go_to_website">
+                    class="oe_stat_button">
                     <i
                         class="fa-solid fa-earth-americas o_button_icon text-success"
                         title="Mail group accessible on website" />

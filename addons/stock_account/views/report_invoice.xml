@@ -6,7 +6,7 @@
         inherit_id="account.report_invoice_document">
         <xpath expr="//div[@id='right-elements']" position="after">
             <t groups="stock_account.group_lot_on_invoice">
-                <t t-set="lot_values" t-value="o._get_invoiced_lot_values()" />
+                <t t-set="lot_values" t-value="o._prepare_invoice_lot_rows()" />
                 <div t-if="not lot_values" class="oe_structure">​</div>
                 <table
                     t-else=""
@@ -22,12 +22,12 @@
                     </thead>
                     <tbody>
                         <tr t-foreach="lot_values" t-as="snln_line">
-                            <td><t t-esc="snln_line['product_name']">Bacon</t></td>
+                            <td><t t-out="snln_line['product_name']">Bacon</t></td>
                             <td class="text-end">
-                                <t t-esc="snln_line['quantity']">6.00</t>
-                                <t t-esc="snln_line['uom_name']" groups="uom.group_uom">units</t>
+                                <t t-out="snln_line['quantity']">6.00</t>
+                                <t t-out="snln_line['uom_name']" groups="uom.group_uom">units</t>
                             </td>
-                            <td><t class="text-end" t-esc="snln_line['lot_name']">BC46282798</t></td>
+                            <td><t class="text-end" t-out="snln_line['lot_name']">BC46282798</t></td>
                         </tr>
                     </tbody>
                 </table>

@@ -46,8 +46,8 @@
                                 class="o_light_label col-lg-3" />
                             <field
                                 name="cloud_storage_s3_bucket_name"
-                                class="col-lg-4"
-                                placeholder="my-odoo-filestore" />
+                                placeholder="my-odoo-filestore"
+                                class="col-lg-4" />
                         </div>
                         <div class="row mt8">
                             <label
@@ -56,8 +56,8 @@
                                 class="o_light_label col-lg-3" />
                             <field
                                 name="cloud_storage_s3_region"
-                                class="col-lg-4"
-                                placeholder="us-east-2" />
+                                placeholder="us-east-2"
+                                class="col-lg-4" />
                         </div>
                         <div class="row mt8">
                             <label
@@ -66,8 +66,8 @@
                                 class="o_light_label col-lg-3" />
                             <field
                                 name="cloud_storage_s3_access_key_id"
-                                class="col-lg-4"
-                                password="True" />
+                                password="True"
+                                class="col-lg-4" />
                         </div>
                         <div class="row mt8">
                             <label
@@ -76,8 +76,8 @@
                                 class="o_light_label col-lg-3" />
                             <field
                                 name="cloud_storage_s3_secret_access_key"
-                                class="col-lg-4"
-                                password="True" />
+                                password="True"
+                                class="col-lg-4" />
                         </div>
                         <div class="row mt8">
                             <label

@@ -13,15 +13,12 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            // Not very robust but still nice to have an extra check as this is the
-            // main purpose of this tour
             content: "First check the user is not a designer",
             trigger:
                 '.dropdown-menu:has([data-menu-xmlid="website_sale.menu_product_pages"]):not(:has([data-menu-xmlid="website.menu_website_pages_list"]))',
             run: "click",
         },
         {
-            // Wait for the possibility to edit to appear
             trigger: ".o_menu_systray button:contains('Edit')",
         },
         {
@@ -53,10 +50,6 @@ registerWebsitePreviewTour(
         {
             content:
                 "Check that you landed on a form view and that the record was unpublished",
-            // Keyed on the widget's own `o_button_icon` and the state class it
-            // sets, not on the icon glyph: the glyph is a FontAwesome name that
-            // has already been renamed once (`fa-globe` -> `fa-earth-americas`)
-            // and took this assertion with it.
             trigger:
                 '.o-form-buttonbox [name="is_published"] .o_button_icon.text-danger',
         },

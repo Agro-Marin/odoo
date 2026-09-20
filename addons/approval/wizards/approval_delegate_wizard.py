@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from ..models import approval_trace as trace
 from ..models.approval_utils import is_approval_manager
 
 
@@ -11,9 +12,9 @@ class ApprovalDelegateWizard(models.TransientModel):
     user_id = fields.Many2one(
         comodel_name="res.users",
         string="Approver",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.user,
+        readonly=True,
+        required=True,
         help="User whose approvals will be delegated",
     )
     delegate_id = fields.Many2one(
@@ -37,8 +38,8 @@ class ApprovalDelegateWizard(models.TransientModel):
         "simply not being offered in the dropdown.",
     )
     start_date = fields.Date(
-        required=True,
         default=fields.Date.today,
+        required=True,
         help="First day of delegation period",
     )
     end_date = fields.Date(
@@ -50,8 +51,8 @@ class ApprovalDelegateWizard(models.TransientModel):
             ("pending", "Pending Approvals Only"),
             ("all_future", "Pending and Waiting Approvals"),
         ],
-        required=True,
         default="pending",
+        required=True,
         help="Which approvals to delegate",
     )
 
@@ -71,8 +72,16 @@ class ApprovalDelegateWizard(models.TransientModel):
         today = fields.Date.context_today(self)
         for wizard in self:
             if wizard.end_date < wizard.start_date:
+                trace.REFUSAL.event(
+                    "delegation_window_inverted",
+                    start=wizard.start_date,
+                    end=wizard.end_date,
+                )
                 raise ValidationError(self.env._("End date must be after start date."))
             if wizard.end_date < today:
+                trace.REFUSAL.event(
+                    "delegation_window_past", end=wizard.end_date, today=today
+                )
                 raise ValidationError(
                     self.env._(
                         "The delegation period has already ended. Choose an "
@@ -84,6 +93,7 @@ class ApprovalDelegateWizard(models.TransientModel):
     def _check_users(self):
         for wizard in self:
             if wizard.user_id == wizard.delegate_id:
+                trace.REFUSAL.event("delegate_is_principal", user=wizard.user_id.id)
                 raise ValidationError(
                     self.env._("You cannot delegate approvals to yourself.")
                 )
@@ -138,6 +148,11 @@ class ApprovalDelegateWizard(models.TransientModel):
 
         is_manager = is_approval_manager(self.env)
         if self.user_id != self.env.user and not is_manager:
+            trace.REFUSAL.event(
+                "delegate_for_other_user",
+                uid=self.env.uid,
+                principal=self.user_id.id,
+            )
             raise AccessError(
                 self.env._(
                     "You can only delegate your own approvals.\n\nAttempted to delegate approvals for: %(user)s",
@@ -180,10 +195,15 @@ class ApprovalDelegateWizard(models.TransientModel):
                 },
             }
 
-        previous_effective_by_id = {
-            approver.id: approver._get_effective_approver() for approver in approvers
-        }
-
+        trace.DELEGATION.note(
+            "delegate",
+            principal=self.user_id.id,
+            delegate=self.delegate_id.id,
+            rows=approvers.ids,
+            skipped=skipped.ids,
+            start=self.start_date,
+            end=self.end_date,
+        )
         approvers.write(
             {
                 "delegate_id": self.delegate_id.id,
@@ -192,7 +212,7 @@ class ApprovalDelegateWizard(models.TransientModel):
             },
         )
 
-        self._notify_delegate(approvers, previous_effective_by_id)
+        self._notify_delegate(approvers)
 
         message = self.env._(
             "Successfully delegated %(count)d approval(s) to %(delegate)s from %(start)s to %(end)s",
@@ -218,35 +238,46 @@ class ApprovalDelegateWizard(models.TransientModel):
             },
         }
 
-    def _notify_delegate(self, approvers, previous_effective_by_id):
+    def _notify_delegate(self, approvers):
         today = fields.Date.context_today(self)
         if not (self.start_date <= today <= self.end_date):
             return
 
         actionable = approvers.filtered(lambda a: a.state == "pending")
+        trace.DELEGATION.event(
+            "notify_delegate",
+            delegate=self.delegate_id.id,
+            rows=approvers.ids,
+            actionable=actionable.ids,
+        )
         if not actionable:
             return
 
         approval_type = self.env.ref("approval.mail_activity_data_approval")
         for approver in actionable:
             request = approver.request_id
-            previous_effective = previous_effective_by_id.get(approver.id)
-            if previous_effective and previous_effective != self.delegate_id:
-                request._get_approval_activities(
-                    user=previous_effective
-                ).action_feedback()
-            if request._get_approval_activities(user=self.delegate_id):
-                continue
-            approver._get_activity_target().activity_schedule(
-                activity_type_id=(approver._get_activity_type() or approval_type).id,
-                user_id=self.delegate_id.id,
-                approver_id=approver.id,
-                summary=self.env._("Delegated Approval: %s", request.name),
-                note=self.env._(
+            delegated = {
+                "summary": self.env._("Delegated Approval: %s", request.name),
+                "note": self.env._(
                     "<p>%(user)s has delegated their approval to you for this request.</p>"
                     "<p>Delegation period: %(start)s to %(end)s</p>",
                     user=self.user_id.name,
                     start=self.start_date,
                     end=self.end_date,
                 ),
+            }
+            # The row's write already handed the principal's activity over.
+            handed_over = request._get_approval_activities(
+                user=self.delegate_id
+            ).filtered(lambda activity, row=approver: activity.approver_id == row)
+            if handed_over:
+                handed_over.write(delegated)
+                continue
+            if request._get_approval_activities(user=self.delegate_id):
+                continue
+            approver._get_activity_target().activity_schedule(
+                activity_type_id=(approver._get_activity_type() or approval_type).id,
+                user_id=self.delegate_id.id,
+                approver_id=approver.id,
+                **delegated,
             )

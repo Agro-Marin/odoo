@@ -90,7 +90,7 @@ class AdyenController(http.Controller):
         """
         # Check that the transaction details have not been altered. This allows preventing users
         # from validating transactions by paying less than agreed upon.
-        if not payment_utils.check_access_token(
+        if not payment_utils.is_access_token_valid(
             access_token, reference, converted_amount, currency_id, partner_id
         ):
             raise ValidationError(_("Received tampered payment request data."))
@@ -269,6 +269,9 @@ class AdyenController(http.Controller):
         )
         if not tx_sudo:
             return request.redirect("/payment/status")
+        payment_utils.admit_notification(
+            tx_sudo.provider_id, payment_utils.verified_by_vendor_api
+        )
 
         # Overwrite the operation to force the flow to 'redirect'. This is necessary because even
         # though Adyen is implemented as a direct payment provider, it will redirect the user out
@@ -320,7 +323,12 @@ class AdyenController(http.Controller):
                 ._search_by_reference("adyen", payment_data)
             )
             if tx_sudo:
-                self._check_signature(payment_data, tx_sudo)
+                payment_utils.admit_notification(
+                    tx_sudo.provider_id,
+                    lambda data=payment_data, tx=tx_sudo: self._check_signature(
+                        data, tx
+                    ),
+                )
 
                 # Check whether the event of the notification succeeded and reshape the notification
                 # data for parsing

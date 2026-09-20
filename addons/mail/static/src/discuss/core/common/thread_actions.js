@@ -26,7 +26,7 @@ registerThreadAction("notification-settings", {
     actionPanelComponent: NotificationSettings,
     /** @param {ActionParams} params */
     condition: ({ owner, store, thread }) =>
-        thread?.model === "discuss.channel" &&
+        thread?.isChannelKind &&
         store.self_partner &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
     /** @param {ActionParams} params */
@@ -59,9 +59,7 @@ registerThreadAction("notification-settings", {
     close: ({ action }) => action.popover?.close(),
     /** @param {ActionParams} params */
     icon: ({ thread }) =>
-        thread.self_member_id?.mute_until_dt
-            ? "fa-solid fa-bell-slash text-danger"
-            : "fa-solid fa-bell",
+        thread.isMuted ? "fa-solid fa-bell-slash text-danger" : "fa-solid fa-bell",
     name: _t("Notification Settings"),
     panelOuterClass: "bg-100 border border-secondary",
     sequence: 10,
@@ -89,7 +87,7 @@ registerThreadAction("invite-people", {
     close: ({ action }) => action.popover?.close(),
     /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
-        thread?.model === "discuss.channel" &&
+        thread?.isChannelKind &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
     /** @param {ActionParams} params */
     panelOuterClass: ({ owner }) =>
@@ -136,7 +134,7 @@ registerThreadAction("mark-read", {
     condition: ({ owner, thread }) =>
         thread?.self_member_id &&
         thread.self_member_id.message_unread_counter > 0 &&
-        !thread.self_member_id.mute_until_dt &&
+        !thread.isMuted &&
         owner.isDiscussSidebarChannelActions,
     /** @param {ActionParams} params */
     open: ({ owner }) => owner.thread.markAsRead(),
@@ -155,7 +153,7 @@ registerThreadAction("delete-thread", {
     condition({ owner, store, thread }) {
         return (
             thread?.parent_channel_id &&
-            store.self_partner?.main_user_id?.eq(thread.create_uid) &&
+            store.selfUser?.eq(thread.create_uid) &&
             !owner.isDiscussContent
         );
     },

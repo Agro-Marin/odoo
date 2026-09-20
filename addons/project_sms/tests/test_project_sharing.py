@@ -49,7 +49,12 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
         cls.project_portal.write(
             {
                 "collaborator_ids": [
-                    Command.create({"partner_id": cls.user_portal.partner_id.id}),
+                    Command.create(
+                        {
+                            "partner_id": cls.user_portal.partner_id.id,
+                            "access_mode": "advanced_edit",
+                        }
+                    ),
                 ],
             }
         )
@@ -98,7 +103,7 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
     @tagged("post_install", "-at_install")
     def test_project_user_can_change_stage_with_sms_template(self):
         project_user_group = self.env.ref("project.group_project_user")
-        sale_manager_group = self.env.ref("sales_team.group_sale_manager", False)
+        sale_manager_group = self.env.ref("sale.group_sale_manager", False)
         if not sale_manager_group:
             self.skipTest("`sale_sms` not installed")
         self.user_projectuser.write(

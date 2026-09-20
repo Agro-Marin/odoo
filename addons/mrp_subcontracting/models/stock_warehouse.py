@@ -1,33 +1,46 @@
 from odoo import _, api, fields, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
-    subcontracting_to_resupply = fields.Boolean("Resupply Subcontractors", default=True)
+    subcontracting_to_resupply = fields.Boolean(
+        string="Resupply Subcontractors",
+        default=True,
+    )
     subcontracting_mto_pull_id = fields.Many2one(
-        "stock.rule", "Subcontracting MTO Rule", copy=False
+        comodel_name="stock.rule",
+        string="Subcontracting MTO Rule",
+        copy=False,
     )
     subcontracting_pull_id = fields.Many2one(
-        "stock.rule", "Subcontracting MTS Rule", copy=False
+        comodel_name="stock.rule",
+        string="Subcontracting MTS Rule",
+        copy=False,
     )
 
     subcontracting_route_id = fields.Many2one(
-        "stock.route", "Resupply Subcontractor", ondelete="restrict", copy=False
+        comodel_name="stock.route",
+        string="Resupply Subcontractor",
+        copy=False,
+        ondelete="restrict",
     )
 
     subcontracting_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Subcontracting Operation Type",
-        domain=[("code", "=", "mrp_operation")],
+        comodel_name="stock.picking.type",
+        string="Subcontracting Operation Type",
         copy=False,
+        domain=[("code", "=", "mrp_operation")],
     )
     subcontracting_resupply_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Subcontracting Resupply Operation Type",
-        domain=[("code", "=", "internal")],
+        comodel_name="stock.picking.type",
+        string="Subcontracting Resupply Operation Type",
         copy=False,
+        domain=[("code", "=", "internal")],
     )
 
     @api.model_create_multi
@@ -45,8 +58,8 @@ class StockWarehouse(models.Model):
             self._update_global_route_resupply_subcontractor()
         return res
 
-    def _get_rules_dict(self):
-        result = super()._get_rules_dict()
+    def _prepare_rule_routings(self):
+        result = super()._prepare_rule_routings()
         subcontract_location_id = self._get_subcontracting_location()
         for warehouse in self:
             result[warehouse.id].update(

@@ -1,26 +1,31 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ValidateAccountMove(models.TransientModel):
     _name = "validate.account.move"
     _description = "Validate Account Move"
 
-    move_ids = fields.Many2many("account.move")
+    move_ids = fields.Many2many(comodel_name="account.move")
     force_post = fields.Boolean(
         string="Force",
         help="Entries in the future are set to be auto-posted by default. Check this checkbox to post them now.",
     )
     display_force_post = fields.Boolean(compute="_compute_display_force_post")
-    force_hash = fields.Boolean(string="Force Hash")
+    force_hash = fields.Boolean()
     display_force_hash = fields.Boolean(compute="_compute_display_force_hash")
     is_entries = fields.Boolean(compute="_compute_is_entries")
     abnormal_date_partner_ids = fields.One2many(
-        "res.partner", compute="_compute_abnormal_date_partner_ids"
+        comodel_name="res.partner",
+        compute="_compute_abnormal_date_partner_ids",
     )
     ignore_abnormal_date = fields.Boolean()
     abnormal_amount_partner_ids = fields.One2many(
-        "res.partner", compute="_compute_abnormal_amount_partner_ids"
+        comodel_name="res.partner",
+        compute="_compute_abnormal_amount_partner_ids",
     )
     ignore_abnormal_amount = fields.Boolean()
 
@@ -64,7 +69,9 @@ class ValidateAccountMove(models.TransientModel):
             ).partner_id
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields_list):
+        _debug.lifecycle("default_get", records=self)
         result = super().default_get(fields_list)
         if "move_ids" in fields_list and not result.get("move_ids"):
             if self.env.context.get("active_model") == "account.move":
@@ -80,9 +87,19 @@ class ValidateAccountMove(models.TransientModel):
                     ("line_ids", "!=", False),
                 ]
             else:
+                _debug.logic(
+                    "validate_defaults_rejected",
+                    reason="unsupported_active_model",
+                    active_model=self.env.context.get("active_model"),
+                )
                 raise UserError(_("Missing 'active_model' in context."))
 
             moves = self.env["account.move"].search(domain)
+            _debug.logic(
+                "draft_moves_to_post_found",
+                active_model=self.env.context.get("active_model"),
+                move=moves,
+            )
             if not moves:
                 raise UserError(
                     _("There are no journal items in the draft state to post.")
@@ -91,7 +108,9 @@ class ValidateAccountMove(models.TransientModel):
 
         return result
 
+    @_debug.perf.timed
     def action_post_moves(self):
+        _debug.lifecycle("action_post_moves", records=self)
         if self.ignore_abnormal_amount:
             self.abnormal_amount_partner_ids.ignore_abnormal_invoice_amount = True
         if self.ignore_abnormal_date:
@@ -106,6 +125,13 @@ class ValidateAccountMove(models.TransientModel):
                 lambda m: not m.restrict_mode_hash_table
             )
             excluded_moves = self.move_ids - moves_to_post
+        _debug.logic(
+            "post_scope_decided",
+            move=moves_to_post,
+            excluded=excluded_moves,
+            force_hash=self.force_hash,
+            force_post=self.force_post,
+        )
         moves_to_post._post_check_business_rules()
         moves_to_post._post(not self.force_post)
 

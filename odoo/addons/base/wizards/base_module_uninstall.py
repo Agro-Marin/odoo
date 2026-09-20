@@ -1,6 +1,9 @@
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BaseModuleUninstall(models.TransientModel):
@@ -9,20 +12,22 @@ class BaseModuleUninstall(models.TransientModel):
 
     show_all = fields.Boolean()
     module_ids = fields.Many2many(
-        "ir.module.module",
+        comodel_name="ir.module.module",
         string="Module(s)",
+        readonly=True,
         required=True,
         domain=[("state", "in", ["installed", "to upgrade", "to install"])],
         ondelete="cascade",
-        readonly=True,
     )
     impacted_module_ids = fields.Many2many(
-        "ir.module.module",
+        comodel_name="ir.module.module",
         string="Impacted modules",
         compute="_compute_impacted_module_ids",
     )
     model_ids = fields.Many2many(
-        "ir.model", string="Impacted data models", compute="_compute_model_ids"
+        comodel_name="ir.model",
+        string="Impacted data models",
+        compute="_compute_model_ids",
     )
 
     def _get_modules(self) -> Self:
@@ -36,6 +41,12 @@ class BaseModuleUninstall(models.TransientModel):
             )
             wizard.impacted_module_ids = (
                 modules if wizard.show_all else wizard._get_modules_to_display(modules)
+            )
+            _debug.pipeline(
+                "uninstall_impact",
+                modules=wizard.module_ids.mapped("name"),
+                downstream=len(modules),
+                shown=len(wizard.impacted_module_ids),
             )
 
     @api.model
@@ -60,6 +71,12 @@ class BaseModuleUninstall(models.TransientModel):
                     )
 
                 wizard.model_ids = ir_models.filtered(lost).sorted("name")
+                _debug.pipeline(
+                    "uninstall_lost_models",
+                    modules=len(module_names),
+                    candidates=len(ir_models),
+                    lost=len(wizard.model_ids),
+                )
             else:
                 wizard.model_ids = False
 
@@ -70,4 +87,5 @@ class BaseModuleUninstall(models.TransientModel):
 
     def action_uninstall(self) -> dict[str, Any]:
         modules = self.module_ids
+        _debug.lifecycle("wizard_uninstall", modules=modules.mapped("name"))
         return modules.button_immediate_uninstall()

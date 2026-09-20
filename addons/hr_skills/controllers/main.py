@@ -1,41 +1,41 @@
 import re
 
 from odoo.http import Controller, prepare_content_disposition_header, request, route
+from odoo.libs.debug_log import DebugLog
 
 EMPLOYEE_IDS_RE = re.compile(r"^[0-9]+(,[0-9]+)*$")
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+DEFAULT_COLOR = "#666666"
+
+_debug = DebugLog(__name__)
 
 
 class HrEmployeeCV(Controller):
     def _printable_employees(self, employee_ids):
-        """The employees the current user may print, or an empty recordset.
+        if not (isinstance(employee_ids, str) and EMPLOYEE_IDS_RE.match(employee_ids)):
+            _debug.logic("cv_ids_rejected", raw=isinstance(employee_ids, str))
+            return request.env["hr.employee"]
+        return request.env["hr.employee"]._get_cv_printable_employees(
+            [int(employee_id) for employee_id in employee_ids.split(",")]
+        )
 
-        An HR user prints whichever employees they can read; anyone else prints
-        only themself. The rendering below runs as superuser, so this is the
-        only access check the report gets.
-        """
-        user = request.env.user
-        if not user._is_internal() or not (
-            isinstance(employee_ids, str) and EMPLOYEE_IDS_RE.match(employee_ids)
-        ):
-            return request.env["hr.employee"]
-        ids = [int(s) for s in employee_ids.split(",")]
-        employees = request.env["hr.employee"].browse(ids).exists()
-        if len(employees) != len(set(ids)):
-            return request.env["hr.employee"]
-        if user.has_group("hr.group_hr_user"):
-            return employees if employees.has_access("read") else employees.browse()
-        return employees if employees == user.employee_id else employees.browse()
+    @staticmethod
+    def _css_color(color):
+        return (
+            color if isinstance(color, str) and COLOR_RE.match(color) else DEFAULT_COLOR
+        )
 
     @route(["/print/cv"], type="http", auth="user")
     def print_employee_cv(
         self,
         employee_ids="",
-        color_primary="#666666",
-        color_secondary="#666666",
+        color_primary=DEFAULT_COLOR,
+        color_secondary=DEFAULT_COLOR,
         **post,
     ):
         employees = self._printable_employees(employee_ids)
         if not employees:
+            _debug.logic("cv_print_not_found", user=request.env.user)
             return request.prepare_not_found_error()
 
         resume_type_education = request.env.ref(
@@ -54,8 +54,8 @@ class HrEmployeeCV(Controller):
                 report,
                 employees.ids,
                 data={
-                    "color_primary": color_primary,
-                    "color_secondary": color_secondary,
+                    "color_primary": self._css_color(color_primary),
+                    "color_secondary": self._css_color(color_secondary),
                     "resume_type_education": resume_type_education,
                     "skill_type_language": skill_type_language,
                     "show_skills": "show_skills" in post,
@@ -65,6 +65,9 @@ class HrEmployeeCV(Controller):
             )
         )
 
+        _debug.perf.count(
+            "cv_pdf_rendered", employees=employees, bytes=len(pdf_content)
+        )
         if len(employees) == 1:
             report_name = request.env._("Resume %s", employees.name)
         else:

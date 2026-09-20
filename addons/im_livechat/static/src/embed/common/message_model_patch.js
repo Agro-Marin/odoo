@@ -10,7 +10,7 @@ const messagePatch = {
     },
 
     get notificationHidden() {
-        if (this.thread.channel_type !== "livechat" || !this.notificationType) {
+        if (!this.thread.isLivechat || !this.notificationType) {
             return super.notificationHidden;
         }
         return ["channel-joined", "channel-left"].includes(this.notificationType);

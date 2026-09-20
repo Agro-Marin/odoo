@@ -1,6 +1,9 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
@@ -10,17 +13,16 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
     _order = "protocol_number_part1, protocol_number_part2"
 
     state = fields.Selection(
-        [
+        selection=[
             ("draft", "Draft"),
             ("active", "Active"),
             ("revoked", "Revoked"),
             ("terminated", "Terminated"),
         ],
-        string="State",
-        tracking=True,
         default="draft",
-        required=True,
         readonly=True,
+        required=True,
+        tracking=True,
         help="The state of this Declaration of Intent. \n"
         "- 'Draft' means that the Declaration of Intent still needs to be confirmed before being usable. \n"
         "- 'Active' means that the Declaration of Intent is usable. \n"
@@ -30,15 +32,13 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
+        default=lambda self: self.env.company._get_accessible_branches()[:1],
         index=True,
         required=True,
-        default=lambda self: self.env.company._get_accessible_branches()[:1],
     )
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Partner",
         index=True,
         required=True,
         domain="['|', ('is_company', '=', True), ('parent_id', '=', False)]",
@@ -46,42 +46,37 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
 
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Currency",
         default=lambda self: self.env.ref("base.EUR", raise_if_not_found=False).id,
-        required=True,
         readonly=True,
+        required=True,
     )
 
     issue_date = fields.Date(
         string="Date of Issue",
-        required=True,
-        copy=False,
         default=fields.Date.context_today,
+        copy=False,
+        required=True,
         help="Date on which the Declaration of Intent was issued",
     )
 
     start_date = fields.Date(
-        string="Start Date",
-        required=True,
         copy=False,
+        required=True,
         help="First date on which the Declaration of Intent is valid",
     )
 
     end_date = fields.Date(
-        string="End Date",
-        required=True,
         copy=False,
+        required=True,
         help="Last date on which the Declaration of Intent is valid",
     )
 
     threshold = fields.Monetary(
-        string="Threshold",
         required=True,
         help="Total amount of allowed sales without VAT under this Declaration of Intent",
     )
 
     invoiced = fields.Monetary(
-        string="Invoiced",
         compute="_compute_invoiced",
         store=True,
         readonly=True,
@@ -89,7 +84,6 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
     )
 
     not_yet_invoiced = fields.Monetary(
-        string="Not Yet Invoiced",
         compute="_compute_not_yet_invoiced",
         store=True,
         readonly=True,
@@ -97,7 +91,6 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
     )
 
     remaining = fields.Monetary(
-        string="Remaining",
         compute="_compute_remaining",
         store=True,
         readonly=True,
@@ -106,29 +99,29 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
 
     protocol_number_part1 = fields.Char(
         string="Protocol 1",
-        required=True,
-        readonly=False,
         copy=False,
+        readonly=False,
+        required=True,
     )
 
     protocol_number_part2 = fields.Char(
         string="Protocol 2",
-        required=True,
-        readonly=False,
         copy=False,
+        readonly=False,
+        required=True,
     )
 
     invoice_ids = fields.One2many(
-        "account.move",
-        "l10n_it_edi_doi_id",
+        comodel_name="account.move",
+        inverse_name="l10n_it_edi_doi_id",
         string="Invoices / Refunds",
         copy=False,
         readonly=True,
     )
 
     sale_order_ids = fields.One2many(
-        "sale.order",
-        "l10n_it_edi_doi_id",
+        comodel_name="sale.order",
+        inverse_name="l10n_it_edi_doi_id",
         string="Sales Orders / Quotations",
         copy=False,
         readonly=True,
@@ -175,6 +168,13 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
             declaration.not_yet_invoiced = sum(
                 relevant_orders.mapped("l10n_it_edi_doi_not_yet_invoiced")
             )
+            _debug.logic(
+                "not_yet_invoiced_recomputed",
+                declaration=declaration,
+                linked_orders=declaration.sale_order_ids,
+                confirmed_orders=relevant_orders,
+                total=declaration.not_yet_invoiced,
+            )
 
     @api.depends("threshold", "not_yet_invoiced", "invoiced")
     def _compute_remaining(self):
@@ -194,6 +194,15 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         """
         self.check_singleton()
         updated_remaining = self.threshold - invoiced - not_yet_invoiced
+        _debug.logic(
+            "threshold_warning",
+            declaration=self,
+            threshold=self.threshold,
+            invoiced=invoiced,
+            not_yet_invoiced=not_yet_invoiced,
+            remaining=updated_remaining,
+            exceeded=self.currency_id.compare_amounts(updated_remaining, 0) < 0,
+        )
         if self.currency_id.compare_amounts(updated_remaining, 0) >= 0:
             return ""
         return _(
@@ -244,6 +253,8 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
                         partner=partner.commercial_partner_id.name,
                     )
                 )
+        if _debug.logic.enabled and errors:
+            _debug.logic("declaration_invalid", declarations=self, errors=len(errors))
         return errors
 
     def _get_validity_warnings(
@@ -289,6 +300,13 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
                             date=date,
                         )
                     )
+        _debug.logic(
+            "declaration_validity",
+            declarations=self,
+            warnings=len(errors),
+            sales_order=sales_order,
+            only_blocking=only_blocking,
+        )
         return errors
 
     @api.model
@@ -297,6 +315,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         Fetch a declaration of intent that is valid for the specified `company`, `partner`, `date` and `currency`
         and has not reached the threshold yet.
         """
+        _debug.perf.count("valid_declaration_lookup", company=company, partner=partner)
         return self.search(
             [
                 ("state", "=", "active"),
@@ -313,6 +332,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_except_linked_to_document(self):
         if self.invoice_ids or self.sale_order_ids:
+            _debug.logic("declaration_unlink_refused", declarations=self)
             raise UserError(
                 _(
                     "You cannot delete Declarations of Intents that are already used on at least one Invoice or Sales Order."

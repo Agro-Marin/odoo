@@ -1,10 +1,14 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { selectElements } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { session } from "@web/session";
 
 import { FormActionFieldsOption } from "./form_action_fields_option.js";
 import { getModelName, getParsedDataFor } from "./utils.js";
+
+const log = makeLogger("website.builder.option.form_option");
 
 export class FormOption extends BaseOptionComponent {
     static template = "website.s_website_form_form_option";
@@ -22,8 +26,15 @@ export class FormOption extends BaseOptionComponent {
             ".s_website_form form[data-model_name]",
         )) {
             const model = formEl.dataset.model_name;
+            const endAuthorizedFields = log.perf(
+                "cleanForSave authorized fields",
+                () => ({
+                    model,
+                }),
+            );
             const authorizedFields =
                 await dependencies.websiteFormOption.fetchAuthorizedFields(formEl);
+            endAuthorizedFields();
             const fields = [
                 ...formEl.querySelectorAll(
                     ".s_website_form_field:not(.s_website_form_custom) .s_website_form_input",
@@ -31,6 +42,11 @@ export class FormOption extends BaseOptionComponent {
             ]
                 .map((el) => el.name)
                 .filter((name) => !authorizedFields[name]?._property);
+            log.logic("cleanForSave formbuilder_whitelist", () => ({
+                model,
+                fields: fields.length,
+                whitelist: !!fields.length,
+            }));
             if (fields.length) {
                 services.orm.call("ir.model.fields", "formbuilder_whitelist", [
                     model,
@@ -42,16 +58,14 @@ export class FormOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         const { prepareFormModel, applyFormModel, fetchModels } =
             this.dependencies.websiteFormOption;
         this.hasRecaptchaKey = !!session.recaptcha_public_key;
 
-        // Get potential message
         const el = this.env.getEditingElement();
         this.messageEl = el.parentElement.querySelector(".s_website_form_end_message");
         this.showEndMessage = false;
-        // Get the email_to value from the data-for attribute if it exists. We
-        // use it if there is no value on the email_to input.
         const formId = el.id;
         const dataForValues = getParsedDataFor(formId, el.ownerDocument);
         if (dataForValues) {
@@ -60,20 +74,18 @@ export class FormOption extends BaseOptionComponent {
         this.state = useDomState(async (el) => {
             const modelName = getModelName(el);
 
-            // Hide change form parameters option for forms e.g. User should not
-            // be enable to change existing job application form to opportunity
-            // form in 'Apply job' page.
             this.modelCantChange = !!el.getAttribute("hide-change-model");
 
-            // Get list of website_form compatible models.
             const models = await fetchModels(el);
             const activeForm = models.find((m) => m.model === modelName);
 
-            // If the form has no model it means a new snippet has been dropped.
-            // Apply the default model selected in willStart on it.
             if (!el.dataset.model_name) {
+                const endInitModel = log.perf("domState init form model", () => ({
+                    model: activeForm?.model,
+                }));
                 const formInfo = await prepareFormModel(el, activeForm);
                 applyFormModel(el, activeForm, activeForm.id, formInfo);
+                endInitModel();
             }
             return {
                 models,

@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import logging
 import pprint
+import re
 from datetime import UTC, datetime
 
 from werkzeug.exceptions import Forbidden
@@ -8,7 +10,7 @@ from werkzeug.exceptions import Forbidden
 from odoo import http
 from odoo.exceptions import ValidationError
 from odoo.http import request
-from odoo.tools import file_open, mute_logger
+from odoo.tools import file_open
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
@@ -16,6 +18,30 @@ from odoo.addons.payment_stripe import const
 from odoo.addons.payment_stripe import utils as stripe_utils
 
 _logger = get_payment_logger(__name__, const.SENSITIVE_KEYS)
+
+_CLIENT_SECRET_PARAM = re.compile(r"([?&][a-z_]*client_secret=)[^&\s#\"]+")
+
+
+class ReturnUrlSecretFilter(logging.Filter):
+    # Stripe appends payment_intent_client_secret / setup_intent_client_secret to the
+    # return URL, and the access log records the request line after the controller has
+    # returned, so only a filter on that logger can keep the secret out.
+    def filter(self, record):
+        if isinstance(record.args, tuple) and record.args:
+            line = record.args[0]
+            if isinstance(line, str) and "client_secret=" in line:
+                masked = _CLIENT_SECRET_PARAM.sub(r"\1[REDACTED]", line)
+                record.args = (masked, *record.args[1:])
+        return True
+
+
+def install_return_url_secret_filter():
+    access_logger = logging.getLogger("odoo.service.http.access")
+    if not any(isinstance(f, ReturnUrlSecretFilter) for f in access_logger.filters):
+        access_logger.addFilter(ReturnUrlSecretFilter())
+
+
+install_return_url_secret_filter()
 
 
 class StripeController(http.Controller):
@@ -34,7 +60,7 @@ class StripeController(http.Controller):
         redirection to Stripe or to an external service (e.g., for strong authentication).
 
         :param dict data: The payment data, including the reference appended to the URL in
-                          `_get_specific_processing_values`.
+                          `_prepare_provider_processing_values`.
         """
         # Retrieve the transaction based on the reference included in the return url.
         tx_sudo = (
@@ -64,8 +90,7 @@ class StripeController(http.Controller):
             tx_sudo._process("stripe", data)
 
         # Redirect the user to the status page.
-        with mute_logger("werkzeug"):  # avoid logging secret URL params
-            return request.redirect("/payment/status")
+        return request.redirect("/payment/status")
 
     @http.route(_webhook_url, type="http", methods=["POST"], auth="public", csrf=False)
     def stripe_webhook(self):
@@ -99,7 +124,9 @@ class StripeController(http.Controller):
                 if not tx_sudo:
                     return request.prepare_json_response("")
 
-                self._check_signature(tx_sudo)
+                payment_utils.admit_notification(
+                    tx_sudo.provider_id, lambda: self._check_signature(tx_sudo)
+                )
 
                 if event["type"].startswith("payment_intent"):  # Payment operation.
                     if tx_sudo.tokenize:
@@ -198,7 +225,7 @@ class StripeController(http.Controller):
         :rtype: recordset of `payment.transaction`
         """
         amount_to_refund = refund_object["amount"]
-        converted_amount = payment_utils.to_major_currency_units(
+        converted_amount = payment_utils.minor_to_major_currency_units(
             amount_to_refund,
             source_tx_sudo.currency_id,
             arbitrary_decimal_number=const.CURRENCY_DECIMALS.get(
@@ -220,33 +247,34 @@ class StripeController(http.Controller):
         """
         webhook_secret = stripe_utils.get_webhook_secret(tx_sudo.provider_id)
         if not webhook_secret:
-            _logger.warning("ignored webhook event due to undefined webhook secret")
-            return
+            _logger.warning(
+                "refused a webhook event: provider %s has no webhook secret to check it",
+                tx_sudo.provider_id.name,
+            )
+            raise Forbidden
 
         notification_payload = request.httprequest.data.decode("utf-8")
         signature_entries = request.httprequest.headers["Stripe-Signature"].split(",")
-        signature_data = {
-            k: v for k, v in [entry.split("=") for entry in signature_entries]
-        }
+        signature_data = dict([entry.split("=") for entry in signature_entries])
 
         # Retrieve the timestamp from the data
         event_timestamp = int(signature_data.get("t", "0"))
         if not event_timestamp:
             _logger.warning("Received payment data with missing timestamp")
-            raise Forbidden()
+            raise Forbidden
 
         # Check if the timestamp is not too old
         if datetime.now(UTC).timestamp() - event_timestamp > self.WEBHOOK_AGE_TOLERANCE:
             _logger.warning(
                 "Received payment data with outdated timestamp: %s", event_timestamp
             )
-            raise Forbidden()
+            raise Forbidden
 
         # Retrieve the received signature from the data
         received_signature = signature_data.get("v1")
         if not received_signature:
             _logger.warning("Received payment data with missing signature")
-            raise Forbidden()
+            raise Forbidden
 
         # Compare the received signature with the expected signature computed from the data
         signed_payload = f"{event_timestamp}.{notification_payload}"
@@ -257,10 +285,10 @@ class StripeController(http.Controller):
         ).hexdigest()
         if not hmac.compare_digest(received_signature, expected_signature):
             _logger.warning("Received payment data with invalid signature")
-            raise Forbidden()
+            raise Forbidden
 
     @http.route(
-        _apple_pay_domain_association_url, type="http", auth="public", csrf=False
+        _apple_pay_domain_association_url, type="http", methods=["GET"], auth="public"
     )
     def stripe_apple_pay_get_domain_association_file(self):
         """Get the domain association file for Stripe's Apple Pay.

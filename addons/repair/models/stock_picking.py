@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import clean_context
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingType(models.Model):
@@ -11,62 +14,69 @@ class StockPickingType(models.Model):
     )
 
     count_repair_confirmed = fields.Integer(
-        string="Number of Repair Orders Confirmed", compute="_compute_count_repair"
+        string="Number of Repair Orders Confirmed",
+        compute="_compute_count_repair",
     )
     count_repair_under_repair = fields.Integer(
-        string="Number of Repair Orders Under Repair", compute="_compute_count_repair"
+        string="Number of Repair Orders Under Repair",
+        compute="_compute_count_repair",
     )
     count_repair_ready = fields.Integer(
-        string="Number of Repair Orders to Process", compute="_compute_count_repair"
+        string="Number of Repair Orders to Process",
+        compute="_compute_count_repair",
     )
     count_repair_late = fields.Integer(
-        string="Number of Late Repair Orders", compute="_compute_count_repair"
+        string="Number of Late Repair Orders",
+        compute="_compute_count_repair",
     )
 
     default_product_location_src_id = fields.Many2one(
-        "stock.location",
-        "Product Source Location",
+        comodel_name="stock.location",
+        string="Product Source Location",
         compute="_compute_default_product_location_id",
-        check_company=True,
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        check_company=True,
         help="This is the default source location for the product to be repaired in repair orders with this operation type.",
     )
     default_product_location_dest_id = fields.Many2one(
-        "stock.location",
-        "Product Destination Location",
+        comodel_name="stock.location",
+        string="Product Destination Location",
         compute="_compute_default_product_location_id",
-        check_company=True,
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        check_company=True,
         help="This is the default destination location for the product to be repaired in repair orders with this operation type.",
     )
     default_remove_location_dest_id = fields.Many2one(
-        "stock.location",
-        "Remove Destination Location",
+        comodel_name="stock.location",
+        string="Remove Destination Location",
         compute="_compute_default_remove_location_dest_id",
-        check_company=True,
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        check_company=True,
         help="This is the default remove destination location when you create a repair order with this operation type.",
     )
     default_recycle_location_dest_id = fields.Many2one(
-        "stock.location",
-        "Recycle Destination Location",
+        comodel_name="stock.location",
+        string="Recycle Destination Location",
         compute="_compute_default_recycle_location_dest_id",
-        check_company=True,
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        check_company=True,
         help="This is the default recycle destination location when you create a repair order with this operation type.",
     )
 
-    repair_properties_definition = fields.PropertiesDefinition("Repair Properties")
+    repair_properties_definition = fields.PropertiesDefinition(
+        string="Repair Properties"
+    )
 
     def _compute_count_repair(self):
+        _debug.perf.count("repair_count_compute", picking_types=self)
         repair_picking_types = self.filtered(
             lambda picking: picking.code == "repair_operation"
         )
@@ -192,6 +202,7 @@ class StockPickingType(models.Model):
         return action
 
     def _get_aggregated_records_by_date(self):
+        _debug.perf.count("repair_aggregate_by_date", picking_types=self)
         repair_picking_types = self.filtered(
             lambda picking: picking.code == "repair_operation"
         )
@@ -216,10 +227,17 @@ class StockPickingType(models.Model):
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    repair_ids = fields.One2many("repair.order", "picking_id")
-    nbr_repairs = fields.Count("repair_ids", "Number of repairs linked to this picking")
+    repair_ids = fields.One2many(
+        comodel_name="repair.order",
+        inverse_name="picking_id",
+    )
+    nbr_repairs = fields.Count(
+        count_of="repair_ids",
+        string="Number of repairs linked to this picking",
+    )
 
     def action_repair_return(self):
+        _debug.pipeline("repair_return_enter", pickings=self)
         self.check_singleton()
         ctx = clean_context(self.env.context.copy())
         warehouse = (

@@ -1,3 +1,5 @@
+import json
+import logging
 from unittest.mock import patch
 
 import werkzeug.exceptions
@@ -5,15 +7,115 @@ from lxml import html
 
 from odoo.fields import Command
 from odoo.http import root
-from odoo.tests import HttpCase, common, tagged
+from odoo.tests import HttpCase, common, freeze_time, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.controllers.main import Website
 
+_logger = logging.getLogger(__name__)
+
 
 @tagged("-at_install", "post_install")
 class TestPage(common.TransactionCase):
+    @freeze_time("2026-09-13 12:00:00")
+    def test_scheduled_page_is_not_a_public_fuzzy_candidate_but_is_editable(self):
+        website = self.env.ref("website.default_website")
+        self.page_1.write(
+            {
+                "name": "zebratopic",
+                "is_published": True,
+                "website_indexed": True,
+                "date_publish": "2026-09-14 12:00:00",
+            }
+        )
+        public = website.with_user(website.user_id).with_context(website_id=website.id)
+        with MockRequest(public.env, website=public):
+            count, _results, fuzzy = public._search_with_fuzzy(
+                "pages",
+                "zebratopci",
+                10,
+                "id",
+                {"displayDescription": True, "allowFuzzy": True},
+            )
+        _logger.debug("Scheduled fuzzy candidate: count=%s correction=%s", count, fuzzy)
+        self.assertEqual(count, 0)
+        self.assertFalse(fuzzy)
+        with MockRequest(self.env, website=website):
+            count, results, _fuzzy = website._search_with_fuzzy(
+                "pages",
+                "zebratopic",
+                10,
+                "id",
+                {"displayDescription": True, "allowFuzzy": False},
+            )
+        self.assertEqual(count, 1)
+        self.assertEqual(results[0]["results"].ids, self.page_1.ids)
+
+    def test_visibility_cache_is_separate_for_each_website(self):
+        website = self.env.ref("website.default_website")
+        other = self.env["website"].create({"name": "Visibility challenge"})
+        self.page_1.write({"website_id": website.id, "is_published": True})
+        on_site = self.page_1.with_context(website_id=website.id)
+        off_site = self.page_1.with_context(website_id=other.id)
+        self.assertTrue(on_site.is_visible)
+        self.assertFalse(off_site.is_visible)
+        self.assertTrue(on_site.is_visible)
+        self.page_1.is_published = False
+        self.assertFalse(on_site.is_visible)
+
+    @freeze_time("2026-09-13 12:00:00")
+    def test_visibility_recomputes_after_publication_changes(self):
+        page = self.page_1
+        self.assertFalse(page.is_visible)
+        page.is_published = True
+        _logger.debug("Published page %s has is_visible=%s", page.id, page.is_visible)
+        self.assertTrue(page.is_visible)
+        page.date_publish = "2026-09-14 12:00:00"
+        self.assertFalse(page.is_visible)
+        page.date_publish = "2026-09-13 12:00:00"
+        self.assertTrue(page.is_visible)
+
+    @freeze_time("2026-09-13 12:00:00")
+    def test_public_search_excludes_scheduled_pages(self):
+        website = self.env.ref("website.default_website")
+        self.page_1.write(
+            {
+                "is_published": True,
+                "website_indexed": True,
+                "date_publish": "2026-09-14 12:00:00",
+            }
+        )
+        public_website = website.with_user(website.user_id).with_context(
+            website_id=website.id
+        )
+        with MockRequest(public_website.env, website=public_website):
+            count, results, _fuzzy = public_website._search_with_fuzzy(
+                "pages",
+                "page_1",
+                10,
+                "id",
+                {"displayDescription": True, "allowFuzzy": False},
+            )
+        _logger.debug(
+            "Scheduled page %s search count=%s results=%s",
+            self.page_1.id,
+            count,
+            [detail["results"].ids for detail in results],
+        )
+        self.assertEqual(count, 0)
+        self.page_1.date_publish = "2026-09-13 12:00:00"
+        with MockRequest(public_website.env, website=public_website):
+            count, results, _fuzzy = public_website._search_with_fuzzy(
+                "pages",
+                "page_1",
+                10,
+                "id",
+                {"displayDescription": True, "allowFuzzy": False},
+            )
+        self.assertEqual(count, 1)
+        self.assertEqual(results[0]["results"].ids, self.page_1.ids)
+
     def setUp(self):
         super().setUp()
         View = self.env["ir.ui.view"]
@@ -327,21 +429,9 @@ class TestPage(common.TransactionCase):
         self.assertEqual(new_view.website_id.id, 1)
 
     def test_cow_generic_parent_preserves_specific_child_page(self):
-        """A page whose view_id is an already-website-specific inheriting
-        child must survive a COW write on the generic parent view.
-
-        Regression test for a bug where reparenting an inherit_children_ids
-        entry that was already specific to the current website (copy +
-        unlink of the original) dropped its website.page: page.view_id is
-        ondelete="cascade" and the original was unlinked with no
-        replacement page created for the copy.
-        """
         Page = self.env["website.page"]
         View = self.env["ir.ui.view"]
 
-        # Make the extension view specific to website 1 first, and attach a
-        # page to it, so it is exactly the "already-specific inherit_child"
-        # scenario the bug required.
         self.extension_view.with_context(website_id=1).write(
             {"arch": "<div>website 1 extension content</div>"}
         )
@@ -359,8 +449,6 @@ class TestPage(common.TransactionCase):
             }
         )
 
-        # COW-write the generic base view under website 1 -- this reparents
-        # specific_extension_view (copy + unlink of the original).
         self.base_view.with_context(website_id=1).write(
             {"arch": "<div>website 1 base content</div>"}
         )
@@ -430,6 +518,48 @@ class TestPage(common.TransactionCase):
 
 @tagged("-at_install", "post_install")
 class WithContext(HttpCase):
+    def test_scheduled_page_becomes_visible_without_a_write(self):
+        with freeze_time("2026-09-13 12:00:00") as clock:
+            self.page.date_publish = "2026-09-14 12:00:00"
+            self.assertEqual(self.url_open(self.page.url).status_code, 404)
+            clock.move_to("2026-09-14 12:00:00")
+            response = self.url_open(self.page.url)
+            _logger.debug(
+                "Scheduled page after clock advance without a write: status=%s",
+                response.status_code,
+            )
+            self.assertEqual(response.status_code, 200)
+
+    @freeze_time("2026-09-13 12:00:00")
+    def test_scheduled_page_is_hidden_from_http_and_autocomplete(self):
+        self.page.write(
+            {"date_publish": "2026-09-14 12:00:00", "website_indexed": True}
+        )
+        response = self.url_open(self.page.url)
+        _logger.debug("Scheduled page HTTP challenge: status=%s", response.status_code)
+        self.assertEqual(response.status_code, 404)
+        response = self.url_open(
+            "/website/snippet/autocomplete",
+            data=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "id": 1,
+                    "params": {
+                        "search_type": "pages",
+                        "term": "page_1",
+                        "options": {"displayDescription": True, "allowFuzzy": False},
+                    },
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        result = response.json()["result"]
+        _logger.debug("Scheduled page autocomplete HTTP challenge: %s", result)
+        self.assertEqual(result["results_count"], 0)
+        self.page.date_publish = "2026-09-13 12:00:00"
+        self.assertEqual(self.url_open(self.page.url).status_code, 200)
+
     def setUp(self):
         super().setUp()
         Page = self.env["website.page"]
@@ -960,3 +1090,397 @@ class TestErrorPageFallback(HttpCase):
         self.assertEqual(response.status_code, 403)
         self.assertNotIn("TOPSECRETBODY", response.text)
         self.assertIn("visibility_password", response.text)
+
+
+@tagged("-at_install", "post_install")
+class TestMostSpecificPagesScan(common.TransactionCase):
+    """`_get_most_specific_pages` counts keys, and only the keys it will read.
+
+    It sits behind site search, the sitemap, `is_page_existing` and the backend
+    page list, where the candidate set is a handful of rows and the table is the
+    whole site. Counting every page's key there made each of those O(site).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.website = cls.env.ref("website.default_website")
+        template = cls.env.ref("website.default_page")
+        pages = []
+        for index in range(12):
+            view = template.copy(
+                {"website_id": cls.website.id, "key": f"website.scan_probe_{index}"}
+            )
+            pages.append(
+                {
+                    # Distinct names on purpose: a fixture whose rows sort the
+                    # same ascending and descending cannot witness an order bug.
+                    "name": f"Scan probe {index:02d}",
+                    "url": f"/scan-probe-{index}",
+                    "view_id": view.id,
+                    "website_id": cls.website.id,
+                    "is_published": True,
+                }
+            )
+        cls.pages = cls.env["website.page"].create(pages)
+        cls.env.flush_all()
+
+    def _fetched_keys(self, records):
+        """How many rows the key-count query brings back for `records`."""
+        seen = []
+        original = type(self.env["website.page"]).search_fetch
+
+        def counting_search_fetch(model, domain, field_names, *args, **kwargs):
+            result = original(model, domain, field_names, *args, **kwargs)
+            if field_names == ["key"]:
+                seen.append(len(result))
+            return result
+
+        with patch.object(
+            type(self.env["website.page"]), "search_fetch", counting_search_fetch
+        ):
+            kept = records._get_most_specific_pages()
+        return kept, seen
+
+    def test_the_key_count_is_bounded_by_the_candidate_set(self):
+        one = self.pages[:1].with_context(website_id=self.website.id)
+        kept, fetched = self._fetched_keys(one)
+        self.assertEqual(kept, one)
+        self.assertEqual(
+            fetched,
+            [1],
+            "a one-page candidate set must not read every key on the site",
+        )
+
+    def test_a_generic_page_shadowed_by_a_specific_one_is_still_dropped(self):
+        generic_view = self.env["ir.ui.view"].create(
+            {
+                "name": "Shadowed",
+                "type": "qweb",
+                "key": "website.shadowed_page",
+                "arch": '<t t-name="website.shadowed_page">'
+                '<t t-call="website.layout">SHADOWED</t></t>',
+            }
+        )
+        generic = self.env["website.page"].create(
+            {"url": "/shadowed", "view_id": generic_view.id, "is_published": True}
+        )
+        specific = self.env["website.page"].create(
+            {
+                "url": "/shadowed",
+                "view_id": generic_view.copy(
+                    {"website_id": self.website.id, "key": "website.shadowed_page"}
+                ).id,
+                "website_id": self.website.id,
+                "is_published": True,
+            }
+        )
+        self.env.flush_all()
+        candidates = (generic | specific).with_context(website_id=self.website.id)
+        self.assertEqual(candidates._get_most_specific_pages(), specific)
+
+    def test_an_unshadowed_generic_page_is_kept(self):
+        generic_view = self.env["ir.ui.view"].create(
+            {
+                "name": "Lonely",
+                "type": "qweb",
+                "key": "website.lonely_page",
+                "arch": '<t t-name="website.lonely_page">'
+                '<t t-call="website.layout">LONELY</t></t>',
+            }
+        )
+        generic = self.env["website.page"].create(
+            {"url": "/lonely", "view_id": generic_view.id, "is_published": True}
+        )
+        self.env.flush_all()
+        candidates = generic.with_context(website_id=self.website.id)
+        self.assertEqual(candidates._get_most_specific_pages(), generic)
+
+    def test_an_empty_candidate_set_reads_nothing(self):
+        empty = self.env["website.page"].with_context(website_id=self.website.id)
+        kept, _fetched = self._fetched_keys(empty)
+        self.assertFalse(kept)
+
+    def test_the_caller_s_order_survives_the_dedup(self):
+        """The url sort inside the dedup decides which page wins, not the output
+        order. Returning `browse(ids)` handed every caller its pages in url
+        order instead, so site search ignored the requested sort."""
+        candidates = self.pages.with_context(website_id=self.website.id)
+        for order in ("name asc", "name desc"):
+            with self.subTest(order=order):
+                asked = (
+                    self.env["website.page"]
+                    .sudo()
+                    .search([("id", "in", self.pages.ids)], order=order)
+                )
+                kept = asked.with_context(
+                    website_id=self.website.id
+                )._get_most_specific_pages()
+                self.assertEqual(
+                    kept.ids,
+                    [i for i in asked.ids if i in set(kept.ids)],
+                    "the dedup must filter, not re-sort",
+                )
+        self.assertNotEqual(
+            self.env["website.page"]
+            .sudo()
+            .search([("id", "in", self.pages.ids)], order="name asc")
+            .ids,
+            self.env["website.page"]
+            .sudo()
+            .search([("id", "in", self.pages.ids)], order="name desc")
+            .ids,
+            "the fixture must be able to tell the two orders apart",
+        )
+        self.assertTrue(candidates)
+
+
+@tagged("-at_install", "post_install")
+class TestShadowedPageIsReachable(common.TransactionCase):
+    """A url carrying both a generic page and this website's override must not
+    lose both to a SQL limit applied before the dedup."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.website = cls.env.ref("website.default_website")
+        key = "website.shadowed_reachable"
+        generic_view = cls.env["ir.ui.view"].create(
+            {
+                "name": "Shadowed reachable",
+                "type": "qweb",
+                "key": key,
+                "arch": '<t t-name="%s"><t t-call="website.layout">GHOST</t></t>' % key,
+            }
+        )
+        cls.generic = cls.env["website.page"].create(
+            {"url": "/ghost-page", "view_id": generic_view.id, "is_published": True}
+        )
+        cls.specific = cls.env["website.page"].create(
+            {
+                "url": "/ghost-page",
+                "website_id": cls.website.id,
+                "view_id": generic_view.copy(
+                    {"website_id": cls.website.id, "key": key}
+                ).id,
+                "is_published": True,
+            }
+        )
+        cls.env.flush_all()
+
+    def _lookup(self, limit=None):
+        return self.env["website"]._get_website_pages(
+            domain=[("url", "=", "/ghost-page"), ("view_id", "!=", False)], limit=limit
+        )
+
+    def test_a_limit_of_one_still_finds_the_override(self):
+        self.assertEqual(self._lookup(limit=1), self.specific)
+
+    def test_the_limit_agrees_with_no_limit(self):
+        self.assertEqual(self._lookup(limit=1), self._lookup())
+
+    def test_a_limit_still_truncates(self):
+        self.assertEqual(len(self.env["website"]._get_website_pages(limit=2)), 2)
+
+    def test_the_page_is_reported_as_existing(self):
+        with MockRequest(self.env, website=self.website):
+            self.assertTrue(self.env["website"].is_page_existing("/ghost-page"))
+
+
+@tagged("-at_install", "post_install")
+class TestSearchFetchScalesWithMatches(common.TransactionCase):
+    """A public search must cost what it matches, not what the site contains.
+
+    `_search_fetch` used to fetch every page the base domain admits and filter
+    it with `filtered_domain`, which reads `arch_db` -- the whole stored html of
+    every page -- for a search matching a handful. This pins the property rather
+    than a timing: the candidate set the dedup is handed must not grow with the
+    table.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.website = cls.env.ref("website.default_website")
+        template = cls.env.ref("website.default_page")
+        cls.needle = "zqneedle"
+        pages = []
+        for index in range(40):
+            view = template.copy(
+                {"website_id": cls.website.id, "key": f"website.scale_probe_{index}"}
+            )
+            marker = cls.needle if index < 3 else "filler"
+            view.with_context(no_cow=True).write(
+                {
+                    "arch": '<t t-name="website.scale_probe_%d">'
+                    '<t t-call="website.layout"><div id="wrap">'
+                    "<p>%s body %d</p></div></t></t>" % (index, marker, index),
+                }
+            )
+            pages.append(
+                {
+                    "name": f"Scale probe {index:02d}",
+                    "url": f"/scale-probe-{index}",
+                    "view_id": view.id,
+                    "website_id": cls.website.id,
+                    "is_published": True,
+                }
+            )
+        cls.pages = cls.env["website.page"].create(pages)
+        cls.env.flush_all()
+
+    def _candidates_handed_to_the_dedup(self, term):
+        sizes = []
+        original = type(self.env["website.page"])._get_most_specific_pages
+
+        def counting(records):
+            sizes.append(len(records))
+            return original(records)
+
+        with patch.object(
+            type(self.env["website.page"]), "_get_most_specific_pages", counting
+        ):
+            options = {
+                "displayDescription": True,
+                "displayDetail": False,
+                "displayExtraDetail": False,
+                "displayExtraLink": False,
+                "displayImage": False,
+                "allowFuzzy": False,
+            }
+            detail = self.env["website.page"]._search_get_detail(
+                self.website, "name asc", options
+            )
+            results, count = self.env["website.page"]._search_fetch(
+                detail, term, 5, "name asc"
+            )
+        return results, count, sizes
+
+    def test_the_candidate_set_is_bounded_by_the_matches(self):
+        total = self.env["website.page"].sudo().search_count([])
+        _results, count, sizes = self._candidates_handed_to_the_dedup(self.needle)
+        self.assertEqual(count, 3, "the fixture must match exactly three pages")
+        self.assertTrue(sizes, "the dedup must still run")
+        self.assertLess(
+            max(sizes),
+            total,
+            "the dedup must not be handed the whole page table for a 3-page match",
+        )
+        self.assertLessEqual(
+            max(sizes),
+            10,
+            "the candidate set must be the matching url groups, not the site",
+        )
+
+    def test_a_search_matching_nothing_hands_over_nothing(self):
+        _results, count, sizes = self._candidates_handed_to_the_dedup("zqabsentterm")
+        self.assertEqual(count, 0)
+        self.assertEqual(max(sizes, default=0), 0)
+
+
+@tagged("-at_install", "post_install")
+class TestPageRenameRedirects(common.TransactionCase):
+    """A page that moves leaves a redirect behind. Moving it back left that
+    redirect active, pointing away from where the page now lives -- which made
+    the reverse redirect a cycle and the rename impossible to undo."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.website = cls.env.ref("website.default_website")
+        cls.page = cls.env["website.page"].create(
+            {
+                "name": "rename probe",
+                "url": "/rename-probe-a",
+                "website_id": cls.website.id,
+                "view_id": cls.env["ir.ui.view"]
+                .create(
+                    {
+                        "name": "rename probe view",
+                        "type": "qweb",
+                        "key": "website.rename_probe_view",
+                        "arch": '<t t-name="website.rename_probe_view"><div>x</div></t>',
+                    }
+                )
+                .id,
+            }
+        )
+
+    def _props(self):
+        return self.env["website.page.properties"].create(
+            {"target_model_id": self.page.id, "website_id": self.website.id}
+        )
+
+    def _rewrites(self, url_from):
+        return (
+            self.env["website.rewrite"]
+            .with_context(active_test=False)
+            .search([("url_from", "=", url_from)])
+        )
+
+    def _move(self, props, url):
+        props.write(
+            {
+                "url": url,
+                "redirect_old_url": True,
+                "name": "probe redirect",
+                "redirect_type": "301",
+            }
+        )
+
+    def test_a_page_can_be_renamed_back_to_its_previous_url(self):
+        props = self._props()
+        self._move(props, "/rename-probe-b")
+        self._move(props, "/rename-probe-a")
+        self.assertEqual(props.url, "/rename-probe-a")
+
+    def test_the_redirect_off_the_new_url_is_archived_not_deleted(self):
+        props = self._props()
+        self._move(props, "/rename-probe-b")
+        stale = self._rewrites("/rename-probe-a")
+        self.assertTrue(stale.filtered("active"), "the A -> B redirect starts active")
+        self._move(props, "/rename-probe-a")
+        self.assertTrue(stale, "the row is kept as history")
+        self.assertFalse(
+            stale.filtered("active"),
+            "a redirect away from where the page now lives must not stay active",
+        )
+
+    def test_the_reverse_redirect_is_created(self):
+        props = self._props()
+        self._move(props, "/rename-probe-b")
+        self._move(props, "/rename-probe-a")
+        reverse = self._rewrites("/rename-probe-b").filtered("active")
+        self.assertEqual(reverse.url_to, "/rename-probe-a")
+
+    def test_an_unrelated_redirect_is_left_alone(self):
+        other = self.env["website.rewrite"].create(
+            {
+                "name": "unrelated",
+                "redirect_type": "301",
+                "url_from": "/somewhere-else",
+                "url_to": "/rename-probe-b",
+                "website_id": self.website.id,
+            }
+        )
+        props = self._props()
+        self._move(props, "/rename-probe-b")
+        self.assertTrue(other.active, "only redirects off the new url are retired")
+
+    def test_a_generic_redirect_is_not_retired_by_one_website(self):
+        """Deliberately scoped: a generic rewrite serves every website."""
+        generic = self.env["website.rewrite"].create(
+            {
+                "name": "generic",
+                "redirect_type": "301",
+                "url_from": "/rename-probe-b",
+                "url_to": "/elsewhere",
+                "website_id": False,
+            }
+        )
+        props = self._props()
+        self._move(props, "/rename-probe-b")
+        self.assertTrue(
+            generic.active,
+            "one website's page moving must not retire another website's redirect",
+        )

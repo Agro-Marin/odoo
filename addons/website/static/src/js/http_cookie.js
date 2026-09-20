@@ -1,35 +1,37 @@
 /** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("website.utils.http_cookie");
 
 patch(cookie, {
     isAllowedCookie(type) {
         if (type === "optional") {
             if (!document.getElementById("cookies-consent-essential")) {
-                // Cookies bar is disabled on this website.
+                log.logic("isAllowedCookie: no cookies bar, optional allowed");
                 return true;
             }
             let consents;
             try {
                 consents = JSON.parse(cookie.get("website_cookies_bar") || "{}");
             } catch {
-                // The value is client-side state: it can be truncated, mangled
-                // by another app on the domain, or forged. The pre-16.0 branch
-                // below only catches values that still *parse* (`"true"` parses
-                // to a boolean); an unparseable one threw out of here and out of
-                // every `cookie.set()` that consults this gate. Same treatment
-                // either way -- and the same as the server's
-                // `ir.http._is_allowed_cookie`: drop it and ask again.
+                log.logic("isAllowedCookie: unparsable consent cookie");
                 consents = null;
             }
 
-            // pre-16.0 compatibility, `website_cookies_bar` was `"true"`.
-            // In that case we delete that cookie and let the user choose again.
             if (typeof consents !== "object" || consents === null) {
+                log.logic(
+                    "isAllowedCookie: invalid consents, cookie deleted, optional refused",
+                );
                 cookie.delete("website_cookies_bar");
                 return false;
             }
 
+            log.logic("isAllowedCookie: consent decision", () => ({
+                hasOptional: "optional" in consents,
+                optional: consents["optional"],
+            }));
             if ("optional" in consents) {
                 return consents["optional"];
             }
@@ -38,6 +40,7 @@ patch(cookie, {
         return true;
     },
     set(key, value, ttl, type = "required") {
+        log.logic("set", () => ({ key, type, ttl }));
         super.set(key, value, this.isAllowedCookie(type) ? ttl : 0);
     },
 });

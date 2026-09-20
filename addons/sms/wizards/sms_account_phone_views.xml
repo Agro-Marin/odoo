@@ -13,14 +13,14 @@
                     </group>
                     <footer>
                         <button
-                            string="Send verification code"
                             name="action_send_verification_code"
                             type="object"
+                            string="Send verification code"
                             class="btn btn-primary" />
                         <button
+                            special="cancel"
                             string="Cancel"
-                            class="btn-secondary"
-                            special="cancel" />
+                            class="btn-secondary" />
                     </footer>
                 </sheet>
             </form>

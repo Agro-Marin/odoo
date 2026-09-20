@@ -1,4 +1,7 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinMrpProduct(models.AbstractModel):
@@ -9,17 +12,17 @@ class MixinMrpProduct(models.AbstractModel):
     _mrp_bom_field = None
 
     bom_count = fields.Integer(
-        "# Bill of Material",
+        string="# Bill of Material",
         compute="_compute_bom_count",
         compute_sudo=False,
     )
     used_in_bom_count = fields.Integer(
-        "# BoM Where Used",
+        string="# BoM Where Used",
         compute="_compute_used_in_bom_count",
         compute_sudo=False,
     )
     mrp_product_qty = fields.Float(
-        "Manufactured",
+        string="Manufactured",
         digits="Product Unit",
         compute="_compute_mrp_product_qty",
         compute_sudo=False,
@@ -30,6 +33,18 @@ class MixinMrpProduct(models.AbstractModel):
     )
 
     def _get_mrp_variants(self):
+        raise NotImplementedError
+
+    def _compute_bom_count(self):
+        raise NotImplementedError
+
+    def _compute_mrp_product_qty(self):
+        raise NotImplementedError
+
+    def _compute_is_kit(self):
+        raise NotImplementedError
+
+    def _search_is_kit(self, operator, value):
         raise NotImplementedError
 
     def _compute_used_in_bom_count(self):
@@ -76,6 +91,12 @@ class MixinMrpProduct(models.AbstractModel):
             boms = self.filtered(
                 lambda record: record.active != vals["active"]
             ).with_context(active_test=False)[self._mrp_bom_field]
+            _debug.lifecycle(
+                "boms_follow_product_active",
+                records=self,
+                active=vals["active"],
+                boms=len(boms),
+            )
             if vals["active"]:
                 boms.filtered("archived_with_product").write(
                     {"active": True, "archived_with_product": False}

@@ -62,6 +62,17 @@ class TestHttpCase(HttpCase):
             log_catcher.output[0],
         )
 
+    def test_console_error_waved_through_by_the_checker_does_not_fail_the_run(self):
+        # the page reports its own verdict through the success signal; an error
+        # the checker ignores must not settle the run, nor poison that signal
+        code = "console.error('[probe] not a failure'); console.log('test successful')"
+        with self.assertLogs(level="ERROR"):
+            self.browser_js(
+                url_path="about:blank",
+                code=code,
+                error_checker=lambda message: "[probe]" not in message,
+            )
+
     def test_console_log_object(self):
         logger = logging.getLogger("odoo")
         level = logger.level
@@ -131,7 +142,11 @@ class TestAllowRequests(HttpCase):
 
     def test_cookie_guard_unit(self):
         fake_request = Mock(cookies={}, httprequest=Mock(path="/probe"))
-        with patch.object(odoo.http, "request", fake_request):
+        server_thread = threading.Thread()
+        with (
+            patch.object(odoo.http, "request", fake_request),
+            patch.object(self, "_test_thread", server_thread),
+        ):
             with self.assertRaises(BadRequest):
                 self.assertCanOpenTestCursor()
             with patch.object(self, "http_request_allow_all", True):

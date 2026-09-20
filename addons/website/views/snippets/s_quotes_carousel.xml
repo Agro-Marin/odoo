@@ -9,9 +9,7 @@
                 class="s_quotes_carousel s_carousel_boxed carousel carousel-dark slide o_cc o_cc2"
                 data-bs-ride="true"
                 data-bs-interval="10000">
-                <!-- Content -->
                 <div class="carousel-inner">
-                    <!-- #01 -->
                     <div
                         class="carousel-item active oe_img_bg o_bg_img_center pt80 pb80"
                         style="background-image: url('/web/image/website.s_quotes_carousel_demo_image_0'); background-position: 50% 50%;"
@@ -45,7 +43,6 @@
                             </div>
                         </blockquote>
                     </div>
-                    <!-- #02 -->
                     <div
                         class="carousel-item oe_img_bg o_bg_img_center pt80 pb80"
                         style="background-image: url('/web/image/website.s_quotes_carousel_demo_image_1'); background-position: 50% 50%;"
@@ -79,7 +76,6 @@
                             </div>
                         </blockquote>
                     </div>
-                    <!-- #03 -->
                     <div
                         class="carousel-item oe_img_bg o_bg_img_center pt80 pb80"
                         style="background-image: url('/web/image/website.s_quotes_carousel_demo_image_2'); background-position: 50% 50%;"
@@ -114,7 +110,6 @@
                         </blockquote>
                     </div>
                 </div>
-                <!-- Controls -->
                 <button
                     class="carousel-control-prev o_not_editable"
                     contenteditable="false"
@@ -134,7 +129,6 @@
                     <span class="carousel-control-next-icon" aria-hidden="true" />
                     <span class="visually-hidden">Next</span>
                 </button>
-                <!-- Indicators -->
                 <div
                     class="carousel-indicators s_carousel_indicators_dots o_not_editable">
                     <button

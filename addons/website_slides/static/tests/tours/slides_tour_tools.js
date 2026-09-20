@@ -1,25 +1,11 @@
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { stepUtils } from "@web_tour/tour_utils";
 
-/*
- * Constant
- */
 const testPngImage =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAD0lEQVQIHQEEAPv/AIdaewLIAV0IjhGPAAAAAElFTkSuQmCC";
 const testPdf =
     "JVBERi0xLjEKJWPDtsO2bW1lbnQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9nCi9QYWdlcyAyIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlIC9QYWdlcwovS2lkcyBbMyAwIFJdCi9Db3VudCAxCi9NZWRpYUJveCBbMCAwIDIxMCAyOTddCj4+CmVuZG9iagozIDAgb2JqCjw8L1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzCjw8L0ZvbnQKPDwvRjEKPDwvVHlwZSAvRm9udAovU3VidHlwZSAvVHlwZTEKL0Jhc2VGb250IC9UaW1lcy1Sb21hbgo+Pgo+Pgo+PgovQ29udGVudHMgNCAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ4Pj4Kc3RyZWFtCkJUCi9GMSA0OCBUZgo1MCAxMzAgVGQKKFRFU1QpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmCjAwMDAwMDAwMjEgMDAwMDAgbgowMDAwMDAwMDY5IDAwMDAwIG4KMDAwMDAwMDE0OSAwMDAwMCBuCjAwMDAwMDAyOTggMDAwMDAgbgp0cmFpbGVyCjw8L1Jvb3QgMSAwIFIKL1NpemUgNQo+PgpzdGFydHhyZWYKMzgxCiUlRU9G";
 
-/*
- * PUBLISHER / CONTENT CREATION
- */
-
-/**
- * Adding a course tag ends in `window.location.reload()`, and the markup of the
- * reloaded page is in place before its public interactions have started. A step
- * that clicks something an interaction binds -- Add Section is one -- lands on a
- * dead element and the tour walks on. `is-ready` is set once
- * `public.interactions` has settled, so wait for it before the next click.
- */
 const waitForInteractions = (prefix) => [
     {
         content: "eLearning: wait for the reloaded page's interactions",
@@ -54,17 +40,21 @@ const addSection = function (sectionName, backend = false) {
                 '")',
             run: "click",
         },
-        // Saving the section submits a form, so this is another fresh page
-        // whose Add Content link is inert until its interactions start.
         ...waitForInteractions(prefix),
     ];
 };
 
-const addContentToSection = (prefix, sectionName) => ({
-    content: `eLearning: click on add content for section ${sectionName}`,
-    trigger: `${prefix} div.o_wslides_slide_list_category_header:contains(${sectionName}) a:contains(Add Content)`,
-    run: "click",
-});
+const addContentToSection = (prefix, sectionName) => [
+    {
+        content: `eLearning: wait for the course page's interactions before adding content to ${sectionName}`,
+        trigger: `${prefix}body[is-ready=true]:has(div.o_wslides_slide_list_category_header:contains(${sectionName}))`,
+    },
+    {
+        content: `eLearning: click on add content for section ${sectionName}`,
+        trigger: `${prefix} div.o_wslides_slide_list_category_header:contains(${sectionName}) a:contains(Add Content)`,
+        run: "click",
+    },
+];
 
 const clickOnAddTagDropdown = (prefix) => [
     {
@@ -86,7 +76,7 @@ const clickOnAddTagDropdown = (prefix) => [
 const addVideoToSection = function (sectionName, saveAsDraft, backend = false) {
     const prefix = backend ? ":iframe " : "";
     let base_steps = [
-        addContentToSection(prefix, sectionName),
+        ...addContentToSection(prefix, sectionName),
         {
             content: "eLearning: click on video",
             trigger: prefix + "a[data-slide-category=video]",
@@ -108,7 +98,7 @@ const addVideoToSection = function (sectionName, saveAsDraft, backend = false) {
             {
                 trigger:
                     prefix +
-                    'div.o_slide_preview img:not([src="/website_slides/static/src/img/document.png"])', // wait for onchange to perform its duty
+                    'div.o_slide_preview img:not([src="/website_slides/static/src/img/document.png"])',
             },
             {
                 content: "eLearning: save as draft slide",
@@ -122,7 +112,7 @@ const addVideoToSection = function (sectionName, saveAsDraft, backend = false) {
             {
                 trigger:
                     prefix +
-                    'div.o_slide_preview img:not([src="/website_slides/static/src/img/document.png"])', // wait for onchange to perform its duty
+                    'div.o_slide_preview img:not([src="/website_slides/static/src/img/document.png"])',
             },
             {
                 content: "eLearning: create and publish slide",
@@ -137,7 +127,7 @@ const addVideoToSection = function (sectionName, saveAsDraft, backend = false) {
 const addArticleToSection = function (sectionName, pageName, backend) {
     const prefix = backend ? ":iframe " : "";
     return [
-        addContentToSection(prefix, sectionName),
+        ...addContentToSection(prefix, sectionName),
         {
             content: "eLearning: click on article",
             trigger: prefix + "a[data-slide-category=article]",
@@ -190,13 +180,10 @@ const compareBase64Content = async (url, name, type, expectedContent) => {
     return expectedContent === actualContent;
 };
 
-/**
- * Test the upload of an image file as a new content and especially the binary content of the uploaded image.
- */
 const addImageToSection = (sectionName, pageName, backend) => {
     const prefix = backend ? ":iframe " : "";
     return [
-        addContentToSection(prefix, sectionName),
+        ...addContentToSection(prefix, sectionName),
         {
             content: "eLearning: click on image",
             trigger: `${prefix}a[data-slide-category=infographic]`,
@@ -276,13 +263,10 @@ const addImageToSection = (sectionName, pageName, backend) => {
     ];
 };
 
-/**
- * Test the upload of a pdf file as a new content and especially the binary content of the uploaded pdf.
- */
 const addPdfToSection = function (sectionName, pageName, backend) {
     const prefix = backend ? ":iframe " : "";
     return [
-        addContentToSection(prefix, sectionName),
+        ...addContentToSection(prefix, sectionName),
         {
             content: "eLearning: click on document",
             trigger: `${prefix}a[data-slide-category=document]`,
@@ -399,9 +383,6 @@ const addNewCourseTag = function (courseTagName, backend) {
             run: "click",
         },
         {
-            // The Tag Group select only renders once the new tag is created, so
-            // `:last` named the tag toggler until that render landed and the
-            // click re-opened the tag menu instead. Name the group toggler.
             content: "eLearning: click on tag group dropdown",
             trigger: prefix + "button.o_wslides_tag_group_toggler",
             run: "click",

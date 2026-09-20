@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectRetrospective(models.Model):
     _name = "project.retrospective"
@@ -8,49 +10,55 @@ class ProjectRetrospective(models.Model):
     _order = "date desc, id desc"
     _inherit = ["mixin.mail.thread"]
 
-    name = fields.Char("Title", required=True, tracking=True)
+    name = fields.Char(
+        string="Title",
+        required=True,
+        tracking=True,
+    )
     project_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
-    date = fields.Date("Date", required=True, default=fields.Date.today)
+    date = fields.Date(
+        default=fields.Date.today,
+        required=True,
+    )
     facilitator_id = fields.Many2one(
-        "res.users",
-        string="Facilitator",
+        comodel_name="res.users",
         default=lambda self: self.env.user,
     )
     went_well = fields.Html(
-        "What Went Well",
+        string="What Went Well",
         help="Practices and decisions that should be repeated.",
     )
     to_improve = fields.Html(
-        "What Needs Improvement",
+        string="What Needs Improvement",
         help="Areas where changes would improve outcomes.",
     )
     action_ids = fields.One2many(
-        "project.retrospective.action",
-        "retrospective_id",
+        comodel_name="project.retrospective.action",
+        inverse_name="retrospective_id",
         string="Action Items",
     )
     action_count = fields.Count(
-        "action_ids",
-        "Actions",
+        count_of="action_ids",
+        string="Actions",
         export_string_translation=False,
     )
     open_action_count = fields.Integer(
-        "Open Actions",
-        compute="_compute_open_action_count",
+        string="Open Actions",
         export_string_translation=False,
+        compute="_compute_open_action_count",
     )
     previous_id = fields.Many2one(
-        "project.retrospective",
+        comodel_name="project.retrospective",
         string="Previous Retrospective",
         help="Link to the previous retrospective for action carry-forward.",
     )
     state = fields.Selection(
-        [("draft", "Draft"), ("done", "Done")],
+        selection=[("draft", "Draft"), ("done", "Done")],
         default="draft",
         required=True,
         tracking=True,
@@ -73,13 +81,26 @@ class ProjectRetrospective(models.Model):
                 )
             )
 
+    @dbg.timed
     def action_carry_forward(self) -> None:
         self.check_singleton()
         if not self.previous_id:
+            dbg.logic.debug(
+                "project.retrospective.action_carry_forward %s: no previous_id",
+                dbg.rec(self),
+            )
             return
         already_carried = set(self.action_ids.mapped("carried_from_id").ids)
         open_actions = self.previous_id.action_ids.filtered(
             lambda a: a.state in ("open", "in_progress") and a.id not in already_carried
+        )
+        dbg.lifecycle.debug(
+            "project.retrospective.action_carry_forward %s: from %s, %d already "
+            "carried, carrying %s",
+            dbg.rec(self),
+            self.previous_id.id,
+            len(already_carried),
+            dbg.rec(open_actions),
         )
         vals_list = [
             {
@@ -99,26 +120,26 @@ class ProjectRetrospectiveAction(models.Model):
     _description = "Retrospective Action Item"
     _order = "state_order, date_due, id"
 
-    name = fields.Char("Action", required=True)
+    name = fields.Char(
+        string="Action",
+        required=True,
+    )
     retrospective_id = fields.Many2one(
-        "project.retrospective",
+        comodel_name="project.retrospective",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     project_id = fields.Many2one(
         related="retrospective_id.project_id",
-        store=True,
-        index=True,
     )
     owner_id = fields.Many2one(
-        "res.users",
-        string="Owner",
+        comodel_name="res.users",
         required=True,
     )
-    date_due = fields.Date("Due Date")
+    date_due = fields.Date(string="Due Date")
     state = fields.Selection(
-        [
+        selection=[
             ("open", "Open"),
             ("in_progress", "In Progress"),
             ("done", "Done"),
@@ -128,24 +149,20 @@ class ProjectRetrospectiveAction(models.Model):
         required=True,
     )
     state_order = fields.Integer(
+        export_string_translation=False,
         compute="_compute_state_order",
         store=True,
-        export_string_translation=False,
         help="Sort key: outstanding actions first. Ordering by ``state`` "
         "directly sorts on the stored keys, which puts Done and Dropped "
         "above the open items this list exists to surface.",
     )
-    resolution_note = fields.Text(
-        "Resolution Note",
-        help="How was this action resolved?",
-    )
+    resolution_note = fields.Text(help="How was this action resolved?")
     carried_from_id = fields.Many2one(
-        "project.retrospective.action",
-        string="Carried From",
+        comodel_name="project.retrospective.action",
         help="If this action was carried forward from a previous retrospective.",
     )
     category = fields.Selection(
-        [
+        selection=[
             ("estimation", "Estimation"),
             ("scope", "Scope"),
             ("communication", "Communication"),
@@ -153,8 +170,7 @@ class ProjectRetrospectiveAction(models.Model):
             ("process", "Process"),
             ("team", "Team"),
             ("tooling", "Tooling"),
-        ],
-        string="Category",
+        ]
     )
 
     _STATE_ORDER = {"open": 0, "in_progress": 1, "done": 2, "dropped": 3}

@@ -23,9 +23,9 @@
                         required="l10n_ec_require_emission" />
                     <field
                         name="l10n_ec_emission_address_id"
+                        context="{'default_parent_id': company_partner_id,                                       'default_type': 'invoice',                                      'form_view_ref': 'base.view_partner_address_form'                                      }"
                         invisible="not l10n_ec_require_emission"
-                        required="l10n_ec_require_emission"
-                        context="{'default_parent_id': company_partner_id,                                       'default_type': 'invoice',                                      'form_view_ref': 'base.view_partner_address_form'                                      }" />
+                        required="l10n_ec_require_emission" />
                 </field>
             </field>
         </record>

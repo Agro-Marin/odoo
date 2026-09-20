@@ -170,7 +170,8 @@ prose must not reach for them.
 | JS | `static/src/env.js` | 410 | `makeEnv()`, `startServices()`, `startMissingServices()`, `mountComponent()`, `customDirectives`, `globalValues` |
 | JS | `static/src/session.js` | 19 | Reads `odoo.__session_info__` into the exported `session`. **Does not delete it**: no `delete` exists in the tree; the raw payload stays on the `odoo` global for the page lifetime. |
 | JS | `static/src/module_loader.js` | 187 | Two jobs. (1) Installs `globalThis.odoo.loader` = `OdooModuleLoader`, 5 members: `modules` Map, `bus`, `registerNativeModules`, `handleAssetLoadError`, `_reloadPage`. Sibling esbuild bundles share singletons through `modules`; conflicting re-register → `module_rebind`. Not an ES module loader (AMD loader removed in the 2026 ESM migration). (2) JS error telemetry: global `error` / `unhandledrejection` → deduped beacon to `/web/observability/js_error`; failed `/web/assets/` tag → one page reload, guarded by a 60 s `sessionStorage` key. |
-| PY | `controllers/home.py` | 391 | `/`, `/web`, `/odoo`, `/odoo/<path:subpath>`, `/scoped_app/<path:subpath>`, `/web/webclient/load_menus`, `/web/login`, `/web/login_successful`, `/web/become`, `/web/health`, `/web/healthz`, `/web/readyz`, `/web/metrics`, `/robots.txt` |
+| PY | `controllers/home.py` | 324 | `/`, `/web`, `/odoo`, `/odoo/<path:subpath>`, `/scoped_app/<path:subpath>`, `/web/webclient/load_menus`, `/web/login`, `/web/login_successful`, `/web/become`, `/robots.txt` |
+| PY | `controllers/health.py` | 111 | `/web/health`, `/web/healthz`, `/web/readyz`, `/web/metrics` — process probes, no session, no request database |
 | PY | `models/ir_http.py` | 385 | `session_info()`, `webclient_rendering_context()`, `lazy_session_info()`, `color_scheme()` (returns `"light"`), `content_density()` |
 | XML | `views/webclient_templates.xml` | 406 | HTML shell, `t-call-assets`, inline session JSON. Contains `web.layout` with `<!DOCTYPE html>`, `<meta>`, `<link rel="icon">`, and inline `<script id="web.layout.odooscript">` that writes `window.odoo = {csrf_token, debug}`. Frontend layout injects `odoo.__session_info__` via `json.dumps(get_frontend_session_info())`. |
 
@@ -188,17 +189,17 @@ prose must not reach for them.
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| PY | `controllers/session.py` | 104 | `get_session_info`, `authenticate`, `get_lang_list`, `modules`, `check`, `account`, `destroy`, `logout` |
+| PY | `controllers/session.py` | 125 | `get_session_info`, `authenticate`, `modules`, `check`, `account`, `destroy`, `logout` |
 | PY | `controllers/home.py:web_login` | 178–250 | Login form + CAPTCHA |
 | PY | `models/res_users.py` | 128 | `name_search()`, `_on_webclient_bootstrap()`, `_is_captcha_login_required()`, `web_create_users()` |
-| PY | `models/ir_http.py` | 385 | `_handle_debug()`, `_sanitize_cookies()`, `session_info()` |
+| PY | `models/ir_http.py` | 385 | `_handle_debug()`, `_update_cookies()`, `session_info()` |
 | JS | `static/src/webclient/session_service.js` | 61 | Client-side session |
 | JS | `static/src/public/login.js` | 44 | Login form component |
 
 **Key invariants to check**:
 - `authenticate()` never returns session_info for invalid credentials
 - Session cookies have correct flags (HttpOnly, Secure, SameSite)
-- `_sanitize_cookies()` removes stale company IDs correctly
+- `_update_cookies()` removes stale company IDs correctly
 - CAPTCHA check cannot be bypassed by omitting parameter
 - Debug mode restricted to internal users
 
@@ -211,7 +212,7 @@ prose must not reach for them.
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
 | PY | `controllers/dataset.py` | 64 | `call_kw()`, `call_button()`, readonly detection |
-| PY | `controllers/utils.py` | 287 | `clean_action()`, `select_db()`, `update_action_views()`, `get_action()`, `get_action_triples()`, `_get_login_redirect_url()`, `is_user_internal()`, `_local_web_translations()` |
+| PY | `controllers/utils.py` | 287 | `clean_action()`, `select_db()`, `update_action_views()`, `get_action()`, `get_action_triples()`, `_get_login_redirect_url()`, `is_user_internal()` |
 | JS | `static/src/core/network/orm_service.js` | 428 | `ORM.call()`, `read()`, `write()`, etc. Builds `/web/dataset/call_kw/<model>/<method>`. |
 | JS | `static/src/core/network/rpc.js` | 768 | JSON-RPC envelope, error handling. Transport is **`fetch`**, not `XMLHttpRequest`. |
 | JS | `static/src/core/network/rpc_cache.js` | 672 | Dual-layer (RAM Map + IndexedDB) RPC cache with AES-GCM encryption (no HMAC — relies on GCM auth tag). Per-table `pendingRequests` Map dedups concurrent fetches of the same cache key; `modelIndex` is the O(1) model→keys reverse index used by model-scoped invalidation. For general concurrent-RPC deduplication (same URL+params across all callers), see `core/network/rpc_dedup.js`. |
@@ -223,7 +224,7 @@ prose must not reach for them.
 - Model/method names validated before dispatch
 - RPC cache invalidation triggered on write/unlink/create
 
-> **Error serialization** (`odoo/http/helpers.py:290-347`). Gate:
+> **Error serialization** (`odoo/http/_error_serialization.py`). Gate:
 > `_is_exception_detail_hidden()` = `bool(request) and not config["dev_mode"]`.
 >
 > - `data.debug` = full traceback in `dev_mode`, else `_TRACEBACK_HIDDEN`.

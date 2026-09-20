@@ -28,7 +28,6 @@ registerWebsitePreviewTour(
                     "Check that the cloned snippet has a canvas and that something has been drawn inside of it",
                 trigger: ":iframe .s_countdown:eq(1) canvas",
                 run: function () {
-                    // Check that at least one bit has been drawn in the canvas
                     if (
                         !this.anchor
                             .getContext("2d")

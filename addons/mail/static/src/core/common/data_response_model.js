@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred } from "@web/core/utils/concurrency";
+
+const log = makeLogger("mail.store");
 export class DataResponse extends Record {
     static id = "id";
     static _lastId = 0;
@@ -19,6 +22,7 @@ export class DataResponse extends Record {
         /** @this {import("models").DataResponse} */
         onUpdate() {
             if (this._resolve) {
+                log.pipeline("request resolved", () => ({ id: this.id }));
                 this._resultDef.resolve({ ...this });
                 this.delete();
             }

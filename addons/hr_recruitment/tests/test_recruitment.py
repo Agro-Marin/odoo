@@ -1,6 +1,11 @@
+import ast
 import base64
 
+from dateutil.relativedelta import relativedelta
+from lxml import etree
+
 from odoo import Command
+from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tests import Form, TransactionCase, tagged
 
@@ -691,3 +696,685 @@ class TestRecruitment(TransactionCase):
             applicant.activity_schedule("mail.mail_activity_data_todo", user_id=user.id)
         self.assertEqual(job.activity_count, 2)
         self.assertEqual(job.with_user(other_user).activity_count, 1)
+
+    def test_refusing_an_application_of_a_talent_refuses_its_siblings(self):
+        """Driven through the module's own wizards, no field set by hand.
+
+        Pool an applicant, put that talent on a second job, then correct the
+        e-mail on the first application: ``write`` propagates the correction to
+        the talent but not to the sibling application, so the sibling now shares
+        only ``pool_applicant_id`` with the refused one. The wizard offers it as
+        a duplicate and used to have no original to point it at -- a KeyError on
+        an ordinary refusal.
+        """
+        job_one, job_two = self.env["hr.job"].create(
+            [{"name": "First Job"}, {"name": "Second Job"}]
+        )
+        pool = self.env["hr.talent.pool"].create({"name": "Pool"})
+        application = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Rita Flow",
+                "email_from": "rita@example.com",
+                "job_id": job_one.id,
+            }
+        )
+        self.env.flush_all()
+
+        self.env["talent.pool.add.applicants"].create(
+            {
+                "applicant_ids": [Command.set(application.ids)],
+                "talent_pool_ids": [Command.set(pool.ids)],
+            }
+        ).action_add_applicants_to_pool()
+        self.env.flush_all()
+        talent = application.pool_applicant_id
+        self.assertTrue(talent)
+
+        self.env["job.add.applicants"].create(
+            {
+                "applicant_ids": [Command.set(talent.ids)],
+                "job_ids": [Command.set(job_two.ids)],
+            }
+        ).action_add_applicants_to_job()
+        self.env.flush_all()
+        sibling = self.env["hr.applicant"].search([("job_id", "=", job_two.id)])
+        self.assertEqual(sibling.pool_applicant_id, talent)
+
+        application.write({"email_from": "rita.flow@example.com"})
+        self.env.flush_all()
+        self.assertEqual(talent.email_from, "rita.flow@example.com")
+        self.assertEqual(sibling.email_from, "rita@example.com")
+
+        wizard = self.env["applicant.get.refuse.reason"].create(
+            {
+                "applicant_ids": [Command.set(application.ids)],
+                "refuse_reason_id": self.env["hr.applicant.refuse.reason"]
+                .search([], limit=1)
+                .id,
+                "duplicates": True,
+            }
+        )
+        wizard.send_mail = False
+        self.assertIn(sibling, wizard.duplicate_applicant_ids)
+        self.assertEqual(
+            wizard._get_related_original_applicants()[sibling], application
+        )
+
+        wizard.action_refuse_reason_apply()
+
+        self.assertFalse(sibling.active)
+        self.assertFalse(talent.active)
+
+    def test_refusing_a_hand_picked_non_duplicate_does_not_crash(self):
+        """``duplicate_applicant_ids`` is editable, so an unmatched entry is
+        reachable and must degrade to a link-less log, not an exception."""
+        job = self.env["hr.job"].create({"name": "Job"})
+        original, real_duplicate, unrelated = self.env["hr.applicant"].create(
+            [
+                {
+                    "partner_name": "Original",
+                    "email_from": "same@example.com",
+                    "job_id": job.id,
+                },
+                {
+                    "partner_name": "Duplicate",
+                    "email_from": "same@example.com",
+                    "job_id": job.id,
+                },
+                {
+                    "partner_name": "Unrelated",
+                    "email_from": "other@example.com",
+                    "job_id": job.id,
+                },
+            ]
+        )
+        wizard = self.env["applicant.get.refuse.reason"].create(
+            {
+                "applicant_ids": [Command.set(original.ids)],
+                "refuse_reason_id": self.env["hr.applicant.refuse.reason"]
+                .search([], limit=1)
+                .id,
+                "duplicates": True,
+            }
+        )
+        wizard.send_mail = False
+        self.assertEqual(wizard.duplicate_applicant_ids, real_duplicate)
+        wizard.duplicate_applicant_ids = [Command.link(unrelated.id)]
+        self.assertEqual(wizard.duplicate_applicant_ids, real_duplicate + unrelated)
+
+        wizard.action_refuse_reason_apply()
+
+        self.assertFalse(real_duplicate.active)
+        self.assertFalse(unrelated.active)
+        self.assertNotIn(unrelated, wizard._get_related_original_applicants())
+
+    def test_phone_reaches_the_contact_without_an_email(self):
+        """The inverse is shared by ``email_from`` and ``phone_ids``: gating it
+        on the e-mail dropped every phone edit on an e-mail-less applicant."""
+        partner = self.env["res.partner"].create({"name": "Phone Only"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Phone Only", "partner_id": partner.id}
+        )
+        phone = self.env["phone.number"].create({"number": "+32470123456"})
+
+        applicant.phone_ids = [Command.set(phone.ids)]
+        self.env.flush_all()
+
+        self.assertEqual(partner.phone_ids, phone)
+
+    def test_a_phone_edit_does_not_rename_the_contact(self):
+        """The phone sync must not drag the name sync onto a path it was never on:
+        ``partner_id`` has no domain, so it can be a contact the recruiter picked."""
+        contact = self.env["res.partner"].create(
+            {"name": "ACME Corp", "is_company": True}
+        )
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant One", "partner_id": contact.id}
+        )
+        phone = self.env["phone.number"].create({"number": "+32470999888"})
+
+        applicant.phone_ids = [Command.set(phone.ids)]
+        self.env.flush_all()
+
+        self.assertEqual(contact.phone_ids, phone)
+        self.assertEqual(contact.name, "ACME Corp")
+
+    def test_rewriting_the_same_stage_keeps_the_previous_stage(self):
+        """``last_stage_id`` answers "where did it come from"; a write that
+        moves nothing must not answer "from where it already is"."""
+        job = self.env["hr.job"].create({"name": "Job"})
+        first, second = self.env["hr.recruitment.stage"].create(
+            [
+                {"name": "First", "sequence": 1},
+                {"name": "Second", "sequence": 2},
+            ]
+        )
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id, "stage_id": first.id}
+        )
+        applicant.write({"stage_id": second.id})
+        self.assertEqual(applicant.last_stage_id, first)
+        stamp = applicant.date_last_stage_update
+
+        applicant.write({"stage_id": second.id})
+
+        self.assertEqual(applicant.last_stage_id, first)
+        self.assertEqual(applicant.date_last_stage_update, stamp)
+
+    def test_unarchiving_clears_the_refusal_date(self):
+        job = self.env["hr.job"].create({"name": "Job"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id}
+        )
+        wizard = self.env["applicant.get.refuse.reason"].create(
+            {
+                "applicant_ids": [Command.set(applicant.ids)],
+                "refuse_reason_id": self.env["hr.applicant.refuse.reason"]
+                .search([], limit=1)
+                .id,
+            }
+        )
+        wizard.send_mail = False
+        wizard.action_refuse_reason_apply()
+        self.assertTrue(applicant.refuse_date)
+
+        applicant.action_unarchive()
+
+        self.assertFalse(applicant.refuse_reason_id)
+        self.assertFalse(applicant.refuse_date)
+        self.assertEqual(applicant.application_status, "ongoing")
+
+    def test_stage_duration_of_a_refused_application_is_never_negative(self):
+        """The refusal freezes the stage clock; it must not run it backwards."""
+        job = self.env["hr.job"].create({"name": "Job"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id}
+        )
+        self.env.flush_all()
+        applicant.write(
+            {
+                "refuse_reason_id": self.env["hr.applicant.refuse.reason"]
+                .search([], limit=1)
+                .id,
+                "active": False,
+                "refuse_date": self.env.cr.now() - relativedelta(days=30),
+            }
+        )
+        self.env.flush_all()
+        applicant.invalidate_recordset()
+
+        self.assertTrue(
+            all(duration >= 0 for duration in applicant.duration_tracking.values()),
+            applicant.duration_tracking,
+        )
+
+    def test_talent_pool_count_unions_every_matching_key(self):
+        """An applicant can match one talent by e-mail and another by phone.
+
+        The count used to report whichever key was checked first, so a person
+        present in two pools through two talents read as being in one.
+        """
+        pool_a, pool_b = self.env["hr.talent.pool"].create(
+            [{"name": "Pool A"}, {"name": "Pool B"}]
+        )
+        phone = self.env["phone.number"].create({"number": "+32470000111"})
+        self.env["hr.applicant"].create(
+            {
+                "partner_name": "Matched by mail",
+                "email_from": "shared@example.com",
+                "talent_pool_ids": [Command.set(pool_a.ids)],
+            }
+        )
+        self.env["hr.applicant"].create(
+            {
+                "partner_name": "Matched by phone",
+                "phone_ids": [Command.set(phone.ids)],
+                "talent_pool_ids": [Command.set(pool_b.ids)],
+            }
+        )
+        self.env.flush_all()
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Both",
+                "email_from": "shared@example.com",
+                "phone_ids": [Command.set(phone.ids)],
+            }
+        )
+        self.env.flush_all()
+        applicant.invalidate_recordset()
+
+        self.assertTrue(applicant.is_applicant_in_pool)
+        self.assertEqual(applicant.talent_pool_count, 2)
+
+    def test_the_scenario_is_detected_by_its_xml_id(self):
+        Job = self.env["hr.job"]
+        self.assertFalse(Job.is_recruitment_scenario_loaded())
+
+        Job._action_load_recruitment_scenario()
+
+        self.assertTrue(Job.is_recruitment_scenario_loaded())
+
+    def test_a_new_job_is_a_favorite_of_its_creator(self):
+        """``_default_favorite_user_ids`` used to be dead: ``create`` forced the
+        key to ``[]`` before ``super()``, so the default never applied.
+
+        Driven as a real user: ``self.env.user`` is ``__system__``, which is
+        archived, and an archived user is filtered out of the m2m on read.
+        """
+        recruiter = self.env["res.users"].create(
+            {
+                "name": "Recruiter",
+                "login": "favorite_recruiter",
+                "group_ids": [
+                    Command.link(
+                        self.env.ref("hr_recruitment.group_hr_recruitment_manager").id
+                    )
+                ],
+            }
+        )
+        job = self.env["hr.job"].with_user(recruiter).create({"name": "Job"})
+        self.assertEqual(job.sudo().favorite_user_ids, recruiter)
+        self.assertTrue(job.with_user(recruiter).is_user_favorite)
+
+    def test_a_job_created_with_explicit_favorites_keeps_them(self):
+        other = self.env["res.users"].create(
+            {"name": "Other", "login": "other_favorite"}
+        )
+        job = self.env["hr.job"].create(
+            {"name": "Job", "favorite_user_ids": [Command.set(other.ids)]}
+        )
+        self.assertEqual(job.favorite_user_ids, other)
+
+    def test_restoring_a_job_restores_the_applications_it_archived(self):
+        """The cascade was one-way: archiving a job archived every running
+        application and un-archiving it restored none, with no record of which
+        ones the cascade had taken."""
+        job = self.env["hr.job"].create({"name": "Job"})
+        running = self.env["hr.applicant"].create(
+            [{"partner_name": f"Running {i}", "job_id": job.id} for i in range(3)]
+        )
+        refused = self.env["hr.applicant"].create(
+            {"partner_name": "Refused", "job_id": job.id}
+        )
+        wizard = self.env["applicant.get.refuse.reason"].create(
+            {
+                "applicant_ids": [Command.set(refused.ids)],
+                "refuse_reason_id": self.env["hr.applicant.refuse.reason"]
+                .search([], limit=1)
+                .id,
+            }
+        )
+        wizard.send_mail = False
+        wizard.action_refuse_reason_apply()
+        self.env.flush_all()
+
+        job.active = False
+        self.env.flush_all()
+        self.assertEqual(running.mapped("active"), [False] * 3)
+        self.assertTrue(all(running.mapped("archived_with_job")))
+        self.assertFalse(refused.archived_with_job)
+
+        job.active = True
+        self.env.flush_all()
+
+        self.assertEqual(running.mapped("active"), [True] * 3)
+        self.assertFalse(any(running.mapped("archived_with_job")))
+        self.assertFalse(refused.active, "a refusal is not undone by restoring the job")
+        self.assertTrue(refused.refuse_reason_id)
+
+    def test_a_meeting_carries_the_cv_whichever_way_it_was_made(self):
+        job = self.env["hr.job"].create({"name": "Job"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id}
+        )
+        self.Attachment.create(
+            {
+                "name": "cv.txt",
+                "datas": self.TEXT,
+                "res_model": "hr.applicant",
+                "res_id": applicant.id,
+            }
+        )
+        self.env.flush_all()
+
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Interview",
+                "applicant_id": applicant.id,
+                "start": "2026-09-15 10:00:00",
+                "stop": "2026-09-15 11:00:00",
+            }
+        )
+
+        copied = self.Attachment.search(
+            [("res_model", "=", "calendar.event"), ("res_id", "=", event.id)]
+        )
+        self.assertEqual(copied.name, "cv.txt")
+
+    def test_recurring_interviews_do_not_each_copy_the_cv(self):
+        """`_apply_recurrence` copies the base event's values, applicant included,
+        so keying the copy on the record alone would duplicate every CV."""
+        job = self.env["hr.job"].create({"name": "Job"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id}
+        )
+        self.Attachment.create(
+            {
+                "name": "cv.txt",
+                "datas": self.TEXT,
+                "res_model": "hr.applicant",
+                "res_id": applicant.id,
+            }
+        )
+        self.env.flush_all()
+
+        self.env["calendar.event"].create(
+            {
+                "name": "Daily interview",
+                "applicant_id": applicant.id,
+                "start": "2026-09-15 10:00:00",
+                "stop": "2026-09-15 11:00:00",
+                "recurrency": True,
+                "repeat_unit": "day",
+                "repeat_type": "count",
+                "repeat_number": 4,
+                "event_tz": "UTC",
+            }
+        )
+        self.env.flush_all()
+
+        copied = self.Attachment.search(
+            [("res_model", "=", "calendar.event"), ("name", "=", "cv.txt")]
+        )
+        self.assertEqual(
+            len(copied), 1, "the CV belongs on the meeting, not on every occurrence"
+        )
+
+    def test_an_emailed_application_takes_the_contact_number_not_its_address(self):
+        contact = self.env["res.partner"].create(
+            {
+                "name": "Ada",
+                "email": "ada.personal@example.com",
+                "phone_ids": [Command.create({"number": "+32470112233"})],
+            }
+        )
+        self.env.flush_all()
+
+        applicant = self.env["hr.applicant"].message_new(
+            {
+                "from": "Ada <ada.work@example.com>",
+                "author_id": contact.id,
+                "subject": "Application",
+                "body": "",
+            }
+        )
+
+        self.assertEqual(applicant.phone_ids, contact.phone_ids)
+        self.assertEqual(
+            applicant.email_from,
+            "Ada <ada.work@example.com>",
+            "the address the applicant wrote from",
+        )
+        # This pins behaviour and does NOT discriminate the change it accompanies:
+        # driven against the pre-audit code, which called
+        # `_compute_partner_phone_email()` by hand here, it passes unchanged. That
+        # compute does assign `email_from` from the contact, but the inverse has
+        # already synced the contact to the applicant by then, so the assignment
+        # is a no-op. Replacing the call was a clarity change, not a fix.
+
+    def test_job_documents_span_the_job_and_its_unhired_applications(self):
+        job, other_job = self.env["hr.job"].create([{"name": "A"}, {"name": "B"}])
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "job_id": job.id}
+        )
+        hired = self.env["hr.applicant"].create(
+            {"partner_name": "Hired", "job_id": job.id}
+        )
+        hired.employee_id = self.env["hr.employee"].create({"name": "Hired"}).id
+        for name, model, res_id in [
+            ("on_job.txt", "hr.job", job.id),
+            ("on_other_job.txt", "hr.job", other_job.id),
+            ("on_applicant.txt", "hr.applicant", applicant.id),
+            ("on_hired.txt", "hr.applicant", hired.id),
+        ]:
+            self.Attachment.create(
+                {
+                    "name": name,
+                    "datas": self.TEXT,
+                    "res_model": model,
+                    "res_id": res_id,
+                }
+            )
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            sorted(job.document_ids.mapped("name")),
+            ["on_applicant.txt", "on_job.txt"],
+        )
+        self.assertEqual(other_job.document_ids.mapped("name"), ["on_other_job.txt"])
+        self.assertEqual(job.documents_count, 2)
+
+    def test_degrees_come_back_in_the_order_they_were_dragged_into(self):
+        """The degree list ships `widget="handle"`, which writes `sequence`.
+
+        Without `_order` naming it the drag wrote a column nothing read, so the
+        list re-rendered in id order and the reordering silently did nothing.
+        """
+        Degree = self.env["hr.recruitment.degree"]
+        degrees = Degree.create(
+            [
+                {"name": "Third", "sequence": 30},
+                {"name": "Second", "sequence": 20},
+                {"name": "First", "sequence": 10},
+            ]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        found = Degree.search([("id", "in", degrees.ids)])
+
+        self.assertEqual(found.mapped("name"), ["First", "Second", "Third"])
+
+    def test_degrees_left_at_the_default_sequence_keep_a_stable_order(self):
+        """Every row in an existing database sits at the default sequence, so the
+        interesting case is the tie, not the reordering: a sort key with no
+        tiebreak would order them however the plan happened to come out."""
+        Degree = self.env["hr.recruitment.degree"]
+        tied = Degree.create([{"name": f"Tied {index}"} for index in range(6)])
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(len(set(tied.mapped("sequence"))), 1, "the fixture must tie")
+
+        orders = [Degree.search([("id", "in", tied.ids)]).ids for _ in range(4)]
+
+        self.assertEqual(orders[0], sorted(tied.ids))
+        self.assertTrue(all(order == orders[0] for order in orders))
+
+    def test_the_status_filters_agree_with_the_status_field(self):
+        """The search view hand-rolls the four `application_status` states.
+
+        It has to: `application_status` is a computed field with a `search=`, and
+        the ORM decides whether to apply `active_test` from the *raw* domain
+        leaves, so `('application_status', '=', 'archived')` in a filter silently
+        returns nothing. The duplication is therefore load-bearing, which makes
+        it worth a test -- "Hired" used to be `date_closed != False` alone and
+        listed applications that had been refused after reaching a hired stage,
+        under both Hired and Refused at once.
+        """
+        job = self.env["hr.job"].create({"name": "Job"})
+        hired_stage = self.env["hr.recruitment.stage"].create(
+            {"name": "Contract Signed", "sequence": 99, "hired_stage": True}
+        )
+        reason = self.env["hr.applicant.refuse.reason"].search([], limit=1)
+
+        def refuse(applicant):
+            wizard = self.env["applicant.get.refuse.reason"].create(
+                {
+                    "applicant_ids": [Command.set(applicant.ids)],
+                    "refuse_reason_id": reason.id,
+                }
+            )
+            wizard.send_mail = False
+            wizard.action_refuse_reason_apply()
+
+        ongoing, hired, archived, refused, refused_after_hire = self.env[
+            "hr.applicant"
+        ].create([{"partner_name": name, "job_id": job.id} for name in "abcde"])
+        hired.stage_id = hired_stage
+        archived.action_archive()
+        refuse(refused)
+        refused_after_hire.stage_id = hired_stage
+        refuse(refused_after_hire)
+        everyone = ongoing | hired | archived | refused | refused_after_hire
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        # read the domains off the view itself, so this fails if the view drifts
+        arch = etree.fromstring(
+            self.env.ref("hr_recruitment.hr_applicant_view_search_bis").arch
+        )
+        filters = {}
+        for name in ("ongoing", "hired", "inactive", "refused"):
+            [node] = arch.xpath(f"//filter[@name='{name}']")
+            filters[name] = ast.literal_eval(node.get("domain"))
+
+        for name, status in (
+            ("ongoing", "ongoing"),
+            ("hired", "hired"),
+            ("inactive", "archived"),
+            ("refused", "refused"),
+        ):
+            with self.subTest(filter=name):
+                self.assertEqual(
+                    self._named(everyone, filters[name]),
+                    self._named(everyone, [("application_status", "=", status)]),
+                    f"the {name!r} filter must select exactly the {status!r} status",
+                )
+        self.assertNotIn(
+            refused_after_hire,
+            self.env["hr.applicant"]
+            .with_context(active_test=False)
+            .search([("id", "in", everyone.ids), *filters["hired"]]),
+            "a refused application is not a hire, whatever stage it reached",
+        )
+
+    def _named(self, population, domain):
+        return set(
+            self.env["hr.applicant"]
+            .with_context(active_test=False)
+            .search([("id", "in", population.ids), *domain])
+            .mapped("partner_name")
+        )
+
+    def test_pooling_an_applicant_needs_no_elevated_rights(self):
+        """The ordinary path runs on the recruiter's own rights."""
+        recruiter = self._recruiter()
+        pool = self.env["hr.talent.pool"].create({"name": "Pool"})
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Applicant", "email_from": "applicant@example.com"}
+        )
+        self.env.flush_all()
+
+        wizard = (
+            self.env["talent.pool.add.applicants"]
+            .with_user(recruiter)
+            .create(
+                {
+                    "applicant_ids": [Command.set(applicant.ids)],
+                    "talent_pool_ids": [Command.set(pool.ids)],
+                }
+            )
+        )
+        wizard.action_add_applicants_to_pool()
+
+        self.assertTrue(applicant.pool_applicant_id)
+        self.assertEqual(applicant.pool_applicant_id.talent_pool_ids, pool)
+
+    def test_pooling_cannot_write_to_a_talent_of_another_company(self):
+        """`_add_applicants_to_pool` used to run entirely as superuser.
+
+        An applicant the recruiter *can* see may carry a `pool_applicant_id`
+        pointing at a talent in a company they cannot, and the elevation wrote to
+        that talent -- putting a record the recruiter cannot read into a pool of
+        their own company.
+        """
+        recruiter = self._recruiter()
+        other_company = self.env["res.company"].create({"name": "Elsewhere"})
+        foreign_pool = self.env["hr.talent.pool"].create(
+            {"name": "Their pool", "company_id": other_company.id}
+        )
+        foreign_talent = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Theirs",
+                "email_from": "theirs@example.com",
+                "company_id": other_company.id,
+                "talent_pool_ids": [Command.set(foreign_pool.ids)],
+            }
+        )
+        local = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Ours",
+                "email_from": "ours@example.com",
+                "company_id": self.env.company.id,
+                "pool_applicant_id": foreign_talent.id,
+            }
+        )
+        our_pool = self.env["hr.talent.pool"].create(
+            {"name": "Our pool", "company_id": self.env.company.id}
+        )
+        self.env.flush_all()
+        self.assertFalse(
+            self.env["hr.applicant"]
+            .with_user(recruiter)
+            .search([("id", "=", foreign_talent.id)]),
+            "the fixture is pointless unless the talent is genuinely invisible",
+        )
+
+        wizard = (
+            self.env["talent.pool.add.applicants"]
+            .with_user(recruiter)
+            .create(
+                {
+                    "applicant_ids": [Command.set(local.ids)],
+                    "talent_pool_ids": [Command.set(our_pool.ids)],
+                }
+            )
+        )
+        # the write is buffered: the record rule is checked at flush, so a bare
+        # `assertRaises` around the action alone exits before the error is raised
+        # `assertRaises(AccessError)` cannot be used here, and the reason is
+        # worth stating because the obvious test passes against the bug.
+        # `TransactionCase._assertRaises` calls `cr.clear()` whenever the
+        # expected exception is an `AccessError`, and that discards the state
+        # staged before the block -- including this wizard's own `applicant_ids`,
+        # which then reads empty. `_add_applicants_to_pool` iterates nothing, the
+        # dangerous write never happens, and the assertion is vacuous. Measured:
+        # with `cr.clear()` the foreign talent is untouched and no error is
+        # raised; without it the error is raised every time, through either env.
+        # So this asserts the property, which is the stronger claim anyway.
+        refused = False
+        try:
+            wizard.action_add_applicants_to_pool()
+            wizard.env.flush_all()
+        except AccessError:
+            refused = True
+        foreign_talent.invalidate_recordset()
+
+        self.assertTrue(refused, "a talent of another company must not be written")
+        self.assertEqual(foreign_talent.talent_pool_ids, foreign_pool)
+
+    def _recruiter(self):
+        return self.env["res.users"].create(
+            {
+                "name": "Recruiter",
+                "login": f"recruiter_{self.env.cr.now().timestamp()}",
+                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
+                "group_ids": [
+                    Command.link(
+                        self.env.ref("hr_recruitment.group_hr_recruitment_user").id
+                    )
+                ],
+            }
+        )

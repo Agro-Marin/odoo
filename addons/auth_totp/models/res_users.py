@@ -27,19 +27,24 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     totp_secret = fields.Char(
-        copy=False,
-        groups=fields.NO_ACCESS,
         compute="_compute_totp_secret",
         inverse="_inverse_totp_secret",
+        copy=False,
+        groups=fields.NO_ACCESS,
     )
-    totp_last_counter = fields.Integer(copy=False, groups=fields.NO_ACCESS)
+    totp_last_counter = fields.Integer(
+        copy=False,
+        groups=fields.NO_ACCESS,
+    )
     totp_enabled = fields.Boolean(
         string="Two-factor authentication",
         compute="_compute_totp_enabled",
-        search="_totp_enable_search",
+        search="_search_totp_enabled",
     )
     totp_trusted_device_ids = fields.One2many(
-        "auth_totp.device", "user_id", string="Trusted Devices"
+        comodel_name="auth_totp.device",
+        inverse_name="user_id",
+        string="Trusted Devices",
     )
 
     def init(self):
@@ -102,7 +107,7 @@ class ResUsers(models.Model):
 
             sudo.totp_last_counter = match
             _logger.info("2FA check: SUCCESS for %s %r", self, sudo.login)
-            self._totp_rate_limit_purge("code_check")
+            self._remove_totp_rate_limit_logs("code_check")
             return {
                 "uid": self.id,
                 "auth_method": "totp",
@@ -125,7 +130,7 @@ class ResUsers(models.Model):
 
         self.sudo().totp_secret = secret
         self.sudo().totp_last_counter = match
-        self._totp_rate_limit_purge("code_check")
+        self._remove_totp_rate_limit_logs("code_check")
         if request:
             self.env.flush_all()
             new_token = self.env.user._get_session_token(request.session.sid)
@@ -167,7 +172,7 @@ class ResUsers(models.Model):
             }
         )
 
-    def _totp_rate_limit_purge(self, limit_type):
+    def _remove_totp_rate_limit_logs(self, limit_type):
         self.check_singleton()
         assert request, (
             "A request is required to be able to rate limit TOTP related actions"
@@ -278,7 +283,7 @@ class ResUsers(models.Model):
                 "UPDATE res_users SET totp_secret = %s WHERE id=%s", (secret, user.id)
             )
 
-    def _totp_enable_search(self, operator, value):
+    def _search_totp_enabled(self, operator, value):
         operands = (
             [value]
             if isinstance(value, str) or not hasattr(value, "__iter__")

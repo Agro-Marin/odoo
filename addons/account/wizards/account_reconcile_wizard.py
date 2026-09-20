@@ -2,6 +2,9 @@ from datetime import timedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountReconcileWizard(models.TransientModel):
@@ -10,7 +13,9 @@ class AccountReconcileWizard(models.TransientModel):
     _check_company_auto = True
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields):
+        _debug.lifecycle("default_get", records=self)
         res = super().default_get(fields)
         if "move_line_ids" not in fields:
             return res
@@ -37,6 +42,12 @@ class AccountReconcileWizard(models.TransientModel):
                     lambda line: line.account_id != move_line_ids[0].account_id
                 )
             }
+        _debug.logic(
+            "reconcile_accounts_checked",
+            lines=move_line_ids,
+            accounts=len(accounts),
+            shadowed=bool(shadowed_aml_values),
+        )
         move_line_ids._check_amls_exigibility_for_reconciliation(
             shadowed_aml_values=shadowed_aml_values
         )
@@ -45,9 +56,9 @@ class AccountReconcileWizard(models.TransientModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
-        readonly=True,
         compute="_compute_company_id",
+        readonly=True,
+        required=True,
     )
     move_line_ids = fields.Many2many(
         comodel_name="account.move.line",
@@ -66,8 +77,8 @@ class AccountReconcileWizard(models.TransientModel):
     )
     company_currency_id = fields.Many2one(
         comodel_name="res.currency",
-        string="Company currency",
         related="company_id.currency_id",
+        string="Company currency",
     )
     amount_currency = fields.Monetary(
         string="Amount",
@@ -94,9 +105,7 @@ class AccountReconcileWizard(models.TransientModel):
         comodel_name="res.currency",
         compute="_compute_edit_mode_reco_currency_id",
     )
-    edit_mode = fields.Boolean(
-        compute="_compute_edit_mode",
-    )
+    edit_mode = fields.Boolean(compute="_compute_edit_mode")
     single_currency_mode = fields.Boolean(compute="_compute_single_currency_mode")
     allow_partials = fields.Boolean(
         string="Allow partials",
@@ -107,40 +116,41 @@ class AccountReconcileWizard(models.TransientModel):
     force_partials = fields.Boolean(compute="_compute_reco_wizard_data")
     display_allow_partials = fields.Boolean(compute="_compute_display_allow_partials")
     date = fields.Date(
-        string="Date", compute="_compute_date", store=True, readonly=False
+        compute="_compute_date",
+        store=True,
+        readonly=False,
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Journal",
-        check_company=True,
-        domain="[('type', '=', 'general')]",
         compute="_compute_journal_id",
+        precompute=True,
         store=True,
         readonly=False,
         required=True,
-        precompute=True,
+        domain="[('type', '=', 'general')]",
+        check_company=True,
     )
     account_id = fields.Many2one(
         comodel_name="account.account",
-        string="Account",
-        check_company=True,
         domain="[('account_type', '!=', 'off_balance')]",
+        check_company=True,
     )
     is_rec_pay_account = fields.Boolean(compute="_compute_is_rec_pay_account")
     to_partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Partner",
-        check_company=True,
         compute="_compute_to_partner_id",
         store=True,
         readonly=False,
+        check_company=True,
     )
-    label = fields.Char(string="Label", default="Write-Off")
+    label = fields.Char(default="Write-Off")
     tax_id = fields.Many2one(
-        comodel_name="account.tax", string="Tax", default=False, check_company=True
+        comodel_name="account.tax",
+        default=False,
+        check_company=True,
     )
     to_check = fields.Boolean(
-        string="To Check",
         default=False,
         help="Check if you are not certain of all the information of the counterpart.",
     )
@@ -149,7 +159,8 @@ class AccountReconcileWizard(models.TransientModel):
         compute="_compute_is_write_off_required",
     )
     is_transfer_required = fields.Boolean(
-        string="Is an account transfer required", compute="_compute_reco_wizard_data"
+        string="Is an account transfer required",
+        compute="_compute_reco_wizard_data",
     )
     transfer_warning_message = fields.Char(
         string="Is an account transfer required to reconcile",
@@ -222,7 +233,7 @@ class AccountReconcileWizard(models.TransientModel):
     @api.depends("company_id")
     def _compute_journal_id(self):
         for wizard in self:
-            wizard.journal_id = self.env["account.journal"].search(
+            wizard.journal_id = self.env["account.journal"].search(  # noqa: E8507 - a transient wizard opened on one company
                 [
                     *self.env["account.journal"]._check_company_domain(
                         wizard.company_id
@@ -260,10 +271,16 @@ class AccountReconcileWizard(models.TransientModel):
             )
 
     @api.constrains("edit_mode_amount_currency")
+    @_debug.perf.timed
     def _check_min_max_edit_mode_amount_currency(self):
         for wizard in self:
             if wizard.edit_mode:
-                if wizard.edit_mode_amount_currency == 0.0:  # noqa: RUF069
+                if wizard.edit_mode_reco_currency_id.is_zero(
+                    wizard.edit_mode_amount_currency
+                ):
+                    _debug.logic(
+                        "edit_mode_amount_rejected", recwizard=wizard, reason="zero"
+                    )
                     raise UserError(
                         _("The amount of the write-off of a single line cannot be 0.")
                     )
@@ -272,19 +289,31 @@ class AccountReconcileWizard(models.TransientModel):
                     or wizard.move_line_ids.amount_currency > 0.0
                 )
                 if is_debit_line and wizard.edit_mode_amount_currency < 0.0:
+                    _debug.logic(
+                        "edit_mode_amount_rejected",
+                        recwizard=wizard,
+                        reason="negative_on_debit_line",
+                    )
                     raise UserError(
                         _(
                             "The amount of the write-off of a single debit line should be strictly positive."
                         )
                     )
                 if not is_debit_line and wizard.edit_mode_amount_currency > 0.0:
+                    _debug.logic(
+                        "edit_mode_amount_rejected",
+                        recwizard=wizard,
+                        reason="positive_on_credit_line",
+                    )
                     raise UserError(
                         _(
                             "The amount of the write-off of a single credit line should be strictly negative."
                         )
                     )
 
+    @_debug.perf.timed
     def _action_view_wizard(self):
+        _debug.lifecycle("_action_view_wizard", records=self)
         self.check_singleton()
         return {
             "name": _("Write-Off Entry"),
@@ -304,12 +333,22 @@ class AccountReconcileWizard(models.TransientModel):
             return lock_dates[-1][0] + timedelta(days=1)
         return None
 
+    @_debug.perf.timed
     def reconcile(self):
         self.check_singleton()
         move_lines_to_reconcile = self.move_line_ids._origin
         do_transfer = self.is_transfer_required
         do_write_off = self.edit_mode or (
             self.is_write_off_required and not self.allow_partials
+        )
+        _debug.logic(
+            "reconcile",
+            recwizard=self,
+            move_lines_to_reconcile=move_lines_to_reconcile,
+            transfer=do_transfer,
+            write_off=do_write_off,
+            partials=self.allow_partials,
+            edit=self.edit_mode,
         )
         if do_transfer:
             transfer_move = self.create_transfer()

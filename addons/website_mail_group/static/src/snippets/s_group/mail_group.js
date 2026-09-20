@@ -33,9 +33,6 @@ patch(MailGroup.prototype, {
     async willStart() {
         await super.willStart(...arguments);
 
-        // Can not be done in the template of the snippets
-        // Because it's rendered only once when the admin add the snippets
-        // for the first time, we make a RPC call to setup the widget properly
         const email = new URL(document.location.href).searchParams.get("email");
         const response = await rpc("/group/is_member", {
             group_id: this.mailGroupId,
@@ -44,7 +41,6 @@ patch(MailGroup.prototype, {
         });
 
         if (!response) {
-            // We do not access to the mail group, just remove the widget
             this.removeChildren(this.el);
             return;
         }

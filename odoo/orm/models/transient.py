@@ -1,6 +1,7 @@
 import datetime
 
-from odoo.tools import SQL, config, lazy_classproperty
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import config, lazy_classproperty
 
 from .. import decorators as api
 from ..domain import Domain
@@ -8,6 +9,7 @@ from ..primitives import GC_UNLINK_LIMIT
 from .base import Model
 
 _TRANSIENT_VACUUM_MIN_AGE_SECONDS = 300
+_debug = DebugLog(__name__)
 
 
 class TransientModel(Model):
@@ -37,17 +39,19 @@ class TransientModel(Model):
             counts.append(
                 self._remove_transient_rows_over_count(self._transient_max_count)
             )
+        _debug.pipeline(
+            "transient.vacuum",
+            model=self._name,
+            max_hours=self._transient_max_hours,
+            max_count=self._transient_max_count,
+            removed=sum(counts),
+            limit_hit=any(count >= GC_UNLINK_LIMIT for count in counts),
+        )
         return sum(counts), any(count >= GC_UNLINK_LIMIT for count in counts)
 
     def _remove_transient_rows_over_count(self, max_count: int) -> int:
-        self.env.cr.execute(
-            SQL(
-                "SELECT 1 FROM %s OFFSET %s LIMIT 1",
-                SQL.identifier(self._table),
-                max_count,
-            )
-        )
-        if self.env.cr.fetchone():
+        if self.env.backend.has_rows_beyond(self, max_count):
+            _debug.logic("transient.over_count", model=self._name, max_count=max_count)
             return self._remove_transient_rows_older_than(
                 _TRANSIENT_VACUUM_MIN_AGE_SECONDS
             )
@@ -59,4 +63,11 @@ class TransientModel(Model):
         domain = Domain("write_date", "<", now - datetime.timedelta(seconds=seconds))
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle(
+            "transient.vacuumed",
+            model=self._name,
+            older_than_s=seconds,
+            removed=len(records),
+            limit_hit=len(records) >= GC_UNLINK_LIMIT,
+        )
         return len(records)

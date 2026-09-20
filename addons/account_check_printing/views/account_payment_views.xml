@@ -9,29 +9,29 @@
             <xpath expr="//button[@name='action_post']" position="before">
                 <button
                     name="print_checks"
-                    class="oe_highlight"
-                    invisible="payment_method_code != 'check_printing' or is_sent or not check_layout_available"
-                    string="Print Check"
                     type="object"
+                    string="Print Check"
+                    invisible="payment_method_code != 'check_printing' or is_sent or not check_layout_available"
+                    class="oe_highlight"
                     data-hotkey="g" />
                 <button
                     name="unmark_as_sent"
-                    invisible="payment_method_code != 'check_printing' or not is_sent"
-                    string="Unmark Sent"
                     type="object"
+                    string="Unmark Sent"
+                    invisible="payment_method_code != 'check_printing' or not is_sent"
                     data-hotkey="l" />
                 <button
                     name="action_void_check"
-                    invisible="payment_method_code != 'check_printing' or state != 'in_process' or not is_sent"
-                    string="Void Check"
                     type="object"
+                    string="Void Check"
+                    invisible="payment_method_code != 'check_printing' or state != 'in_process' or not is_sent"
                     data-hotkey="o" />
             </xpath>
             <xpath expr="//div[@name='amount_div']" position="after">
                 <field
                     name="check_amount_in_words"
-                    invisible="payment_method_code != 'check_printing'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    invisible="payment_method_code != 'check_printing'" />
             </xpath>
             <xpath expr="//field[@name='payment_channel_id']" position="after">
                 <field name="check_manual_sequencing" invisible="1" />

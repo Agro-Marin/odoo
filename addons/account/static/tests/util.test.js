@@ -1,6 +1,5 @@
-import { expect, test } from "@odoo/hoot";
-
 import { buildLineId, parseLineId } from "@account/js/util";
+import { expect, test } from "@odoo/hoot";
 
 test("can build a line id from a list of [markup, res_model, res_id]", () => {
     const values = [

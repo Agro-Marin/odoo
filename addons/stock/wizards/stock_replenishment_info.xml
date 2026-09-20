@@ -16,10 +16,10 @@
                 <group>
                     <group>
                         <field
-                            nolabel="1"
                             name="json_lead_days"
+                            widget="lead_days_widget"
                             colspan="2"
-                            widget="lead_days_widget" />
+                            nolabel="1" />
                     </group>
                     <group>
                         <div>
@@ -27,48 +27,48 @@
                             <hr />
                             <div>
                                 <label for="based_on" />
-                                <field name="based_on" class="oe_inline" widget="time_period_selection" /> x <field name="percent_factor" class="o_small" /> % </div>
+                                <field name="based_on" widget="time_period_selection" class="oe_inline" /> x <field name="percent_factor" class="o_small" /> % </div>
                             <div>
                                 <label
-                                    class="o_form_label col-3"
-                                    for="product_min_qty" />
+                                    for="product_min_qty"
+                                    class="o_form_label col-3" />
                                 <field name="product_min_qty" class="oe_inline" />
                                 <field name="product_uom_name" class="oe_inline" />
                             </div>
                             <div>
                                 <label
-                                    class="o_form_label col-3"
-                                    for="product_max_qty" />
+                                    for="product_max_qty"
+                                    class="o_form_label col-3" />
                                 <field name="product_max_qty" class="oe_inline" />
                                 <field name="product_uom_name" class="oe_inline" />
                             </div>
                             <field
-                                nolabel="1"
                                 name="json_replenishment_graph"
+                                widget="replenishment_graph_widget"
                                 colspan="2"
-                                widget="replenishment_graph_widget" />
+                                nolabel="1" />
                         </div>
                     </group>
                 </group>
                 <notebook>
                     <field name="warehouseinfo_ids" invisible="1" />
                     <page
-                        string="Warehouses"
                         name="page_warehouses"
+                        string="Warehouses"
                         invisible="not warehouseinfo_ids">
                         <field name="wh_replenishment_option_ids" readonly="1" />
                     </page>
                 </notebook>
                 <footer>
                     <button
+                        special="save"
                         string="Save"
                         class="btn btn-primary"
-                        special="save"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Close"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -94,15 +94,15 @@
                 <field name="location_id" string="Warehouse Location" />
                 <field
                     name="qty_free"
-                    decoration-danger="qty_free &lt; qty_to_order"
-                    string="Available Quantity" />
+                    string="Available Quantity"
+                    decoration-danger="qty_free &lt; qty_to_order" />
                 <field name="uom" />
                 <field name="route_id" />
                 <field name="lead_time" />
                 <button
                     name="action_select_route"
-                    string="Select Route"
                     type="object"
+                    string="Select Route"
                     class="btn btn-link" />
             </list>
         </field>
@@ -118,11 +118,11 @@
                     <field name="warning_message" />
                 </div>
                 <footer>
-                    <button name="action_order_available_quantity" type="object" class="btn-primary" invisible="qty_free &lt;= 0.0"> Order <field name="qty_free" />
+                    <button name="action_order_available_quantity" type="object" invisible="qty_free &lt;= 0.0" class="btn-primary"> Order <field name="qty_free" />
                     </button>
                     <button name="action_order_full_quantity" type="object"> Order <field name="qty_to_order" />
                     </button>
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

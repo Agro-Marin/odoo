@@ -1,8 +1,11 @@
 import base64
 import io
 import logging
+import time
 import typing
 import zipfile
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 from odoo import http
@@ -10,10 +13,12 @@ from odoo.exceptions import AccessError, UserError
 from odoo.http import (
     NotFound,
     Response,
+    Stream,
     UnsupportedMediaType,
     prepare_content_disposition_header,
     request,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import file_open
 from odoo.tools.pdf import DependencyError, PdfReadError, extract_page
 
@@ -25,12 +30,42 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
 
 logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAX_THUMBNAIL_B64_BYTES = 10 * 1024 * 1024
 
 MAX_ZIP_ATTACHMENTS = 200
 
 MAX_ZIP_BYTES = 512 * 1024 * 1024
+
+ZIP_CHUNK_SIZE = 256 * 1024
+
+
+class _ZipSink(io.RawIOBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[bytes] = []
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data: Any) -> int:
+        self._chunks.append(bytes(data))
+        return len(data)
+
+    def drain(self) -> bytes:
+        out = b"".join(self._chunks)
+        self._chunks.clear()
+        return out
+
+
+def _iter_stream_chunks(stream: Stream) -> Iterator[bytes]:
+    if stream.type == "path" and stream.path:
+        with Path(stream.path).open("rb") as source:
+            while chunk := source.read(ZIP_CHUNK_SIZE):
+                yield chunk
+        return
+    yield stream.read()
 
 
 class AttachmentController(ThreadController):
@@ -45,33 +80,38 @@ class AttachmentController(ThreadController):
 
     def _get_zip_response(self, name: str, attachments: IrAttachment) -> Response:
         self._check_zip_size(sum(attachments.mapped("file_size")))
-        stream = io.BytesIO()
-        written = 0
-        with zipfile.ZipFile(stream, "w") as attachment_zip:
-            for record in attachments:
-                self._check_zip_size(written + record.file_size)
-                binary_stream = request.env["ir.binary"]._get_stream_from_record(
+        streams = [
+            stream
+            for record in attachments
+            if (
+                stream := request.env["ir.binary"]._get_stream_from_record(
                     record, "raw"
                 )
-                if not binary_stream:
-                    continue
-                data = binary_stream.read()
-                written += len(data)
-                self._check_zip_size(written)
-                attachment_zip.writestr(
-                    binary_stream.download_name,
-                    data,
-                    compress_type=zipfile.ZIP_DEFLATED,
-                )
-
-        content = stream.getvalue()
+            )
+        ]
         headers = [
             ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
-            ("Content-Length", len(content)),
             ("Content-Disposition", prepare_content_disposition_header(name)),
         ]
-        return request.prepare_response(content, headers)
+        return request.prepare_response(self._iter_zip(streams), headers)
+
+    def _iter_zip(self, streams: list[Stream]) -> Iterator[bytes]:
+        sink = _ZipSink()
+        written = 0
+        with zipfile.ZipFile(sink, "w") as archive:
+            for stream in streams:
+                info = zipfile.ZipInfo(
+                    stream.download_name or "", date_time=time.localtime()[:6]
+                )
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with archive.open(info, "w") as member:
+                    for chunk in _iter_stream_chunks(stream):
+                        member.write(chunk)
+                        written += len(chunk)
+                yield sink.drain()
+        _debug.perf.count("zip_built", attachments=len(streams), written=written)
+        yield sink.drain()
 
     @http.route("/mail/attachment/upload", methods=["POST"], type="http", auth="public")
     @add_guest_to_context
@@ -122,6 +162,14 @@ class AttachmentController(ThreadController):
                 ._create_from_request_file(ufile, **vals)
             )
             attachment._post_add_create(**kwargs)
+            _debug.lifecycle(
+                "uploaded",
+                attachment=attachment.id,
+                model=vals["res_model"],
+                record=vals["res_id"],
+                company=vals.get("company_id"),
+                size=attachment.file_size,
+            )
             res = {
                 "data": {
                     "store_data": Store()
@@ -136,6 +184,7 @@ class AttachmentController(ThreadController):
                 }
             }
         except AccessError:
+            _debug.logic("upload_refused", model=thread_model, record=thread.id)
             res = {
                 "error": request.env._(
                     "You are not allowed to upload an attachment here."
@@ -153,6 +202,11 @@ class AttachmentController(ThreadController):
         attachment_id = to_record_id(attachment_id)
         attachment = request.env["ir.attachment"].browse(attachment_id).exists()
         if not attachment or not attachment._has_attachments_ownership([access_token]):
+            _debug.logic(
+                "delete_refused",
+                attachment=attachment_id,
+                reason="missing" if not attachment else "not_owner",
+            )
             partner, guest = request.env["res.partner"]._get_current_persona()
             if persona := partner.main_user_id or guest:
                 persona._bus_send("ir.attachment/delete", {"id": attachment_id})
@@ -161,6 +215,9 @@ class AttachmentController(ThreadController):
             request.env["mail.message"]
             .sudo()
             .search([("attachment_ids", "in", attachment.ids)], limit=1)
+        )
+        _debug.lifecycle(
+            "deleted", attachment=attachment_id, message=message.id or None
         )
         attachment.sudo()._remove_and_notify(message)
 

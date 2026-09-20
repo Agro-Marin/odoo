@@ -10,7 +10,8 @@ MERCADO_PAGO_API_ENDPOINT = "https://api.mercadopago.com"
 
 
 class MercadoPagoPosRequest:
-    def __init__(self, mp_bearer_token):
+    def __init__(self, payment_method, mp_bearer_token):
+        self.payment_method = payment_method
         self.mercado_pago_bearer_token = mp_bearer_token
 
     def call_mercado_pago(self, method, endpoint, payload):
@@ -30,8 +31,15 @@ class MercadoPagoPosRequest:
             "X-platform-id": "dev_cdf1cfac242111ef9fdebe8d845d0987",
         }
         try:
-            response = requests.request(
-                method, endpoint, headers=header, json=payload, timeout=REQUEST_TIMEOUT
+            response = (
+                self.payment_method._get_integration_connection()._egress_request(
+                    method.upper(),
+                    endpoint,
+                    purpose="pos_mercado_pago",
+                    headers=header,
+                    json=payload,
+                    timeout=REQUEST_TIMEOUT,
+                )
             )
             return response.json()
         except requests.exceptions.RequestException as error:

@@ -13,57 +13,57 @@
                     <field
                         name="street"
                         placeholder="Street..."
-                        class="o_address_street"
+                        force_save="1"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_street" />
                     <field
                         name="street2"
                         placeholder="District..."
-                        class="o_address_street"
+                        force_save="1"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_street" />
                     <field
                         name="city"
                         placeholder="City"
-                        class="o_address_city"
+                        force_save="1"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_city" />
                     <field
                         name="state_id"
-                        class="o_address_state"
                         placeholder="State"
+                        force_save="1"
                         options="{&quot;no_open&quot;: True}"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_state" />
                     <field
                         name="zip"
                         placeholder="ZIP"
-                        class="o_address_zip"
+                        force_save="1"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_zip" />
                     <field
                         name="country_id"
                         placeholder="Country"
-                        class="o_address_country"
+                        force_save="1"
                         options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_country" />
                     <field
                         name="l10n_sa_edi_building_number"
                         placeholder="Building Number"
-                        invisible="country_code != 'SA'"
-                        class="o_address_building_number"
+                        force_save="1"
                         options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
+                        invisible="country_code != 'SA'"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_building_number" />
                     <field
                         name="l10n_sa_edi_plot_identification"
                         placeholder="Plot Identification"
-                        invisible="country_code != 'SA'"
-                        class="o_address_plot_identification"
+                        force_save="1"
                         options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
+                        invisible="country_code != 'SA'"
                         readonly="type == 'contact' and parent_id"
-                        force_save="1" />
+                        class="o_address_plot_identification" />
                 </div>
             </form>
         </field>

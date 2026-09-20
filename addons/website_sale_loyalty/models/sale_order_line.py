@@ -12,11 +12,9 @@ class SaleOrderLine(models.Model):
         return super()._get_line_header()
 
     def _show_in_cart(self):
-        # Hide discount lines from website_order_line, see `order._compute_website_order_line`
         return self.reward_id.reward_type != "discount" and super()._show_in_cart()
 
     def _is_reorder_allowed(self):
-        # Hide all types of rewards from reorder
         return not self.reward_id and super()._is_reorder_allowed()
 
     def unlink(self):
@@ -30,15 +28,9 @@ class SaleOrderLine(models.Model):
         return super().unlink()
 
     def _is_strikethrough_price_shown(self):
-        """Override of `website_sale` to hide the strikethrough price for rewards."""
         return super()._is_strikethrough_price_shown() and not self.is_reward_line
 
     def _is_sellable(self):
-        """Override of `website_sale` to flag reward lines as not sellable.
-
-        :return: Whether the line is sellable or not.
-        :rtype: bool
-        """
         return super()._is_sellable() and (
             not self.is_reward_line or self.reward_id.reward_type == "product"
         )

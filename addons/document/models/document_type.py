@@ -2,8 +2,11 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+_debug = DebugLog(__name__)
 
 
 class DocumentType(models.Model):
@@ -13,14 +16,14 @@ class DocumentType(models.Model):
     _order = "sequence, name"
 
     name = fields.Char(
-        help="Name of this document type (e.g., 'Passport', 'Driver License', 'Work Permit')",
+        help="Name of this document type (e.g., 'Passport', 'Driver License', 'Work Permit')"
     )
     code = fields.Char(
         required=True,
         help="Short code for this document type (e.g., 'PASSPORT', 'DL', 'WP')",
     )
     active = fields.Boolean(
-        help="Uncheck to archive this document type without deleting it",
+        help="Uncheck to archive this document type without deleting it"
     )
     sequence = fields.Integer(
         default=10,
@@ -36,7 +39,7 @@ class DocumentType(models.Model):
         help="Check if documents of this type have an expiration date",
     )
     default_validity_days = fields.Integer(
-        help="Default number of days a new document of this type is valid for (e.g., 365 for annual permits)",
+        help="Default number of days a new document of this type is valid for (e.g., 365 for annual permits)"
     )
     is_renewable = fields.Boolean(
         default=True,
@@ -44,10 +47,10 @@ class DocumentType(models.Model):
     )
 
     tag_ids = fields.Many2many(
-        "document.tag",
-        "document_type_tag_rel",
-        "type_id",
-        "tag_id",
+        comodel_name="document.tag",
+        relation="document_type_tag_rel",
+        column1="type_id",
+        column2="tag_id",
         help="Tags that will be automatically applied to new documents of this type",
     )
     folder_id = fields.Many2one(
@@ -97,6 +100,7 @@ class DocumentType(models.Model):
             groupby=["document_type_id", "expiration_state"],
             aggregates=["__count"],
         )
+        _debug.perf.count("document_type_counts", types=self, rows=len(data))
         totals: dict[int, int] = {}
         per_state: dict[tuple[int, str], int] = {}
         for doc_type, state, count in data:

@@ -1,6 +1,7 @@
 from . import controllers
 from . import models
 from . import reports
+from . import tools
 from . import wizards
 
 from odoo.libs.sql import normalize_identifier

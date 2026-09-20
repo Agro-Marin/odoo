@@ -39,7 +39,7 @@ class LinesSections extends models.Model {
     ];
 
     _views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <field name="display_name"/>
             </form>

@@ -72,7 +72,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_pricing_forward_operator_demo"
@@ -82,7 +82,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_pricing_noone_available_demo"
@@ -94,7 +94,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_pricing_email_demo"
@@ -106,7 +106,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_pricing_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_documentation_redirect_demo"
@@ -117,7 +117,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_documentation_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_documentation_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_documentation_exit_demo"
@@ -129,7 +129,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_documentation_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_documentation_demo'))]" />
         </record>
         <record
             id="chatbot_script_welcome_step_just_looking_demo"
@@ -141,7 +141,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_welcome_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_welcome_step_dispatch_answer_just_looking_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_welcome_step_dispatch_answer_just_looking_demo'))]" />
         </record>
     </data>
 

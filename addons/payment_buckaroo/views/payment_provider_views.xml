@@ -14,8 +14,8 @@
                     <field
                         name="buckaroo_secret_key"
                         string="Secret Key"
-                        required="code == 'buckaroo' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'buckaroo' and state != 'disabled'" />
                 </group>
             </group>
         </field>

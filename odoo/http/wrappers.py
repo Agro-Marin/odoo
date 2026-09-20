@@ -1,7 +1,7 @@
 import logging
-from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, NoReturn, Self
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Self
+from urllib.parse import quote as url_quote
 
 import werkzeug.datastructures
 import werkzeug.exceptions
@@ -9,87 +9,28 @@ import werkzeug.wrappers
 from werkzeug.exceptions import HTTPException
 
 from odoo.libs._vendor.useragents import UserAgent
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.facade import Proxy, ProxyAttr, ProxyFunc
 
-from ._protocols import get_ir_http
-from .constants import DEFAULT_MAX_CONTENT_LENGTH
+from ._cookies import _set_cookie_on
+from .constants import (
+    DEFAULT_MAX_CONTENT_LENGTH,
+    DEFAULT_MAX_FORM_MEMORY_SIZE,
+    DEFAULT_MAX_FORM_PARTS,
+)
 from .core import request
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
-def get_cookie_name(set_cookie_value: str) -> str:
-    return set_cookie_value.partition("=")[0].strip()
-
-
-def _remove_staged_cookie(carrier: Any, key: str) -> None:
-    staged = carrier.headers.getlist("Set-Cookie")
-    kept = [cookie for cookie in staged if get_cookie_name(cookie) != key]
-    if len(kept) != len(staged):
-        carrier.headers.setlist("Set-Cookie", kept)
-
-
-def _prepare_set_cookie_args(
-    expires: datetime | int | None,
-    max_age: int | None,
-    cookie_type: str,
-    secure: bool | None,
-    samesite: str | None,
-) -> tuple[datetime | int | None, int | None, bool, str | None]:
-    if expires == -1:
-        expires = datetime.now(tz=UTC) + timedelta(days=365)
-
-    if (
-        request
-        and request.env is not None
-        and not get_ir_http(request.env)._is_allowed_cookie(cookie_type)
-    ):
-        max_age = 0
-        expires = None
-
-    if secure is None:
-        secure = bool(request and request.httprequest.is_secure)
-    if samesite is None:
-        samesite = "Lax"
-
-    return expires, max_age, secure, samesite
-
-
-def _set_cookie_on(
-    carrier: Any,
-    key: str,
-    value: str,
-    max_age: int | None,
-    expires: datetime | int | None,
-    path: str | None,
-    domain: str | None,
-    secure: bool | None,
-    httponly: bool,
-    samesite: str | None,
-    partitioned: bool,
-    cookie_type: str,
-) -> None:
-    expires, max_age, secure, samesite = _prepare_set_cookie_args(
-        expires,
-        max_age,
-        cookie_type,
-        secure,
-        samesite,
-    )
-    _remove_staged_cookie(carrier, key)
-    werkzeug.wrappers.Response.set_cookie(
-        carrier,
-        key,
-        value=value,
-        max_age=max_age,
-        expires=expires,
-        path=path,
-        domain=domain,
-        secure=secure,
-        httponly=httponly,
-        samesite=samesite,
-        partitioned=partitioned,
-    )
+def prepare_content_disposition_header(
+    filename: str, disposition_type: str = "attachment"
+) -> str:
+    if disposition_type not in ("attachment", "inline"):
+        e = f"Invalid disposition_type: {disposition_type!r}"
+        raise ValueError(e)
+    return f"{disposition_type}; filename*=UTF-8''{url_quote(filename, safe='')}"
 
 
 def _prepare_request_property_accessors(attr: str) -> tuple[Any, Any]:
@@ -118,8 +59,8 @@ class HTTPRequest(_HTTPRequestProxied):
         httprequest.user_agent_class = UserAgent
         httprequest.parameter_storage_class = werkzeug.datastructures.ImmutableMultiDict
         httprequest.max_content_length = DEFAULT_MAX_CONTENT_LENGTH
-        httprequest.max_form_memory_size = 10 * 1024 * 1024
-        httprequest.max_form_parts = 10_000
+        httprequest.max_form_memory_size = DEFAULT_MAX_FORM_MEMORY_SIZE
+        httprequest.max_form_parts = DEFAULT_MAX_FORM_PARTS
 
         self.__wrapped = httprequest
         self.__environ = httprequest.environ
@@ -127,12 +68,19 @@ class HTTPRequest(_HTTPRequestProxied):
             key: value
             for key, value in self.__environ.items()
             if (
-                not key.startswith(("werkzeug.", "wsgi.", "socket"))
+                not key.startswith(("werkzeug.", "wsgi.", "socket", "odoo.socket"))
                 or key in ["wsgi.url_scheme", "werkzeug.proxy_fix.orig"]
             )
         }
         self.environ = filtered
         httprequest.headers = werkzeug.datastructures.EnvironHeaders(filtered)
+        _debug.lifecycle(
+            "http.httprequest.created",
+            method=httprequest.method,
+            path=httprequest.path,
+            content_length=httprequest.content_length,
+            mimetype=httprequest.mimetype,
+        )
 
     @property
     def session_id(self) -> str | None:
@@ -145,11 +93,27 @@ class HTTPRequest(_HTTPRequestProxied):
     def _adopt_body_state(self, other: HTTPRequest) -> None:
         src = other.__wrapped
         dst = self.__wrapped
+        for key in (
+            "max_content_length",
+            "max_form_memory_size",
+            "max_form_parts",
+            "trusted_hosts",
+        ):
+            setattr(dst, key, getattr(src, key))
         for key in ("stream", "data", "form", "files"):
             if key in src.__dict__:
                 dst.__dict__[key] = src.__dict__[key]
         if getattr(src, "_cached_data", None) is not None:
             dst._cached_data = src._cached_data
+        _debug.lifecycle(
+            "http.httprequest.body_adopted",
+            parsed=[
+                key
+                for key in ("stream", "data", "form", "files")
+                if key in src.__dict__
+            ],
+            cached_data=getattr(src, "_cached_data", None) is not None,
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -227,9 +191,8 @@ class _Response(werkzeug.wrappers.Response):
     def __init__(self, *args: Any, **kw: Any) -> None:
         template = kw.pop("template", None)
         qcontext = kw.pop("qcontext", None)
-        uid = kw.pop("uid", None)
         super().__init__(*args, **kw)
-        self.update_qweb_state(template, qcontext, uid)
+        self.update_qweb_state(template, qcontext)
 
     @classmethod
     def from_endpoint_result(cls, result: Any, fname: str = "<function>") -> Response:
@@ -238,16 +201,28 @@ class _Response(werkzeug.wrappers.Response):
 
         if isinstance(result, werkzeug.exceptions.HTTPException):
             _logger.warning("%s returns an HTTPException instead of raising it.", fname)
+            _debug.logic(
+                "http.response.exception_returned",
+                endpoint=fname,
+                error=type(result).__name__,
+            )
             raise result
 
         if isinstance(result, werkzeug.wrappers.Response):
-            response = cls.force_type(result)
-            response.update_qweb_state()
-            return Response(response)
-
-        if isinstance(result, (bytes, str, type(None))):
+            _debug.logic("http.response.coerced", kind="werkzeug", endpoint=fname)
             return Response(result)
 
+        if isinstance(result, (bytes, str, type(None))):
+            _debug.logic(
+                "http.response.coerced", kind=type(result).__name__, endpoint=fname
+            )
+            return Response(result)
+
+        _debug.logic(
+            "http.response.invalid_result",
+            endpoint=fname,
+            result_type=type(result).__name__,
+        )
         raise TypeError(
             f"{fname} returns an invalid value: {result!r}. type='http' routes "
             "return str/bytes/None/Response; for a dict or list, return "
@@ -258,12 +233,10 @@ class _Response(werkzeug.wrappers.Response):
         self,
         template: str | None = None,
         qcontext: dict[str, Any] | None = None,
-        uid: int | None = None,
     ) -> None:
         self.template = template
         self.qcontext = qcontext or {}
         self.qcontext["response_template"] = self.template
-        self.uid = uid
 
     @property
     def is_qweb(self) -> bool:
@@ -276,12 +249,19 @@ class _Response(werkzeug.wrappers.Response):
                 "is_qweb() or set one before rendering."
             )
         env = request.env
-        assert env is not None, "rendering a QWeb response needs a bound environment"
+        if env is None:
+            raise RuntimeError("rendering a QWeb response needs a bound environment")
         self.qcontext["request"] = request
-        return env["ir.ui.view"]._render_template(self.template, self.qcontext)
+        with _debug.perf(
+            "http.response.render", cr=env.cr, template=self.template
+        ) as span:
+            rendered = env["ir.ui.view"]._render_template(self.template, self.qcontext)
+            span.set(bytes=len(rendered))
+        return rendered
 
     def flatten(self) -> None:
         if self.template:
+            _debug.pipeline("http.response.flattened", template=self.template)
             self.response.append(self.render())
             self.template = None
 
@@ -299,6 +279,9 @@ class _Response(werkzeug.wrappers.Response):
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
+        _debug.lifecycle(
+            "http.cookie.set", key=key, max_age=max_age, cookie_type=cookie_type
+        )
         _set_cookie_on(
             self,
             key,
@@ -404,6 +387,15 @@ class ResponseStream(Proxy):
 
 
 class Response(Proxy):
+    """Typed facade over :class:`_Response`.
+
+    The surface is deliberately minimal: only the attributes listed below
+    exist on the public class, and standard werkzeug response attributes left
+    out on purpose (``vary``, ``allow``, ``www_authenticate``, ``date``,
+    ``content_range``, ``accept_ranges``) raise ``AttributeError``. Anything
+    beyond this surface goes through ``response.headers``.
+    """
+
     _wrapped__ = _Response
 
     __call__ = ProxyFunc()
@@ -481,64 +473,10 @@ class Response(Proxy):
         super().__init__(response)
 
 
-if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
-    werkzeug.exceptions._odoo_original_get_response = HTTPException.get_response
-if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
-    werkzeug.exceptions._odoo_original_abort = werkzeug.exceptions.abort
-
-_original_abort: Callable[..., NoReturn] = werkzeug.exceptions._odoo_original_abort
-
-
-def get_response(
-    self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
+def prepare_exception_response(
+    exc: HTTPException, environ: dict[str, Any] | None = None
 ) -> Response:
-    if self.response is None and self.code is None:
-        self = werkzeug.exceptions.InternalServerError(self.description)
-    return Response(
-        werkzeug.exceptions._odoo_original_get_response(self, environ, scope)
-    )
-
-
-def abort(status: int | Response, *args: Any, **kwargs: Any) -> NoReturn:
-    target: Any = status._wrapped__ if isinstance(status, Response) else status
-    _original_abort(target, *args, **kwargs)
-
-
-HTTPException.get_response = get_response
-werkzeug.exceptions.abort = abort
-
-
-class FutureResponse:
-    max_cookie_size = 4093
-
-    def __init__(self) -> None:
-        self.headers = werkzeug.datastructures.Headers()
-
-    def set_cookie(
-        self,
-        key: str,
-        value: str = "",
-        max_age: int | None = None,
-        expires: datetime | int | None = -1,
-        path: str | None = "/",
-        domain: str | None = None,
-        secure: bool | None = None,
-        httponly: bool = False,
-        samesite: str | None = None,
-        partitioned: bool = False,
-        cookie_type: str = "required",
-    ) -> None:
-        _set_cookie_on(
-            self,
-            key,
-            value,
-            max_age,
-            expires,
-            path,
-            domain,
-            secure,
-            httponly,
-            samesite,
-            partitioned,
-            cookie_type,
-        )
+    if exc.response is None and exc.code is None:
+        _debug.logic("http.exception.statusless_to_500", error=type(exc).__name__)
+        exc = werkzeug.exceptions.InternalServerError(exc.description)
+    return Response(exc.get_response(environ))

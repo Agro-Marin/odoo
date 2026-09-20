@@ -9,15 +9,13 @@ class SaleReport(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
-    order_reference = fields.Reference(
-        selection_add=[("pos.order", "POS Order")],
-    )
+    order_reference = fields.Reference(selection_add=[("pos.order", "POS Order")])
     state = fields.Selection(
         selection_add=[
             ("paid", "Paid"),
             ("invoiced", "Invoiced"),
             ("done", "Posted"),
-        ],
+        ]
     )
 
     # ------------------------------------------------------------
@@ -66,14 +64,17 @@ class SaleReport(models.Model):
     def _select_pos(self) -> SQL:
         """Build SELECT clause for POS orders from field registry."""
         fields = self._get_fields_pos_select()
-
-        field_parts = []
-        for field_name, expression in fields.items():
-            field_parts.append(
-                SQL("%s AS %s", SQL(expression), SQL.identifier(field_name)),
+        columns = list(self._get_fields_select())
+        if unmatched := set(columns).symmetric_difference(fields):
+            raise ValueError(
+                f"sale.report UNION ALL columns differ between sale and POS orders: "
+                f"{sorted(unmatched)}"
             )
 
-        return SQL(",\n    ").join(field_parts)
+        return SQL(",\n    ").join(
+            SQL("%s AS %s", SQL(fields[field_name]), SQL.identifier(field_name))
+            for field_name in columns
+        )
 
     def _from_pos(self) -> SQL:
         """Build FROM clause for POS orders from table registry."""
@@ -142,7 +143,7 @@ class SaleReport(models.Model):
             "partner_zip": "partner.zip",
             "industry_id": "partner.primary_industry_id",
             "pricelist_id": "pos.pricelist_id",
-            "team_id": "pos.crm_team_id",
+            "team_id": "pos.team_id",
             "user_id": "pos.user_id",
             "campaign_id": "NULL",  # POS doesn't have UTM fields
             "medium_id": "NULL",
@@ -311,7 +312,7 @@ class SaleReport(models.Model):
             "partner.state_id",
             "partner.zip",
             "u.factor",
-            "pos.crm_team_id",
+            "pos.team_id",
             "account_currency_table.rate",
             "picking.warehouse_id",
         ]

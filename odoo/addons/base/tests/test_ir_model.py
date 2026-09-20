@@ -1,5 +1,5 @@
 import traceback
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
 
 from psycopg import IntegrityError
@@ -229,7 +229,12 @@ class TestXMLID(TransactionCase):
 
         xmlid = "base.test_xmlid"
         records = self.env["ir.model.data"].search([], limit=6)
-        with self.assertQueryCount(1):
+        # warm the field, default and clock caches the first create pays for
+        self.env["ir.model.data"]._update_xmlids(
+            [{"xml_id": "base.test_xmlid_warmup", "record": records[5]}]
+        )
+        # one read of the existing rows, then one insert or one update
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[0]},
@@ -241,7 +246,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been created with record {records[0]}",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[1]},
@@ -254,7 +259,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been updated with record {records[1]}",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[2]},
@@ -267,7 +272,7 @@ class TestXMLID(TransactionCase):
         )
 
         xmlid = "base.test_xmlid_noupdates"
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {
@@ -297,7 +302,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should not have been updated (update mode)",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[5]},
@@ -389,6 +394,137 @@ class TestIrModelEdition(TransactionCase):
             default_model=model.name,
             default_ttype="char",
         ).name_create("field_name")
+
+    def test_create_without_a_model_name_uses_the_default(self):
+        model = self.env["ir.model"].create({"name": "Default name"})
+        self.assertEqual(model.model, "x_")
+        self.assertIn("x_", self.env.registry)
+
+    def test_manual_model_rename_reaches_the_registry(self):
+        model = self.env["ir.model"].create(
+            {"name": "Before", "model": "x_renamed", "info": "old doc"}
+        )
+        self.assertEqual(self.env.registry["x_renamed"]._description, "Before")
+        model.write({"name": "After", "info": "new doc"})
+        self.assertEqual(self.env.registry["x_renamed"]._description, "After")
+        self.assertEqual(
+            self.env["ir.model"]._prepare_model_vals(self.env["x_renamed"])["info"],
+            "new doc",
+        )
+
+    def test_base_model_order_write_skips_registry_setup(self):
+        model = self.env["ir.model"]._get("res.country")
+        with patch.object(type(self.env.registry), "setup_models") as setup:
+            model.write({"order": model.order})
+        setup.assert_not_called()
+
+    def test_manual_model_write_that_changes_nothing_skips_registry_setup(self):
+        self.env["res.lang"]._activate_lang("fr_FR")
+        model = self.env["ir.model"].create({"name": "Same", "model": "x_same"})
+        with patch.object(type(self.env.registry), "setup_models") as setup:
+            model.write({"name": "Same", "order": "id"})
+            model.with_context(lang="fr_FR").write({"name": "Pareil"})
+        setup.assert_not_called()
+        self.assertEqual(self.env.registry["x_same"]._description, "Same")
+
+    def test_model_deletion_forgets_its_many2many_relation_and_rebuilds_named(self):
+        model = self.env["ir.model"].create(
+            {
+                "name": "Tagged",
+                "model": "x_tagged",
+                "field_id": [
+                    Command.create(
+                        {
+                            "name": "x_partner_ids",
+                            "ttype": "many2many",
+                            "relation": "res.partner",
+                        }
+                    )
+                ],
+            }
+        )
+        registry = self.env.registry
+        field = registry["x_tagged"]._fields["x_partner_ids"]
+        triple = (field.relation, field.column1, field.column2)
+        self.assertIn(
+            ("x_tagged", "x_partner_ids"), registry.many2many_relations[triple]
+        )
+        with patch.object(
+            type(registry), "setup_models", wraps=registry.setup_models
+        ) as setup:
+            model.unlink()
+        self.assertNotIn("x_tagged", registry)
+        self.assertNotIn(triple, registry.many2many_relations)
+        self.assertTrue(setup.call_args_list)
+        self.assertEqual(setup.call_args_list[-1].args[1], [])
+
+    def test_model_deletion_survives_a_manual_many2one_on_a_delegating_parent(self):
+        IrModel = self.env["ir.model"]
+        model = IrModel.create({"name": "Target", "model": "x_target"})
+        self.env["ir.model.fields"].create(
+            {
+                "model_id": IrModel._get("res.partner").id,
+                "name": "x_target_id",
+                "ttype": "many2one",
+                "relation": "x_target",
+            }
+        )
+        self.assertIn("x_target_id", self.env.registry["res.users"]._fields)
+        model.unlink()
+        self.assertNotIn("x_target", self.env.registry)
+        self.assertNotIn("x_target_id", self.env.registry["res.partner"]._fields)
+        self.assertNotIn("x_target_id", self.env.registry["res.users"]._fields)
+        self.assertFalse(
+            self.env["ir.model.fields"].search([("name", "=", "x_target_id")])
+        )
+
+    def test_model_deletion_survives_a_computed_field_depending_on_a_sibling(self):
+        model = self.env["ir.model"].create(
+            {
+                "name": "Computed",
+                "model": "x_computed",
+                "field_id": [Command.create({"name": "x_name", "ttype": "char"})],
+            }
+        )
+        self.env["ir.model.fields"].create(
+            {
+                "model_id": model.id,
+                "name": "x_upper",
+                "ttype": "char",
+                "depends": "x_name",
+                "compute": "for r in self: r['x_upper'] = (r.x_name or '').upper()",
+                "store": True,
+            }
+        )
+        record = self.env["x_computed"].create({"x_name": "abc"})
+        self.assertEqual(record.x_upper, "ABC")
+        model.unlink()
+        self.assertNotIn("x_computed", self.env.registry)
+        graph_fields = {
+            f"{f.model_name}.{f.name}"
+            for f in self.env.registry.field_depends_context
+            if f.model_name == "x_computed"
+        }
+        self.assertEqual(graph_fields, set())
+
+    def test_manual_model_data_is_the_class_source(self):
+        self.env["ir.model"].create({"name": "Rows", "model": "x_rows"})
+        self.env.flush_all()
+        (row,) = [
+            r
+            for r in self.env["ir.model"]._get_manual_model_data()
+            if r["model"] == "x_rows"
+        ]
+        self.assertEqual(row["name"], "Rows")
+        attrs = self.env["ir.model"]._prepare_class_attrs(row)
+        self.assertEqual(attrs["_description"], "Rows")
+        self.assertEqual(attrs["_order"], "id")
+        stored = {
+            fname
+            for fname, field in self.env["ir.model"]._fields.items()
+            if field.store and field.column_type
+        }
+        self.assertLessEqual(stored, set(row))
 
     def test_reflect_models_empty_no_raise(self):
         self.assertIsNone(self.env["ir.model"]._reflect_models([]))
@@ -499,7 +635,7 @@ class TestIrModelEdition(TransactionCase):
             }
         )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
         record = self.env[model.model].create({"x_src": "a"})
 
         try:
@@ -640,7 +776,7 @@ class TestEvalContext(TransactionCase):
 class TestIrModelFieldsTranslation(HttpCase):
     def test_ir_model_fields_translation(self):
         group_order_template = self.env.ref(
-            "sale_management.group_sale_order_template",
+            "sale.group_sale_order_template",
             raise_if_not_found=False,
         )
         if group_order_template:
@@ -688,15 +824,35 @@ class TestIrModelFields(TransactionCase):
         )
         return self.env[model.model], field
 
+    def test_a_stored_compute_added_to_a_table_with_rows_is_computed_for_them(self):
+        Model, _field = self._make_manual_field("newcol", ttype="integer")
+        rows = Model.create([{"x_newcol": 2}, {"x_newcol": 5}])
+        rows.flush_recordset()
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_double",
+                "field_description": "Double",
+                "model_id": self.env["ir.model"]._get(Model._name).id,
+                "ttype": "integer",
+                "store": True,
+                "depends": "x_newcol",
+                "compute": "for r in self:\n    r['x_double'] = r['x_newcol'] * 2",
+            }
+        )
+        self.env.flush_all()
+        self.assertEqual(
+            self.env[Model._name].browse(rows.ids).mapped("x_double"), [4, 10]
+        )
+
     def test_empty_write_skips_registry_setup(self):
         _model, field = self._make_manual_field("empty")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             self.assertTrue(field.write({}))
         mock_setup.assert_not_called()
 
     def test_label_translate_write_skips_registry_setup(self):
         Model, field = self._make_manual_field("label")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"field_description": "Renamed Label"})
         mock_setup.assert_not_called()
         self.assertEqual(
@@ -748,14 +904,14 @@ class TestIrModelFields(TransactionCase):
     def test_field_rename_sets_up_the_registry_once(self):
         _Model, field = self._make_manual_field("setuponce")
         self.env.flush_all()
-        original = type(self.env.registry)._setup_models__
+        original = type(self.env.registry).setup_models
         calls = []
 
         def spy(registry, cr, model_names=None, **kwargs):
             calls.append(model_names)
             return original(registry, cr, model_names, **kwargs)
 
-        with patch.object(type(self.env.registry), "_setup_models__", spy):
+        with patch.object(type(self.env.registry), "setup_models", spy):
             field.write({"name": "x_setuponce2"})
         self.assertEqual(len(calls), 1, calls)
 
@@ -817,7 +973,7 @@ class TestIrModelFields(TransactionCase):
     def test_help_on_a_base_field_skips_registry_setup(self):
         field = self.env["ir.model.fields"]._get("res.partner", "comment")
         self.assertFalse(field.help)
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"help": "Tooltip"})
         mock_setup.assert_not_called()
 
@@ -931,9 +1087,18 @@ class TestIrModelFields(TransactionCase):
             self.env.registry[model_name]._fields[field.name].help, "Tooltip"
         )
 
+    def test_a_label_write_is_visible_to_an_environment_without_a_language(self):
+        Model, field = self._make_manual_field("nolang")
+        field.write({"field_description": "Relabelled"})
+        no_lang = self.env(context={**self.env.context, "lang": False})
+        self.assertEqual(
+            no_lang[Model._name].fields_get([field.name])[field.name]["string"],
+            "Relabelled",
+        )
+
     def test_presence_preserving_label_write_still_skips_setup(self):
         Model, field = self._make_manual_field("keepfast", help="Tip")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"field_description": "Renamed", "help": "Tip 2"})
         mock_setup.assert_not_called()
         self.assertEqual(
@@ -969,7 +1134,7 @@ class TestIrModelFields(TransactionCase):
             }
         )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
 
         self.assertTrue(group.get_external_id()[group.id])
         self.assertEqual(
@@ -1010,7 +1175,7 @@ class TestIrModelFields(TransactionCase):
             [("model", "=", "res.groups"), ("res_id", "=", group.id)]
         ).unlink()
         self.env.registry.clear_cache("stable")
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
 
         self.assertEqual(
             self.env.registry[model.model]._fields[field.name].groups,
@@ -1100,7 +1265,7 @@ class TestIrModelFields(TransactionCase):
                 }
             )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
         long_view = self.env["ir.ui.view"].create(
             {
                 "name": "IMF scan long",
@@ -1362,13 +1527,13 @@ class TestIrModelFields(TransactionCase):
         _Model, field = self._make_manual_field("scoped")
         self.env.flush_all()
         scopes = []
-        original = type(self.env.registry)._setup_models__
+        original = type(self.env.registry).setup_models
 
         def spy(registry, cr, model_names=None, **kwargs):
             scopes.append(model_names)
             return original(registry, cr, model_names, **kwargs)
 
-        with patch.object(type(self.env.registry), "_setup_models__", spy):
+        with patch.object(type(self.env.registry), "setup_models", spy):
             field.unlink()
 
         self.assertTrue(scopes)
@@ -1733,14 +1898,10 @@ class TestIrModelFieldsSelection(TransactionCase):
         return self.env[model.model], field
 
     def _set_jsonb(self, model, field, record, mapping):
-        self.env.cr.execute(
-            SQL(
-                "UPDATE %s SET %s = %s WHERE id = %s",
-                SQL.identifier(model._table),
-                SQL.identifier(field.name),
-                Json({str(cid): value for cid, value in mapping.items()}),
-                record.id,
-            )
+        self.env.backend.columns.write(
+            record,
+            field.name,
+            [(record.id, Json({str(cid): value for cid, value in mapping.items()}))],
         )
         record.invalidate_recordset([field.name])
 
@@ -1814,7 +1975,7 @@ class TestIrModelFieldsSelection(TransactionCase):
     def test_selection_label_rename_skips_registry_setup(self):
         Model, field = self._make_selection_field("label")
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             draft.write({"name": "Brouillon"})
         mock_setup.assert_not_called()
         self.assertIn(
@@ -1825,7 +1986,7 @@ class TestIrModelFieldsSelection(TransactionCase):
     def test_selection_value_rename_triggers_registry_setup(self):
         _model, field = self._make_selection_field("setup")
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             draft.write({"value": "pending"})
         mock_setup.assert_called()
 
@@ -2258,9 +2419,14 @@ class TestIrModelData(TransactionCase):
         ) as mock_clear:
             xid.write({"noupdate": False, "name": "imd_p1_noupdate_only_renamed"})
         self.assertIn(
+            ("xmlid",),
+            [call.args for call in mock_clear.call_args_list],
+            "a write touching more than noupdate must clear the xmlid cache",
+        )
+        self.assertNotIn(
             (),
             [call.args for call in mock_clear.call_args_list],
-            "a write touching more than noupdate must clear the default cache",
+            "an xmlid change is not a reason to evict every default-bucket cache",
         )
 
     def test_toggle_noupdate_batches_writes(self):
@@ -2546,6 +2712,21 @@ class TestIrModelInfoStopsAtTheOrmBoundary(TransactionCase):
             self._info("ir.model"),
             msg="a model with no docstring of its own has no Information text",
         )
+
+    def test_a_documented_mixin_lends_no_text_to_the_model_inheriting_it(self):
+        Partner = self.env.registry["res.partner"]
+        mixins = [
+            cls
+            for cls in Partner.mro()
+            if getattr(cls, "_name", None) not in (None, "res.partner")
+        ]
+        self.assertTrue(mixins, "res.partner inherits at least one mixin")
+        with ExitStack() as stack:
+            for cls in mixins:
+                stack.enter_context(
+                    patch.object(cls, "__doc__", f"What {cls._name} is for.")
+                )
+            self.assertNotIn("is for.", self._info("res.partner") or "")
 
     def test_a_documented_model_still_reports_its_own_text(self):
         cls = self.env.registry["ir.model"]

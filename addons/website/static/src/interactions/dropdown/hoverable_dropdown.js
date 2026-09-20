@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { SIZES, utils as uiUtils } from "@web/ui/viewport";
+
+const log = makeLogger("website.interaction.hoverable_dropdown");
 
 export class HoverableDropdown extends Interaction {
     static selector = "header.o_hoverable_dropdown";
@@ -18,13 +21,16 @@ export class HoverableDropdown extends Interaction {
             }),
         },
         _window: {
-            "t-on-resize": this.onResize,
+            "t-on-resize": this.throttled(this.onResize),
         },
     };
 
     setup() {
         this.dropdownMenuEls = this.el.querySelectorAll(".dropdown-menu");
-        this.breakpointSize = SIZES.LG; // maybe need to check in .navbar elem like in BaseHeader?
+        this.breakpointSize = SIZES.LG;
+        log.lifecycle("HoverableDropdown setup", () => ({
+            menus: this.dropdownMenuEls.length,
+        }));
     }
 
     start() {
@@ -46,6 +52,12 @@ export class HoverableDropdown extends Interaction {
             !dropdownToggleEl ||
             dropdownEl.closest(".o_extra_menu_items")
         ) {
+            log.logic("HoverableDropdown updateDropdownVisibility: skip", () => ({
+                show,
+                isSmall: this.isSmall(),
+                hasToggle: !!dropdownToggleEl,
+                inExtraMenu: !!dropdownEl.closest(".o_extra_menu_items"),
+            }));
             return;
         }
         const dropdown = Dropdown.getOrCreateInstance(dropdownToggleEl);
@@ -61,12 +73,8 @@ export class HoverableDropdown extends Interaction {
             this.el.ownerDocument.querySelector(":focus") ||
             window.frameElement?.ownerDocument.querySelector(":focus");
 
-        // The user must click on the dropdown if he is on mobile (no way to
-        // hover) or if the dropdown is the (or in the) extra menu ('+').
         this.updateDropdownVisibility(currentTargetEl, true);
 
-        // Keep the focus on the previously focused element if any, otherwise do
-        // not focus the dropdown on hover.
         if (focusedEl) {
             focusedEl.focus({ preventScroll: true });
         } else {

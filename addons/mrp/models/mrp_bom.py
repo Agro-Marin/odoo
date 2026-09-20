@@ -3,8 +3,13 @@ from collections import defaultdict, deque
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import float_compare
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import TransactionMemo, float_compare
 from odoo.tools.misc import OrderedSet, clean_context
+
+BOM_BY_PRODUCT = TransactionMemo("mrp.bom.by_product", invalidated_by=("mrp.bom",))
+
+_debug = DebugLog(__name__)
 
 
 class ExplodeScratch(dict):
@@ -27,8 +32,8 @@ class MrpBom(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    code = fields.Char("Reference")
-    active = fields.Boolean("Active", default=True)
+    code = fields.Char(string="Reference")
+    active = fields.Boolean(default=True)
     archived_with_product = fields.Boolean(
         copy=False,
         help="Technical: this BoM was archived because its product was, so "
@@ -36,68 +41,69 @@ class MrpBom(models.Model):
         "does not carry the flag and stays retired.",
     )
     type = fields.Selection(
-        [("normal", "Manufacture this product"), ("phantom", "Kit")],
-        "BoM Type",
+        selection=[("normal", "Manufacture this product"), ("phantom", "Kit")],
+        string="BoM Type",
         default="normal",
         required=True,
     )
     product_tmpl_id = fields.Many2one(
-        "product.template",
-        "Product",
-        check_company=True,
+        comodel_name="product.template",
+        string="Product",
         index=True,
-        domain="[('type', '=', 'consu')]",
         required=True,
+        domain="[('type', '=', 'consu')]",
+        check_company=True,
     )
     product_id = fields.Many2one(
-        "product.product",
-        "Product Variant",
-        check_company=True,
+        comodel_name="product.product",
+        string="Product Variant",
         index=True,
         domain="['&', ('product_tmpl_id', '=', product_tmpl_id), ('type', '=', 'consu')]",
+        check_company=True,
         help="If a product variant is defined the BOM is available only for this product.",
     )
     bom_line_ids = fields.One2many(
-        "mrp.bom.line",
-        "bom_id",
-        "BoM Lines",
+        comodel_name="mrp.bom.line",
+        inverse_name="bom_id",
+        string="BoM Lines",
         copy=True,
     )
     byproduct_ids = fields.One2many(
-        "mrp.bom.byproduct",
-        "bom_id",
-        "By-products",
+        comodel_name="mrp.bom.byproduct",
+        inverse_name="bom_id",
+        string="By-products",
         copy=True,
     )
     product_qty = fields.Float(
-        "Quantity",
-        default=1.0,
+        string="Quantity",
         digits="Product Unit",
+        default=1.0,
         required=True,
         help="This should be the smallest quantity that this product can be produced in. If the BOM contains operations, make sure the work center capacity is accurate.",
     )
     product_uom_id = fields.Many2one(
-        "uom.uom",
-        "Unit",
+        comodel_name="uom.uom",
+        string="Unit",
         required=True,
         help="Unit of Measure (Unit of Measure) is the unit of measurement for the inventory control",
     )
-    sequence = fields.Integer("Sequence")
+    sequence = fields.Integer()
     operation_ids = fields.One2many(
-        "mrp.routing.workcenter",
-        "bom_id",
-        "Operations",
+        comodel_name="mrp.routing.workcenter",
+        inverse_name="bom_id",
+        string="Operations",
         copy=True,
     )
     operation_count = fields.Integer(
-        "Operations Count", compute="_compute_operation_count"
+        string="Operations Count",
+        compute="_compute_operation_count",
     )
     show_copy_operations_button = fields.Boolean(
         compute="_compute_show_copy_operations_button",
         help="Technical field used to control the visibility of the 'Copy Existing Operations' button.",
     )
     ready_to_produce = fields.Selection(
-        [
+        selection=[
             ("all_available", " When all components are available"),
             ("asap", "When components for 1st operation are available"),
         ],
@@ -106,8 +112,8 @@ class MrpBom(models.Model):
         required=True,
     )
     picking_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Operation Type",
+        comodel_name="stock.picking.type",
+        string="Operation Type",
         domain="[('code', '=', 'mrp_operation')]",
         check_company=True,
         help="When a procurement has a ‘produce’ route with a operation type set, it will try to create "
@@ -116,19 +122,18 @@ class MrpBom(models.Model):
         "to define stock rules which trigger different manufacturing orders with different BoMs.",
     )
     company_id = fields.Many2one(
-        "res.company",
-        "Company",
-        index=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company,
+        index=True,
     )
     consumption = fields.Selection(
-        [
+        selection=[
             ("flexible", "Allowed"),
             ("warning", "Allowed with warning"),
             ("strict", "Blocked"),
         ],
-        default="warning",
         string="Flexible Consumption",
+        default="warning",
         required=True,
         help="Defines if you can consume more or less components than the quantity defined on the BoM:\n"
         "  * Allowed: allowed for all manufacturing users.\n"
@@ -137,15 +142,15 @@ class MrpBom(models.Model):
         "  * Blocked: only a manager can close a manufacturing order when the BoM consumption is not respected.",
     )
     possible_product_template_attribute_value_ids = fields.Many2many(
-        "product.template.attribute.value",
+        comodel_name="product.template.attribute.value",
         compute="_compute_possible_product_template_attribute_value_ids",
     )
     allow_operation_dependencies = fields.Boolean(
-        "Operation Dependencies",
+        string="Operation Dependencies",
         help="Create operation level dependencies that will influence both planning and the status of work orders upon MO confirmation. If this feature is ticked, and nothing is specified, Odoo will assume that all operations can be started simultaneously.",
     )
     produce_delay = fields.Integer(
-        "Manufacturing Lead Time",
+        string="Manufacturing Lead Time",
         default=0,
         help="Average lead time in days to manufacture this product. In the case of multi-level BOM, the manufacturing lead times of the components will be added. In case the product is subcontracted, this can be used to determine the date at which components should be sent to the subcontractor.",
     )
@@ -154,13 +159,10 @@ class MrpBom(models.Model):
         default=0,
         help="Create and confirm Manufacturing Orders this many days in advance, to have enough time to replenish components or manufacture semi-finished products.",
     )
-    show_set_bom_button = fields.Boolean(
-        compute="_compute_show_set_bom_button",
-    )
+    show_set_bom_button = fields.Boolean(compute="_compute_show_set_bom_button")
     batch_size = fields.Float(
-        "Batch Size",
-        default=1.0,
         digits="Product Unit",
+        default=1.0,
         help="All automatically generated manufacturing orders for this product will be of this size.",
     )
     enable_batch_size = fields.Boolean(default=False)
@@ -202,31 +204,35 @@ class MrpBom(models.Model):
         subcomponents_by_product = {}
         checked = self.browse()
         boms_to_check = self
-        while boms_to_check:
-            reached = self.env["product.product"]
-            for bom in boms_to_check:
-                if not bom.active:
-                    continue
-                reached |= bom.bom_line_ids.product_id
-                for components, finished in bom._get_cycle_seeds():
-                    self._check_no_cycle_from(
-                        components, finished, subcomponents_by_product
-                    )
-                    reached |= components
-            checked |= boms_to_check
-            reached |= self.env["product.product"].browse(
-                {
-                    product.id
-                    for components in subcomponents_by_product.values()
-                    for product in components
-                }
-            )
-            boms_to_check = (
-                self.search(Domain.OR(self._get_domain_bom(p) for p in reached))
-                - checked
-                if reached
-                else self.browse()
-            )
+        rounds = 0  # debuglog
+        with _debug.perf("bom_cycle_check", cr=self.env.cr, boms=self) as span:
+            while boms_to_check:
+                rounds += 1  # debuglog
+                reached = self.env["product.product"]
+                for bom in boms_to_check:
+                    if not bom.active:
+                        continue
+                    reached |= bom.bom_line_ids.product_id
+                    for components, finished in bom._get_cycle_seeds():
+                        self._check_no_cycle_from(
+                            components, finished, subcomponents_by_product
+                        )
+                        reached |= components
+                checked |= boms_to_check
+                reached |= self.env["product.product"].browse(
+                    {
+                        product.id
+                        for components in subcomponents_by_product.values()
+                        for product in components
+                    }
+                )
+                boms_to_check = (
+                    self.search(Domain.OR(self._get_domain_bom(p) for p in reached))
+                    - checked
+                    if reached
+                    else self.browse()
+                )
+            span.set(rounds=rounds, checked=len(checked))
 
     @api.depends(
         "product_tmpl_id.attribute_line_ids.value_ids",
@@ -235,7 +241,7 @@ class MrpBom(models.Model):
     )
     def _compute_possible_product_template_attribute_value_ids(self):
         for bom in self:
-            bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
+            bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._filtered_active()
 
     def _remove_variant_values(self):
         self.check_singleton()
@@ -272,6 +278,12 @@ class MrpBom(models.Model):
             self._add_missing_subcomponents(components, subcomponents)
             for component in components:
                 if component in finished_products:
+                    _debug.logic(
+                        "bom_cycle_detected",
+                        bom=self.id,
+                        component=component.id,
+                        finished=finished_products,
+                    )
                     raise ValidationError(
                         _(
                             "The current configuration is incorrect because it would create a cycle between these products: %s.",
@@ -293,6 +305,11 @@ class MrpBom(models.Model):
         unknown = products.filtered(lambda p: p not in subcomponents)
         if not unknown:
             return
+        _debug.pipeline(
+            "bom_subcomponents_resolved",
+            products=len(products),
+            unknown=len(unknown),
+        )
         bom_by_product = self._get_bom_by_product(unknown)
         for product in unknown:
             subcomponents[product] = (
@@ -436,25 +453,26 @@ class MrpBom(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        needs_uom = [
-            values
-            for values in vals_list
+        needs_uom = {
+            index
+            for index, values in enumerate(vals_list)
             if values.get("product_tmpl_id") and "product_uom_id" not in values
-        ]
+        }
         if needs_uom:
             templates = self.env["product.template"].browse(
-                {values["product_tmpl_id"] for values in needs_uom}
+                {vals_list[index]["product_tmpl_id"] for index in needs_uom}
             )
             uom_by_template = {
                 template.id: template.uom_id.id for template in templates
             }
             vals_list = [
                 {**values, "product_uom_id": uom_by_template[values["product_tmpl_id"]]}
-                if values in needs_uom
+                if index in needs_uom
                 else values
-                for values in vals_list
+                for index, values in enumerate(vals_list)
             ]
         res = super().create(vals_list)
+        _debug.lifecycle("create", count=len(res), boms=res)
         parent_production_id = self.env.context.get("parent_production_id")
         if parent_production_id:
             env = self.env(context=clean_context(self.env.context))
@@ -473,12 +491,14 @@ class MrpBom(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
+        _debug.lifecycle("write", boms=self, fields=list(vals))
         if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
             self._update_outdated_bom_in_productions()
         return res
 
     def copy(self, default=None):
         new_boms = super().copy({**(default or {}), "operation_ids": []})
+        _debug.lifecycle("copy", source=self, copies=new_boms)
         for old_bom, new_bom in zip(self, new_boms, strict=True):
             operations = old_bom.operation_ids
             if not operations:
@@ -508,6 +528,7 @@ class MrpBom(models.Model):
 
     def action_archive(self):
         operations = self.operation_ids
+        _debug.lifecycle("archive", boms=self, operations=len(operations))
         operations.archived_with_bom = True
         operations.action_archive()
         return super().action_archive()
@@ -516,6 +537,7 @@ class MrpBom(models.Model):
         operations = self.with_context(active_test=False).operation_ids.filtered(
             "archived_with_bom"
         )
+        _debug.lifecycle("unarchive", boms=self, operations=len(operations))
         operations.action_unarchive()
         operations.archived_with_bom = False
         return super().action_unarchive()
@@ -551,17 +573,19 @@ class MrpBom(models.Model):
         )
         report = self.env["report.mrp.report_bom_structure"]
         incomplete = self.browse()
-        for bom in self:
-            bom_data = report.with_context(minimized=True)._get_bom_data(
-                bom, warehouse, bom.product_id, ignore_stock=True
-            )
-            bom.days_to_prepare_mo = report._get_max_component_delay(
-                bom_data["components"]
-            )
-            if bom_data.get("availability_state") == "unavailable" and not bom_data.get(
-                "components_available", True
-            ):
-                incomplete |= bom
+        with _debug.perf("bom_days_computed", cr=self.env.cr, boms=self) as span:
+            for bom in self:
+                bom_data = report.with_context(minimized=True)._get_bom_data(
+                    bom, warehouse, bom.product_id, ignore_stock=True
+                )
+                bom.days_to_prepare_mo = report._get_max_component_delay(
+                    bom_data["components"]
+                )
+                if bom_data.get(
+                    "availability_state"
+                ) == "unavailable" and not bom_data.get("components_available", True):
+                    incomplete |= bom
+            span.set(incomplete=len(incomplete))
         if not incomplete:
             return None
         return {
@@ -588,6 +612,12 @@ class MrpBom(models.Model):
         if self.env["stock.warehouse.orderpoint"].search_count(
             [("product_id", "in", product_ids)], limit=1
         ):
+            _debug.logic(
+                "bom_refused",
+                reason="kit_has_orderpoint",
+                boms=self,
+                products=len(product_ids),
+            )
             raise ValidationError(
                 _(
                     "You can not create a kit-type bill of materials for products that have at least one reordering rule."
@@ -601,6 +631,7 @@ class MrpBom(models.Model):
             and bom.product_uom_id.compare(bom.batch_size, 0.0) <= 0
             for bom in self
         ):
+            _debug.logic("bom_refused", reason="batch_size_not_positive", boms=self)
             raise ValidationError(self.env._("The batch size must be positive!"))
 
     @api.ondelete(at_uninstall=False)
@@ -609,6 +640,7 @@ class MrpBom(models.Model):
             [("bom_id", "in", self.ids), ("state", "not in", ["done", "cancel"])],
             limit=1,
         ):
+            _debug.logic("bom_refused", reason="running_production", boms=self)
             raise UserError(
                 _(
                     "You can not delete a Bill of Material with running manufacturing orders.\nPlease close or cancel it first."
@@ -655,40 +687,89 @@ class MrpBom(models.Model):
         products = products.filtered(lambda p: p.type != "service")
         if not products:
             return bom_by_product
-        domain = self._get_domain_bom(
-            products,
-            picking_type=picking_type,
-            company_id=company_id,
-            bom_type=bom_type,
+        memo = BOM_BY_PRODUCT(self.env)
+        scope = (
+            self.env.uid,
+            self.env.su,
+            tuple(self.env.companies.ids),
+            picking_type.id if picking_type else False,
+            company_id or self.env.context.get("company_id") or False,
+            bom_type,
         )
-
-        if len(products) == 1:
-            bom = self.search(domain, order="sequence, product_id, id", limit=1)
-            if bom:
-                bom_by_product[products] = bom
-            return bom_by_product
-
-        boms = self.search(domain, order="sequence, product_id, id")
-
-        bom_by_product_tmpl = defaultdict(lambda: self.env["mrp.bom"])
-        for bom in boms:
-            if (
-                bom.product_id
-                and (bom.product_id.product_tmpl_id not in bom_by_product_tmpl)
-                and (bom.product_id not in bom_by_product)
-            ):
-                bom_by_product[bom.product_id] = bom
-            elif not bom.product_id and bom.product_tmpl_id not in bom_by_product_tmpl:
-                bom_by_product_tmpl[bom.product_tmpl_id] = bom
-
+        unknown = products.browse()
         for product in products:
-            if (
-                product.product_tmpl_id in bom_by_product_tmpl
-                and product not in bom_by_product
-            ):
-                bom_by_product[product] = bom_by_product_tmpl[product.product_tmpl_id]
-
+            bom_id = memo.get((scope, product.id), None)
+            if bom_id is None:
+                unknown |= product
+            elif bom_id:
+                bom_by_product[product] = self.browse(bom_id)
+        _debug.perf.count(
+            "bom_by_product_memo",
+            products=len(products),
+            hits=len(products) - len(unknown),
+            misses=len(unknown),
+        )
+        if not unknown:
+            return bom_by_product
+        found = self._search_bom_by_product(unknown, picking_type, company_id, bom_type)
+        for product in unknown:
+            bom = found.get(product)
+            memo[scope, product.id] = bom.id if bom else False
+            if bom:
+                bom_by_product[product] = bom
         return bom_by_product
+
+    @api.model
+    def _search_bom_by_product(self, products, picking_type, company_id, bom_type):
+        with _debug.perf(
+            "bom_search",
+            cr=self.env.cr,
+            products=len(products),
+            bom_type=bom_type or "any",
+        ) as span:
+            bom_by_product = defaultdict(lambda: self.env["mrp.bom"])
+            domain = self._get_domain_bom(
+                products,
+                picking_type=picking_type,
+                company_id=company_id,
+                bom_type=bom_type,
+            )
+
+            if len(products) == 1:
+                bom = self.search(domain, order="sequence, product_id, id", limit=1)
+                if bom:
+                    bom_by_product[products] = bom
+                span.set(boms=len(bom), matched=len(bom_by_product))
+                return bom_by_product
+
+            boms = self.search(domain, order="sequence, product_id, id")
+            span.set(boms=len(boms))
+
+            bom_by_product_tmpl = defaultdict(lambda: self.env["mrp.bom"])
+            for bom in boms:
+                if (
+                    bom.product_id
+                    and (bom.product_id.product_tmpl_id not in bom_by_product_tmpl)
+                    and (bom.product_id not in bom_by_product)
+                ):
+                    bom_by_product[bom.product_id] = bom
+                elif (
+                    not bom.product_id
+                    and bom.product_tmpl_id not in bom_by_product_tmpl
+                ):
+                    bom_by_product_tmpl[bom.product_tmpl_id] = bom
+
+            for product in products:
+                if (
+                    product.product_tmpl_id in bom_by_product_tmpl
+                    and product not in bom_by_product
+                ):
+                    bom_by_product[product] = bom_by_product_tmpl[
+                        product.product_tmpl_id
+                    ]
+
+            span.set(matched=len(bom_by_product), by_template=len(bom_by_product_tmpl))
+            return bom_by_product
 
     @api.model
     def _get_explosion_scratch(self):
@@ -698,91 +779,100 @@ class MrpBom(models.Model):
     def _explode(
         self, product, quantity, picking_type=False, never_attribute_values=False
     ):
-        self = self.with_context(bom_cost_share_cache=self._get_explosion_scratch())
-        product_boms = self._get_kit_closure(
-            product, picking_type, never_attribute_values
-        )
-
-        boms_done = [
-            (
-                self,
-                self.env["mrp.bom.line"]._prepare_bom_done_values(
-                    quantity, product, quantity, []
-                ),
+        with _debug.perf(
+            "bom_explode",
+            cr=self.env.cr,
+            bom=self.id,
+            product=product.id,
+            quantity=quantity,
+        ) as span:
+            self = self.with_context(bom_cost_share_cache=self._get_explosion_scratch())
+            product_boms = self._get_kit_closure(
+                product, picking_type, never_attribute_values
             )
-        ]
-        lines_done = []
-        bom_lines = deque(
-            (bom_line, product, quantity, False, frozenset((product.id,)))
-            for bom_line in self.bom_line_ids
-        )
-        while bom_lines:
-            current_line, current_product, current_qty, parent_line, ancestors = (
-                bom_lines.popleft()
-            )
+            span.set(kits=len(product_boms))
 
-            if current_line._is_bom_line_skipped(
-                current_product, never_attribute_values
-            ):
-                continue
-
-            line_quantity = current_qty * current_line.product_qty
-            bom = product_boms.get(current_line.product_id)
-            if bom:
-                child_ancestors = ancestors | {current_line.product_id.id}
-                converted_line_quantity = current_line._get_exploded_kit_quantity(
-                    bom, line_quantity, ancestors
+            boms_done = [
+                (
+                    self,
+                    self.env["mrp.bom.line"]._prepare_bom_done_values(
+                        quantity, product, quantity, []
+                    ),
                 )
-                bom_lines.extendleft(
-                    (
-                        line,
-                        current_line.product_id,
-                        converted_line_quantity,
-                        current_line,
-                        child_ancestors,
+            ]
+            lines_done = []
+            bom_lines = deque(
+                (bom_line, product, quantity, False, frozenset((product.id,)))
+                for bom_line in self.bom_line_ids
+            )
+            while bom_lines:
+                current_line, current_product, current_qty, parent_line, ancestors = (
+                    bom_lines.popleft()
+                )
+
+                if current_line._is_bom_line_skipped(
+                    current_product, never_attribute_values
+                ):
+                    continue
+
+                line_quantity = current_qty * current_line.product_qty
+                bom = product_boms.get(current_line.product_id)
+                if bom:
+                    child_ancestors = ancestors | {current_line.product_id.id}
+                    converted_line_quantity = current_line._get_exploded_kit_quantity(
+                        bom, line_quantity, ancestors
                     )
-                    for line in reversed(bom.bom_line_ids)
-                )
-                boms_done.append(
-                    (
-                        bom,
-                        current_line._prepare_bom_done_values(
+                    bom_lines.extendleft(
+                        (
+                            line,
+                            current_line.product_id,
                             converted_line_quantity,
-                            current_product,
-                            quantity,
-                            boms_done,
-                        ),
+                            current_line,
+                            child_ancestors,
+                        )
+                        for line in reversed(bom.bom_line_ids)
                     )
-                )
-            else:
-                line_quantity = current_line.product_uom_id.round(
-                    line_quantity, rounding_method="UP"
-                )
-                lines_done.append(
-                    (
-                        current_line,
-                        current_line._prepare_line_done_values(
-                            line_quantity,
-                            current_product,
-                            quantity,
-                            parent_line,
-                            boms_done,
-                        ),
+                    boms_done.append(
+                        (
+                            bom,
+                            current_line._prepare_bom_done_values(
+                                converted_line_quantity,
+                                current_product,
+                                quantity,
+                                boms_done,
+                            ),
+                        )
                     )
-                )
+                else:
+                    line_quantity = current_line.product_uom_id.round(
+                        line_quantity, rounding_method="UP"
+                    )
+                    lines_done.append(
+                        (
+                            current_line,
+                            current_line._prepare_line_done_values(
+                                line_quantity,
+                                current_product,
+                                quantity,
+                                parent_line,
+                                boms_done,
+                            ),
+                        )
+                    )
 
-        lines_done = self._round_last_line_done(lines_done)
-        return boms_done, lines_done
+            lines_done = self._round_last_line_done(lines_done)
+            span.set(boms=len(boms_done), lines=len(lines_done))
+            return boms_done, lines_done
 
     def _get_kit_component_qty(self, product):
         self.check_singleton()
-        kit_qty = self.product_uom_id._compute_quantity(
+        kit_qty = self.product_uom_id._get_quantity_in_unit(
             self.product_qty, product.uom_id, round=False
         )
         _dummy, exploded_lines = self._explode(product, 1)
         component_qty = defaultdict(float)
         for line, line_data in exploded_lines:
-            component_qty[line.product_id] += line.product_uom_id._compute_quantity(
+            component_qty[line.product_id] += line.product_uom_id._get_quantity_in_unit(
                 line_data["qty"], line.product_id.uom_id, round=False
             )
         return component_qty, kit_qty
@@ -801,12 +891,18 @@ class MrpBom(models.Model):
             self.company_id.id or self.env.context.get("company_id"),
         )
         if scratch is not None and (memoised := scratch.get(memo_key)) is not None:
+            _debug.perf.count(
+                "kit_closure_memo", hit=True, bom=self.id, kits=len(memoised)
+            )
             return {
                 product: bom.with_env(self.env) for product, bom in memoised.items()
             }
+        _debug.perf.count("kit_closure_memo", hit=False, bom=self.id)
         product_boms = {}
         frontier = [(line, product) for line in self.bom_line_ids]
+        depth = 0  # debuglog
         while frontier:
+            depth += 1  # debuglog
             products = self.env["product.product"].browse()
             for line, parent in frontier:
                 if (
@@ -829,6 +925,9 @@ class MrpBom(models.Model):
                 frontier += [(line, child_product) for line in bom.bom_line_ids]
         if scratch is not None:
             scratch[memo_key] = product_boms
+        _debug.pipeline(
+            "kit_closure_walked", bom=self.id, depth=depth, kits=len(product_boms)
+        )
         return product_boms
 
     @api.model
@@ -861,6 +960,14 @@ class MrpBom(models.Model):
                 outdated |= production
             else:
                 current |= production
+        _debug.pipeline(
+            "bom_outdating_scanned",
+            boms=self,
+            productions=len(productions),
+            outdated=len(outdated),
+            current=len(current),
+            skip_unmark=bool(skip_unmark),
+        )
         outdated.filtered(lambda p: not p.is_outdated_bom).is_outdated_bom = True
         if not skip_unmark:
             current.filtered("is_outdated_bom").is_outdated_bom = False
@@ -871,14 +978,14 @@ class MrpBom(models.Model):
             return production.product_id == bom.product_id
         return production.product_tmpl_id == bom.product_tmpl_id
 
-    def _get_action_add_from_catalog_extra_context(self):
+    def _prepare_catalog_extra_context(self):
         return {
-            **super()._get_action_add_from_catalog_extra_context(),
+            **super()._prepare_catalog_extra_context(),
             "product_catalog_currency_id": self.env.company.currency_id.id,
         }
 
-    def _default_order_line_values(self, child_field=False):
-        default_data = super()._default_order_line_values(child_field)
+    def _get_order_line_values(self, child_field=False):
+        default_data = super()._get_order_line_values(child_field)
         model = (
             self._fields[child_field].comodel_name if child_field else "mrp.bom.line"
         )
@@ -919,6 +1026,13 @@ class MrpBom(models.Model):
             all_products.update(product_ids)
             all_templates.update(template_ids)
         documents = self._search_extra_attachments(all_products, all_templates)
+        _debug.perf.count(
+            "bom_extra_attachments",
+            boms=len(targets_by_bom),
+            products=len(all_products),
+            templates=len(all_templates),
+            documents=len(documents),
+        )
         by_product = defaultdict(lambda: self.env["document.document"])
         by_template = defaultdict(lambda: self.env["document.document"])
         for document in documents:
@@ -1011,7 +1125,7 @@ class MrpBom(models.Model):
                 self.env["stock.rule"].search(domain, limit=1).route_id.id
             )
         orderpoint.bom_id = self
-        bom_qty = self.product_uom_id._compute_quantity(
+        bom_qty = self.product_uom_id._get_quantity_in_unit(
             self.product_qty, orderpoint.product_id.uom_id
         )
         orderpoint.qty_to_order = max(orderpoint.qty_to_order, bom_qty)

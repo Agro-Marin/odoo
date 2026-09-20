@@ -5,7 +5,7 @@
         <field name="name">l10n_latam.identification.type.list</field>
         <field name="model">l10n_latam.identification.type</field>
         <field name="arch" type="xml">
-            <list decoration-muted="(not active)" create="0" edit="0">
+            <list create="0" edit="0" decoration-muted="(not active)">
                 <field name="name" />
                 <field name="description" />
                 <field name="country_id" />
@@ -17,6 +17,7 @@
     <record id="view_l10n_latam_identification_type_search" model="ir.ui.view">
         <field name="name">l10n_latam.identification.type.search</field>
         <field name="model">l10n_latam.identification.type</field>
+        <field name="type">search</field>
         <field name="arch" type="xml">
             <search>
                 <field name="name" />
@@ -25,16 +26,15 @@
                 <filter
                     name="active"
                     string="Active"
-                    domain="[('active','=',True)]"
-                    help="Show active identification types" />
+                    help="Show active identification types"
+                    domain="[('active','=',True)]" />
                 <filter
                     name="inactive"
                     string="Archived"
-                    domain="[('active','=',False)]"
-                    help="Show archived identification types" />
+                    help="Show archived identification types"
+                    domain="[('active','=',False)]" />
             </search>
         </field>
-        <field name="type">search</field>
     </record>
 
     <record id="action_l10n_latam_identification_type" model="ir.actions.act_window">
@@ -46,10 +46,5 @@
             name="domain">['|', ('active', '=', True), ('active', '=', False)]</field>
         <field name="context">{"search_default_active":1}</field>
     </record>
-
-    <menuitem
-        id="menu_l10n_latam_identification_type"
-        parent="partner.res_partner_menu_config"
-        action="action_l10n_latam_identification_type" />
 
 </odoo>

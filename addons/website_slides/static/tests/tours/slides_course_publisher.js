@@ -4,17 +4,9 @@ import {
 } from "@website/js/tours/tour_utils";
 import slidesTourTools from "@website_slides/../tests/tours/slides_tour_tools";
 
-/**
- * Global use case:
- * a user (website restricted editor) creates a course;
- * they update it;
- * they create some lessons in it;
- * they publishe it;
- */
 registerWebsitePreviewTour(
     "course_publisher",
     {
-        // TODO: replace by getClientActionURL when it's added
         url: "/slides",
     },
     () =>
@@ -96,10 +88,9 @@ registerWebsitePreviewTour(
                 run: "click",
             },
             {
-                trigger: ":iframe body:not(.editor_enable)", // wait for editor to close
+                trigger: ":iframe body:not(.editor_enable)",
             },
             {
-                // check membership
                 content: "eLearning: course create with current member",
                 trigger:
                     ':iframe .o_wslides_js_course_join:contains("You\'re enrolled")',
@@ -113,8 +104,7 @@ registerWebsitePreviewTour(
                 {
                     content: "eLearning: publish newly added course",
                     trigger:
-                        ':iframe span:contains("Dschinghis Khan - Dschinghis Khan (1979)")', // wait for slide to appear
-                    // trigger: 'span.o_wslides_js_slide_toggle_is_preview:first',
+                        ':iframe span:contains("Dschinghis Khan - Dschinghis Khan (1979)")',
                     run() {
                         document
                             .querySelector(
@@ -124,12 +114,5 @@ registerWebsitePreviewTour(
                     },
                 },
             ],
-            //     [
-            // {
-            //     content: 'eLearning: move new course inside introduction',
-            //     trigger: 'div.o_wslides_slides_list_drag',
-            //     // run: 'drag_and_drop div.o_wslides_slides_list_drag ul.ui-sortable:first',
-            //     run: 'drag_and_drop div.o_wslides_slides_list_drag a.o_wslides_js_slide_section_add',
-            // }]
         ),
 );

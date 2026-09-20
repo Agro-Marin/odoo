@@ -376,7 +376,7 @@ class TestMailAlias(TestMailAliasCommon):
 
     @users("admin")
     def test_alias_name_sanitize_is_always_acceptable(self):
-        """`_sanitize_alias_name` must only ever return names `_check_alias_is_ascii`
+        """`_normalize_alias_name` must only ever return names `_check_alias_is_ascii`
         accepts.
 
         These two are the halves of one contract: the sanitizer normalises, the
@@ -397,7 +397,7 @@ class TestMailAlias(TestMailAliasCommon):
         ]
         for name in explicit:
             with self.subTest(alias_name=name):
-                sanitized = MailAlias._sanitize_alias_name(name)
+                sanitized = MailAlias._normalize_alias_name(name)
                 if sanitized:
                     self.assertRegex(
                         sanitized, dot_atom_text, "must satisfy the constraint"
@@ -427,12 +427,12 @@ class TestMailAlias(TestMailAliasCommon):
         ]
         for _idx in range(3000):
             name = "".join(rng.choice(alphabet) for _c in range(rng.randint(1, 9)))
-            sanitized = MailAlias._sanitize_alias_name(name)
+            sanitized = MailAlias._normalize_alias_name(name)
             if sanitized:
                 self.assertRegex(
                     sanitized,
                     dot_atom_text,
-                    f"_sanitize_alias_name({name!r}) returned a name the constraint rejects",
+                    f"_normalize_alias_name({name!r}) returned a name the constraint rejects",
                 )
 
     @users("admin")
@@ -459,7 +459,7 @@ class TestMailAlias(TestMailAliasCommon):
         ]:
             with self.subTest(source=source):
                 self.assertEqual(
-                    MailAlias._sanitize_alias_name(source, is_email=True), expected, msg
+                    MailAlias._normalize_alias_name(source, is_email=True), expected, msg
                 )
 
     @users("admin")
@@ -710,7 +710,7 @@ class TestMailAlias(TestMailAliasCommon):
         with self.assertRaises(exceptions.ValidationError):
             alias.write({"alias_defaults": "{'custom_field': brokendict"})
         alias.write({"alias_defaults": "{'name': 'validdict'}"})
-        self.assertEqual(alias._get_alias_defaults(), {"name": "validdict"})
+        self.assertEqual(alias._prepare_alias_defaults(), {"name": "validdict"})
 
         # the gateway hands these to create() on the aliased model, so a key that is
         # not a field of it must be refused here rather than at delivery time, where
@@ -723,7 +723,7 @@ class TestMailAlias(TestMailAliasCommon):
         # silence when a message actually arrived
         with self.assertRaises(exceptions.ValidationError):
             alias.write({"alias_defaults": "[('name', 'from pairs')]"})
-        self.assertEqual(alias._get_alias_defaults(), {"name": "validdict"})
+        self.assertEqual(alias._prepare_alias_defaults(), {"name": "validdict"})
 
 
 @tagged("mail_alias", "multi_company")
@@ -1854,7 +1854,7 @@ class TestMailAliasMixinModelOverride(TestMailAliasCommon):
         )
         self.assertEqual(record.alias_id.alias_model_id.id, narrow)
         self.assertEqual(
-            record.alias_id._get_alias_defaults(),
+            record.alias_id._prepare_alias_defaults(),
             {"container_id": record.id, "state": "new"},
             "the mixin's own defaults still merge in, they just stop clobbering",
         )
@@ -2098,7 +2098,7 @@ class TestMailAliasDefaultsValidation(TestMailAliasCommon):
                 defaults = repr({fname: value})
                 if survives:
                     alias.write({"alias_defaults": defaults})
-                    self.assertEqual(alias._get_alias_defaults(), {fname: value})
+                    self.assertEqual(alias._prepare_alias_defaults(), {fname: value})
                 else:
                     with self.assertRaises(exceptions.ValidationError):
                         alias.write({"alias_defaults": defaults})
@@ -2114,7 +2114,7 @@ class TestMailAliasDefaultsValidation(TestMailAliasCommon):
             }
         )
         alias.write({"alias_defaults": "{'alias_name': 'sub.alias'}"})
-        self.assertEqual(alias._get_alias_defaults(), {"alias_name": "sub.alias"})
+        self.assertEqual(alias._prepare_alias_defaults(), {"alias_name": "sub.alias"})
 
     @users("admin")
     def test_precompute_readonly_is_inside_the_refused_set(self):
@@ -2163,8 +2163,8 @@ class TestMailAliasDefaultsValidation(TestMailAliasCommon):
         long_one, long_two = base + "bution-holdings-bv", base + "bution-holdings-nv"
         self.assertGreater(len(long_one), 64)
         self.assertNotEqual(
-            MailAlias._sanitize_alias_name(long_one),
-            MailAlias._sanitize_alias_name(long_two),
+            MailAlias._normalize_alias_name(long_one),
+            MailAlias._normalize_alias_name(long_two),
             "sanitizing must not truncate: these two differ only past character 64",
         )
         alias = MailAlias.create(
@@ -2577,6 +2577,86 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
             self.env["mail.alias.domain"]._get_alias_emails([catchall] * 3), [catchall]
         )
 
+    @users("admin")
+    def test_a_warm_lookup_runs_no_query(self):
+        Domain = self.env["mail.alias.domain"]
+        ours = f"helpdesk@{self.mail_alias_domain.name}"
+        Domain._get_alias_emails([ours])
+        with self.assertQueryCount(0):
+            self.assertEqual(
+                Domain._get_alias_emails([ours, "nobody@gmail.com"]), [ours]
+            )
+
+    @users("admin")
+    def test_the_snapshot_follows_alias_and_domain_changes(self):
+        Domain = self.env["mail.alias.domain"]
+        domain = self.mail_alias_domain.with_env(self.env)
+        name = domain.name
+        self.assertEqual(Domain._get_alias_emails([f"sales@{name}"]), [])
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_domain_id": domain.id,
+                "alias_model_id": self.env["ir.model"]._get("mail.test.container").id,
+                "alias_name": "sales",
+            }
+        )
+        self.assertEqual(
+            Domain._get_alias_emails([f"sales@{name}", "sales@gmail.com"]),
+            [f"sales@{name}"],
+        )
+        alias.alias_name = "orders"
+        self.assertEqual(
+            Domain._get_alias_emails([f"sales@{name}", f"orders@{name}"]),
+            [f"orders@{name}"],
+        )
+        domain.name = "renamed.example.com"
+        self.assertEqual(
+            Domain._get_alias_emails([f"orders@{name}", "orders@renamed.example.com"]),
+            ["orders@renamed.example.com"],
+        )
+        alias.alias_incoming_local = True
+        self.assertEqual(
+            Domain._get_alias_emails(["orders@gmail.com"]), ["orders@gmail.com"]
+        )
+        alias.unlink()
+        self.assertEqual(
+            Domain._get_alias_emails(
+                ["orders@renamed.example.com", "orders@gmail.com"]
+            ),
+            [],
+        )
+
+    @users("admin")
+    def test_the_reply_to_of_a_record_follows_its_alias(self):
+        """`_notify_get_reply_to_addresses` answers from the same snapshot: the alias
+        moving to another parent record must move the reply-to with it."""
+        records = self.env["mail.test.simple"].create(
+            [{"name": "first"}, {"name": "second"}]
+        )
+        first, second = records
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.env["ir.model"]._get("mail.test.container").id,
+                "alias_name": "support",
+                "alias_parent_model_id": self.env["ir.model"]
+                ._get("mail.test.simple")
+                .id,
+                "alias_parent_thread_id": first.id,
+            }
+        )
+        support = f"support@{self.mail_alias_domain.name}"
+        catchall = self.mail_alias_domain.catchall_email
+        self.assertEqual(
+            records._notify_get_reply_to_addresses(),
+            {first.id: support, second.id: catchall},
+        )
+        alias.alias_parent_thread_id = second.id
+        self.assertEqual(
+            records._notify_get_reply_to_addresses(),
+            {first.id: catchall, second.id: support},
+        )
+
 
 @tagged("mail_gateway", "mail_alias")
 class TestMailAliasDomainAllowedParameter(TestMailAliasCommon):
@@ -2589,13 +2669,13 @@ class TestMailAliasDomainAllowedParameter(TestMailAliasCommon):
         for failing in ["foo bar.com", "ex..ample.com", ".example.com"]:
             with self.subTest(failing=failing):
                 with self.assertRaises(exceptions.ValidationError):
-                    Domain._sanitize_allowed_domains(failing)
+                    Domain._normalize_allowed_domains(failing)
 
     @users("admin")
     def test_entries_are_normalised_and_deduplicated(self):
         Domain = self.env["mail.alias.domain"]
         self.assertEqual(
-            Domain._sanitize_allowed_domains(" Example.COM , example.com ,почта.рф"),
+            Domain._normalize_allowed_domains(" Example.COM , example.com ,почта.рф"),
             "example.com,xn--80a1acny.xn--p1ai",
         )
 
@@ -2612,7 +2692,7 @@ class TestMailAliasDomainIcpMigration(TestMailAliasCommon):
         # "-" is deliberately absent: `dot_atom_text` accepts it, so it survives
         # sanitisation and is created. That is this tree's domain rule being loose,
         # not this hook's problem -- tightening it belongs in
-        # `mail.alias._sanitize_alias_domain_name`, with its own test surface.
+        # `mail.alias._normalize_alias_domain_name`, with its own test surface.
         for junk in ["my domain.com", "outlook.fr, gmail.com", "почта .рф"]:
             with self.subTest(junk=junk):
                 Icp.set_param("mail.catchall.domain", junk)
@@ -2677,13 +2757,13 @@ class TestMailAliasNameAuthority(TestMailAliasCommon):
         )
         alias.invalidate_recordset()
         with self.assertRaises(exceptions.ValidationError):
-            alias._check_alias_name_is_sanitized()
+            alias._check_alias_name_is_normalized()
 
     @users("admin")
     def test_domain_local_parts_answer_to_the_same_predicate(self):
         """`bounce_alias` and friends are alias names; they get the same rule.
 
-        `_sanitize_configuration` folds the value before the constraint ever sees it,
+        `_update_configuration` folds the value before the constraint ever sees it,
         so the constraint is the backstop rather than the gate -- which is exactly why
         it has to agree with the sanitizer rather than approximate it with a looser
         regex of its own.
@@ -3244,14 +3324,14 @@ class TestMailAliasMixinDomainPrecedence(TestMailAliasCommon):
         )
         self.assertEqual(record.alias_id.alias_model_id.id, narrow)
         self.assertEqual(
-            record.alias_id._get_alias_defaults(),
+            record.alias_id._prepare_alias_defaults(),
             {"container_id": record.id, "state": "new"},
         )
 
 
 @tagged("mail_alias")
 class TestMailAliasDefaultsShape(TestMailAliasCommon):
-    """`_get_alias_defaults` owns the whole shape, not half of it."""
+    """`_prepare_alias_defaults` owns the whole shape, not half of it."""
 
     def _make(self, defaults):
         return self.env["mail.alias"].create(
@@ -3295,7 +3375,7 @@ class TestMailAliasDefaultsShape(TestMailAliasCommon):
     @users("admin")
     def test_a_valid_mapping_is_still_accepted(self):
         alias = self._make("{'name': 'ok'}")
-        self.assertEqual(alias._get_alias_defaults(), {"name": "ok"})
+        self.assertEqual(alias._prepare_alias_defaults(), {"name": "ok"})
 
 
 @tagged("mail_alias")
@@ -3312,7 +3392,7 @@ class TestAliasDomainNameRule(TestMailAliasCommon):
         """
         MailAlias = self.env["mail.alias"]
         self.assertTrue(dot_atom_text.match("-"), "the old rule accepted it")
-        self.assertFalse(MailAlias._sanitize_alias_domain_name("-"))
+        self.assertFalse(MailAlias._normalize_alias_domain_name("-"))
         with self.assertRaises(exceptions.ValidationError):
             self.env["mail.alias.domain"].create({"name": "-"})
 
@@ -3331,7 +3411,7 @@ class TestAliasDomainNameRule(TestMailAliasCommon):
         ):
             with self.subTest(name=name):
                 self.assertFalse(
-                    MailAlias._sanitize_alias_domain_name(name), repr(name)
+                    MailAlias._normalize_alias_domain_name(name), repr(name)
                 )
 
     @users("admin")
@@ -3345,14 +3425,14 @@ class TestAliasDomainNameRule(TestMailAliasCommon):
             "xn--provader-y2a.xn--cm-fka",
         ):
             with self.subTest(name=name):
-                self.assertEqual(MailAlias._sanitize_alias_domain_name(name), name)
+                self.assertEqual(MailAlias._normalize_alias_domain_name(name), name)
 
     @users("admin")
     def test_the_rule_reaches_every_consumer_of_the_sanitizer(self):
         """One function decides, so `name`, the allowed-domain list and the domain
         half of a typed address all get the same answer."""
         with self.assertRaises(exceptions.ValidationError):
-            self.env["mail.alias.domain"]._sanitize_allowed_domains("example.com,-")
+            self.env["mail.alias.domain"]._normalize_allowed_domains("example.com,-")
         # and the domain half of an address the user types into "Alias Name"
         alias = self.env["mail.alias"].create(
             {

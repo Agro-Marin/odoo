@@ -11,6 +11,7 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -20,6 +21,8 @@ import {
     FooterTemplateOption,
 } from "./footer_template_option.js";
 
+const log = makeLogger("website.builder.plugin.footer_option");
+
 /** @typedef {import("@odoo/owl").Component} Component */
 
 /**
@@ -27,11 +30,7 @@ import {
  * @property { FooterOptionPlugin['getFooterTemplates'] } getFooterTemplates
  */
 /**
- * @typedef {(() => Promise<{
- *     key: string,
- *     Component: Component,
- *     props: any,
- * }[]>)[]} footer_templates_providers
+ * @typedef {(() => Promise<{ key: string, Component: Component, props: any, }[]>)[]} footer_templates_providers
  */
 
 const [
@@ -158,14 +157,13 @@ class FooterOptionPlugin extends Plugin {
     };
 
     prepareDrag() {
-        // Remove the footer scroll effect if it has one (because the footer
-        // dropzone flickers otherwise when it is in grid mode).
         let restore = () => {};
         const wrapwrapEl = this.editable;
         const hasFooterScrollEffect = wrapwrapEl.classList.contains(
             "o_footer_effect_enable",
         );
         if (hasFooterScrollEffect) {
+            log.logic("FooterOptionPlugin prepareDrag: suspend footer scroll effect");
             wrapwrapEl.classList.remove("o_footer_effect_enable");
             restore = () => {
                 wrapwrapEl.classList.add("o_footer_effect_enable");
@@ -177,18 +175,25 @@ class FooterOptionPlugin extends Plugin {
     getFooterTemplates() {
         const templates = reactive([]);
 
-        // we don't wait for all promises to resolve and show the ones available
-        // as soon as they are (and keep them in the order of the providers)
         const templatesByProvider = this.getResource("footer_templates_providers").map(
             (p) => {
                 const provided = [];
                 Promise.resolve(p()).then((t) => {
                     provided.push(...t);
+                    log.pipeline(
+                        "FooterOptionPlugin footer templates provided",
+                        () => ({
+                            templates: t.length,
+                        }),
+                    );
                     templates.splice(0, Infinity, ...templatesByProvider.flat());
                 });
                 return provided;
             },
         );
+        log.pipeline("FooterOptionPlugin getFooterTemplates", () => ({
+            providers: templatesByProvider.length,
+        }));
 
         return templates;
     }
@@ -221,6 +226,16 @@ export class WebsiteConfigFooterAction extends BuilderAction {
                 }
             }
         }
+        log.pipeline("WebsiteConfigFooterAction apply", () => ({
+            view,
+            possibleValues: possibleValues.size,
+        }));
+        const endApply = log.perf(
+            "WebsiteConfigFooterAction save footer template",
+            () => ({
+                view,
+            }),
+        );
         await Promise.all([
             this.dependencies.customizeWebsite.makeSCSSCusto(
                 "/website/static/src/scss/options/user_values.scss",
@@ -231,6 +246,7 @@ export class WebsiteConfigFooterAction extends BuilderAction {
                 possible_values: [...possibleValues],
             }),
         ]);
+        endApply();
     }
 }
 

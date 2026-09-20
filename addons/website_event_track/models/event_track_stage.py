@@ -6,29 +6,35 @@ class EventTrackStage(models.Model):
     _description = "Event Track Stage"
     _order = "sequence, id"
 
-    name = fields.Char(string="Stage Name", required=True, translate=True)
-    sequence = fields.Integer(string="Sequence", default=1)
+    name = fields.Char(
+        string="Stage Name",
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=1)
     mail_template_id = fields.Many2one(
-        "mail.template",
+        comodel_name="mail.template",
         string="Email Template",
         domain=[("model", "=", "event.track")],
         help="If set an email will be sent to the customer when the track reaches this step.",
     )
-    # legends
-    color = fields.Integer(string="Color")
-    description = fields.Text(string="Description", translate=True)
+    color = fields.Integer()
+    description = fields.Text(translate=True)
     legend_blocked = fields.Char(
-        "Red Kanban Label", default=lambda s: s.env._("Blocked"), translate=True
+        string="Red Kanban Label",
+        translate=True,
+        default=lambda s: s.env._("Blocked"),
     )
     legend_done = fields.Char(
-        "Green Kanban Label",
-        default=lambda s: s.env._("Ready for Next Stage"),
+        string="Green Kanban Label",
         translate=True,
+        default=lambda s: s.env._("Ready for Next Stage"),
     )
     legend_normal = fields.Char(
-        "Grey Kanban Label", default=lambda s: s.env._("In Progress"), translate=True
+        string="Grey Kanban Label",
+        translate=True,
+        default=lambda s: s.env._("In Progress"),
     )
-    # pipe
     fold = fields.Boolean(
         string="Folded in Kanban",
         help="This stage is folded in the kanban view when there are no records in that stage to display.",

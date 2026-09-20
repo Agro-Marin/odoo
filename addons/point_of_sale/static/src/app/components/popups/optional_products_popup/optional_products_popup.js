@@ -3,14 +3,18 @@ import { Component, useState } from "@odoo/owl";
 import { ComboConfiguratorPopup } from "@point_of_sale/app/components/popups/combo_configurator_popup/combo_configurator_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.optional_products");
 export class OptionalProductPopup extends Component {
     static template = "point_of_sale.OptionalProductPopup";
     static components = { Dialog };
     static props = ["close", "productTemplate"];
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.state = useState({
@@ -24,6 +28,14 @@ export class OptionalProductPopup extends Component {
     }
 
     async changeQuantity(optional_product, increase) {
+        log.logic("changeQuantity", () => ({
+            product: optional_product.product_tmpl_id.id,
+            increase,
+            qty: optional_product.qty,
+            configurable: optional_product.product_tmpl_id.isConfigurable(),
+            combo: Boolean(optional_product.product_tmpl_id.isCombo()),
+            configured: Object.keys(optional_product.payload).length > 0,
+        }));
         if (
             optional_product.product_tmpl_id.isConfigurable() &&
             !Object.keys(optional_product.payload).length
@@ -64,6 +76,12 @@ export class OptionalProductPopup extends Component {
     }
 
     async confirm() {
+        log.pipeline("confirm", () => ({
+            template: this.props.productTemplate?.id,
+            added: this.state.product_lines
+                .filter((l) => l.qty > 0)
+                .map((l) => ({ product: l.product_tmpl_id.id, qty: l.qty })),
+        }));
         try {
             for (const product of this.state.product_lines) {
                 if (product.qty > 0) {

@@ -3,6 +3,7 @@
 import hootDom from "@odoo/hoot-dom";
 import { enableEventLogs, setupEventActions } from "@odoo/hoot-dom-helpers-events";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network";
 import { config as transitionConfig } from "@web/core/transition";
@@ -10,9 +11,53 @@ import { Macro } from "@web/core/utils/macro";
 import { TourStepAutomatic } from "@web_tour/js/tour_automatic/tour_step_automatic";
 import { tourState } from "@web_tour/js/tour_state";
 
+const log = makeLogger("web_tour.automatic");
+
 const CLIENT_SETTLE_TIMEOUT = 10000;
 const EXPIRED = Symbol("expired");
 const SETTLED = Symbol("settled");
+
+/**
+ * Silence errors raised after a tour has finished, and un-silence them when
+ * the next one starts.
+ *
+ * `end()` used to install this pair as two inline arrows, which nothing could
+ * remove afterwards -- no reference to them existed. Every finished automatic
+ * tour therefore left another capturing `error`/`unhandledrejection` listener
+ * behind for the lifetime of the page, each one calling
+ * `stopImmediatePropagation()`, so a second tour in the same page ran blind
+ * and any handler registered *after* a finished tour (a later test's own error
+ * assertion, an error reporter mounted after an onboarding tour) could have
+ * its detection eaten by a leftover. There is exactly one pair now, and it
+ * only lives between the end of one tour and the start of the next.
+ *
+ * A named function also makes the install idempotent on its own:
+ * `addEventListener` drops a duplicate (same target, type, callback, capture).
+ * The flag is kept so removal is symmetric and cheap to reason about.
+ */
+const swallowError = (ev) => {
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+};
+let postTourErrorsSwallowed = false;
+
+function swallowPostTourErrors() {
+    if (postTourErrorsSwallowed) {
+        return;
+    }
+    window.addEventListener("error", swallowError, true);
+    window.addEventListener("unhandledrejection", swallowError, true);
+    postTourErrorsSwallowed = true;
+}
+
+function stopSwallowingPostTourErrors() {
+    if (!postTourErrorsSwallowed) {
+        return;
+    }
+    window.removeEventListener("error", swallowError, true);
+    window.removeEventListener("unhandledrejection", swallowError, true);
+    postTourErrorsSwallowed = false;
+}
 
 export class TourAutomatic {
     mode = "auto";
@@ -83,6 +128,9 @@ export class TourAutomatic {
     }
 
     start() {
+        // Whatever the tour before this one left silenced, this one needs to
+        // see.
+        stopSwallowingPostTourErrors();
         setupEventActions(document.createElement("div"), { allowSubmit: true });
         enableEventLogs(this.debugMode);
         const onRPCRequest = (ev) => this.pendingRPCs.add(ev.detail.data.id);
@@ -108,7 +156,10 @@ export class TourAutomatic {
                         } else {
                             console.log(step.describeMe);
                         }
-                        if (!step.expectUnloadPage) {
+                        // a step that only observes may catch a state that
+                        // exists while requests are in flight (a loading
+                        // screen); only acting waits for the client to settle
+                        if (!step.expectUnloadPage && step.hasAction) {
                             await this.whenClientSettles();
                         }
                     },
@@ -173,22 +224,11 @@ export class TourAutomatic {
             delete window[hootNameSpace];
             transitionConfig.disabled = false;
             tourState.clear();
-            window.addEventListener(
-                "error",
-                (ev) => {
-                    ev.preventDefault();
-                    ev.stopImmediatePropagation();
-                },
-                true,
-            );
-            window.addEventListener(
-                "unhandledrejection",
-                (ev) => {
-                    ev.preventDefault();
-                    ev.stopImmediatePropagation();
-                },
-                true,
-            );
+            // The tour is over: an error the page raises from here on belongs
+            // to nobody and must not fail a run that already reported its
+            // result. Owned by the module rather than by this closure -- see
+            // `swallowPostTourErrors`.
+            swallowPostTourErrors();
         };
 
         this.macro = new Macro({
@@ -205,7 +245,16 @@ export class TourAutomatic {
                 }
                 end();
             },
-            onComplete: () => {
+            onComplete: async () => {
+                // no step is left to race a navigation: a page that unloads
+                // from here on (a backend that redirects once more after the
+                // last step observed it) is not the hazard the guard exists for
+                this.allowUnload = true;
+                log.lifecycle("unloadAllowedAfterLastStep", { tour: this.name });
+                // a tour is over when the client is idle: the last steps
+                // only observed, and what they observed may still be saving,
+                // which the harness would then report as a dirty form
+                await this.whenClientSettles();
                 browser.console.log("tour succeeded");
                 const succeeded = `║ TOUR ${this.name} SUCCEEDED ║`;
                 const msg = [succeeded];
@@ -217,6 +266,11 @@ export class TourAutomatic {
         });
 
         const beforeUnloadHandler = () => {
+            log.lifecycle("beforeunload", {
+                tour: this.name,
+                step: this.currentIndex,
+                allowed: this.allowUnload,
+            });
             if (!this.allowUnload) {
                 const message = `
                     Be sure to use { expectUnloadPage: true } for any step

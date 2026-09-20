@@ -5,7 +5,10 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class MrpBomLine(models.Model):
@@ -15,39 +18,39 @@ class MrpBomLine(models.Model):
 
     _bom_child_field = "bom_line_ids"
 
-    product_id = fields.Many2one("product.product", "Component")
-    product_tmpl_id = fields.Many2one(
-        "product.template",
-        "Product Template",
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Component",
+    )
+    product_tmpl_id = fields.Many2one(  # noqa: E8529  One2many inverse of product.template.bom_line_ids
+        comodel_name="product.template",
         related="product_id.product_tmpl_id",
+        string="Product Template",
         store=True,
         index=True,
     )
     sequence = fields.Integer(default=1)
     parent_product_tmpl_id = fields.Many2one(
-        "product.template",
-        "Parent Product Template",
+        comodel_name="product.template",
         related="bom_id.product_tmpl_id",
+        string="Parent Product Template",
     )
     operation_id = fields.Many2one(
-        "mrp.routing.workcenter",
-        "Consumed in Operation",
+        comodel_name="mrp.routing.workcenter",
+        string="Consumed in Operation",
         help="The operation where the components are consumed, or the finished products created.",
     )
     child_bom_id = fields.Many2one(
-        "mrp.bom",
-        "Sub BoM",
+        comodel_name="mrp.bom",
+        string="Sub BoM",
         compute="_compute_child_bom_id",
     )
     child_line_ids = fields.One2many(
-        "mrp.bom.line",
+        comodel_name="mrp.bom.line",
         string="BOM lines of the referred bom",
         compute="_compute_child_line_ids",
     )
-    attachments_count = fields.Integer(
-        "Attachments Count",
-        compute="_compute_attachments_count",
-    )
+    attachments_count = fields.Integer(compute="_compute_attachments_count")
     tracking = fields.Selection(related="product_id.tracking")
 
     @api.depends("product_id", "bom_id.company_id", "bom_id.picking_type_id")
@@ -79,7 +82,7 @@ class MrpBomLine(models.Model):
                 continue
             counts.update(
                 dict(
-                    self.env["document.document"]._read_group(
+                    self.env["document.document"]._read_group(  # noqa: E8507 - one query per attachment model (product, template)
                         [
                             ("attached_on_mrp", "=", "bom"),
                             ("active", "=", True),
@@ -124,6 +127,7 @@ class MrpBomLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         lines = super().create(vals_list)
+        _debug.lifecycle("create", lines=lines, boms=lines.bom_id)
         lines.bom_id.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
@@ -155,6 +159,7 @@ class MrpBomLine(models.Model):
             )._update_outdated_bom_in_productions()
 
         tracked = [name for name in self._CHATTER_TRACKED_FIELDS if name in vals]
+        _debug.lifecycle("write", lines=self, fields=list(vals), tracked=len(tracked))
         if not tracked or self._is_chatter_muted():
             return super().write(vals)
 
@@ -177,6 +182,7 @@ class MrpBomLine(models.Model):
             if changes:
                 changes_by_bom[line.bom_id].append((component, changes))
 
+        _debug.pipeline("bom_line_changes_posted", lines=self, boms=len(changes_by_bom))
         for bom, entries in changes_by_bom.items():
             bom.message_post(
                 body=Markup("{}<ul>{}</ul>").format(
@@ -197,6 +203,7 @@ class MrpBomLine(models.Model):
 
     def unlink(self):
         boms = self.bom_id
+        _debug.lifecycle("unlink", lines=self, boms=boms)
         result = self._unlink_and_notify_boms()
         boms.with_context(
             skip_bom_outdated_unmark=True
@@ -346,6 +353,13 @@ class MrpBomLine(models.Model):
     def _get_exploded_kit_quantity(self, bom, line_quantity, ancestors):
         self.check_singleton()
         if self.product_id.id in ancestors:
+            _debug.logic(
+                "bom_cycle_detected",
+                bom_line=self.id,
+                bom=bom.id,
+                product=self.product_id.id,
+                ancestors=len(ancestors),
+            )
             raise ValidationError(
                 _(
                     "The current configuration is incorrect because it would "
@@ -353,7 +367,7 @@ class MrpBomLine(models.Model):
                     self.product_id.display_name,
                 )
             )
-        return self.product_uom_id._compute_quantity(
+        return self.product_uom_id._get_quantity_in_unit(
             line_quantity / bom.product_qty, bom.product_uom_id, round=False
         )
 

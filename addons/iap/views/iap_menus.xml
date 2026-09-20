@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menus -->
+    <menuitem id="iap_root_menu" name="IAP" parent="base.menu_custom" sequence="7" />
+
+    <menuitem
+        id="iap_account_menu"
+        name="IAP Accounts"
+        parent="iap_root_menu"
+        action="iap_account_action"
+        sequence="10" />
+
+</odoo>

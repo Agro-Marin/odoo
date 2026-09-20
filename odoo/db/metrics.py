@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 
 from .errors import CURSOR_LOGGER_NAME
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
+_debug = DebugLog(__name__)
 
 sql_counter: int = 0
 
 
 if TYPE_CHECKING:
     import threading
+    from collections.abc import Iterator
     from typing import Protocol
 
     class _MetricsHost(Protocol):
@@ -65,10 +69,11 @@ class _MetricsMixin:
         if statement:
             self.sql_statement_count += 1
         sql_counter += count
-        t = self._thread
+        t: Any = self._thread
+        # http.application sets the pair together on a request thread; one
+        # question answers for both.
         if hasattr(t, "query_count"):
             t.query_count += count
-        if hasattr(t, "query_time"):
             t.query_time += delay
         for hook in hooks or ():
             hook(self, query, params, start, delay)
@@ -83,7 +88,33 @@ class _MetricsMixin:
         stat_count, stat_time = log_target.get(table or "", (0, 0))
         log_target[table or ""] = (stat_count + 1, stat_time + delay * 1e6)
 
+    @contextmanager
+    def _enable_logging(self) -> Iterator[None]:
+        """Force this cursor's queries to be logged for the duration of the block.
+
+        Restores the level afterwards. The logger is process-wide, so this is not
+        thread-safe -- it exists for a test that has just failed an
+        `assertQueryCount` and wants to see which queries ran, which is worth more
+        than isolation at that moment.
+        """
+        level = _logger.level
+        _logger.setLevel(logging.DEBUG)
+        _debug.lifecycle("metrics.sql_logging_forced", previous_level=level)
+        try:
+            yield
+        finally:
+            _logger.setLevel(level)
+            _debug.lifecycle("metrics.sql_logging_restored", level=level)
+
     def log_sql_stats(self) -> None:
+        _debug.perf.count(
+            "metrics.cursor_totals",
+            statements=self.sql_statement_count,
+            rows=self.sql_log_count,
+            from_tables=len(self.sql_from_log),
+            into_tables=len(self.sql_into_log),
+            process_rows=sql_counter,
+        )
         if not _logger.isEnabledFor(logging.DEBUG):
             return
 
@@ -220,6 +251,12 @@ def classify_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     for cte_body in cte_bodies:
         cte_write = _classify_write_statement(cte_body)
         if cte_write is not None:
+            _debug.logic(
+                "metrics.cte_write_classified",
+                ctes=len(cte_bodies),
+                kind=cte_write[0],
+                table=cte_write[1],
+            )
             return cte_write
 
     write = _classify_write_statement(body)

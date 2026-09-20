@@ -15,5 +15,4 @@
         "data/base_order_test_data.xml",
         "data/base_order_test_action.xml",
     ],
-    "installable": True,
 }

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_asset_view_form_maintenance" model="ir.ui.view">
+        <field name="name">resource.asset.form.maintenance</field>
+        <field name="model">resource.asset</field>
+        <field name="inherit_id" ref="resource_asset.resource_asset_view_form" />
+        <field name="arch" type="xml">
+            <sheet position="inside">
+                <div class="oe_button_box" name="button_box">
+                    <button
+                        name="action_view_maintenance"
+                        type="object"
+                        icon="fa-wrench"
+                        class="oe_stat_button">
+                        <field
+                            name="maintenance_count"
+                            string="Maintenance"
+                            widget="statinfo" />
+                    </button>
+                    <button
+                        name="action_view_maintenance_plans"
+                        type="object"
+                        icon="fa-repeat"
+                        class="oe_stat_button">
+                        <field
+                            name="maintenance_plan_count"
+                            string="Plans"
+                            widget="statinfo" />
+                    </button>
+                </div>
+            </sheet>
+            <page name="lifecycle" position="before">
+                <page name="maintenance" string="Maintenance">
+                    <group>
+                        <group>
+                            <field name="maintenance_team_id" />
+                            <field name="technician_user_id" />
+                            <field name="date_in_service" />
+                        </group>
+                        <group>
+                            <field name="expected_mtbf" />
+                            <field name="mtbf" />
+                            <field name="mttr" />
+                            <field name="date_next_failure" />
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="resource_asset_kind_view_form_maintenance" model="ir.ui.view">
+        <field name="name">resource.asset.kind.form.maintenance</field>
+        <field name="model">resource.asset.kind</field>
+        <field name="inherit_id" ref="resource_asset.resource_asset_kind_view_form" />
+        <field name="arch" type="xml">
+            <field name="identifier_type_ids" position="after">
+                <field name="maintenance_team_id" options="{'no_create': True}" />
+                <field name="technician_user_id" widget="many2one_avatar_user" />
+            </field>
+        </field>
+    </record>
+
+</odoo>

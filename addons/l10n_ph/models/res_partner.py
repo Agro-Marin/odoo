@@ -5,12 +5,17 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     branch_code = fields.Char(
-        "Branch Code", default="000", compute="_compute_branch_code", store=True
+        compute="_compute_branch_code",
+        default="000",
+        store=True,
     )
-    first_name = fields.Char("First Name")
-    middle_name = fields.Char("Middle Name")
-    last_name = fields.Char("Last Name")
-    l10n_ph_rdo = fields.Char("RDO", help="Revenue District Office")
+    first_name = fields.Char()
+    middle_name = fields.Char()
+    last_name = fields.Char()
+    l10n_ph_rdo = fields.Char(
+        string="RDO",
+        help="Revenue District Office",
+    )
 
     @api.model
     def _commercial_fields(self):

@@ -2,6 +2,7 @@ import typing
 import warnings
 from collections.abc import Callable, Iterable, Iterator
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import SENTINEL, unique
 
 from ..primitives import STATE_FIELD
@@ -10,6 +11,8 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelClass
     from ..runtime import Registry
     from .base import Field
+
+_debug = DebugLog(__name__)
 
 
 COMPANY_DEPENDENT_FIELDS: tuple[str, ...] = (
@@ -64,12 +67,24 @@ def _warn_precompute_attrs(field: Field, attrs: dict) -> None:
                 stacklevel=1,
             )
             attrs["precompute"] = False
+            _debug.logic(
+                "field.setup.precompute_dropped",
+                model=field.model_name,
+                field=field.name,
+                reason="not_computed",
+            )
         elif not attrs.get("store"):
             warnings.warn(
                 f"precompute attribute has no impact on non stored field {field}",
                 stacklevel=1,
             )
             attrs["precompute"] = False
+            _debug.logic(
+                "field.setup.precompute_dropped",
+                model=field.model_name,
+                field=field.name,
+                reason="not_stored",
+            )
 
 
 def _normalize_company_dependent_attrs(field: Field, attrs: dict) -> None:
@@ -93,6 +108,14 @@ def _normalize_company_dependent_attrs(field: Field, attrs: dict) -> None:
         attrs["index"] = attrs.get("index", "btree_not_null")
         attrs["prefetch"] = attrs.get("prefetch", "company_dependent")
         attrs["_depends_context"] = ("company",)
+        _debug.logic(
+            "field.setup.company_dependent",
+            model=field.model_name,
+            field=field.name,
+            type=field.type,
+            index=attrs["index"],
+            allowed_type=field.type in COMPANY_DEPENDENT_FIELDS,
+        )
 
 
 def _normalize_depends_attrs(field: Field, attrs: dict) -> None:
@@ -116,6 +139,13 @@ def get_attrs(
     modules: list[str] = []
     for base in field._args__.get("_base_fields__", ()):
         if not isinstance(field, type(base)):
+            _debug.logic(
+                "field.setup.base_attrs_dropped",
+                model=model_class._name,
+                field=name,
+                base_type=type(base).__name__,
+                type=type(field).__name__,
+            )
             attrs.clear()
             modules.clear()
             continue
@@ -165,6 +195,14 @@ def get_depends(field: Field, model: BaseModel) -> tuple[Iterable[str], Iterable
                 depends_context.extend(step.get_depends(step_model)[1])
                 step_model_name = step.comodel_name
             depends_context = tuple(unique(depends_context))
+            if _debug.logic.enabled and depends_context:
+                _debug.logic(
+                    "field.setup.related_depends_context",
+                    model=field.model_name,
+                    field=field.name,
+                    related=field.related,
+                    depends_context=list(depends_context),
+                )
         return [field.related], depends_context
 
     if not field.compute:
@@ -202,6 +240,13 @@ def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, .
                 )
             Model = registry[model_name]
             if Model0._transient and not Model._transient:
+                _debug.logic(
+                    "field.depends.transient_path_cut",
+                    model=field.model_name,
+                    field=field.name,
+                    path=dotnames,
+                    at=model_name,
+                )
                 break
 
             try:
@@ -213,6 +258,12 @@ def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, .
                 ) from None
             if step is field and index and not field.recursive:
                 field.recursive = True
+                _debug.logic(
+                    "field.depends.recursive_inferred",
+                    model=field.model_name,
+                    field=field.name,
+                    path=dotnames,
+                )
                 warnings.warn(
                     f"Field {field} should be declared with recursive=True",
                     stacklevel=1,

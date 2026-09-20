@@ -9599,7 +9599,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_sales_team
+#: model:ir.module.module,description:base.module_sale_team
 msgid ""
 "\n"
 "Using this application you can manage Sales Teams with CRM and/or Sales\n"
@@ -17048,11 +17048,15 @@ msgid "Change My Preferences"
 msgstr "Αλλαγή Προτιμήσεων"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.change_password_wizard_action
 #: model_terms:ir.ui.view,arch_db:base.change_password_own_form
 #: model_terms:ir.ui.view,arch_db:base.change_password_wizard_view
 msgid "Change Password"
 msgstr "Αλλαγή Κωδικού Πρόσβασης"
+
+#. module: base
+#: model:ir.actions.act_window,name:base.change_password_wizard_action
+msgid "Change Password…"
+msgstr "Αλλαγή Κωδικού Πρόσβασης…"
 
 #. module: base
 #: model:ir.model,name:base.model_change_password_wizard
@@ -17807,7 +17811,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.actions.act_window,name:base.reset_view_arch_wizard_action
-msgid "Compare/Reset"
+msgid "Compare/Reset…"
 msgstr ""
 
 #. module: base
@@ -28341,8 +28345,8 @@ msgstr "Μενού"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_partner_merge
-msgid "Merge"
-msgstr "Συνένωση"
+msgid "Merge…"
+msgstr "Συνένωση…"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
@@ -29495,11 +29499,6 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:base.open_module_tree
 msgid "No module found!"
 msgstr ""
-
-#. module: base
-#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
-msgid "No of Views"
-msgstr "Πλήθος προβολών"
 
 #. module: base
 #. odoo-python
@@ -35400,8 +35399,8 @@ msgid "Sales PDF Quotation Builder"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_sales_team
-#: model:ir.module.module,summary:base.module_sales_team
+#: model:ir.module.module,shortdesc:base.module_sale_team
+#: model:ir.module.module,summary:base.module_sale_team
 msgid "Sales Teams"
 msgstr "Ομάδες Πωλήσεων"
 
@@ -38013,7 +38012,7 @@ msgstr ""
 
 #. module: base
 #: model:ir.actions.report,name:base.ir_module_reference_print
-msgid "Technical guide"
+msgid "Technical Guide"
 msgstr "Τεχνικός οδηγός"
 
 #. module: base
@@ -41493,6 +41492,7 @@ msgid "View livechat sessions for leads"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
 #: model:ir.actions.act_window,name:base.action_ui_view
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__views
 #: model:ir.model.fields,field_description:base.field_ir_model__view_ids

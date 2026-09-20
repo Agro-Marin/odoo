@@ -24,8 +24,8 @@
                             <field name="address" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                 </sheet>

@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from odoo.libs.asset_log import log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools import config
 from odoo.tools.assets.esm_graph import (
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from .bundle import AssetsBundle
 from .assets import JavascriptAsset
 from .common import _bundle_log
+
+_debug = DebugLog(__name__)
 
 
 class ModuleSyntaxInLegacyBundleError(RuntimeError):
@@ -33,6 +36,7 @@ class JsPipeline:
             return None
         header = asset.parsed_header
         if header and header["ignore"]:
+            _debug.logic("module_syntax_ignored", bundle=bundle.name, url=asset.url)
             return None
         if not header and not has_module_syntax(asset.raw_content):
             return None
@@ -49,17 +53,36 @@ class JsPipeline:
             bundle=bundle.name,
             url=asset.url or "<inline>",
         )
+        _debug.logic(
+            "module_syntax_stub",
+            bundle=bundle.name,
+            url=asset.url or "<inline>",
+            fatal=self._is_asset_error_fatal(),
+        )
         if self._is_asset_error_fatal():
             raise ModuleSyntaxInLegacyBundleError(msg)
         return f"console.error({json.dumps(msg)});"
 
     def minified_bundle(self, template_bundle: str) -> str:
-        content_bundle = ";\n".join(
-            self._module_syntax_error_stub(asset) or asset.minify()
-            for asset in self._bundle.javascripts
-        )
+        with _debug.perf(
+            "js_minify",
+            bundle=self._bundle.name,
+            assets=len(self._bundle.javascripts),
+            templates=bool(template_bundle),
+        ):
+            content_bundle = ";\n".join(
+                self._module_syntax_error_stub(asset) or asset.minify()
+                for asset in self._bundle.javascripts
+            )
         if template_bundle:
             content_bundle += ";" + template_bundle
+        _debug.pipeline(
+            "js_minified_bundle",
+            bundle=self._bundle.name,
+            assets=len(self._bundle.javascripts),
+            bytes=len(content_bundle),
+            templates=len(template_bundle),
+        )
         return content_bundle
 
     def sourcemap_bundle(
@@ -68,11 +91,13 @@ class JsPipeline:
         content_bundle_list = []
         content_line_count = 0
         line_header = JavascriptAsset._HEADER_LINE_COUNT
+        stubbed = 0  # debuglog
         for asset in self._bundle.javascripts:
             stub = self._module_syntax_error_stub(asset)
             if stub:
                 content_bundle_list.append(stub)
                 content_line_count += stub.count("\n") + 1
+                stubbed += 1  # debuglog
                 continue
             generator.add_source(
                 asset.url,
@@ -89,4 +114,13 @@ class JsPipeline:
             content_bundle += ";" + template_bundle
 
         content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_url
+        _debug.pipeline(
+            "sourcemap_bundle",
+            bundle=self._bundle.name,
+            assets=len(self._bundle.javascripts),
+            stubbed=stubbed,
+            lines=content_line_count,
+            bytes=len(content_bundle),
+        )
+
         return content_bundle

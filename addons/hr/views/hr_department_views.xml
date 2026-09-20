@@ -11,31 +11,31 @@
                     <sheet>
                         <div class="oe_button_box" name="button_box" invisible="not id">
                             <button
-                                class="oe_stat_button"
                                 name="action_employee_from_department"
                                 type="object"
-                                icon="fa-users">
+                                icon="fa-users"
+                                class="oe_stat_button">
                                 <field
-                                    string="Employees"
                                     name="total_employee"
+                                    string="Employees"
                                     widget="statinfo" />
                             </button>
                             <button
-                                class="oe_stat_button"
-                                type="object"
                                 name="action_plan_from_department"
-                                icon="fa-list-ul">
+                                type="object"
+                                icon="fa-list-ul"
+                                class="oe_stat_button">
                                 <field
-                                    string="Plans"
                                     name="plans_count"
+                                    string="Plans"
                                     widget="statinfo" />
                             </button>
                         </div>
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field name="active" invisible="1" />
                         <div class="oe_title">
                             <h1>
@@ -52,13 +52,13 @@
                                 <field name="child_ids" invisible="1" />
                                 <field
                                     name="company_id"
+                                    placeholder="Visible to all"
                                     options="{'no_create': True}"
-                                    groups="base.group_multi_company"
-                                    placeholder="Visible to all" />
+                                    groups="base.group_multi_company" />
                                 <field
                                     name="color"
-                                    widget="color_picker"
-                                    string="Color" />
+                                    string="Color"
+                                    widget="color_picker" />
                             </group>
                             <group
                                 colspan="5"
@@ -85,7 +85,7 @@
                     <field name="manager_id" widget="many2one_avatar_employee" />
                     <field name="total_employee" string="Employees" />
                     <field name="parent_id" />
-                    <field name="color" widget="color_picker" string="Color" />
+                    <field name="color" string="Color" widget="color_picker" />
                 </list>
             </field>
         </record>
@@ -97,14 +97,14 @@
                     <field name="name" string="Department" />
                     <field name="manager_id" />
                     <filter
-                        string="Unread Messages"
                         name="message_needaction"
+                        string="Unread Messages"
                         domain="[('message_needaction','=',True)]"
                         groups="mail.group_mail_notification_type_inbox" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                 </search>
             </field>
@@ -114,10 +114,10 @@
             <field name="model">hr.department</field>
             <field name="arch" type="xml">
                 <kanban
-                    highlight_color="color"
+                    sample="1"
                     class="o_hr_department_kanban o_kanban_small_column"
                     can_open="0"
-                    sample="1">
+                    highlight_color="color">
                     <field name="active" />
                     <templates>
                         <t t-name="menu" t-if="!selection_mode">
@@ -180,9 +180,9 @@
                             <div class="row g-0 mt-3 mb-2 ms-2" t-if="!selection_mode">
                                 <div class="col-6">
                                     <button
-                                        class="btn btn-primary"
                                         name="action_employee_from_department"
-                                        type="object">
+                                        type="object"
+                                        class="btn btn-primary">
                                         <field name="total_employee" /> Employees
                                     </button>
                                 </div>

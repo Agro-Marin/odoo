@@ -2,8 +2,14 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-import { browser } from "@web/core/browser/browser";
+import {
+    readLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.rtc");
 export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
     INACTIVE: "INACTIVE",
     ACTIVE: "ACTIVE",
@@ -81,25 +87,27 @@ const ThreadPatch = {
             /** @this {import("models").Thread} */
             onUpdate() {
                 if (this.useCameraByDefault !== null) {
-                    browser.localStorage.setItem(
-                        `discuss_channel_camera_default_${this.id}`,
+                    setLocalStorageItem(
+                        this.store,
+                        this.cameraDefaultStorageKey,
                         JSON.stringify(this.useCameraByDefault),
                     );
                 }
             },
         });
     },
+    get hasCameraDefault() {
+        return typeof this.useCameraByDefault === "boolean";
+    },
+    get cameraDefaultStorageKey() {
+        return `discuss_channel_camera_default_${this.id}`;
+    },
     /** @returns {any} */
     _computeUseCameraByDefault() {
-        if (
-            this.channel_type === "chat" &&
-            this.store.rtc.selfSession?.channel?.eq(this)
-        ) {
+        if (this.isDirectChat && this.store.rtc.selfSession?.channel?.eq(this)) {
             return this.store.rtc.selfSession.is_camera_on;
         }
-        const raw = browser.localStorage.getItem(
-            `discuss_channel_camera_default_${this.id}`,
-        );
+        const raw = readLocalStorageItem(this.store, this.cameraDefaultStorageKey);
         if (!raw || raw === "undefined") {
             return null;
         }
@@ -180,6 +188,12 @@ const ThreadPatch = {
         ) {
             return;
         }
+        log.pipeline("rtcSessionIds update", () => ({
+            thread: this.localId,
+            sessions: this.lastSessionIds.size,
+            joined: shouldPlayJoinSound,
+            left: shouldPlayLeaveSound,
+        }));
         if (shouldPlayJoinSound) {
             this.store.env.services["mail.sound_effects"].play("call-join");
             this.store.rtc.call({ asFallback: true });
@@ -214,6 +228,10 @@ const ThreadPatch = {
         if (!otherStreamingSession) {
             return;
         }
+        log.logic("focusAvailableVideo", () => ({
+            thread: this.localId,
+            session: otherStreamingSession.id,
+        }));
         this.activeRtcSession = otherStreamingSession;
         otherStreamingSession.mainVideoStreamType =
             otherStreamingSession.is_screen_sharing_on ? "screen" : "camera";
@@ -221,6 +239,10 @@ const ThreadPatch = {
     /** @param {Object} [options] */
     open(options) {
         if (this.store.fullscreenChannel?.notEq(this)) {
+            log.logic("open exits fullscreen of another channel", () => ({
+                thread: this.localId,
+                fullscreen: this.store.fullscreenChannel.localId,
+            }));
             this.store.rtc.exitFullscreen();
         }
         return super.open(...arguments);

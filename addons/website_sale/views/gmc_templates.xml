@@ -9,7 +9,6 @@
                 <description t-out="description" />
                 <t t-foreach="items.values()" t-as="item">
                     <item>
-                        <!-- Required -->
                         <g:id t-out="item['id']" />
                         <g:title t-out="item['title']" />
                         <g:description t-out="item['description']" />
@@ -20,7 +19,6 @@
                         <g:identifier_exists t-out="item['identifier_exists']" />
                         <g:gtin t-if="'gtin' in item" t-out="item['gtin']" />
 
-                        <!-- Optional -->
                         <g:sale_price
                             t-if="'sale_price' in item"
                             t-out="item['sale_price']" />

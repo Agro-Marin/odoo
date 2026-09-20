@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpc } from "@web/core/network/rpc";
@@ -41,6 +42,8 @@ function checkArray(name, array) {
         throw new Error(`${name} should be an array`);
     }
 }
+
+const log = makeLogger("web.orm");
 
 const NON_IDEMPOTENT_METHODS = new Set([
     ...UPDATE_METHODS,
@@ -152,6 +155,15 @@ export class ORM {
         if (this._signal) {
             settings.signal = this._signal;
         }
+        log.pipeline("call", () => ({
+            model,
+            method,
+            args: args.length,
+            silent: this._silent,
+            cache: Boolean(this._cache),
+            dedup: Boolean(this._dedup),
+            retry: this._retry,
+        }));
         return this.rpc(url, params, settings);
     }
 

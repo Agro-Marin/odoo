@@ -8,7 +8,7 @@ patch(Composer.prototype, {
         super.onKeydown(ev);
         if (
             ev.key === "Tab" &&
-            this.thread?.channel_type === "livechat" &&
+            this.thread?.isLivechat &&
             !this.props.composer.composerText
         ) {
             const threadChanged = this.store.goToOldestUnreadLivechatThread();
@@ -25,7 +25,7 @@ patch(Composer.prototype, {
     },
     displayNextLivechatHint() {
         return (
-            this.thread?.channel_type === "livechat" &&
+            this.thread?.isLivechat &&
             this.store.discuss.livechats.some(
                 (thread) => thread.notEq(this.thread) && thread.isUnread,
             )

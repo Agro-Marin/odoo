@@ -1,14 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { session } from "@web/session";
 
-/**
- * This script, served with frontend pages, displays buttons in the top left
- * corner to provide the authenticated user an access to his odoo backend.
- * In the case of the page being viewed in the website_preview client action,
- * it will forward some events to its parent.
- */
+const log = makeLogger("website.content.redirect");
+
 document.addEventListener("DOMContentLoaded", () => {
     if (session.is_website_user) {
+        log.logic("skip: public website user");
         return;
     }
 
@@ -20,13 +18,13 @@ document.addEventListener("DOMContentLoaded", () => {
             frontendToBackendNavEl.classList.add("d-flex");
             frontendToBackendNavEl.classList.remove("d-none");
         }
-        // Auto redirect to frontend if edit/translation mode is requested
         const currentUrl = new URL(window.location.href);
         currentUrl.pathname = `/@${currentUrl.pathname}`;
         if (
             currentUrl.searchParams.get("enable_editor") ||
             currentUrl.searchParams.get("edit_translations")
         ) {
+            log.logic("redirect to backend editor", () => ({ to: currentUrl.href }));
             document.body.innerHTML = "";
             window.location.replace(currentUrl.href);
             return;
@@ -35,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ".o_frontend_to_backend_edit_btn",
         );
         if (backendEditBtnEl) {
+            log.pipeline("backend edit button wired", () => ({ to: currentUrl.href }));
             backendEditBtnEl.href = currentUrl.href;
             document.addEventListener(
                 "keydown",
@@ -56,12 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
             backendUserDropdownLinkEl.classList.add("d-none");
             backendUserDropdownLinkEl.classList.remove("d-flex");
         }
-        // Multiple reasons to do this:
-        // - It seems like DOMContentLoaded doesn't always trigger when
-        //   listened from the parent window
-        // - Having an event that's fire only when the page is from Odoo avoids
-        //   weird behaviours. (e.g. if we want to clear out the iframe, it might
-        //   fire an DOMContentLoaded on a non odoo page)
+        log.lifecycle("OdooFrameContentLoaded dispatched");
         window.frameElement.dispatchEvent(new CustomEvent("OdooFrameContentLoaded"));
     }
 });

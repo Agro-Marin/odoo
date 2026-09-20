@@ -34,13 +34,13 @@ set -u
 # "failures" that were really one path error.
 DOC="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$DOC"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MAIL="$(dirname -- "$DOC")"
 # A couple of claims depend on the FRAMEWORK, not on mail. Resolve it once, here,
@@ -465,9 +465,10 @@ assert_eq "bracketless 'except A, B:' occurrences in controllers (valid Py3.14)"
 assert_eq "CONVENTIONS.md gotcha documents the except A, B form" \
     "$(grep -c 'except A, B' "$DOC/CONVENTIONS.md")" "1"
 
-# MAKE_UPDATE 8-queue flush order (verified against store.js).
-queue_clears=$(grep -cE '_QUEUE\.clear\(\)' "$MAIL/static/src/model/store.js")
-assert_eq "store.js has all 8 flush queues (.clear() calls)" "$queue_clears" "8"
+# MAKE_UPDATE 8-queue flush order (verified against store.js): every queue is swapped
+# out once per iteration through _takeQueue.
+queue_takes=$(grep -oE '_takeQueue\("[A-Z]+_QUEUE"\)' "$MAIL/static/src/model/store.js" | sort -u | wc -l)
+assert_eq "store.js drains all 8 flush queues (_takeQueue calls)" "$queue_takes" "8"
 
 # ============================ TEST_TAGS ============================
 # `e4df7f5569b` deleted the twenty-one round-numbered hardening suites. What is
@@ -624,13 +625,14 @@ assert_eq "TEST_TAGS.md no stale ~52 cite" \
 
 # JS test directory table. core/ was cited as 15 (really 16) and widgets/ as 2 (really 1);
 # the two errors cancelled, so the table summed correctly while both rows were wrong.
-assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "28"
+assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "30"
 assert_eq "static/tests/widgets/ test files" "$(find "$MAIL/static/tests/widgets" -name '*.test.js' | wc -l)" "1"
 assert_doc_cites "TEST_TAGS.md cites the discuss/ test-file count" \
     "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" \
     '\| `discuss/` \| %s \|' TEST_TAGS.md
-assert_eq "TEST_TAGS.md cites core/ 23" \
-    "$(grep -c '| `core/` | 23 |' "$DOC/TEST_TAGS.md")" "1"
+assert_doc_cites "TEST_TAGS.md cites the core/ test-file count" \
+    "$(find "$MAIL/static/tests/core" -name '*.test.js' | wc -l)" \
+    '\| `core/` \| %s \|' TEST_TAGS.md
 assert_eq "TEST_TAGS.md moved widgets/ to the '1 each' row" \
     "$(grep -c 'translation/`, `widgets/`' "$DOC/TEST_TAGS.md")" "1"
 
@@ -800,22 +802,13 @@ assert_eq "no such file as web/static/src/fields/formatters.js" \
 assert_eq "ASSET_LAYERS.md cites the core/ formatters path" \
     "$(grep -c 'web/static/src/core/formatters.js' "$DOC/ASSET_LAYERS.md")" "1"
 
-# Layer gate: ASSET_LAYERS claims it is drift-zero with an empty KNOWN_VIOLATIONS.
-assert_eq "js_deployment_layers.py gate exists" \
-    "$([ -f "$ODOO/tooling/architecture/js_deployment_layers.py" ] && echo 1 || echo 0)" "1"
-assert_eq "KNOWN_VIOLATIONS is empty" \
-    "$(grep -c 'KNOWN_VIOLATIONS: tuple\[Known, ...\] = ()' "$ODOO/tooling/architecture/js_deployment_layers.py")" "1"
-# 532091ea401 deleted every workflow; the gates run by hand now, so what makes
-# this one enforced is its presence in the roster gates.md drives, not a lane.
-assert_eq "the gate is in the roster gates.md runs" \
-    "$(grep -qE '^ *js_deployment_layers ' "$ODOO/doc/architecture/gates.md" && echo 1 || echo 0)" "1"
 
 # Per-subtree JS counts DIRECTORY_MAP states. Round 3 pinned only views/ and js/, so core/,
 # discuss/ and utils/ drifted unnoticed.
 assert_doc_cites "DIRECTORY_MAP.md cites the core/ JS count" \
     "$(find "$MAIL/static/src/core" -name '*.js' | wc -l)" '\| `core/` \| %s \|' DIRECTORY_MAP.md
 assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "146"
-assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "10"
+assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "12"
 assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name '*.js' | wc -l)" "13"
 assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
 

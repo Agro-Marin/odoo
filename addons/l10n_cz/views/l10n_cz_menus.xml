@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_l10n_cz_tax_office"
+        parent="account.menu_account_invoicing"
+        action="action_l10n_cz_tax_office_tree"
+        sequence="40"
+        groups="account.group_account_manager" />
+
+</odoo>

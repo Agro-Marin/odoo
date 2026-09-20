@@ -5,18 +5,18 @@ class EventEvent(models.Model):
     _inherit = "event.event"
 
     exhibition_map = fields.Image(
-        string="Exhibition Map", max_width=1024, max_height=1024
+        max_width=1024,
+        max_height=1024,
     )
-    # frontend menu management
     booth_menu = fields.Boolean(
         string="Booth Register",
         compute="_compute_booth_menu",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     booth_menu_ids = fields.One2many(
-        "website.event.menu",
-        "event_id",
+        comodel_name="website.event.menu",
+        inverse_name="event_id",
         string="Event Booths Menus",
         domain=[("menu_type", "=", "booth")],
     )
@@ -35,10 +35,6 @@ class EventEvent(models.Model):
                 event.booth_menu = True
             elif not event.website_menu:
                 event.booth_menu = False
-
-    # ------------------------------------------------------------
-    # WEBSITE MENU MANAGEMENT
-    # ------------------------------------------------------------
 
     def toggle_booth_menu(self, val):
         self.booth_menu = val

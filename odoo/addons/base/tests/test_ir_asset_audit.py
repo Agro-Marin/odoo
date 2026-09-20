@@ -130,6 +130,32 @@ class TestResolvedPathsAreShared(TransactionCase):
             )
         )
 
+    def test_a_pattern_is_globbed_once_per_process_across_bundles(self):
+        from odoo.addons.base.models import ir_asset as ir_asset_module
+
+        IrAsset = self.env["ir.asset"]
+        if not ir_asset_module._CACHE_ASSET_LOOKUPS:
+            self.skipTest("dev_mode=xml disables the asset lookup caches")
+        self.registry.clear_cache("assets")
+        calls = []
+        real = ir_asset_module._get_static_files
+
+        def counting(pattern, static_dir, symlink_memo=None):
+            calls.append(pattern)
+            return real(pattern, static_dir, symlink_memo)
+
+        with patch.object(ir_asset_module, "_get_static_files", counting):
+            IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+            first = len(calls)
+            IrAsset._get_asset_paths.__wrapped__(IrAsset, "web.assets_common", {})
+            IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+        self.assertTrue(first, "the probe bundle must glob something")
+        self.assertEqual(
+            len(set(calls)),
+            len(calls),
+            "a pattern globbed once must be served from the assets cache after",
+        )
+
     def test_the_two_resolutions_are_still_distinct_objects(self):
         IrAsset = self.env["ir.asset"]
         first = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
@@ -965,6 +991,21 @@ class TestAssetsCacheStores(TransactionCase):
     def test_the_sibling_is_not_a_clear_group_of_its_own(self):
         with self.assertRaises(ValueError):
             self.env.registry.clear_cache("assets.links")
+
+    def test_the_static_file_globs_do_not_occupy_the_resolution_store(self):
+        IrAsset = self.env["ir.asset"]
+        self.env.registry.clear_cache("assets")
+        IrAsset._get_asset_paths("web.assets_backend", {})
+        self.assertTrue(self._lrus()["assets.files"])
+        self.assertLess(
+            len(self._lrus()["assets"]),
+            len(self._lrus()["assets.files"]),
+            "a page's hundreds of globs must not evict its compiled bundles",
+        )
+        self.env["ir.asset"].create(
+            {"name": "probe", "bundle": self.BUNDLES[0], "path": "/some/x.js"}
+        )
+        self.assertFalse(self._lrus()["assets.files"])
 
 
 @tagged("post_install", "-at_install")

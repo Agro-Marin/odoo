@@ -16,22 +16,22 @@
                 <field name="theme" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active_seasons"
+                    string="Active"
                     domain="[('state', '=', 'active')]" />
                 <filter
-                    string="Draft"
                     name="draft_seasons"
+                    string="Draft"
                     domain="[('state', '=', 'draft')]" />
                 <separator />
                 <group>
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Start Date"
                         name="group_start"
+                        string="Start Date"
                         context="{'group_by': 'start_date:month'}" />
                 </group>
             </search>
@@ -78,8 +78,8 @@
                     name="state"
                     widget="badge"
                     decoration-info="state == 'draft'"
-                    decoration-success="state == 'active'"
-                    decoration-muted="state in ('ended', 'archived')" />
+                    decoration-muted="state in ('ended', 'archived')"
+                    decoration-success="state == 'active'" />
                 <field name="start_date" />
                 <field name="end_date" />
                 <field name="challenge_count" />
@@ -96,19 +96,19 @@
                 <header>
                     <button
                         name="action_activate"
-                        string="Activate"
                         type="object"
-                        class="btn-primary"
-                        invisible="state != 'draft'" />
+                        string="Activate"
+                        invisible="state != 'draft'"
+                        class="btn-primary" />
                     <button
                         name="action_end"
-                        string="End Season"
                         type="object"
+                        string="End Season"
                         invisible="state != 'active'" />
                     <button
                         name="action_archive"
-                        string="Archive"
                         type="object"
+                        string="Archive"
                         invisible="state != 'ended'" />
                     <field
                         name="state"
@@ -118,20 +118,20 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
-                            icon="fa-flag"
+                            name="action_view_challenges"
                             type="object"
-                            name="action_view_challenges">
+                            icon="fa-flag"
+                            class="oe_stat_button">
                             <field
                                 name="challenge_count"
-                                widget="statinfo"
-                                string="Challenges" />
+                                string="Challenges"
+                                widget="statinfo" />
                         </button>
-                        <button class="oe_stat_button" icon="fa-users">
+                        <button icon="fa-users" class="oe_stat_button">
                             <field
                                 name="participant_count"
-                                widget="statinfo"
-                                string="Participants" />
+                                string="Participants"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <field name="icon" widget="image" class="oe_avatar" />
@@ -150,16 +150,16 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field name="description" />
                         </page>
-                        <page string="Challenges" name="challenges">
+                        <page name="challenges" string="Challenges">
                             <field name="challenge_ids" />
                         </page>
-                        <page string="Exclusive Badges" name="badges">
+                        <page name="badges" string="Exclusive Badges">
                             <field name="badge_ids" widget="many2many_tags" />
                         </page>
-                        <page string="Quests" name="quests">
+                        <page name="quests" string="Quests">
                             <field name="quest_ids" widget="many2many_tags" />
                         </page>
                     </notebook>

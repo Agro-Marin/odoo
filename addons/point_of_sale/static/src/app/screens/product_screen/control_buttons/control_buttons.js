@@ -8,9 +8,12 @@ import {
 } from "@point_of_sale/app/screens/product_screen/control_buttons/orderline_note_button/orderline_note_button";
 import { SelectPartnerButton } from "@point_of_sale/app/screens/product_screen/control_buttons/select_partner_button/select_partner_button";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.screen.product.controls");
 export class ControlButtons extends Component {
     static template = "point_of_sale.ControlButtons";
     static components = {
@@ -27,6 +30,7 @@ export class ControlButtons extends Component {
         showRemainingButtons: false,
     };
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
@@ -70,6 +74,12 @@ export class ControlButtons extends Component {
             },
         );
 
+        log.logic("clickFiscalPosition", () => ({
+            order: this.currentOrder.uuid,
+            from: currentFiscalPosition?.id,
+            to: selectedFiscalPosition === "none" ? null : selectedFiscalPosition?.id,
+            cancelled: !selectedFiscalPosition,
+        }));
         if (!selectedFiscalPosition) {
             return;
         }
@@ -112,6 +122,12 @@ export class ControlButtons extends Component {
             title: _t("Select the pricelist"),
             list: selectionList,
         });
+        log.logic("clickPricelist", () => ({
+            order: this.currentOrder?.uuid,
+            from: this.currentOrder?.pricelist_id?.id,
+            to: payload?.id,
+            cancelled: !payload,
+        }));
 
         if (payload) {
             this.pos.selectPricelist(payload);
@@ -124,6 +140,10 @@ export class ControlButtons extends Component {
         const searchDetails = partner
             ? { fieldName: "PARTNER", searchTerm: partner.name }
             : {};
+        log.pipeline("clickRefund", () => ({
+            order: order.uuid,
+            partner: partner?.id,
+        }));
         this.pos.navigate("TicketScreen", {
             stateOverride: {
                 filter: "SYNCED",

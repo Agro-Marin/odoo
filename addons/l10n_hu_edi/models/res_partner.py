@@ -7,8 +7,8 @@ class ResPartner(models.Model):
     l10n_hu_group_vat = fields.Char(
         string="Group Tax ID",
         size=13,
-        help="If this company belongs to a VAT group, indicate the group's VAT number here.",
         index=True,
+        help="If this company belongs to a VAT group, indicate the group's VAT number here.",
     )
 
     @api.model

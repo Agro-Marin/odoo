@@ -1,9 +1,12 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools.misc import groupby
 
 from .delivery_request_objects import DeliveryCommodity, DeliveryPackage
+
+_debug = DebugLog(__name__)
 
 
 class DeliveryCarrier(models.Model):
@@ -18,21 +21,23 @@ class DeliveryCarrier(models.Model):
     )
 
     route_ids = fields.Many2many(
-        "stock.route",
-        "stock_route_shipping",
-        "shipping_id",
-        "route_id",
-        "Routes",
+        comodel_name="stock.route",
+        relation="stock_route_shipping",
+        column1="shipping_id",
+        column2="route_id",
+        string="Routes",
         domain=[("shipping_selectable", "=", True)],
     )
 
     def send_shipping(self, pickings):
+        _debug.pipeline("carrier_send_shipping", carrier=self.id, pickings=pickings)
         self.check_singleton()
         if hasattr(self, "%s_send_shipping" % self.delivery_type):
             return getattr(self, "%s_send_shipping" % self.delivery_type)(pickings)
         return None
 
     def get_return_label(self, pickings, tracking_number=None, origin_date=None):
+        _debug.pipeline("carrier_return_label", carrier=self.id, pickings=pickings)
         self.check_singleton()
         if self.can_generate_return:
             res = getattr(self, "%s_get_return_label" % self.delivery_type)(
@@ -59,6 +64,7 @@ class DeliveryCarrier(models.Model):
         return None
 
     def cancel_shipment(self, pickings):
+        _debug.pipeline("carrier_cancel_shipment", carrier=self.id, pickings=pickings)
         self.check_singleton()
         if hasattr(self, "%s_cancel_shipment" % self.delivery_type):
             return getattr(self, "%s_cancel_shipment" % self.delivery_type)(pickings)
@@ -74,6 +80,7 @@ class DeliveryCarrier(models.Model):
             return False
 
     def _get_packages_from_order(self, order, default_package_type):
+        _debug.perf.count("packages_from_order", carrier=self.id, order=order.id)
         total_cost = 0
         for line in order.line_ids.filtered(
             lambda line: not line.is_delivery and not line.display_type
@@ -107,26 +114,41 @@ class DeliveryCarrier(models.Model):
         package_weights = [max_weight] * total_full_packages + (
             [last_package_weight] if last_package_weight else []
         )
-        partial_cost = total_cost / len(package_weights)
+        num_packages = len(package_weights)
+        partial_cost = total_cost / num_packages
         order_commodities = self._get_commodities_from_order(order)
 
+        packages_commodities = [[] for _ in range(num_packages)]
         for commodity in order_commodities:
-            commodity.monetary_value /= len(package_weights)
-            commodity.qty = max(1, commodity.qty // len(package_weights))
+            base_qty, remainder = divmod(commodity.qty, num_packages)
+            monetary_value = commodity.monetary_value / num_packages
+            for index in range(num_packages):
+                qty = base_qty + (1 if index < remainder else 0)
+                if not qty:
+                    continue
+                packages_commodities[index].append(
+                    DeliveryCommodity(
+                        commodity.product_id,
+                        amount=qty,
+                        monetary_value=monetary_value,
+                        country_of_origin=commodity.country_of_origin,
+                    )
+                )
 
         return [
             DeliveryPackage(
-                order_commodities,
+                packages_commodities[index],
                 weight,
                 default_package_type,
                 total_cost=partial_cost,
                 currency=order.company_id.currency_id,
                 order=order,
             )
-            for weight in package_weights
+            for index, weight in enumerate(package_weights)
         ]
 
     def _get_packages_from_picking(self, picking, default_package_type):
+        _debug.perf.count("packages_from_picking", carrier=self.id, picking=picking.id)
         packages = []
 
         if picking.is_return_picking:
@@ -198,6 +220,7 @@ class DeliveryCarrier(models.Model):
         return packages
 
     def _get_commodities_from_order(self, order):
+        _debug.perf.count("commodities_from_order", carrier=self.id, order=order.id)
         commodities = []
 
         for line in order.line_ids.filtered(
@@ -207,7 +230,7 @@ class DeliveryCarrier(models.Model):
                 and line.product_id.type == "consu"
             )
         ):
-            unit_quantity = line.product_uom_id._compute_quantity(
+            unit_quantity = line.product_uom_id._get_quantity_in_unit(
                 line.product_uom_qty, line.product_id.uom_id
             )
             rounded_qty = max(1, float_round(unit_quantity, precision_digits=0))
@@ -227,6 +250,7 @@ class DeliveryCarrier(models.Model):
         return commodities
 
     def _get_commodities_from_stock_move_lines(self, move_lines):
+        _debug.perf.count("commodities_from_lines", carrier=self.id, lines=move_lines)
         commodities = []
 
         product_lines = move_lines.filtered(
@@ -234,7 +258,7 @@ class DeliveryCarrier(models.Model):
         )
         for product, lines in groupby(product_lines, lambda x: x.product_id):
             unit_quantity = sum(
-                line.product_uom_id._compute_quantity(line.quantity, product.uom_id)
+                line.product_uom_id._get_quantity_in_unit(line.quantity, product.uom_id)
                 for line in lines
             )
             rounded_qty = max(1, float_round(unit_quantity, precision_digits=0))
@@ -252,6 +276,33 @@ class DeliveryCarrier(models.Model):
                     monetary_value=unit_price,
                     country_of_origin=country_of_origin,
                 )
+            )
+
+        return commodities
+
+    def _prepare_commodity_values_from_move_lines(self, move_lines):
+        commodities = []
+
+        product_lines = move_lines.filtered(
+            lambda line: line.product_id.type in ["product", "consu"]
+        )
+        for product, lines in groupby(product_lines, lambda x: x.product_id):
+            unit_quantity = sum(
+                line.product_uom_id._get_quantity_in_unit(line.quantity, product.uom_id)
+                for line in lines
+            )
+            rounded_qty = max(1, float_round(unit_quantity, precision_digits=0))
+            country_of_origin = lines[
+                0
+            ].picking_id.picking_type_id.warehouse_id.partner_id.country_id.code
+            unit_price = sum(line.sale_price for line in lines) / rounded_qty
+            commodities.append(
+                {
+                    "product_id": product,
+                    "qty": rounded_qty,
+                    "monetary_value": unit_price,
+                    "country_of_origin": country_of_origin,
+                }
             )
 
         return commodities

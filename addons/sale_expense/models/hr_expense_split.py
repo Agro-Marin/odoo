@@ -5,20 +5,21 @@ class HrExpenseSplit(models.TransientModel):
     _inherit = "hr.expense.split"
 
     sale_order_id = fields.Many2one(
-        "sale.order",
+        comodel_name="sale.order",
         string="Customer to Reinvoice",
         compute="_compute_sale_order_id",
-        readonly=False,
         store=True,
+        readonly=False,
         domain="[('state', '=', 'done'), ('company_id', '=', company_id)]",
     )
     can_be_reinvoiced = fields.Boolean(
-        "Can be reinvoiced", compute="_compute_can_be_reinvoiced"
+        string="Can be reinvoiced",
+        compute="_compute_can_be_reinvoiced",
     )
 
-    def _get_values(self):
+    def _prepare_expense_vals(self):
         self.check_singleton()
-        vals = super()._get_values()
+        vals = super()._prepare_expense_vals()
         vals["sale_order_id"] = self.sale_order_id.id
         return vals
 

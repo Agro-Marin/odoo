@@ -1,39 +1,23 @@
 import ipaddress
 import json
 import logging
-import re
 from datetime import timedelta
-from types import SimpleNamespace
 from typing import Any, Self
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from odoo import api, fields, models
+from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
-from odoo.http import request
+from odoo.libs import redact
+from odoo.tools import SQL
 
-from odoo.addons.credential.tools import get_caller_rate_limiter
+from .credential_use import check_purpose
 
 _logger = logging.getLogger(__name__)
 
 DAYS_NO_EXPIRY = 999
 
 EXPIRY_WARNING_DAYS = 30
-
-
-SECRET_PATTERNS = [
-    ("password", r"\b(password|passwd|pwd)\s*[:=]\s*\S+"),
-    ("api_key", r"\b(api[_-]?key|apikey)\s*[:=]\s*\S+"),
-    ("secret_or_token", r"\b(secret|token)\s*[:=]\s*\S+"),
-    ("aws_style_key", r"\b(access[_-]?key|secret[_-]?key)\s*[:=]\s*\S+"),
-    ("private_key_pem", r"-----BEGIN\s+\w+\s+PRIVATE\s+KEY-----"),
-    ("github_token", r"\bghp_[a-zA-Z0-9]{36}\b"),
-    ("openai_api_key", r"\bsk-[a-zA-Z0-9]{48}\b"),
-    ("aws_access_key_id", r"\bAKIA[0-9A-Z]{16}\b"),
-]
-SECRET_NAMED_REGEXES = [
-    (name, re.compile(pattern, re.IGNORECASE)) for name, pattern in SECRET_PATTERNS
-]
 
 
 class CredentialCredential(models.Model):
@@ -45,24 +29,22 @@ class CredentialCredential(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=False,
         default=lambda self: self.env.company,
-        ondelete="cascade",
         index=True,
+        required=False,
+        ondelete="cascade",
         help="Company that owns this credential. Leave empty for system-wide credentials visible to all companies.",
     )
 
     category_id = fields.Many2one(
         comodel_name="credential.category",
-        required=True,
         index=True,
+        required=True,
         ondelete="restrict",
         help="Type of credential (API Key, OAuth, Certificate, etc.)",
     )
     category_code = fields.Char(
         related="category_id.code",
-        store=True,
-        index=True,
         help="Technical code of the category for programmatic access",
     )
     category_description = fields.Text(
@@ -84,8 +66,8 @@ class CredentialCredential(models.Model):
         comodel_name="res.users",
         string="Created By",
         default=lambda self: self.env.user,
-        readonly=True,
         index=True,
+        readonly=True,
         help="User who created this credential",
     )
     owner_user_id = fields.Many2one(
@@ -100,8 +82,8 @@ class CredentialCredential(models.Model):
     )
     name = fields.Char(
         string="Credential Name",
-        required=True,
         index=True,
+        required=True,
         help="Descriptive name for this credential",
     )
     active = fields.Boolean(
@@ -137,7 +119,7 @@ class CredentialCredential(models.Model):
     notes = fields.Text(
         help="Additional notes or documentation for this credential.\n\n"
         "⚠️ SECURITY WARNING: Notes are stored in PLAIN TEXT (not encrypted).\n"
-        "Do NOT store passwords, API keys, or other secrets in notes.",
+        "Do NOT store passwords, API keys, or other secrets in notes."
     )
 
     health_status = fields.Selection(
@@ -148,8 +130,8 @@ class CredentialCredential(models.Model):
             ("error", "Error"),
         ],
         default="unknown",
-        readonly=True,
         index=True,
+        readonly=True,
         help="Health status from last validation check",
     )
     health_message = fields.Text(
@@ -162,8 +144,8 @@ class CredentialCredential(models.Model):
     )
     last_health_check_latency = fields.Float(
         string="Last Check Latency (ms)",
-        readonly=True,
         digits=(6, 2),
+        readonly=True,
         help="Response time of last health check in milliseconds",
     )
     last_used_at = fields.Datetime(
@@ -191,9 +173,9 @@ class CredentialCredential(models.Model):
     )
     health_check_success_rate = fields.Float(
         string="Health Check Success Rate (%)",
+        digits=(5, 2),
         compute="_compute_health_check_success_rate",
         store=True,
-        digits=(5, 2),
         help="Percentage of successful health checks",
     )
 
@@ -226,10 +208,8 @@ class CredentialCredential(models.Model):
     is_expired = fields.Boolean(
         string="Expired",
         compute="_compute_is_expired",
-        store=True,
-        help="Whether the credential has expired. Note: This is stored for indexing "
-        "but only recomputes when date_expiration changes. For time-critical queries, "
-        "filter directly on date_expiration < now().",
+        search="_search_is_expired",
+        help="Whether the expiration date has passed, read against the current time",
     )
     days_until_expiry = fields.Integer(
         compute="_compute_days_until_expiry",
@@ -238,8 +218,8 @@ class CredentialCredential(models.Model):
     )
     date_expiry_warned = fields.Datetime(
         string="Expiry Warning Logged",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="When cron_check_expiring_credentials last reported this "
         "credential as approaching expiry. Cleared whenever the expiration "
         "date is rewritten, so a renewed credential is warned about again.",
@@ -363,8 +343,8 @@ class CredentialCredential(models.Model):
         compute="_compute_secret_values",
         inverse="_inverse_secret_values",
         store=False,
-        readonly=False,
         copy=False,
+        readonly=False,
         groups="base.group_system",
         help="One entry per field the category declares, carrying its label and "
         "whether it holds a value -- never the value itself. An entry given a "
@@ -395,9 +375,9 @@ class CredentialCredential(models.Model):
     )
 
     def _check_required_fields_for_category(self):
-        self.invalidate_recordset(["credential_value_encrypted"])
+        self.invalidate_recordset(["credential_value_encrypted", "is_provisioned"])
 
-        for record in self:
+        for record in self.filtered("is_provisioned"):
             specs = record.category_id.sudo().field_ids._requirement_specs()
             if not specs:
                 continue
@@ -446,11 +426,7 @@ class CredentialCredential(models.Model):
         for record in self:
             if not record.notes:
                 continue
-            matched_names = [
-                name
-                for name, regex in SECRET_NAMED_REGEXES
-                if regex.search(record.notes)
-            ]
+            matched_names = redact.find_secret_shapes(record.notes)
             if not matched_names:
                 continue
             _logger.warning(
@@ -471,7 +447,7 @@ class CredentialCredential(models.Model):
                             "Cannot seed protected statistics fields at creation!\n\n"
                             "The following fields are managed internally: %(fields)s\n\n"
                             "Create the credential first, then use the dedicated "
-                            "methods (increment_usage, action_validate_credential, "
+                            "methods (increment_usage, action_probe_health, "
                             "mark_as_used) to update statistics.",
                         )
                         % {
@@ -491,6 +467,11 @@ class CredentialCredential(models.Model):
                         ),
                     )
 
+        unset_policy = [
+            [name for name in self._CATEGORY_POLICY_DEFAULTS if name not in vals]
+            for vals in vals_list
+        ]
+
         current_version = self._get_current_encryption_key_version() or 1
 
         for vals in vals_list:
@@ -502,6 +483,21 @@ class CredentialCredential(models.Model):
                     vals["encryption_key_version"] = current_version
 
         records = super().create(vals_list)
+        if records._touches_system_secrets():
+            self.env.registry.clear_cache()
+
+        # The policy fields belong to the credential administrators, so a creator
+        # outside that group cannot be handed them as create values; the category
+        # applies them afterwards, and only where the creator chose nothing.
+        for record, names in zip(records.sudo(), unset_policy, strict=True):
+            category = record.category_id
+            policy = {
+                name: category[self._CATEGORY_POLICY_DEFAULTS[name]]
+                for name in names
+                if record[name] != category[self._CATEGORY_POLICY_DEFAULTS[name]]
+            }
+            if category and policy:
+                record.write(policy)
 
         records._check_required_fields_for_category()
 
@@ -539,6 +535,8 @@ class CredentialCredential(models.Model):
     )
 
     def write(self, vals):
+        if self._touches_system_secrets(vals):
+            self.env.registry.clear_cache()
         if "date_expiration" in vals and "date_expiry_warned" not in vals:
             vals = {**vals, "date_expiry_warned": False}
 
@@ -551,7 +549,7 @@ class CredentialCredential(models.Model):
                         "The following fields are managed internally: %(fields)s\n\n"
                         "Use the appropriate methods:\n"
                         "- increment_usage() for usage statistics\n"
-                        "- action_validate_credential() for health checks\n"
+                        "- action_probe_health() for health checks\n"
                         "- mark_as_used() for last_used_at",
                     )
                     % {"fields": ", ".join(sorted(protected_being_modified))},
@@ -592,6 +590,8 @@ class CredentialCredential(models.Model):
                 )
 
         result = super().write(vals)
+        if self._touches_system_secrets(vals):
+            self.env.registry.clear_cache()
 
         category_changed = "category_id" in vals
         if category_changed or adding_encrypted_content:
@@ -600,6 +600,8 @@ class CredentialCredential(models.Model):
         return result
 
     def unlink(self):
+        if self._touches_system_secrets():
+            self.env.registry.clear_cache()
         source_ip = self._get_request_source_ip()
         vals_list = [
             {
@@ -647,6 +649,14 @@ class CredentialCredential(models.Model):
             record.is_expired = bool(
                 record.date_expiration and record.date_expiration < now
             )
+
+    def _search_is_expired(self, operator: str, value: Any):
+        if operator not in ("=", "!=") or not isinstance(value, bool):
+            return NotImplemented
+        expired = [("date_expiration", "<", fields.Datetime.now())]
+        if (operator == "=") == value:
+            return expired
+        return ["!", *expired]
 
     @api.depends("date_expiration")
     def _compute_days_until_expiry(self):
@@ -792,16 +802,19 @@ class CredentialCredential(models.Model):
         record._log_access_guarded("read")
         return value
 
+    _CATEGORY_POLICY_DEFAULTS = {
+        "decrypt_rate_limit_enabled": "default_decrypt_rate_limit_enabled",
+        "decrypt_rate_limit_max": "default_decrypt_rate_limit_max",
+        "auto_validate_health": "default_auto_validate_health",
+        "allow_key_fallback": "default_allow_key_fallback",
+    }
+
     @api.onchange("category_id")
     def _onchange_category_id(self):
         if self.category_id:
             category = self.category_id.sudo()
-            self.decrypt_rate_limit_enabled = (
-                category.default_decrypt_rate_limit_enabled
-            )
-            self.decrypt_rate_limit_max = category.default_decrypt_rate_limit_max
-            self.auto_validate_health = category.default_auto_validate_health
-            self.allow_key_fallback = category.default_allow_key_fallback
+            for field_name, default_name in self._CATEGORY_POLICY_DEFAULTS.items():
+                self[field_name] = category[default_name]
 
     def action_migrate_encryption_keys(self) -> dict[str, Any]:
         if not self.env.user.has_group(
@@ -973,7 +986,31 @@ class CredentialCredential(models.Model):
 
         return results
 
-    def action_validate_credential(self) -> dict[str, Any]:
+    def action_probe_health(self) -> dict[str, Any]:
+        self.check_singleton()
+        result = self._probe_health()
+        if result.get("not_implemented"):
+            kind, title = "warning", self.env._("Not Validated")
+        elif result.get("success"):
+            kind, title = "success", self.env._("Credential Valid")
+        else:
+            kind, title = "danger", self.env._("Validation Failed")
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {"title": title, "message": result.get("message"), "type": kind},
+        }
+
+    def _probe_health(self) -> dict[str, Any]:
+        """Run the credential-specific probe and store its health result.
+
+        This fallback records unknown health and a check timestamp; extensions
+        provide the service probe. An unsuccessful probe is a returned outcome,
+        not a raising validation contract.
+
+        :returns: ``success`` and ``message``; this fallback also returns
+            ``not_implemented=True``
+        """
         self.check_singleton()
 
         _logger.info(
@@ -987,7 +1024,7 @@ class CredentialCredential(models.Model):
             "not_implemented": True,
             "message": self.env._(
                 "No built-in validation for category '%s'. "
-                "Override action_validate_credential in an inheriting "
+                "Override _probe_health in an inheriting "
                 "module to add a service-specific probe."
             )
             % (self.category_code or "unknown"),
@@ -1005,7 +1042,7 @@ class CredentialCredential(models.Model):
         return result
 
     @api.model
-    def cron_validate_credentials(self):
+    def _cron_probe_credentials(self):
         credentials = self.search(
             [
                 ("auto_validate_health", "=", True),
@@ -1022,7 +1059,7 @@ class CredentialCredential(models.Model):
 
         for cred in credentials:
             try:
-                result = cred.action_validate_credential()
+                result = cred._probe_health()
                 if result.get("not_implemented"):
                     skipped += 1
                 elif result.get("success"):
@@ -1089,24 +1126,6 @@ class CredentialCredential(models.Model):
             "window_days": EXPIRY_WARNING_DAYS,
         }
 
-    def cron_cleanup_rate_limiter(self):
-        limiter = get_caller_rate_limiter(self.env)
-        cleaned = limiter.cleanup_old_entries(max_age_hours=24)
-        stats = limiter.get_stats()
-
-        _logger.info(
-            "Rate limiter cleanup complete: removed %d keys, tracking %d active keys with %d total attempts",
-            cleaned,
-            stats["total_keys"],
-            stats["total_attempts_tracked"],
-        )
-
-        return {
-            "cleaned": cleaned,
-            "active_keys": stats["total_keys"],
-            "total_attempts": stats["total_attempts_tracked"],
-        }
-
     @api.model
     def _get_active_for_category(self, code: str) -> Self:
         category = self.env["credential.category"].search(
@@ -1139,35 +1158,157 @@ class CredentialCredential(models.Model):
                 return value
         return self.credential_value or False
 
-    def _get_verification_secret(self, prefer: str | None = None) -> str | bool:
+    # The use path: trusted server code placing a secret on the wire or checking a
+    # signature with it. It skips the per-user decrypt allowance and the per-read
+    # audit row, both of which exist to stop a person harvesting secrets and which
+    # made the hundred-and-first outbound call of an hour fail. It is private so no
+    # RPC call reaches it; transport exchanges are recorded in their own log.
+    def _use_secret_payload(self, purpose: str) -> dict:
         self.check_singleton()
-        encrypted = self.with_context(bin_size=False).credential_value_encrypted
+        check_purpose(purpose)
+        record = self.with_context(bin_size=False)
+        if self.id:
+            self.env["credential.use"]._queue(self.id, purpose)
+            record.fetch(["credential_value_encrypted", "storage_method"])
+        encrypted = record.credential_value_encrypted
         if not encrypted:
-            return False
+            return {}
         plaintext = self._decrypt_value_safe(encrypted, default=None)
         if plaintext is None:
             _logger.warning(
-                "Credential %s: could not decrypt for inbound verification "
-                "(key missing or rotated); treating as unset.",
+                "Credential %s: could not decrypt for use (key missing or "
+                "rotated); treating as unset.",
                 self.id or "new",
             )
-            return False
+            return {}
         if self.storage_method != "json":
-            return plaintext or False
-
+            return {"credential_value": plaintext} if plaintext else {}
         try:
             data = json.loads(plaintext)
         except json.JSONDecodeError, ValueError:
-            return False
-        if not isinstance(data, dict):
-            return False
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _use_secret(self, purpose: str, prefer: str | None = None) -> str | bool:
+        payload = self._use_secret_payload(purpose)
         candidates = self._SECRET_ACCESSOR_PRIORITY
         if prefer:
             candidates = (prefer, *(f for f in candidates if f != prefer))
         for key in candidates:
-            if data.get(key):
-                return data[key]
-        return False
+            if payload.get(key):
+                return payload[key]
+        return payload.get("credential_value") or False
+
+    def _use_basic_auth(self, purpose: str) -> tuple[str, str] | None:
+        payload = self._use_secret_payload(purpose)
+        if payload.get("username") and payload.get("password"):
+            return (payload["username"], payload["password"])
+        return None
+
+    # A secret that belongs to the database rather than to a company or an
+    # endpoint (an OAuth application's client secret, say), which used to be an
+    # ir.config_parameter kept in clear.
+    _SYSTEM_SECRET_PREFIX = "System secret: "
+
+    @api.model
+    def _get_system_secret_credential(self, key: str) -> Self:
+        return (
+            self.sudo()
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("name", "=", f"{self._SYSTEM_SECRET_PREFIX}{key}"),
+                    ("company_id", "=", False),
+                ],
+                limit=1,
+            )
+        )
+
+    @api.model
+    def _get_system_secret(self, key: str) -> str | bool:
+        credential_id = self._provisioned_system_secrets().get(
+            f"{self._SYSTEM_SECRET_PREFIX}{key}"
+        )
+        if not credential_id:
+            return False
+        credential = self.sudo().browse(credential_id)
+        return credential._use_secret_payload("system_secret").get("value") or False
+
+    @api.model
+    def _set_system_secret(self, key: str, value: str | bool) -> None:
+        credential = self._get_system_secret_credential(key)
+        if not value:
+            credential.unlink()
+            return
+        if credential:
+            credential.set_credential_dict({"value": value})
+            return
+        self.env.registry.clear_cache()
+        self.sudo().create(
+            {
+                "name": f"{self._SYSTEM_SECRET_PREFIX}{key}",
+                "category_id": self.env.ref("credential.credential_category_custom").id,
+                "company_id": False,
+                "credential_data": json.dumps({"value": value}),
+            }
+        )
+
+    @api.model
+    def _has_system_secret(self, key: str) -> bool:
+        return (
+            f"{self._SYSTEM_SECRET_PREFIX}{key}" in self._provisioned_system_secrets()
+        )
+
+    @tools.ormcache()
+    def _provisioned_system_secrets(self) -> dict[str, int]:
+        self.flush_model(
+            ["name", "company_id", "credential_value_encrypted", "sequence", "active"]
+        )
+        self.env.cr.execute(
+            SQL(
+                "SELECT name, id FROM credential_credential"
+                " WHERE company_id IS NULL AND name LIKE %s"
+                " AND credential_value_encrypted IS NOT NULL"
+                " ORDER BY sequence DESC, id DESC",
+                f"{self._SYSTEM_SECRET_PREFIX}%",
+            )
+        )
+        return dict(self.env.cr.fetchall())
+
+    def _touches_system_secrets(self, vals=None) -> bool:
+        return bool(
+            (vals and vals.keys() & {"name", "company_id"})
+            or any(
+                not record.company_id
+                and (record.name or "").startswith(self._SYSTEM_SECRET_PREFIX)
+                for record in self.sudo()
+            )
+        )
+
+    @api.model
+    def _move_parameters_into_system_secrets(self, keys) -> int:
+        """Migrate `ir.config_parameter` secrets into system secrets.
+
+        Each non-empty parameter is moved and every named row deleted, so the
+        value does not stay readable in `ir_config_parameter` or later backups.
+        """
+        parameters = (
+            self.env["ir.config_parameter"].sudo().search([("key", "in", list(keys))])
+        )
+        held = parameters.filtered("value")
+        if held and not self._is_encryption_key_configured():
+            raise UserError(
+                self.env._(
+                    "System parameters %(keys)s hold secrets that must move into "
+                    "encrypted credentials. Set ODOO_API_ENCRYPTION_KEY and run the "
+                    "upgrade again.",
+                    keys=", ".join(held.mapped("key")),
+                )
+            )
+        for parameter in held:
+            self._set_system_secret(parameter.key, parameter.value)
+        parameters.unlink()
+        return len(held)
 
     def get_basic_auth(self):
         self.check_singleton()
@@ -1189,22 +1330,15 @@ class CredentialCredential(models.Model):
 
     @api.model
     def _get_request_source_ip(self) -> str | bool:
+        raw_ip = self.env["ir.http"]._get_request_remote_addr()
+        if not raw_ip:
+            return False
         try:
-            if request and hasattr(request, "httprequest"):
-                raw_ip = request.httprequest.remote_addr
-                if raw_ip:
-                    try:
-                        ipaddress.ip_address(raw_ip)
-                        return raw_ip
-                    except ValueError:
-                        _logger.warning(
-                            "Invalid IP address format in request: %s",
-                            raw_ip[:50],
-                        )
-                        return "invalid"
-        except Exception:
-            _logger.debug("No HTTP request context for access log", exc_info=True)
-        return False
+            ipaddress.ip_address(raw_ip)
+        except ValueError:
+            _logger.warning("Invalid IP address format in request: %s", raw_ip[:50])
+            return "invalid"
+        return raw_ip
 
     def _access_log_extras(self, operation: str) -> dict:
         self.check_singleton()
@@ -1235,8 +1369,12 @@ class CredentialCredential(models.Model):
         self.check_singleton()
         if self.env.cr.readonly:
             self._log_access_out_of_band(operation)
-        else:
-            self._log_access(operation)
+            return
+        self._log_access(operation)
+        # The plaintext was produced whether or not the caller's transaction
+        # commits, so a rollback must not take the audit row with it.
+        record = self
+        self.env.cr.postrollback.add(lambda: record._log_access_out_of_band(operation))
 
     def _enforce_access_rate_limit(self) -> None:
         self.check_singleton()
@@ -1278,22 +1416,12 @@ class CredentialCredential(models.Model):
 
     def _consume_decryption_allowance(self, cap: int) -> bool:
         self.check_singleton()
-        subject = SimpleNamespace(
-            _name=self._DECRYPT_BUCKET_MODEL,
-            id=self.id,
-            rate_limit_requests=cap,
-        )
-        bucket = (
-            self.env["rate.limit.bucket"]
-            .sudo()
-            .get_or_create_bucket(
-                subject,
-                bucket_key=f"{self._DECRYPT_BUCKET_MODEL}:{self.id}:{self.env.uid}",
-            )
-        )
-        return bucket.consume_token(
+        return self.env["rate.limit.bucket"].consume_for_key(
+            f"{self._DECRYPT_BUCKET_MODEL}:{self.id}:{self.env.uid}",
+            subject_model=self._DECRYPT_BUCKET_MODEL,
+            subject_id=self.id,
             capacity=cap,
-            refill_rate=cap / self._DECRYPT_WINDOW_SECONDS,
+            window_seconds=self._DECRYPT_WINDOW_SECONDS,
         )
 
     def _log_access_out_of_band(self, operation: str) -> None:

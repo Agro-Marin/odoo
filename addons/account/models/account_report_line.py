@@ -3,11 +3,14 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.account.models.account_report import (
     DOMAIN_REGEX,
     REFERENCE_UNSAFE_CHARS_REGEX,
 )
+
+_debug = DebugLog(__name__)
 
 
 def _replace_codes_in_formula(formula, code_mapping):
@@ -28,43 +31,46 @@ class AccountReportLine(models.Model):
     _description = "Accounting Report Line"
     _order = "sequence, id"
 
-    name = fields.Char(string="Name", translate=True, required=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     expression_ids = fields.One2many(
-        string="Expressions",
         comodel_name="account.report.expression",
         inverse_name="report_line_id",
+        string="Expressions",
     )
     report_id = fields.Many2one(
-        string="Parent Report",
         comodel_name="account.report",
+        string="Parent Report",
         compute="_compute_report_id",
+        precompute=True,
+        recursive=True,
         store=True,
+        index=True,
         readonly=False,
         required=True,
-        recursive=True,
-        precompute=True,
-        index=True,
         ondelete="cascade",
     )
     hierarchy_level = fields.Integer(
         string="Level",
         compute="_compute_hierarchy_level",
+        precompute=True,
+        recursive=True,
         store=True,
         readonly=False,
-        recursive=True,
         required=True,
-        precompute=True,
     )
     parent_id = fields.Many2one(
-        string="Parent Line",
         comodel_name="account.report.line",
-        ondelete="set null",
+        string="Parent Line",
         index="btree_not_null",
+        ondelete="set null",
     )
     children_ids = fields.One2many(
-        string="Child Lines",
         comodel_name="account.report.line",
         inverse_name="parent_id",
+        string="Child Lines",
     )
     groupby = fields.Char(
         string="Group By",
@@ -73,23 +79,20 @@ class AccountReportLine(models.Model):
     user_groupby = fields.Char(
         string="User Group By",
         compute="_compute_user_groupby",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="Comma-separated list of fields from account.move.line (Journal Item). When set, this line will generate sublines grouped by those keys.",
     )
-    sequence = fields.Integer(string="Sequence")
-    code = fields.Char(string="Code", help="Unique identifier for this line.")
+    sequence = fields.Integer()
+    code = fields.Char(help="Unique identifier for this line.")
     foldable = fields.Boolean(
-        string="Foldable",
-        help="By default, we always unfold the lines that can be. If this is checked, the line won't be unfolded by default, and a folding button will be displayed.",
+        help="By default, we always unfold the lines that can be. If this is checked, the line won't be unfolded by default, and a folding button will be displayed."
     )
     print_on_new_page = fields.Boolean(
-        "Print On New Page",
-        help="When checked this line and everything after it will be printed on a new page.",
+        help="When checked this line and everything after it will be printed on a new page."
     )
     action_id = fields.Many2one(
-        string="Action",
         comodel_name="ir.actions.actions",
         help="Setting this field will turn the line into a link, executing the action when clicked.",
     )
@@ -99,54 +102,54 @@ class AccountReportLine(models.Model):
     )
     domain_formula = fields.Char(
         string="Domain Formula Shortcut",
-        help="Internal field to shorten expression_ids creation for the domain engine",
         inverse="_inverse_domain_formula",
         store=False,
         copy=False,
+        help="Internal field to shorten expression_ids creation for the domain engine",
     )
     account_codes_formula = fields.Char(
         string="Account Codes Formula Shortcut",
-        help="Internal field to shorten expression_ids creation for the account_codes engine",
         inverse="_inverse_account_codes_formula",
         store=False,
         copy=False,
+        help="Internal field to shorten expression_ids creation for the account_codes engine",
     )
     aggregation_formula = fields.Char(
         string="Aggregation Formula Shortcut",
-        help="Internal field to shorten expression_ids creation for the aggregation engine",
         inverse="_inverse_aggregation_formula",
         store=False,
         copy=False,
+        help="Internal field to shorten expression_ids creation for the aggregation engine",
     )
     external_formula = fields.Char(
         string="External Formula Shortcut",
-        help="Internal field to shorten expression_ids creation for the external engine",
         inverse="_inverse_external_formula",
         store=False,
         copy=False,
+        help="Internal field to shorten expression_ids creation for the external engine",
     )
     horizontal_split_side = fields.Selection(
-        string="Horizontal Split Side",
         selection=[("left", "Left"), ("right", "Right")],
         compute="_compute_horizontal_split_side",
-        readonly=False,
-        store=True,
         recursive=True,
+        store=True,
+        readonly=False,
     )
     tax_tags_formula = fields.Char(
         string="Tax Tags Formula Shortcut",
-        help="Internal field to shorten expression_ids creation for the tax_tags engine",
         inverse="_inverse_tax_tags_formula",
         store=False,
         copy=False,
+        help="Internal field to shorten expression_ids creation for the tax_tags engine",
     )
 
-    _code_uniq = models.Constraint(
-        "unique (report_id, code)",
+    _code_uniq = models.UniqueIndex(
+        "(report_id, code) WHERE code IS NOT NULL",
         "A report line with the same code already exists.",
     )
 
     @api.constrains("code")
+    @_debug.perf.timed
     def _check_code(self):
         for report_line in self:
             if report_line.code and REFERENCE_UNSAFE_CHARS_REGEX.search(
@@ -192,6 +195,7 @@ class AccountReportLine(models.Model):
             report_line.user_groupby = report_line.groupby
 
     @api.constrains("parent_id")
+    @_debug.perf.timed
     def _check_groupby_no_child(self):
         for report_line in self:
             if report_line.parent_id.groupby or report_line.parent_id.user_groupby:
@@ -203,10 +207,12 @@ class AccountReportLine(models.Model):
                 )
 
     @api.constrains("groupby", "user_groupby")
+    @_debug.perf.timed
     def _check_groupby(self):
         self.expression_ids._check_engine()
 
     @api.constrains("parent_id", "report_id")
+    @_debug.perf.timed
     def _check_parent_report(self):
         for line in self:
             if line.parent_id and line.parent_id.report_id != line.report_id:
@@ -223,6 +229,7 @@ class AccountReportLine(models.Model):
                 )
 
     @api.constrains("parent_id")
+    @_debug.perf.timed
     def _check_parent_line(self):
         for line in self.filtered(lambda x: x.parent_id == x):
             raise ValidationError(
@@ -233,6 +240,7 @@ class AccountReportLine(models.Model):
                 _("Report lines cannot form a recursive parent hierarchy.")
             )
 
+    @_debug.perf.timed
     def _copy_hierarchy(self, copied_report):
         line_ids = set(self.ids)
         lines_by_parent_id = defaultdict(self.browse)
@@ -255,6 +263,13 @@ class AccountReportLine(models.Model):
 
         for root in lines_by_parent_id[False]:
             allocate_codes(root)
+        _debug.pipeline(
+            "hierarchy_codes_allocated",
+            report=copied_report,
+            lines=self,
+            roots=len(lines_by_parent_id[False]),
+            renamed_codes=len(code_mapping),
+        )
 
         copied_line_by_id = {}
         generation = lines_by_parent_id[False]
@@ -275,6 +290,12 @@ class AccountReportLine(models.Model):
             next_generation = self.browse()
             for line in generation:
                 next_generation |= lines_by_parent_id[line.id]
+            _debug.pipeline(
+                "hierarchy_generation_copied",
+                report=copied_report,
+                copied=len(vals_list),
+                next_generation=len(next_generation),
+            )
             generation = next_generation
 
         source_expressions = self.expression_ids
@@ -290,6 +311,12 @@ class AccountReportLine(models.Model):
                             vals[key] = _replace_codes_in_formula(
                                 vals[key], code_mapping
                             )
+            _debug.pipeline(
+                "hierarchy_expressions_copied",
+                report=copied_report,
+                expressions=source_expressions,
+                copied_lines=len(copied_line_by_id),
+            )
             self.env["account.report.expression"].create(vals_list)
 
         return code_mapping
@@ -309,6 +336,7 @@ class AccountReportLine(models.Model):
     def _inverse_external_formula(self):
         self._create_report_expression(engine="external")
 
+    @_debug.perf.timed
     def _create_report_expression(self, engine):
         vals_list = []
         xml_ids = self.expression_ids.filtered(
@@ -377,9 +405,17 @@ class AccountReportLine(models.Model):
             else:
                 balance_expression.write(vals)
 
+        _debug.pipeline(
+            "report_expressions_synced",
+            engine=engine,
+            lines=self,
+            created=len(vals_list),
+        )
         if vals_list:
             self.env["account.report.expression"].create(vals_list)
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_child_expressions(self):
+        _debug.lifecycle("_unlink_child_expressions", records=self)
         self.expression_ids.unlink()

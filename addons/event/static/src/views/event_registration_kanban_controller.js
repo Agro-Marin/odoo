@@ -26,10 +26,13 @@ export class EventRegistrationKanbanController extends KanbanController {
                 },
             );
 
-            this.dialog.add(EventRegistrationSummaryDialog, {
-                model: this.model,
-                registration: result,
-            });
+            // reload on every way the dialog closes, Escape and click-away
+            // included, not only through the buttons the dialog itself handles
+            this.dialog.add(
+                EventRegistrationSummaryDialog,
+                { registration: result },
+                { onClose: () => this.model.load() },
+            );
         } else {
             return super.openRecord(record);
         }

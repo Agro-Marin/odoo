@@ -18,7 +18,7 @@
         <field name="arch" type="xml">
             <pivot string="Activities Analysis" sample="1">
                 <field name="mail_activity_type_id" type="col" />
-                <field name="date" interval="month" type="row" />
+                <field name="date" type="row" interval="month" />
             </pivot>
         </field>
     </record>
@@ -36,8 +36,8 @@
                 <field
                     name="tag_ids"
                     string="Lead Tags"
-                    optional="show"
                     widget="many2many_tags"
+                    optional="show"
                     options="{'color_field': 'color'}" />
             </list>
         </field>
@@ -56,85 +56,85 @@
                 <field name="tag_ids" string="Lead Tags" />
                 <separator groups="crm.group_use_lead" />
                 <filter
-                    string="Leads"
                     name="lead"
-                    domain="[('lead_type', '=', 'lead')]"
+                    string="Leads"
                     help="Show only lead"
+                    domain="[('lead_type', '=', 'lead')]"
                     groups="crm.group_use_lead" />
                 <filter
-                    string="Opportunities"
                     name="opportunity"
-                    domain="[('lead_type', '=', 'opportunity')]"
+                    string="Opportunities"
                     help="Show only opportunity"
+                    domain="[('lead_type', '=', 'opportunity')]"
                     groups="crm.group_use_lead" />
                 <separator />
                 <filter
-                    string="Won"
                     name="won"
+                    string="Won"
                     domain="[('stage_id.is_won', '=', True)]" />
                 <filter
-                    string="Lost"
                     name="lost"
+                    string="Lost"
                     domain="[('won_status', '=', 'lost')]"
                     context="{'active_test': False}" />
                 <separator />
                 <filter
-                    string="Trailing 12 months"
                     name="completion_date"
+                    string="Trailing 12 months"
                     domain="[                         ('date', '&gt;=', '-1y'),                         ('date', '&lt;', '+1d =0H')]" />
                 <separator />
                 <filter name="filter_date" date="date" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Activity"
                         name="group_by_activity_type"
+                        string="Activity"
                         context="{'group_by': 'mail_activity_type_id'}" />
                     <filter
-                        string="Type"
                         name="group_by_subtype"
+                        string="Type"
                         context="{'group_by': 'subtype_id'}" />
                     <filter
-                        string="Assigned To"
                         name="group_by_author_id"
+                        string="Assigned To"
                         context="{'group_by': 'author_id'}" />
                     <filter
-                        string="Completion Date"
                         name="group_by_completion_date"
+                        string="Completion Date"
                         context="{'group_by': 'date:month'}" />
                     <separator />
                     <filter
-                        string="Salesperson"
                         name="group_by_user_id"
+                        string="Salesperson"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Sales Team"
                         name="saleschannel"
+                        string="Sales Team"
                         context="{'group_by': 'team_id'}" />
                     <filter
-                        string="Stage"
                         name="stage"
+                        string="Stage"
                         context="{'group_by': 'stage_id'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                     <filter
-                        string="Creation Date"
                         name="group_by_lead_date_creation"
+                        string="Creation Date"
                         context="{'group_by': 'lead_create_date'}" />
                     <filter
-                        string="Expected Closing"
                         name="group_by_date_deadline"
+                        string="Expected Closing"
                         context="{'group_by': 'date_deadline'}" />
                     <filter
-                        string="Closed Date"
                         name="group_by_date_closed"
+                        string="Closed Date"
                         context="{'group_by': 'date_closed'}" />
                 </group>
             </search>

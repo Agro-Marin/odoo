@@ -9,12 +9,12 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Lunch"
-                    string="Lunch"
                     name="lunch"
-                    groups="lunch.group_lunch_manager">
+                    string="Lunch"
+                    groups="lunch.group_lunch_manager"
+                    data-string="Lunch">
                     <field name="currency_id" invisible="1" />
-                    <block title="Lunch" name="lunch_overdraft_setting_container">
+                    <block name="lunch_overdraft_setting_container" title="Lunch">
                         <setting
                             id="lunch_minimum_threshold"
                             string="Lunch Overdraft"
@@ -35,10 +35,10 @@
                     </block>
                     <block name="lunch_notification_setting_container">
                         <setting
+                            id="lunch_notification"
                             string="Reception notification"
-                            company_dependent="1"
                             help="Send this message to your users when their order has been delivered."
-                            id="lunch_notification">
+                            company_dependent="1">
                             <field
                                 name="company_lunch_notify_message"
                                 widget="html"

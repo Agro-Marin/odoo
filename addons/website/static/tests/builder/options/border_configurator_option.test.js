@@ -109,22 +109,18 @@ test("Elements with withBSClass = false don't reset their style when width is ch
         },
     );
 
-    // click on separator
     await click(queryOne(":iframe .s_hr"));
     await waitFor(".we-bg-options-container");
 
-    // set color to white
     await click(queryOne("[data-label='Border'] .o_we_color_preview"));
     await waitFor(".o_popover");
     await click(queryOne("[data-color='#FFFFFF']"));
     await waitForNone(".o_popover");
 
-    // set style to dotted
     await click(queryOne("[data-label='Border'] .o-hb-select-toggle"));
     await waitFor("[data-label='Border'] .o-hb-select-toggle.show", { timeout: 500 });
     await click(queryOne(".o_popover [data-action-value='dotted']"));
 
-    // edit width and check that color and style have been kept
     await contains("[data-label='Border'] input").edit("10");
     expect(":iframe .s_hr hr").toHaveStyle({
         "border-top": "10px dotted rgb(255, 255, 255)",

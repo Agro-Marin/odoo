@@ -342,7 +342,7 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertEqual(move.tag_repeat, 5)
 
         field = self.Move._fields["tag_repeat"]
-        core = self.env._core
+        core = self.env.core
         self.assertTrue(core.has_dirty_field(field))
 
     def test_flush_writes_to_db(self):
@@ -524,7 +524,7 @@ class TestCacheInvariant(TransactionCase):
         self.env.flush_all()
 
         record.foo = "modified"
-        core = self.env._core
+        core = self.env.core
         field = self.Mixed._fields["foo"]
         self.assertTrue(core.has_dirty_field(field))
 

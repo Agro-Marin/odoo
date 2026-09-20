@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class MixinStockWarnInsufficientQty(models.AbstractModel):
     _name = "mixin.stock.warn.insufficient.qty"
@@ -7,20 +9,22 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
 
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Location",
         required=True,
         domain="[('usage', '=', 'internal')]",
     )
     quant_ids = fields.Many2many(
-        comodel_name="stock.quant", compute="_compute_quant_ids"
+        comodel_name="stock.quant",
+        compute="_compute_quant_ids",
     )
-    quantity = fields.Float(string="Quantity", required=True)
-    product_uom_name = fields.Char(string="Unit", required=True)
+    quantity = fields.Float(required=True)
+    product_uom_name = fields.Char(
+        string="Unit",
+        required=True,
+    )
 
     def _get_reference_document_company_id(self):
         raise NotImplementedError
@@ -41,6 +45,9 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
                 ("product_id", "in", self.product_id.ids),
                 ("location_id.usage", "=", "internal"),
             ]
+        )
+        dbg.performance.debug(
+            "_compute_quant_ids: %d wizards, %d quants fetched", len(self), len(quants)
         )
         for quantity in self:
             company = company_per_record[quantity.id]

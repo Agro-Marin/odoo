@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <group name="general" position="after">
                 <group
-                    string="SInvoice"
                     name="sinvoice"
+                    string="SInvoice"
                     invisible="'VN' not in fiscal_country_codes">
                     <field name="l10n_vn_edi_symbol" />
                 </group>

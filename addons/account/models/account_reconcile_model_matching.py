@@ -1,10 +1,13 @@
 import logging
 
 from odoo import SUPERUSER_ID, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+
+_debug = DebugLog(__name__)
 
 BANK_FEE_MAX_SHARE = 0.03
 
@@ -29,8 +32,14 @@ MATCH_FIELDS = frozenset(
 class AccountReconcileModel(models.Model):
     _inherit = "account.reconcile.model"
 
-    created_automatically = fields.Boolean(default=False, copy=False)
-    is_bank_fee_model = fields.Boolean(default=False, copy=False)
+    created_automatically = fields.Boolean(
+        default=False,
+        copy=False,
+    )
+    is_bank_fee_model = fields.Boolean(
+        default=False,
+        copy=False,
+    )
 
     @api.model
     def _get_match_text_sql(self, st_line="st_line"):
@@ -164,6 +173,7 @@ class AccountReconcileModel(models.Model):
             f": {', '.join(silent.mapped('name'))}" if silent else "",
         )
 
+    @_debug.perf.timed
     def _apply_lines_for_bank_widget(
         self, residual_amount_currency, residual_balance, partner, st_line
     ):
@@ -196,6 +206,7 @@ class AccountReconcileModel(models.Model):
         return vals_list
 
     @api.model
+    @_debug.perf.timed
     def get_available_reconcile_model_per_statement_line(self, statement_line_ids):
         prof = _OrmProfile(_logger)
         self.check_access("read")
@@ -239,6 +250,11 @@ class AccountReconcileModel(models.Model):
         )
         query_result = self.env.cr.fetchall()
         prof.stop()
+        _debug.pipeline(
+            "manual_models_matched",
+            stline=statement_lines,
+            matched=len(query_result),
+        )
         if prof.debug:
             self._log_match_outcome(
                 "get_available_reconcile_model_per_statement_line",
@@ -258,6 +274,7 @@ class AccountReconcileModel(models.Model):
             for st_line_id, model_ids, model_names in query_result
         }
 
+    @_debug.perf.timed
     def _apply_reconcile_models(self, statement_lines):
         if not self or not statement_lines:
             return
@@ -332,6 +349,7 @@ class AccountReconcileModel(models.Model):
         )
 
         query_result = self.env.cr.fetchall()
+        _debug.perf.count("reco_model_candidates_fetched", rows=len(query_result))
         prof.stop()
         if prof.debug:
             self._log_match_outcome(
@@ -361,6 +379,12 @@ class AccountReconcileModel(models.Model):
                 .with_prefetch(self.ids)
             )
 
+            _debug.logic(
+                "reco_model",
+                automatch=st_line_id,
+                reco_model_id=reco_model_id,
+                trigger=reco_model_trigger,
+            )
             if reco_model_trigger == "manual":
                 st_line._action_manual_reco_model(reco_model_id)
             else:
@@ -369,6 +393,7 @@ class AccountReconcileModel(models.Model):
                 )
             processed_st_line_ids.add(st_line_id)
 
+    @_debug.perf.timed
     def _trigger_reconciliation_model(self, statement_line):
         self.check_singleton()
         liquidity_line, suspense_line, other_lines = statement_line._seek_for_lines()
@@ -380,6 +405,13 @@ class AccountReconcileModel(models.Model):
                 partner=statement_line.partner_id,
                 st_line=statement_line,
             )
+        )
+        _debug.pipeline(
+            "reco_model_lines",
+            automatch=statement_line,
+            reco_model=self,
+            line_count=len(amls_to_create),
+            taxed=any(aml.get("tax_ids") for aml in amls_to_create),
         )
         if any(aml.get("tax_ids") for aml in amls_to_create):
             original_base_lines, original_tax_lines = (
@@ -445,19 +477,34 @@ class AccountReconcileModel(models.Model):
         statement_lines = self._get_unreconciled_statement_lines()
         if not statement_lines:
             return
+        _debug.pipeline(
+            "_refresh_statement_line_proposals_over_line",
+            models=self,
+            statement_lines_count=len(statement_lines),
+        )
         self._clear_statement_line_proposals(statement_lines)
         active_models = self.filtered("active")
         if active_models:
             active_models._apply_reconcile_models(statement_lines)
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         res = super().write(vals)
         if MATCH_FIELDS.intersection(vals):
             self._refresh_statement_line_proposals()
         return res
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         reco_models = super().create(vals_list)
         reco_models.filtered("active")._refresh_statement_line_proposals()
         return reco_models

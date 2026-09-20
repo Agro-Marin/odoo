@@ -1,4 +1,7 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountFinancialYearOp(models.TransientModel):
@@ -33,7 +36,9 @@ class AccountFinancialYearOp(models.TransientModel):
             "account_return_reminder_day",
         }
 
+    @_debug.perf.timed
     def action_save_onboarding_fiscal_year(self):
+        _debug.lifecycle("action_save_onboarding_fiscal_year", records=self)
         result_action = super().action_save_onboarding_fiscal_year()
         if self.env.context.get("open_account_return_on_save"):
             return self.env["account.return"].action_view_tax_return_view(

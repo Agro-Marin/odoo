@@ -24,7 +24,7 @@ def ctx_tz(record, field):
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    l10n_fr_pos_cert_sequence_id = fields.Many2one("ir.sequence")
+    l10n_fr_pos_cert_sequence_id = fields.Many2one(comodel_name="ir.sequence")
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -94,7 +94,7 @@ class ResCompany(models.Model):
             previous_hash = ""
             corrupted_orders = []
             for order in orders:
-                if order.l10n_fr_hash != order._compute_hash(
+                if order.l10n_fr_hash != order._get_hash(
                     previous_hash=previous_hash
                 ):
                     corrupted_orders.append(order.name)

@@ -10,10 +10,6 @@ import {
     setupWebsiteBuilder,
 } from "./website_helpers.js";
 
-// Default palette's `o-color-1`, i.e. `$o-enterprise-color` in
-// web/static/src/scss/primary_variables.scss. Kept in one place so the next
-// brand-colour change is a one-line update instead of four stale literals
-// (this test still asserted the pre-19.0 #714B67).
 const THEME_COLOR_1 = "#A855F7";
 
 defineWebsiteModels();
@@ -30,7 +26,6 @@ test("Should set a shape on an image", async () => {
 
     await contains("[data-label='Shape'] .dropdown").click();
     await contains("[data-action-value='html_builder/geometric/geo_shuriken']").click();
-    // ensure the shape action has been applied
     await editor.shared.operation.next(() => {});
 
     const img = queryFirst(":iframe .test-options-target img");
@@ -60,22 +55,15 @@ test("Should set a shape on an image", async () => {
         "data-file-name",
         "s_text_image.svg",
     );
-    // `geo_shuriken` themes none of its five colour slots, and a shape with no
-    // themed colour deliberately carries no `data-shape-colors` at all: the
-    // plugin deletes an all-empty value (`resetShapeDataset`), refuses to write
-    // one (`addShapeColorAttribute`), and `MISSING_SHAPE_COLOR_SELECTORS` counts
-    // `";;;;"` as missing. Asserting the literal `";;;;"` contradicted all three.
     expect(":iframe .test-options-target img").not.toHaveAttribute("data-shape-colors");
 });
 
 test("Should set a shape on a GIF", async () => {
-    // Define the img tag using the specified GIF path.
     const testGif = `<img
         src="/web/image/456-test/test.gif"
         class="img-fluid o_we_custom_image"
     >`;
 
-    // Set up the website builder with the test GIF.
     const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(`
         <div class="test-options-target">
             ${testGif}
@@ -83,42 +71,32 @@ test("Should set a shape on a GIF", async () => {
         `);
     const editor = getEditor();
 
-    // Click the GIF to activate the image options in the sidebar.
     await contains(":iframe .test-options-target img").click();
     await waitSidebarUpdated();
 
-    // Select and apply a shape.
     await contains("[data-label='Shape'] .dropdown").click();
     await contains("[data-action-value='html_builder/geometric/geo_shuriken']").click();
-    // Wait for the editor to process the change.
     await editor.shared.operation.next(() => {});
 
     const gif = queryFirst(":iframe .test-options-target img");
 
-    // ## Assertions: Verify the shape was applied correctly.
-
-    // 1. The image source should now be an SVG mask, not the original GIF path.
     expect(gif.src.startsWith("data:image/svg+xml;base64,")).toBe(true);
 
-    // 2. The new MIME type for the element is 'image/svg+xml'.
     expect(":iframe .test-options-target img").toHaveAttribute(
         "data-mimetype",
         "image/svg+xml",
     );
 
-    // 3. The system correctly remembers the original source was a GIF.
     expect(":iframe .test-options-target img").toHaveAttribute(
         "data-mimetype-before-conversion",
         "image/gif",
     );
 
-    // 4. The original source path is preserved in 'data-original-src'.
     expect(":iframe .test-options-target img").toHaveAttribute(
         "data-original-src",
         "/website/static/src/img/snippets_options/header_effect_fade_out.gif",
     );
 
-    // 5. The shape data attribute is correctly set.
     expect(":iframe .test-options-target img").toHaveAttribute(
         "data-shape",
         "html_builder/geometric/geo_shuriken",
@@ -279,7 +257,6 @@ describe("flip shape axis", () => {
         );
 
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-h)`).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -310,7 +287,6 @@ describe("flip shape axis", () => {
 
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-h)`).click();
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-h)`).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).not.toHaveAttribute(
@@ -339,7 +315,6 @@ describe("flip shape axis", () => {
         );
 
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-v)`).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -370,7 +345,6 @@ describe("flip shape axis", () => {
 
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-h)`).click();
         await contains(`[data-action-id="flipImageShape"]:has(.oi-arrows-v)`).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -393,7 +367,6 @@ describe("rotate shape", () => {
         await contains(
             "[data-action-value='html_builder/geometric/geo_tetris']",
         ).click();
-        // ensure the shape action has been applied
         await waitSidebarUpdated();
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -404,7 +377,6 @@ describe("rotate shape", () => {
         await contains(
             `[data-action-id="rotateImageShape"]:has(.fa-rotate-left)`,
         ).click();
-        // ensure the shape action has been applied
         await waitSidebarUpdated();
         expect(`:iframe .test-options-target img`).toHaveAttribute(
             "data-shape-rotate",
@@ -438,7 +410,6 @@ describe("rotate shape", () => {
         await contains(
             `[data-action-id="rotateImageShape"]:has(.fa-rotate-right)`,
         ).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).not.toHaveAttribute(
@@ -459,7 +430,6 @@ describe("rotate shape", () => {
         await contains(
             "[data-action-value='html_builder/geometric/geo_tetris']",
         ).click();
-        // ensure the shape action has been applied
         await waitSidebarUpdated();
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -470,7 +440,6 @@ describe("rotate shape", () => {
         await contains(
             `[data-action-id="rotateImageShape"]:has(.fa-rotate-right)`,
         ).click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -505,13 +474,11 @@ test("Should change the speed of an animated shape", async () => {
 
     await contains("[data-label='Shape'] .dropdown").click();
     await contains("[data-action-value='html_builder/pattern/pattern_wave_4']").click();
-    // ensure the shape action has been applied
     await waitSidebarUpdated();
 
     const originalSrc = queryFirst(":iframe .test-options-target img").src;
 
     await setInputRange(`[data-action-id="setImageShapeSpeed"] input`, 2);
-    // ensure the shape action has been applied
     await editor.shared.operation.next(() => {});
 
     expect(`:iframe .test-options-target img`).toHaveAttribute(
@@ -551,7 +518,6 @@ describe("toggle ratio", () => {
         await contains(
             "[data-action-value='html_builder/geometric/geo_shuriken']",
         ).click();
-        // ensure the shape action has been applied
         await waitSidebarUpdated();
         const croppedSrc = queryFirst(":iframe .test-options-target img").src;
 
@@ -578,7 +544,6 @@ test("Should reset crop when removing shape with ratio", async () => {
     await contains("[data-action-value='html_builder/geometric/geo_shuriken']").click();
     await waitSidebarUpdated();
     expect(`:iframe .test-options-target img`).toHaveAttribute("data-aspect-ratio");
-    // Remove the shape.
     await contains("[data-action-id='setImageShape']").click();
     await waitSidebarUpdated();
     expect(`:iframe .test-options-target img`).not.toHaveAttribute("data-aspect-ratio");
@@ -613,7 +578,6 @@ test("Should keep colors when changing speed and vice versa", async () => {
     );
     const editor = getEditor();
 
-    // Select image and apply shape
     await contains(":iframe .test-options-target img").click();
     await waitSidebarUpdated();
 
@@ -633,11 +597,9 @@ test("Should keep colors when changing speed and vice versa", async () => {
             .backgroundColor,
     ];
 
-    // Change speed
     await setInputRange(`[data-action-id="setImageShapeSpeed"] input`, -1);
     await editor.shared.operation.next(() => {});
 
-    // Change first color and verify speed unchanged
     await contains(`[data-label="Colors"] .o_we_color_preview:nth-child(1)`).click();
     await contains(`.o_font_color_selector [data-color="#FF0000"]`).click();
     await waitSidebarUpdated();
@@ -657,7 +619,6 @@ test("Should keep colors when changing speed and vice versa", async () => {
 
     expect(imgSelector).toHaveAttribute("data-shape-animation-speed", "-1");
 
-    // Change speed and verify colors unchanged
     await setInputRange(`[data-action-id="setImageShapeSpeed"] input`, 2);
     await editor.shared.operation.next(() => {});
 

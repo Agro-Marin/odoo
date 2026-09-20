@@ -1,5 +1,6 @@
 {
     "name": "Base - Module Install Request",
+    "version": "1.2",
     "category": "Hidden",
     "description": """
 Allow internal users requesting a module installation
@@ -12,6 +13,7 @@ Allow internal users requesting a module installation
     ],
     "data": [
         "security/ir.model.access.csv",
+        "security/ir_rule.xml",
         "wizards/base_module_install_request_views.xml",
         "data/mail_template_data.xml",
         "data/mail_templates_module_install.xml",

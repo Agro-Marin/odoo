@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- POST REASON VIEWS -->
         <record id="forum_post_reason_view_list" model="ir.ui.view">
             <field name="name">forum.post.reason.list</field>
             <field name="model">forum.post.reason</field>

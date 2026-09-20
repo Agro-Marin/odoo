@@ -5,7 +5,6 @@ import { patchDynamicContent } from "@web/public/utils";
 import { rpc } from "@web/core/network";
 import { Checkout } from "@website_sale/interactions/checkout";
 
-// temporary for OnNoResultReturned bug
 import { registry } from "@web/core/registry";
 import { ThirdPartyScriptError } from "@web/core/errors/error_service";
 const errorHandlerRegistry = registry.category("error_handlers");
@@ -39,24 +38,18 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * If the Mondial Relay delivery method is selected, uncheck the "use delivery as billing"
-     * toggle and show the Mondial Relay modal.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     async selectDeliveryMethod(ev) {
         const checkedRadio = ev.currentTarget;
         await this.waitFor(super.selectDeliveryMethod(...arguments));
         if (checkedRadio.dataset.isMondialrelay) {
             if (this.useDeliveryAsBillingToggle?.checked) {
-                // Uncheck the "use delivery as billing" toggle and show the billing address.
                 this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent("click"));
             }
-            // Fetch delivery method data.
             const result = await this.waitFor(
                 this._setDeliveryMethod(checkedRadio.dataset.dmId),
             );
-            // Show the Mondial Relay modal.
             if (!this.mondialRelayModal) {
                 this._loadMondialRelayModal(result);
             } else {
@@ -70,10 +63,7 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * If a Mondial Relay address is selected, uncheck the "use delivery as billing" toggle and show
-     * the billing address. Mondial Relay addresses can't be used as billing addresses.
-     *
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     async changeAddress(ev) {
         const newAddress = ev.currentTarget;
@@ -81,7 +71,6 @@ patch(Checkout.prototype, {
             newAddress.dataset.isMondialrelay &&
             this.useDeliveryAsBillingToggle?.checked
         ) {
-            // Uncheck the "use delivery as billing" toggle and show the billing address.
             this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent("click"));
         }
         await this.waitFor(super.changeAddress(...arguments));
@@ -89,9 +78,6 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Disable the "use delivery as billing" toggle iff the Mondial Relay delivery method is
-     * selected, or a Mondial Relay address is selected.
-     *
      * @private
      * @return {void}
      */
@@ -112,21 +98,16 @@ patch(Checkout.prototype, {
     },
 
     /**
-     * Render the Mondial Relay modal, using the information from `result`, and insert it in the
-     * DOM.
-     *
      * @private
-     * @param {Object} result data about the selected delivery method.
+     * @param {Object} result
      */
     _loadMondialRelayModal(result) {
-        // add modal to body and bind 'save' button
         this.renderAt("website_sale_mondialrelay", {}, document.querySelector("body"));
         this.mondialRelayModal = document.querySelector("#modal_mondialrelay");
         this.mondialRelayModal
             .querySelector("#btn_confirm_relay")
             .addEventListener("click", this.onClickBtnConfirmRelay.bind(this));
 
-        // load jQuery (required by MR plugin) then mondial relay script
         const loadScript = (url) =>
             new Promise((resolve) => {
                 const s = document.createElement("script");
@@ -144,9 +125,8 @@ patch(Checkout.prototype, {
                 ),
             )
             .then(() => {
-                // instanciate MondialRelay widget
                 const params = {
-                    Target: "", // required but handled by OnParcelShopSelected
+                    Target: "",
                     Brand: result.mondial_relay.brand,
                     ColLivMod: result.mondial_relay.col_liv_mod,
                     AllowedCountries: result.mondial_relay.allowed_countries,
@@ -162,10 +142,6 @@ patch(Checkout.prototype, {
                             .classList.remove("disabled");
                     },
                     OnNoResultReturned: () => {
-                        // HACK while Mondial Relay fix his bug
-                        // disable corsErrorHandler for 10 seconds
-                        // If code postal not valid, it will crash with Cors Error:
-                        // Cannot read property 'on' of undefined at u.MR_FitBounds
                         const randInt = Math.floor(Math.random() * 100);
                         errorHandlerRegistry.add(
                             "corsIgnoredErrorHandler" + randInt,
@@ -189,9 +165,6 @@ patch(Checkout.prototype, {
             });
     },
 
-    /**
-     * Update the shipping address on the order and refresh the UI.
-     */
     async onClickBtnConfirmRelay() {
         if (!this.lastRelaySelected) return;
         await this.waitFor(
@@ -199,6 +172,6 @@ patch(Checkout.prototype, {
                 ...this.lastRelaySelected,
             }),
         );
-        location.reload(); // Update the addresses.
+        location.reload();
     },
 });

@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from psycopg.errors import IntegrityError
 
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
@@ -138,6 +138,28 @@ class TestSafeEvalDict(TransactionCase):
         self.assertEqual(
             action._eval_action_context(action.context),
             {"search_default_x": 1, "default_parent_id": False},
+        )
+
+    def test_an_act_window_context_reads_the_allowed_companies(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-companies",
+                "res_model": "res.partner",
+                "context": "{'default_company_id': allowed_company_ids[0]}",
+            }
+        )
+        self.assertNotIn("allowed_company_ids", action.env.context)
+        with self.assertNoLogs("odoo.addons.base.models.ir_actions_actions", "WARNING"):
+            self.assertEqual(
+                action._eval_action_context(action.context),
+                {"default_company_id": self.env.company.id},
+            )
+        self.assertEqual(
+            action.with_context(allowed_company_ids=[42])._eval_action_context(
+                action.context
+            ),
+            {"default_company_id": 42},
+            "a context the page sent keeps its own list",
         )
 
 
@@ -996,7 +1018,6 @@ class TestIrActionsBindingOrder(TransactionCase):
                 "state": "code",
                 "code": "pass",
                 "binding_model_id": model_id,
-                "sequence": 0,
             }
         )
         window = self.env["ir.actions.act_window"].create(
@@ -1011,7 +1032,7 @@ class TestIrActionsBindingOrder(TransactionCase):
         self.assertLess(server.id, window.id)
         self.assertLess(ids.index(server.id), ids.index(window.id))
 
-    def test_sequence_still_wins_over_id(self):
+    def test_binding_sequence_wins_over_id_across_action_types(self):
         model_id = self.env["ir.model"]._get_id("res.currency")
         Actions = self.env["ir.actions.actions"]
         common = {
@@ -1021,15 +1042,72 @@ class TestIrActionsBindingOrder(TransactionCase):
             "binding_model_id": model_id,
         }
         first = self.env["ir.actions.server"].create(
-            {**common, "name": "audit-seq-late", "sequence": 90}
+            {**common, "name": "audit-seq-late", "binding_sequence": 90}
         )
-        second = self.env["ir.actions.server"].create(
-            {**common, "name": "audit-seq-early", "sequence": 10}
+        second = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-seq-early",
+                "res_model": "res.currency",
+                "binding_model_id": model_id,
+                "binding_sequence": 1,
+            }
         )
         self.env.registry.clear_cache()
         ids = [vals["id"] for vals in Actions._get_bindings("res.currency")["action"]]
         self.assertLess(first.id, second.id)
         self.assertLess(ids.index(second.id), ids.index(first.id))
+
+    def test_server_sequence_does_not_order_bindings(self):
+        model_id = self.env["ir.model"]._get_id("res.currency")
+        Actions = self.env["ir.actions.actions"]
+        common = {
+            "model_id": model_id,
+            "state": "code",
+            "code": "pass",
+            "binding_model_id": model_id,
+        }
+        first = self.env["ir.actions.server"].create(
+            {**common, "name": "audit-server-seq-high", "sequence": 90}
+        )
+        second = self.env["ir.actions.server"].create(
+            {**common, "name": "audit-server-seq-low", "sequence": 1}
+        )
+        self.env.registry.clear_cache()
+        ids = [vals["id"] for vals in Actions._get_bindings("res.currency")["action"]]
+        self.assertLess(ids.index(first.id), ids.index(second.id))
+
+    def test_binding_icon_is_served_with_the_binding(self):
+        model_id = self.env["ir.model"]._get_id("res.currency")
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-icon",
+                "res_model": "res.currency",
+                "binding_model_id": model_id,
+                "binding_icon": "fa-solid fa-envelope",
+            }
+        )
+        self.env.registry.clear_cache()
+        bound = {
+            vals["id"]: vals
+            for vals in self.env["ir.actions.actions"]._get_bindings("res.currency")[
+                "action"
+            ]
+        }
+        self.assertEqual(bound[action.id]["binding_icon"], "fa-solid fa-envelope")
+
+    def test_binding_view_types_are_stored_in_canonical_order(self):
+        model_id = self.env["ir.model"]._get_id("res.currency")
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-view-types",
+                "res_model": "res.currency",
+                "binding_model_id": model_id,
+                "binding_view_types": "form,list,kanban",
+            }
+        )
+        self.assertEqual(action.binding_view_types, "list,kanban,form")
+        action.write({"binding_view_types": "form, list,form"})
+        self.assertEqual(action.binding_view_types, "list,form")
 
 
 @tagged("post_install", "-at_install")
@@ -1134,7 +1212,7 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
         self.env.flush_all()
         self.env.registry.clear_cache()
 
-        self.assertFalse(action._is_cached_registry_wide())
+        self.assertFalse(action._get_cache_groups_holding())
         self.assertTrue(self._menu_visible(menu))
 
         action.write({"res_model": "ir.config_parameter"})
@@ -1151,7 +1229,7 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
                 with self.subTest(model=model_name):
                     self.assertIn(
                         field_name,
-                        self.env[model_name]._get_fields_invalidating_always(),
+                        self.env[model_name]._get_fields_read_by_menus(),
                     )
         self.assertEqual(
             declared,
@@ -1177,7 +1255,7 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
             self.env["ir.actions.client"]._get_field_target_model(), "res_model"
         )
         self.assertIn(
-            "res_model", self.env["ir.actions.client"]._get_fields_invalidating_always()
+            "res_model", self.env["ir.actions.client"]._get_fields_read_by_menus()
         )
 
     def test_an_uncached_field_still_skips_the_clear(self):
@@ -1242,6 +1320,11 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
             }
         )
         self.env.flush_all()
+        # a database upgraded with such rows keeps them: the constraint that
+        # forbids them is only added once none is left
+        self.env.cr.execute(
+            "ALTER TABLE ir_act_window DROP CONSTRAINT ir_act_window_type_names_model"
+        )
         self.env.cr.execute(
             "UPDATE ir_actions SET type = 'ir.actions.client' WHERE id = %s",
             [action.id],
@@ -1266,14 +1349,14 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
             with self.subTest(model=name):
                 self.assertIn(name, by_table[self.env[name]._table])
 
-    def test_the_root_table_is_the_only_ambiguous_one(self):
+    def test_every_table_of_the_tree_names_exactly_one_model(self):
         Actions = self.env["ir.actions.actions"]
-        ambiguous = {
-            table: names
-            for table, names in Actions._get_model_names_by_table().items()
-            if len(names) > 1
-        }
-        self.assertEqual(list(ambiguous), [Actions._table])
+        by_table = Actions._get_model_names_by_table()
+        self.assertEqual(
+            {table: len(names) for table, names in by_table.items()},
+            dict.fromkeys(by_table, 1),
+        )
+        self.assertEqual(by_table[Actions._table], ("ir.actions.actions",))
 
     def test_an_already_deleted_id_unlinks_like_any_other_model(self):
         action = self.env["ir.actions.act_url"].create(
@@ -1688,7 +1771,7 @@ class TestIrActionsAsConcrete(TransactionCase):
         self.env.flush_all()
         for action in made:
             with self.subTest(model=action._name):
-                concrete = Actions.browse(action.id)._get_action_concrete()
+                concrete = Actions.browse(action.id)._get_concrete()
                 self.assertEqual(concrete._name, action._name)
                 self.assertEqual(concrete.id, action.id)
 
@@ -1697,14 +1780,17 @@ class TestIrActionsAsConcrete(TransactionCase):
             {"name": "audit-conc-lie", "res_model": "res.partner"}
         )
         self.env.flush_all()
+        # a database upgraded with such rows keeps them: the constraint that
+        # forbids them is only added once none is left
+        self.env.cr.execute(
+            "ALTER TABLE ir_act_window DROP CONSTRAINT ir_act_window_type_names_model"
+        )
         self.env.cr.execute(
             "UPDATE ir_actions SET type = 'ir.actions.client' WHERE id = %s",
             [action.id],
         )
         self.env.invalidate_all()
-        concrete = (
-            self.env["ir.actions.actions"].browse(action.id)._get_action_concrete()
-        )
+        concrete = self.env["ir.actions.actions"].browse(action.id)._get_concrete()
         self.assertEqual(concrete._name, "ir.actions.act_window")
 
 
@@ -1962,12 +2048,12 @@ class TestIrActionsServerReadableFields(TransactionCase):
 class TestIrActionsBindingQueryMatchesItsInvalidation(TransactionCase):
     def test_every_column_the_query_reads_invalidates_the_cache(self):
         Actions = self.env["ir.actions.actions"]
-        columns = {*Actions._BINDING_SQL_SELECTED, Actions._BINDING_SQL_JOINED}
-        self.assertLessEqual(columns, Actions._get_fields_invalidating_when_cached())
+        columns = {*Actions._BINDING_TYPE_FIELDS, Actions._BINDING_MODEL_FIELD}
+        self.assertLessEqual(columns, Actions._get_fields_read_by_bindings())
 
     def test_those_columns_are_real_stored_fields_of_the_root(self):
         Actions = self.env["ir.actions.actions"]
-        for name in (*Actions._BINDING_SQL_SELECTED, Actions._BINDING_SQL_JOINED):
+        for name in (*Actions._BINDING_TYPE_FIELDS, Actions._BINDING_MODEL_FIELD):
             self.assertTrue(Actions._fields[name].store, name)
 
 
@@ -2209,3 +2295,200 @@ class TestEmbeddedActionsLoadForPortal(TransactionCase):
             ._get_action_dict()
         )
         self.assertEqual([e["name"] for e in result["embedded_action_ids"]], ["E"])
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsTargetModelWriteInvalidatesBindings(TransactionCase):
+    """A binding is shown only to a user who can read the model it opens, and
+    the cache that answers get_bindings holds that model. Measured 2026-09-17:
+    writing a report's ``model`` or a server action's ``model_id`` cleared the
+    menu cache and left the bindings cache answering for the old model.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner_model = cls.env["ir.model"]._get("res.partner")
+        cls.user = cls.env["res.users"].create(
+            {
+                "name": "bindings-target",
+                "login": "bindings_target",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+        Access = cls.env["ir.model.access"].with_user(cls.user)
+        assert Access.check("res.partner", "read", False)
+        assert not Access.check("ir.config_parameter", "read", False)
+
+    def _visible(self, bucket):
+        self.env.flush_all()
+        bindings = (
+            self.env["ir.actions.actions"]
+            .with_user(self.user)
+            .get_bindings("res.partner")
+        )
+        return {action["name"] for action in bindings.get(bucket, ())}
+
+    def test_a_report_moved_to_an_unreadable_model_leaves_the_menu(self):
+        report = self.env["ir.actions.report"].create(
+            {
+                "name": "bindings-target-report",
+                "model": "res.partner",
+                "report_name": "bindings.target",
+                "binding_model_id": self.partner_model.id,
+            }
+        )
+        self.assertIn("bindings-target-report", self._visible("report"))
+        report.write({"model": "ir.config_parameter"})
+        self.assertNotIn("bindings-target-report", self._visible("report"))
+
+    def test_a_server_action_moved_to_an_unreadable_model_leaves_the_menu(self):
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "bindings-target-server",
+                "model_id": self.partner_model.id,
+                "state": "code",
+                "code": "pass",
+                "binding_model_id": self.partner_model.id,
+            }
+        )
+        self.assertIn("bindings-target-server", self._visible("action"))
+        action.write({"model_id": self.env["ir.model"]._get("ir.config_parameter").id})
+        self.assertNotIn("bindings-target-server", self._visible("action"))
+
+    def test_the_bindings_cache_reads_every_target_model_field(self):
+        for model_name in (
+            "ir.actions.report",
+            "ir.actions.server",
+            "ir.actions.act_window",
+        ):
+            with self.subTest(model=model_name):
+                Model = self.env[model_name]
+                self.assertLessEqual(
+                    Model._get_fields_naming_target_model(),
+                    Model._get_fields_read_by_bindings(),
+                )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsWriteThroughTheRoot(TransactionCase):
+    """ir.actions.actions is a PostgreSQL inheritance root: a write through it
+    lands in the subtype's table. Measured 2026-09-17: it bypassed the
+    subtype's write override and left the subtype's cache stale.
+    """
+
+    def test_a_name_given_through_the_root_is_the_subtype_s_custom_name(self):
+        action = self.env["ir.actions.server"].create(
+            {
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "state": "code",
+                "code": "pass",
+            }
+        )
+        self.env.flush_all()
+        self.assertFalse(action.name_is_custom)
+        self.env["ir.actions.actions"].browse(action.id).write({"name": "Mine"})
+        self.env.flush_all()
+        self.assertTrue(action.name_is_custom)
+        action.write({"state": "object_write", "update_path": "name"})
+        self.env.flush_all()
+        self.assertEqual(action.name, "Mine")
+
+    def test_the_subtype_reads_what_the_root_wrote_and_back(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "root-write", "res_model": "res.partner", "binding_sequence": 10}
+        )
+        root = self.env["ir.actions.actions"].browse(window.id)
+        self.assertEqual((window.binding_sequence, root.binding_sequence), (10, 10))
+        root.write({"binding_sequence": 99})
+        self.assertEqual(window.binding_sequence, 99)
+        window.write({"binding_sequence": 7})
+        self.assertEqual(root.binding_sequence, 7)
+
+    def test_the_root_does_not_answer_for_a_row_the_subtype_deleted(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "root-unlink", "res_model": "res.partner"}
+        )
+        root = self.env["ir.actions.actions"].browse(window.id)
+        self.assertEqual(root.name, "root-unlink")
+        window.unlink()
+        with self.assertRaises(MissingError):
+            root.name
+
+    def test_a_root_write_on_an_unsaved_record_is_not_lost(self):
+        Actions = self.env["ir.actions.actions"]
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "root-new", "res_model": "res.partner"}
+        )
+        unsaved = Actions.new({"name": "n", "type": "ir.actions.actions"})
+        unsaved.write({"name": "n2"})
+        self.assertEqual(unsaved.name, "n2")
+        (Actions.browse(window.id) | unsaved).write({"help": "<p>h</p>"})
+        self.assertEqual(str(window.help), "<p>h</p>")
+        self.assertEqual(str(unsaved.help), "<p>h</p>")
+        self.assertTrue(Actions.browse().write({"help": "x"}))
+
+    def test_a_root_write_normalizes_binding_view_types_too(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "root-normalize", "res_model": "res.partner"}
+        )
+        self.env["ir.actions.actions"].browse(window.id).write(
+            {"binding_view_types": "form, kanban"}
+        )
+        self.assertEqual(window.binding_view_types, "kanban,form")
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsExpressionNamesOnEverySubtype(TransactionCase):
+    def test_a_context_expression_evaluates_on_any_subtype_recordset(self):
+        for model_name in self.env["ir.actions.actions"]._get_model_names_in_tree():
+            with self.subTest(model=model_name):
+                self.assertEqual(
+                    self.env[model_name]._eval_action_context("{'a': uid}"),
+                    {"a": self.env.uid},
+                )
+                self.assertEqual(
+                    self.env[model_name]._eval_action_domain("[('id', '=', uid)]"),
+                    [("id", "=", self.env.uid)],
+                )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingIsOneMethod(TransactionCase):
+    def test_every_type_with_a_target_model_binds_to_it(self):
+        partner_model = self.env["ir.model"]._get("res.partner")
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "bind-window", "res_model": "res.partner"}
+        )
+        report = self.env["ir.actions.report"].create(
+            {"name": "bind-report", "model": "res.partner", "report_name": "bind.r"}
+        )
+        server = self.env["ir.actions.server"].create(
+            {"name": "bind-server", "model_id": partner_model.id, "state": "code"}
+        )
+        for action, binding_type in (
+            (window, "action"),
+            (report, "report"),
+            (server, "action"),
+        ):
+            with self.subTest(model=action._name):
+                self.assertFalse(action.binding_model_id)
+                action.create_action()
+                self.assertEqual(action.binding_model_id, partner_model)
+                self.assertEqual(action.binding_type, binding_type)
+                action.unlink_action()
+                self.assertFalse(action.binding_model_id)
+
+    def test_a_type_without_a_target_model_refuses(self):
+        close = self.env["ir.actions.act_window_close"].create({"name": "bind-close"})
+        with self.assertRaises(UserError):
+            close.create_action()
+
+    def test_an_action_without_a_target_model_value_refuses(self):
+        client = self.env["ir.actions.client"].create(
+            {"name": "bind-client", "tag": "x"}
+        )
+        self.assertFalse(client.res_model)
+        with self.assertRaises(UserError):
+            client.create_action()
+        self.assertFalse(client.binding_model_id)

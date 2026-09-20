@@ -1,8 +1,7 @@
 /** @odoo-module native */
+import { Component, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
-
-import { Component, useState } from "@odoo/owl";
 
 export class AccountReportHeader extends Component {
     static template = "account.AccountReportHeader";
@@ -20,7 +19,7 @@ export class AccountReportHeader extends Component {
     // Headers
     // -----------------------------------------------------------------------------------------------------------------
     get columnHeaders() {
-        let columnHeaders = [];
+        const columnHeaders = [];
 
         this.controller.options.column_headers.forEach(
             (columnHeader, columnHeaderIndex) => {
@@ -98,7 +97,7 @@ export class AccountReportHeader extends Component {
     // Custom subheaders
     // -----------------------------------------------------------------------------------------------------------------
     get customSubheaders() {
-        let customSubheaders = [];
+        const customSubheaders = [];
 
         this.controller.columnHeadersRenderData.custom_subheaders.forEach(
             (customSubheader) => {

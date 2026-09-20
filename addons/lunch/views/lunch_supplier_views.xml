@@ -22,11 +22,11 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" string="Vendor" />
-                        <h1><field name="name" required="1" placeholder="e.g. The Pizzeria Inn" /></h1>
+                        <h1><field name="name" placeholder="e.g. The Pizzeria Inn" required="1" /></h1>
                     </div>
                     <group>
                         <group>
@@ -49,10 +49,10 @@
                                     class="o_address_city" />
                                 <field
                                     name="state_id"
-                                    class="o_address_state"
                                     placeholder="State"
+                                    context="{'country_id': country_id, 'zip': zip_code}"
                                     options="{'no_open': True}"
-                                    context="{'country_id': country_id, 'zip': zip_code}" />
+                                    class="o_address_state" />
                                 <field
                                     name="zip_code"
                                     placeholder="ZIP"
@@ -60,8 +60,8 @@
                                 <field
                                     name="country_id"
                                     placeholder="Country"
-                                    class="o_address_country"
-                                    options="{'no_open': True, 'no_create': True}" />
+                                    options="{'no_open': True, 'no_create': True}"
+                                    class="o_address_country" />
                             </div>
                         </group>
                         <group>
@@ -73,13 +73,13 @@
                                 required="send_by == 'phone'" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                             <field
                                 name="responsible_id"
-                                required="send_by == 'mail'"
+                                domain="[('share', '=', False)]"
                                 groups="base.group_no_one"
-                                domain="[('share', '=', False)]" />
+                                required="send_by == 'mail'" />
                         </group>
                     </group>
                     <group>
@@ -165,19 +165,19 @@
                         <main>
                             <field name="display_name" class="fw-bold fs-5" />
                             <field
-                                t-if="record.city.raw_value and !record.country_id.raw_value"
-                                name="city" />
+                                name="city"
+                                t-if="record.city.raw_value and !record.country_id.raw_value" />
                             <field
-                                t-if="!record.city.raw_value and record.country_id.raw_value"
-                                name="country_id" />
+                                name="country_id"
+                                t-if="!record.city.raw_value and record.country_id.raw_value" />
                             <div
                                 t-if="record.city.raw_value and record.country_id.raw_value">
                                 <field name="city" />, <field name="country_id" />
                             </div>
                             <field
-                                t-if="record.email.raw_value"
+                                name="email"
                                 class="text-truncate"
-                                name="email" />
+                                t-if="record.email.raw_value" />
                         </main>
                     </t>
                 </templates>
@@ -193,8 +193,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

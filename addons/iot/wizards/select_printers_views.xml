@@ -5,20 +5,20 @@
         <field name="name">select.printers.wizard.form</field>
         <field name="model">select.printers.wizard</field>
         <field name="arch" type="xml">
-            <form js_class="select_printers_wizard" string="Sales Details">
+            <form string="Sales Details" js_class="select_printers_wizard">
                 <field name="display_device_ids" invisible="1" />
                 <group>
                     <field
                         name="device_ids"
+                        string="Printers"
                         widget="many2many_tags"
-                        domain="[('id', 'in', display_device_ids)]"
-                        string="Printers" />
+                        domain="[('id', 'in', display_device_ids)]" />
                 </group>
                 <group>
                     <field name="do_not_ask_again" />
                 </group>
                 <footer>
-                    <button string="Print" class="btn-primary" special="cancel" />
+                    <button special="cancel" string="Print" class="btn-primary" />
                 </footer>
             </form>
         </field>

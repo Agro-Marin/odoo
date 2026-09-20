@@ -7,9 +7,11 @@ from dateutil.relativedelta import relativedelta
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockRule(models.Model):
@@ -19,9 +21,11 @@ class StockRule(models.Model):
         ondelete={"manufacture": "cascade"},
     )
 
-    def _get_message_dict(self):
-        message_dict = super()._get_message_dict()
-        source, destination, direct_destination, operation = self._get_message_values()
+    MAX_MANUFACTURE_BATCHES = 1000
+
+    def _get_action_messages(self):
+        message_dict = super()._get_action_messages()
+        source, destination, direct_destination, operation = self._get_message_labels()
         manufacture_message = _(
             "When products are needed in <b>%s</b>, <br/> a manufacturing order is created to fulfill the need.",
             destination,
@@ -72,7 +76,7 @@ class StockRule(models.Model):
                 procurement.product_id
             )
             if bom_kit:
-                order_qty = procurement.product_uom_id._compute_quantity(
+                order_qty = procurement.product_uom_id._get_quantity_in_unit(
                     procurement.product_qty, bom_kit.product_uom_id, round=False
                 )
                 qty_to_produce = order_qty / bom_kit.product_qty
@@ -109,7 +113,7 @@ class StockRule(models.Model):
         return super().run(procurements_without_kit, raise_user_error=raise_user_error)
 
     def _is_route_usable_for(self, product, route):
-        if any(rule.action == "manufacture" for rule in route.rule_ids):
+        if route._has_manufacture_rule():
             return any(
                 bom.type == "normal" for bom in product.bom_ids
             ) and super()._is_route_usable_for(product, route)
@@ -122,8 +126,10 @@ class StockRule(models.Model):
     @api.model
     def _run_manufacture(self, procurements):
         new_productions_values_by_company = defaultdict(lambda: defaultdict(list))
+        _debug.pipeline("run_manufacture", procurements=len(procurements))
         for procurement, rule in procurements:
             if procurement.product_uom_id.compare(procurement.product_qty, 0) <= 0:
+                _debug.logic("procurement_skipped", product=procurement.product_id)
                 continue
             bom = rule._get_matching_bom(
                 procurement.product_id, procurement.company_id, procurement.values
@@ -132,8 +138,11 @@ class StockRule(models.Model):
             mo = self.env["mrp.production"]
             if procurement.origin != "MPS":
                 domain = rule._get_domain_mo_for_procurement(procurement, bom)
-                mo = self.env["mrp.production"].sudo().search(domain, limit=1)
+                mo = self.env["mrp.production"].sudo().search(domain, limit=1)  # noqa: E8507 - one probe per procurement: the domain is the procurement's own product, company and values
             is_batch_size = bom and bom.enable_batch_size
+            _debug.logic(
+                "procurement_routed", bom=bom, mo=mo, batch=bool(is_batch_size)
+            )
             if not mo or is_batch_size:
                 if not bom:
                     waiting_moves = procurement.values.get("move_dest_ids")
@@ -149,33 +158,19 @@ class StockRule(models.Model):
                         else "no demand unsatisfied",
                     )
                     continue
-                procurement_qty = procurement.product_qty
-                batch_size = (
-                    bom.product_uom_id._compute_quantity(
-                        bom.batch_size, procurement.product_uom_id
-                    )
-                    if is_batch_size
-                    else procurement_qty
-                )
                 vals = rule._prepare_mo_vals(procurement, bom)
-                while procurement.product_uom_id.compare(procurement_qty, 0) > 0:
+                for batch_qty in rule._get_manufacture_batches(
+                    procurement, bom, is_batch_size
+                ):
                     new_productions_values_by_company[procurement.company_id.id][
                         "values"
-                    ].append(
-                        {
-                            **vals,
-                            "product_qty": procurement.product_uom_id._compute_quantity(
-                                batch_size, bom.product_uom_id
-                            ),
-                        }
-                    )
+                    ].append({**vals, "product_qty": batch_qty})
                     new_productions_values_by_company[procurement.company_id.id][
                         "procurements"
                     ].append(procurement)
-                    procurement_qty -= batch_size
             else:
                 procurement_product_uom_qty = (
-                    procurement.product_uom_id._compute_quantity(
+                    procurement.product_uom_id._get_quantity_in_unit(
                         procurement.product_qty, procurement.product_id.uom_id
                     )
                 )
@@ -184,12 +179,15 @@ class StockRule(models.Model):
                 ).create(
                     {
                         "mo_id": mo.id,
-                        "product_qty": mo.product_id.uom_id._compute_quantity(
+                        "product_qty": mo.product_id.uom_id._get_quantity_in_unit(
                             (mo.product_uom_qty + procurement_product_uom_qty),
                             mo.product_uom_id,
                         ),
                     }
                 ).change_prod_qty()
+                _debug.lifecycle(
+                    "production_qty_increased", mo=mo, qty=procurement_product_uom_qty
+                )
                 if procurement.values.get("move_dest_ids"):
                     mo.move_finished_ids.filtered(
                         lambda m, procurement=procurement: (
@@ -211,13 +209,90 @@ class StockRule(models.Model):
                 .with_company(company_id)
                 .create(productions_vals_list)
             )
-            for mo in productions:
-                if self._is_mo_auto_confirm_required(mo):
-                    mo.action_confirm()
+            _debug.lifecycle("productions_created", productions=productions)
+            productions.filtered(self._is_mo_auto_confirm_required).action_confirm()
             productions._post_run_manufacture(
                 new_productions_values_by_company[company_id]["procurements"]
             )
         return True
+
+    def _get_manufacture_batches(self, procurement, bom, is_batch_size):
+        """Yield the quantity of each manufacturing order a procurement becomes.
+
+        Every figure is in the BoM's unit, because that is the unit
+        `batch_size` is written in. Converting the batch into the procurement's
+        unit first and counting down there rounds the batch to the procurement
+        unit's precision: a 0.4 kg batch procured in tonnes becomes 0.01 t,
+        which is 10 kg, so the orders come out twenty-five times the size the
+        BoM asked for and the count explodes to match.
+
+        The count is capped the way `mrp.production.split` caps its own, and
+        for the same reason: a batch size small against the demand is a
+        configuration mistake, and answering it with thousands of orders is
+        worse than refusing it.
+        """
+        uom = bom.product_uom_id
+        quantity = procurement.product_uom_id._get_quantity_in_unit(
+            procurement.product_qty, uom, round=False
+        )
+        if not is_batch_size:
+            yield procurement.product_uom_id._get_quantity_in_unit(
+                procurement.product_qty, uom
+            )
+            return
+        batch_size = bom.batch_size
+        if uom.compare(batch_size, 0) <= 0:
+            _debug.logic(
+                "manufacture_refused",
+                reason="batch_size_not_positive",
+                bom=bom.id,
+                batch_size=batch_size,
+            )
+            raise UserError(
+                self.env._(
+                    "The batch size of %(bom)s must be positive to manufacture"
+                    " %(product)s.",
+                    bom=bom.display_name,
+                    product=procurement.product_id.display_name,
+                )
+            )
+        whole, remainder = divmod(quantity, batch_size)
+        batches = max(int(whole) + (0 if uom.is_zero(remainder) else 1), 1)
+        if batches > self.MAX_MANUFACTURE_BATCHES:
+            _debug.logic(
+                "manufacture_refused",
+                reason="too_many_batches",
+                bom=bom.id,
+                batches=batches,
+                maximum=self.MAX_MANUFACTURE_BATCHES,
+            )
+            raise UserError(
+                self.env._(
+                    "Manufacturing %(quantity)s %(unit)s of %(product)s in"
+                    " batches of %(size)s would take %(count)s manufacturing"
+                    " orders, more than the %(maximum)s allowed. Use a larger"
+                    " batch size.",
+                    quantity=quantity,
+                    unit=uom.display_name,
+                    product=procurement.product_id.display_name,
+                    size=batch_size,
+                    count=batches,
+                    maximum=self.MAX_MANUFACTURE_BATCHES,
+                )
+            )
+        _debug.logic(
+            "manufacture_batched",
+            bom=bom.id,
+            quantity=quantity,
+            batch_size=batch_size,
+            batches=batches,
+        )
+        for _batch in range(batches):
+            # `uom.round` is the 'Product Unit' decimal precision rounded
+            # HALF-UP; sizing a record wants the unit's own `rounding`, rounded
+            # UP, which is what `_get_quantity_in_unit` does and what the caller
+            # this replaced did.
+            yield uom._get_quantity_in_unit(batch_size, uom)
 
     def _prepare_stock_move_vals(self, procurement):
         res = super()._prepare_stock_move_vals(procurement)
@@ -231,8 +306,10 @@ class StockRule(models.Model):
 
     def _get_matching_bom(self, product_id, company_id, values):
         if values.get("bom_id", False):
+            _debug.logic("rule_bom", by="values", product=product_id.id)
             return values["bom_id"]
         if values.get("orderpoint_id", False) and values["orderpoint_id"].bom_id:
+            _debug.logic("rule_bom", by="orderpoint", product=product_id.id)
             return values["orderpoint_id"].bom_id
         bom = self.env["mrp.bom"]._get_bom_by_product(
             product_id,
@@ -241,7 +318,11 @@ class StockRule(models.Model):
             company_id=company_id.id,
         )[product_id]
         if bom:
+            _debug.logic(
+                "rule_bom", by="picking_type", product=product_id.id, bom=bom.id
+            )
             return bom
+        _debug.logic("rule_bom", by="any_picking_type", product=product_id.id)
         return self.env["mrp.bom"]._get_bom_by_product(
             product_id, picking_type=False, bom_type="normal", company_id=company_id.id
         )[product_id]
@@ -311,7 +392,7 @@ class StockRule(models.Model):
             "never_product_template_attribute_value_ids": values.get(
                 "never_product_template_attribute_value_ids"
             ),
-            "product_qty": product_uom_id._compute_quantity(
+            "product_qty": product_uom_id._get_quantity_in_unit(
                 procurement.product_qty, bom.product_uom_id
             )
             if bom
@@ -368,6 +449,9 @@ class StockRule(models.Model):
                 company_id=manufacture_rule.company_id.id,
             )[product]
         if not bom:
+            _debug.logic(
+                "lead_days_no_bom", product=product.id, rule=manufacture_rule.id
+            )
             delays["total_delay"] += 365
             delays["no_bom_found_delay"] += 365
             if not bypass_delay_description:
@@ -396,6 +480,14 @@ class StockRule(models.Model):
                         delays[key] += value
                     delay_description += extra_delay_description
         days_to_order = values.get("days_to_order", bom.days_to_prepare_mo)
+        _debug.logic(
+            "lead_days_manufacture",
+            product=product.id,
+            bom=bom.id,
+            manufacture_delay=manufacture_delay,
+            days_to_order=days_to_order,
+            total=delays["total_delay"] + days_to_order,
+        )
         delays["total_delay"] += days_to_order
         if not bypass_delay_description:
             delay_description.append((_("Production Start Date"), days_to_order))
@@ -414,7 +506,10 @@ class StockRule(models.Model):
 class StockRoute(models.Model):
     _inherit = "stock.route"
 
+    def _has_manufacture_rule(self):
+        return self._has_rule_with_action("manufacture")
+
     def _is_valid_resupply_route_for_product(self, product):
-        if any(rule.action == "manufacture" for rule in self.rule_ids):
+        if self._has_manufacture_rule():
             return any(bom.type == "normal" for bom in product.bom_ids)
         return super()._is_valid_resupply_route_for_product(product)

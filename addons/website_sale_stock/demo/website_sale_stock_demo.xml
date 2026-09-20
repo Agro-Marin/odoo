@@ -10,7 +10,7 @@
         model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('website_sale.public_category_boxes')])]" />
+            eval="[Command.set([ref('website_sale.public_category_boxes')])]" />
     </record>
 
     <record id="website_sale.out_of_stock_ribbon" model="product.ribbon">

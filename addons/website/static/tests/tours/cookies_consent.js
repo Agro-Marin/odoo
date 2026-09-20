@@ -1,8 +1,6 @@
 import { registry } from "@web/core/registry";
 
 /**
- * Assert that gtag consent values in `dataLayer` match the expected state.
- *
  * @param {"granted" | "denied"} expectedState
  */
 function assertGtagConsent(expectedState) {

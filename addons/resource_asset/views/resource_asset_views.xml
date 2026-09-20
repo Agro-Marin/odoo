@@ -27,7 +27,7 @@
         <field name="name">resource.asset.kanban</field>
         <field name="model">resource.asset</field>
         <field name="arch" type="xml">
-            <kanban highlight_color="color" sample="1">
+            <kanban sample="1" highlight_color="color">
                 <field name="state" />
                 <templates>
                     <t t-name="menu">
@@ -57,25 +57,36 @@
                         name="action_set_in_service"
                         type="object"
                         string="Put in Service"
-                        class="btn-primary"
-                        invisible="state not in ('draft', 'out_of_service', 'maintenance')" />
+                        invisible="state not in ('draft', 'out_of_service', 'maintenance')"
+                        class="btn-primary" />
+                    <button
+                        name="action_set_maintenance"
+                        type="object"
+                        string="Under Maintenance"
+                        invisible="state != 'in_service'" />
+                    <button
+                        name="action_set_out_of_service"
+                        type="object"
+                        string="Take Out of Service"
+                        invisible="state not in ('in_service', 'maintenance')" />
                     <button
                         name="action_dispose"
                         type="object"
                         string="Dispose"
-                        invisible="state == 'disposed'"
-                        confirm="Dispose of this asset? It is archived and its custody ends today." />
+                        confirm="Dispose of this asset? It is archived and its custody ends today."
+                        invisible="state == 'disposed'" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="draft,in_service" />
+                        statusbar_visible="draft,in_service,maintenance" />
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box" />
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="avatar_128" invisible="1" />
                     <div class="oe_title">
                         <label for="name" />
@@ -88,11 +99,17 @@
                             <field name="active" invisible="1" />
                             <field name="kind_id" />
                             <field name="parent_id" />
+                            <field name="model" />
                             <field name="model_year" />
                             <field name="brand_new" />
                         </group>
                         <group name="where">
-                            <field name="holder_id" />
+                            <field name="operator_id" />
+                            <field name="future_operator_id" />
+                            <field
+                                name="date_future_operator"
+                                invisible="not future_operator_id" />
+                            <field name="manager_id" />
                             <field name="address_id" />
                             <field
                                 name="company_id"
@@ -103,8 +120,9 @@
                             <field name="tz" />
                         </group>
                     </group>
+                    <field name="asset_properties" columns="2" />
                     <notebook>
-                        <page string="Identifiers" name="identifiers">
+                        <page name="identifiers" string="Identifiers">
                             <field name="identifier_ids">
                                 <list editable="bottom">
                                     <field name="type_id" />
@@ -115,10 +133,10 @@
                             <field
                                 name="missing_identifier_type_ids"
                                 widget="many2many_tags"
-                                readonly="1"
-                                invisible="not missing_identifier_type_ids" />
+                                invisible="not missing_identifier_type_ids"
+                                readonly="1" />
                         </page>
-                        <page string="Meters" name="meters">
+                        <page name="meters" string="Meters">
                             <field name="meter_ids">
                                 <list editable="bottom">
                                     <field name="name" />
@@ -130,27 +148,35 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Custody" name="custody">
+                        <page name="custody" string="Custody">
                             <field
                                 name="assignment_ids"
                                 context="{'default_resource_id': resource_id}">
                                 <list editable="bottom">
-                                    <field name="assignee_id" />
-                                    <field name="role" />
+                                    <field name="assignee_partner_id" />
+                                    <field name="custody_role" />
                                     <field name="date_start" />
                                     <field name="date_end" />
                                     <field name="state" />
                                 </list>
                             </field>
                         </page>
-                        <page string="Lifecycle" name="lifecycle">
+                        <page name="lifecycle" string="Lifecycle">
                             <group>
-                                <group>
+                                <group name="purchase">
                                     <field name="date_acquisition" />
+                                    <field name="partner_id" />
+                                    <field name="partner_ref" />
+                                    <field name="currency_id" invisible="1" />
+                                    <field name="value_original" />
+                                    <field name="warranty_date" />
                                     <field name="date_disposal" />
                                 </group>
                                 <group>
-                                    <field name="resource_id" readonly="1" />
+                                    <field
+                                        name="resource_id"
+                                        invisible="not id"
+                                        readonly="1" />
                                     <field
                                         name="child_ids"
                                         widget="many2many_tags"
@@ -172,10 +198,7 @@
         <field name="arch" type="xml">
             <search string="Assets">
                 <field name="name" />
-                <field
-                    name="identifier_ids"
-                    string="Identifier"
-                    filter_domain="[('identifier_ids.normalized_value', 'ilike', self)]" />
+                <field name="identifier_ids" string="Identifier" />
                 <field name="kind_id" />
                 <field name="holder_id" />
                 <filter
@@ -201,6 +224,15 @@
                     domain="[('holder_id', '=', False)]" />
                 <separator />
                 <filter
+                    name="top_level"
+                    string="Whole Assets"
+                    domain="[('parent_id', '=', False)]" />
+                <filter
+                    name="components"
+                    string="Components"
+                    domain="[('parent_id', '!=', False)]" />
+                <separator />
+                <filter
                     name="archived"
                     string="Archived"
                     domain="[('active', '=', False)]" />
@@ -213,10 +245,6 @@
                     name="group_state"
                     string="State"
                     context="{'group_by': 'state'}" />
-                <filter
-                    name="group_holder"
-                    string="Holder"
-                    context="{'group_by': 'holder_id'}" />
             </search>
         </field>
     </record>
@@ -226,6 +254,7 @@
         <field name="res_model">resource.asset</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="resource_asset_view_search" />
+        <field name="context">{'search_default_top_level': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Register an asset

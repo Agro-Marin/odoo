@@ -1,52 +1,53 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
     _mail_post_access = "read"
 
-    variant_ribbon_id = fields.Many2one(
-        string="Variant Ribbon", comodel_name="product.ribbon"
+    variant_ribbon_id = fields.Many2one(comodel_name="product.ribbon")
+    website_id = fields.Many2one(
+        related="product_tmpl_id.website_id",
+        readonly=False,
     )
-    website_id = fields.Many2one(related="product_tmpl_id.website_id", readonly=False)
 
     product_variant_image_ids = fields.One2many(
-        string="Extra Variant Images",
         comodel_name="product.image",
         inverse_name="product_variant_id",
+        string="Extra Variant Images",
     )
 
     base_unit_count = fields.Float(
-        string="Base Unit Count",
+        default=1,
+        required=True,
         help="Display base unit price on your eCommerce pages. Set to 0 to hide it for this"
         " product.",
-        required=True,
-        default=1,
     )
     base_unit_id = fields.Many2one(
+        comodel_name="website.base.unit",
         string="Custom Unit of Measure",
         help="Define a custom unit to display in the price per unit of measure field.",
-        comodel_name="website.base.unit",
     )
     base_unit_price = fields.Monetary(
         string="Price Per Unit",
         compute="_compute_base_unit_price",
     )
     base_unit_name = fields.Char(
+        compute="_compute_base_unit_name",
         help="Displays the custom unit for the products if defined or the selected unit of measure"
         " otherwise.",
-        compute="_compute_base_unit_name",
     )
 
     website_url = fields.Char(
         string="Website URL",
-        help="The full URL to access the document through the website.",
         compute="_compute_product_website_url",
+        help="The full URL to access the document through the website.",
     )
-
-    # === COMPUTE METHODS ===#
 
     def _get_base_unit_price(self, price):
         self.check_singleton()
@@ -80,19 +81,16 @@ class ProductProduct(models.Model):
                 url = f"{url}?attribute_values={','.join(pav_ids)}"
             product.website_url = url
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("base_unit_count")
     def _check_base_unit_count(self):
         if any(product.base_unit_count < 0 for product in self):
+            _debug.logic("base_unit_count_refused", products=self)
             raise ValidationError(
                 _(
                     "The value of Base Unit Count must be greater than 0."
                     " Use 0 to hide the price per unit on this product."
                 )
             )
-
-    # === BUSINESS METHODS ===#
 
     def website_publish_button(self):
         self.check_singleton()
@@ -105,24 +103,12 @@ class ProductProduct(models.Model):
         return res
 
     def _get_images(self):
-        """Return a list of records implementing `mixin.image` to
-        display on the carousel on the website for this variant.
-
-        This returns a list and not a recordset because the records might be
-        from different models (template, variant and image).
-
-        It contains in this order: the main image of the variant (which will fall back on the main
-        image of the template, if unset), the Variant Extra Images, and the Template Extra Images.
-        """
         self.check_singleton()
         variant_images = list(self.product_variant_image_ids)
         template_images = list(self.product_tmpl_id.product_template_image_ids)
         return [self] + variant_images + template_images
 
     def _get_combination_info_variant(self, **kwargs):
-        """Return the variant info based on its combination.
-        See `_get_combination_info` for more information.
-        """
         self.check_singleton()
         return self.product_tmpl_id._get_combination_info(
             combination=self.product_template_attribute_value_ids,
@@ -143,10 +129,15 @@ class ProductProduct(models.Model):
         if self.env.user.has_group("base.group_system"):
             return True
         if not self.active or not self.website_published:
+            _debug.logic("add_to_cart_denied", reason="unpublished", product=self.id)
             return False
         if not self.filtered_domain(self.env["website"]._product_domain()):
+            _debug.logic(
+                "add_to_cart_denied", reason="outside_product_domain", product=self.id
+            )
             return False
         if request.website.prevent_zero_price_sale and not self._get_contextual_price():
+            _debug.logic("add_to_cart_denied", reason="zero_price", product=self.id)
             return False
         return request.website.has_ecommerce_access()
 
@@ -158,18 +149,11 @@ class ProductProduct(models.Model):
             self.website_published = False
 
     def _to_markup_data(self, website):
-        """Generate JSON-LD markup data for the current product.
-
-        :param website website: The current website.
-        :return: The JSON-LD markup data.
-        :rtype: dict
-        """
         self.check_singleton()
 
         product_price = request.pricelist._get_product_price(
             self, quantity=1, currency=website.currency_id
         )
-        # Use sudo to access cross-company taxes.
         product_taxes_sudo = self.sudo().taxes_id._filter_taxes_by_company(
             self.env.company
         )
@@ -203,41 +187,26 @@ class ProductProduct(models.Model):
         if website.is_view_active("website_sale.product_comment") and self.rating_count:
             markup_data["aggregateRating"] = {
                 "@type": "AggregateRating",
-                # sudo: product.product - visitor can access product average rating
                 "ratingValue": self.sudo().rating_avg,
                 "reviewCount": self.rating_count,
             }
         return markup_data
 
     def _get_image_1920_url(self):
-        """Returns the local url of the product main image.
-
-        Note: self.check_singleton()
-
-        :rtype: str
-        """
         self.check_singleton()
         return self.env["website"].image_url(self, "image_1920")
 
     def _get_extra_image_1920_urls(self):
-        """Returns the local url of the product additional images, no videos. This includes the
-        variant specific images first and then the template images.
-
-        Note: self.check_singleton()
-
-        :rtype: list[str]
-        """
         self.check_singleton()
         return [
             self.env["website"].image_url(extra_image, "image_1920")
             for extra_image in self.product_variant_image_ids
             + self.product_template_image_ids
-            if extra_image.image_128  # only images, no video urls
+            if extra_image.image_128
         ]
 
     def write(self, vals):
         if "active" in vals and not vals["active"]:
-            # unlink draft lines containing the archived product
             self.env["sale.order.line"].sudo().search(
                 [
                     ("state", "=", "draft"),

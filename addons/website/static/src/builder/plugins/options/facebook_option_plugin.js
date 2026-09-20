@@ -3,8 +3,11 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.facebook_option");
 
 export class FacebookOption extends BaseOptionComponent {
     static template = "website.FacebookOption";
@@ -42,32 +45,43 @@ class FacebookOptionPlugin extends Plugin {
 
         const nodes = [...selectElements(root, ".o_facebook_page:not([data-href])")];
         if (nodes.length) {
+            log.pipeline("FacebookOptionPlugin normalize: pages without link", () => ({
+                nodes: nodes.length,
+            }));
             this.loadAndSetEmptyLink(nodes);
         }
     }
 
     async loadAndSetEmptyLink(nodes) {
-        // TODO: look in shared cache with social info: was SocialMediaOption.getDbSocialValuesCache()
         if (this.facebookUrl) {
+            log.logic(
+                "FacebookOptionPlugin loadAndSetEmptyLink: url already known",
+                () => ({
+                    facebookUrl: this.facebookUrl,
+                }),
+            );
             this.setEmptyLink(nodes);
             return;
         }
-        // Fetches the default url for facebook page from website config
+        const endRead = log.perf("FacebookOptionPlugin read social_facebook");
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
             ["social_facebook"],
         );
+        endRead(() => ({ hasSocialFacebook: !!res?.[0]?.social_facebook }));
         if (res) {
             this.facebookUrl =
                 res[0].social_facebook || "https://www.facebook.com/Odoo";
 
-            // WARNING: the call to ignoreDOMMutations is very dangerous,
-            // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
                 this.setEmptyLink(nodes),
             );
 
+            log.logic("FacebookOptionPlugin empty links set", () => ({
+                hasChanged,
+                facebookUrl: this.facebookUrl,
+            }));
             if (hasChanged) {
                 const commonAncestor = getCommonAncestor(nodes, this.editable);
                 this.dispatchTo("content_manually_updated_handlers", commonAncestor);
@@ -94,12 +108,14 @@ export class DataAttributeListAction extends BuilderAction {
         return (editingElement.dataset[mainParam]?.split(",") || []).includes(value);
     }
     apply({ editingElement, params: { mainParam } = {}, value }) {
+        log.pipeline("DataAttributeListAction apply", () => ({ mainParam, value }));
         editingElement.dataset[mainParam] = [
             ...(editingElement.dataset[mainParam]?.split(",") || []),
             value,
         ].join(",");
     }
     clean({ editingElement, params: { mainParam } = {}, value }) {
+        log.pipeline("DataAttributeListAction clean", () => ({ mainParam, value }));
         editingElement.dataset[mainParam] = (
             editingElement.dataset[mainParam]?.split(",") || []
         )
@@ -116,8 +132,10 @@ export class CheckFacebookLinkAction extends BuilderAction {
         editingElement.dataset.id = "";
         const id = this.idFromFacebookLink(value);
         if (id) {
+            log.logic("CheckFacebookLinkAction apply: link parsed", () => ({ id }));
             editingElement.dataset.id = id;
             this.checkFacebookId(id).then((ok) => {
+                log.logic("CheckFacebookLinkAction page check", () => ({ id, ok }));
                 this.closeNotif();
                 if (ok) {
                     this.closeNotif = () => {};
@@ -129,6 +147,7 @@ export class CheckFacebookLinkAction extends BuilderAction {
                 }
             });
         } else {
+            log.logic("CheckFacebookLinkAction apply: invalid link", () => ({ value }));
             this.closeNotif();
             this.closeNotif = this.services.notification.add(
                 _t("You didn't provide a valid Facebook link"),
@@ -137,18 +156,6 @@ export class CheckFacebookLinkAction extends BuilderAction {
         }
     }
     idFromFacebookLink(url) {
-        // Patterns matched by the regex (all relate to existing pages,
-        // in spite of the URLs containing "profile.php" or "people"):
-        // - https://www.facebook.com/<pagewithaname>
-        // - http://www.facebook.com/<page.with.a.name>
-        // - www.facebook.com/<fbid>
-        // - facebook.com/profile.php?id=<fbid>
-        // - www.facebook.com/<name>-<fbid>  - NB: the name doesn't matter
-        // - www.fb.com/people/<name>/<fbid>  - same
-        // - m.facebook.com/p/<name>-<fbid>  - same
-        // The regex is kept as a huge one-liner for performance as it is
-        // compiled once on script load. The only way to split it on several
-        // lines is with the RegExp constructor, which is compiled on runtime.
         const match = url
             .trim()
             .match(
@@ -160,11 +167,13 @@ export class CheckFacebookLinkAction extends BuilderAction {
 
     async checkFacebookId(id) {
         try {
+            const endFetch = log.perf("CheckFacebookLinkAction fetch picture", () => ({
+                id,
+            }));
             const res = await fetch(`https://graph.facebook.com/${id}/picture`);
+            endFetch(() => ({ ok: res.ok }));
             return res.ok;
         } catch {
-            // Network/CORS failure: report as "not found" instead of leaving an
-            // unhandled rejection and never running the notification.
             return false;
         }
     }

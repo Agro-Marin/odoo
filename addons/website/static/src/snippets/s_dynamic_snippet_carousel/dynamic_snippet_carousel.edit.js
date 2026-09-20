@@ -11,8 +11,6 @@ const DynamicSnippetCarouselEdit = (I) =>
                 !isTrackedSnapshot(snapshot) ||
                 !this.el.classList.contains("o_carousel_multi_items")
             ) {
-                // `snapshot || "{}"` used to swallow the untracked sentinel,
-                // converting "always restart" into a stable value. Forward it.
                 return snapshot;
             }
             const parsed = JSON.parse(snapshot);

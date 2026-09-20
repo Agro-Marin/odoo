@@ -17,7 +17,7 @@
         <field name="model">mail.ice.server</field>
         <field name="arch" type="xml">
             <list editable="bottom" sample="1">
-                <field colspan="1" name="server_type" />
+                <field name="server_type" colspan="1" />
                 <field name="uri" />
                 <field name="username" />
                 <field name="credential" />
@@ -50,7 +50,7 @@
         <field name="name">mail.ice.server.kanban</field>
         <field name="model">mail.ice.server</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1">
+            <kanban sample="1" class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_global_click">
@@ -96,17 +96,17 @@
                 <field name="username" />
                 <field name="credential" />
                 <filter
-                    string="STUN"
                     name="stun"
+                    string="STUN"
                     domain="[('server_type','=','stun')]" />
                 <filter
-                    string="TURN"
                     name="turn"
+                    string="TURN"
                     domain="[('server_type','=','turn')]" />
                 <group>
                     <filter
-                        string="Server Type"
                         name="group_by_server_type"
+                        string="Server Type"
                         context="{'group_by': 'server_type'}" />
                 </group>
             </search>

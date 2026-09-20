@@ -24,14 +24,14 @@
                 <field name="email" />
                 <field name="status" />
                 <filter
-                    string="Is Banned"
                     name="status_ban"
+                    string="Is Banned"
                     help="Banned Emails"
                     domain="[('status', '=', 'ban')]" />
                 <separator />
                 <filter
-                    string="Is Allowed"
                     name="status_allow"
+                    string="Is Allowed"
                     help="Allowed Emails"
                     domain="[('status', '=', 'allow')]" />
                 <filter

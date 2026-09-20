@@ -43,46 +43,46 @@
                         </list>
                     </field>
                     <field name="currency_id" invisible="1" />
-                    <group class="oe_subtotal_footer" colspan="2" name="expense_total">
+                    <group name="expense_total" colspan="2" class="oe_subtotal_footer">
                         <label for="total_amount_currency" invisible="split_possible" />
                         <field
                             name="total_amount_currency"
                             nolabel="1"
-                            class="text-danger"
-                            invisible="split_possible" />
+                            invisible="split_possible"
+                            class="text-danger" />
                         <field
                             name="total_amount_currency"
                             invisible="not split_possible" />
                         <field
                             name="total_amount_currency_original"
-                            widget="monetary"
-                            string="Original Amount" />
+                            string="Original Amount"
+                            widget="monetary" />
                         <field
                             name="tax_amount_currency"
-                            widget="monetary"
-                            string="Taxes" />
+                            string="Taxes"
+                            widget="monetary" />
                     </group>
                     <field name="split_possible" invisible="1" />
                     <footer>
                         <button
                             name="action_split_expense"
-                            invisible="split_possible"
-                            string="Split Expense"
                             type="object"
+                            string="Split Expense"
+                            invisible="split_possible"
                             class="oe_highlight"
-                            disabled="disabled"
-                            data-hotkey="q" />
+                            data-hotkey="q"
+                            disabled="disabled" />
                         <button
                             name="action_split_expense"
+                            type="object"
                             string="Split Expense"
                             invisible="not split_possible"
-                            type="object"
                             class="oe_highlight"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

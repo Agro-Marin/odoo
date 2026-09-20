@@ -1,7 +1,10 @@
 from collections import defaultdict
 
-from odoo import SUPERUSER_ID, Command, _, api, fields, models
+from odoo import Command, _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.convert import convert_file
+
+_debug = DebugLog(__name__)
 
 
 class HrJob(models.Model):
@@ -52,77 +55,73 @@ class HrJob(models.Model):
     )
 
     address_id = fields.Many2one(
-        "res.partner",
-        "Job Location",
+        comodel_name="res.partner",
+        string="Job Location",
         default=_default_address_id,
         domain=lambda self: self._domain_address_id(),
         tracking=True,
         help="Select the location where the applicant will work. Addresses listed here are defined on the company's contact information.",
     )
     application_ids = fields.One2many(
-        "hr.applicant",
-        "job_id",
-        "Job Applications",
+        comodel_name="hr.applicant",
+        inverse_name="job_id",
+        string="Job Applications",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     application_count = fields.Integer(
-        compute="_compute_application_count",
-        string="Application Count",
+        compute="_compute_application_counts",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     open_application_count = fields.Integer(
         compute="_compute_open_application_count",
-        string="Open Application Count",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
         help="Number of applications that are still ongoing (not hired or refused)",
     )
     all_application_count = fields.Integer(
         compute="_compute_all_application_count",
-        string="All Application Count",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     new_application_count = fields.Integer(
-        compute="_compute_new_application_count",
         string="New Application",
+        compute="_compute_application_counts",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
         help="Number of applications that are new in the flow (typically at first step of the flow)",
     )
     old_application_count = fields.Integer(
-        compute="_compute_old_application_count",
         string="Old Application",
+        compute="_compute_old_application_count",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     applicant_hired = fields.Integer(
-        compute="_compute_applicant_hired",
         string="Applicants Hired",
+        compute="_compute_application_counts",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     manager_id = fields.Many2one(
-        "hr.employee",
+        comodel_name="hr.employee",
         related="department_id.manager_id",
         string="Department Manager",
         readonly=True,
-        store=True,
         groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user",
     )
     document_ids = fields.One2many(
-        "ir.attachment",
-        compute="_compute_documents",
+        comodel_name="ir.attachment",
         string="Documents",
+        compute="_compute_documents",
         readonly=True,
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     documents_count = fields.Count(
-        "document_ids",
+        count_of="document_ids",
         string="Document Count",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     employee_count = fields.Integer(compute="_compute_employee_count")
     alias_id = fields.Many2one(
-        help="Email alias for this job position. New emails will automatically create new applicants for this job position.",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
+        help="Email alias for this job position. New emails will automatically create new applicants for this job position.",
     )
-    color = fields.Integer("Color Index")
+    color = fields.Integer(string="Color Index")
     favorite_user_ids = fields.Many2many(
         relation="job_favorite_user_rel",
         column1="job_id",
@@ -130,27 +129,26 @@ class HrJob(models.Model):
         default=_default_favorite_user_ids,
     )
     interviewer_ids = fields.Many2many(
-        "res.users",
-        domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
+        comodel_name="res.users",
         string="Interviewers",
+        domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
         help="The Interviewers set on the job position can see all Applicants in it. They have access to the information, the attachments, the meeting management and they can refuse him. You don't need to have Recruitment rights to be set as an interviewer.",
     )
     extended_interviewer_ids = fields.Many2many(
-        "res.users",
-        "hr_job_extended_interviewer_res_users",
+        comodel_name="res.users",
+        relation="hr_job_extended_interviewer_res_users",
         compute="_compute_extended_interviewer_ids",
         store=True,
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     industry_id = fields.Many2one(
-        "res.partner.industry",
-        "Industry",
+        comodel_name="res.partner.industry",
         tracking=True,
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     expected_degree = fields.Many2one(
-        "hr.recruitment.degree",
+        comodel_name="hr.recruitment.degree",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
 
@@ -160,26 +158,27 @@ class HrJob(models.Model):
     )
 
     job_properties = fields.Properties(
-        "Properties",
         definition="company_id.job_properties_definition",
+        string="Properties",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
 
     applicant_properties_definition = fields.PropertiesDefinition(
-        "Applicant Properties", groups="hr_recruitment.group_hr_recruitment_interviewer"
+        string="Applicant Properties",
+        groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
     no_of_hired_employee = fields.Integer(
-        compute="_compute_no_of_hired_employee",
         string="Hired",
+        compute="_compute_no_of_hired_employee",
+        store=True,
         copy=False,
         groups="hr_recruitment.group_hr_recruitment_interviewer",
         help="Number of hired employees for this job position during recruitment phase.",
-        store=True,
     )
 
     job_source_ids = fields.One2many(
-        "hr.recruitment.source",
-        "job_id",
+        comodel_name="hr.recruitment.source",
+        inverse_name="job_id",
         groups="hr_recruitment.group_hr_recruitment_interviewer",
     )
 
@@ -199,51 +198,83 @@ class HrJob(models.Model):
 
     @api.depends_context("uid")
     def _compute_activity_count(self):
-        job_by_applicant_id = {
-            applicant.id: applicant.job_id
-            for applicant in self.env["hr.applicant"].search(
-                [("job_id", "in", self.ids), ("stage_id.hired_stage", "!=", True)]
+        """This user's activities on the still-running applications of these jobs.
+
+        The applications used to be *loaded* only to build an id -> job map, so a
+        job with ten thousand applications read ten thousand records to count a
+        handful of activities. The set is narrowed in SQL instead, and only the
+        applications that actually carry one of this user's activities are
+        mapped back to their job.
+        """
+        running = self.env["hr.applicant"]._search(
+            [("job_id", "in", self.ids), ("stage_id.hired_stage", "!=", True)]
+        )
+        counts_by_applicant = dict(
+            self.env["mail.activity"]._read_group(
+                [
+                    ("res_model", "=", "hr.applicant"),
+                    ("res_id", "in", running.subselect()),
+                    ("user_id", "=", self.env.uid),
+                ],
+                ["res_id"],
+                ["__count"],
             )
-        }
+        )
         activity_count_by_job = defaultdict(int)
-        for res_id, count in self.env["mail.activity"]._read_group(
-            [
-                ("res_model", "=", "hr.applicant"),
-                ("res_id", "in", list(job_by_applicant_id)),
-                ("user_id", "=", self.env.uid),
-            ],
-            ["res_id"],
-            ["__count"],
-        ):
-            activity_count_by_job[job_by_applicant_id[res_id]] += count
+        if counts_by_applicant:
+            for job, applicants in self.env["hr.applicant"]._read_group(
+                [("id", "in", list(counts_by_applicant))],
+                ["job_id"],
+                ["id:recordset"],
+            ):
+                for applicant in applicants:
+                    activity_count_by_job[job] += counts_by_applicant[applicant.id]
+        _debug.perf.count(
+            "activity_count",
+            jobs=len(self),
+            applicants_with_activities=len(counts_by_applicant),
+        )
         for job in self:
             job.activity_count = activity_count_by_job[job]
 
     @api.depends("application_ids.interviewer_ids")
     def _compute_extended_interviewer_ids(self):
-        results_raw = (
-            self.env["hr.applicant"]
-            .with_user(SUPERUSER_ID)
-            .search_read(
-                [("job_id", "in", self.ids), ("interviewer_ids", "!=", False)],
-                ["interviewer_ids", "job_id"],
-            )
-        )
+        """Every interviewer named on any application of these jobs.
+
+        Aggregated rather than read: ``search_read`` loaded each application and
+        rendered ``job_id``'s display name only to throw both away.
+        """
         interviewers_by_job = defaultdict(set)
-        for result_raw in results_raw:
-            interviewers_by_job[result_raw["job_id"][0]] |= set(
-                result_raw["interviewer_ids"]
+        for job, interviewer in (
+            self.env["hr.applicant"]
+            .sudo()
+            ._read_group(
+                [("job_id", "in", self.ids), ("interviewer_ids", "!=", False)],
+                ["job_id", "interviewer_ids"],
             )
+        ):
+            interviewers_by_job[job.id].add(interviewer.id)
         for job in self:
             job.extended_interviewer_ids = [
                 Command.set(list(interviewers_by_job[job.id]))
             ]
 
     def _compute_documents(self):
-        applicants = self.mapped("application_ids").filtered(
-            lambda self: not self.employee_id
-        )
-        app_to_job = {applicant.id: applicant.job_id.id for applicant in applicants}
+        """Documents on these jobs and on their applications that became nobody.
+
+        The application ids are collected by aggregate rather than by loading
+        `application_ids` for every job, which fetched whole applicant rows to
+        read one column off each.
+        """
+        job_by_applicant_id = {
+            applicant.id: job
+            for job, applicants in self.env["hr.applicant"]._read_group(
+                [("job_id", "in", self.ids), ("employee_id", "=", False)],
+                ["job_id"],
+                ["id:recordset"],
+            )
+            for applicant in applicants
+        }
         attachments = self.env["ir.attachment"].search(
             [
                 "|",
@@ -252,18 +283,19 @@ class HrJob(models.Model):
                 ("res_id", "in", self.ids),
                 "&",
                 ("res_model", "=", "hr.applicant"),
-                ("res_id", "in", applicants.ids),
+                ("res_id", "in", list(job_by_applicant_id)),
             ]
         )
-        result = dict.fromkeys(self.ids, self.env["ir.attachment"])
+        result = dict.fromkeys(self, self.env["ir.attachment"])
         for attachment in attachments:
             if attachment.res_model == "hr.applicant":
-                result[app_to_job[attachment.res_id]] |= attachment
+                job = job_by_applicant_id[attachment.res_id]
             else:
-                result[attachment.res_id] |= attachment
+                job = self.browse(attachment.res_id)
+            result[job] |= attachment
 
         for job in self:
-            job.document_ids = result.get(job.id, False)
+            job.document_ids = result[job]
 
     def _compute_all_application_count(self):
         read_group_result = (
@@ -286,23 +318,31 @@ class HrJob(models.Model):
         for job in self:
             job.all_application_count = result.get(job.id, 0)
 
-    def _count_applications_by_job(self, domain=()):
-        return {
-            job.id: count
-            for job, count in self.env["hr.applicant"]._read_group(
-                [("job_id", "in", self.ids), *domain], ["job_id"], ["__count"]
-            )
-        }
+    def _compute_application_counts(self):
+        """Total, hired and first-stage application counts in one read_group.
 
-    def _compute_application_count(self):
-        counts = self._count_applications_by_job()
+        The three used to be three ``_read_group`` calls over the same active
+        applications, so a job kanban paid for the same scan three times.
+        """
+        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
+            self
+        )
+        totals = defaultdict(int)
+        hired = defaultdict(int)
+        new_in_flow = defaultdict(int)
+        with _debug.perf("application_counts", cr=self.env.cr, jobs=len(self)):
+            for job, stage, count in self.env["hr.applicant"]._read_group(
+                [("job_id", "in", self.ids)], ["job_id", "stage_id"], ["__count"]
+            ):
+                totals[job] += count
+                if stage.hired_stage:
+                    hired[job] += count
+                if stage == first_stage_by_job.get(job):
+                    new_in_flow[job] += count
         for job in self:
-            job.application_count = counts.get(job.id, 0)
-
-    def _compute_applicant_hired(self):
-        counts = self._count_applications_by_job([("stage_id.hired_stage", "=", True)])
-        for job in self:
-            job.applicant_hired = counts.get(job.id, 0)
+            job.application_count = totals[job]
+            job.applicant_hired = hired[job]
+            job.new_application_count = new_in_flow[job]
 
     @api.depends("application_count", "applicant_hired")
     def _compute_open_application_count(self):
@@ -330,21 +370,6 @@ class HrJob(models.Model):
         self.check_singleton()
         return self.env["hr.recruitment.stage"]._get_first_stage_by_job(self)[self]
 
-    def _compute_new_application_count(self):
-        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
-            self
-        )
-        counts = {
-            (job.id, stage.id): count
-            for job, stage, count in self.env["hr.applicant"]._read_group(
-                [("job_id", "in", self.ids)], ["job_id", "stage_id"], ["__count"]
-            )
-        }
-        for job in self:
-            job.new_application_count = counts.get(
-                (job.id, first_stage_by_job[job].id), 0
-            )
-
     @api.depends("application_count", "new_application_count")
     def _compute_old_application_count(self):
         for job in self:
@@ -356,7 +381,7 @@ class HrJob(models.Model):
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("hr.applicant").id
         if self.id:
-            values["alias_defaults"] = defaults = self._get_alias_defaults()
+            values["alias_defaults"] = defaults = self._prepare_alias_defaults()
             defaults.update(
                 {
                     "job_id": self.id,
@@ -370,9 +395,8 @@ class HrJob(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            vals["favorite_user_ids"] = vals.get("favorite_user_ids", [])
         jobs = super().create(vals_list)
+        _debug.lifecycle("create", jobs=jobs, count=len(vals_list))
         jobs.sudo().interviewer_ids._create_recruitment_interviewers()
         return jobs
 
@@ -381,11 +405,21 @@ class HrJob(models.Model):
             self.interviewer_ids if "interviewer_ids" in vals else self.browse()
         )
         old_recruiters = {job: job.user_id for job in self} if "user_id" in vals else {}
-        if "active" in vals and not vals["active"]:
-            self.application_ids.active = False
+        _debug.lifecycle("write", jobs=self, fields=list(vals))
+        if "active" in vals:
+            if vals["active"]:
+                self._unarchive_cascaded_applications()
+            else:
+                self._archive_applications()
         res = super().write(vals)
         if "interviewer_ids" in vals:
             interviewers_to_clean = old_interviewers - self.interviewer_ids
+            _debug.lifecycle(
+                "job_interviewers_changed",
+                jobs=self,
+                removed=interviewers_to_clean,
+                kept=self.interviewer_ids,
+            )
             interviewers_to_clean._remove_recruitment_interviewers()
             self.sudo().interviewer_ids._create_recruitment_interviewers()
 
@@ -404,15 +438,42 @@ class HrJob(models.Model):
                     )
                 )
                 if application_ids:
+                    _debug.pipeline(
+                        "recruiter_changed",
+                        job=job,
+                        was=old_recruiters[job],
+                        now=job.user_id,
+                        applications=application_ids,
+                    )
                     application_ids.message_unsubscribe(to_unsubscribe)
                     application_ids.with_context(
                         mail_auto_subscribe_no_notify=True
                     ).user_id = job.user_id
 
         if "department_id" in vals or "user_id" in vals:
+            _debug.pipeline("alias_defaults_refreshed", jobs=self)
             for job in self:
                 job.alias_defaults = job._alias_get_creation_values()["alias_defaults"]
         return res
+
+    def _archive_applications(self):
+        """Archive the applications still running on these jobs, reversibly.
+
+        Only the active ones: an application refused on its own is already
+        archived and must not be restored by restoring the job.
+        """
+        applications = self.application_ids
+        _debug.lifecycle("cascade_archive", jobs=self, applications=len(applications))
+        if applications:
+            applications.write({"active": False, "archived_with_job": True})
+
+    def _unarchive_cascaded_applications(self):
+        applications = self.with_context(active_test=False).application_ids.filtered(
+            "archived_with_job"
+        )
+        _debug.lifecycle("cascade_unarchive", jobs=self, applications=len(applications))
+        if applications:
+            applications.write({"active": True, "archived_with_job": False})
 
     def _creation_subtype(self):
         return self.env.ref("hr_recruitment.mt_job_new")
@@ -465,6 +526,17 @@ class HrJob(models.Model):
             "search_default_running_applicant_activities": True,
         }
         return action
+
+    @api.model
+    def is_recruitment_scenario_loaded(self):
+        """Whether ``_action_load_recruitment_scenario`` has already run.
+
+        Keyed on the scenario's xml id rather than on a tag label, so a tag a
+        user happens to name "Demo" neither hides nor fakes the scenario.
+        """
+        return bool(
+            self.env.ref("hr_recruitment.tag_applicant_demo", raise_if_not_found=False)
+        )
 
     @api.model
     def _action_load_recruitment_scenario(self):

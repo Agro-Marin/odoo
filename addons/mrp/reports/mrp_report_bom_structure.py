@@ -4,11 +4,14 @@ from datetime import date, datetime, time, timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     float_repr,
     float_round,
     format_date,
 )
+
+_debug = DebugLog(__name__)
 
 
 class ReportMrpReport_Bom_Structure(models.AbstractModel):
@@ -31,7 +34,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         )
 
     @api.model
-    def _compute_current_production_capacity(self, bom_data):
+    def _get_current_production_capacity(self, bom_data):
         components_qty_to_produce = defaultdict(lambda: 0)
         components_qty_available = {}
         for comp in bom_data.get("components", []):
@@ -42,8 +45,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 continue
             components_qty_to_produce[product.id] += comp[
                 "uom"
-            ]._compute_quantity_report(comp["base_bom_line_qty"], product.uom_id)
-            components_qty_available[product.id] = comp["uom"]._compute_quantity_report(
+            ]._get_quantity_report(comp["base_bom_line_qty"], product.uom_id)
+            components_qty_available[product.id] = comp["uom"]._get_quantity_report(
                 comp["free_to_manufacture_qty"], product.uom_id
             )
         producibles = [
@@ -138,9 +141,17 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 else self.env["stock.warehouse"]
             )
 
-        lines = self._get_bom_data(
-            bom, warehouse, product=product, line_qty=bom_quantity, level=0
-        )
+        with _debug.perf(
+            "bom_structure_report",
+            cr=self.env.cr,
+            bom=bom_id,
+            quantity=bom_quantity,
+            warehouse=warehouse.id,
+            variant=bool(searchVariant),
+        ):
+            lines = self._get_bom_data(
+                bom, warehouse, product=product, line_qty=bom_quantity, level=0
+            )
         return {
             "lines": lines,
             "variants": bom_product_variants,
@@ -198,7 +209,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 bom.id,
                 product_info,
                 warehouse,
-                line.product_uom_id._compute_quantity_report(
+                line.product_uom_id._get_quantity_report(
                     line_quantity, line.product_id.uom_id
                 ),
                 bom=False,
@@ -367,7 +378,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         current_quantity = line_qty
         if bom_line:
             current_quantity = (
-                bom_line.product_uom_id._compute_quantity_report(
+                bom_line.product_uom_id._get_quantity_report(
                     line_qty, bom.product_uom_id
                 )
                 or 0
@@ -382,7 +393,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
         key = product.id
         bom_key = bom.id
-        qty_product_uom = bom.product_uom_id._compute_quantity_report(
+        qty_product_uom = bom.product_uom_id._get_quantity_report(
             current_quantity, product.uom_id or bom.product_tmpl_id.uom_id
         )
         self._update_product_info(
@@ -466,7 +477,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             ):
                 component["status"] = status
         bom_report_line["components"] = components
-        bom_report_line["producible_qty"] = self._compute_current_production_capacity(
+        bom_report_line["producible_qty"] = self._get_current_production_capacity(
             bom_report_line
         )
 
@@ -570,6 +581,9 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             bom_report_line["components_available"] = all(
                 c["stock_avail_state"] == "available" for c in components
             )
+        _debug.pipeline(
+            "bom_data_built", bom=bom.id, level=level, components=len(components)
+        )
         return bom_report_line
 
     @api.model
@@ -587,7 +601,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     ):
         company = parent_bom.company_id or self.env.company
         price = (
-            bom_line.product_id.uom_id._compute_price(
+            bom_line.product_id.uom_id._get_price_in_unit(
                 bom_line.product_id.with_company(company).standard_price,
                 bom_line.product_uom_id,
             )
@@ -674,16 +688,16 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     ):
         quantities_info = {
             "qty_free": max(
-                product.uom_id._compute_quantity_report(product.qty_free, bom_uom), 0
+                product.uom_id._get_quantity_report(product.qty_free, bom_uom), 0
             )
             if product.is_storable
             else 0,
-            "on_hand_qty": product.uom_id._compute_quantity_report(
+            "on_hand_qty": product.uom_id._get_quantity_report(
                 product.qty_available, bom_uom
             )
             if product.is_storable
             else 0,
-            "forecasted_qty": product.uom_id._compute_quantity_report(
+            "forecasted_qty": product.uom_id._get_quantity_report(
                 product.qty_available_virtual, bom_uom
             )
             if product.is_storable
@@ -785,10 +799,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             bom_report_line["availability_state"] in ["unavailable", "estimated"]
             and bom.operation_ids
         ):
-            qty_requested = bom.product_uom_id._compute_quantity_report(
+            qty_requested = bom.product_uom_id._get_quantity_report(
                 qty, bom.product_tmpl_id.uom_id
             )
-            qty_to_produce = bom.product_tmpl_id.uom_id._compute_quantity_report(
+            qty_to_produce = bom.product_tmpl_id.uom_id._get_quantity_report(
                 max(
                     0,
                     qty_requested - (product.qty_available_virtual if level > 1 else 0),
@@ -1099,12 +1113,23 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             and report_line
             and report_line["phantom_bom"]
         ):
+            _debug.logic(
+                "availability", product=product.id, by="phantom_last_component"
+            )
             return self._get_last_availability(report_line)
 
         base = {
             "resupply_avail_delay": resupply_delay,
             "stock_avail_state": stock_state,
         }
+        _debug.logic(
+            "availability",
+            product=product.id,
+            level=level,
+            by="stock" if level != 0 and stock_state != "unavailable" else "resupply",
+            stock_state=stock_state,
+            resupply_state=resupply_state,
+        )
         if level != 0 and stock_state != "unavailable":
             return {
                 **base,

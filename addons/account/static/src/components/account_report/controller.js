@@ -1,9 +1,12 @@
 /** @odoo-module native */
 
+import { markRaw, markup, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { markup, markRaw, useState } from "@odoo/owl";
+
+const log = makeLogger("account.report");
 
 export class AccountReportController {
     constructor(action) {
@@ -21,6 +24,10 @@ export class AccountReportController {
 
     async load(env) {
         this.env = env;
+        log.lifecycle("load", () => ({
+            action: this.action.id,
+            context: this.action.context,
+        }));
         this.reportOptionsMap = markRaw({});
         this.reportInformationMap = {};
         this.lastOpenedSectionByReport = {};
@@ -88,13 +95,16 @@ export class AccountReportController {
     }
 
     async displayReport(reportId) {
+        const endDisplay = log.perf(`displayReport ${reportId}`);
         const cacheKey = await this.loadReport(reportId);
         const options = await this.reportOptionsMap[cacheKey];
         if (this.serverCallResultCanBeSetAsActive(options, options, cacheKey)) {
             this.cachedFilterOptions = options;
         }
 
-        return this.loadInformationMap(options, cacheKey);
+        const result = await this.loadInformationMap(options, cacheKey);
+        endDisplay({ cacheKey, lines: this.lines?.length });
+        return result;
     }
 
     serverCallResultCanBeSetAsActive(callResult, options, cacheKey) {
@@ -155,15 +165,20 @@ export class AccountReportController {
 
     async reload(optionPath, newOptions) {
         const rootOptionKey = optionPath ? optionPath.split(".")[0] : "";
+        log.pipeline("reload", () => ({
+            optionPath,
+            rootOptionKey,
+            cached: Object.keys(this.reportOptionsMap).length,
+        }));
 
         // Invalidate the cached options and data of every section supporting this filter, so they get
         // reloaded (on access or by the preloading) with the new value and stay consistent.
         for (const [cacheKey, cachedOptionsPromise] of Object.entries(
             this.reportOptionsMap,
         )) {
-            let cachedOptions = await cachedOptionsPromise;
+            const cachedOptions = await cachedOptionsPromise;
 
-            if (rootOptionKey === "" || cachedOptions.hasOwnProperty(rootOptionKey)) {
+            if (rootOptionKey === "" || Object.hasOwn(cachedOptions, rootOptionKey)) {
                 delete this.reportOptionsMap[cacheKey];
                 delete this.reportInformationMap[cacheKey];
             }
@@ -178,7 +193,9 @@ export class AccountReportController {
     }
 
     async preLoadClosedSections() {
-        if (this.destroyed) return;
+        if (this.destroyed) {
+            return;
+        }
 
         let pendingSection = null;
         for (const section of this.options["sections"]) {
@@ -188,7 +205,7 @@ export class AccountReportController {
                 section.id,
             );
             if (
-                section.id != this.options["report_id"] &&
+                section.id !== this.options["report_id"] &&
                 !this.reportInformationMap[cacheKey]
             ) {
                 pendingSection = section;
@@ -208,7 +225,9 @@ export class AccountReportController {
         const reportCacheKey = await this.loadReport(pendingSection.id, true);
         await this.reportInformationMap[reportCacheKey];
 
-        if (this.destroyed) return;
+        if (this.destroyed) {
+            return;
+        }
         setTimeout(() => this.preLoadClosedSections(), 100);
     }
 
@@ -220,6 +239,14 @@ export class AccountReportController {
             options["sections_source_id"],
             reportToDisplayId,
         );
+        log.pipeline("loadReport", () => ({
+            reportId,
+            reportToDisplayId,
+            cacheKey,
+            preloading,
+            cached: Boolean(this.reportInformationMap[cacheKey]),
+            readonly: options.readonly_query,
+        }));
         if (!this.reportInformationMap[cacheKey]) {
             this.asyncDataLoading = true;
             this.reportInformationMap[cacheKey] = this.orm
@@ -251,9 +278,10 @@ export class AccountReportController {
         }
 
         if (!preloading) {
-            if (options["sections"].length)
+            if (options["sections"].length) {
                 this.lastOpenedSectionByReport[options["sections_source_id"]] =
                     options["selected_section_id"];
+            }
         }
 
         return cacheKey;
@@ -284,13 +312,15 @@ export class AccountReportController {
         if (!this.reportOptionsMap[cacheKey]) {
             // The options for this section are not loaded nor loading. Let's load them !
 
-            if (preloading) loadOptions["selected_section_id"] = reportId;
-            else {
+            if (preloading) {
+                loadOptions["selected_section_id"] = reportId;
+            } else {
                 // Reopen the last opened section by default. Regular caching can't do it, as composite
                 // reports' options are never cached (they always reroute).
-                if (this.lastOpenedSectionByReport[reportId])
+                if (this.lastOpenedSectionByReport[reportId]) {
                     loadOptions["selected_section_id"] =
                         this.lastOpenedSectionByReport[reportId];
+                }
             }
 
             this.reportOptionsMap[cacheKey] = this.orm.call(
@@ -303,7 +333,7 @@ export class AccountReportController {
             );
 
             // Wait for the result, and check the report hasn't been rerouted to a section or variant; fix the cache if it has
-            let reportOptions = await this.reportOptionsMap[cacheKey];
+            const reportOptions = await this.reportOptionsMap[cacheKey];
 
             // In case of a reroute, also set the cached options into the reroute target's key
             const loadedOptionsCacheKey = this.getCacheKey(
@@ -429,18 +459,25 @@ export class AccountReportController {
         reloadUI = false,
     ) {
         const optionKeys = optionPath.split(".");
+        log.logic("updateOption", () => ({
+            operationType,
+            optionPath,
+            optionValue,
+            reloadUI,
+        }));
 
-        let currentOptionKey = null;
+        let currentOptionKey;
         let option = this.cachedFilterOptions;
 
         while (optionKeys.length > 1) {
             currentOptionKey = optionKeys.shift();
             option = option[currentOptionKey];
 
-            if (option === undefined)
+            if (option === undefined) {
                 throw new Error(
                     `Invalid option key in _updateOption(): ${currentOptionKey} (${optionPath})`,
                 );
+            }
         }
 
         switch (operationType) {
@@ -478,6 +515,7 @@ export class AccountReportController {
     }
 
     async switchToSection(reportId) {
+        log.logic("switchToSection", () => ({ reportId }));
         this.saveSessionOptions({
             ...this.cachedFilterOptions,
             selected_section_id: reportId,
@@ -725,6 +763,11 @@ export class AccountReportController {
 
     async unfoldLine(lineIndex) {
         const targetLine = this.lines[lineIndex];
+        log.logic("unfoldLine", () => ({
+            lineIndex,
+            id: targetLine?.id,
+            loaded: this.isLoadedLine(lineIndex),
+        }));
         let lastLineIndex = lineIndex + 1;
 
         const isLoadedLine = this.isLoadedLine(lineIndex);
@@ -739,8 +782,9 @@ export class AccountReportController {
         targetLine.unfolded = true;
 
         // Update options
-        if (!this.options.unfolded_lines.includes(targetLine.id))
+        if (!this.options.unfolded_lines.includes(targetLine.id)) {
             this.options.unfolded_lines.push(targetLine.id);
+        }
 
         this.saveSessionOptions(this.options);
     }
@@ -748,7 +792,7 @@ export class AccountReportController {
     foldLine(lineIndex) {
         const targetLine = this.lines[lineIndex];
 
-        let foldedLinesIDs = new Set([targetLine.id]);
+        const foldedLinesIDs = new Set([targetLine.id]);
         let nextLineIndex = lineIndex + 1;
 
         while (this.isNextLineChild(nextLineIndex, targetLine.id)) {
@@ -774,8 +818,9 @@ export class AccountReportController {
     // Ordered lines
     //------------------------------------------------------------------------------------------------------------------
     linesCurrentOrderByColumn(columnIndex) {
-        if (this.areLinesOrderedByColumn(columnIndex))
+        if (this.areLinesOrderedByColumn(columnIndex)) {
             return this.options.order_column.direction;
+        }
 
         return "default";
     }
@@ -924,13 +969,14 @@ export class AccountReportController {
      * @param {Array} linesToAssign The lines to assign visibility to.
      */
     setLineVisibility(linesToAssign) {
-        let needHidingChildren = new Set();
+        const needHidingChildren = new Set();
 
         linesToAssign.forEach((line) => {
             line.visible = !needHidingChildren.has(line.parent_id);
 
-            if (!line.visible || line.unfoldable & !line.unfolded)
+            if (!line.visible || line.unfoldable & !line.unfolded) {
                 needHidingChildren.add(line.id);
+            }
         });
 
         // If the hide 0 lines is activated we will go through the lines to set the visibility.
@@ -981,6 +1027,11 @@ export class AccountReportController {
     // Server calls
     //------------------------------------------------------------------------------------------------------------------
     buttonAction(ev, button) {
+        log.logic("buttonAction", () => ({
+            name: button.name,
+            action: button.action,
+            param: button.action_param,
+        }));
         // Might be overridden to add specific functionality to a button, for instance adding context to a call.
         this.reportAction(
             ev,
@@ -1014,8 +1065,9 @@ export class AccountReportController {
                     sectionData["id"],
                 );
                 const sectionOptions = await this.reportOptionsMap[cacheKey];
-                if (sectionOptions)
+                if (sectionOptions) {
                     allUnfoldedLines.push(...sectionOptions["unfolded_lines"]);
+                }
             }
 
             actionOptions = {

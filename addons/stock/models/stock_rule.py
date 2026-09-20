@@ -9,6 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import float_is_zero
 
+from ..tools import debug_log as dbg
 from .stock_procurement import Procurement, ProcurementException
 
 _logger = logging.getLogger(__name__)
@@ -29,47 +30,43 @@ class StockRule(models.Model):
 
     Procurement = Procurement
     name = fields.Char(
-        string="Name",
-        required=True,
         translate=True,
+        required=True,
         help="This field will fill the packing origin and the name of its moves",
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the rule without removing it.",
     )
-    sequence = fields.Integer(string="Sequence", default=20)
+    sequence = fields.Integer(default=20)
     action = fields.Selection(
         selection=[
             ("pull", "Pull From"),
             ("push", "Push To"),
             ("pull_push", "Pull & Push"),
         ],
-        string="Action",
-        required=True,
         default="pull",
         index=True,
+        required=True,
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         default=lambda self: self.env.company,
-        domain="[('id', '=?', route_company_id)]",
         index=True,
+        domain="[('id', '=?', route_company_id)]",
     )
     location_dest_id = fields.Many2one(
         comodel_name="stock.location",
         string="Destination Location",
+        index=True,
         required=True,
         check_company=True,
-        index=True,
     )
     location_src_id = fields.Many2one(
         comodel_name="stock.location",
         string="Source Location",
-        check_company=True,
         index=True,
+        check_company=True,
     )
     location_dest_from_rule = fields.Boolean(
         string="Destination location origin from rule",
@@ -79,10 +76,9 @@ class StockRule(models.Model):
     )
     route_id = fields.Many2one(
         comodel_name="stock.route",
-        string="Route",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     route_company_id = fields.Many2one(
         related="route_id.company_id",
@@ -95,8 +91,8 @@ class StockRule(models.Model):
             ("mts_else_mto", "Take From Stock, if unavailable, Trigger Another Rule"),
         ],
         string="Supply Method",
-        required=True,
         default="make_to_stock",
+        required=True,
         help="Take From Stock: the products will be taken from the available stock of the source location.\n"
         "Trigger Another Rule: the system will try to find a stock rule to bring the products in the source location. The available stock will be ignored.\n"
         "Take From Stock, if Unavailable, Trigger Another Rule: the products will be taken from the available stock of the source location."
@@ -106,18 +102,15 @@ class StockRule(models.Model):
         related="route_id.sequence",
         string="Route Sequence",
         compute_sudo=True,
-        store=True,
     )
     picking_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Operation Type",
         required=True,
-        check_company=True,
         domain="[('code', 'in', picking_type_code_domain)] if picking_type_code_domain else []",
+        check_company=True,
     )
-    picking_type_code_domain = fields.Json(
-        compute="_compute_picking_type_code_domain",
-    )
+    picking_type_code_domain = fields.Json(compute="_compute_picking_type_code_domain")
     delay = fields.Integer(
         string="Lead Time",
         default=0,
@@ -125,7 +118,6 @@ class StockRule(models.Model):
     )
     partner_address_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Partner Address",
         check_company=True,
         help="Address where goods should be delivered. Optional.",
     )
@@ -141,9 +133,8 @@ class StockRule(models.Model):
     )
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
-        string="Warehouse",
-        check_company=True,
         index=True,
+        check_company=True,
     )
     auto = fields.Selection(
         selection=[
@@ -151,8 +142,8 @@ class StockRule(models.Model):
             ("transparent", "Automatic No Step Added"),
         ],
         string="Automatic Move",
-        required=True,
         default="manual",
+        required=True,
         help="The 'Manual Operation' value will create a stock move after the current one. "
         "With 'Automatic No Step Added', the location is replaced in the original move.",
     )
@@ -177,7 +168,7 @@ class StockRule(models.Model):
                     ),
                 ) from error
 
-    @api.constrains("company_id")
+    @api.constrains("company_id", "route_id")
     def _check_company_consistency(self):
         for rule in self:
             route = rule.route_id
@@ -217,7 +208,7 @@ class StockRule(models.Model):
         if self.picking_type_id.company_id != self.company_id:
             self.picking_type_id = False
 
-    def _get_message_values(self):
+    def _get_message_labels(self):
         source = (self.location_src_id and self.location_src_id.display_name) or _(
             "Source Location"
         )
@@ -234,9 +225,9 @@ class StockRule(models.Model):
         )
         return source, destination, direct_destination, operation
 
-    def _get_message_dict(self):
+    def _get_action_messages(self):
         message_dict = {}
-        source, destination, direct_destination, operation = self._get_message_values()
+        source, destination, direct_destination, operation = self._get_message_labels()
         if self.action in ("push", "pull", "pull_push"):
             suffix = ""
             if (
@@ -286,7 +277,7 @@ class StockRule(models.Model):
     )
     def _compute_rule_message(self):
         for rule in self:
-            message_dict = rule._get_message_dict()
+            message_dict = rule._get_action_messages()
             if rule.action == "pull_push":
                 rule.rule_message = (
                     message_dict["pull"] + "<br/><br/>" + message_dict["push"]
@@ -305,8 +296,16 @@ class StockRule(models.Model):
     def _get_push_new_date(self, move):
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
+    @dbg.timed
     def _run_push(self, moves):
         self.check_singleton()
+        dbg.pipeline.debug(
+            "[rule:%s] _run_push auto=%s on %s -> %s",
+            self.id,
+            self.auto,
+            dbg.rec(moves),
+            self.location_dest_id.id,
+        )
         if self.auto == "transparent":
             return {move.id: self._run_push_in_place(move) for move in moves}
         return self._run_push_copy(moves)
@@ -325,6 +324,12 @@ class StockRule(models.Model):
                 or move.location_dest_id
             )
         if self.location_dest_id != old_dest_location:
+            dbg.pipeline.debug(
+                "[move:%s] pushed in place %s -> %s, applying next push",
+                move.id,
+                old_dest_location.id,
+                self.location_dest_id.id,
+            )
             return move._push_apply()[:1]
         return self.env["stock.move"]
 
@@ -341,6 +346,12 @@ class StockRule(models.Model):
                 vals["move_orig_ids"] = [Command.link(move.id)]
             vals_list.append(vals)
         new_moves = self.env["stock.move"].sudo().create(vals_list)
+        dbg.pipeline.debug(
+            "[rule:%s] push copies %s -> %s",
+            self.id,
+            dbg.rec(moves),
+            dbg.rec(new_moves),
+        )
         self._update_pushed_moves(new_moves)
         return dict(zip(moves.ids, new_moves, strict=True))
 
@@ -353,6 +364,12 @@ class StockRule(models.Model):
         unreserved = new_moves.filtered(
             lambda move: move._is_reservation_bypass_required(),
         )
+        if moves_by_final_location or unreserved:
+            dbg.logic.debug(
+                "_update_pushed_moves: final locations %s, bypass -> mts %s",
+                dict(moves_by_final_location),
+                dbg.rec(unreserved),
+            )
         if unreserved:
             unreserved.procure_method = "make_to_stock"
 
@@ -399,8 +416,10 @@ class StockRule(models.Model):
             "procure_method": "make_to_order",
         }
 
+    @dbg.timed
     @api.model
     def _run_pull(self, procurements):
+        dbg.pipeline.debug("_run_pull: %d procurements", len(procurements))
         moves_values_by_company = defaultdict(list)
 
         source_errors = [
@@ -430,6 +449,16 @@ class StockRule(models.Model):
 
             move_values = rule._prepare_stock_move_vals(procurement)
             move_values["procure_method"] = procure_method
+            dbg.pipeline.debug(
+                "[procurement:%s] rule %s -> move vals product=%s qty=%s %s->%s %s",
+                procurement.origin,
+                rule.id,
+                procurement.product_id.id,
+                procurement.product_qty,
+                move_values.get("location_id"),
+                move_values.get("location_dest_id"),
+                procure_method,
+            )
             moves_values_by_company[procurement.company_id.id].append(move_values)
         self._propagate_transit_partner(procurements)
 
@@ -439,6 +468,11 @@ class StockRule(models.Model):
                 .sudo()
                 .with_company(company_id)
                 .create(moves_values)
+            )
+            dbg.pipeline.debug(
+                "_run_pull: company %s created %s -> _action_confirm",
+                company_id,
+                dbg.rec(moves),
             )
             moves._action_confirm()
         return True
@@ -544,6 +578,11 @@ class StockRule(models.Model):
             )
             moves_by_partner[partner.id] |= dest_moves
         for partner_id, moves in moves_by_partner.items():
+            dbg.logic.debug(
+                "_propagate_transit_partner: %s <- partner %s",
+                dbg.rec(moves),
+                partner_id,
+            )
             moves.partner_id = partner_id
 
     def _get_lead_days(self, product, **values):
@@ -570,6 +609,12 @@ class StockRule(models.Model):
                 delay_description.append(
                     (_("Time Horizon"), _("+ %d day(s)", global_horizon_days))
                 )
+        dbg.logic.debug(
+            "_get_lead_days product=%s rules=%s -> %s",
+            product.id,
+            dbg.rec(self),
+            dict(delays),
+        )
         return delays, delay_description
 
     @api.model
@@ -589,8 +634,20 @@ class StockRule(models.Model):
             precision_rounding=procurement.product_uom_id.rounding,
         )
 
+    @dbg.timed
     @api.model
     def run(self, procurements, raise_user_error=True):
+        dbg.pipeline.debug(
+            "stock.rule.run: %d procurements %s",
+            len(procurements),
+            dbg.lazy(
+                lambda: [
+                    (p.origin, p.product_id.id, p.product_qty, p.location_id.id)
+                    for p in procurements[:8]
+                ]
+            ),
+        )
+
         def prepare_procurement_error(procurement_errors):
             if raise_user_error:
                 _dummy, errors = zip(*procurement_errors, strict=False)
@@ -607,6 +664,12 @@ class StockRule(models.Model):
             if not self._is_nothing_to_procure(procurement)
         ]
         rules = self._get_rules_batch(valid_procurements)
+        dbg.logic.debug(
+            "run: %d of %d procurements need a rule, rules found %s",
+            len(valid_procurements),
+            len(procurements),
+            [rule.id if rule else None for rule in rules],
+        )
         for procurement, rule in zip(valid_procurements, rules, strict=True):
             if not rule:
                 error = _(
@@ -648,9 +711,19 @@ class StockRule(models.Model):
                         )
                     )
                 continue
+            dbg.pipeline.debug(
+                "run -> %s for %d procurements",
+                runners[action],
+                len(action_procurements),
+            )
             try:
                 run_action(action_procurements)
             except ProcurementException as e:
+                dbg.logic.debug(
+                    "run: %s raised %d procurement errors",
+                    runners[action],
+                    len(e.procurement_exceptions),
+                )
                 procurement_errors += e.procurement_exceptions
 
         if procurement_errors:

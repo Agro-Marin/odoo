@@ -1,12 +1,21 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillDestroy,
+    onWillStart,
+    onWillUpdateProps,
+    useState,
+} from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { ModelFieldSelectorPopover } from "./model_field_selector_popover.js";
+
+const log = makeLogger("web.components.model_field_selector");
 
 export class ModelFieldSelector extends Component {
     static template = "web._ModelFieldSelector";
@@ -50,27 +59,25 @@ export class ModelFieldSelector extends Component {
 
     setup() {
         this.fieldService = useService("field");
+        this.pendingSelection = new KeepLast({ rejectSuperseded: true });
         this.popover = usePopover(
             /** @type {any} */ (this.constructor).components.Popover,
             {
                 class: "o_popover_field_selector",
-                onClose: async () => {
-                    if (this.newPath !== null) {
-                        const fieldInfo = await this.fieldService.loadFieldInfo(
-                            this.props.resModel,
-                            this.newPath,
-                        );
-                        this.props.update(this.newPath, fieldInfo);
-                    }
-                },
+                onClose: () => this.commitPath(),
             },
         );
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.state = useState({ isInvalid: false, displayNames: [] });
+        onWillDestroy(() => {
+            this.keepLast.cancel();
+            this.pendingSelection.cancel();
+        });
         onWillStart(() => this.updateState(this.props));
         onWillUpdateProps((nextProps) => {
             const modelPathKeys = ["resModel", "path", "allowEmpty"];
             if (modelPathKeys.some((key) => this.props[key] !== nextProps[key])) {
+                this.pendingSelection.cancel();
                 this.updateState(nextProps);
             }
         });
@@ -80,6 +87,7 @@ export class ModelFieldSelector extends Component {
         if (this.props.readonly) {
             return;
         }
+        this.pendingSelection.cancel();
         this.newPath = null;
         this.popover.open(currentTarget, {
             resModel: this.props.resModel,
@@ -100,6 +108,29 @@ export class ModelFieldSelector extends Component {
         });
     }
 
+    async commitPath() {
+        const path = this.newPath;
+        if (path === null) {
+            return;
+        }
+        this.newPath = null;
+        const { resModel, update } = this.props;
+        log.logic("commit path", () => ({ resModel, path }));
+        let fieldInfo;
+        try {
+            fieldInfo = await this.pendingSelection.add(
+                this.fieldService.loadFieldInfo(resModel, path),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                log.logic("path commit discarded");
+                return;
+            }
+            throw error;
+        }
+        update(path, fieldInfo);
+    }
+
     async updateState(params) {
         const { resModel, path, allowEmpty } = params;
         let state;
@@ -117,6 +148,7 @@ export class ModelFieldSelector extends Component {
     }
 
     clear() {
+        this.pendingSelection.cancel();
         if (this.popover.isOpen) {
             this.newPath = "";
             this.popover.close();

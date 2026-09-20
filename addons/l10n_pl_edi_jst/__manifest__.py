@@ -13,6 +13,5 @@
         "views/res_partner_views.xml",
         "data/fa3_template.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

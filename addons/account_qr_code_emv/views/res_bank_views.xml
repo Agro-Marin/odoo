@@ -9,8 +9,8 @@
             <xpath expr="//page[@name='internal_notes']" position="before">
                 <field name="display_qr_setting" invisible="1" />
                 <page
-                    string="EMV QR Settings"
                     name="emv_qr_settings"
+                    string="EMV QR Settings"
                     invisible="not display_qr_setting">
                     <group>
                         <field name="country_proxy_keys" invisible="1" />

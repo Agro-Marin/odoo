@@ -4,6 +4,9 @@ from typing import Any
 from lxml import etree
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 ADDRESS_FIELDS = ("street", "street2", "zip", "city", "state_id", "country_id")
 
@@ -25,12 +28,26 @@ class MixinFormatAddress(models.AbstractModel):
     def _view_get_address(self, arch: etree._Element) -> etree._Element:
         address_view_id = self.env.company.country_id.address_view_id.sudo()
         address_format = self.env.company.country_id.address_format
+        _debug.pipeline(
+            "address_arch",
+            model=self._name,
+            country=self.env.company.country_id.id,
+            view=address_view_id.id,
+            has_format=bool(address_format),
+            disabled=bool(self.env.context.get("no_address_format")),
+        )
         if (
             address_view_id
             and not self.env.context.get("no_address_format")
             and (not address_view_id.model or address_view_id.model == self._name)
         ):
             address_nodes = arch.xpath("//div[hasclass('o_address_format')]")
+            _debug.logic(
+                "address_view",
+                model=self._name,
+                view=address_view_id.id,
+                nodes=len(address_nodes),
+            )
             if address_nodes:
                 Partner = self.env["res.partner"].with_context(no_address_format=True)
                 sub_arch, _sub_view = Partner._get_view(address_view_id.id, "form")
@@ -40,6 +57,7 @@ class MixinFormatAddress(models.AbstractModel):
                             sub_arch, model=self._name
                         )
                     except ValueError:
+                        _debug.logic("address_view_rejected", model=self._name)
                         return arch
                 for address_node in address_nodes:
                     node_arch = copy.deepcopy(sub_arch)
@@ -56,6 +74,13 @@ class MixinFormatAddress(models.AbstractModel):
                 for line in address_format.split("\n")
                 if "city" in line
             ]
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "address_format_city_line",
+                    model=self._name,
+                    found=bool(city_line),
+                    fields=len(city_line[0]) if city_line else 0,
+                )
             if city_line:
                 field_order = city_line[0]
                 for address_node in arch.xpath("//div[hasclass('o_address_format')]"):
@@ -104,5 +129,6 @@ class MixinFormatAddress(models.AbstractModel):
     ) -> tuple[etree._Element, Any]:
         arch, view = super()._get_view(view_id, view_type, **options)
         if view.type == "form":
-            arch = self._view_get_address(arch)
+            with _debug.perf("address_view_get", model=self._name, view=view.id):
+                arch = self._view_get_address(arch)
         return arch, view

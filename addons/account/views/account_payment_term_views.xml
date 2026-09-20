@@ -41,33 +41,33 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" string="Payment Terms" />
                         <h1>
-                            <field name="name" nolabel="1" placeholder="e.g. 30 days" />
+                            <field name="name" placeholder="e.g. 30 days" />
                         </h1>
                     </div>
                     <group>
                         <field
                             name="company_id"
+                            placeholder="Visible to all"
                             options="{'no_create': True}"
-                            class="w-25"
                             groups="base.group_multi_company"
-                            placeholder="Visible to all" />
+                            class="w-25" />
                         <label for="early_discount" />
                         <div class="o_field_highlight">
                             <field name="early_discount" />
                             <field
                                 name="discount_percentage"
-                                class="text-end o_field_highlight o_input oe_inline"
-                                invisible="not early_discount" />
+                                invisible="not early_discount"
+                                class="text-end o_field_highlight o_input oe_inline" />
                             <span invisible="not early_discount"> % if paid within </span>
                             <field
                                 name="discount_days"
-                                class="text-end o_field_highlight o_input oe_inline"
-                                invisible="not early_discount" />
+                                invisible="not early_discount"
+                                class="text-end o_field_highlight o_input oe_inline" />
                             <span invisible="not early_discount"> days</span>
                             <div invisible="not early_discount">
                                 <span> Reduced tax: <field name="early_pay_discount_computation" class="w-auto" />
@@ -80,8 +80,8 @@
                             <field
                                 name="line_ids"
                                 widget="payment_term_line_ids"
-                                nolabel="1"
-                                colspan="2">
+                                colspan="2"
+                                nolabel="1">
                                 <list
                                     string="Payment Terms"
                                     editable="bottom"
@@ -118,12 +118,12 @@
                                     class="border-bottom o_example_note" />
                                 <field
                                     name="example_preview_discount"
-                                    class="ps-2"
-                                    invisible="not early_discount or not display_on_invoice" />
+                                    invisible="not early_discount or not display_on_invoice"
+                                    class="ps-2" />
                                 <field
                                     name="example_preview"
-                                    class="ps-2"
-                                    invisible="not display_on_invoice" />
+                                    invisible="not display_on_invoice"
+                                    class="ps-2" />
                             </div>
                         </group>
                     </group>
@@ -139,7 +139,7 @@
             <kanban class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
-                        <field class="fw-bolder fs-5" name="name" />
+                        <field name="name" class="fw-bolder fs-5" />
                         <field name="note" />
                     </t>
                 </templates>

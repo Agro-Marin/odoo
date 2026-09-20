@@ -85,7 +85,8 @@
                                     <a
                                         t-if="own_attendee"
                                         t-attf-href="/calendar/view/#{own_attendee.access_token}">
-                                        <t t-out="appointment.appointment_type_id.name" />
+                                        <t
+                                            t-out="appointment.appointment_type_id.name" />
                                         <t
                                             t-if="appointment.appointment_type_id.schedule_based_on == 'users'">
                                             with <t t-out="appointment.user_id.name" />

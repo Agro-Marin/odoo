@@ -8,8 +8,11 @@ import {
     isIOS,
     isIosApp,
 } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.notification_permission");
 /** @returns {Promise<PermissionState>} */
 async function getIosPwaPermission() {
     if (browser.location.protocol !== "https:") {
@@ -56,6 +59,12 @@ export const notificationPermissionService = {
                 });
             }
         } catch {}
+        log.lifecycle("start", () => ({
+            queried: permission?.state,
+            browser: browser.Notification?.permission,
+            ios: isIOS(),
+            standalone: isDisplayStandalone(),
+        }));
         const state = reactive({
             /** @type {"prompt" | "granted" | "denied"} */
             permission:
@@ -69,6 +78,9 @@ export const notificationPermissionService = {
                     state.permission = this._normalizePermission(
                         await browser.Notification.requestPermission(),
                     );
+                    log.logic("requestPermission", () => ({
+                        permission: state.permission,
+                    }));
                     if (state.permission === "denied") {
                         notification.add(
                             _t("Odoo will not send notifications on this device."),
@@ -90,10 +102,12 @@ export const notificationPermissionService = {
             },
         });
         if (permission && "addEventListener" in permission && !isIOS()) {
-            permission.addEventListener(
-                "change",
-                () => (state.permission = permission.state),
-            );
+            permission.addEventListener("change", () => {
+                log.logic("permission change", () => ({
+                    permission: permission.state,
+                }));
+                state.permission = permission.state;
+            });
         }
         return state;
     },

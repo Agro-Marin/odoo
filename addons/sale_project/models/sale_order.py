@@ -3,8 +3,11 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.project.models.project_task import CLOSED_STATES
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
@@ -21,77 +24,81 @@ class SaleOrder(models.Model):
         return res
 
     tasks_ids = fields.Many2many(
-        "project.task",
+        comodel_name="project.task",
+        string="Tasks associated with this sale",
+        export_string_translation=False,
         compute="_compute_tasks",
         search="_search_tasks_ids",
         groups="project.group_project_user",
-        string="Tasks associated with this sale",
-        export_string_translation=False,
     )
     tasks_count = fields.Integer(
         string="Tasks",
+        export_string_translation=False,
         compute="_compute_tasks",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
 
     visible_project = fields.Boolean(
-        "Display project",
+        string="Display project",
+        export_string_translation=False,
         compute="_compute_visible_project",
         readonly=True,
-        export_string_translation=False,
     )
     project_ids = fields.Many2many(
-        "project.project",
-        compute="_compute_project_ids",
+        comodel_name="project.project",
         string="Projects",
+        export_string_translation=False,
+        compute="_compute_project_ids",
         copy=False,
         groups="project.group_project_user,project.group_project_milestone",
-        export_string_translation=False,
     )
     project_count = fields.Integer(
         string="Number of Projects",
+        export_string_translation=False,
         compute="_compute_project_ids",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
     milestone_count = fields.Integer(
-        compute="_compute_milestone_count", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_milestone_count",
     )
     is_product_milestone = fields.Boolean(
-        compute="_compute_is_product_milestone", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_is_product_milestone",
     )
     show_create_project_button = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_show_project_and_task_button",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
     show_project_button = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_show_project_and_task_button",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
     closed_task_count = fields.Integer(
+        export_string_translation=False,
         compute="_compute_tasks",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
     completed_task_percentage = fields.Float(
+        export_string_translation=False,
         compute="_compute_completed_task_percentage",
         groups="project.group_project_user",
-        export_string_translation=False,
     )
     project_id = fields.Many2one(
-        "project.project",
-        domain=[("allow_billable", "=", True), ("is_template", "=", False)],
-        copy=False,
+        comodel_name="project.project",
         index="btree_not_null",
+        copy=False,
+        domain=[("allow_billable", "=", True), ("is_template", "=", False)],
         help="A task will be created for the project upon sales order confirmation. The analytic distribution of this project will also serve as a reference for newly created sales order items.",
     )
     project_account_id = fields.Many2one(
-        "account.analytic.account", related="project_id.account_id"
+        comodel_name="account.analytic.account",
+        related="project_id.account_id",
     )
 
+    @api.depends("line_ids")
     def _compute_milestone_count(self):
         read_group = self.env["project.milestone"]._read_group(
             [("sale_line_id", "in", self.line_ids.ids)],
@@ -104,12 +111,14 @@ class SaleOrder(models.Model):
                 line_data.get(line.id, 0) for line in order.line_ids
             )
 
+    @api.depends("line_ids.product_id.service_policy")
     def _compute_is_product_milestone(self):
         for order in self:
             order.is_product_milestone = order.line_ids.product_id.filtered(
                 lambda p: p.service_policy == "delivered_milestones"
             )
 
+    @api.depends("line_ids", "state", "project_count")
     def _compute_show_project_and_task_button(self):
         is_project_manager = self.env.user.has_group("project.group_project_manager")
         show_button_ids = self.env["sale.order.line"]._read_group(
@@ -203,11 +212,18 @@ class SaleOrder(models.Model):
             projects = projects._filtered_access("read")
             order.project_ids = projects
             order.project_count = len(projects.filtered("active"))
+            _debug.logic("order_projects", order=order, projects=projects)
 
     def _action_confirm(self):
         if self.env.context.get("disable_project_task_generation"):
+            _debug.logic(
+                "service_generation_skipped", orders=self, reason="context_opt_out"
+            )
             return super()._action_confirm()
 
+        _debug.pipeline(
+            "service_generation_on_confirm", orders=self, companies=self.company_id
+        )
         if len(self.company_id) == 1:
             self.line_ids.sudo().with_company(
                 self.company_id
@@ -225,6 +241,11 @@ class SaleOrder(models.Model):
                     if project == sol.project_id and (
                         project_template := sol.product_template_id.project_template_id
                     ):
+                        _debug.lifecycle(
+                            "project_company_from_template",
+                            project=project,
+                            template=project_template,
+                        )
                         project.sudo().company_id = project_template.sudo().company_id
                         break
         return super()._action_confirm()
@@ -243,6 +264,9 @@ class SaleOrder(models.Model):
     def action_create_project(self):
         self.check_singleton()
         if not self.show_create_project_button:
+            _debug.logic(
+                "create_project_refused", order=self, reason="not_confirmed_or_linked"
+            )
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -389,6 +413,11 @@ class SaleOrder(models.Model):
                 self.env["sale.order.line"],
             )
             if project and not project.sale_line_id:
+                _debug.lifecycle(
+                    "project_linked_on_order_create",
+                    project=project,
+                    line=service_sol,
+                )
                 project.sale_line_id = service_sol
                 if not project.reinvoiced_sale_order_id:
                     project.reinvoiced_sale_order_id = (
@@ -397,6 +426,9 @@ class SaleOrder(models.Model):
                         else False
                     )
             if task and not task.sale_line_id:
+                _debug.lifecycle(
+                    "task_linked_on_order_create", task=task, line=service_sol
+                )
                 created_records.with_context(
                     disable_project_task_generation=True
                 ).action_confirm()
@@ -406,11 +438,13 @@ class SaleOrder(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if "state" in vals and vals["state"] == "cancel":
+            _debug.lifecycle("project_lines_unlinked_on_cancel", orders=self)
             self.env["project.project"].sudo().search(
                 [("sale_line_id.order_id", "in", self.ids)]
             ).sale_line_id = False
         return res
 
+    @api.depends("closed_task_count", "tasks_count")
     def _compute_completed_task_percentage(self):
         for so in self:
             so.completed_task_percentage = (
@@ -429,6 +463,7 @@ class SaleOrder(models.Model):
     def get_first_service_line(self):
         line = next((sol for sol in self.line_ids if sol.is_service), False)
         if not line:
+            _debug.logic("no_service_line", orders=self)
             raise UserError(
                 self.env._("The Sales Order must contain at least one service product.")
             )

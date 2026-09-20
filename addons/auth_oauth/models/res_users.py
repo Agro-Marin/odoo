@@ -1,6 +1,5 @@
 import json
 
-import requests
 from werkzeug import datastructures, http
 
 if hasattr(datastructures.WWWAuthenticate, "from_header"):
@@ -17,14 +16,19 @@ from odoo.addons.auth_signup.models.res_users import SignupError
 class ResUsers(models.Model):
     _inherit = "res.users"
 
-    oauth_provider_id = fields.Many2one("auth.oauth.provider", string="OAuth Provider")
-    oauth_uid = fields.Char(
-        string="OAuth User ID", help="Oauth Provider user_id", copy=False
+    oauth_provider_id = fields.Many2one(
+        comodel_name="auth.oauth.provider",
+        string="OAuth Provider",
     )
-    oauth_access_token = fields.Char(
-        string="OAuth Access Token Store",
-        readonly=True,
+    oauth_uid = fields.Char(
+        string="OAuth User ID",
         copy=False,
+        help="Oauth Provider user_id",
+    )
+    oauth_access_token_hash = fields.Char(
+        string="OAuth Access Token Hash",
+        copy=False,
+        readonly=True,
         prefetch=False,
         groups=fields.NO_ACCESS,
     )
@@ -34,8 +38,9 @@ class ResUsers(models.Model):
         groups="base.group_erp_manager",
     )
 
-    _uniq_users_oauth_provider_oauth_uid = models.Constraint(
-        "unique(oauth_provider_id, oauth_uid)",
+    _uniq_users_oauth_provider_oauth_uid = models.UniqueIndex(
+        "(oauth_provider_id, oauth_uid) "
+        "WHERE oauth_provider_id IS NOT NULL AND oauth_uid IS NOT NULL",
         "OAuth UID must be unique per provider",
     )
 
@@ -43,10 +48,10 @@ class ResUsers(models.Model):
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + ["has_oauth_access_token"]
 
-    @api.depends("oauth_access_token")
+    @api.depends("oauth_access_token_hash")
     def _compute_has_oauth_access_token(self):
         for user in self:
-            user.has_oauth_access_token = bool(user.sudo().oauth_access_token)
+            user.has_oauth_access_token = bool(user.sudo().oauth_access_token_hash)
 
     def remove_oauth_access_token(self):
         user = self.env.user
@@ -54,7 +59,7 @@ class ResUsers(models.Model):
             raise AccessError(
                 self.env._("You do not have permissions to remove the access token")
             )
-        self.sudo().oauth_access_token = False
+        self.sudo().oauth_access_token_hash = False
 
     def _auth_oauth_rpc(self, endpoint, access_token):
         if (
@@ -62,14 +67,22 @@ class ResUsers(models.Model):
             .sudo()
             .get_param("auth_oauth.authorization_header")
         ):
-            response = requests.get(
+            response = self.env["ir.egress"].request(
+                "GET",
                 endpoint,
+                purpose="auth_oauth",
+                policy="private",
                 headers={"Authorization": "Bearer %s" % access_token},
                 timeout=10,
             )
         else:
-            response = requests.get(
-                endpoint, params={"access_token": access_token}, timeout=10
+            response = self.env["ir.egress"].request(
+                "GET",
+                endpoint,
+                purpose="auth_oauth",
+                policy="private",
+                params={"access_token": access_token},
+                timeout=10,
             )
 
         if response.ok:  # nb: could be a successful failure
@@ -86,7 +99,7 @@ class ResUsers(models.Model):
         return {"error": "invalid_request"}
 
     @api.model
-    def _auth_oauth_validate(self, provider, access_token):
+    def _get_oauth_identity(self, provider, access_token):
         """return the validation data corresponding to the access token"""
         oauth_provider = self.env["auth.oauth.provider"].browse(provider)
         validation = self._auth_oauth_rpc(
@@ -131,7 +144,9 @@ class ResUsers(models.Model):
             "email": email,
             "oauth_provider_id": provider,
             "oauth_uid": oauth_uid,
-            "oauth_access_token": params["access_token"],
+            "oauth_access_token_hash": self._get_crypt_context().hash(
+                params["access_token"]
+            ),
             "active": True,
         }
 
@@ -154,7 +169,13 @@ class ResUsers(models.Model):
             if not oauth_user:
                 raise AccessDenied
             assert len(oauth_user) == 1
-            oauth_user.write({"oauth_access_token": params["access_token"]})
+            oauth_user.write(
+                {
+                    "oauth_access_token_hash": self._get_crypt_context().hash(
+                        params["access_token"]
+                    )
+                }
+            )
             return oauth_user.login
         except AccessDenied as access_denied_exception:
             if self.env.context.get("no_user_creation"):
@@ -176,7 +197,7 @@ class ResUsers(models.Model):
         # else:
         #   continue with the process
         access_token = params.get("access_token")
-        validation = self._auth_oauth_validate(provider, access_token)
+        validation = self._get_oauth_identity(provider, access_token)
 
         # retrieve and sign in user
         login = self._auth_oauth_signin(provider, validation, params)
@@ -192,20 +213,21 @@ class ResUsers(models.Model):
             if not (credential["type"] == "oauth_token" and credential["token"]):
                 raise
             passwd_allowed = env["interactive"] or not self._is_rpc_api_key_only()
-            if passwd_allowed and self.active:
-                res = self.sudo().search(
-                    [
-                        ("id", "=", self.id),
-                        ("oauth_access_token", "=", credential["token"]),
-                    ]
+            stored = self.sudo().oauth_access_token_hash
+            if (
+                passwd_allowed
+                and self.active
+                and stored
+                and self._get_crypt_context().is_password_valid(
+                    credential["token"], stored
                 )
-                if res:
-                    return {
-                        "uid": self.id,
-                        "auth_method": "oauth",
-                        "mfa": "default",
-                    }
+            ):
+                return {
+                    "uid": self.id,
+                    "auth_method": "oauth",
+                    "mfa": "default",
+                }
             raise
 
     def _get_fields_session_token(self):
-        return super()._get_fields_session_token() | {"oauth_access_token"}
+        return super()._get_fields_session_token() | {"oauth_access_token_hash"}

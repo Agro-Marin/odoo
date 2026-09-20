@@ -10,6 +10,8 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import IO, Self
 
+from google.protobuf.message import DecodeError
+
 import odoo
 from odoo.libs._vendor.embedded_sass_pb2 import (  # type: ignore[attr-defined]
     COMPRESSED,
@@ -20,8 +22,10 @@ from odoo.libs._vendor.embedded_sass_pb2 import (  # type: ignore[attr-defined]
     InboundMessage,
     OutboundMessage,
 )
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _RX_DEPRECATION = re.compile(r"DEPRECATION WARNING \[([a-z-]+)\]")
 _RX_OMITTED = re.compile(r"(\d+) repetitive deprecation warnings omitted")
@@ -114,8 +118,11 @@ def get_sass_path() -> str | None:
     )
     for candidate in candidates:
         if _supports_embedded(candidate):
+            _debug.logic("sass.binary_chosen", path=candidate, probed=len(candidates))
             return candidate
-    return shutil.which("sass", path=str(node_modules / ".bin"))
+    fallback = shutil.which("sass", path=str(node_modules / ".bin"))
+    _debug.logic("sass.binary_fallback", path=fallback, probed=len(candidates))
+    return fallback
 
 
 class SassEmbeddedCompiler:
@@ -129,6 +136,11 @@ class SassEmbeddedCompiler:
     def _start(self) -> None:
         if self._started and self._process is not None and self._process.poll() is None:
             return
+        _debug.logic(
+            "sass.process_restart",
+            started=self._started,
+            exit_code=None if self._process is None else self._process.poll(),
+        )
         self.close()
 
         sass_path = self._sass_path
@@ -158,6 +170,7 @@ class SassEmbeddedCompiler:
                 f"sass --embedded exited immediately with code {returncode}"
             )
         self._started = True
+        _debug.lifecycle("sass.process_started", pid=self._process.pid, path=sass_path)
 
     def _pipes(self) -> tuple[IO[bytes], IO[bytes]]:
         proc = self._process
@@ -217,11 +230,20 @@ class SassEmbeddedCompiler:
                 if pipe is not None:
                     with contextlib.suppress(OSError):
                         pipe.close()
+            killed = False  # debuglog
             try:
                 proc.wait(timeout=5)
             except Exception:
                 proc.kill()
                 proc.wait()
+                killed = True  # debuglog
+            _debug.lifecycle(
+                "sass.process_closed",
+                pid=proc.pid,
+                exit_code=proc.returncode,
+                killed=killed,
+                compilations=self._compilation_id,
+            )
 
     def __enter__(self) -> Self:
         return self
@@ -252,20 +274,41 @@ class SassEmbeddedCompiler:
             watchdog.daemon = True
             watchdog.start()
             try:
-                return self._compile_with_embedded_sass(
-                    compilation_id,
-                    source,
-                    syntax,
-                    style,
-                    source_map,
-                    importers or [],
-                    load_paths or [],
-                    quiet_deps,
-                    url,
+                with _debug.perf(
+                    "sass.compile",
+                    compilation=compilation_id,
+                    url=url,
+                    syntax=syntax,
+                    style=style,
+                    source_bytes=len(source),
+                    importers=len(importers or ()),
+                ):
+                    return self._compile_with_embedded_sass(
+                        compilation_id,
+                        source,
+                        syntax,
+                        style,
+                        source_map,
+                        importers or [],
+                        load_paths or [],
+                        quiet_deps,
+                        url,
+                    )
+            except SassCompileError as exc:
+                _debug.logic(
+                    "sass.compile_failed",
+                    compilation=compilation_id,
+                    url=url,
+                    error=type(exc).__name__,
                 )
-            except SassCompileError:
                 raise
-            except Exception:
+            except Exception as exc:
+                _debug.logic(
+                    "sass.protocol_failed",
+                    compilation=compilation_id,
+                    url=url,
+                    error=type(exc).__name__,
+                )
                 self.close()
                 raise
             finally:
@@ -327,6 +370,13 @@ class SassEmbeddedCompiler:
                     f"{name}={count}" for name, count in deprecations.most_common()
                 ),
             )
+        _debug.perf.count(
+            "sass.compiled",
+            url=url or "<string>",
+            css_bytes=len(resp.success.css),
+            deprecations=sum(deprecations.values()),
+            loaded_urls=len(resp.success.loaded_urls),
+        )
         return resp.success.css
 
     @staticmethod
@@ -351,8 +401,17 @@ class SassEmbeddedCompiler:
                 canonical_url = importer.canonicalize(req.url, req.from_import)
                 if canonical_url is not None:
                     canon_resp.url = canonical_url
+                _debug.logic(
+                    "sass.canonicalize",
+                    url=req.url,
+                    from_import=req.from_import,
+                    resolved=canonical_url,
+                )
             except Exception as e:
                 canon_resp.error = str(e)
+                _debug.logic(
+                    "sass.canonicalize_failed", url=req.url, error=type(e).__name__
+                )
         return response
 
     @staticmethod
@@ -369,8 +428,15 @@ class SassEmbeddedCompiler:
                     success.contents = contents
                     success.syntax = _SYNTAX_ENUM.get(file_syntax, SCSS)
                     success.source_map_url = req.url
+                _debug.logic(
+                    "sass.import",
+                    url=req.url,
+                    found=loaded is not None,
+                    size=None if loaded is None else len(loaded[0]),
+                )
             except Exception as e:
                 import_resp.error = str(e)
+                _debug.logic("sass.import_failed", url=req.url, error=type(e).__name__)
         return response
 
     def _compile_with_embedded_sass(
@@ -402,10 +468,23 @@ class SassEmbeddedCompiler:
         while True:
             recv_cid, recv_bytes = self._recv_packet()
             outbound = OutboundMessage()
-            outbound.ParseFromString(recv_bytes)
+            try:
+                outbound.ParseFromString(recv_bytes)
+            except DecodeError as exc:
+                # a framed packet that is not a protobuf message is the
+                # transport lying, not the stylesheet; name it as such
+                raise SassProtocolError(
+                    f"sass --embedded sent an undecodable packet: {exc}"
+                ) from exc
             msg_type = outbound.WhichOneof("message")
 
             if recv_cid != compilation_id and msg_type != "error":
+                _debug.logic(
+                    "sass.desynchronized",
+                    sent=compilation_id,
+                    received=recv_cid,
+                    message=msg_type,
+                )
                 raise SassProtocolError(
                     f"sass --embedded desynchronized: sent compilation id "
                     f"{compilation_id}, received {recv_cid} ({msg_type})"
@@ -513,6 +592,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
             if _sass_compiler is None:
                 _sass_compiler = SassEmbeddedCompiler()
                 atexit.register(close_sass_compiler)
+                _debug.lifecycle("sass.compiler_created")
                 if not _on_stop_registered:
                     try:
                         from odoo.service.server import CommonServer
@@ -533,3 +613,4 @@ def close_sass_compiler() -> None:
         if _sass_compiler is not None:
             _sass_compiler.close()
             _sass_compiler = None
+            _debug.lifecycle("sass.compiler_closed")

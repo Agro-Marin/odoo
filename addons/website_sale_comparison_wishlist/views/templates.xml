@@ -20,7 +20,6 @@
                     <i class="fa-solid fa-right-left" role="presentation" />
                 </button>
 
-                <!-- Render placeholder when product is not comparable to ensure alignment -->
                 <div
                     t-else=""
                     class="o_add_to_compare_placeholder btn btn-light pe-none opacity-0">

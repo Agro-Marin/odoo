@@ -30,7 +30,7 @@
                                         <div class="flex-grow-1">
                                             <h4
                                                 class="mt-0 mb-0"
-                                                t-esc="category.name" />
+                                                t-out="category.name" />
                                         </div>
                                     </div>
                                 </a>

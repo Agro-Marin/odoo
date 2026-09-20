@@ -72,7 +72,7 @@ async function uploadThenRespond(status, response) {
     await contains(".o-mail-AttachmentContainer.o-isUploading:contains(text.txt)");
 
     const service = getService("mail.attachment_upload");
-    const [tmpId] = [...service.uploadingAttachmentIds];
+    const [tmpId] = [...service.pendingUploads.keys()];
     const data = new FormData();
     data.append("temporary_id", String(tmpId));
     getService("file_upload").bus.dispatchEvent(
@@ -87,19 +87,19 @@ test("an upload refused as too large is reported and stops uploading", async () 
     const { service, tmpId } = await uploadThenRespond(413);
     await contains(".o_notification", { text: "File too large" });
     await contains(".o-mail-AttachmentContainer.o-isUploading", { count: 0 });
-    expect(service.uploadingAttachmentIds.has(tmpId)).toBe(false);
+    expect(service.pendingUploads.has(tmpId)).toBe(false);
 });
 
 test("an upload answered with a server error is reported and stops uploading", async () => {
     const { service, tmpId } = await uploadThenRespond(500);
     await contains(".o_notification", { text: "Server error" });
-    expect(service.uploadingAttachmentIds.has(tmpId)).toBe(false);
+    expect(service.pendingUploads.has(tmpId)).toBe(false);
 });
 
 test("an upload answered with unparsable content is reported as a server error", async () => {
     const { service, tmpId } = await uploadThenRespond(200, "<html>not json</html>");
     await contains(".o_notification", { text: "Server error" });
-    expect(service.uploadingAttachmentIds.has(tmpId)).toBe(false);
+    expect(service.pendingUploads.has(tmpId)).toBe(false);
 });
 
 test("an upload whose response carries an error reports that error verbatim", async () => {
@@ -108,7 +108,7 @@ test("an upload whose response carries an error reports that error verbatim", as
         JSON.stringify({ error: "You are not allowed to upload here" }),
     );
     await contains(".o_notification", { text: "You are not allowed to upload here" });
-    expect(service.uploadingAttachmentIds.has(tmpId)).toBe(false);
+    expect(service.pendingUploads.has(tmpId)).toBe(false);
 });
 
 test("a transport-level upload failure stops uploading without a notification", async () => {
@@ -122,13 +122,13 @@ test("a transport-level upload failure stops uploading without a notification", 
     await contains(".o-mail-AttachmentContainer.o-isUploading:contains(text.txt)");
 
     const service = getService("mail.attachment_upload");
-    const [tmpId] = [...service.uploadingAttachmentIds];
+    const [tmpId] = [...service.pendingUploads.keys()];
     const data = new FormData();
     data.append("temporary_id", String(tmpId));
     getService("file_upload").bus.dispatchEvent(
         new CustomEvent("FILE_UPLOAD_ERROR", { detail: { upload: { data } } }),
     );
     await contains(".o-mail-AttachmentContainer.o-isUploading", { count: 0 });
-    expect(service.uploadingAttachmentIds.has(tmpId)).toBe(false);
+    expect(service.pendingUploads.has(tmpId)).toBe(false);
     await contains(".o_notification", { count: 0 });
 });

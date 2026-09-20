@@ -4,8 +4,11 @@ from odoo import api, fields, models
 class PosSession(models.Model):
     _inherit = "pos.session"
 
-    crm_team_id = fields.Many2one(
-        "crm.team", related="config_id.crm_team_id", string="Sales Team", readonly=True
+    team_id = fields.Many2one(
+        comodel_name="team.team",
+        related="config_id.team_id",
+        string="Sales Team",
+        readonly=True,
     )
 
     @api.model

@@ -1,9 +1,32 @@
 from __future__ import annotations
 
 import threading
+from bisect import bisect_left
 from time import monotonic
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 _WAIT_BUCKETS: tuple[float, ...] = (0.001, 0.01, 0.1, 1.0, 5.0, 30.0)
+
+_COUNTERS: dict[str, str] = {
+    "borrows": "borrows",
+    "borrows_direct": "borrows_direct",
+    "borrows_failed": "borrows_failed",
+    "borrow_wait_total": "borrow_wait_seconds_total",
+    "borrow_wait_max": "borrow_wait_seconds_max",
+    "pools_created": "pools_created",
+    "pools_reaped": "pools_reaped",
+    "pools_evicted_stale": "pools_evicted_stale",
+    "connections_discarded": "connections_discarded",
+    "connections_trimmed": "connections_trimmed",
+    "leaks_reported": "leaks_reported",
+    "probe_run": "probe_run",
+    "probe_permanent": "probe_permanent",
+    "probe_transient": "probe_transient",
+    "probe_skipped_proven": "probe_skipped_proven",
+}
 
 _PROBE_OUTCOMES: dict[str, str] = {
     "permanent": "probe_permanent",
@@ -22,6 +45,7 @@ class PoolStats:
         "borrows_direct",
         "borrows_failed",
         "connections_discarded",
+        "connections_trimmed",
         "leaks_reported",
         "pools_created",
         "pools_evicted_stale",
@@ -44,6 +68,7 @@ class PoolStats:
         self.pools_reaped = 0
         self.pools_evicted_stale = 0
         self.connections_discarded = 0
+        self.connections_trimmed = 0
         self.leaks_reported = 0
         self.probe_run = 0
         self.probe_permanent = 0
@@ -52,11 +77,7 @@ class PoolStats:
 
     def record_borrow(self, started_at: float) -> None:
         waited = monotonic() - started_at
-        bucket = len(_WAIT_BUCKETS)
-        for i, edge in enumerate(_WAIT_BUCKETS):
-            if waited <= edge:
-                bucket = i
-                break
+        bucket = bisect_left(_WAIT_BUCKETS, waited)
         with self._lock:
             self.borrows += 1
             self.borrow_wait_total += waited
@@ -66,6 +87,11 @@ class PoolStats:
     def record_borrow_failed(self) -> None:
         with self._lock:
             self.borrows_failed += 1
+            _debug.lifecycle(
+                "stats.borrow_failed",
+                failed=self.borrows_failed,
+                borrows=self.borrows,
+            )
 
     def record_direct_borrow(self) -> None:
         with self._lock:
@@ -83,6 +109,10 @@ class PoolStats:
     def record_pool_created(self) -> None:
         with self._lock:
             self.pools_created += 1
+
+    def record_connections_trimmed(self, count: int) -> None:
+        with self._lock:
+            self.connections_trimmed += count
 
     def record_pools_reaped(self, count: int) -> None:
         with self._lock:
@@ -105,38 +135,7 @@ class PoolStats:
     ) -> dict:
         with self._lock:
             buckets = list(self.borrow_wait_buckets)
-            totals = (
-                self.borrows,
-                self.borrows_direct,
-                self.borrows_failed,
-                self.borrow_wait_total,
-                self.borrow_wait_max,
-                self.pools_created,
-                self.pools_reaped,
-                self.pools_evicted_stale,
-                self.connections_discarded,
-                self.leaks_reported,
-                self.probe_run,
-                self.probe_permanent,
-                self.probe_transient,
-                self.probe_skipped_proven,
-            )
-        (
-            borrows,
-            borrows_direct,
-            borrows_failed,
-            wait_total,
-            wait_max,
-            pools_created,
-            pools_reaped,
-            pools_evicted_stale,
-            connections_discarded,
-            leaks_reported,
-            probe_run,
-            probe_permanent,
-            probe_transient,
-            probe_skipped_proven,
-        ) = totals
+            counters = {key: getattr(self, attr) for attr, key in _COUNTERS.items()}
         waits = {}
         running = 0
         for edge, count in zip(_WAIT_BUCKETS, buckets, strict=False):
@@ -144,21 +143,12 @@ class PoolStats:
             waits[f"le_{edge}"] = running
         waits["le_+Inf"] = running + buckets[-1]
         out = {
-            "borrows": borrows,
-            "borrows_direct": borrows_direct,
-            "borrows_failed": borrows_failed,
-            "borrow_wait_seconds_total": round(wait_total, 6),
-            "borrow_wait_seconds_max": round(wait_max, 6),
+            **counters,
+            "borrow_wait_seconds_total": round(
+                counters["borrow_wait_seconds_total"], 6
+            ),
+            "borrow_wait_seconds_max": round(counters["borrow_wait_seconds_max"], 6),
             "borrow_wait_seconds": waits,
-            "pools_created": pools_created,
-            "pools_reaped": pools_reaped,
-            "pools_evicted_stale": pools_evicted_stale,
-            "connections_discarded": connections_discarded,
-            "leaks_reported": leaks_reported,
-            "probe_run": probe_run,
-            "probe_permanent": probe_permanent,
-            "probe_transient": probe_transient,
-            "probe_skipped_proven": probe_skipped_proven,
             "direct_out": direct_out,
             "pools": pools,
         }
@@ -166,8 +156,17 @@ class PoolStats:
             out["checked_out"] = len(checkouts)
             out["checked_out_oldest_seconds"] = round(checkouts.get_oldest_age(), 3)
         if budget is not None:
-            out["budget_maxconn"] = budget.maxconn
-            out["budget_available"] = budget.available
-            out["budget_in_use"] = budget.in_use
-            out["budget_exhausted"] = budget.exhausted_count
+            out.update(budget.get_snapshot())
+        _debug.perf.count(
+            "stats.snapshot",
+            borrows=out["borrows"],
+            failed=out["borrows_failed"],
+            direct=out["borrows_direct"],
+            wait_max_ms=out["borrow_wait_seconds_max"] * 1000.0,
+            pools=pools,
+            direct_out=direct_out,
+            probes=out["probe_run"],
+            checked_out=out.get("checked_out"),
+            budget_in_use=out.get("budget_in_use"),
+        )
         return out

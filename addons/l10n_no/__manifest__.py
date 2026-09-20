@@ -6,7 +6,7 @@
 
 Updated for Odoo 9 by Bringsvor Consulting AS <www.bringsvor.com>
 """,
-    "author": "Rolv R\u00e5en",
+    "author": "Rolv Råen",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",

@@ -1,11 +1,15 @@
 from collections import OrderedDict
+from itertools import groupby
 from zlib import error as zlib_error
 
 import lxml.html
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import pdf
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsReport(models.Model):
@@ -16,6 +20,7 @@ class IrActionsReport(models.Model):
         copy=True,
     )
 
+    @_debug.perf.timed
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
         if (
             self._get_report(report_ref).report_name
@@ -27,6 +32,12 @@ class IrActionsReport(models.Model):
 
         invoices = self.env["account.move"].browse(res_ids)
         original_attachments = invoices.message_main_attachment_id
+        _debug.logic(
+            "original_vendor_bill_attachments",
+            moves=invoices,
+            attachments=original_attachments,
+            missing_all=not original_attachments,
+        )
         if not original_attachments:
             raise UserError(
                 _(
@@ -64,7 +75,37 @@ class IrActionsReport(models.Model):
                     "stream": stream,
                     "attachment": attachment,
                 }
+        _debug.pipeline(
+            "original_vendor_bill_streams",
+            moves=invoices,
+            streams=len(collected_streams),
+        )
         return collected_streams
+
+    def _render_qweb_pdf(self, report_ref, res_ids=None, data=None):
+        render = super()._render_qweb_pdf
+        move_ids, _data = self._normalize_render_args(res_ids, data, "pdf")
+        report = self._get_report(report_ref)
+        invoice_report = self.env.ref("account.account_invoices", False)
+        if not move_ids or report != invoice_report:
+            return render(report_ref, res_ids=res_ids, data=data)
+        if not self._is_pdf_rendering_enabled():
+            return render(report_ref, res_ids=res_ids, data=data)
+
+        send = self.env["mixin.account.move.send"]
+        runs = [
+            (template, [move.id for move in moves])
+            for template, moves in groupby(
+                self.env["account.move"].browse(move_ids),
+                key=send._get_default_pdf_report_id,
+            )
+        ]
+        if [template for template, _ids in runs] == [report]:
+            return render(report_ref, res_ids=res_ids, data=data)
+        documents = [render(template, ids, data=data)[0] for template, ids in runs]
+        if len(documents) == 1:
+            return documents[0], "pdf"
+        return pdf.merge_pdf(documents), "pdf"
 
     def _is_invoice_report(self, report_ref):
         report = self._get_report(report_ref)
@@ -72,6 +113,7 @@ class IrActionsReport(models.Model):
             report.is_invoice_report and report.model == "account.move"
         ) or report.report_name == "account.report_invoice"
 
+    @_debug.perf.timed
     def _get_splitted_report(self, report_ref, content, report_type):
         if report_type == "html":
             report = self._get_report(report_ref)
@@ -95,6 +137,13 @@ class IrActionsReport(models.Model):
                 result[False] = (
                     content if isinstance(content, bytes) else content.encode()
                 )
+            _debug.logic(
+                "html_report_split",
+                report=report,
+                articles=len(articles),
+                parts=len(result),
+                unsplit=False in result,
+            )
             return result
         elif report_type == "pdf":
             pdf_dict = {
@@ -103,7 +152,12 @@ class IrActionsReport(models.Model):
             }
             for stream in content.values():
                 stream["stream"].close()
+            _debug.pipeline(
+                "pdf_report_split",
+                parts=len(pdf_dict),
+            )
             return pdf_dict
+
         return None
 
     def _pre_render_qweb_pdf(self, report_ref, res_ids=None, data=None):
@@ -122,7 +176,9 @@ class IrActionsReport(models.Model):
         return super()._pre_render_qweb_pdf(report_ref, res_ids=res_ids, data=data)
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_except_master_tags(self):
+        _debug.lifecycle("_unlink_except_master_tags", records=self)
         master_xmlids = [
             "account_invoices",
             "action_account_original_vendor_bill",
@@ -144,8 +200,8 @@ class IrActionsReport(models.Model):
                     )
                 )
 
-    def _get_rendering_context(self, report, docids, data):
-        data = super()._get_rendering_context(report, docids, data)
+    def _prepare_rendering_context(self, report, docids, data):
+        data = super()._prepare_rendering_context(report, docids, data)
         if self.env.context.get("proforma_invoice"):
             data["proforma"] = True
         return data

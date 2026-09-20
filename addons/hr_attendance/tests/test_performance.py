@@ -11,6 +11,26 @@ from odoo.tests.common import TransactionCase, tagged
 _logger = logging.getLogger(__name__)
 
 
+# A FIXED anchor, not `date.today()`. The fixture spans two months of calendar
+# days, so against a moving anchor both the number of attendances and their
+# weekday composition change every day -- and so does the query count a budget
+# is supposed to pin. 2025-09-02 gives 63 days (30 + 31 + 2) and therefore
+# 6,300 attendances over the 100 employees, whatever day this runs.
+_ANCHOR = date(2025, 9, 2)
+# TWO NUMBERS, BOTH EXACT, BECAUSE THE BUDGET IS A FUNCTION OF THE INSTALLED
+# MODULE SET AND NOT ONLY OF THIS MODULE'S CODE. `hr_work_entry_attendance`
+# overrides `hr.attendance._get_employee_calendar()` to prefer a contract's own
+# schedule, and that override costs exactly one query on this path -- measured
+# by installing it into a database that had just read 258 and re-running: 259.
+#
+# A single budget of 259 was what this test carried first, taken on a database
+# that happened to have the enterprise module on it, and it printed
+# `Query count less than expected: 258 < 259` on every clean run -- which is
+# the exact defect this test's own comment was written to describe.
+_REGENERATION_QUERIES = 258
+_REGENERATION_QUERIES_WITH_WORK_ENTRIES = 259
+
+
 @tagged("post_install", "-at_install", "hr_attendance_perf")
 class TestHrAttendancePerformance(TransactionCase):
     @classmethod
@@ -221,8 +241,8 @@ class TestHrAttendancePerformance(TransactionCase):
                     "birthday": "1982-08-01",
                     "country_id": cls.env.ref("base.us").id,
                     "wage": 5000.0,
-                    "date_version": date.today() - relativedelta(months=2),
-                    "contract_date_start": date.today() - relativedelta(months=2),
+                    "date_version": _ANCHOR - relativedelta(months=2),
+                    "contract_date_start": _ANCHOR - relativedelta(months=2),
                     "contract_date_end": False,
                     "resource_calendar_id": cls.calendar_38h.id,
                     "ruleset_id": cls.ruleset.id,
@@ -233,12 +253,12 @@ class TestHrAttendancePerformance(TransactionCase):
         for employee in employees:
             employee.create_version(
                 {
-                    "date_version": date.today() - relativedelta(months=1, days=15),
+                    "date_version": _ANCHOR - relativedelta(months=1, days=15),
                     "wage": 5500,
                 }
             )
             employee.create_version(
-                {"date_version": date.today() - relativedelta(months=1), "wage": 6000}
+                {"date_version": _ANCHOR - relativedelta(months=1), "wage": 6000}
             )
 
         vals = []
@@ -251,15 +271,33 @@ class TestHrAttendancePerformance(TransactionCase):
                 }
                 for day in rrule(
                     DAILY,
-                    dtstart=date.today() - relativedelta(months=2),
-                    until=date.today(),
+                    dtstart=_ANCHOR - relativedelta(months=2),
+                    until=_ANCHOR,
                 )
             )
         cls.attendances = cls.env["hr.attendance"].create(vals)
 
     def test_regenerate_overtime_line(self):
+        # The budget is the measurement, with no headroom. It was 1,700 once --
+        # six times the real cost -- and `assertQueryCount` only LOGS when the
+        # count comes in under budget, so that gap was reported on every run
+        # and failed nothing: a regeneration that started issuing a query per
+        # attendance would have had 1,400 to spare before this noticed. The
+        # figure is only a figure because `_ANCHOR` is fixed; against
+        # `date.today()` it moved with the weekday composition of the span.
+        self.assertEqual(len(self.attendances), 6300)
+        budget = (
+            _REGENERATION_QUERIES_WITH_WORK_ENTRIES
+            if self.env["ir.module.module"].search_count(
+                [
+                    ("name", "=", "hr_work_entry_attendance"),
+                    ("state", "=", "installed"),
+                ]
+            )
+            else _REGENERATION_QUERIES
+        )
         t0 = time.time()
-        with self.assertQueryCount(1700):
+        with self.assertQueryCount(budget):
             self.ruleset.action_regenerate_overtimes()
         t1 = time.time()
         _logger.info(

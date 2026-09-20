@@ -31,7 +31,6 @@ const sourceValue = "Super Specific Source";
 registry.category("web_tour.tours").add("website_links_tour", {
     url: "/r",
     steps: () => [
-        // 1. Create a tracked URL
         {
             content: "check that existing links are shown",
             trigger: "#o_website_links_recent_links .btn_shorten_url_clipboard",
@@ -46,9 +45,7 @@ registry.category("web_tour.tours").add("website_links_tour", {
                 ).value = url;
             },
         },
-        // First try to create a new UTM campaign from the UI
         ...fillSelectMenu("campaign-select-wrapper", "Some new campaign"),
-        // Then proceed by using existing ones
         ...fillSelectMenu("campaign-select-wrapper", campaignValue),
         ...fillSelectMenu("channel-select-wrapper", mediumValue),
         ...fillSelectMenu("source-select-wrapper", sourceValue),
@@ -57,7 +54,6 @@ registry.category("web_tour.tours").add("website_links_tour", {
             trigger: "#btn_shorten_url",
             run: "click",
         },
-        // 2. Visit it
         {
             trigger:
                 '#o_website_links_recent_links .o_website_links_title:first():contains("Contact Us")',
@@ -88,7 +84,6 @@ registry.category("web_tour.tours").add("website_links_tour", {
             },
             expectUnloadPage: true,
         },
-        // 3. Check that counter got incremented and charts are correctly displayed
         {
             content: "Sort the recent links",
             trigger: ".o_website_links_sort_by",

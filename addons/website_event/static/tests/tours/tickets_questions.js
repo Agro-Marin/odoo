@@ -31,7 +31,6 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             trigger: 'button[data-increment-type="plus"]:disabled',
         },
         {
-            // The input number should automatically be changed to the limit per order (22 < 28)
             trigger:
                 'div.o_wevent_ticket_selector:contains("Free"):contains("22") input.form-control',
         },
@@ -47,7 +46,6 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             run: "edit 150",
         },
         {
-            // The input number should automatically be changed to the event limit (28 < 150)
             trigger:
                 'div.o_wevent_ticket_selector:contains("Other"):contains("28") input.form-control',
         },
@@ -122,7 +120,6 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             expectUnloadPage: true,
         },
         {
-            // The tour stops too early and the registration fails if we don't wait the confirmation.
             content: "Wait for confirmation",
             trigger: ".o_wereg_confirmed, .oe_cart",
         },

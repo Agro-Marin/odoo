@@ -5,22 +5,28 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Date
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import format_date
+
+_debug = DebugLog(__name__)
 
 
 class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     _name = "account.multicurrency.revaluation.wizard"
     _description = "Multicurrency Revaluation Wizard"
 
-    company_id = fields.Many2one("res.company", default=lambda self: self.env.company)
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        default=lambda self: self.env.company,
+    )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_accounting_values",
         inverse="_inverse_journal_id",
         compute_sudo=True,
-        domain=[("type", "=", "general")],
-        required=True,
         readonly=False,
+        required=True,
+        domain=[("type", "=", "general")],
     )
     date = fields.Date(
         default=lambda self: self.env.context[
@@ -31,29 +37,32 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     reversal_date = fields.Date(required=True)
     expense_provision_account_id = fields.Many2one(
         comodel_name="account.account",
+        string="Expense Account",
         compute="_compute_accounting_values",
         inverse="_inverse_expense_provision_account_id",
         compute_sudo=True,
-        string="Expense Account",
-        required=True,
         readonly=False,
+        required=True,
     )
     income_provision_account_id = fields.Many2one(
         comodel_name="account.account",
+        string="Income Account",
         compute="_compute_accounting_values",
         inverse="_inverse_income_provision_account_id",
         compute_sudo=True,
-        string="Income Account",
-        required=True,
         readonly=False,
+        required=True,
     )
     preview_data = fields.Text(compute="_compute_preview_data")
     show_warning_move_id = fields.Many2one(
-        "account.move", compute="_compute_show_warning_move_id"
+        comodel_name="account.move",
+        compute="_compute_show_warning_move_id",
     )
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields):
+        _debug.lifecycle("default_get", records=self)
         rec = super().default_get(fields)
         if "reversal_date" in fields:
             report_options = self.env.context[
@@ -64,21 +73,23 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             ) + relativedelta(days=1)
         if (
             not self.env.context.get("revaluation_no_loop")
-            and not self.with_context(revaluation_no_loop=True)._get_move_vals()[
+            and not self.with_context(revaluation_no_loop=True)._prepare_move_vals()[
                 "line_ids"
             ]
         ):
+            _debug.logic("revaluation_defaults_rejected", reason="no_adjustment_needed")
             raise UserError(_("No adjustment needed"))
         return rec
 
     @api.depends(
         "expense_provision_account_id", "income_provision_account_id", "reversal_date"
     )
+    @_debug.perf.timed
     def _compute_show_warning_move_id(self):
         for record in self:
             last_move = (
                 self.env["account.move.line"]
-                .search(
+                .search(  # noqa: E8507 - a transient wizard opened on one company
                     [
                         (
                             "account_id",
@@ -105,6 +116,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         "date",
         "journal_id",
     )
+    @_debug.perf.timed
     def _compute_preview_data(self):
         preview_columns = [
             {"field": "account_id", "label": _("Account")},
@@ -115,7 +127,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         for record in self:
             preview_vals = [
                 self.env["account.move"]._move_dict_to_preview_vals(
-                    self._get_move_vals(), record.company_id.currency_id
+                    self._prepare_move_vals(), record.company_id.currency_id
                 )
             ]
             record.preview_data = json.dumps(
@@ -153,7 +165,8 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             )
 
     @api.model
-    def _get_move_vals(self):
+    @_debug.perf.timed
+    def _prepare_move_vals(self):
         def _get_model_id(parsed_line, selected_model):
             for _dummy, parsed_res_model, parsed_res_id in parsed_line:
                 if parsed_res_model == selected_model:
@@ -178,6 +191,12 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             "unfold_all": True,
         }
         report_lines = report._get_lines(options)
+        _debug.pipeline(
+            "revaluation_report_lines_loaded",
+            report=report,
+            included_line=included_line_id,
+            report_lines=len(report_lines),
+        )
         move_lines = []
 
         for report_line in report._get_unfolded_lines(
@@ -239,6 +258,12 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
                     )
                 )
 
+        _debug.pipeline(
+            "revaluation_move_lines_built",
+            report=report,
+            move_lines=len(move_lines),
+            adjusted_accounts=len(move_lines) // 2,
+        )
         return {
             "ref": _(
                 "Foreign currencies adjustment entry as of %s",
@@ -249,9 +274,16 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             "line_ids": move_lines,
         }
 
+    @_debug.perf.timed
     def create_entries(self):
         self.check_singleton()
-        move_vals = self._get_move_vals()
+        move_vals = self._prepare_move_vals()
+        _debug.pipeline(
+            "create_entries_reversal",
+            revaluation=self,
+            line_ids_count=len(move_vals["line_ids"]),
+            reversal_date=self.reversal_date,
+        )
         if move_vals["line_ids"]:
             move = (
                 self.env["account.move"]

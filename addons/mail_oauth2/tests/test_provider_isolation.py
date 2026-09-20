@@ -3,13 +3,12 @@ from urllib.parse import parse_qs, urlsplit
 
 from odoo.tests import TransactionCase, tagged
 
-from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 PROVIDER_MIXINS = ("mixin.google.gmail", "mixin.microsoft.outlook")
 
 
 @tagged("post_install", "-at_install")
-class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
+class TestProviderIsolation(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -18,9 +17,10 @@ class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
 
         Config = cls.env["ir.config_parameter"].sudo()
         Config.set_param("google_gmail_client_id", "GOOGLE-ID")
-        Config.set_param("google_gmail_client_secret", "GOOGLE-SECRET")
+        Vault = cls.env["credential.credential"]
+        Vault._set_system_secret("google_gmail_client_secret", "GOOGLE-SECRET")
         Config.set_param("microsoft_outlook_client_id", "MICROSOFT-ID")
-        Config.set_param("microsoft_outlook_client_secret", "MICROSOFT-SECRET")
+        Vault._set_system_secret("microsoft_outlook_client_secret", "MICROSOFT-SECRET")
 
         cls.server = cls.env["ir.mail_server"].create(
             {

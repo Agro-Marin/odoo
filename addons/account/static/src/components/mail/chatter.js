@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { WebChatter } from "@mail/chatter/web/web_chatter";
+
 import { AccountReportComposer } from "./composer.js";
 import { AccountReportThread } from "./thread.js";
 

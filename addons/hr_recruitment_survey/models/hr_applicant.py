@@ -2,16 +2,24 @@ from datetime import timedelta
 
 from odoo import Command, _, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrApplicant(models.Model):
     _inherit = "hr.applicant"
 
     survey_id = fields.Many2one(
-        "survey.survey", related="job_id.survey_id", string="Survey", readonly=True
+        comodel_name="survey.survey",
+        related="job_id.survey_id",
+        string="Survey",
+        readonly=True,
     )
     response_ids = fields.One2many(
-        "survey.user_input", "applicant_id", string="Responses"
+        comodel_name="survey.user_input",
+        inverse_name="applicant_id",
+        string="Responses",
     )
 
     def action_print_survey(self):
@@ -20,15 +28,18 @@ class HrApplicant(models.Model):
             lambda i: i.survey_id == self.survey_id
         ).sorted(lambda i: i.create_date, reverse=True)
         if not sorted_interviews:
+            _debug.logic("print_survey", by="blank", applicant=self)
             action = self.survey_id.action_print_survey()
             action["target"] = "new"
             return action
 
         answered_interviews = sorted_interviews.filtered(lambda i: i.state == "done")
         if answered_interviews:
+            _debug.logic("print_survey", by="answered", applicant=self)
             action = self.survey_id.action_print_survey(answer=answered_interviews[0])
             action["target"] = "new"
             return action
+        _debug.logic("print_survey", by="latest_unanswered", applicant=self)
         action = self.survey_id.action_print_survey(answer=sorted_interviews[0])
         action["target"] = "new"
         return action
@@ -38,7 +49,9 @@ class HrApplicant(models.Model):
 
         if not self.partner_id:
             if not self.partner_name:
+                _debug.logic("send_survey_refused", reason="no_name", applicant=self)
                 raise UserError(_("Please provide an applicant name."))
+            _debug.lifecycle("partner_created_for_survey", applicant=self)
             self.partner_id = (
                 self.env["res.partner"]
                 .sudo()
@@ -67,6 +80,12 @@ class HrApplicant(models.Model):
             "default_deadline": fields.Datetime.now() + timedelta(days=15),
         }
 
+        _debug.pipeline(
+            "send_survey",
+            applicant=self,
+            survey=self.survey_id,
+            has_template=bool(template),
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Send an interview"),

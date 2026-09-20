@@ -11,6 +11,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import Manifest
 from odoo.tools import misc
 from odoo.tools.assets.constants import EXTERNAL_ASSET, like_escape
@@ -39,6 +40,7 @@ from .ir_asset_paths import (
 )
 
 _logger = getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _CACHE_ASSET_LOOKUPS = "xml" not in tools.config["dev_mode"]
 
@@ -52,7 +54,6 @@ class Resolution:
     )
     bundle_assets: dict[str, list] = field(default_factory=dict)
     loaded_bundles: set[str] = field(default_factory=set)
-    symlink_memo: dict[tuple[str, str], bool] = field(default_factory=dict)
     resolved_paths: dict[str, tuple[ResolvedPath, ...]] = field(default_factory=dict)
     _manifests: dict[str, Manifest | None] = field(default_factory=dict)
     _addon_roots: dict[str, tuple[str, str]] = field(default_factory=dict)
@@ -63,6 +64,9 @@ class Resolution:
         except KeyError:
             manifest = Manifest.for_addon(addon, display_warning=False)
             self._manifests[addon] = manifest
+            _debug.perf.count(
+                "manifest_loaded", addon=addon, found=manifest is not None
+            )
             return manifest
 
     def get_addon_roots(self, addon: str, manifest: Manifest) -> tuple[str, str]:
@@ -81,20 +85,18 @@ class IrAsset(models.Model):
     _order = "sequence, id"
     _allow_sudo_commands = False
 
-    name = fields.Char(string="Name", required=True)
+    name = fields.Char(required=True)
     active = fields.Boolean(default=True)
     sequence = fields.Integer(
-        string="Sequence",
         default=DEFAULT_SEQUENCE,
         required=True,
     )
     bundle = fields.Char(
         string="Bundle name",
-        required=True,
         index=True,
+        required=True,
     )
     directive = fields.Selection(
-        string="Directive",
         selection=[
             (APPEND_DIRECTIVE, "Append"),
             (PREPEND_DIRECTIVE, "Prepend"),
@@ -107,12 +109,18 @@ class IrAsset(models.Model):
         default=APPEND_DIRECTIVE,
         required=True,
     )
-    path = fields.Char(string="Path (or glob pattern)", required=True)
-    target = fields.Char(string="Target")
+    path = fields.Char(
+        string="Path (or glob pattern)",
+        required=True,
+    )
+    target = fields.Char()
 
     def _warn_bundle_name(self) -> None:
         for asset in self:
             if asset.bundle and asset.bundle.count(".") != 1:
+                _debug.logic(
+                    "bundle_name_unservable", asset=asset.id, bundle=asset.bundle
+                )
                 _logger.warning(
                     "ir.asset %r (id %s) targets bundle %r, which is not of the "
                     "form <addon>.<name>; it can only be reached through an "
@@ -126,6 +134,9 @@ class IrAsset(models.Model):
     def _check_directive_target(self) -> None:
         for asset in self:
             if asset.directive in DIRECTIVES_WITH_TARGET and not asset.target:
+                _debug.logic(
+                    "target_missing", asset=asset.id, directive=asset.directive
+                )
                 raise ValidationError(
                     self.env._(
                         "Asset %(name)s: directive '%(directive)s' positions its "
@@ -138,17 +149,26 @@ class IrAsset(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
+        _debug.lifecycle(
+            "create", count=len(records), bundles=sorted(set(records.mapped("bundle")))
+        )
         if records:
             records._warn_bundle_name()
             self._invalidate_assets_cache()
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = super().write(vals)
         if self and "bundle" in vals:
             self._warn_bundle_name()
-        if self and not self._get_fields_invalidating_assets_cache().isdisjoint(vals):
+        invalidating = (
+            self and not self._get_fields_invalidating_assets_cache().isdisjoint(vals)
+        )
+        if invalidating:
             self._invalidate_assets_cache()
+        if _debug.logic.enabled and not invalidating:
+            _debug.logic("write_without_invalidation", count=len(self))
         return result
 
     @api.model
@@ -159,6 +179,7 @@ class IrAsset(models.Model):
 
     def unlink(self) -> bool:
         had_records = bool(self)
+        _debug.lifecycle("unlink", count=len(self))
         result = super().unlink()
         if had_records:
             self._invalidate_assets_cache()
@@ -170,7 +191,9 @@ class IrAsset(models.Model):
         if not postcommit.data.get("ir_asset_cache_invalidated"):
             postcommit.data["ir_asset_cache_invalidated"] = True
             postcommit.add(partial(registry.clear_cache, "assets"))
+            _debug.lifecycle("assets_cache_postcommit_scheduled")
         registry.clear_cache("assets")
+        _debug.lifecycle("assets_cache_cleared", reason="ir_asset_change")
 
     def _prepare_assets_params(self) -> dict[str, Any]:
         return {}
@@ -196,6 +219,9 @@ class IrAsset(models.Model):
     ) -> tuple[str, bool, str, bool]:
         parts = bundle_name.rsplit(".", 1)
         if len(parts) != 2:
+            _debug.logic(
+                "bundle_name_rejected", name=bundle_name, reason="no_extension"
+            )
             raise ValueError(
                 f"Bundle filename {bundle_name!r} has no extension (expected .js or .css)"
             )
@@ -205,6 +231,7 @@ class IrAsset(models.Model):
         if not debug_assets:
             bundle_name, _, min_ = bundle_name.rpartition(".")
             if min_ != "min":
+                _debug.logic("bundle_name_rejected", name=bundle_name, reason="not_min")
                 raise ValueError(
                     f"'min' expected in extension in non debug mode, got {min_!r}"
                 )
@@ -217,11 +244,21 @@ class IrAsset(models.Model):
                 rtl = True
         elif asset_type != "js":
             msg = "Only js and css assets bundle are supported for now"
+            _debug.logic("bundle_name_rejected", name=bundle_name, reason="asset_type")
             raise ValueError(msg)
         if bundle_name.count(".") != 1:
+            _debug.logic("bundle_name_rejected", name=bundle_name, reason="parts")
             raise ValueError(
                 f"{bundle_name} is not a valid bundle name, should have two parts"
             )
+        _debug.logic(
+            "bundle_name_parsed",
+            bundle=bundle_name,
+            asset_type=asset_type,
+            rtl=rtl,
+            autoprefix=autoprefix,
+            debug_assets=debug_assets,
+        )
         return bundle_name, rtl, asset_type, autoprefix
 
     @tools.conditional(
@@ -240,7 +277,9 @@ class IrAsset(models.Model):
             manifest_assets=self._get_manifest_assets(tuple(sorted(addons))),
         )
         walk = self._prepare_bundle_walk(resolution)
-        walk.walk(bundle)
+        with _debug.perf("asset_paths", bundle=bundle, addons=len(addons)) as span:
+            walk.walk(bundle)
+            span.set(paths=len(walk.paths.list), bundles_walked=len(walk.walked))
         return tuple(walk.paths.list)
 
     def _prepare_bundle_walk(self, resolution: Resolution) -> BundleWalk:
@@ -252,19 +291,38 @@ class IrAsset(models.Model):
         )
 
     @api.model
+    @tools.conditional(
+        _CACHE_ASSET_LOOKUPS,
+        tools.ormcache("full_path", "static_dir", cache="assets.files"),
+    )
+    def _get_static_files_cached(
+        self, full_path: str, static_dir: str
+    ) -> tuple[tuple[str, float], ...]:
+        return tuple(_get_static_files(full_path, static_dir))
+
+    @api.model
     @tools.conditional(_CACHE_ASSET_LOOKUPS, tools.ormcache("addons"))
     def _get_manifest_assets(
         self, addons: tuple[str, ...]
     ) -> Mapping[str, tuple[tuple[str, Any], ...]]:
         by_bundle: dict[str, list[tuple[str, Any]]] = {}
+        missing = 0  # debuglog
         for addon in self._get_addons_sorted_topologically(addons):
             manifest = Manifest.for_addon(addon)
             if manifest is None:
+                missing += 1  # debuglog
                 continue
             for bundle, commands in manifest["assets"].items():
                 by_bundle.setdefault(bundle, []).extend(
                     (addon, command) for command in commands
                 )
+        _debug.perf.count(
+            "manifest_assets_collected",
+            addons=len(addons),
+            missing=missing,
+            bundles=len(by_bundle),
+            commands=sum(len(commands) for commands in by_bundle.values()),
+        )
         return MappingProxyType(
             {bundle: tuple(commands) for bundle, commands in by_bundle.items()}
         )
@@ -294,11 +352,19 @@ class IrAsset(models.Model):
             try:
                 directive, target, path_def = self._parse_manifest_command(command)
             except ValueError as exc:
+                _debug.logic("manifest_command_rejected", bundle=bundle, addon=addon)
                 raise AssetDirectiveError(
                     f"{exc} — raised by {origin}, declared for bundle {bundle!r}"
                 ) from exc
             middle.append(AssetDirective(directive, target, path_def, origin))
 
+        _debug.pipeline(
+            "bundle_directives",
+            bundle=bundle,
+            early=len(early),
+            manifest=len(middle),
+            late=len(late),
+        )
         return [*early, *middle, *late]
 
     def _get_assets(self, domain: list, **kwargs: Any) -> Self:
@@ -316,6 +382,7 @@ class IrAsset(models.Model):
     ) -> None:
         missing = [b for b in bundles if b not in resolution.loaded_bundles]
         if not missing:
+            _debug.logic("bundle_assets_cached", bundles=len(bundles))
             return
         resolution.loaded_bundles.update(missing)
         assets = self._get_assets(
@@ -330,6 +397,14 @@ class IrAsset(models.Model):
             ).filtered("active")
             if applicable:
                 resolution.bundle_assets[bundle] = list(applicable)
+        _debug.pipeline(
+            "bundle_assets_loaded",
+            bundles=len(missing),
+            records=len(assets),
+            applicable=sum(
+                len(resolution.bundle_assets.get(bundle, ())) for bundle in missing
+            ),
+        )
 
     def _get_bundles_in_include_closure(
         self, bundle: str, manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]]
@@ -348,6 +423,7 @@ class IrAsset(models.Model):
                     and command[0] == INCLUDE_DIRECTIVE
                 ):
                     pending.append(command[1])
+        _debug.pipeline("include_closure", bundle=bundle, bundles=len(closure))
         return closure
 
     def _get_bundle_containing_path(
@@ -359,14 +435,32 @@ class IrAsset(models.Model):
         )
         paths = self._resolve_paths(target_path_def, resolution)
         if not paths:
+            _debug.logic(
+                "bundle_containing_path",
+                path=target_path_def,
+                root=root_bundle,
+                reason="unresolved",
+            )
             return root_bundle
         target_path = paths[0][0]
         asset_paths = self._get_asset_paths(root_bundle, assets_params)
 
         for entry in asset_paths:
             if entry.path == target_path:
+                _debug.logic(
+                    "bundle_containing_path",
+                    path=target_path,
+                    root=root_bundle,
+                    bundle=entry.bundle,
+                )
                 return entry.bundle
 
+        _debug.logic(
+            "bundle_containing_path",
+            path=target_path,
+            root=root_bundle,
+            reason="not_in_bundle",
+        )
         return root_bundle
 
     def _get_addons_active(self, **kwargs: Any) -> Collection[str]:
@@ -391,6 +485,7 @@ class IrAsset(models.Model):
             key=lambda m: (not m["application"], int(m["sequence"]), m["name"]),
         )
 
+        _debug.perf.count("addons_sorted_topologically", addons=len(addons_tuple))
         return tuple(
             misc.topological_sort(
                 {m["name"]: tuple(m["depends"]) for m in sorted_manifs}
@@ -409,7 +504,9 @@ class IrAsset(models.Model):
         try:
             return resolution.resolved_paths[path_def]
         except KeyError:
-            paths = self._resolve_path_def(path_def, resolution)
+            with _debug.perf("resolve_path_def", path=path_def) as span:
+                paths = self._resolve_path_def(path_def, resolution)
+                span.set(paths=len(paths))
             resolution.resolved_paths[path_def] = paths
             return paths
 
@@ -420,8 +517,10 @@ class IrAsset(models.Model):
         path_parts = [part for part in path_def.split("/") if part]
         if not path_parts:
             _logger.warning("IrAsset: empty path definition")
+            _debug.logic("path_empty")
             return ()
         if not can_aggregate(path_def):
+            _debug.logic("path_external", path=path_def)
             return (ResolvedPath(intern(path_def), EXTERNAL_ASSET, -1),)
 
         paths = None
@@ -437,12 +536,13 @@ class IrAsset(models.Model):
                     path_def,
                     addon,
                 )
+                _debug.logic("path_skipped_inactive_addon", path=path_def, addon=addon)
                 return ()
             addon_root, static_dir = resolution.get_addon_roots(addon, addon_manifest)
             full_path = os.path.normpath("/".join([addon_root, *path_parts[1:]]))
             if full_path == static_dir or full_path.startswith(static_dir + os.sep):
-                paths_with_timestamps = _get_static_files(
-                    full_path, static_dir, resolution.symlink_memo
+                paths_with_timestamps = self._get_static_files_cached(
+                    full_path, static_dir
                 )
                 root_len = len(addon_root) + 1
                 paths = tuple(
@@ -454,6 +554,12 @@ class IrAsset(models.Model):
                     for absolute_path, timestamp in paths_with_timestamps
                 )
                 safe_path = True
+                _debug.perf.count(
+                    "path_static_resolved",
+                    path=path_def,
+                    addon=addon,
+                    files=len(paths),
+                )
 
         if not paths and not is_wildcard_glob(path_def):
             if addon_manifest and not safe_path:
@@ -468,6 +574,12 @@ class IrAsset(models.Model):
                 self._warn_attachment_path_unbacked(
                     path_def, addon if addon_manifest else None
                 )
+            _debug.logic(
+                "path_as_attachment_url",
+                path=path_def,
+                addon=addon if addon_manifest else None,
+                escaping=bool(addon_manifest and not safe_path),
+            )
             paths = (ResolvedPath(intern(path_def), None, None),)
 
         if not paths:
@@ -485,12 +597,20 @@ class IrAsset(models.Model):
                     "expanded against a static/ directory."
                 ),
             )
+            _debug.logic(
+                "path_unresolved",
+                path=path_def,
+                addon=addon,
+                manifest=addon_manifest is not None,
+                safe=safe_path,
+            )
             return ()
         return paths
 
     def _warn_attachment_path_unbacked(self, path_def: str, addon: str | None) -> None:
         attachments = self.env["ir.attachment"].sudo()
         if attachments.search_count([("url", "=", path_def)], limit=1):
+            _debug.logic("attachment_path_backed", path=path_def)
             return
         where = (
             f"the static/ directory of addon {addon!r}"
@@ -499,6 +619,9 @@ class IrAsset(models.Model):
         )
         other_spelling = path_def[1:] if path_def.startswith("/") else f"/{path_def}"
         if attachments.search_count([("url", "=", other_spelling)], limit=1):
+            _debug.logic(
+                "attachment_path_misspelled", path=path_def, other=other_spelling
+            )
             _logger.warning(
                 "IrAsset: path %r matches no file in %s, and the attachment "
                 "that would back it is registered as %r. The URL is matched "
@@ -517,6 +640,7 @@ class IrAsset(models.Model):
             path_def,
             where,
         )
+        _debug.logic("attachment_path_unbacked", path=path_def, addon=addon)
 
     def _parse_manifest_command(
         self, command: str | list
@@ -530,9 +654,11 @@ class IrAsset(models.Model):
                 directive, path_def = command
                 target = None
         except (ValueError, IndexError, TypeError, KeyError) as exc:
+            _debug.logic("manifest_command_malformed", reason="shape")
             raise ValueError(f"Malformed asset command: {command!r}") from exc
         for label, value in (("path", path_def), ("target", target)):
             if value is not None and not isinstance(value, str):
+                _debug.logic("manifest_command_malformed", reason=label)
                 raise ValueError(
                     f"Asset command {command!r} has a non-string {label}: "
                     f"{value!r} ({type(value).__name__})"

@@ -13,13 +13,6 @@ class CustomerPortal(sale_portal.CustomerPortal):
         website=True,
     )
     def my_orders_reorder(self, order_id, access_token=None):
-        """Retrieve reorder content and automatically add products to the cart.
-
-        param int order_id: The ID of the sale order to reorder.
-        param str access_token: The access token for the sale order.
-        return: Details of the added products.
-        rtype: dict
-        """
         try:
             sale_order = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
@@ -28,7 +21,6 @@ class CustomerPortal(sale_portal.CustomerPortal):
             return request.redirect("/my")
 
         lines_to_reorder = sale_order.line_ids.filtered(
-            # Skip section headers, deliveries, event tickets, ...
             lambda line: line.with_user(request.env.user).sudo()._is_reorder_allowed()
         )
 
@@ -85,7 +77,6 @@ class CustomerPortal(sale_portal.CustomerPortal):
                 linked_products=linked_products,
             )
             if not cart_values["quantity"]:
-                # Only aggregate order warnings
                 warnings_to_aggregate.add(order_sudo.shop_warning)
 
             values["tracking_info"].extend(cart_values["tracking_info"])

@@ -6,17 +6,15 @@ from typing import Any
 
 import pytest
 
+from odoo.http._session_store import FilesystemSessionStore
 from odoo.http.constants import STORED_SESSION_BYTES, prepare_default_session
 from odoo.http.request_class import Request
-from odoo.http.session import FilesystemSessionStore, Session, _coerce_session_value
-from odoo.http.wrappers import FutureResponse
+from odoo.http.session import Session, _coerce_session_value
 
 
 @pytest.fixture
 def store(tmp_path):
-    return FilesystemSessionStore(
-        str(tmp_path), session_class=Session, renew_missing=True
-    )
+    return FilesystemSessionStore(str(tmp_path), session_class=Session)
 
 
 def _anon(store):
@@ -102,7 +100,7 @@ def test_vacuum_operates_on_own_path(store, tmp_path):
 
 
 def test_vacuum_reaps_orphaned_tmp_files(store, tmp_path):
-    from odoo.libs._vendor.sessions import _fs_transaction_suffix
+    from odoo.http._session_store import _TEMPORARY_SUFFIX as _fs_transaction_suffix
 
     orphan = tmp_path / f"tmpabc123{_fs_transaction_suffix}"
     orphan.write_bytes(b"{}")
@@ -117,18 +115,46 @@ def test_vacuum_reaps_orphaned_tmp_files(store, tmp_path):
     assert fresh.exists()
 
 
-def test_get_refreshes_stale_mtime(store):
-    import os
+def test_vacuum_takes_one_lock_per_stripe_and_ignores_foreign_directories(
+    store, tmp_path, monkeypatch
+):
+    sessions = [_anon(store) for _ in range(6)]
+    old = time.time() - 10 * 24 * 3600
+    for s in sessions:
+        os.utime(store.get_session_filename(s.sid), (old, old))
+    stripes = {s.sid[:2] for s in sessions}
+    (tmp_path / "not a stripe").mkdir()
+    (tmp_path / "not a stripe" / "junk").write_bytes(b"{}")
 
+    opened: list[str] = []
+    real_open = store._open_lock_file
+
+    def counting_open(stripe):
+        opened.append(stripe)
+        return real_open(stripe)
+
+    monkeypatch.setattr(store, "_open_lock_file", counting_open)
+    store.vacuum(max_lifetime=7 * 24 * 3600)
+
+    assert sorted(opened) == sorted(stripes), "one lock per stripe, not per file"
+    assert not any(
+        pathlib.Path(store.get_session_filename(s.sid)).exists() for s in sessions
+    )
+    assert (tmp_path / "not a stripe" / "junk").exists()
+
+
+def test_get_records_the_file_age_and_touches_nothing(store):
     s = _anon(store)
     fn = pathlib.Path(store.get_session_filename(s.sid))
     old = time.time() - 2 * 24 * 3600
     os.utime(fn, (old, old))
-    store.get(s.sid)
-    assert fn.stat().st_mtime > time.time() - 60
-    before = fn.stat().st_mtime
-    store.get(s.sid)
-    assert fn.stat().st_mtime == before
+    loaded = store.get(s.sid)
+    assert loaded.mtime == pytest.approx(old)
+    assert fn.stat().st_mtime == pytest.approx(old), "liveness is the request's call"
+
+    store.keep_alive(loaded)
+    assert loaded.mtime == pytest.approx(time.time(), abs=5)
+    assert fn.stat().st_mtime == pytest.approx(time.time(), abs=5)
 
 
 def test_corrupt_session_file_is_discarded_and_renewed(store):
@@ -191,13 +217,17 @@ def test_soft_rotation_does_not_adopt_a_sid_with_no_file(store):
     _interrupted_peer_rotation(store, session)
 
     concurrent = store.get(old_sid)
-    store.rotate(concurrent, env=None, soft=True)
+    from odoo.http.exceptions import SessionExpiredException
 
+    with pytest.raises(SessionExpiredException):
+        store.rotate(concurrent, env=None, soft=True)
+
+    assert concurrent.sid == old_sid
     landed = store.get(concurrent.sid)
     assert not landed.is_new, (
         "rotate() moved the session onto a sid with no file behind it"
     )
-    assert landed["uid"] == 2, "the authenticated session must survive"
+    assert landed["uid"] == 2, "failed rotation must not rewrite the original file"
 
 
 def test_soft_rotation_adopts_once_the_peer_file_lands(store):
@@ -208,7 +238,7 @@ def test_soft_rotation_adopts_once_the_peer_file_lands(store):
     old_sid = session.sid
 
     next_sid = _interrupted_peer_rotation(store, session)
-    peer_final = Session({"uid": 2, "session_token": "new-token"}, next_sid)
+    peer_final = Session({"uid": 2, "session_token": "new-token"}, next_sid, new=True)
     store.save(peer_final)
 
     concurrent = store.get(old_sid)
@@ -222,13 +252,14 @@ class _RotationRequest(Request):
     httprequest: Any
 
     def __init__(self, store, session, sid_on_cookie):
-        self.app = SimpleNamespace(session_store=store)
-        self.session = session
-        self.env = None
-        self.future_response = FutureResponse()
-        self.httprequest = SimpleNamespace(
-            session_id=sid_on_cookie, path="/web/login", is_secure=False
+        httprequest: Any = SimpleNamespace(
+            session_id=sid_on_cookie,
+            path="/web/login",
+            is_secure=False,
+            remote_addr=None,
         )
+        super().__init__(httprequest, SimpleNamespace(session_store=store))
+        self.session = session
 
 
 def test_pending_rotation_survives_a_request_with_no_live_env(store):
@@ -317,16 +348,6 @@ def test_session_files_are_readable_only_by_their_owner(store):
 
     mode = pathlib.Path(store.get_session_filename(session.sid)).stat().st_mode
     assert mode & 0o777 == 0o600
-
-
-def test_the_vendored_store_defines_no_on_disk_layout_of_its_own():
-    from odoo.libs._vendor import sessions
-
-    base = sessions.FilesystemSessionStore(path="/tmp", session_class=Session)
-    with pytest.raises(NotImplementedError):
-        base.get_session_filename("x" * 84)
-
-    assert not hasattr(base, "filename_template")
 
 
 def test_the_odoo_store_shards_by_the_first_two_characters(store):

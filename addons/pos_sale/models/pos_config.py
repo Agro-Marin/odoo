@@ -4,16 +4,16 @@ from odoo import api, fields, models
 class PosConfig(models.Model):
     _inherit = "pos.config"
 
-    crm_team_id = fields.Many2one(
-        "crm.team",
+    team_id = fields.Many2one(
+        comodel_name="team.team",
         string="Sales Team",
-        ondelete="set null",
         index="btree_not_null",
+        domain=[("use_sale", "=", True)],
+        ondelete="set null",
         help="This Point of sale's sales will be related to this Sales Team.",
     )
     down_payment_product_id = fields.Many2one(
-        "product.product",
-        string="Down Payment Product",
+        comodel_name="product.product",
         help="This product will be used as down payment on a sale order.",
     )
 

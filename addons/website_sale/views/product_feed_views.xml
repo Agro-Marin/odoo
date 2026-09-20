@@ -42,9 +42,9 @@
                 <field name="name" />
                 <field
                     name="website_id"
-                    column_invisible="context.get('hide_website_column')"
+                    options="{'no_create': True}"
                     groups="website.group_multi_website"
-                    options="{'no_create': True}" />
+                    column_invisible="context.get('hide_website_column')" />
                 <field
                     name="pricelist_id"
                     placeholder="Default"
@@ -56,16 +56,14 @@
                     placeholder="All Categories"
                     widget="many2many_tags"
                     options="{'no_create': True}" />
-                <!-- The `o_field_handle` class disables the o-text-overflow styling added by the
-                    list renderer, which, if not disabled, causes misalignment of the icon. -->
                 <field
                     name="url"
                     string="Copy URL"
                     widget="CopyClipboardButton"
-                    class="o_field_handle"
                     width="100px"
                     nolabel="1"
-                    options="{'btn_class': 'primary btn-sm'}" />
+                    options="{'btn_class': 'primary btn-sm'}"
+                    class="o_field_handle" />
             </list>
         </field>
     </record>
@@ -113,9 +111,9 @@
         <field name="model_id" ref="model_product_feed" />
         <field name="binding_model_id" ref="website_sale.model_product_feed" />
         <field name="binding_view_types">list,form</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_no_one'))]" />
         <field name="state">code</field>
         <field name="code">action = records.action_invalidate_cache()</field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_no_one'))]" />
     </record>
 
 </odoo>

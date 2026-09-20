@@ -5,8 +5,6 @@ import {
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
-// Opening the system's file selector is not possible programmatically, so we
-// mock the upload service.
 let unpatch;
 const patchStep = {
     content: "Patch upload service",
@@ -42,10 +40,6 @@ const saveLinkPopup = () => [
     },
 ];
 
-/**
- * The purpose of this tour is to check the Linktools to create a link to an
- * uploaded document.
- */
 registerWebsitePreviewTour(
     "test_link_to_document",
     {

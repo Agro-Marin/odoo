@@ -3,6 +3,7 @@
 
 import { whenReady } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { paintBootFailureOverlay } from "@web/core/errors/boot_failure_overlay";
 import { localization } from "@web/core/l10n/localization";
 import { IANAZone, Settings } from "@web/core/l10n/luxon";
@@ -15,6 +16,7 @@ import { mountComponent } from "@web/env";
 import { session } from "@web/session";
 
 const log = makeAssetLog("boot");
+const debugLog = makeLogger("web.boot");
 
 /** @type {Promise<import("@odoo/owl").App | undefined> | null} */
 let bootPromise = null;
@@ -75,6 +77,7 @@ export function startWebClient(Webclient, options = {}) {
  */
 async function _startWebClient(Webclient, options) {
     let phase = "boot_prologue";
+    const endBoot = debugLog.perf("startWebClient");
     try {
         const isEnterprise = publishOdooInfo();
         log("startWebClient:enter", {
@@ -96,6 +99,7 @@ async function _startWebClient(Webclient, options) {
         );
 
         phase = "boot_document_ready";
+        debugLog.pipeline("phase", () => ({ phase }));
         await whenReady();
         log("document ready — mounting WebClient");
 
@@ -108,8 +112,10 @@ async function _startWebClient(Webclient, options) {
         phase = "boot_post_mount";
         odoo.isReady = true;
         log("startWebClient:ready — app mounted, odoo.isReady=true");
+        endBoot({ phase });
         return app;
     } catch (error) {
+        endBoot({ phase, failed: true });
         log("startWebClient:failed", { phase, error });
         paintBootFailureOverlay(error, phase);
         return undefined;

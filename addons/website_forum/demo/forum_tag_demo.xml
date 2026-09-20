@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Tag -->
         <record id="tags_0" model="forum.tag">
             <field name="name">Contract</field>
             <field name="color">1</field>

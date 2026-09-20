@@ -8,15 +8,18 @@ class CrmLead2opportunityPartnerMass(models.TransientModel):
 
     lead_id = fields.Many2one(required=False)
     lead_tomerge_ids = fields.Many2many(
-        "crm.lead",
-        "crm_convert_lead_mass_lead_rel",
+        comodel_name="crm.lead",
+        relation="crm_convert_lead_mass_lead_rel",
         string="Active Leads",
-        context={"active_test": False},
         default=lambda self: self.env.context.get("active_ids", []),
+        context={"active_test": False},
     )
-    user_ids = fields.Many2many("res.users", string="Salespersons")
+    user_ids = fields.Many2many(
+        comodel_name="res.users",
+        string="Salespersons",
+    )
     deduplicate = fields.Boolean(
-        "Apply deduplication",
+        string="Apply deduplication",
         default=True,
         help="Merge with existing leads/opportunities of each partner",
     )
@@ -51,7 +54,7 @@ class CrmLead2opportunityPartnerMass(models.TransientModel):
 
     @api.depends("user_ids")
     def _compute_team_id(self):
-        Team = self.env["crm.team"]
+        Team = self.env["team.team"]
         for convert in self:
             if not convert.user_id and not convert.user_ids and convert.team_id:
                 continue

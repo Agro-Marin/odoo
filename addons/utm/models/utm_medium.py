@@ -1,5 +1,7 @@
 import re
 
+from psycopg import IntegrityError
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -9,7 +11,11 @@ class UtmMedium(models.Model):
     _description = "UTM Medium"
     _order = "name"
 
-    name = fields.Char(string="Medium Name", required=True, translate=False)
+    name = fields.Char(
+        string="Medium Name",
+        translate=False,
+        required=True,
+    )
     active = fields.Boolean(default=True)
 
     _unique_name = models.Constraint(
@@ -55,23 +61,30 @@ class UtmMedium(models.Model):
         try:
             return self.env.ref(f"{module}.utm_medium_{name_normalized}")
         except ValueError:
-            utm_medium = (
-                self.sudo()
-                .env["utm.medium"]
-                .create(
-                    {
-                        "name": self.SELF_REQUIRED_UTM_MEDIUMS_REF.get(
-                            f"{module}.utm_medium_{name_normalized}", name
+            try:
+                with self.env.cr.savepoint():
+                    utm_medium = (
+                        self.sudo()
+                        .env["utm.medium"]
+                        .create(
+                            {
+                                "name": self.SELF_REQUIRED_UTM_MEDIUMS_REF.get(
+                                    f"{module}.utm_medium_{name_normalized}", name
+                                )
+                            }
                         )
-                    }
-                )
-            )
-            self.sudo().env["ir.model.data"].create(
-                {
-                    "name": f"utm_medium_{name_normalized}",
-                    "module": module,
-                    "res_id": utm_medium.id,
-                    "model": "utm.medium",
-                }
-            )
+                    )
+                    self.sudo().env["ir.model.data"].create(
+                        {
+                            "name": f"utm_medium_{name_normalized}",
+                            "module": module,
+                            "res_id": utm_medium.id,
+                            "model": "utm.medium",
+                        }
+                    )
+            except IntegrityError:
+                # A concurrent call created the same medium between our
+                # env.ref() lookup and this create(); return that one instead
+                # of propagating the unique-constraint violation.
+                return self.env.ref(f"{module}.utm_medium_{name_normalized}")
             return utm_medium

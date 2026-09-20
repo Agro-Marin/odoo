@@ -20,6 +20,8 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { AppEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -57,17 +59,6 @@ import {
     DEFAULT_THRESHOLD as DEFAULT_VIRTUALIZATION_THRESHOLD,
     useListVirtualization,
 } from "./list_virtualization.js";
-
-const perfMark = (/** @type {string} */ name) => {
-    if (odoo.debug) {
-        performance.mark(name);
-    }
-};
-const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) => {
-    if (odoo.debug) {
-        performance.measure(name, start);
-    }
-};
 
 /**
  * @typedef {import('@web/model/relational_model/dynamic_list').DynamicList} DynamicList
@@ -147,6 +138,8 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * }} ListRowApi
  */
 
+const log = makeLogger("web.view.list");
+
 export class ListRenderer extends Component {
     static template = "web.ListRenderer";
     static rowsTemplate = "web.ListRenderer.Rows";
@@ -154,6 +147,7 @@ export class ListRenderer extends Component {
     static recordRowTemplate = "web.ListRenderer.RecordRow";
     static groupRowTemplate = "web.ListRenderer.GroupRow";
     static useMagicColumnWidths = true;
+    static rowsDependOnSelection = false;
     static LONG_TOUCH_THRESHOLD = 400;
     static VIRTUALIZATION_THRESHOLD = DEFAULT_VIRTUALIZATION_THRESHOLD;
     static components = {
@@ -242,6 +236,7 @@ export class ListRenderer extends Component {
 
     setup() {
         this.setupServices();
+        useLifecycleLog(log);
         this.setupSharedContexts();
         this.setupRowInteractions();
         this.setupLayoutAndFocus();
@@ -380,6 +375,7 @@ export class ListRenderer extends Component {
         this.gridState = new ListGridState({
             list: this.props.list,
             isRTL: this.isRTL,
+            getRecords: (list) => this.getRowRecords(list),
         });
 
         this.virt = useListVirtualization(this.gridContext, {
@@ -486,6 +482,18 @@ export class ListRenderer extends Component {
         return getRowComponentClass(this.constructor);
     }
 
+    /**
+     * The records a list (or a group's list) renders as rows, in order. The
+     * template loop, the grid state and virtualization all read this, so a
+     * renderer that hides records overrides it once.
+     *
+     * @param {any} list
+     * @returns {any[]}
+     */
+    getRowRecords(list) {
+        return list.records;
+    }
+
     /** @param {any} record */
     resolveRowRecord(record) {
         if (!record || typeof record !== "object") {
@@ -554,19 +562,21 @@ export class ListRenderer extends Component {
             this.tooltipInfoByColumn = {};
         }
 
-        perfMark("list:processAllColumns:start");
-        this.allColumns = /** @type {Column[]} */ (
-            this.processAllColumns(this.props.archInfo.columns, this.props.list)
+        this.allColumns = log.measure(
+            "processAllColumns",
+            () =>
+                /** @type {Column[]} */ (
+                    this.processAllColumns(this.props.archInfo.columns, this.props.list)
+                ),
         );
-        perfMeasure("list:processAllColumns", "list:processAllColumns:start");
 
         Object.assign(this.optionalActiveFields, this.computeOptionalActiveFields());
         this.debugOpenView = this.opt.debugOpenView;
 
-        perfMark("list:getActiveColumns:start");
-        this.columns = this._toStableColumns(this.getActiveColumns());
-        this.visibleOptionalColumns = this.getVisibleOptionalColumns();
-        perfMeasure("list:getActiveColumns", "list:getActiveColumns:start");
+        log.measure("getActiveColumns", () => {
+            this.columns = this._toStableColumns(this.getActiveColumns());
+            this.visibleOptionalColumns = this.getVisibleOptionalColumns();
+        });
 
         this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
 
@@ -578,13 +588,8 @@ export class ListRenderer extends Component {
             hasActionsColumn: this.hasActionsColumn,
             showGroupAddLine: Boolean(this.props.editable && this.canCreate),
         });
-        perfMark("list:gridState.rebuild:start");
-        this.gridState.rebuild();
-        perfMeasure("list:gridState.rebuild", "list:gridState.rebuild:start");
-
-        perfMark("list:virt.refresh:start");
-        this.virt.refresh();
-        perfMeasure("list:virt.refresh", "list:virt.refresh:start");
+        log.measure("gridState.rebuild", () => this.gridState.rebuild());
+        log.measure("virt.refresh", () => this.virt.refresh());
     }
 
     /** @returns {import("./list_renderer").ListGridContext} */
@@ -641,20 +646,28 @@ export class ListRenderer extends Component {
             getFieldClass: (column) => this.getFieldClass(column),
             getFieldProps: (record, column) => this.getFieldProps(record, column),
             displayDeleteIcon: (record) => this.displayDeleteIcon(record),
-            onCellClicked: (record, column, ev, newWindow) =>
-                this.onCellClicked(rec(record), column, ev, newWindow),
-            onButtonCellClicked: (record, column, ev) =>
-                this.onButtonCellClicked(rec(record), column, ev),
-            onRemoveCellClicked: (record, ev) =>
-                this.onRemoveCellClicked(rec(record), ev),
-            onCellKeydown: (ev, group = null, record = null) =>
-                this.onCellKeydown(ev, grp(group), rec(record)),
-            toggleRecordSelection: (record) => this.toggleRecordSelection(rec(record)),
-            onRowTouchStart: (record, ev) => this.onRowTouchStart(rec(record), ev),
-            onRowTouchEnd: (record) => this.onRowTouchEnd(rec(record)),
-            onRowTouchMove: (record) => this.onRowTouchMove(rec(record)),
-            onClickCapture: (record, ev) => this.onClickCapture(rec(record), ev),
-            ignoreEventInSelectionMode: (ev) => this.ignoreEventInSelectionMode(ev),
+            // every argument reaches the renderer: a subclass may widen a
+            // handler's signature and its row template call it that way
+            onCellClicked: (record, ...args) =>
+                this.onCellClicked(rec(record), ...args),
+            onButtonCellClicked: (record, ...args) =>
+                this.onButtonCellClicked(rec(record), ...args),
+            onRemoveCellClicked: (record, ...args) =>
+                this.onRemoveCellClicked(rec(record), ...args),
+            onCellKeydown: (ev, group = null, record = null, ...args) =>
+                this.onCellKeydown(ev, grp(group), rec(record), ...args),
+            toggleRecordSelection: (record, ...args) =>
+                this.toggleRecordSelection(rec(record), ...args),
+            onRowTouchStart: (record, ...args) =>
+                this.onRowTouchStart(rec(record), ...args),
+            onRowTouchEnd: (record, ...args) =>
+                this.onRowTouchEnd(rec(record), ...args),
+            onRowTouchMove: (record, ...args) =>
+                this.onRowTouchMove(rec(record), ...args),
+            onClickCapture: (record, ...args) =>
+                this.onClickCapture(rec(record), ...args),
+            ignoreEventInSelectionMode: (...args) =>
+                this.ignoreEventInSelectionMode(...args),
             getGridState: () => this.gridState,
             getEditedRecord: () => this.editedRecord,
             displaySaveNotification: () => this.displaySaveNotification(),
@@ -689,7 +702,15 @@ export class ListRenderer extends Component {
             displayOptionalFields: this.displayOptionalFields,
             isX2Many: this.isX2Many,
             rowIndex: this.gridState.findRowByRecordId(String(record.id))?.globalIndex,
+            selectionKey: /** @type {typeof ListRenderer} */ (this.constructor)
+                .rowsDependOnSelection
+                ? this.selectionKey
+                : undefined,
         };
+    }
+
+    get selectionKey() {
+        return this.props.list.selection.map((record) => record.id).join(",");
     }
 
     /**
@@ -853,7 +874,7 @@ export class ListRenderer extends Component {
     }
 
     get emptyRowIds() {
-        let nbEmptyRow = Math.max(0, 4 - this.props.list.records.length);
+        let nbEmptyRow = Math.max(0, 4 - this.getRowRecords(this.props.list).length);
         if (nbEmptyRow > 0 && this.displayRowCreates) {
             nbEmptyRow -= 1;
         }

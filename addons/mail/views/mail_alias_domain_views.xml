@@ -15,30 +15,30 @@
                                 <field
                                     name="name"
                                     string="Domain"
-                                    class="oe_inline"
-                                    placeholder="e.g. &quot;mycompany.com&quot;" />
+                                    placeholder="e.g. &quot;mycompany.com&quot;"
+                                    class="oe_inline" />
                             </div>
                             <field
                                 name="company_ids"
-                                widget="many2many_tags"
                                 string="Used In"
-                                readonly="True"
+                                placeholder="Visible to all"
+                                widget="many2many_tags"
                                 groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                readonly="True" />
                         </group>
                         <group>
                             <field
                                 name="bounce_alias"
-                                groups="base.group_no_one"
-                                placeholder="e.g. &quot;bounce&quot;" />
+                                placeholder="e.g. &quot;bounce&quot;"
+                                groups="base.group_no_one" />
                             <field
                                 name="catchall_alias"
-                                groups="base.group_no_one"
-                                placeholder="e.g. &quot;catchall&quot;" />
+                                placeholder="e.g. &quot;catchall&quot;"
+                                groups="base.group_no_one" />
                             <field
                                 name="default_from"
-                                groups="base.group_no_one"
-                                placeholder="e.g. &quot;notifications&quot;" />
+                                placeholder="e.g. &quot;notifications&quot;"
+                                groups="base.group_no_one" />
                         </group>
                     </group>
                 </sheet>
@@ -58,8 +58,8 @@
                 <field name="default_from" />
                 <field
                     name="company_ids"
-                    optional="hide"
                     widget="many2many_tags"
+                    optional="hide"
                     groups="base.group_multi_company" />
             </list>
         </field>
@@ -76,8 +76,8 @@
                 <field name="company_ids" groups="base.group_multi_company" />
                 <group>
                     <filter
-                        string="Company"
                         name="group_by_company_ids"
+                        string="Company"
                         context="{'group_by': 'company_ids'}"
                         groups="base.group_multi_company" />
                 </group>

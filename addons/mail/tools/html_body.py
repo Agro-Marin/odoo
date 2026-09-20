@@ -5,11 +5,16 @@ import lxml.html
 from lxml import etree
 from markupsafe import Markup, escape
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 def parse_body_fragments(body: str) -> list:
     try:
         return lxml.html.fragments_fromstring(body)
     except ValueError:
+        _debug.logic("body_parsed_as_bytes", length=len(body))
         return lxml.html.fragments_fromstring(body.encode("utf-8"))
 
 

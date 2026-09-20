@@ -1,9 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 import { markRaw, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { Meeting } from "./meeting.js";
+
+const log = makeLogger("mail.rtc.pip");
 
 export class CallPipService {
     /**
@@ -34,6 +37,7 @@ export class CallPipService {
     }
 
     closePip() {
+        log.lifecycle("closePip", () => ({ wasActive: this.state.active }));
         this.state.active = false;
         this.pipWindow?.close();
     }
@@ -45,10 +49,16 @@ export class CallPipService {
     async openPip({ context } = {}) {
         const rtc = this.env.services["discuss.rtc"];
         if (!rtc?.channel) {
+            log.logic("openPip refused: no call");
             return;
         }
         this.state.active = true;
         const isShadowRoot = context?.root?.el?.getRootNode() instanceof ShadowRoot;
+        log.lifecycle("openPip", () => ({
+            channel: rtc.channel.id,
+            native: this.isNativePipAvailable,
+            isShadowRoot,
+        }));
         const pipWindow = await this.popout.pip(Meeting, {
             props: { isPip: true },
             options: { useAlternativeAssets: isShadowRoot },

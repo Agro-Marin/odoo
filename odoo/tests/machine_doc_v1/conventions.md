@@ -121,6 +121,10 @@ classes individually silently stops covering new ones.
 - `warmup`/`assertQueryCount`: the warm-up run executes the whole test body
   once with `self.warm = False`; assertions must be conditional on nothing —
   the framework skips the count checks itself.
+- `assertQueriesConstant(run, small, large)`: `run(n)` at both sizes, each in
+  a savepoint after `invalidate_all`, one warm-up run first; equal counts or
+  the assertion fails. It pins the shape (no N+1) where `assertQueryCount`
+  pins the number.
 - Retry mode (`ODOO_TEST_FAILURE_RETRIES`) treats **any ERROR-level log**
   during a soft run as failure (`lower_logging`), not just assertions.
 - `benchmark.compute_stats`: mean/median/percentiles are outlier-trimmed
@@ -139,6 +143,21 @@ classes individually silently stops covering new ones.
 - Chrome flakiness: `Thread.start()` can transiently refuse
   (`pthread_create`) under load — `ChromeBrowser.__init__` retries with
   fresh Thread objects; keep that pattern if touching the receiver setup.
+
+## Debug loggers (campaign scaffolding, 2026-09-12)
+
+Every module but `__init__.py` carries `_debug = DebugLog(__name__)` from
+`odoo/libs/debug_log.py` and `_debug.<channel>("test.<area>.<event>", k=v)` sites —
+`logic` (which branch), `perf` (spans with `ms=` and `queries=`), `pipeline` (hand-offs),
+`lifecycle` (open / close / settle). Off under the default `log_level = info`; enable one
+package-channel with `--log-handler odoo.debug.<channel>.tests:DEBUG`, all four with
+four handlers. Per-test lines carry `test=<canonical_tag>`; a label read off an object a
+test may replace with a double goes through `getattr` (`http._tag`). They are temporary
+and removed together when the campaign ends — do not build on them, do not "clean them
+up"; the removal recipe and the readings live in the knowledge vault under
+reference/dev/debug-logging-campaign.md (section *tests*). One test knows about them:
+`TestRunnerLoggingCommon._addError` in `odoo/addons/base/tests/test_test_suite.py` drops
+`odoo.debug.*` records from the capture it asserts on.
 
 ## What NOT to do
 

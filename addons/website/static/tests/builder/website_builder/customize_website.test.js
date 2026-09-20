@@ -277,7 +277,6 @@ test("isApplied with action “websiteConfig” depends on views, assets and var
     const { getEditableContent } = await setupWebsiteBuilder(
         `<div class="test-options-target">b</div>`,
     );
-    // fake initial values
     const iframeDocument = getEditableContent().ownerDocument.documentElement;
     iframeDocument.style.setProperty("--foo", "bar");
     iframeDocument.style.setProperty("--cat", "cat");
@@ -432,7 +431,7 @@ test("No rpc call if “previewableWebsiteConfig” action is undone", async () 
     await contains("[data-action-param*='test_template']").click();
     undo(editor);
     await contains(".o-snippets-top-actions [data-action='save']").click();
-    expect.verifySteps([]); // No call to `theme_customize_data` nor to `save`
+    expect.verifySteps([]);
 });
 
 test("theme background image is properly set", async () => {
@@ -440,7 +439,6 @@ test("theme background image is properly set", async () => {
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYIIA" +
         "A".repeat(1000);
 
-    // Using historyImageSrc to avoid mocking the gallery dialog
     patchWithCleanup(CustomizeBodyBgTypeAction.prototype, {
         async load(editingElement) {
             editingElement.historyImageSrc = { src: base64Image };

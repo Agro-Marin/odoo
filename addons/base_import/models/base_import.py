@@ -18,7 +18,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import psycopg
-import requests
 from PIL import Image
 
 from odoo import api, fields, models
@@ -238,7 +237,7 @@ def read_xls_rows(data, options):
             elif cell.ctype is xlrd.XL_CELL_BOOLEAN:
                 values.append("True" if cell.value else "False")
             elif cell.ctype is xlrd.XL_CELL_ERROR:
-                raise ValueError(
+                raise ImportValidationError(
                     _(
                         "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
                         row=rowx,
@@ -273,7 +272,7 @@ def read_xlsx_rows(data, options):
             values = []
             for colx, cell in enumerate(row, 1):
                 if cell.data_type == types.TYPE_ERROR:
-                    raise ValueError(
+                    raise ImportValidationError(
                         _(
                             "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
                             row=rowx,
@@ -296,7 +295,7 @@ def read_xlsx_rows(data, options):
                     elif d_fmt == "date":
                         values.append(cell.value.date())
                     else:
-                        raise ValueError(
+                        raise ImportValidationError(
                             _(
                                 "Invalid cell format at row %(row)s, column %(col)s: %(cell_value)s, with format: %(cell_format)s, as (%(format_type)s) formats are not supported.",
                                 row=rowx,
@@ -388,7 +387,10 @@ class Base_ImportMapping(models.Model):
     _name = "base_import.mapping"
     _description = "Base Import Mapping"
 
-    res_model = fields.Char(index=True, required=True)
+    res_model = fields.Char(
+        index=True,
+        required=True,
+    )
     column_name = fields.Char(required=True)
     field_name = fields.Char(required=True)
 
@@ -424,14 +426,13 @@ class Base_ImportImport(models.TransientModel):
     # any match between them. (see '_get_mapping_suggestion' for more details)
     FUZZY_MATCH_DISTANCE = 0.2
 
-    res_model = fields.Char("Model")
+    res_model = fields.Char(string="Model")
     file = fields.Binary(
-        "File",
-        help="File to check and/or import, raw binary (not base64)",
         attachment=False,
+        help="File to check and/or import, raw binary (not base64)",
     )
-    file_name = fields.Char("File Name")
-    file_type = fields.Char("File Type")
+    file_name = fields.Char()
+    file_type = fields.Char()
 
     @api.model
     def get_fields_tree(self, model, depth=FIELDS_RECURSION_LIMIT):
@@ -579,7 +580,7 @@ class Base_ImportImport(models.TransientModel):
 
             # Do not take into account the definition of archived parents,
             # we do not import archived records most of the time.
-            definition_records = target_model.search_fetch(
+            definition_records = target_model.search_fetch(  # noqa: E8507 - one query per properties field of the import
                 [(definition_record_field, "!=", False)],
                 [definition_record_field, "display_name"],
                 order="id",  # Avoid complex order
@@ -1139,7 +1140,7 @@ class Base_ImportImport(models.TransientModel):
             except KeyError:
                 pass
         date_patterns.extend(DATE_PATTERNS)
-        match = check_patterns(date_patterns, preview_values)
+        match = get_matching_pattern(date_patterns, preview_values)
         if match:
             options["date_format"] = match
             return ["date", "datetime"]
@@ -1150,7 +1151,7 @@ class Base_ImportImport(models.TransientModel):
         datetime_patterns.extend(
             "%s %s" % (d, t) for d in date_patterns for t in TIME_PATTERNS
         )
-        match = check_patterns(datetime_patterns, preview_values)
+        match = get_matching_pattern(datetime_patterns, preview_values)
         if match:
             options["datetime_format"] = match
             return ["datetime"]
@@ -1271,10 +1272,10 @@ class Base_ImportImport(models.TransientModel):
         IrModelFieldsUs = self.with_context(lang="en_US").env["ir.model.fields"]
 
         @functools.cache
-        def lookup(model_name):
+        def get_field_string(model_name):
             return IrModelFieldsUs.get_field_string(model_name)
 
-        return lookup
+        return get_field_string
 
     def _mapping_path_exists(self, field_path, fields_tree):
         subtree = fields_tree
@@ -1678,7 +1679,9 @@ class Base_ImportImport(models.TransientModel):
         return path_models
 
     def _parse_binary_from_data(self, data, index, name, options):
-        with requests.Session() as session:
+        with self.env["ir.egress"].session(
+            purpose="import_url", max_bytes=None
+        ) as session:
             session.stream = True
 
             for num, line in enumerate(data):
@@ -2490,7 +2493,7 @@ def _is_native_date_column(values):
 
     The xls/xlsx readers hand back native ``datetime.date`` /
     ``datetime.datetime`` for date-formatted cells, and such a column must not
-    be put through :func:`check_patterns`: that function *skips* date
+    be put through :func:`get_matching_pattern`: that function *skips* date
     instances, so every candidate pattern matches vacuously over the column and
     the FIRST one is returned as though it had been confirmed. The answer is
     then written into ``options["date_format"]`` -- measured, a sheet of native
@@ -2522,7 +2525,7 @@ def _is_integer_literal(value):
     return bool(_INTEGER_RE.match(value))
 
 
-def check_patterns(patterns, values):
+def get_matching_pattern(patterns, values):
     for pattern in patterns:
         p = to_re(pattern)
         for val in values:
@@ -2541,7 +2544,7 @@ def check_patterns(patterns, values):
 def to_re(pattern):
     """cut down version of TimeRE converting strptime patterns to regex
 
-    Memoized: `check_patterns` walks ~280 candidate date/datetime patterns per
+    Memoized: `get_matching_pattern` walks ~280 candidate date/datetime patterns per
     column per preview, and the pattern set is a module-level constant.
     """
     pattern = re.sub(r"\s+", r"\\s+", pattern)

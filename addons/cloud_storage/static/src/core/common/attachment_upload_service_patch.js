@@ -8,9 +8,11 @@ patch(AttachmentUploadService.prototype, {
     setup(env, services) {
         super.setup(env, services);
         this.uploadingCloudFiles = new Map();
-        window.addEventListener("beforeunload", () =>
-            this.abortByAttachmentId.forEach((abort) => abort()),
-        );
+        window.addEventListener("beforeunload", () => {
+            for (const { abort } of this.pendingUploads.values()) {
+                abort?.();
+            }
+        });
     },
 
     async _processLoaded(thread, composer, { data, upload_info }, tmpId, def) {
@@ -28,10 +30,10 @@ patch(AttachmentUploadService.prototype, {
         const file = this.uploadingCloudFiles.get(tmpId);
         try {
             const upload = this.fileUploadService.uploadToUrl(upload_info, file);
-            this.abortByAttachmentId.set(tmpId, upload.abort);
+            this.pendingUploads.get(tmpId).abort = upload.abort;
             await upload;
         } catch (error) {
-            if (!this.uploadingAttachmentIds.has(tmpId)) {
+            if (!this.pendingUploads.has(tmpId)) {
                 return;
             }
             removeAttachment();
@@ -42,7 +44,7 @@ patch(AttachmentUploadService.prototype, {
             this._cleanupUploading(tmpId);
             return;
         }
-        if (!this.uploadingAttachmentIds.has(tmpId)) {
+        if (!this.pendingUploads.has(tmpId)) {
             return;
         }
         super._processLoaded(...arguments);

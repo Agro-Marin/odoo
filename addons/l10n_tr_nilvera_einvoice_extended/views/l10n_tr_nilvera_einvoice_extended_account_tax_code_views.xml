@@ -62,11 +62,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="l10n_tr_menu_account_tax_code"
-        parent="account.menu_account_accounting"
-        action="action_l10n_tr_nilvera_einvoice_extended_account_tax_code_list"
-        sequence="9"
-        groups="base.group_no_one" />
-
 </odoo>

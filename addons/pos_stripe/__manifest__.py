@@ -22,5 +22,4 @@
             "pos_stripe/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

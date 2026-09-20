@@ -7,6 +7,7 @@ import pytest
 import werkzeug.datastructures
 
 from odoo.http import _serve
+from odoo.http.request_class import Request
 from odoo.libs.worker_thread import current_worker_thread
 
 
@@ -15,6 +16,7 @@ class _Cursor:
         self.readonly = readonly
         self.closed = False
         self.rollbacks = 0
+        self.commit_count = 0
 
     def close(self):
         self.closed = True
@@ -35,7 +37,7 @@ class _Env:
 
 
 def _serve_db(this):
-    return _serve._RequestServeMixin._serve_db(this)
+    return this._serve_db()
 
 
 def _make(readonly_route=True, replica=True):
@@ -48,7 +50,7 @@ def _make(readonly_route=True, replica=True):
     )
     rule = types.SimpleNamespace(endpoint=endpoint)
 
-    def _cursor():
+    def _cursor(readonly=False, pin_key=None):
         cr = _Cursor(readonly=False)
         calls["opened"].append(cr)
         return cr
@@ -65,30 +67,23 @@ def _make(readonly_route=True, replica=True):
     registry = _Registry()
     env = _Env(first, registry)
 
-    this: Any = types.SimpleNamespace(
-        db="db",
-        registry=registry,
-        env=None,
-        session=types.SimpleNamespace(uid=1, context={}),
-        httprequest=types.SimpleNamespace(
-            method="GET",
-            path="/x",
-            files=werkzeug.datastructures.MultiDict(),
-        ),
-        dispatcher=None,
-        _acquire_registry_cursor=lambda: first,
-        _update_dispatcher=lambda r: None,
-        _serve_ir_http=lambda r, a: "served",
-        _update_served_exception=lambda exc: None,
-        _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
+    httprequest: Any = types.SimpleNamespace(
+        remote_addr=None,
+        method="GET",
+        path="/x",
+        files=werkzeug.datastructures.MultiDict(),
     )
-    for helper in (
-        "_select_serve_target_and_mode",
-        "_serve_readwrite",
-        "_serve_readonly",
-        "_open_read_write_cursor",
-    ):
-        setattr(this, helper, getattr(_serve._RequestServeMixin, helper).__get__(this))
+    this: Any = Request(httprequest, app=None)
+    this.db = "db"
+    this.registry = registry
+    this.session = types.SimpleNamespace(uid=1, context={}, sid="S" * 84)
+    this._acquire_registry_cursor = lambda: first
+    this._update_dispatcher = lambda r: None
+    this._serve_ir_http = lambda r, a: "served"
+    this._update_served_exception = lambda exc: None
+    this._bind_session_transaction = lambda cr: None
+    this._flush_session = lambda: None
+    this._reset_for_replay = lambda cr=None: calls["reset_for_replay"].append(cr)
 
     this.calls = calls
     this.first_cursor = first
@@ -196,3 +191,47 @@ def test_a_read_write_route_with_a_replica_swaps_to_a_read_write_cursor():
     assert this.first_cursor.closed
     assert len(this.calls["opened"]) == 1
     assert env.rebound_to is this.calls["opened"][0]
+
+
+@pytest.mark.parametrize("finished", ["committed", "closed"])
+def test_readonly_error_after_transaction_finished_is_never_replayed(finished):
+    this, env = _make(readonly_route=True, replica=True)
+
+    def retrying(func, env, participant=None):
+        if finished == "committed":
+            env.cr.commit_count += 1
+        else:
+            env.cr.close()
+        raise psycopg.errors.ReadOnlySqlTransaction("postcommit write")
+
+    with mock.patch.object(_serve, "RequestRetryParticipant") as participant:
+        with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+            _run(this, env, retrying)
+        participant.return_value.on_rollback.assert_not_called()
+    assert this.calls["opened"] == []
+    assert this.calls["reset_for_replay"] == []
+    assert this.first_cursor.rollbacks == 0
+
+
+def test_a_mode_the_router_recorded_is_kept_for_the_access_log():
+    this, env = _make(readonly_route=True, replica=False)
+    current_worker_thread().cursor_mode = "ro->rw"
+    served = _run(this, env, lambda func, env, participant=None: func())
+
+    assert served == "served"
+    assert current_worker_thread().cursor_mode == "ro->rw", (
+        "a request pinned to the primary must not read as a plain rw route"
+    )
+
+
+@pytest.mark.parametrize("stamped", ["ro", "ro->rw"])
+def test_a_write_route_reads_rw_whatever_the_speculative_acquisition_stamped(stamped):
+    this, env = _make(readonly_route=False, replica=True)
+    current_worker_thread().cursor_mode = stamped
+    served = _run(this, env, lambda func, env, participant=None: func())
+
+    assert served == "served"
+    assert current_worker_thread().cursor_mode == "rw", (
+        "the registry stamps the read-only probe before the route's mode is "
+        "known; a write route must not log as a replica read"
+    )

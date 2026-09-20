@@ -1,7 +1,7 @@
 import json
 import re
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
@@ -12,42 +12,49 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "adyen_api_key": "adyen_api_key",
+        "adyen_hmac_key": "adyen_hmac_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("adyen", "Adyen")], ondelete={"adyen": "set default"}
+        selection_add=[("adyen", "Adyen")],
+        ondelete={"adyen": "set default"},
     )
     adyen_merchant_account = fields.Char(
         string="Merchant Account",
-        help="The code of the merchant account to use with this provider",
-        required_if_provider="adyen",
         copy=False,
+        required_if_provider="adyen",
         groups="base.group_system",
+        help="The code of the merchant account to use with this provider",
     )
     adyen_api_key = fields.Char(
         string="API Key",
-        help="The API key of the webservice user",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="adyen",
-        copy=False,
         groups="base.group_system",
+        help="The API key of the webservice user",
     )
     adyen_client_key = fields.Char(
         string="Client Key",
-        help="The client key of the webservice user",
-        required_if_provider="adyen",
         copy=False,
+        required_if_provider="adyen",
+        help="The client key of the webservice user",
     )
     adyen_hmac_key = fields.Char(
         string="HMAC Key",
-        help="The HMAC key of the webhook",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="adyen",
-        copy=False,
         groups="base.group_system",
+        help="The HMAC key of the webhook",
     )
     adyen_api_url_prefix = fields.Char(
         string="API URL Prefix",
-        help="The base URL for the API endpoints",
-        required_if_provider="adyen",
         copy=False,
+        required_if_provider="adyen",
+        help="The base URL for the API endpoints",
     )
 
     # === CRUD METHODS === #
@@ -130,7 +137,7 @@ class PaymentProvider(models.Model):
         converted_amount = (
             amount
             and currency_code
-            and payment_utils.to_minor_currency_units(
+            and payment_utils.major_to_minor_currency_units(
                 amount, currency, const.CURRENCY_DECIMALS.get(currency_code)
             )
         )

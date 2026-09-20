@@ -539,12 +539,15 @@ class Survey(http.Controller):
     def _prepare_question_html(
         self, survey_sudo: Any, answer_sudo: Any, **post: Any
     ) -> dict[str, Any]:
-        survey_data = self._prepare_survey_data(survey_sudo, answer_sudo, **post)
-
-        IrQweb = request.env["ir.qweb"].with_context(
-            lang=self.env["res.lang"]._get_data(id=answer_sudo.lang_id.id).code
+        lang_code = (
+            self.env["res.lang"]._get_data(id=answer_sudo.lang_id.id).code
             or self._get_lang_with_fallback(answer_sudo.sudo(False)).code
         )
+        survey_sudo = survey_sudo.with_context(lang=lang_code)
+        answer_sudo = answer_sudo.with_context(lang=lang_code)
+        survey_data = self._prepare_survey_data(survey_sudo, answer_sudo, **post)
+
+        IrQweb = request.env["ir.qweb"].with_context(lang=lang_code)
         if answer_sudo.state == "done":
             survey_content = IrQweb._render("survey.survey_fill_form_done", survey_data)
         else:
@@ -982,7 +985,7 @@ class Survey(http.Controller):
 
         return {}, self._prepare_question_html(survey_sudo, answer_sudo, **post)
 
-    def _check_time_limit_exceeded(self, survey_sudo: Any, answer_sudo: Any) -> bool:
+    def _is_time_limit_exceeded(self, survey_sudo: Any, answer_sudo: Any) -> bool:
         if not (
             answer_sudo.survey_time_limit_reached
             or answer_sudo.question_time_limit_reached
@@ -1092,7 +1095,7 @@ class Survey(http.Controller):
         ):
             return {}, {"error": "unauthorized"}
 
-        if self._check_time_limit_exceeded(survey_sudo, answer_sudo):
+        if self._is_time_limit_exceeded(survey_sudo, answer_sudo):
             return {}, {"error": "unauthorized"}
 
         errors = self._save_page_answers(survey_sudo, answer_sudo, questions, post)
@@ -1857,14 +1860,14 @@ class Survey(http.Controller):
                     )
                 else:
                     row.append("")
-            rows.append([self._sanitize_export_cell(cell) for cell in row])
+            rows.append([self._escape_export_cell(cell) for cell in row])
 
         return header, rows
 
     _FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
 
     @staticmethod
-    def _sanitize_export_cell(value: Any) -> Any:
+    def _escape_export_cell(value: Any) -> Any:
         if isinstance(value, str) and value.startswith(Survey._FORMULA_TRIGGERS):
             return f"'{value}"
         return value

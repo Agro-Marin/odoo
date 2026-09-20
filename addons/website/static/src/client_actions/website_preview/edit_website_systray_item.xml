@@ -30,7 +30,7 @@
                         Create <span class="text-muted" t-out="url"/> page
                     </DropdownItem>
                 </t>
-                <t t-else=""><!-- In this case, this is translatable -->
+                <t t-else="">
                     <DropdownItem onSelected.bind="() => this.attemptStartTranslate()" class="'o_translate_website_dropdown_item'">
                         Translate<t t-translation="off"> - <span class="text-muted" t-out="this.currentWebsiteInfo.langName"/></t>
                     </DropdownItem>

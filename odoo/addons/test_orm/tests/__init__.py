@@ -19,6 +19,7 @@ from . import (
     test_invalidate_pending_write,
     test_json_field_operations,
     test_many2many,
+    test_registry_cleanup_scope,
     test_registry_metadata_ondelete,
     test_many2many_operations,
     test_onchange,
@@ -46,3 +47,6 @@ from . import (
 )
 from . import test_translation_write_propagation
 from . import test_unlink_invalidation
+from . import test_projection_constraints
+from . import test_hierarchy_flush
+from . import test_many2many_shared_relation

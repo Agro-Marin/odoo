@@ -13,26 +13,30 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     l10n_ar_vat = fields.Char(
-        compute="_compute_l10n_ar_vat",
         string="VAT",
+        compute="_compute_l10n_ar_vat",
         help="Computed field that returns VAT or nothing if this one"
         " is not set for the partner",
     )
     l10n_ar_formatted_vat = fields.Char(
-        compute="_compute_l10n_ar_formatted_vat",
         string="Formatted VAT",
+        compute="_compute_l10n_ar_formatted_vat",
         help="Computed field that will convert the"
         " given VAT number to the format {person_category:2}-{number:10}-{validation_number:1}",
     )
 
-    l10n_ar_gross_income_number = fields.Char("Gross Income Number")
+    l10n_ar_gross_income_number = fields.Char(string="Gross Income Number")
     l10n_ar_gross_income_type = fields.Selection(
-        [("multilateral", "Multilateral"), ("local", "Local"), ("exempt", "Exempt")],
-        "Gross Income Type",
+        selection=[
+            ("multilateral", "Multilateral"),
+            ("local", "Local"),
+            ("exempt", "Exempt"),
+        ],
+        string="Gross Income Type",
         help="Argentina: Type of gross income: exempt, local, multilateral.",
     )
     l10n_ar_afip_responsibility_type_id = fields.Many2one(
-        "l10n_ar.afip.responsibility.type",
+        comodel_name="l10n_ar.afip.responsibility.type",
         string="ARCA Responsibility Type",
         index="btree_not_null",
         help="Defined by ARCA to"
@@ -82,7 +86,7 @@ class ResPartner(models.Model):
             )
         )
         for partner in l10n_ar_partners:
-            if id_number := partner._get_id_number_sanitize():
+            if id_number := partner._get_id_number_digits():
                 partner.vat = str(id_number)
             if validation == "error":
                 partner._l10n_ar_identification_validation()
@@ -105,7 +109,11 @@ class ResPartner(models.Model):
         self.check_singleton()
         if not self.l10n_ar_vat:
             raise UserError(
-                _("No VAT configured for partner [%i] %s", self.id, self.name)
+                _(
+                    "No VAT configured for partner [%(id)i] %(name)s",
+                    id=self.id,
+                    name=self.name,
+                )
             )
         return self.l10n_ar_vat
 
@@ -179,7 +187,7 @@ class ResPartner(models.Model):
             except Exception as error:
                 raise ValidationError(repr(error))
 
-    def _get_id_number_sanitize(self):
+    def _get_id_number_digits(self):
         """Sanitize the identification number. Return the digits/integer value of the identification number
         If not vat number defined return 0"""
         self.check_singleton()

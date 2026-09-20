@@ -37,14 +37,14 @@ class AuthorizeTest(AuthorizeCommon):
                 new=self._generate_test_access_token,
             ),
         ):
-            processing_values = tx._get_processing_values()
+            processing_values = tx._prepare_processing_values()
 
         with patch(
             "odoo.addons.payment.utils.generate_access_token",
             new=self._generate_test_access_token,
         ):
             self.assertTrue(
-                payment_utils.check_access_token(
+                payment_utils.is_access_token_valid(
                     processing_values["access_token"],
                     self.reference,
                     self.partner.id,

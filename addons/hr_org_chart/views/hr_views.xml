@@ -50,10 +50,10 @@
                 </div>
                 <field
                     name="child_ids"
-                    class="position-relative w-100"
                     widget="hr_org_chart"
+                    nolabel="1"
                     readonly="1"
-                    nolabel="1" />
+                    class="position-relative w-100" />
             </div>
         </field>
     </record>
@@ -85,10 +85,10 @@
         <field name="model">hr.employee</field>
         <field name="arch" type="xml">
             <hierarchy
-                child_field="child_ids"
-                js_class="hr_employee_hierarchy"
                 icon="fa-users"
-                draggable="1">
+                child_field="child_ids"
+                draggable="1"
+                js_class="hr_employee_hierarchy">
                 <field name="name" />
                 <field name="job_id" />
                 <field name="department_color" />
@@ -101,17 +101,17 @@
                             t-att-title="record.department_id.value">
                             <field
                                 name="image_1024"
-                                preview_image="image_128"
+                                widget="background_image"
                                 options="{'zoom': true, 'zoom_delay': 1000}"
-                                widget="background_image" />
+                                preview_image="image_128" />
                         </div>
                         <div class="d-flex flex-column text-center">
                             <div class="d-flex">
-                                <field class="fw-bold w-100" name="name" />
+                                <field name="name" class="fw-bold w-100" />
                                 <field
                                     name="hr_icon_display"
-                                    class="flex-shrink-0"
-                                    widget="hr_presence_status" />
+                                    widget="hr_presence_status"
+                                    class="flex-shrink-0" />
                             </div>
                             <field name="job_title" />
                         </div>

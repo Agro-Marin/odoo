@@ -12,7 +12,7 @@ class MixinMailThread(models.AbstractModel):
     _inherit = "mixin.mail.thread"
 
     message_has_sms_error = fields.Boolean(
-        "SMS Delivery error",
+        string="SMS Delivery error",
         compute="_compute_message_has_sms_error",
         search="_search_message_has_sms_error",
         help="If checked, some messages have a delivery error.",

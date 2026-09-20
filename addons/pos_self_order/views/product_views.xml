@@ -43,8 +43,8 @@
             <field name="available_in_pos" position="after">
                 <field
                     name="self_order_available"
-                    groups="point_of_sale.group_pos_user"
-                    optional="hide" />
+                    optional="hide"
+                    groups="point_of_sale.group_pos_user" />
             </field>
         </field>
     </record>

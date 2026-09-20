@@ -27,9 +27,6 @@ export class TurnstileCaptcha extends Interaction {
         }
     }
 
-    /**
-     * Discard all library changes to reset the state of the Html.
-     */
     destroy() {
         TurnStile.clean(this.el);
         super.destroy();

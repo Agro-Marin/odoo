@@ -2,6 +2,9 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.activity");
 
 export class Activity extends Record {
     static _name = "mail.activity";
@@ -18,6 +21,12 @@ export class Activity extends Record {
             this.preinsert(data)
         );
         assignDefined(activity, data);
+        log.pipeline("_insert", () => ({
+            id: activity.id,
+            res_model: activity.res_model,
+            res_id: activity.res_id,
+            broadcast,
+        }));
         if (broadcast) {
             this.store.activityBroadcastChannel?.postMessage({
                 type: "INSERT",

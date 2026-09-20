@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="view_partner_property_form_inherit_ubl_tr" model="ir.ui.view">
@@ -16,10 +17,10 @@
                     <div class="col-8 pt-0">
                         <button
                             name="l10n_tr_check_nilvera_customer"
-                            class="btn btn-secondary"
                             type="object"
                             string="Verify"
-                            help="Verify partner on Nilvera" />
+                            help="Verify partner on Nilvera"
+                            class="btn btn-secondary" />
                     </div>
                     </div>
                 <field
@@ -35,11 +36,13 @@
         <field name="name">Verify Nilvera Status</field>
         <field name="model_id" ref="model_res_partner" />
         <field name="binding_model_id" ref="model_res_partner" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_invoice'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
                 records.l10n_tr_check_nilvera_customer()</field>
-        <field name="group_ids" eval="[(4, ref('account.group_account_invoice'))]" />
     </record>
 
 </odoo>

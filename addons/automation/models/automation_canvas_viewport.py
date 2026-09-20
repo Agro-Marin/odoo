@@ -12,17 +12,16 @@ class AutomationCanvasViewport(models.Model):
     user_id = fields.Many2one(
         comodel_name="res.users",
         string="Reader",
+        default=lambda self: self.env.user,
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
-        default=lambda self: self.env.user,
     )
     automation_rule_id = fields.Many2one(
         comodel_name="automation.rule",
-        string="Automation Rule",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     pos_x = fields.Float(
         string="Canvas X",

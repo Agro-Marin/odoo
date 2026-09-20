@@ -1,5 +1,7 @@
+from unittest.mock import patch
+
 from odoo.exceptions import UserError
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
@@ -60,4 +62,39 @@ class TestBaseModuleInstallRequest(TransactionCase):
         self.assertEqual(action["target"], "new")
         self.assertEqual(
             action["context"]["default_module_id"], self.uninstalled_app.id
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestInstallRequestRecord(TransactionCase):
+    """Without the approval engine the request is still a record, and the
+    administrators are told by e-mail."""
+
+    def test_sending_records_the_request_and_mails_every_administrator(self):
+        if "approval_request_id" in self.env["base.module.install.request"]._fields:
+            self.skipTest("approval_base_install_request replaces the e-mail")
+        asker = new_test_user(self.env, login="mail_asker", groups="base.group_user")
+        module = self.env["ir.module.module"].search(
+            [("state", "=", "uninstalled"), ("application", "=", True)], limit=1
+        )
+        request = (
+            self.env["base.module.install.request"]
+            .with_user(asker)
+            .create({"module_id": module.id, "body_html": "<p>please</p>"})
+        )
+        sent_to = []
+        Template = type(self.env["mail.template"])
+        original = Template.send_mail
+
+        def record(template, res_id, *args, **kwargs):
+            sent_to.append(template.env.context["partner"])
+            return original(template, res_id, *args, **kwargs)
+
+        with patch.object(Template, "send_mail", record):
+            request.action_send_request()
+        self.assertTrue(request.exists())
+        self.assertEqual(
+            set(sent_to),
+            set(self.env.ref("base.group_system").all_user_ids.partner_id),
+            "every administrator is mailed, and nobody else",
         )

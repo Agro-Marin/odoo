@@ -4,6 +4,9 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 FIGURE_TYPE_SELECTION_VALUES = [
     ("monetary", "Monetary"),
@@ -55,7 +58,9 @@ AUDITABLE_ENGINES = frozenset(
 REPORT_OPTION_FILTER_DEPENDS = ("root_report_id", "section_main_report_ids")
 
 
-def report_option_filter_field(field_type, field_name, string, default=False, **kwargs):
+def report_option_filter_field(
+    field_type, field_name, string=None, default=False, **kwargs
+):
     return field_type(
         string=string,
         compute=lambda records: records._compute_report_option_filter(
@@ -74,43 +79,45 @@ class AccountReport(models.Model):
     _description = "Accounting Report"
     _order = "sequence, id"
 
-    name = fields.Char(string="Name", required=True, translate=True)
-    sequence = fields.Integer(string="Sequence")
-    active = fields.Boolean(string="Active", default=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer()
+    active = fields.Boolean(default=True)
     line_ids = fields.One2many(
-        string="Lines",
         comodel_name="account.report.line",
         inverse_name="report_id",
+        string="Lines",
     )
     column_ids = fields.One2many(
-        string="Columns",
         comodel_name="account.report.column",
         inverse_name="report_id",
+        string="Columns",
     )
     root_report_id = fields.Many2one(
-        string="Root Report",
         comodel_name="account.report",
         index="btree_not_null",
         help="The report this report is a variant of.",
     )
     variant_report_ids = fields.One2many(
-        string="Variants",
         comodel_name="account.report",
         inverse_name="root_report_id",
+        string="Variants",
     )
     section_report_ids = fields.Many2many(
-        string="Sections",
         comodel_name="account.report",
         relation="account_report_section_rel",
         column1="main_report_id",
         column2="sub_report_id",
+        string="Sections",
     )
     section_main_report_ids = fields.Many2many(
-        string="Section Of",
         comodel_name="account.report",
         relation="account_report_section_rel",
         column1="sub_report_id",
         column2="main_report_id",
+        string="Section Of",
     )
     use_sections = fields.Boolean(
         string="Composite Report",
@@ -120,34 +127,31 @@ class AccountReport(models.Model):
         help="Create a structured report with multiple sections for convenient navigation and simultaneous printing.",
     )
     chart_template = fields.Selection(
-        string="Chart of Accounts",
         selection=lambda self: self.env[
             "account.chart.template"
         ]._select_chart_template(),
+        string="Chart of Accounts",
     )
-    country_id = fields.Many2one(string="Country", comodel_name="res.country")
+    country_id = fields.Many2one(comodel_name="res.country")
     only_tax_exigible = report_option_filter_field(
         fields.Boolean, "only_tax_exigible", "Only Tax Exigible Lines"
     )
     availability_condition = fields.Selection(
-        string="Availability",
         selection=[
             ("country", "Country Matches"),
             ("coa", "Chart of Accounts Matches"),
             ("always", "Always"),
         ],
+        string="Availability",
         compute="_compute_availability_condition",
-        readonly=False,
         store=True,
+        readonly=False,
     )
-    load_more_limit = fields.Integer(string="Load More Limit")
-    search_bar = fields.Boolean(string="Search Bar")
-    prefix_groups_threshold = fields.Integer(
-        string="Prefix Groups Threshold", default=4000
-    )
+    load_more_limit = fields.Integer()
+    search_bar = fields.Boolean()
+    prefix_groups_threshold = fields.Integer(default=4000)
     integer_rounding = fields.Selection(
-        string="Integer Rounding",
-        selection=[("HALF-UP", "Nearest"), ("UP", "Up"), ("DOWN", "Down")],
+        selection=[("HALF-UP", "Nearest"), ("UP", "Up"), ("DOWN", "Down")]
     )
     allow_foreign_vat = report_option_filter_field(
         fields.Boolean, "allow_foreign_vat", "Allow Foreign VAT"
@@ -174,7 +178,6 @@ class AccountReport(models.Model):
     currency_translation = report_option_filter_field(
         fields.Selection,
         "currency_translation",
-        "Currency Translation",
         default="cta",
         selection=[
             ("current", "Use the most recent rate at the date of the report"),
@@ -273,6 +276,7 @@ class AccountReport(models.Model):
         fields.Boolean, "filter_budgets", "Budgets"
     )
 
+    @_debug.perf.timed
     def _compute_report_option_filter(self, field_name, default_value=False):
         sections = self.filtered("section_main_report_ids")
         accessible_report_ids = (
@@ -335,15 +339,24 @@ class AccountReport(models.Model):
             report.use_sections = bool(report.section_report_ids)
 
     @api.constrains("root_report_id")
+    @_debug.perf.timed
     def _check_root_report_id(self):
         for report in self:
             if report.root_report_id.root_report_id:
+                _debug.logic(
+                    "root_report_rejected", report=report, reason="root_has_root"
+                )
                 raise ValidationError(
                     _(
                         "Only a report without a root report of its own can be selected as root report."
                     )
                 )
             if report.root_report_id and report.variant_report_ids:
+                _debug.logic(
+                    "variant_root_rejected",
+                    report=report,
+                    variants=report.variant_report_ids,
+                )
                 raise ValidationError(
                     _(
                         'Report "%(report)s" is the root report of %(count)s other '
@@ -354,6 +367,7 @@ class AccountReport(models.Model):
                 )
 
     @api.constrains("line_ids")
+    @_debug.perf.timed
     def _check_parent_sequence(self):
         for report in self:
             seen_ids = set()
@@ -370,6 +384,7 @@ class AccountReport(models.Model):
                 seen_ids.add(line.id)
 
     @api.constrains("section_report_ids")
+    @_debug.perf.timed
     def _check_section_report_ids(self):
         for record in self:
             if not record.section_report_ids:
@@ -385,6 +400,7 @@ class AccountReport(models.Model):
                 )
 
     @api.constrains("availability_condition", "country_id", "chart_template")
+    @_debug.perf.timed
     def _check_availability_condition(self):
         for record in self:
             if record.availability_condition == "country" and not record.country_id:
@@ -405,17 +421,23 @@ class AccountReport(models.Model):
         if self.availability_condition != "country":
             self.country_id = None
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         if "country_id" in vals:
             self._move_tax_tags_to_country(vals["country_id"])
         return super().write(vals)
 
+    @_debug.perf.timed
     def _move_tax_tags_to_country(self, country_id):
         moving_reports = self.filtered(lambda x: x.country_id.id != country_id)
         tax_tags_expressions = moving_reports.line_ids.expression_ids.filtered(
             lambda x: x.engine == "tax_tags"
         )
         if not tax_tags_expressions:
+            _debug.logic(
+                "tag_move_skipped", report=self, reason="no_tax_tags_expressions"
+            )
             return
 
         tag_model = self.env["account.account.tag"].with_context(
@@ -423,6 +445,7 @@ class AccountReport(models.Model):
         )
         source_tags = tax_tags_expressions._get_matching_tags()
         if not source_tags:
+            _debug.logic("tag_move_skipped", report=self, reason="no_matching_tags")
             return
 
         reports_by_tag = defaultdict(self.env["account.report"].browse)
@@ -446,6 +469,14 @@ class AccountReport(models.Model):
             users = reports_by_tag[(tag.name, tag.country_id.id)]
             if tag.name not in destination_names and users <= moving_reports:
                 tags_to_move += tag
+        _debug.logic(
+            "tags_partitioned",
+            report=self,
+            country_id=country_id,
+            source_tags=source_tags,
+            destination_names=len(destination_names),
+            tags_to_move=tags_to_move,
+        )
         tags_to_move.write({"country_id": country_id})
 
         missing_names = (
@@ -454,22 +485,32 @@ class AccountReport(models.Model):
             - set(tags_to_move.mapped("name"))
         )
         expression_model = self.env["account.report.expression"]
+        _debug.pipeline(
+            "missing_tags_creating",
+            report=self,
+            country_id=country_id,
+            missing_names=len(missing_names),
+        )
         tag_model.create(
             [
                 tag_vals
                 for name in sorted(missing_names)
-                for tag_vals in expression_model._get_tags_create_vals(name, country_id)
+                for tag_vals in expression_model._prepare_tag_vals(name, country_id)
             ]
         )
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=report._get_copied_name())
             for report, vals in zip(self, vals_list, strict=True)
         ]
 
+    @_debug.perf.timed
     def copy(self, default=None):
+        _debug.lifecycle("copy", records=self)
         new_reports = super().copy(default=default)
         for old_report, new_report in zip(self, new_reports, strict=True):
             old_report.line_ids._copy_hierarchy(new_report)
@@ -477,7 +518,9 @@ class AccountReport(models.Model):
         return new_reports
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_if_no_variant(self):
+        _debug.lifecycle("_unlink_if_no_variant", records=self)
         if self.variant_report_ids:
             raise UserError(_("You can't delete a report that has variants."))
         self.line_ids.unlink()

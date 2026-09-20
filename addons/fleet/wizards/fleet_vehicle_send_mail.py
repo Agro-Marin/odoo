@@ -6,30 +6,34 @@ class FleetVehicleSendMail(models.TransientModel):
     _inherit = ["mixin.mail.composer"]
     _description = "Send mails to Drivers"
 
-    vehicle_ids = fields.Many2many("fleet.vehicle", string="Vehicles", required=True)
-    author_id = fields.Many2one(
-        "res.partner",
-        "Author",
+    vehicle_ids = fields.Many2many(
+        comodel_name="resource.asset",
+        string="Vehicles",
         required=True,
+        domain="[('is_vehicle', '=', True)]",
+    )
+    author_id = fields.Many2one(
+        comodel_name="res.partner",
         default=lambda self: self.env.user.partner_id.id,
+        required=True,
     )
     template_id = fields.Many2one(
         domain=lambda self: [
-            ("model_id", "=", self.env["ir.model"]._get("fleet.vehicle").id)
+            ("model_id", "=", self.env["ir.model"]._get("resource.asset").id)
         ]
     )
     attachment_ids = fields.Many2many(
-        "ir.attachment",
-        "fleet_vehicle_mail_compose_message_ir_attachments_rel",
-        "wizard_id",
-        "attachment_id",
+        comodel_name="ir.attachment",
+        relation="fleet_vehicle_mail_compose_message_ir_attachments_rel",
+        column1="wizard_id",
+        column2="attachment_id",
         string="Attachments",
         bypass_search_access=True,
     )
 
     @api.depends("subject")
     def _compute_render_model(self):
-        self.render_model = "fleet.vehicle"
+        self.render_model = "resource.asset"
 
     @api.onchange("template_id")
     def _onchange_template_id(self):
@@ -37,7 +41,9 @@ class FleetVehicleSendMail(models.TransientModel):
 
     def action_send(self):
         self.check_singleton()
-        without_emails = self.vehicle_ids.driver_id.filtered(lambda a: not a.email)
+        without_emails = self.vehicle_ids.operator_id.partner_id.filtered(
+            lambda partner: not partner.email
+        )
         if without_emails:
             return {
                 "type": "ir.actions.client",
@@ -64,12 +70,16 @@ class FleetVehicleSendMail(models.TransientModel):
                 body=bodies[vehicle.id],
                 email_layout_xmlid="mail.mail_notification_light",
                 message_type="comment",
-                partner_ids=vehicle.driver_id.ids,
+                partner_ids=vehicle.operator_id.partner_id.ids,
                 subject=subjects[vehicle.id],
             )
+        # Nothing to do next: an action method answering None closes the dialog,
+        # and the branch above returns a notification instead. Spelled out
+        # because the two exits returning different kinds of thing is the point.
+        return None
 
     def action_save_as_template(self):
-        model = self.env["ir.model"]._get("fleet.vehicle")
+        model = self.env["ir.model"]._get("resource.asset")
         template_name = _("Vehicle: Mass mail drivers")
         template = self.env["mail.template"].create(
             {

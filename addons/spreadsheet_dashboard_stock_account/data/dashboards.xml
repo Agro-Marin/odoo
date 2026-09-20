@@ -9,7 +9,7 @@
             file="spreadsheet_dashboard_stock_account/data/files/warehouse_metrics_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('stock.model_stock_quant'))]" />
+            eval="[Command.link(ref('stock.model_stock_quant'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_stock_account/data/files/warehouse_metrics_sample_dashboard.json</field>
         <field

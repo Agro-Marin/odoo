@@ -5,13 +5,14 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     iap_enrich_info = fields.Text(
-        "IAP Enrich Info",
-        help="IAP response stored as a JSON string",
+        string="IAP Enrich Info",
         compute="_compute_partner_iap_info",
+        help="IAP response stored as a JSON string",
     )
 
     iap_search_domain = fields.Char(
-        "Search Domain / Email", compute="_compute_partner_iap_info"
+        string="Search Domain / Email",
+        compute="_compute_partner_iap_info",
     )
 
     def _compute_partner_iap_info(self):

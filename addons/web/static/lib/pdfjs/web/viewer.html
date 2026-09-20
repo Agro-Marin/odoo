@@ -27,9 +27,14 @@ See https://github.com/adobe-type-tools/cmap-resources
     <meta name="google" content="notranslate" />
     <title>PDF.js viewer</title>
 
+  <!-- AgroMarin: style-src also allows 'unsafe-inline'. Modules embedding this viewer
+       insert markup carrying style attributes into it (sign places every field by
+       its inline top/left/width/height), and under 'self' alone the browser drops
+       those attributes without an error, so the fields render unpositioned.
+       Scripts stay 'self'. -->
   <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self'; img-src 'self' blob: data:; media-src blob:; font-src 'self' data:; connect-src * blob: data:; base-uri 'none'; form-action 'none';"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src blob:; font-src 'self' data:; connect-src * blob: data:; base-uri 'none'; form-action 'none';"
     />
 
 <!-- This snippet is used in production (included from viewer.html) -->

@@ -1,7 +1,7 @@
 import base64
 
 from odoo import api, fields, models
-from odoo.tools import format_date, str2bool
+from odoo.tools import SQL, format_date, str2bool
 from odoo.tools.image import image_data_uri
 from odoo.tools.translate import _
 
@@ -11,25 +11,52 @@ from odoo.addons.payment import utils as payment_utils
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    def _lock_for_payment(self):
+        """Serialize payment initiation and cancellation, including stale snapshots.
+
+        A row lock alone cannot make a repeatable-read snapshot observe a newly
+        linked transaction. Updating the owner row forces that contender to retry.
+        """
+        if not self:
+            return
+        self.flush_recordset()
+        self.env.cr.execute(
+            SQL(
+                """
+            WITH locked AS MATERIALIZED (
+                SELECT id FROM account_move
+                WHERE id = ANY(%s) ORDER BY id FOR NO KEY UPDATE
+            )
+            UPDATE account_move AS invoice SET write_date = invoice.write_date
+            FROM locked WHERE invoice.id = locked.id
+            """,
+                self.ids,
+            )
+        )
+        self.invalidate_recordset(["state", "transaction_ids"])
+
     transaction_ids = fields.Many2many(
-        string="Transactions",
         comodel_name="payment.transaction",
         relation="account_invoice_transaction_rel",
         column1="invoice_id",
         column2="transaction_id",
-        readonly=True,
+        string="Transactions",
         copy=False,
+        readonly=True,
     )
     authorized_transaction_ids = fields.Many2many(
-        string="Authorized Transactions",
         comodel_name="payment.transaction",
+        string="Authorized Transactions",
         compute="_compute_authorized_transaction_ids",
-        readonly=True,
-        copy=False,
         compute_sudo=True,
+        copy=False,
+        readonly=True,
     )
-    transaction_count = fields.Count("transaction_ids", string="Transaction Count")
-    amount_paid = fields.Monetary(string="Amount paid", compute="_compute_amount_paid")
+    transaction_count = fields.Count(count_of="transaction_ids")
+    amount_paid = fields.Monetary(
+        string="Amount paid",
+        compute="_compute_amount_paid",
+    )
 
     @api.depends("transaction_ids")
     def _compute_authorized_transaction_ids(self):
@@ -48,7 +75,7 @@ class AccountMove(models.Model):
                 ).mapped("amount")
             )
 
-    def _get_online_payment_context(self):
+    def _prepare_online_payment_context(self):
         """Return the transactions and config relevant to online payment eligibility checks.
 
         Shared by :meth:`_has_to_be_paid` and :meth:`_get_online_payment_error` to avoid
@@ -77,7 +104,7 @@ class AccountMove(models.Model):
 
     def _has_to_be_paid(self):
         _transactions, pending_transactions, enabled_feature = (
-            self._get_online_payment_context()
+            self._prepare_online_payment_context()
         )
         return enabled_feature and bool(
             self.state == "posted"
@@ -93,7 +120,7 @@ class AccountMove(models.Model):
         Returns the appropriate error message to be displayed if _has_to_be_paid() method returns False.
         """
         transactions, pending_transactions, enabled_feature = (
-            self._get_online_payment_context()
+            self._prepare_online_payment_context()
         )
         errors = []
         if not enabled_feature:
@@ -145,8 +172,8 @@ class AccountMove(models.Model):
 
         return action
 
-    def _get_default_payment_link_values(self):
-        next_payment_values = self._get_invoice_next_payment_values()
+    def _prepare_payment_link_vals(self):
+        next_payment_values = self._prepare_invoice_next_payment_values()
         amount_max = next_payment_values.get("amount_due")
         additional_info = {}
         open_installments = []

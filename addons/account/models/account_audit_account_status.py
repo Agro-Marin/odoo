@@ -13,19 +13,15 @@ class AccountAuditAccountStatus(models.Model):
     _description = "Account Audit Account Status"
 
     audit_id = fields.Many2one(
-        string="Audit",
         comodel_name="account.return",
+        index="btree",
         required=True,
         ondelete="cascade",
-        index="btree",
     )
     account_id = fields.Many2one(
-        string="Account",
         comodel_name="account.account",
+        index="btree",
         required=True,
         ondelete="cascade",
-        index="btree",
     )
-    status = fields.Selection(
-        selection=STATUS_SELECTION,
-    )
+    status = fields.Selection(selection=STATUS_SELECTION)

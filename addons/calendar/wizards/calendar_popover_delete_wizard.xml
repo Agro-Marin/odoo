@@ -10,14 +10,14 @@
                 <footer>
                     <button
                         name="close"
-                        string="Submit"
                         type="object"
+                        string="Submit"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -44,20 +44,20 @@
                 </group>
                 <field
                     name="body"
-                    class="oe-bordered-editor"
-                    options="{'style-inline': true}" />
+                    options="{'style-inline': true}"
+                    class="oe-bordered-editor" />
                 <footer>
                     <button
-                        string="Send and delete"
                         name="action_send_mail_and_delete"
                         type="object"
+                        string="Send and delete"
                         class="btn-primary o_cw_send_notify_delete" />
                     <button
-                        string="Delete"
                         name="action_delete"
                         type="object"
+                        string="Delete"
                         class="btn-primary mx-1" />
-                    <button string="Discard" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>

@@ -1,11 +1,14 @@
 {
     "name": "Gelato",
+    "version": "1.2",
     "category": "Sales/Sales",
     "summary": "Place orders through Gelato's print-on-demand service",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "document",
+        "integration",
         "sale",
         "delivery",
     ],

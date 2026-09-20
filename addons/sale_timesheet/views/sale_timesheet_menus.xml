@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_timesheet_billing_analysis"
+        name="By Billing Type"
+        parent="hr_timesheet.menu_timesheets_reports_timesheet"
+        action="timesheet_action_billing_report"
+        sequence="40" />
+
+</odoo>

@@ -18,7 +18,7 @@ The module is designed to provide a standard accounting setup for companies oper
         "account",
     ],
     "countries": [
-        "GE",
+        "ge",
     ],
     "data": [
         "data/account_tax_report_data.xml",

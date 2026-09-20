@@ -10,26 +10,24 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
 
     allow_out_of_stock_order = fields.Boolean(
-        string="Sell when Out-of-Stock", default=True
+        string="Sell when Out-of-Stock",
+        default=True,
     )
 
-    available_threshold = fields.Float(string="Show Threshold", default=5.0)
-    show_availability = fields.Boolean(string="Show availability Qty", default=False)
+    available_threshold = fields.Float(
+        string="Show Threshold",
+        default=5.0,
+    )
+    show_availability = fields.Boolean(
+        string="Show availability Qty",
+        default=False,
+    )
     out_of_stock_message = fields.Html(
-        string="Out-of-Stock Message", translate=html_translate
+        string="Out-of-Stock Message",
+        translate=html_translate,
     )
 
     def _is_sold_out(self):
-        """Return whether the product is sold out (no available quantity).
-
-        If a product inventory is not tracked, or if it's allowed to be sold regardless
-        of availabilities, the product is never considered sold out.
-
-        Note: only checks the availability of the first variant of the template.
-
-        :return: whether the product can still be sold
-        :rtype: bool
-        """
         if not self.is_storable or self.allow_out_of_stock_order:
             return False
         return self.product_variant_id._is_sold_out()
@@ -48,9 +46,6 @@ class ProductTemplate(models.Model):
             return res
 
         if product_or_template.type == "combo":
-            # The max quantity of a combo product is the max quantity of its combo with the lowest
-            # max quantity. If none of the combos has a max quantity, then the combo product also
-            # has no max quantity.
             max_quantities = [
                 max_quantity
                 for combo in product_or_template.sudo().combo_ids
@@ -58,7 +53,6 @@ class ProductTemplate(models.Model):
                 is not None
             ]
             if max_quantities:
-                # No uom conversion: combo are not supposed to be sold with other uoms.
                 res["max_combo_quantity"] = min(max_quantities)
 
         if not product_or_template.is_storable:
@@ -73,7 +67,7 @@ class ProductTemplate(models.Model):
         )
         if product_or_template.is_product_variant:
             product_sudo = product_or_template.sudo()
-            computed_qty = product_sudo.uom_id._compute_quantity(
+            computed_qty = product_sudo.uom_id._get_quantity_in_unit(
                 website._get_product_available_qty(product_sudo),
                 to_unit=uom,
                 round=False,
@@ -93,7 +87,7 @@ class ProductTemplate(models.Model):
             )
             cart_quantity = 0.0
             if not product_sudo.allow_out_of_stock_order:
-                cart_quantity = product_sudo.uom_id._compute_quantity(
+                cart_quantity = product_sudo.uom_id._get_quantity_in_unit(
                     request.cart._get_cart_qty(product_sudo.id),
                     to_unit=uom,
                 )
@@ -123,18 +117,6 @@ class ProductTemplate(models.Model):
     def _get_additional_configurator_data(
         self, product_or_template, date, currency, pricelist, *, uom=None, **kwargs
     ):
-        """Override of `website_sale` to append stock data.
-
-        :param product.product|product.template product_or_template: The product for which to get
-            additional data.
-        :param datetime date: The date to use to compute prices.
-        :param res.currency currency: The currency to use to compute prices.
-        :param product.pricelist pricelist: The pricelist to use to compute prices.
-        :param uom.uom uom: The uom to use to compute prices.
-        :param dict kwargs: Locally unused data passed to overrides.
-        :rtype: dict
-        :return: A dict containing additional data about the specified product.
-        """
         data = super()._get_additional_configurator_data(
             product_or_template, date, currency, pricelist, **kwargs
         )
@@ -147,7 +129,7 @@ class ProductTemplate(models.Model):
             )
             if max_quantity is not None:
                 if uom:
-                    max_quantity = product_or_template.uom_id._compute_quantity(
+                    max_quantity = product_or_template.uom_id._get_quantity_in_unit(
                         max_quantity, to_unit=uom
                     )
                 data["qty_free"] = max_quantity

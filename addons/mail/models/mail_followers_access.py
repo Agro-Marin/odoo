@@ -2,17 +2,27 @@ import typing
 
 from odoo import api, models
 from odoo.exceptions import AccessError
-from odoo.tools import SQL
+from odoo.libs.debug_log import DebugLog
 
-from odoo.addons.mail.tools.access_scan import get_accessible_query
+from odoo.addons.mail.tools.access_scan import (
+    get_accessible_query,
+    prepare_column_fetcher,
+)
 
 if typing.TYPE_CHECKING:
     from odoo.api import DomainType
     from odoo.tools import Query
 
+_debug = DebugLog(__name__)
+
 
 class MailFollowers(models.Model):
     _inherit = "mail.followers"
+    _search_visibility_fields = (
+        "res_model",
+        "res_id",
+        "partner_id",
+    )
 
     _SEARCH_ACCESS_CHUNK_MIN = 30
     _SEARCH_ACCESS_CHUNK_MAX = 8192
@@ -33,20 +43,11 @@ class MailFollowers(models.Model):
                 domain, offset, limit, order, bypass_access=True, **kwargs
             )
         if not self.env.user._is_internal():
+            _debug.logic("search_refused", uid=self.env.uid, reason="not_internal")
             return self.browse()._as_query()
 
         self.flush_model(["res_model", "res_id", "partner_id"])
         pid = self.env.user.partner_id.id
-
-        def fetch(query: Query) -> list[tuple]:
-            return self.env.execute_query(
-                query.select(
-                    SQL.identifier(self._table, "id"),
-                    SQL.identifier(self._table, "res_model"),
-                    SQL.identifier(self._table, "res_id"),
-                    SQL.identifier(self._table, "partner_id"),
-                )
-            )
 
         def allowed(rows: list[tuple]) -> set[int]:
             own = set()
@@ -67,7 +68,9 @@ class MailFollowers(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
+            fetch=prepare_column_fetcher(
+                self, ("id", "res_model", "res_id", "partner_id")
+            ),
             allowed=allowed,
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,
@@ -110,5 +113,12 @@ class MailFollowers(models.Model):
                 ).add(follower.id)
         allowed = set(own) | self.env["mail.message"]._get_readable_message_ids(
             model_ids
+        )
+        _debug.logic(
+            "readable_by_document",
+            asked=len(self),
+            own=len(own),
+            models=len(model_ids),
+            allowed=len(allowed),
         )
         return self.browse([fol_id for fol_id in self._ids if fol_id in allowed])

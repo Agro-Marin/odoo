@@ -45,9 +45,6 @@ class TestLinkTracker(TransactionCase):
 
     @users("test_user")
     def test_compute_short_url_host(self):
-        """Test _compute_short_url_host with multiple companies/websites
-        The short URL base should match the website domain of the company
-        """
         link_1 = self.env["link.tracker"].create(
             {
                 "url": "https://www.1odoo.com",
@@ -58,7 +55,6 @@ class TestLinkTracker(TransactionCase):
             "Short URL should use company 1 website domain",
         )
 
-        # Switch to Company 2
         self.env.user.company_id = self.company_2
         link_2 = self.env["link.tracker"].create(
             {
@@ -70,8 +66,6 @@ class TestLinkTracker(TransactionCase):
             "Short URL should use company 2 website domain",
         )
 
-        # Remove website from Company 2
-        # The short URL host should fallback to a default value
         self.company_2.write({"website_id": False})
         link_3 = self.env["link.tracker"].create({"url": "https://www.3ooddoooo.com"})
         self.assertTrue(

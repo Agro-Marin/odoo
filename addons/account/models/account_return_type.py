@@ -6,8 +6,11 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils
 from odoo.tools.misc import format_date
+
+_debug = DebugLog(__name__)
 
 PERIODS = [
     ("monthly", "Monthly"),
@@ -34,49 +37,57 @@ class AccountReturnType(models.Model):
     _inherit = ["mixin.mail.thread"]
     _description = "Accounting Return Type"
 
-    name = fields.Char(string="Name", required=True, translate=True, tracking=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+        tracking=True,
+    )
     category = fields.Selection(
-        string="Type",
         selection=[
             ("account_return", "Tax Return"),
             ("audit", "Audit"),
         ],
+        string="Type",
         default="account_return",
         required=True,
         tracking=True,
     )
     report_id = fields.Many2one(
-        string="Report", comodel_name="account.report", index="btree", tracking=True
+        comodel_name="account.report",
+        index="btree",
+        tracking=True,
     )
     is_tax_return_type = fields.Boolean(
-        string="Is a Tax Return Return Type", compute="_compute_report_return_type"
+        string="Is a Tax Return Return Type",
+        compute="_compute_report_return_type",
     )
     is_ec_sales_list_return_type = fields.Boolean(
-        string="Is an EC Sales List Return Type", compute="_compute_report_return_type"
+        string="Is an EC Sales List Return Type",
+        compute="_compute_report_return_type",
     )
 
     auto_generate = fields.Boolean(
         string="Auto Generated",
         compute="_compute_auto_generate",
+        store=True,
         copy=False,
         readonly=False,
-        store=True,
     )
     country_id = fields.Many2one(
         comodel_name="res.country",
-        string="Country",
-        tracking=True,
-        store=True,
         compute="_compute_country_id",
+        store=True,
         readonly=False,
+        tracking=True,
     )
     payment_partner_bank_id = fields.Many2one(
-        comodel_name="res.partner.bank", string="Payment Partner Bank", tracking=True
+        comodel_name="res.partner.bank",
+        tracking=True,
     )
     payment_partner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Payment Partner",
         related="payment_partner_bank_id.partner_id",
+        string="Payment Partner",
         compute_sudo=False,
         tracking=True,
     )
@@ -88,39 +99,48 @@ class AccountReturnType(models.Model):
             ("generic_state_only_pay", "Pay"),
         ],
         string="States",
-        help="Determines the workflow of the return.",
         compute="_compute_states_workflow",
-        readonly=False,
         store=True,
+        readonly=False,
+        help="Determines the workflow of the return.",
     )
 
     deadline_periodicity = fields.Selection(
         selection=PERIODS,
         string="Periodicity",
-        tracking=True,
         company_dependent=True,
+        tracking=True,
     )
     default_deadline_periodicity = fields.Selection(
-        selection=PERIODS, string="Default Periodicity"
+        selection=PERIODS,
+        string="Default Periodicity",
     )
     deadline_start_date = fields.Date(
         string="Start Date",
-        help="Used to compute covered period based on the selected periodicity.",
-        tracking=True,
         company_dependent=True,
+        tracking=True,
+        help="Used to compute covered period based on the selected periodicity.",
     )
     default_deadline_start_date = fields.Date(string="Default Start Date")
     deadline_days_delay = fields.Integer(
         string="Deadline",
-        help="By default, Odoo applies its own deadline for returns (shown as 0). Entering a value here will override it and be used as the new deadline.",
-        tracking=True,
         company_dependent=True,
+        tracking=True,
+        help="By default, Odoo applies its own deadline for returns (shown as 0). Entering a value here will override it and be used as the new deadline.",
     )
     default_deadline_days_delay = fields.Integer(string="Default Deadline")
     is_master_data = fields.Boolean(compute="_compute_is_master_data")
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         return_types = super().create(vals_list)
 
         all_companies = self.env["res.company"].sudo().search([])
@@ -174,7 +194,7 @@ class AccountReturnType(models.Model):
                 return_type.report_id.country_id
                 and return_type.report_id.country_id != return_type.country_id
             ):
-                raise ValueError(
+                raise ValidationError(
                     _("The return type country must be the same as the report country")
                 )
 
@@ -200,7 +220,9 @@ class AccountReturnType(models.Model):
         for record in self:
             record.is_master_data = bool(xml_id.get(record.id))
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
@@ -240,7 +262,9 @@ class AccountReturnType(models.Model):
         return is_foreign_vat or (is_tax_unit_main_comp and is_main_branch)
 
     @api.model
+    @_debug.perf.timed
     def _cron_sync_all_returns(self):
+        _debug.lifecycle("_cron_sync_all_returns", records=self)
         now = fields.Datetime.now()
         date_upper_bound = now - relativedelta(days=1)  # -1 day to cope for precision
         root_companies = (
@@ -258,6 +282,11 @@ class AccountReturnType(models.Model):
             )
         )
 
+        _debug.logic(
+            "cron_companies_selected",
+            companies=root_companies,
+            retrigger=len(root_companies) > 1,
+        )
         if root_companies:
             to_treat = root_companies[0]
             self._sync_all_returns(to_treat)
@@ -292,13 +321,16 @@ class AccountReturnType(models.Model):
         )
         for account_return in returns_to_submit:
             for user in self.env.ref("account.group_account_manager").user_ids.filtered(
-                lambda user: set(user.company_ids) & set(account_return.company_ids)  # noqa: B023
+                lambda user, account_return=account_return: (
+                    set(user.company_ids) & set(account_return.company_ids)
+                )
             ):
                 mail_template.with_context(partner=user.partner_id).send_mail(
                     account_return.id
                 )
 
     @api.model
+    @_debug.perf.timed
     def _sync_all_returns(self, root_companies):
         """Generate or update the returns of every root company, non domestic tax unit and
         foreign VAT fiscal position, then vacuum the returns that configuration changes made
@@ -308,7 +340,9 @@ class AccountReturnType(models.Model):
         """
         root_companies = root_companies.filtered(lambda x: x.account_opening_date)
         if not root_companies:
+            _debug.logic("_sync_all_returns_no_root_company_opening")
             return
+        _debug.pipeline("_sync_all_returns", root_companies=root_companies)
 
         all_tax_units_root_domain = [("company_ids", "child_of", root_companies.ids)]
         all_tax_units = (
@@ -319,7 +353,9 @@ class AccountReturnType(models.Model):
         for company in root_companies:
             fiscal_country = company.account_fiscal_country_id
             domestic_tax_unit = all_tax_units.filtered(
-                lambda x: x.country_id == fiscal_country and company in x.company_ids  # noqa: B023
+                lambda x, fiscal_country=fiscal_country, company=company: (
+                    x.country_id == fiscal_country and company in x.company_ids
+                )
             )  # At most 1
             self._generate_all_returns(fiscal_country.code, company, domestic_tax_unit)
             all_domestic_tax_units += domestic_tax_unit
@@ -366,9 +402,17 @@ class AccountReturnType(models.Model):
                 < return_to_check.company_id.account_opening_date
             ):
                 returns_to_unlink |= return_to_check
+        _debug.pipeline(
+            "_sync_all_returns_vacuum_unlinking",
+            all_return_that_might_be_deleted_count=len(
+                all_return_that_might_be_deleted
+            ),
+            returns_to_unlink=returns_to_unlink,
+        )
         returns_to_unlink.sudo().unlink()
 
     @api.model
+    @_debug.perf.timed
     def _generate_all_returns(self, country_code, main_company, tax_unit=None):
         """
         Hook to override to enable the generation of new return types.
@@ -402,7 +446,15 @@ class AccountReturnType(models.Model):
                 ]
             )
 
-        for report_type in self.env["account.return.type"].sudo().search(search_domain):
+        report_types = self.env["account.return.type"].sudo().search(search_domain)
+        _debug.pipeline(
+            "_generate_all_returns",
+            company=main_company,
+            country=country_code,
+            tax_unit=tax_unit,
+            types=report_types,
+        )
+        for report_type in report_types:
             report_type._try_create_returns_for_fiscal_year(
                 main_company, tax_unit=tax_unit
             )
@@ -413,6 +465,7 @@ class AccountReturnType(models.Model):
             if return_type.category == "audit":
                 return_type.with_company(self.env.company).deadline_periodicity = "year"
 
+    @_debug.perf.timed
     def _try_create_returns_for_fiscal_year(
         self, main_company, tax_unit, allow_duplicates=False, bypass_period_check=False
     ):
@@ -441,6 +494,16 @@ class AccountReturnType(models.Model):
         else:
             date_from = today - relativedelta(years=1)
             date_to = next_year
+        _debug.pipeline(
+            "generation_window_resolved",
+            returntype=self,
+            company=main_company,
+            tax_unit=tax_unit,
+            date_from=date_from,
+            date_to=date_to,
+            forced_dates=bool(has_forced_dates),
+            allow_duplicates=allow_duplicates,
+        )
 
         if not self._can_return_exist(main_company, tax_unit):
             returns_to_unlink = (
@@ -457,6 +520,12 @@ class AccountReturnType(models.Model):
                         ("manually_created", "=", False),
                     ]
                 )
+            )
+            _debug.logic(
+                "return_cannot_exist",
+                returntype=self,
+                company=main_company,
+                unlinked=returns_to_unlink,
             )
             returns_to_unlink.sudo().unlink()
             return None
@@ -479,6 +548,12 @@ class AccountReturnType(models.Model):
                         other_main_companies |= child_company
                     to_treat.append((child_company.vat, child_company))
 
+            _debug.logic(
+                "branch_subtrees_with_own_vat",
+                returntype=self,
+                company=main_company,
+                branch_main_companies=other_main_companies,
+            )
             for other_main_company in other_main_companies:
                 if other_main_company.account_opening_date:
                     self._try_create_returns_for_fiscal_year(
@@ -511,6 +586,14 @@ class AccountReturnType(models.Model):
                 ) <= deadline_date <= next_year or bypass_period_check:
                     periods.append((period_date_from, period_date_to))
                 date_pointer = period_date_to + relativedelta(days=1)
+        _debug.pipeline(
+            "periods_computed",
+            returntype=self,
+            company=main_company,
+            periods=len(periods),
+            last_deadline=deadline_date,
+            bypass_period_check=bypass_period_check,
+        )
 
         existing_returns = (
             self.env["account.return"]
@@ -584,6 +667,16 @@ class AccountReturnType(models.Model):
                 lambda r: not r.manually_created
             ).sudo().unlink()
 
+            _debug.logic(
+                "existing_periods_reconciled",
+                returntype=self,
+                company=main_company,
+                existing=existing_returns,
+                same_periods=len(same_periods),
+                unposted=unmatched_existing_periods_unposted_returns,
+                posted=unmatched_existing_periods_posted_returns,
+                periods_left=len(periods),
+            )
             # So now we are only left with existing one that cannot be unlinked
             # We should create new returns for periods after the last posted return
             if unmatched_existing_periods_posted_returns:
@@ -598,6 +691,13 @@ class AccountReturnType(models.Model):
                     if period[0] > most_recent_posted_return.date_to
                 ]
                 periods = new_periods
+                _debug.logic(
+                    "periods_trimmed_after_posted",
+                    returntype=self,
+                    last_posted=most_recent_posted_return,
+                    last_posted_date_to=most_recent_posted_return.date_to,
+                    periods_left=len(periods),
+                )
 
         # Now we can create those new returns
         create_vals_list = []
@@ -615,9 +715,17 @@ class AccountReturnType(models.Model):
             )
 
         account_returns = self.env["account.return"].sudo().create(create_vals_list)
+        _debug.pipeline(
+            "returns_created",
+            returntype=self,
+            company=main_company,
+            tax_unit=tax_unit,
+            tax_return=account_returns,
+        )
         account_returns._update_translated_name()
         return account_returns
 
+    @_debug.perf.timed
     def _try_create_return_for_period(
         self, date_in_period, main_company, tax_unit, allow_duplicates=False
     ):
@@ -645,9 +753,22 @@ class AccountReturnType(models.Model):
             ._get_company_ids(main_company, tax_unit, self.report_id)
         )
         if existing_return.company_ids != expected_companies:
+            _debug.logic(
+                "companies",
+                tax_return=existing_return,
+                company_ids=existing_return.company_ids,
+                expected_companies=expected_companies,
+            )
             existing_return.company_ids = expected_companies
 
         if not existing_return or allow_duplicates:
+            _debug.lifecycle(
+                "creating_return_company",
+                returntype=self,
+                period_start=period_start,
+                period_end=period_end,
+                main_company=main_company,
+            )
             account_return = self.env["account.return"].create(
                 [
                     {
@@ -664,6 +785,7 @@ class AccountReturnType(models.Model):
             )
             account_return._update_translated_name()
 
+    @_debug.perf.timed
     def _get_return_name(
         self,
         main_company,
@@ -683,6 +805,14 @@ class AccountReturnType(models.Model):
                 country_code = f"({self.report_id.country_id.code})"
             else:
                 country_code = f"({main_company.account_fiscal_country_id.code})"
+        _debug.logic(
+            "return_name_country_suffix",
+            returntype=self,
+            company=main_company,
+            country_code=country_code,
+            all_lang=all_lang,
+            minimal=minimal,
+        )
 
         if not all_lang:
             return self.env._(
@@ -699,7 +829,7 @@ class AccountReturnType(models.Model):
         else:
             return_dict = {}
             installed_langs = self.env["res.lang"].get_installed()
-            for lang_code, lang_name in installed_langs:  # noqa: B007
+            for lang_code, _lang_name in installed_langs:
                 return_dict[lang_code] = self.with_context(lang=lang_code).env._(
                     "%(return_type_name)s %(period_suffix)s %(country_code)s",
                     return_type_name=self.with_context(lang=lang_code).name,
@@ -716,6 +846,7 @@ class AccountReturnType(models.Model):
             return return_dict
 
     @api.model
+    @_debug.perf.timed
     def _get_period_name(
         self,
         main_company=None,
@@ -750,6 +881,12 @@ class AccountReturnType(models.Model):
                     )
                 )
             start_day, start_month = self._get_start_date_elements(main_company)
+            _debug.logic(
+                "period_start_from_company",
+                company=main_company,
+                start_day=start_day,
+                start_month=start_month,
+            )
 
         period_suffix = ""
         if period_from and period_to:
@@ -763,6 +900,12 @@ class AccountReturnType(models.Model):
                 period_suffix = f"{format_date(self.env, period_from, lang_code=lang_code)} - {format_date(self.env, period_to, lang_code=lang_code)}"
             else:
                 inferred_periodicity = infer_periodicity(period_from, period_to)
+                _debug.logic(
+                    "periodicity_inferred",
+                    period_from=period_from,
+                    period_to=period_to,
+                    periodicity=inferred_periodicity,
+                )
                 if inferred_periodicity == "year":
                     period_suffix = f"{period_from.year}"
                 elif inferred_periodicity == "trimester":
@@ -787,6 +930,13 @@ class AccountReturnType(models.Model):
                     period_suffix = f"{format_date(self.env, period_from, date_format='LLL yyyy', lang_code=lang_code)} - {format_date(self.env, period_to, date_format='LLL yyyy', lang_code=lang_code)}"
                 else:
                     period_suffix = f"{format_date(self.env, period_from, lang_code=lang_code)} - {format_date(self.env, period_to, lang_code=lang_code)}"
+        _debug.logic(
+            "period_suffix_built",
+            aligned_start=start_day == 1 and start_month == 1,
+            has_period=bool(period_from and period_to),
+            suffix=period_suffix,
+            lang=lang_code,
+        )
         return period_suffix
 
     def _get_periodicity(self, company):
@@ -821,6 +971,12 @@ class AccountReturnType(models.Model):
                 )
                 fiscal_year_months = delta.years * 12 + delta.months
                 months = max(months, fiscal_year_months)
+            _debug.logic(
+                "fiscalyear_months_fallback",
+                company=company,
+                fiscalyears=len(fiscalyears),
+                months=months,
+            )
             return months
 
         return MONTHS_PER_PERIOD[periodicity]
@@ -829,6 +985,7 @@ class AccountReturnType(models.Model):
         start_date = self.with_company(main_company)._get_start_date()
         return start_date.day, start_date.month
 
+    @_debug.perf.timed
     def _get_period_boundaries(
         self, company_id, date, override_period_months=None, override_start_date=None
     ):
@@ -840,6 +997,14 @@ class AccountReturnType(models.Model):
         # Keep consistent with the equivalent computation in the tax report filters JavaScript.
         if self._get_periodicity(company_id) == "fiscalyear":
             fy_dates = company_id.compute_fiscalyear_dates(date)
+            _debug.logic(
+                "boundaries_from_fiscal_year",
+                returntype=self,
+                company=company_id,
+                date=date,
+                date_from=fy_dates.get("date_from"),
+                date_to=fy_dates.get("date_to"),
+            )
             return fy_dates["date_from"], fy_dates["date_to"]
 
         period_months = override_period_months or self._get_periodicity_months_delay(
@@ -875,11 +1040,25 @@ class AccountReturnType(models.Model):
         start_date = datetime.date(year, start_month, 1) + relativedelta(
             months=month_delta - period_months, day=start_day
         )
+        _debug.logic(
+            "boundaries_computed",
+            returntype=self,
+            company=company_id,
+            date=date,
+            period_months=period_months,
+            overridden=bool(override_period_months or override_start_date),
+            start_day=start_day,
+            start_month=start_month,
+            period_number=period_number,
+            start=start_date,
+            end=end_date,
+        )
 
         return start_date, end_date
 
     @api.depends_context("company")
     @api.depends("name", "report_id")
+    @_debug.perf.timed
     def _compute_display_name(self):
         has_foreign_fiscal_pos = bool(
             self.env["account.fiscal.position"].search_count(

@@ -16,8 +16,8 @@
                 <field name="reason" position="attributes">
                     <attribute
                         name="invisible"
-                        separator="or"
-                        add="country_code == 'SA'" />
+                        add="country_code == 'SA'"
+                        separator="or" />
                 </field>
             </field>
         </record>

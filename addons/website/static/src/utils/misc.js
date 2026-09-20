@@ -1,5 +1,8 @@
 /** @odoo-module native */
 import { cookie as cookieManager } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.utils.misc");
 
 export class EventBus extends EventTarget {
     trigger(name, payload) {
@@ -11,13 +14,8 @@ export function getClosestLiEls(selector) {
     return Array.from(document.querySelectorAll(selector), (el) => el.closest("li"));
 }
 
-/**
- * Unhide elements that are hidden by default and that should be visible
- * according to the snippet visibility option.
- */
 export function unhideConditionalElements() {
-    // Create CSS rules in a dedicated style tag according to the snippet
-    // visibility option's computed ones (saved as data attributes).
+    const endUnhide = log.perf("unhideConditionalElements");
     const styleEl = document.createElement("style");
     styleEl.id = "conditional_visibility";
     document.head.appendChild(styleEl);
@@ -30,7 +28,6 @@ export function unhideConditionalElements() {
         "header#top nav.o_header_mobile .o_mega_menu_toggle",
     );
     for (const conditionalEl of conditionalEls) {
-        // For mega menu block, add conditional visibility to the navbar link
         if (conditionalEl.parentElement.classList.contains("o_mega_menu")) {
             const desktopMegaMenuLiEl = conditionalEl.closest("li");
             const index = desktopMegaMenuLiEls.indexOf(desktopMegaMenuLiEl);
@@ -44,10 +41,14 @@ export function unhideConditionalElements() {
         styleEl.sheet.insertRule(`${selectors} { display: none !important; }`);
     }
 
-    // Now remove the classes that makes them always invisible
     for (const conditionalEl of conditionalEls) {
         conditionalEl.classList.remove("o_conditional_hidden");
     }
+    endUnhide(() => ({
+        conditional: conditionalEls.length,
+        megaMenus: desktopMegaMenuLiEls.length,
+        rules: styleEl.sheet.cssRules.length,
+    }));
 }
 
 export function setUtmsHtmlDataset() {
@@ -60,22 +61,16 @@ export function setUtmsHtmlDataset() {
     for (const [name, dsName] of Object.entries(cookieNamesToDataNames)) {
         const cookie = cookieManager.get(`odoo_${name}`);
         if (cookie) {
-            // Remove leading and trailing " and '
             htmlEl.dataset[dsName] = cookie.replace(/(^["']|["']$)/g, "");
         }
     }
 }
 
 /**
- * Performs a basic check to make sure a link's protocol is http(s), mainly to
- * deny `javascript:` URLs.
- *
  * @param {string} link
- * @returns {URL|""} URL if the protocol is http(s), empty string otherwise
+ * @returns {URL|""}
  */
 export function verifyHttpsUrl(link) {
-    // Empty/absent input must yield "" (not the current page): callers rely on
-    // a falsy return for their own fallback (e.g. countdown's `|| "/"`).
     if (!link) {
         return "";
     }
@@ -83,13 +78,13 @@ export function verifyHttpsUrl(link) {
     try {
         url = new URL(link, window.location.href);
     } catch {
-        // Malformed author-set URL: don't let it throw inside a click/redirect
-        // handler, just reject it.
+        log.logic("verifyHttpsUrl: unparsable link", () => ({ link }));
         return "";
     }
-    // Exact protocol check (the old /https?:/ was unanchored, e.g. "xhttps:")
-    // to keep blocking javascript:/data: while allowing only http(s).
     if (url.protocol !== "http:" && url.protocol !== "https:") {
+        log.logic("verifyHttpsUrl: rejected protocol", () => ({
+            protocol: url.protocol,
+        }));
         return "";
     }
     return url;

@@ -14,9 +14,9 @@
                     type="object"
                     string="Configure dynamic fields"
                     help="Configure the path to fill the form fields."
-                    class="btn btn-link"
                     icon="fa-pencil"
-                    groups="base.group_system" />
+                    groups="base.group_system"
+                    class="btn btn-link" />
             </field>
             <field name="company_id" position="before">
                 <field name="form_field_ids" widget="many2many_tags" />

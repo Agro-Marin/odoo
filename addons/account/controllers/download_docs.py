@@ -5,6 +5,9 @@ from itertools import chain
 from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.http import prepare_content_disposition_header, request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 def _get_headers(filename, filetype, content):
@@ -31,6 +34,10 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_invoice_attachments(self, attachments):
+        _debug.pipeline(
+            "route",
+            handler="AccountDocumentDownloadController.download_invoice_attachments",
+        )
         attachments.check_access("read")
         if not all(
             attachment.res_id and attachment.res_model == "account.move"
@@ -61,6 +68,10 @@ class AccountDocumentDownloadController(http.Controller):
     def download_invoice_documents_filetype(
         self, invoices, filetype, allow_fallback=True
     ):
+        _debug.pipeline(
+            "route",
+            handler="AccountDocumentDownloadController.download_invoice_documents_filetype",
+        )
         invoices.check_access("read")
         invoices.line_ids.check_access("read")
         docs_data = []
@@ -99,6 +110,10 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_move_attachments(self, moves):
+        _debug.pipeline(
+            "route",
+            handler="AccountDocumentDownloadController.download_move_attachments",
+        )
         moves.check_access("read")
 
         def rename_duplicates(docs):

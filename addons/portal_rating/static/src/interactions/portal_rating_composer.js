@@ -130,7 +130,7 @@ export class RatingPopupComposer extends Interaction {
         const message = data["mail.message"][0];
         if (
             !message.author_id ||
-            message.author_id.id !== Number(this.options.partner_id)
+            Number(message.author_id) !== Number(this.options.partner_id)
         ) {
             return;
         }

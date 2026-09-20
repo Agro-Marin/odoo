@@ -15,8 +15,6 @@ patch(ProductComparison.prototype, {
     },
 
     /**
-     * Add a product to the comparison from the wishlist page.
-     *
      * @param {Event} ev
      */
     addProductFromWishlist(ev) {

@@ -2,10 +2,13 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
+
+const log = makeLogger("mail.activity.view");
 const { DateTime } = luxon;
 
 export class MailActivityListRescheduleDropdown extends Component {
@@ -40,6 +43,11 @@ export class MailActivityListRescheduleDropdown extends Component {
      * @param {string} actionName
      */
     async rescheduleActivity(click, actionName) {
+        log.logic("rescheduleActivity", () => ({
+            actionName,
+            resModel: this.props.record.resModel,
+            resId: this.props.record.resId,
+        }));
         await this.action.doActionButton({
             type: "object",
             name: actionName,

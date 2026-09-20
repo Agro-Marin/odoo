@@ -30,22 +30,12 @@ export class SlideQuizFinishDialog extends Component {
         onMounted(() => this.animateText());
     }
 
-    //--------------------------------
-    // Handler
-    //--------------------------------
-
     onClickNext() {
         this.props.onClickNext();
         this.props.close();
     }
 
-    //--------------------------------
-    // Business methods
-    //--------------------------------
-
     /**
-     * Handles the animation of the different text such as the karma gain
-     * and the motivational message when the user levels up.
      * @public
      */
     animateText() {

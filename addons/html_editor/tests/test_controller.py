@@ -1,5 +1,6 @@
 import binascii
 import json
+import re
 from unittest.mock import patch
 
 import odoo.tests
@@ -93,6 +94,19 @@ class TestController(HttpCase):
             "3AADAA" not in str(response.content), "Old c1 should not be there anymore"
         )
 
+        # a palette colour is read from the frontend bundle's CSS, which a
+        # generated asset carries as content, not as indexed text
+        frontend_css = (
+            self.env["ir.qweb"]._get_asset_bundle("web.assets_frontend").css().raw
+        ).decode("utf-8")
+        palette_match = re.search(
+            r"--o-color-1:\s*(#[0-9A-Fa-f]{6,8}|rgba?\([^)]*\))", frontend_css
+        )
+        expected = palette_match.group(1) if palette_match else "#3AADAA"
+        response = self.url_open(url + "?c1=o-color-1")
+        self.assertEqual(200, response.status_code, "Expect response")
+        self.assertIn(f"fill:{expected};", response.content.decode("utf-8"))
+
         url = "/html_editor/shape/illustration/noslug"
         attachment["url"] = url
 
@@ -182,7 +196,7 @@ class TestController(HttpCase):
         def _get_full_url(pathname):
             return f"{self.base_url()}{pathname}"
 
-        def _patched_get_link_preview_from_url(url):
+        def _patched_get_link_preview_from_url(url, session):
             if url == _get_full_url("/page-with-description"):
                 return {
                     "og_description": "Mocked page description",

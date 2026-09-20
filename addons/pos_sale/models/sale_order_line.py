@@ -6,8 +6,8 @@ class SaleOrderLine(models.Model):
     _inherit = ["sale.order.line", "mixin.pos.load"]
 
     pos_order_line_ids = fields.One2many(
-        "pos.order.line",
-        "sale_order_line_id",
+        comodel_name="pos.order.line",
+        inverse_name="sale_order_line_id",
         string="Order lines Transferred to Point of Sale",
         readonly=True,
         groups="point_of_sale.group_pos_user",
@@ -47,64 +47,51 @@ class SaleOrderLine(models.Model):
     def _compute_qty_transferred(self):
         super()._compute_qty_transferred()
         for sale_line in self:
-            pos_lines = sale_line.sudo().pos_order_line_ids.filtered(
-                lambda order_line: order_line.order_id.state not in ["cancel", "draft"]
-            )
-            if all(
-                picking.state == "done" for picking in pos_lines.order_id.picking_ids
-            ):
-                sale_line.qty_transferred += sum(
-                    (
-                        self._convert_qty(sale_line, pos_line.qty, "p2s")
-                        for pos_line in pos_lines
-                        if sale_line.product_id.type != "service"
-                    ),
-                    0,
-                )
+            sale_line.qty_transferred += sale_line._get_pos_transferred_qty()
 
     def _prepare_qty_transferred(self):
         delivered_qties = super()._prepare_qty_transferred()
         for sale_line in self:
-            if sale_line.product_id.type == "service":
-                continue
-            pos_lines = sale_line.sudo().pos_order_line_ids.filtered(
-                lambda order_line: order_line.order_id.state not in ["cancel", "draft"]
-            )
-            if all(
-                picking.state == "done" for picking in pos_lines.order_id.picking_ids
-            ):
-                pos_qty = sum(
-                    (
-                        self._convert_qty(sale_line, pos_line.qty, "p2s")
-                        for pos_line in pos_lines
-                    ),
-                    0,
-                )
-                if pos_qty != 0:
-                    delivered_qties[sale_line] += pos_qty
+            if pos_qty := sale_line._get_pos_transferred_qty():
+                delivered_qties[sale_line] += pos_qty
         return delivered_qties
+
+    def _get_pos_transferred_qty(self):
+        self.check_singleton()
+        if self.product_id.type == "service":
+            return 0.0
+        pos_lines = self.sudo().pos_order_line_ids.filtered(
+            lambda order_line: order_line.order_id.state not in ["cancel", "draft"]
+        )
+        return sum(
+            self._convert_qty(self, pos_line.qty, "p2s")
+            for pos_order, order_lines in pos_lines.grouped("order_id").items()
+            if all(picking.state == "done" for picking in pos_order.picking_ids)
+            for pos_line in order_lines
+        )
 
     @api.depends("pos_order_line_ids.qty", "pos_order_line_ids.order_id.state")
     def _compute_invoice_amounts(self):
-        """Extend invoice computation to include POS order lines.
+        return super()._compute_invoice_amounts()
 
-        POS orders can create sale order lines that are invoiced through POS
-        (not through Odoo invoicing). We need to account for these in the
-        invoice tracking fields.
-        """
-        super()._compute_invoice_amounts()
+    def _get_invoiced_outside_account_moves(self):
+        invoiced = super()._get_invoiced_outside_account_moves()
         for sale_line in self:
             pos_lines = sale_line.sudo().pos_order_line_ids.filtered(
                 lambda order_line: order_line.order_id.state not in ["cancel", "draft"]
             )
-            sale_line.qty_invoiced += sum(
-                (
+            if not pos_lines:
+                continue
+            qty, amount_taxexc = invoiced.get(sale_line, (0.0, 0.0))
+            invoiced[sale_line] = (
+                qty
+                + sum(
                     self._convert_qty(sale_line, pos_line.qty, "p2s")
                     for pos_line in pos_lines
                 ),
-                0,
+                amount_taxexc + sum(pos_lines.mapped("price_subtotal")),
             )
-            sale_line.amount_taxexc_invoiced += sum(pos_lines.mapped("price_subtotal"))
+        return invoiced
 
     def _prepare_qty_invoiced(self):
         invoiced_qties = super()._prepare_qty_invoiced()
@@ -177,7 +164,7 @@ class SaleOrderLine(models.Model):
                 item["qty_to_invoice"] = self._convert_qty(
                     sale_line, item["qty_to_invoice"], "s2p"
                 )
-                item["price_unit"] = sale_line_uom._compute_price(
+                item["price_unit"] = sale_line_uom._get_price_in_unit(
                     item["price_unit"], product_uom_id
                 )
                 results.append(item)
@@ -206,9 +193,9 @@ class SaleOrderLine(models.Model):
         product_uom_id = sale_line.product_id.uom_id
         sale_line_uom = sale_line.product_uom_id
         if direction == "s2p":
-            return sale_line_uom._compute_quantity(qty, product_uom_id, False)
+            return sale_line_uom._get_quantity_in_unit(qty, product_uom_id, False)
         if direction == "p2s":
-            return product_uom_id._compute_quantity(qty, sale_line_uom, False)
+            return product_uom_id._get_quantity_in_unit(qty, sale_line_uom, False)
         raise ValueError(f"Unknown conversion direction: {direction!r}")
 
     def unlink(self):

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markRaw, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { mainComponentEntry } from "@web/ui/main_components_container";
 import {
@@ -21,14 +22,16 @@ const services = registry.category("services");
  * }} OverlayServiceAddOptions
  */
 
+const log = makeLogger("web.ui.overlay");
+
 class OverlayService {
     constructor() {
         this.nextId = 0;
         this.overlays = reactive(/** @type {Record<number, any>} */ ({}));
         /** @type {Map<number, Promise<void>>} */
         this.removing = new Map();
-        /** @type {(string | undefined)[]} */
-        this.containerRootIds = reactive([]);
+        /** @type {Map<symbol, string | undefined>} */
+        this.containerRoots = reactive(new Map());
 
         mainComponents.add("OverlayContainer", mainComponentEntry(OverlayContainer));
     }
@@ -38,12 +41,20 @@ class OverlayService {
      * @returns {() => void}
      */
     registerContainer(rootId) {
-        this.containerRootIds.push(rootId);
+        const registration = Symbol();
+        this.containerRoots.set(registration, rootId);
+        log.lifecycle("register container", () => ({
+            rootId,
+            registrations: this.containerRoots.size,
+        }));
         return () => {
-            const index = this.containerRootIds.indexOf(rootId);
-            if (index !== -1) {
-                this.containerRootIds.splice(index, 1);
+            if (!this.containerRoots.delete(registration)) {
+                return;
             }
+            log.lifecycle("unregister container", () => ({
+                rootId,
+                registrations: this.containerRoots.size,
+            }));
         };
     }
 
@@ -54,6 +65,12 @@ class OverlayService {
      * @returns {Promise<void>}
      */
     _remove(id, onRemove = () => {}, removeParams) {
+        log.lifecycle("remove", () => ({
+            id,
+            component: this.overlays[id]?.component?.name,
+            known: id in this.overlays,
+            inFlight: this.removing.has(id),
+        }));
         if (!(id in this.overlays)) {
             return Promise.resolve();
         }
@@ -104,6 +121,13 @@ class OverlayService {
             sequence: options.sequence ?? DEFAULT_OVERLAY_SEQUENCE,
             rootId: options.rootId,
         };
+        log.lifecycle("add", () => ({
+            id,
+            component: component.name,
+            sequence: this.overlays[id].sequence,
+            rootId: options.rootId,
+            open: Object.keys(this.overlays).length,
+        }));
         return removeCurrentOverlay;
     }
 

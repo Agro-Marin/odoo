@@ -6,15 +6,27 @@ from odoo.tools import SQL
 class HrEmployeeSkillHistoryReport(models.BaseModel):
     _name = "hr.employee.skill.history.report"
     _auto = False
+    _inherit = ["mixin.hr.manager.department.report"]
     _description = "Employee Skills History Report"
     _order = "date desc, employee_id"
 
-    employee_id = fields.Many2one("hr.employee", readonly=True)
-    company_id = fields.Many2one("res.company", readonly=True)
-    department_id = fields.Many2one("hr.department", readonly=True)
-    date = fields.Date()
-    skill_id = fields.Many2one("hr.skill", readonly=True)
-    skill_type_id = fields.Many2one("hr.skill.type", readonly=True)
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
+    department_id = fields.Many2one(
+        comodel_name="hr.department",
+        readonly=True,
+    )
+    date = fields.Date(readonly=True)
+    skill_id = fields.Many2one(
+        comodel_name="hr.skill",
+        readonly=True,
+    )
+    skill_type_id = fields.Many2one(
+        comodel_name="hr.skill.type",
+        readonly=True,
+    )
     level_progress = fields.Float(readonly=True)
 
     def init(self):
@@ -33,9 +45,8 @@ class HrEmployeeSkillHistoryReport(models.BaseModel):
                 SELECT valid_to AS date, employee_id FROM hr_employee_skill
                 WHERE valid_to IS NOT NULL
             )
-            SELECT row_number() OVER () AS id, history.*
-            FROM (
-                SELECT DISTINCT ON (d.date, s.employee_id, s.skill_id)
+            SELECT DISTINCT ON (d.date, s.employee_id, s.skill_id)
+                    s.id::bigint * 1048576 + (d.date - DATE '0001-01-01') AS id,
                     d.date AS date,
                     s.employee_id,
                     e.company_id AS company_id,
@@ -53,7 +64,6 @@ class HrEmployeeSkillHistoryReport(models.BaseModel):
                 JOIN hr_employee e ON e.id = s.employee_id
                 LEFT JOIN hr_version v ON v.id = e.current_version_id
                 ORDER BY d.date, s.employee_id, s.skill_id, s.valid_from DESC
-            ) AS history
         )
         """,
                 SQL.identifier(self._table),

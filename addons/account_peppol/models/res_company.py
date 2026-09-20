@@ -55,6 +55,9 @@ TIMEOUT = 10
 
 class ResCompany(models.Model):
     _inherit = "res.company"
+    _CREDENTIAL_FIELDS = {
+        "account_peppol_migration_key": "account_peppol_migration_key",
+    }
 
     account_peppol_contact_email = fields.Char(
         string="Primary contact email",
@@ -65,7 +68,10 @@ class ResCompany(models.Model):
         "In particular, this email is used by Odoo to reconnect your Peppol account in case of database change.",
     )
     account_peppol_migration_key = fields.Char(
-        string="Migration Key", groups="base.group_system"
+        string="Migration Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        groups="base.group_system",
     )
     account_peppol_phone_number = fields.Char(
         string="Mobile number",
@@ -83,31 +89,37 @@ class ResCompany(models.Model):
             ("rejected", "Rejected"),
         ],
         string="PEPPOL status",
-        required=True,
         default="not_registered",
+        required=True,
     )
     account_peppol_edi_user = fields.Many2one(
         comodel_name="account_edi_proxy_client.user",
         compute="_compute_account_peppol_edi_user",
     )
-    peppol_eas = fields.Selection(related="partner_id.peppol_eas", readonly=False)
-    peppol_endpoint = fields.Char(related="partner_id.peppol_endpoint", readonly=False)
+    peppol_eas = fields.Selection(
+        related="partner_id.peppol_eas",
+        readonly=False,
+    )
+    peppol_endpoint = fields.Char(
+        related="partner_id.peppol_endpoint",
+        readonly=False,
+    )
     peppol_purchase_journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Peppol Purchase Journal",
-        domain=[("type", "=", "purchase")],
         compute="_compute_peppol_purchase_journal_id",
+        inverse="_inverse_peppol_purchase_journal_id",
         store=True,
         readonly=False,
-        inverse="_inverse_peppol_purchase_journal_id",
+        domain=[("type", "=", "purchase")],
     )
     peppol_external_provider = fields.Char(tracking=True)
     peppol_can_send = fields.Boolean(compute="_compute_peppol_can_send")
     peppol_parent_company_id = fields.Many2one(
-        comodel_name="res.company", compute="_compute_peppol_parent_company_id"
+        comodel_name="res.company",
+        compute="_compute_peppol_parent_company_id",
     )
     # IAP-driven metadata with additive keys
-    peppol_metadata = fields.Json(string="Peppol Metadata")
+    peppol_metadata = fields.Json()
     peppol_metadata_updated_at = fields.Datetime(string="Peppol meta updated at")
 
     # Deprecated
@@ -119,12 +131,12 @@ class ResCompany(models.Model):
     peppol_self_billing_reception_journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Self-Billing reception journal",
-        help="Any self-billed invoices / credit notes received via Peppol will be created in draft in this journal. Defaults to the first sale journal.",
-        domain=[("type", "=", "sale")],
         compute="_compute_peppol_self_billing_reception_journal_id",
+        inverse="_inverse_peppol_self_billing_reception_journal_id",
         store=True,
         readonly=False,
-        inverse="_inverse_peppol_self_billing_reception_journal_id",
+        domain=[("type", "=", "sale")],
+        help="Any self-billed invoices / credit notes received via Peppol will be created in draft in this journal. Defaults to the first sale journal.",
     )
 
     # -------------------------------------------------------------------------
@@ -184,7 +196,7 @@ class ResCompany(models.Model):
         if not phonenumbers:
             raise ValidationError(_("Please install the phonenumbers library."))
 
-    def _sanitize_peppol_phone_number(self, phone_number=None):
+    def _normalize_peppol_phone_number(self, phone_number=None):
         self.check_singleton()
 
         error_message = _(
@@ -231,7 +243,7 @@ class ResCompany(models.Model):
     def _check_account_peppol_phone_number(self):
         for company in self:
             if company.account_peppol_phone_number:
-                company._sanitize_peppol_phone_number()
+                company._normalize_peppol_phone_number()
 
     @api.constrains("peppol_endpoint")
     def _check_peppol_endpoint(self):
@@ -285,66 +297,77 @@ class ResCompany(models.Model):
                     company.peppol_parent_company_id = parent_company
                     break
 
+    def _first_journal_per_company(self, journal_type):
+        journals = self.env["account.journal"].search(
+            [
+                *self.env["account.journal"]._check_company_domain(self),
+                ("type", "=", journal_type),
+            ]
+        )
+        return {
+            company: next(
+                (
+                    journal
+                    for journal in journals
+                    if not journal.company_id or journal.company_id == company
+                ),
+                self.env["account.journal"],
+            )
+            for company in self
+        }
+
     @api.depends("account_peppol_proxy_state")
     def _compute_peppol_purchase_journal_id(self):
-        for company in self:
-            if not company.peppol_purchase_journal_id and company.peppol_can_send:
-                company.peppol_purchase_journal_id = self.env["account.journal"].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(company),
-                        ("type", "=", "purchase"),
-                    ],
-                    limit=1,
-                )
-                company.peppol_purchase_journal_id.is_peppol_journal = True
+        missing = self.filtered(
+            lambda company: (
+                not company.peppol_purchase_journal_id and company.peppol_can_send
+            )
+        )
+        journal_by_company = missing._first_journal_per_company("purchase")
+        for company in missing:
+            company.peppol_purchase_journal_id = journal_by_company[company]
+            company.peppol_purchase_journal_id.is_peppol_journal = True
 
     def _inverse_peppol_purchase_journal_id(self):
-        for company in self:
-            # This avoid having 2 or more purchase journals from the same company with
-            # `is_peppol_journal` set to True (which could occur after changes).
-            journals_to_reset = self.env["account.journal"].search(
-                [
-                    ("company_id", "=", company.id),
-                    ("type", "=", "purchase"),
-                    ("is_peppol_journal", "=", True),
-                ]
-            )
-            journals_to_reset.is_peppol_journal = False
-            company.peppol_purchase_journal_id.is_peppol_journal = True
+        # This avoid having 2 or more purchase journals from the same company with
+        # `is_peppol_journal` set to True (which could occur after changes).
+        journals_to_reset = self.env["account.journal"].search(
+            [
+                ("company_id", "in", self.ids),
+                ("type", "=", "purchase"),
+                ("is_peppol_journal", "=", True),
+            ]
+        )
+        journals_to_reset.is_peppol_journal = False
+        self.peppol_purchase_journal_id.is_peppol_journal = True
 
     @api.depends("account_peppol_proxy_state")
     def _compute_peppol_self_billing_reception_journal_id(self):
-        for company in self:
-            if (
+        missing = self.filtered(
+            lambda company: (
                 not company.peppol_self_billing_reception_journal_id
                 and company.peppol_can_send
-            ):
-                company.peppol_self_billing_reception_journal_id = self.env[
-                    "account.journal"
-                ].search(
-                    [
-                        *self.env["account.journal"]._check_company_domain(company),
-                        ("type", "=", "sale"),
-                    ],
-                    limit=1,
-                )
-                company.peppol_self_billing_reception_journal_id.is_peppol_journal = (
-                    True
-                )
+            )
+        )
+        journal_by_company = missing._first_journal_per_company("sale")
+        for company in missing:
+            company.peppol_self_billing_reception_journal_id = journal_by_company[
+                company
+            ]
+            company.peppol_self_billing_reception_journal_id.is_peppol_journal = True
 
     def _inverse_peppol_self_billing_reception_journal_id(self):
-        for company in self:
-            # This avoid having 2 or more sale journals from the same company with
-            # `is_peppol_journal` set to True (which could occur after changes).
-            journals_to_reset = self.env["account.journal"].search(
-                [
-                    ("company_id", "=", company.id),
-                    ("type", "=", "sale"),
-                    ("is_peppol_journal", "=", True),
-                ]
-            )
-            journals_to_reset.is_peppol_journal = False
-            company.peppol_self_billing_reception_journal_id.is_peppol_journal = True
+        # This avoid having 2 or more sale journals from the same company with
+        # `is_peppol_journal` set to True (which could occur after changes).
+        journals_to_reset = self.env["account.journal"].search(
+            [
+                ("company_id", "in", self.ids),
+                ("type", "=", "sale"),
+                ("is_peppol_journal", "=", True),
+            ]
+        )
+        journals_to_reset.is_peppol_journal = False
+        self.peppol_self_billing_reception_journal_id.is_peppol_journal = True
 
     @api.depends("email")
     def _compute_account_peppol_contact_email(self):
@@ -359,7 +382,7 @@ class ResCompany(models.Model):
                 try:
                     # precompute only if it's a valid phone number
                     phone = company.phone_ids._primary().number
-                    company._sanitize_peppol_phone_number(phone)
+                    company._normalize_peppol_phone_number(phone)
                     company.account_peppol_phone_number = phone
                 except ValidationError:
                     continue
@@ -379,7 +402,7 @@ class ResCompany(models.Model):
     # -------------------------------------------------------------------------
 
     @api.model
-    def _sanitize_peppol_endpoint_in_values(self, values):
+    def _update_peppol_endpoint_in_values(self, values):
         eas = values.get("peppol_eas")
         endpoint = values.get("peppol_endpoint")
         if not eas or not endpoint:
@@ -392,7 +415,7 @@ class ResCompany(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            self._sanitize_peppol_endpoint_in_values(vals)
+            self._update_peppol_endpoint_in_values(vals)
 
         res = super().create(vals_list)
         if res:
@@ -406,7 +429,7 @@ class ResCompany(models.Model):
         return res
 
     def write(self, vals):
-        self._sanitize_peppol_endpoint_in_values(vals)
+        self._update_peppol_endpoint_in_values(vals)
         return super().write(vals)
 
     # -------------------------------------------------------------------------
@@ -472,7 +495,9 @@ class ResCompany(models.Model):
             with contextlib.suppress(
                 requests.exceptions.RequestException, etree.XMLSyntaxError
             ):
-                response = requests.get(service_href, timeout=TIMEOUT)
+                response = self.env["ir.egress"].request(
+                    "GET", service_href, purpose="peppol_smp", timeout=TIMEOUT
+                )
                 if response.status_code == 200:
                     access_point_info = etree.fromstring(response.content)
                     provider_name = access_point_info.findtext(
@@ -485,7 +510,7 @@ class ResCompany(models.Model):
         external_provider = None
         error_msg = ""
         if (
-            participant_info := self.partner_id._peppol_lookup_participant(
+            participant_info := self.partner_id._peppol_get_participant(
                 edi_identification
             )
         ) is not None and (

@@ -1,12 +1,16 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class PosPaymentMethod(models.Model):
     _name = "pos.payment.method"
     _description = "Point of Sale Payment Methods"
     _order = "sequence, id"
-    _inherit = ["mixin.pos.load"]
+    _inherit = ["mixin.pos.load", "mixin.credential.holder"]
+    _credential_holder_field = "terminal_credential_id"
+    _credential_purpose = "pos:payment_method"
 
     def _selection_payment_terminals(self):
         return []
@@ -23,33 +27,42 @@ class PosPaymentMethod(models.Model):
     def _is_online_payment(self):
         return False
 
+    terminal_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds the secrets of this method's payment terminal.",
+    )
     name = fields.Char(
         string="Method",
-        required=True,
         translate=True,
+        required=True,
         help="Defines the name of the payment method that will be displayed in the Point of Sale when the payments are selected.",
     )
     sequence = fields.Integer(copy=False)
     outstanding_account_id = fields.Many2one(
-        "account.account",
-        string="Outstanding Account",
+        comodel_name="account.account",
         ondelete="restrict",
         help="Account used as outstanding account when creating accounting payment records for bank payments.",
     )
     receivable_account_id = fields.Many2one(
-        "account.account",
+        comodel_name="account.account",
         string="Intermediary Account",
-        ondelete="restrict",
         domain=[("reconcile", "=", True), ("account_type", "=", "asset_receivable")],
+        ondelete="restrict",
         help="Leave empty to use the default account from the company setting.\n"
         "Overrides the company's receivable account (for Point of Sale) used in the journal entries.",
     )
     is_cash_count = fields.Boolean(
-        string="Cash", compute="_compute_is_cash_count", store=True
+        string="Cash",
+        compute="_compute_is_cash_count",
+        store=True,
     )
     journal_id = fields.Many2one(
-        "account.journal",
-        string="Journal",
+        comodel_name="account.journal",
+        index="btree_not_null",
         domain=[
             "|",
             "&",
@@ -58,7 +71,6 @@ class PosPaymentMethod(models.Model):
             ("type", "=", "bank"),
         ],
         ondelete="restrict",
-        index="btree_not_null",
         check_company=True,
         help="Leave empty to use the receivable account of customer.\n"
         "Defines the journal where to book the accumulated payments (or individual payment if Identify Customer is true) after closing the session.\n"
@@ -72,14 +84,18 @@ class PosPaymentMethod(models.Model):
         help="Forces to set a customer when using this payment method and splits the journal entries for each customer. It could slow down the closing process.",
     )
     open_session_ids = fields.Many2many(
-        "pos.session",
+        comodel_name="pos.session",
         string="Pos Sessions",
         compute="_compute_open_session_ids",
         help="Open PoS sessions that are using this payment method.",
     )
-    config_ids = fields.Many2many("pos.config", string="Point of Sale")
+    config_ids = fields.Many2many(
+        comodel_name="pos.config",
+        string="Point of Sale",
+    )
     company_id = fields.Many2one(
-        "res.company", string="Company", default=lambda self: self.env.company
+        comodel_name="res.company",
+        default=lambda self: self.env.company,
     )
     default_pos_receivable_account_name = fields.Char(
         related="company_id.account_default_pos_receivable_account_id.display_name",
@@ -102,7 +118,10 @@ class PosPaymentMethod(models.Model):
         ],
         compute="_compute_type",
     )
-    image = fields.Image("Image", max_width=50, max_height=50)
+    image = fields.Image(
+        max_width=50,
+        max_height=50,
+    )
     payment_method_type = fields.Selection(
         selection=lambda self: self._selection_payment_method_types(),
         string="Integration",
@@ -111,11 +130,11 @@ class PosPaymentMethod(models.Model):
     )
     default_qr = fields.Char(compute="_compute_default_qr")
     qr_code_method = fields.Selection(
-        string="QR Code Format",
-        copy=False,
         selection=lambda self: self.env[
             "res.partner.bank"
         ].get_available_qr_methods_in_sequence(),
+        string="QR Code Format",
+        copy=False,
         help="Type of QR-code to be generated for this payment method.",
     )
     hide_qr_code_method = fields.Boolean(compute="_compute_hide_qr_code_method")
@@ -183,7 +202,7 @@ class PosPaymentMethod(models.Model):
     def _onchange_use_payment_terminal(self):
         pass
 
-    @api.depends("config_ids")
+    @api.depends("config_ids.session_ids.state")
     def _compute_open_session_ids(self):
         all_configs = self.config_ids
         open_sessions = self.env["pos.session"].search(
@@ -245,6 +264,11 @@ class PosPaymentMethod(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "pos.payment.method.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if vals.get("payment_method_type", False):
                 self._force_payment_method_type_values(
@@ -253,6 +277,12 @@ class PosPaymentMethod(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "pos.payment.method.write: %s keys=%s open_sessions=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            dbg.lazy(lambda: dbg.rec(self.open_session_ids)),
+        )
         if self._is_write_forbidden(set(vals.keys())):
             raise UserError(
                 _(
@@ -269,6 +299,12 @@ class PosPaymentMethod(models.Model):
         pmt_terminal = self.filtered(lambda pm: pm.payment_method_type == "terminal")
         pmt_qr = self.filtered(lambda pm: pm.payment_method_type == "qr_code")
         not_pmt = self - pmt_terminal - pmt_qr
+        dbg.logic.debug(
+            "pos.payment.method.write split: terminal=%s qr=%s other=%s",
+            dbg.rec(pmt_terminal),
+            dbg.rec(pmt_qr),
+            dbg.rec(not_pmt),
+        )
 
         res = True
         if pmt_terminal:
@@ -338,12 +374,8 @@ class PosPaymentMethod(models.Model):
     @api.constrains("config_ids")
     def _check_company_config(self):
         for payment in self:
-            if self.env["pos.config"].search_count(
-                [
-                    ("id", "in", payment.config_ids.ids),
-                    ("company_id", "!=", payment.company_id.id),
-                ],
-                limit=1,
+            if any(
+                config.company_id != payment.company_id for config in payment.config_ids
             ):
                 raise ValidationError(
                     _(
@@ -374,6 +406,13 @@ class PosPaymentMethod(models.Model):
         debtor_partner,
     ):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "[pm:%s] qr code requested: amount=%s currency=%s partner=%s",
+            self.id,
+            amount,
+            currency,
+            debtor_partner,
+        )
         if self not in self.open_session_ids.config_id.payment_method_ids:
             raise UserError(
                 _(

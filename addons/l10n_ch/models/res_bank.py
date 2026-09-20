@@ -22,20 +22,20 @@ def check_qr_iban(qr_iban):
     # Check first if it's a valid IBAN.
     check_iban(qr_iban)
 
-    # We sanitize first so that check_qr_iban_range() can extract correct IID from IBAN to validate it.
+    # We sanitize first so that is_qr_iban_range() can extract correct IID from IBAN to validate it.
     sanitized_qr_iban = sanitize_account_number(qr_iban)
 
     if sanitized_qr_iban[:2] not in ["CH", "LI"]:
         raise ValidationError(_lt("QR-IBAN numbers are only available in Switzerland."))
 
     # Now, check if it's valid QR-IBAN (based on its IID).
-    if not check_qr_iban_range(sanitized_qr_iban):
+    if not is_qr_iban_range(sanitized_qr_iban):
         raise ValidationError(_lt("QR-IBAN “%s” is invalid.", qr_iban))
 
     return True
 
 
-def check_qr_iban_range(iban):
+def is_qr_iban_range(iban):
     if not iban or len(iban) < 9:
         return False
     iid = get_iban_part(iban, "bank")
@@ -109,7 +109,7 @@ class ResPartnerBank(models.Model):
             )
         return super().write(vals)
 
-    def _l10n_ch_get_qr_vals(
+    def _prepare_swiss_qr_fields(
         self,
         amount,
         currency,
@@ -186,7 +186,7 @@ class ResPartnerBank(models.Model):
         # newlines shift field content to a different line, causing the QR code to be rejected
         return [line.replace("\n", " ") for line in result]
 
-    def _get_qr_vals(
+    def _prepare_qr_payload(
         self,
         qr_method,
         amount,
@@ -196,14 +196,14 @@ class ResPartnerBank(models.Model):
         structured_communication,
     ):
         if qr_method == "ch_qr":
-            return self._l10n_ch_get_qr_vals(
+            return self._prepare_swiss_qr_fields(
                 amount,
                 currency,
                 debtor_partner,
                 free_communication,
                 structured_communication,
             )
-        return super()._get_qr_vals(
+        return super()._prepare_qr_payload(
             qr_method,
             amount,
             currency,
@@ -212,7 +212,7 @@ class ResPartnerBank(models.Model):
             structured_communication,
         )
 
-    def _get_qr_code_generation_params(
+    def _prepare_qr_rendering_params(
         self,
         qr_method,
         amount,
@@ -229,7 +229,7 @@ class ResPartnerBank(models.Model):
                 "quiet": 0,
                 "mask": "ch_cross",
                 "value": "\n".join(
-                    self._get_qr_vals(
+                    self._prepare_qr_payload(
                         qr_method,
                         amount,
                         currency,
@@ -241,7 +241,7 @@ class ResPartnerBank(models.Model):
                 # Swiss QR code requires Error Correction Level = 'M' by specification
                 "barLevel": "M",
             }
-        return super()._get_qr_code_generation_params(
+        return super()._prepare_qr_rendering_params(
             qr_method,
             amount,
             currency,

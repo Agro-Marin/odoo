@@ -32,11 +32,4 @@
         <field name="res_model">l10n_ar.afip.responsibility.type</field>
     </record>
 
-    <menuitem
-        id="menu_afip_responsibility_type"
-        name="Responsibility Types"
-        parent="menu_afip_config"
-        action="action_afip_responsibility_type"
-        sequence="10" />
-
 </odoo>

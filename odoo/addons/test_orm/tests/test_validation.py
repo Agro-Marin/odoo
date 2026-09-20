@@ -1,5 +1,6 @@
 from odoo.exceptions import AccessError, ValidationError
 from odoo.orm.validation import (
+    check_column_name,
     check_object_name,
     check_pg_name,
     is_valid_object_name,
@@ -162,6 +163,17 @@ class TestCheckPgName(TransactionCase):
             check_pg_name("ALL_CAPS")
         with self.assertRaises(ValidationError):
             check_pg_name("camelCase")
+
+
+class TestCheckColumnName(TransactionCase):
+    def test_accepts_the_mixed_case_studio_columns_upgraded_databases_carry(self):
+        check_column_name("x_studio_many2one_field_nKSEu")
+        check_column_name("x_Name$1")
+
+    def test_rejects_what_no_column_may_be_named(self):
+        for name in ("1invalid", "my-column", "a" * 64, "with space"):
+            with self.subTest(name=name), self.assertRaises(ValidationError):
+                check_column_name(name)
 
 
 class TestPrivateMethodsAreNotCallableRemotely(TransactionCase):

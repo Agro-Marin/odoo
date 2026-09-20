@@ -193,7 +193,7 @@ class TestAccountReportsCommon(AccountTestInvoicingCommon):
             if not line.code or line.code in visited_line_codes:
                 continue
             identical_lines = reports.line_ids.filtered(
-                lambda l: l != line and l.code == line.code  # noqa: B023
+                lambda l, line=line: l != line and l.code == line.code
             )
             if not identical_lines:
                 continue
@@ -275,7 +275,7 @@ class TestAccountReportsCommon(AccountTestInvoicingCommon):
                 if not used_currency:
                     used_currency = self.env.company.currency_id
 
-                if type(expected_value) in (int, float) and type(current_value) == str:  # noqa: E721
+                if type(expected_value) in (int, float) and type(current_value) is str:
                     if current_figure_type and current_figure_type != "monetary":
                         expected_value = str(expected_value)
                     elif options.get("multi_currency"):

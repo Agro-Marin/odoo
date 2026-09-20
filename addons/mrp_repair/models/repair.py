@@ -1,11 +1,14 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class RepairOrder(models.Model):
     _inherit = "repair.order"
 
     production_count = fields.Integer(
-        "Count of MOs generated",
+        string="Count of MOs generated",
         compute="_compute_production_count",
         groups="mrp.group_mrp_user",
     )
@@ -38,9 +41,10 @@ class RepairOrder(models.Model):
                 )[op.product_id]
             )
             if not bom:
+                _debug.logic("repair_explode_skipped", move=op.id, reason="no_kit_bom")
                 continue
             factor = (
-                op.product_uom_id._compute_quantity(
+                op.product_uom_id._get_quantity_in_unit(
                     op.product_uom_qty, bom.product_uom_id
                 )
                 / bom.product_qty
@@ -55,6 +59,12 @@ class RepairOrder(models.Model):
                     )
             lines_to_unlink_ids.add(op.id)
 
+        _debug.pipeline(
+            "repair_exploded",
+            repairs=self,
+            replaced=len(lines_to_unlink_ids),
+            components=len(line_vals_list),
+        )
         self.env["stock.move"].browse(lines_to_unlink_ids).sudo().unlink()
         if line_vals_list:
             self.env["stock.move"].create(line_vals_list)
@@ -77,13 +87,13 @@ class RepairOrder(models.Model):
 
         return action
 
-    def _get_action_add_from_catalog_extra_context(self):
+    def _prepare_catalog_extra_context(self):
         bom = self.env["mrp.bom"]._get_bom_by_product(
             self.product_id, company_id=self.company_id.id
         )[self.product_id]
         product_ids = [line.product_id.id for line in bom.bom_line_ids] if bom else []
         return {
-            **super()._get_action_add_from_catalog_extra_context(),
+            **super()._prepare_catalog_extra_context(),
             "catalog_bom_product_ids": product_ids,
             "search_default_bom_parts": bool(product_ids),
         }

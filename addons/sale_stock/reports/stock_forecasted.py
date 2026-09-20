@@ -1,4 +1,7 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockForecasted_Product_Product(models.AbstractModel):
@@ -27,6 +30,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         )
 
         if not move_out or not move_out.picking_id or not move_out.picking_id.sale_id:
+            _debug.logic("forecast_line_without_sale", product=product or False)
             return line
 
         picking = move_out.picking_id
@@ -62,13 +66,16 @@ class StockForecasted_Product_Product(models.AbstractModel):
         out_qty = {
             k.id: sum(
                 v.mapped(
-                    lambda line: line.product_uom_id._compute_quantity_report(
+                    lambda line: line.product_uom_id._get_quantity_report(
                         line.product_qty, line.product_id.uom_id
                     ),
                 ),
             )
             for k, v in so_lines.items()
         }
+        _debug.perf.count(
+            "forecast_draft_sales", products=len(so_lines), quantities=len(out_qty)
+        )
         self._add_product_quantities(
             res, product_template_ids, product_ids, "draft_sale_qty", qty_out=out_qty
         )

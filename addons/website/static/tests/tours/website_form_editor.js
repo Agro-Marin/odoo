@@ -10,7 +10,6 @@ import {
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
-// Visibility possible values:
 const VISIBLE = "Always Visible";
 const CONDITIONALVISIBILITY = "Visible only if";
 
@@ -37,7 +36,6 @@ for (const data of ESSENTIAL_FIELDS_VALID_DATA_FOR_DEFAULT_FORM) {
     });
 }
 
-// Replace all `"` character by `&quot;`.
 const getQuotesEncodedName = function (name) {
     return name.replaceAll(/"/g, (character) => `&quot;`);
 };
@@ -107,7 +105,7 @@ const addField = function (
         ...selectButtonByData("Text", data),
         {
             content: "Wait for field to load",
-            trigger: `:iframe .s_website_form_field[data-type="${name}"],:iframe .s_website_form_input[name="${name}"]`, //custom or existing field
+            trigger: `:iframe .s_website_form_field[data-type="${name}"],:iframe .s_website_form_input[name="${name}"]`,
         },
         ...changeOptionInPopover("Field", "Visibility", display.visibility),
     ];
@@ -175,7 +173,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Drop a form builder snippet and configure it
         ...insertSnippet({
             id: "s_title_form",
             name: "Contact & Forms",
@@ -279,7 +276,6 @@ registerWebsitePreviewTour(
             content:
                 "Change the label of 'Conditional Visibility Check 4' and change it to 'Conditional Visibility Check 3'",
             trigger: ".o_customize_tab div[data-action-id='setLabelText'] input",
-            // TODO: remove && click body
             run: "edit Conditional Visibility Check 3 && click body",
         },
         {
@@ -295,7 +291,6 @@ registerWebsitePreviewTour(
             content:
                 "Change the label of 'Conditional Visibility Check 6' and change it to 'Conditional Visibility Check 5'",
             trigger: ".o_customize_tab div[data-action-id='setLabelText'] input",
-            // TODO: remove && click body
             run: "edit Conditional Visibility Check 5 && click body",
         },
         {
@@ -320,7 +315,6 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe .s_website_form_field:contains('Test conditional visibility') .s_website_form_field_description",
         },
-        // Check that visibility condition is deleted on dependency type change.
         ...addCustomField("char", "text", "dependent", false, {
             visibility: CONDITIONALVISIBILITY,
         }),
@@ -393,7 +387,6 @@ registerWebsitePreviewTour(
                 ":has(.checkbox:has(label:contains('Xperia')):has(input[type='checkbox'][required]))" +
                 ":has(.checkbox:has(label:contains('Wiko Stairway')):has(input[type='checkbox'][required]))",
         },
-        // Check conditional visibility for the relational fields
         ...changeOptionInPopover("Field", "Visibility", "Visible only if"),
         ...selectButtonByData("Your Name", "[data-action-value='recipient_ids']"),
         ...selectButtonByText("Is equal to", "Is not equal to"),
@@ -468,7 +461,6 @@ registerWebsitePreviewTour(
 
         ...addCustomField("many2one", "select", "State", true),
 
-        // Customize custom selection field
         {
             content: "Change Option 1 Label",
             trigger: ".o_we_table_wrapper table input[name='display_name']:eq(0)",
@@ -492,7 +484,6 @@ registerWebsitePreviewTour(
         {
             content: "Change last Option label",
             trigger: ".o_we_table_wrapper table input[name='display_name']:eq(3)",
-            // TODO: Fix code to avoid blur event
             run: "edit Canada && press Tab",
         },
         {
@@ -538,7 +529,6 @@ registerWebsitePreviewTour(
                 editor.shared.history.addStep();
             },
         },
-        // Edit the submit button using linkDialog.
         {
             content: "Click submit button to show edit popover",
             trigger: ":iframe .s_website_form_send",
@@ -577,7 +567,6 @@ registerWebsitePreviewTour(
             trigger:
                 ":iframe .s_website_form_send.btn.btn-sm.btn-custom.rounded-circle",
         },
-        // Add a default value to a auto-fillable field.
         ...selectFieldByLabel("Your Name"),
         {
             content: "Set a default value to the name field",
@@ -585,9 +574,6 @@ registerWebsitePreviewTour(
             run: "edit John Smith",
         },
 
-        // Add two fields: the 1st one's visibility is tied to the 2nd one
-        // being set, and the 2nd one is autopopulated. As a result, both
-        // should be visible by default.
         ...addCustomField("char", "text", "field A", false, {
             visibility: CONDITIONALVISIBILITY,
         }),
@@ -632,7 +618,6 @@ registerWebsitePreviewTour(
                 }
             },
         },
-        // Check that the resulting form behavior is correct.
         {
             content: "Check that field B prefill text is set",
             trigger: `:iframe ${triggerFieldByLabel("field B")}:has(input[value="prefilled"])`,
@@ -641,11 +626,6 @@ registerWebsitePreviewTour(
             content: "Check that field A is visible",
             trigger: `:iframe .s_website_form:has(${triggerFieldByLabel("field A")}:visible)`,
         },
-        // A) Check that if we edit again and save again the default value is
-        // not deleted.
-        // B) Add a 3rd field. Field A's visibility is tied to field B being set,
-        // field B is autopopulated and its visibility is tied to field C being
-        // set, and field C is empty.
         ...clickOnEditAndWaitEditMode(),
         {
             content: "Edit the form",
@@ -664,7 +644,6 @@ registerWebsitePreviewTour(
         ...selectFieldByLabel("field C"),
         ...clickOnSave(),
 
-        // Check that the resulting form behavior is correct.
         {
             content: "Verify that the value has not been deleted",
             trigger: ":iframe .s_website_form_field input[value='John Smith']",
@@ -691,8 +670,6 @@ registerWebsitePreviewTour(
                 `:has(${triggerFieldByLabel("field A")}:visible)`,
         },
 
-        // Have field A's visibility tied to field B containing something,
-        // while field B's visibility is also tied to another field.
         ...clickOnEditAndWaitEditMode(),
         ...selectFieldByLabel("field A"),
         {
@@ -708,7 +685,6 @@ registerWebsitePreviewTour(
         },
         ...clickOnSave(),
 
-        // Check that the resulting form works and does not raise an error.
         {
             content: "Write anything in C",
             trigger: `:iframe ${triggerFieldByLabel("field C")} input`,
@@ -756,16 +732,12 @@ registerWebsitePreviewTour(
         ...selectButtonByText("Is equal to", "Is set"),
 
         ...clickOnSave(),
-        // Ensure that a field required for a model is not disabled when
-        // conditionally hidden.
         {
             content: "Check that the 'Subject' field is not disabled",
             trigger:
                 `:iframe .s_website_form:has(.s_website_form_model_required ` +
                 `.s_website_form_input[value="Default Subject"]:not([disabled]):not(:visible))`,
         },
-        // Ensure that a required field (but not for a model) is disabled when
-        // conditionally hidden.
         {
             content: "Check that the 'Your Message' field is disabled",
             trigger:
@@ -793,8 +765,6 @@ registerWebsitePreviewTour(
             run: "click",
         },
         ...changeOptionInPopover("Field", "Visibility", "Always Visible"),
-        // This step is to ensure select fields are properly cleaned before
-        // exiting edit mode
         {
             content: "Click on the select field",
             trigger: ":iframe .s_website_form_field select",
@@ -810,8 +780,6 @@ registerWebsitePreviewTour(
             trigger: '[data-label="Recipient Email"] input',
             run: "edit test@test.test",
         },
-        // Test a field visibility when it's tied to another Date [Time] field
-        // being set.
         ...addCustomField("char", "text", "field D", false, {
             visibility: CONDITIONALVISIBILITY,
         }),
@@ -840,7 +808,6 @@ registerWebsitePreviewTour(
             run() {
                 this.anchor.value = "25071981";
                 this.anchor.dispatchEvent(new InputEvent("input", { bubbles: true }));
-                // Adds a delay to let the input code run.
                 setTimeout(() => {
                     this.anchor.classList.add("invalidDate");
                 }, 500);
@@ -853,7 +820,6 @@ registerWebsitePreviewTour(
                 this.anchor.classList.remove("invalidDate");
                 this.anchor.value = "07/25/1981";
                 this.anchor.dispatchEvent(new InputEvent("input", { bubbles: true }));
-                // Adds a delay to let the input code run.
                 setTimeout(() => {
                     this.anchor.classList.add("validDate");
                 }, 500);
@@ -877,14 +843,11 @@ registerWebsitePreviewTour(
             trigger: `:iframe .s_website_form:has(${triggerFieldByLabel("field D")}:visible)`,
         },
         ...clickOnEditAndWaitEditMode(),
-        // The next four calls to "addCustomField" are there to ensure such
-        // characters do not make the form editor crash.
         ...addCustomField("char", "text", "''", false),
         ...addCustomField("char", "text", '""', false),
         ...addCustomField("char", "text", "``", false),
         ...addCustomField("char", "text", "\\", false),
 
-        // Ensure that the description option is working as wanted.
         ...addCustomField("char", "text", "Check description option", false),
         changeOption("Field", "[data-action-id='toggleDescription'] input"),
         {
@@ -897,7 +860,6 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         {
             content: "Verify that the recipient email has been saved",
-            // We have to this that way because the input type = hidden.
             trigger: ':iframe form:has(input[name="email_to"][value="test@test.test"])',
         },
     ],
@@ -961,10 +923,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Create a form with two checkboxes: the second one required but
-        // invisible when the first one is checked. This should allow
-        // to have: both checkboxes are visible by default but the form can
-        // only be sent if one of the checkbox is checked.
         ...insertSnippet({
             id: "s_title_form",
             name: "Title - Form",
@@ -979,9 +937,6 @@ registerWebsitePreviewTour(
             async run(actions) {
                 await actions.click();
 
-                // The next steps will be about removing non essential required
-                // fields. For the robustness of the test, check that amount
-                // of field stays the same.
                 const requiredFields = this.anchor
                     .closest("[data-snippet]")
                     .querySelectorAll(".s_website_form_required");
@@ -1037,14 +992,10 @@ registerWebsitePreviewTour(
         },
         ...clickOnSave(),
 
-        // Check that the resulting form behavior is correct
         {
             content: "Wait for page reload",
             trigger: 'body:not(.editor_enable) :iframe [data-snippet="s_website_form"]',
             run: function (actions) {
-                // The next steps will be about removing non essential required
-                // fields. For the robustness of the test, check that amount
-                // of field stays the same.
                 const essentialFields = this.anchor.querySelectorAll(
                     ".s_website_form_model_required",
                 );
@@ -1162,7 +1113,6 @@ registerWebsitePreviewTour(
     ],
 );
 
-// Check that the editable form content is actually editable.
 registerWebsitePreviewTour(
     "website_form_editable_content",
     {
@@ -1214,7 +1164,6 @@ registerWebsitePreviewTour(
             run: "dblclick",
         },
         {
-            // Simulate a user interaction with the editable content.
             content: "Update the text inside the form column",
             trigger: ":iframe section.s_website_form h2.card-title",
             run: "editor ABC",
@@ -1286,7 +1235,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Fields in two form snippet should have unique IDs
         {
             content: "Drop a form snippet",
             trigger:
@@ -1321,8 +1269,6 @@ registerWebsitePreviewTour(
                 "[data-container-title='Form'] .options-container-header .oe_snippet_remove",
             run: "click",
         },
-        // Cloning a snippet with form in it should generate new IDs for the
-        // cloned form fields.
         {
             content: "Click on 'Title - Form' snippet",
             trigger: ":iframe .s_title_form",
@@ -1347,8 +1293,6 @@ registerWebsitePreviewTour(
             errorMessage:
                 "The first fields of original and cloned form snippet have the same ID",
         }),
-        // Cloning a form itself should should generate new IDs for the cloned
-        // form fields.
         {
             content: "Click on the form in 'Title - Form' snippet",
             trigger: ":iframe .s_title_form .s_website_form",
@@ -1373,7 +1317,6 @@ registerWebsitePreviewTour(
             errorMessage:
                 "The first fields of original and cloned form snippet have the same ID",
         }),
-        // Cloning a field should generate new ID for the cloned field
         {
             content: "Click on the name field",
             trigger: ":iframe .s_title_form .s_website_form input[name='name']",

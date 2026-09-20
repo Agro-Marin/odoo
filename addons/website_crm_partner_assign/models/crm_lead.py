@@ -4,33 +4,42 @@ from markupsafe import Markup
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import AccessDenied, AccessError, UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class CrmLead(models.Model):
     _inherit = "crm.lead"
 
-    partner_latitude = fields.Float("Geo Latitude", digits=(10, 7))
-    partner_longitude = fields.Float("Geo Longitude", digits=(10, 7))
+    partner_latitude = fields.Float(
+        string="Geo Latitude",
+        digits=(10, 7),
+    )
+    partner_longitude = fields.Float(
+        string="Geo Longitude",
+        digits=(10, 7),
+    )
     partner_assigned_id = fields.Many2one(
-        "res.partner",
-        "Assigned Partner",
-        tracking=True,
-        domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        comodel_name="res.partner",
+        string="Assigned Partner",
         index="btree_not_null",
+        domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        tracking=True,
     )
     partner_declined_ids = fields.Many2many(
-        "res.partner",
-        "crm_lead_declined_partner",
-        "lead_id",
-        "partner_id",
+        comodel_name="res.partner",
+        relation="crm_lead_declined_partner",
+        column1="lead_id",
+        column2="partner_id",
         string="Partner not interested",
     )
     date_partner_assign = fields.Date(
-        "Partner Assignment Date",
+        string="Partner Assignment Date",
         compute="_compute_date_partner_assign",
+        store=True,
         copy=True,
         readonly=False,
-        store=True,
         help="Last date this case was forwarded/assigned to a partner",
     )
 
@@ -187,7 +196,7 @@ class CrmLead(models.Model):
             latitude = lead.partner_latitude
             longitude = lead.partner_longitude
             if latitude and longitude:
-                partner_ids = Partner.search(
+                partner_ids = Partner.search(  # noqa: E8507 - widening radius probes per lead; the first non-empty ring wins
                     [
                         ("partner_weight", ">", 0),
                         ("partner_latitude", ">", latitude - 2),
@@ -200,7 +209,7 @@ class CrmLead(models.Model):
                 )
 
                 if not partner_ids:
-                    partner_ids = Partner.search(
+                    partner_ids = Partner.search(  # noqa: E8507 - widening radius probes per lead; the first non-empty ring wins
                         [
                             ("partner_weight", ">", 0),
                             ("partner_latitude", ">", latitude - 4),
@@ -213,7 +222,7 @@ class CrmLead(models.Model):
                     )
 
                 if not partner_ids:
-                    partner_ids = Partner.search(
+                    partner_ids = Partner.search(  # noqa: E8507 - widening radius probes per lead; the first non-empty ring wins
                         [
                             ("partner_weight", ">", 0),
                             ("partner_latitude", ">", latitude - 8),
@@ -226,7 +235,7 @@ class CrmLead(models.Model):
                     )
 
                 if not partner_ids:
-                    partner_ids = Partner.search(
+                    partner_ids = Partner.search(  # noqa: E8507 - widening radius probes per lead; the first non-empty ring wins
                         [
                             ("partner_weight", ">", 0),
                             ("country_id", "=", lead.country_id.id),
@@ -350,6 +359,11 @@ class CrmLead(models.Model):
             "country_id",
         ]
         if any(key not in fields for key in values):
+            _debug.logic(
+                "lead_update_refused",
+                reason="unauthorized_field",
+                fields=sorted(set(values) - set(fields)),
+            )
             raise UserError(
                 _(
                     "Not allowed to update the following field(s): %s.",
@@ -376,6 +390,7 @@ class CrmLead(models.Model):
             self.env.user.partner_id.grade_id
             or self.env.user.commercial_partner_id.grade_id
         ):
+            _debug.logic("partner_assign_refused", reason="no_grade", user=self.env.uid)
             raise AccessDenied
         user = self.env.user
         self = self.sudo()

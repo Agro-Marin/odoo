@@ -22,7 +22,7 @@
                                         class="img-fluid w-100 h-100 object-fit-cover"
                                         alt="" />
                                 </div>
-                                <h4 t-esc="category.name" />
+                                <h4 t-out="category.name" />
                             </a>
                         </div>
                     </t>

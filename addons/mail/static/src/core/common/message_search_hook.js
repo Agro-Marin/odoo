@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { makeSequential } from "@mail/utils/common/misc";
 import { markup, onWillUnmount, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.message.search");
 export const HIGHLIGHT_CLASS = "o-mail-Message-searchHighlight";
 
 /**
@@ -90,6 +93,16 @@ export function useMessageSearch(thread) {
                     return;
                 }
                 const { count, countIsCapped, loadMore, messages } = data;
+                log.pipeline("search", () => ({
+                    thread: this.thread?.localId,
+                    term: this.searchTerm,
+                    is_notification: this.is_notification,
+                    before,
+                    count,
+                    countIsCapped,
+                    loadMore,
+                    messages: messages.length,
+                }));
                 this.searched = true;
                 this.count = count;
                 this.countIsCapped = countIsCapped;
@@ -107,6 +120,10 @@ export function useMessageSearch(thread) {
         count: 0,
         countIsCapped: false,
         clear() {
+            log.logic("clear", () => ({
+                thread: this.thread?.localId,
+                hadResults: this.messages.length,
+            }));
             this.is_notification = undefined;
             this.messages = [];
             this.searched = false;

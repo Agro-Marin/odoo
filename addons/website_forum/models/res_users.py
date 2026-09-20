@@ -4,14 +4,17 @@ from odoo import _, fields, models
 class ResUsers(models.Model):
     _inherit = "res.users"
 
-    create_date = fields.Datetime("Create Date", readonly=True, index=True)
+    create_date = fields.Datetime(
+        string="Create Date",
+        index=True,
+        readonly=True,
+    )
 
-    # Wrapper for call_kw with inherits
     def open_website_url(self):
         return self.mapped("partner_id").open_website_url()
 
-    def get_gamification_redirection_data(self):
-        res = super().get_gamification_redirection_data()
+    def prepare_rank_email_links(self):
+        res = super().prepare_rank_email_links()
         res.append(
             {
                 "label": _("See our Forum"),

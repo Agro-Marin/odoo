@@ -1,4 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
@@ -11,8 +14,8 @@ class ResConfigSettings(models.TransientModel):
     )
     use_security_lead = fields.Boolean(
         string="Security Lead Time for Sales",
-        help="Margin of error for dates promised to customers. Products will be scheduled for delivery that many days earlier than the actual promised date, to cope with unexpected delays in the supply chain.",
         config_parameter="sale_stock.use_security_lead",
+        help="Margin of error for dates promised to customers. Products will be scheduled for delivery that many days earlier than the actual promised date, to cope with unexpected delays in the supply chain.",
     )
     default_picking_policy = fields.Selection(
         selection=[
@@ -20,12 +23,13 @@ class ResConfigSettings(models.TransientModel):
             ("one", "Ship all products at once"),
         ],
         string="Picking Policy",
-        required=True,
         default="direct",
+        required=True,
         default_model="sale.order",
     )
 
     @api.onchange("use_security_lead")
     def _onchange_use_security_lead(self):
         if not self.use_security_lead:
+            _debug.lifecycle("security_lead_cleared", company=self.company_id)
             self.security_lead = 0.0

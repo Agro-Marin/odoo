@@ -5,6 +5,8 @@ import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl
 import { browser } from "@web/core/browser/browser";
 import { prefersReducedMotion } from "@web/core/browser/feature_detection";
 import { router, routerBus } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { RouterEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dvu";
@@ -14,6 +16,8 @@ import { useBus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useActiveElement } from "@web/ui/active_element";
 import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
+
+const log = makeLogger("web.ui.bottom_sheet");
 
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
 
@@ -142,6 +146,7 @@ export class BottomSheet extends Component {
     sheetBodyRef;
 
     setup() {
+        useLifecycleLog(log);
         this.maxHeightPercent = 90;
 
         this.close = this.close.bind(this);
@@ -223,6 +228,10 @@ export class BottomSheet extends Component {
         this.positionSheet();
         this.setupEventHandlers();
         this.state.isPositionedReady = true;
+        log.logic("initialized", () => ({
+            ...this.measurements,
+            skipsAnimation: this.skipsAnimation,
+        }));
 
         if (this.skipsAnimation) {
             this.state.isSnappingEnabled = true;
@@ -326,6 +335,10 @@ export class BottomSheet extends Component {
         this.updateProgressValue(scrollTop);
 
         if (scrollTop < this.measurements.dismissThreshold) {
+            log.logic("dismissByScroll", () => ({
+                scrollTop,
+                dismissThreshold: this.measurements.dismissThreshold,
+            }));
             this.slideOut();
         }
     }
@@ -347,16 +360,23 @@ export class BottomSheet extends Component {
         if (this.state.isDismissing) {
             return;
         }
+        log.logic("slideOut", () => ({
+            animated: !this.skipsAnimation && Boolean(this.sheetRef.el),
+            closeParams: this.closeParams,
+        }));
 
         if (this.skipsAnimation || !this.sheetRef.el) {
             this.props.close?.(this.closeParams);
         } else {
             let closed = false;
-            const onAnimationDone = () => {
+            const onAnimationDone = (
+                /** @type {"animation" | "fallbackTimer"} */ via,
+            ) => {
                 if (closed) {
                     return;
                 }
                 closed = true;
+                log.logic("slideOutDone", { via });
                 browser.clearTimeout(fallbackTimer);
                 dispose();
                 this.props.close?.(this.closeParams);
@@ -365,10 +385,10 @@ export class BottomSheet extends Component {
                 this.sheetRef.el,
                 SLIDE_OUT_ANIMATION,
                 ["animationend", "animationcancel"],
-                onAnimationDone,
+                () => onAnimationDone("animation"),
             );
             const fallbackTimer = browser.setTimeout(
-                onAnimationDone,
+                () => onAnimationDone("fallbackTimer"),
                 slideOutFallbackDelay(this.containerRef.el),
             );
             this.cleanups.push(() => {

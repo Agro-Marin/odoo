@@ -2,9 +2,12 @@
 import { Component, useState } from "@odoo/owl";
 import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input/numeric_input";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.money_details");
 export class MoneyDetailsPopup extends Component {
     static template = "point_of_sale.MoneyDetailsPopup";
     static components = { NumericInput, Dialog };
@@ -20,6 +23,7 @@ export class MoneyDetailsPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.pos = usePos();
         this.ui = useService("ui");
@@ -32,6 +36,12 @@ export class MoneyDetailsPopup extends Component {
                   ),
         });
         this.env.dialogData.dismiss = () => {
+            log.logic("dismiss", () => ({
+                context: this.props.context,
+                logCancel:
+                    this.pos.config.iface_cashdrawer &&
+                    this.pos.hardwareProxy.connectionInfo.status === "connected",
+            }));
             if (
                 this.pos.config.iface_cashdrawer &&
                 this.pos.hardwareProxy.connectionInfo.status === "connected"
@@ -65,6 +75,11 @@ export class MoneyDetailsPopup extends Component {
                 this.env.utils.formatCurrency(this.computeTotal()),
             );
         }
+        log.pipeline("confirm", () => ({
+            context: this.props.context,
+            total: this.computeTotal(),
+            bills: Object.values(this.state.moneyDetails).filter(Boolean).length,
+        }));
         this.props.getPayload({
             total: this.computeTotal(),
             moneyDetailsNotes,

@@ -220,6 +220,10 @@ const COMMUNITY_IGNORES = [
     // valid JS but invalid JSON and breaks that test. Mirrored in
     // .prettierignore.
     "addons/mail/static/tests/mock_server/contract/store_shapes.js",
+    // Same shape: the frozen view IR fixture's body is parsed by json.loads
+    // in odoo/tools/tests/test_view_ir_fixture.py. Mirrored in
+    // .prettierignore.
+    "addons/web/static/tests/views/view_ir_fixture.js",
 
     // Legacy code (only top-level adapters are linted)
     "addons/web/static/src/legacy/**",
@@ -296,6 +300,15 @@ const COMMUNITY_NO_CONSOLE_MODULES = [
  * @param {string[]} [options.noConsoleModules] Modules scrubbed of stray console.*.
  * @returns {import("eslint").Linter.Config[]}
  */
+// A relative import with no extension resolves nowhere under native ESM: the
+// browser fetches the raw path, which a per-file bundle serves as a 404 and the
+// module graph fails silently. `./map_model` took the whole settings page down.
+const EXTENSIONLESS_RELATIVE_IMPORT = {
+    regex: "^\\.\\.?/(?!.*\\.(?:js|xml|scss|json)$)",
+    message:
+        "Relative import without an extension: under native ESM the browser fetches the raw path and a per-file bundle 404s it. Use the bare '@addon/...' specifier.",
+};
+
 export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // Build file globs: "addons/web/**/*.js" etc.
     //
@@ -516,6 +529,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Do not import addon source from a test via a relative '../src/...' path — under native ESM it resolves to a DUPLICATE module instance (breaks class identity / plugin-set membership and 404s the un-normalized URL). Use the canonical bare specifier, e.g. `@html_editor/...` or `@web/...`.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -540,6 +554,12 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                     odoo: "readonly",
                     luxon: "readonly",
                 },
+            },
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    { patterns: [EXTENSIONLESS_RELATIVE_IMPORT] },
+                ],
             },
         },
 
@@ -586,7 +606,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // =========================================================================
         // Node tooling scripts — build/typecheck helpers, not browser code
         //
-        // Files under the repo-root tooling/ tree run under Node, so they
+        // Files under an addon's tooling/ tree run under Node, so they
         // legitimately use `process`,
         // `console`, etc. They are matched by `js.configs.recommended` (no `files`
         // key → repo-wide, and eslint lints .mjs by default) but were never given
@@ -640,6 +660,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Entity layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -662,6 +683,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Entity layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -689,6 +711,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Feature layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -697,7 +720,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // ── Shared layer: core/ ──────────────────────────────────────────────
         // The shared tier is ORDERED: core < ui < components. It used to be flat,
         // and that is what let `services/` grow inside it importing freely across
-        // all three. Mirrors tooling/architecture/js_layer_check.py.
+        // all three.
         {
             files: ["**/web/static/src/core/**/*.js"],
             rules: {
@@ -726,6 +749,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/fields/*"],
                                 message: "Shared layer cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -763,6 +787,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Shared layer (ui/) cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -796,6 +821,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Shared layer (components/) cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],

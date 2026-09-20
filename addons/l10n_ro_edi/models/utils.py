@@ -123,7 +123,7 @@ def _request_ciusro_send_invoice(
     return {"key_loading": root.get("index_incarcare")}
 
 
-def _request_ciusro_fetch_status(company, key_loading, session):
+def _request_ciusro_get_status(company, key_loading, session):
     """
     This method makes a "Fetch Status" (GET/stareMesaj) request to the Romanian SPV. After processing the response,
     it will return one of the following three possible objects:
@@ -268,7 +268,7 @@ def _request_ciusro_download_answer(company, key_download, session):
     return {"error": _("The SPV data could not be parsed.")}
 
 
-def _request_ciusro_synchronize_invoices(company, session, nb_days=1):
+def _request_ciusro_sync_invoices(company, session, nb_days=1):
     """
     This method makes a "Fetch Messages" (GET/listaMesajeFactura) request to the Romanian SPV.
     After processing the response, if messages were indeed fetched, it will fetch the content

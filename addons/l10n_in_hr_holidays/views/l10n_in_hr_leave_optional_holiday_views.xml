@@ -28,9 +28,9 @@
                 <separator />
                 <filter
                     name="filter_date"
+                    string="Period"
                     date="date"
-                    default_period="year"
-                    string="Period" />
+                    default_period="year" />
                 <group>
                     <filter
                         name="company"
@@ -48,13 +48,5 @@
         <field name="view_mode">list</field>
         <field name="context">{'search_default_filter_date': True}</field>
     </record>
-
-    <menuitem
-        id="l10n_in_menu_optional_holiday_configuration"
-        name="Optional Holidays"
-        parent="hr_holidays.menu_hr_holidays_configuration"
-        action="l10n_in_hr_leave_optional_holiday_action"
-        sequence="5"
-        groups="hr_holidays.group_hr_holidays_manager" />
 
 </odoo>

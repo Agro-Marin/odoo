@@ -38,11 +38,11 @@
             <xpath expr="//list" position="inside">
                 <header>
                     <button
-                        string="Prepare Wave"
-                        class="btn btn-primary"
+                        name="stock_picking_batch.action_prepare_wave"
                         type="action"
+                        string="Prepare Wave"
                         display="always"
-                        name="stock_picking_batch.action_prepare_wave" />
+                        class="btn btn-primary" />
                 </header>
             </xpath>
         </field>
@@ -61,11 +61,11 @@
             <xpath expr="//kanban" position="inside">
                 <header>
                     <button
-                        string="Prepare Wave"
-                        class="btn btn-primary"
+                        name="stock_picking_batch.action_prepare_wave"
                         type="action"
+                        string="Prepare Wave"
                         display="always"
-                        name="stock_picking_batch.action_prepare_wave" />
+                        class="btn btn-primary" />
                 </header>
             </xpath>
         </field>
@@ -109,7 +109,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('stock_picking_batch.stock_picking_wave_tree')}),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('stock_picking_batch.stock_picking_wave_kanban')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('stock_picking_batch.stock_picking_wave_tree')}), Command.create({'view_mode': 'kanban', 'view_id': ref('stock_picking_batch.stock_picking_wave_kanban')})]" />
     </record>
 
     <record id="view_stock_picking_type_kanban_batch" model="ir.ui.view">
@@ -135,10 +135,10 @@
                 expr="//button[@name='action_view_pickings_ready']"
                 position="before">
                 <button
-                    t-if="record.count_picking_batch.raw_value &gt; 0"
-                    class="btn btn-primary me-2"
                     name="action_batch"
-                    type="object">
+                    type="object"
+                    class="btn btn-primary me-2"
+                    t-if="record.count_picking_batch.raw_value &gt; 0">
                     <field name="count_picking_batch" /> Batches
                 </button>
             </xpath>
@@ -147,14 +147,14 @@
                 position="attributes">
                 <attribute
                     name="t-attf-class"
-                    remove="btn-primary"
                     add="{{ record.count_picking_batch.raw_value &gt; 0 ? 'btn-secondary' : 'btn-primary'}}"
+                    remove="btn-primary"
                     separator=" " />
             </xpath>
             <xpath
                 expr="//div[@name='picking_type_backorder_count']"
-                class="row"
-                position="after">
+                position="after"
+                class="row">
                 <div class="row">
                     <a
                         class="col-8 offset-4 text-truncate"
@@ -171,11 +171,5 @@
             </xpath>
         </field>
     </record>
-
-    <menuitem
-        id="stock_picking_wave_menu"
-        parent="menu_stock_jobs"
-        action="action_picking_tree_wave"
-        sequence="31" />
 
 </odoo>

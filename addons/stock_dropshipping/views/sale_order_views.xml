@@ -6,19 +6,19 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale_stock.view_order_form_inherit_sale_stock" />
         <field name="arch" type="xml">
-            <button name="action_view_delivery" position="before">
+            <button name="action_view_picking" position="before">
                 <t groups="purchase.group_purchase_user">
                     <button
                         name="action_view_dropship"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-truck"
+                        groups="stock.group_stock_user"
                         invisible="dropship_picking_count == 0"
-                        groups="stock.group_stock_user">
+                        class="oe_stat_button">
                         <field
                             name="dropship_picking_count"
-                            widget="statinfo"
-                            string="Dropship" />
+                            string="Dropship"
+                            widget="statinfo" />
                     </button>
                 </t>
             </button>

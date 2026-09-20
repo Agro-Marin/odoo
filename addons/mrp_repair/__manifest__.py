@@ -12,6 +12,5 @@
         "views/production_views.xml",
         "views/repair_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

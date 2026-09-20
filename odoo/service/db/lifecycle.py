@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable
-from contextlib import closing, suppress
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -17,7 +17,9 @@ import odoo.modules.db
 import odoo.modules.neutralize
 import odoo.modules.registry
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+from odoo.tools.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
 from ._checks import check_db_management_enabled, check_db_name
 from .listing import check_db_exposed, invalidate_catalog_caches
@@ -28,6 +30,7 @@ else:
     BaseCursor = Any
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 class DatabaseExists(Warning):
@@ -41,15 +44,18 @@ def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
 
 def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
     try:
-        cr.execute(
-            """SELECT pg_terminate_backend(pid)
-                      FROM pg_stat_activity
-                      WHERE datname = %s AND
-                            pid != pg_backend_pid()""",
-            (db_name,),
-        )
+        with _debug.perf("database.backends_terminated", db=db_name) as span:
+            cr.execute(
+                """SELECT pg_terminate_backend(pid)
+                          FROM pg_stat_activity
+                          WHERE datname = %s AND
+                                pid != pg_backend_pid()""",
+                (db_name,),
+            )
+            span.set(backends=getattr(cr, "rowcount", None))
     except Exception:
         _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)
+        _debug.logic("database.backends_terminate_failed", db=db_name)
 
 
 def _create_faketime_now_function(db_name: str) -> None:
@@ -61,9 +67,11 @@ def _create_faketime_now_function(db_name: str) -> None:
             "Refusing to install faketime now() into %r.",
             db_name,
         )
+        _debug.logic("database.faketime_refused", db=db_name, reason="no_test_enable")
         return
     configured_dbs = odoo.tools.config["db_name"] or ()
     if db_name not in configured_dbs:
+        _debug.logic("database.faketime_refused", db=db_name, reason="not_configured")
         return
     try:
         db = odoo.db.db_connect(db_name)
@@ -88,14 +96,19 @@ def _create_faketime_now_function(db_name: str) -> None:
             new_now = new_now_row[0] if new_now_row else None
             _logger.info("Faketime mode, new cursor now is %s", new_now)
             cursor.commit()
+            _debug.lifecycle(
+                "database.faketime_installed", db=db_name, offset_s=int(time_offset)
+            )
     except psycopg.Error as e:
         _logger.warning("Unable to set faketime NOW(): %s", e)
+        _debug.logic("database.faketime_failed", db=db_name, error=type(e).__name__)
 
 
 def _warn_on_non_c_template(cr, template: str) -> None:
     cr.execute("SELECT datcollate FROM pg_database WHERE datname = %s", (template,))
     row = cr.fetchone()
     if row is not None and row[0] != "C":
+        _debug.logic("database.template_non_c", template=template, collate=row[0])
         _logger.warning(
             "db_template %r has LC_COLLATE=%r, not 'C'; databases created from "
             "it inherit that collation, so SQL ORDER BY and in-memory "
@@ -143,25 +156,62 @@ def _create_empty_database(
             except psycopg.errors.DuplicateDatabase, psycopg.errors.UniqueViolation:
                 already_exists = True
 
-        _retry_on_object_in_use(
-            f"CREATE DB: {name} (template {chosen_template})", _create
-        )
+        with _debug.perf("database.create_ddl", db=name, template=chosen_template):
+            _retry_on_object_in_use(
+                f"CREATE DB: {name} (template {chosen_template})", _create
+            )
 
+    _debug.lifecycle(
+        "database.created",
+        db=name,
+        template=chosen_template,
+        already_exists=already_exists,
+        setup_if_exists=setup_if_exists,
+        unaccent=bool(force_unaccent or odoo.tools.config.get("unaccent")),
+    )
     if already_exists and not setup_if_exists:
         raise DatabaseExists(f"database {name!r} already exists!")
 
+    with odoo.db.db_connect(name).cursor() as cr:
+        _create_extensions(cr, name, force_unaccent or odoo.tools.config["unaccent"])
+        _open_public_schema(cr, name)
+    _create_faketime_now_function(name)
+
+    invalidate_catalog_caches()
+
+    if already_exists:
+        raise DatabaseExists(f"database {name!r} already exists!")
+
+
+def _make_unaccent_indexable(cr: BaseCursor, name: str) -> None:
+    unaccent_status = odoo.db.get_unaccent_status(cr)
+    _debug.logic("database.unaccent_status", db=name, status=unaccent_status.name)
+    if unaccent_status != odoo.db.FunctionStatus.PRESENT:
+        return
     try:
-        db = odoo.db.db_connect(name)
-        with db.cursor() as cr:
-            cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-            if force_unaccent or odoo.tools.config["unaccent"]:
-                cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
-                if odoo.db.get_unaccent_status(cr) != odoo.db.FunctionStatus.INDEXABLE:
-                    cr.execute(
-                        "ALTER FUNCTION unaccent(text) IMMUTABLE",
-                        log_exceptions=False,
-                    )
+        with cr.savepoint(flush=False):
+            cr.execute("ALTER FUNCTION unaccent(text) IMMUTABLE", log_exceptions=False)
+        _debug.lifecycle("database.unaccent_made_immutable", db=name)
     except psycopg.Error as e:
+        _debug.logic("database.unaccent_alter_refused", db=name, error=type(e).__name__)
+        _logger.warning(
+            "unaccent() exists in %r but cannot be made immutable (%s): "
+            "trigram indexes will not serve accent-insensitive searches.",
+            name,
+            e,
+        )
+
+
+def _create_extensions(cr: BaseCursor, name: str, unaccent: bool) -> None:
+    try:
+        with cr.savepoint(flush=False):
+            cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+            if unaccent:
+                cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
+        _make_unaccent_indexable(cr, name)
+        _debug.pipeline("database.extensions_created", db=name, unaccent=unaccent)
+    except psycopg.Error as e:
+        _debug.logic("database.extensions_failed", db=name, error=type(e).__name__)
         _logger.error(
             "Unable to create PostgreSQL extensions in %r: %s. "
             "Check that postgresql-contrib is installed and the DB role has "
@@ -170,29 +220,52 @@ def _create_empty_database(
             name,
             e,
         )
-    _create_faketime_now_function(name)
 
+
+def _open_public_schema(cr: BaseCursor, name: str) -> None:
     try:
-        db = odoo.db.db_connect(name)
-        with db.cursor() as cr:
+        with cr.savepoint(flush=False):
             cr.execute("GRANT CREATE ON SCHEMA PUBLIC TO PUBLIC")
     except psycopg.Error as e:
         _logger.warning("Unable to make public schema public-accessible: %s", e)
+        _debug.logic("database.public_grant_failed", db=name, error=type(e).__name__)
 
-    invalidate_catalog_caches()
 
-    if already_exists:
-        raise DatabaseExists(f"database {name!r} already exists!")
+def _announce_database(db_name: str) -> None:
+    # A listener sweeping from the catalogue admits a name it has never
+    # listed only on a notify for it (`CronSchedule`); nothing in a fresh
+    # database sends one until a job triggers, so its scheduled crons would
+    # wait for the next periodic sweep.
+    try:
+        with closing(odoo.db.db_connect("postgres").cursor()) as cr:
+            cr.connection.autocommit = True
+            for channel in (CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL):
+                cr.execute("SELECT pg_notify(%s, %s)", (channel, db_name))
+    except Exception:
+        _logger.debug("Could not announce database %r to the listeners", db_name)
+        _debug.logic("database.announce_failed", db=db_name)
+        return
+    _debug.lifecycle("database.announced", db=db_name)
 
 
 def _rollback_new_database(db_name: str, what: str) -> None:
     _logger.info("%s: rolling back database %r after failure", what, db_name)
-    with suppress(Exception):
-        _drop_database(db_name)
+    _debug.lifecycle("database.rollback", db=db_name, what=what)
+    try:
+        dropped = drop_database(db_name)
+        _debug.lifecycle("database.rolled_back", db=db_name, what=what, dropped=dropped)
+    except Exception:
+        _logger.exception(
+            "%s: could not remove database %r after failure; manual cleanup required",
+            what,
+            db_name,
+        )
+        _debug.logic("database.rollback_failed", db=db_name, what=what)
 
 
 def _check_filestore_dest_free(dest: str, problem: str) -> None:
     if Path(dest).exists():
+        _debug.logic("database.filestore_dest_taken", dest=dest)
         raise RuntimeError(
             f"{problem}: destination filestore {dest!r} already exists.  "
             f"Move or delete the stale directory before retrying."
@@ -216,12 +289,20 @@ def exp_create_database(
     _logger.info("Create database `%s`.", db_name)
     _create_empty_database(db_name, setup_if_exists=False)
     try:
-        odoo.modules.db.initialize_db(
-            db_name, demo, lang, user_password, login, country_code, phone
-        )
+        with _debug.perf(
+            "database.initialized",
+            db=db_name,
+            demo=demo,
+            lang=lang,
+            country=country_code,
+        ):
+            odoo.modules.db.initialize_db(
+                db_name, demo, lang, user_password, login, country_code, phone
+            )
     except Exception:
         _rollback_new_database(db_name, "CREATE DB")
         raise
+    _announce_database(db_name)
     return True
 
 
@@ -232,10 +313,10 @@ def exp_duplicate_database(
     neutralize_database: bool = False,
 ) -> Literal[True]:
     check_db_exposed(db_original_name)
-    return _duplicate_database(db_original_name, db_name, neutralize_database)
+    return duplicate_database(db_original_name, db_name, neutralize_database)
 
 
-def _duplicate_database(
+def duplicate_database(
     db_original_name: str,
     db_name: str,
     neutralize_database: bool = False,
@@ -266,20 +347,23 @@ def _duplicate_database(
             ) as exc:
                 raise DatabaseExists(f"database {db_name!r} already exists!") from exc
 
-        _retry_terminate_then_ddl(
-            cr,
-            db_original_name,
-            f"DUPLICATE DB: {db_original_name} -> {db_name}",
-            _create_from_template,
-        )
+        with _debug.perf("database.duplicate_ddl", source=db_original_name, db=db_name):
+            _retry_terminate_then_ddl(
+                cr,
+                db_original_name,
+                f"DUPLICATE DB: {db_original_name} -> {db_name}",
+                _create_from_template,
+            )
 
     try:
-        registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
+        with _debug.perf("database.duplicate.registry_loaded", db=db_name):
+            registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
         with registry.cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-            env["ir.config_parameter"].init(force=True)  # type: ignore[call-arg]
+            env["ir.config_parameter"].init(force=True)
             if neutralize_database:
-                odoo.modules.neutralize.neutralize_database(cr)
+                with _debug.perf("database.duplicate.neutralized", cr=cr, db=db_name):
+                    odoo.modules.neutralize.neutralize_database(cr)
 
         from_fs = odoo.tools.config.filestore(db_original_name)
         if Path(from_fs).exists():
@@ -287,11 +371,20 @@ def _duplicate_database(
                 raise RuntimeError(
                     f"Filestore {to_fs!r} appeared between pre-flight and copy (race)."
                 )
-            shutil.copytree(from_fs, to_fs)
+            with _debug.perf("database.filestore_copied", db=db_name):
+                shutil.copytree(from_fs, to_fs)
     except Exception:
         _rollback_new_database(db_name, "DUPLICATE DB")
         raise
+    _debug.lifecycle(
+        "database.duplicated",
+        source=db_original_name,
+        db=db_name,
+        neutralized=neutralize_database,
+        filestore=Path(to_fs).exists(),
+    )
     invalidate_catalog_caches()
+    _announce_database(db_name)
     return True
 
 
@@ -322,10 +415,27 @@ def _retry_on_object_in_use(
                 _DROP_DATABASE_MAX_RETRIES,
                 e,
             )
+            _debug.logic(
+                "database.ddl.object_in_use",
+                operation=op_label,
+                attempt=attempt,
+                max_attempts=_DROP_DATABASE_MAX_RETRIES,
+            )
             if attempt < _DROP_DATABASE_MAX_RETRIES:
                 time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
         else:
+            if _debug.logic.enabled and attempt > 1:
+                _debug.logic(
+                    "database.ddl.succeeded_after_retry",
+                    operation=op_label,
+                    attempt=attempt,
+                )
             return
+    _debug.logic(
+        "database.ddl.retries_exhausted",
+        operation=op_label,
+        attempts=_DROP_DATABASE_MAX_RETRIES,
+    )
     raise RuntimeError(
         f"{op_label}: still in use after {_DROP_DATABASE_MAX_RETRIES} "
         f"attempts: {last_error}"
@@ -343,21 +453,21 @@ def _retry_terminate_then_ddl(
     )
 
 
-def _drop_database(db_name: str) -> bool:
+def _database_exists(db_name: str) -> bool:
     try:
-        probe = odoo.db.db_connect("postgres")
-        with closing(probe.cursor()) as cr:
-            cr.connection.autocommit = True
-            cr.execute(
-                "SELECT 1 FROM pg_database WHERE datname = %s",
-                (db_name,),
-            )
-            owner_row = cr.fetchone()
+        with closing(odoo.db.db_connect("postgres").cursor()) as cr:
+            cr.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+            return cr.fetchone() is not None
     except Exception:
+        # Unknown is treated as present: the DROP below reports the truth.
         _logger.debug("DROP DB %r: existence probe failed", db_name, exc_info=True)
-        owner_row = ()
+        _debug.logic("database.drop.probe_failed", db=db_name)
+        return True
 
-    if owner_row is None:
+
+def drop_database(db_name: str) -> bool:
+    if not _database_exists(db_name):
+        _debug.logic("database.drop.absent", db=db_name)
         return False
     odoo.modules.registry.Registry.clear_database_state(db_name)
     odoo.db.close_db(db_name)
@@ -378,13 +488,16 @@ def _drop_database(db_name: str) -> bool:
                 raise RuntimeError(f"Couldn't drop database {db_name}: {e}") from e
             _logger.info("DROP DB: %s", db_name)
 
-        _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
+        with _debug.perf("database.drop_ddl", db=db_name):
+            _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
 
     odoo.db.close_db(db_name)
 
     fs = odoo.tools.config.filestore(db_name)
+    _debug.lifecycle("database.dropped", db=db_name, filestore=Path(fs).exists())
     if Path(fs).exists():
-        shutil.rmtree(fs)
+        with _debug.perf("database.filestore_removed", db=db_name):
+            shutil.rmtree(fs)
     invalidate_catalog_caches()
     return True
 
@@ -392,16 +505,16 @@ def _drop_database(db_name: str) -> bool:
 @check_db_management_enabled
 def exp_drop(db_name: str) -> bool:
     check_db_exposed(db_name)
-    return _drop_database(db_name)
+    return drop_database(db_name)
 
 
 @check_db_management_enabled
 def exp_rename(old_name: str, new_name: str) -> Literal[True]:
     check_db_exposed(old_name)
-    return _rename_database(old_name, new_name)
+    return rename_database(old_name, new_name)
 
 
-def _rename_database(old_name: str, new_name: str) -> Literal[True]:
+def rename_database(old_name: str, new_name: str) -> Literal[True]:
     check_db_name(new_name)
 
     old_fs = odoo.tools.config.filestore(old_name)
@@ -440,9 +553,10 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                 ) from e
             _logger.info("RENAME DB: %s -> %s", old_name, new_name)
 
-        _retry_terminate_then_ddl(
-            cr, old_name, f"RENAME DB: {old_name} -> {new_name}", _rename
-        )
+        with _debug.perf("database.rename_ddl", source=old_name, db=new_name):
+            _retry_terminate_then_ddl(
+                cr, old_name, f"RENAME DB: {old_name} -> {new_name}", _rename
+            )
 
         if Path(old_fs).exists():
             if Path(new_fs).exists():
@@ -452,7 +566,8 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     f"move (race).  Database rename rolled back."
                 )
             try:
-                shutil.move(old_fs, new_fs)
+                with _debug.perf("database.rename.filestore_moved", db=new_name):
+                    shutil.move(old_fs, new_fs)
             except Exception as fs_err:
                 _logger.error(
                     "RENAME DB: filestore move %r -> %r failed (%s); "
@@ -460,6 +575,12 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     old_fs,
                     new_fs,
                     fs_err,
+                )
+                _debug.logic(
+                    "database.rename.filestore_move_failed",
+                    source=old_name,
+                    db=new_name,
+                    error=type(fs_err).__name__,
                 )
                 try:
                     _rollback_db_rename(cr, old_name, new_name)
@@ -475,15 +596,34 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     f"Couldn't rename filestore {old_fs!r} -> {new_fs!r}: "
                     f"{fs_err}. Database rename rolled back."
                 ) from fs_err
+    _debug.lifecycle(
+        "database.renamed",
+        source=old_name,
+        db=new_name,
+        filestore=Path(new_fs).exists(),
+    )
     invalidate_catalog_caches()
+    _announce_database(new_name)
     return True
 
 
 def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
-    cr.execute(
-        SQL(
-            "ALTER DATABASE %s RENAME TO %s",
-            get_database_identifier(cr, new_name),
-            get_database_identifier(cr, old_name),
+    _debug.lifecycle("database.rename.rolled_back", source=old_name, db=new_name)
+
+    def _rename_back() -> None:
+        cr.execute(
+            SQL(
+                "ALTER DATABASE %s RENAME TO %s",
+                get_database_identifier(cr, new_name),
+                get_database_identifier(cr, old_name),
+            )
         )
+
+    # A backend can connect to the new name between the rename and this
+    # rollback (a catalog sweep, another cluster member, a curious psql).
+    # The forward rename already terminates and retries on ObjectInUse;
+    # giving up here instead escalates a recoverable race to "database and
+    # filestore are out of sync — manual intervention required".
+    _retry_terminate_then_ddl(
+        cr, new_name, f"ROLLBACK RENAME DB: {new_name} -> {old_name}", _rename_back
     )

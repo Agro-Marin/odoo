@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
 import { fadeIn, fadeOut } from "@survey/utils";
+import { getPaletteColor } from "@web/core/colors/colors";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
@@ -155,7 +156,10 @@ export class SurveySessionLeaderboard extends Interaction {
                 this.el
                     .querySelectorAll(".o_survey_session_leaderboard_item")
                     .forEach((item, index) => {
-                        const rgb = SESSION_CHART_COLORS[index % 10];
+                        const rgb = getPaletteColor(
+                            index,
+                            SESSION_CHART_COLORS.slice(0, 10),
+                        );
                         item.querySelector(
                             ".o_survey_session_leaderboard_bar",
                         ).style.backgroundColor = `rgba(${rgb},1)`;

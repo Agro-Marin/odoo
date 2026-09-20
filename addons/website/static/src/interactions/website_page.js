@@ -1,17 +1,12 @@
 /** @odoo-module native */
+import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { initZoomOdoo } from "@website/libs/zoomodoo/zoomodoo";
 
-/**
- * Page-global website behaviors, historically installed by the legacy
- * WebsiteRoot widget: language switch links, publish toggle buttons, the
- * `modal_shown` marker class (relied upon by tours) and image zoom.
- *
- * Listeners are delegated on `document.body` (not the interaction root):
- * modals and language switchers may live outside #wrapwrap, as they did when
- * the legacy root was attached to the body.
- */
+const log = makeLogger("website.interaction.website_page");
+
 export class WebsitePage extends Interaction {
     static selector = "#wrapwrap";
 
@@ -32,17 +27,16 @@ export class WebsitePage extends Interaction {
             ev.target.classList.add("modal_shown");
         });
 
-        // Enable magnify on zoomable img
+        const endZoom = log.perf("WebsitePage start: init zoomable images");
         for (const imgEl of document.body.querySelectorAll(
             ".zoomable img[data-zoom]",
         )) {
             initZoomOdoo(imgEl);
         }
+        endZoom(() => ({
+            images: document.body.querySelectorAll(".zoomable img[data-zoom]").length,
+        }));
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     /**
      * @param {MouseEvent} ev
@@ -50,20 +44,21 @@ export class WebsitePage extends Interaction {
      */
     _onLangChangeClick(ev, target) {
         ev.preventDefault();
-        // In edit mode, the client action redirects the iframe to the correct
-        // location with the chosen language.
         if (document.body.classList.contains("editor_enable")) {
+            log.logic("WebsitePage lang change: ignored in editor", () => ({
+                lang: target.dataset.url_code,
+            }));
             return;
         }
-        // retrieve the hash before the redirect
         const redirect = {
-            lang: encodeURIComponent(target.dataset.urlCode),
+            lang: encodeURIComponent(target.dataset.url_code),
             url: encodeURIComponent(
                 target.getAttribute("href").replace(/[&?]edit_translations[^&?]+/, ""),
             ),
-            hash: encodeURIComponent(window.location.hash),
+            hash: encodeURIComponent(browser.location.hash),
         };
-        window.location.href = `/website/lang/${redirect.lang}?r=${redirect.url}${redirect.hash}`;
+        log.pipeline("WebsitePage lang change: redirect", () => ({ redirect }));
+        browser.location.href = `/website/lang/${redirect.lang}?r=${redirect.url}${redirect.hash}`;
     }
 
     /**
@@ -73,15 +68,21 @@ export class WebsitePage extends Interaction {
     _onPublishBtnClick(ev, target) {
         ev.preventDefault();
         if (document.body.classList.contains("editor_enable")) {
+            log.logic("WebsitePage publish button: ignored in editor");
             return;
         }
 
         const publishEl = target.closest(".js_publish_management");
+        const endPublish = log.perf("WebsitePage website_publish_button", () => ({
+            model: publishEl.dataset.object,
+            id: publishEl.dataset.id,
+        }));
         this.services.orm
             .call(publishEl.dataset.object, "website_publish_button", [
                 [parseInt(publishEl.dataset.id, 10)],
             ])
             .then(function (result) {
+                endPublish({ published: result });
                 publishEl.classList.toggle("css_published", result);
                 publishEl.classList.toggle("css_unpublished", !result);
                 const itemEl = publishEl.closest("[data-publish]");

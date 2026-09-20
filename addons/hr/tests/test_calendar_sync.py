@@ -1,3 +1,5 @@
+from psycopg import IntegrityError
+
 from odoo.fields import Date, Datetime
 from odoo.tests import Form
 
@@ -62,14 +64,13 @@ class TestContractCalendars(TestHrCommon):
     def test_contract_transfer_leaves(self):
 
         def create_calendar_leave(start, end, resource=None):
-            return self.env["resource.calendar.leaves"].create(
+            return self.env["resource.schedule.exception"].create(
                 {
                     "name": "leave name",
                     "date_from": start,
                     "date_to": end,
                     "resource_id": resource.id if resource else None,
                     "calendar_id": self.employee.resource_calendar_id.id,
-                    "time_type": "leave",
                 }
             )
 
@@ -131,43 +132,31 @@ class TestContractCalendars(TestHrCommon):
             self.employee.version_ids[0].resource_calendar_id, self.calendar_richard
         )
 
-    def test_calendar_sync_resource_shared_by_two_employees(self):
-        shared_resource = self.employee.resource_id
-        self.env["hr.employee"].create(
-            {
-                "name": "Second employee on Richard's resource",
-                "resource_id": shared_resource.id,
-            }
-        )
-        self.assertEqual(
-            len(shared_resource.employee_id),
-            2,
-            "Both employees should be linked to the same resource.",
-        )
-
-        leave = self.env["resource.calendar.leaves"].create(
-            {
-                "name": "leave name",
-                "date_from": Datetime.to_datetime("2015-11-17 07:00:00"),
-                "date_to": Datetime.to_datetime("2015-11-20 18:00:00"),
-                "resource_id": shared_resource.id,
-                "time_type": "leave",
-            }
-        )
-        self.assertEqual(
-            leave.calendar_id,
-            self.calendar_richard,
-            "It should not crash and pick one of the linked employees' calendar.",
-        )
+    def test_a_resource_is_never_shared_by_two_employees(self):
+        with self.assertRaises(IntegrityError), self.cr.savepoint():
+            self.env["hr.employee"].create(
+                {
+                    "name": "Second employee on Richard's resource",
+                    "resource_id": self.employee.resource_id.id,
+                }
+            )
 
     def test_employee_resource_contract_without_and_with_date_from(self):
-        leave_form = Form(self.env["resource.calendar.leaves"])
-        leave_form.date_from = False
+        # The form collects a local day, not an instant: the exception's hours are
+        # read in its own zone, so the field that carries a zone is not the one a
+        # person types into.
+        leave_form = Form(self.env["resource.schedule.exception"])
+        leave_form.local_date_from = False
 
         leave_form.resource_id = self.employee.resource_id
         self.assertFalse(leave_form.calendar_id)
 
-        leave_form.date_from = Datetime.to_datetime("2018-01-01 07:00:00")
+        leave_form.local_date_from = Date.to_date("2018-01-01")
+        # Asserted on the saved record: the local day reaches `date_from` through an
+        # inverse, which runs at save, so the contract covering the day is not known
+        # while the form is still open. The form must therefore not offer the field
+        # -- it would save the calendar it could not yet resolve.
+        leave = leave_form.save()
         self.assertEqual(
-            leave_form.calendar_id, self.employee.version_id.resource_calendar_id
+            leave.calendar_id, self.employee.version_id.resource_calendar_id
         )

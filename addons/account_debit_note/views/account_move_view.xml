@@ -8,11 +8,11 @@
         <field name="arch" type="xml">
             <div class="oe_button_box" position="inside">
                 <button
-                    type="object"
-                    class="oe_stat_button"
                     name="action_view_debit_notes"
+                    type="object"
                     icon="fa-plus"
-                    invisible="debit_note_count == 0">
+                    invisible="debit_note_count == 0"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value"><field name="debit_note_count" /></span>
                         <span class="o_stat_text">Debit Notes</span>
@@ -25,8 +25,8 @@
             <button name="action_reverse" position="after">
                 <button
                     name="action_debit_note"
-                    string="Debit Note"
                     type="object"
+                    string="Debit Note"
                     groups="account.group_account_invoice"
                     invisible="move_type not in ('out_invoice', 'in_invoice', 'out_refund', 'in_refund') or state != 'posted'"
                     data-hotkey="shift+d" />
@@ -41,8 +41,8 @@
         <field name="arch" type="xml">
             <filter name="reversed" position="after">
                 <filter
-                    string="Debit Note"
                     name="debit_note_filter"
+                    string="Debit Note"
                     domain="[('debit_origin_id', '!=', False)]" />
             </filter>
         </field>
@@ -55,8 +55,8 @@
         <field name="arch" type="xml">
             <filter name="out_refund" position="after">
                 <filter
-                    string="Debit Notes"
                     name="debit_note_filter"
+                    string="Debit Notes"
                     domain="[('debit_origin_id', '!=', False)]" />
                 <separator />
             </filter>
@@ -70,8 +70,8 @@
         <field name="arch" type="xml">
             <filter name="unreconciled" position="after">
                 <filter
-                    string="Debit Note"
                     name="debit_note_filter"
+                    string="Debit Note"
                     domain="[('move_id.debit_origin_id', '!=', False)]" />
             </filter>
         </field>

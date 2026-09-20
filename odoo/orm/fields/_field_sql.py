@@ -1,3 +1,4 @@
+import fnmatch
 import operator as pyoperator
 import re
 import typing
@@ -7,6 +8,7 @@ from collections.abc import (
 )
 from collections.abc import Set as AbstractSet
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     SQL,
     Query,
@@ -14,6 +16,7 @@ from odoo.tools import (
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ..domain import Domain
+from ..domain.constants import REGEX_CONDITION_OPERATORS
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ._field_stubs import _FieldStubs
 
@@ -33,27 +36,35 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] 
 
 IN_TO_ANY_THRESHOLD = 100
 
+_debug = DebugLog(__name__)
 
-def _iter_like_regex_parts(value: str, exact: bool):
-    yield "^" if exact else ".*"
+
+def _get_like_regex(value: str, exact: bool) -> str:
+    if not exact:
+        value = f"%{value}%"
+    parts = []
     escaped = False
     for char in value:
-        if escaped:
-            escaped = False
-            yield re.escape(char)
-        elif char == "\\":
+        if not escaped and char == "\\":
             escaped = True
-        elif char == "%":
-            yield ".*"
-        elif char == "_":
-            yield "."
+            continue
+        if not escaped and char == "%":
+            parts.append("*")
+        elif not escaped and char == "_":
+            parts.append("?")
         else:
-            yield re.escape(char)
-    if exact:
-        yield "$"
+            parts.append(f"[{char}]" if char in "*?[" else char)
+        escaped = False
+    if escaped:
+        raise ValueError("LIKE pattern must not end with an escape character")
+    return fnmatch.translate("".join(parts))
 
 
 class _FieldSqlMixin(_FieldStubs):
+    _fetch_term: SQL | None = None
+    _column_term: SQL | None = None
+    _fetch_terms_by_langs: dict[tuple[str, ...], SQL] | None = None
+
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
         if not self.store or not self.column_type:
             raise ValueError(f"Cannot convert {self} to SQL because it is not stored")
@@ -71,6 +82,14 @@ class _FieldSqlMixin(_FieldStubs):
             fallback = self.get_company_dependent_fallback(model)
             fallback = self.convert_to_column(
                 self.convert_to_write(fallback, model), model
+            )
+            _debug.logic(
+                "field.sql.company_dependent.coalesced",
+                model=model._name,
+                field=self.name,
+                company=model.env.company.id,
+                column_type=underlying[1],
+                has_fallback=fallback is not None,
             )
             sql_field = SQL(
                 "COALESCE(%(column)s->%(company_id)s,to_jsonb(%(fallback)s::%(column_type)s))",
@@ -139,6 +158,7 @@ class _FieldSqlMixin(_FieldStubs):
         )
         converted: list[typing.Any] = []
         null_in_condition = False
+        dropped = 0  # debuglog
         for v in value:
             if v is False or v is None:
                 null_in_condition = True
@@ -146,9 +166,25 @@ class _FieldSqlMixin(_FieldStubs):
             try:
                 converted.append(_value_to_column(v))
             except ValueError, TypeError:
+                dropped += 1  # debuglog
                 continue
+        if _debug.logic.enabled and dropped:
+            _debug.logic(
+                "field.sql.in.values_dropped",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+                dropped=dropped,
+                kept=len(converted),
+            )
         params = tuple(converted)
         if not params and not null_in_condition:
+            _debug.logic(
+                "field.sql.in.constant",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             return SQL("FALSE") if operator == "in" else SQL("TRUE")
         if (null_value := self.falsy_value) is not None:
             null_value = _value_to_column(null_value)
@@ -160,6 +196,13 @@ class _FieldSqlMixin(_FieldStubs):
         sql = None
         if params:
             if len(params) > IN_TO_ANY_THRESHOLD:
+                _debug.logic(
+                    "field.sql.in.any_rewrite",
+                    model=self.model_name,
+                    field=self.name,
+                    operator=operator,
+                    values=len(params),
+                )
                 anyall = "= ANY(%s)" if operator == "in" else "!= ALL(%s)"
                 sql = SQL(f"%s {anyall}", sql_field, list(params))
             else:
@@ -192,6 +235,24 @@ class _FieldSqlMixin(_FieldStubs):
             sql_value = model.env.registry.unaccent(sql_value)
 
         sql = SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], sql_value)
+        _debug.logic(
+            "field.sql.like",
+            model=self.model_name,
+            field=self.name,
+            operator=operator,
+            cast_to_text=not self.is_text,
+            unaccent=operator.endswith("ilike"),
+            null_accepted=operator in Domain.NEGATIVE_OPERATORS and can_be_null,
+        )
+        if operator in Domain.NEGATIVE_OPERATORS and can_be_null:
+            sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
+        return sql
+
+    def _condition_regex_to_sql(
+        self, sql_field: SQL, operator: str, value, can_be_null: bool
+    ) -> SQL:
+        sql_left = sql_field if self.is_text else SQL("%s::text", sql_field)
+        sql = SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], str(value))
         if operator in Domain.NEGATIVE_OPERATORS and can_be_null:
             sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
         return sql
@@ -215,6 +276,12 @@ class _FieldSqlMixin(_FieldStubs):
 
         sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)
         if accept_null_value:
+            _debug.logic(
+                "field.sql.inequality.null_accepted",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
         return sql
 
@@ -244,6 +311,12 @@ class _FieldSqlMixin(_FieldStubs):
         _value_to_column = self._get_comparand_converter(field_expr, model)
 
         if operator in SQL_OPERATORS and isinstance(value, SQL):
+            _debug.logic(
+                "field.sql.raw_sql_comparand",
+                model=model._name,
+                field_expr=field_expr,
+                operator=operator,
+            )
             warnings.warn(
                 "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
                 DeprecationWarning,
@@ -262,6 +335,9 @@ class _FieldSqlMixin(_FieldStubs):
             return self._condition_like_to_sql(
                 sql_field, operator, value, model, can_be_null
             )
+
+        if operator in REGEX_CONDITION_OPERATORS:
+            return self._condition_regex_to_sql(sql_field, operator, value, can_be_null)
 
         if operator in (">", "<", ">=", "<="):
             return self._condition_inequality_to_sql(
@@ -289,11 +365,17 @@ class _FieldSqlMixin(_FieldStubs):
             self.company_dependent
             and self.index == "btree_not_null"
             and not (self.is_temporal and field_expr != self.name)
-            and model.env["ir.default"]._evaluate_condition_with_fallback(
-                model._name, field_expr, operator, value
+            and model.env.registry.metaschema.evaluate_default_condition(
+                model.env, model._name, field_expr, operator, value
             )
             is False
         ):
+            _debug.logic(
+                "field.sql.company_dependent.fallback_excluded",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             return SQL(
                 "(%s IS NOT NULL AND %s)",
                 SQL.identifier(alias, self.name),
@@ -352,10 +434,7 @@ class _FieldSqlMixin(_FieldStubs):
         self, records: M, field_expr: str, getter, operator: str, value
     ) -> Callable:
         if operator.endswith("ilike"):
-            unaccent_python = records.env.registry.unaccent_python
-
-            def unaccent(x):
-                return unaccent_python(x).lower()
+            unaccent = records.env.registry.get_ilike_normalizer(records.env)
 
         else:
 
@@ -364,11 +443,15 @@ class _FieldSqlMixin(_FieldStubs):
 
         pattern = value if isinstance(value, str) else self._get_pattern_text(value)
         like_regex = re.compile(
-            "".join(_iter_like_regex_parts(unaccent(pattern), "=" in operator)),
-            flags=re.DOTALL,
+            _get_like_regex(unaccent(pattern), "=" in operator),
         )
         render = self._get_pattern_getter(records, field_expr, getter)
         return lambda rec: like_regex.match(unaccent(render(rec)))
+
+    def _filter_regex(self, records: M, field_expr: str, getter, value) -> Callable:
+        regex = re.compile(str(value))
+        render = self._get_pattern_getter(records, field_expr, getter)
+        return lambda rec: regex.search(render(rec)) is not None
 
     def _filter_inequality(self, records: M, getter, pyop, value) -> Callable:
         can_be_null = False
@@ -400,6 +483,9 @@ class _FieldSqlMixin(_FieldStubs):
 
         if operator.endswith("like"):
             return self._filter_like(records, field_expr, getter, operator, value)
+
+        if operator == "=~":
+            return self._filter_regex(records, field_expr, getter, value)
 
         if pyop := PYTHON_INEQUALITY_OPERATOR.get(operator):
             return self._filter_inequality(records, getter, pyop, value)

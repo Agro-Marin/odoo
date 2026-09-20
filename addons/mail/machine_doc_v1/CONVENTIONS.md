@@ -25,7 +25,7 @@ gateway. Class-level knobs on `mixin.mail.thread` tune behavior:
 | Attribute               | Default   | Effect                                                         |
 | ----------------------- | --------- | -------------------------------------------------------------- |
 | `_mail_post_access`     | `"write"` | Access level required to post on the record                    |
-| `_mail_flat_thread`     | `True`    | Link orphan messages to the first message instead of threading |
+| `_mail_flat_thread`     | `True`    | A message posted without a parent threads under the thread's newest comment or email (falling back to its newest other message; user notifications never count), and an explicit `parent_id` on the same thread is kept as given. `False` (channels) leaves an orphan message free. Pinned by `test_message_post.test_a_message_without_parent_threads_under_the_last_human_message` |
 | `_mail_thread_customer` | `False`   | Treat the record's partner as the customer for notifications   |
 | `_primary_email`        | `"email"` | Field used when the gateway creates a record from an alias     |
 

@@ -110,22 +110,22 @@
         </record>
         <record id="mt_invoice_validated" model="mail.message.subtype">
             <field name="name">Validated</field>
+            <field name="description">Invoice validated</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
-            <field name="description">Invoice validated</field>
         </record>
         <record id="mt_invoice_paid" model="mail.message.subtype">
             <field name="name">Paid</field>
+            <field name="description">Invoice paid</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
-            <field name="description">Invoice paid</field>
         </record>
         <record id="mt_invoice_created" model="mail.message.subtype">
             <field name="name">Invoice Created</field>
+            <field name="description">Invoice Created</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
             <field name="hidden" eval="True" />
-            <field name="description">Invoice Created</field>
         </record>
         <record id="account_payment_method_manual_in" model="account.payment.method">
             <field name="name">Manual Payment</field>
@@ -142,10 +142,11 @@
             name="set"
             eval="('res.partner', 'trust', 'normal')" />
         <record id="model_account_move_action_share" model="ir.actions.server">
-            <field name="name">Share</field>
+            <field name="name">Share…</field>
             <field name="model_id" ref="account.model_account_move" />
             <field name="binding_model_id" ref="account.model_account_move" />
             <field name="binding_view_types">form</field>
+            <field name="binding_icon">fa-solid fa-share-nodes</field>
             <field name="state">code</field>
             <field name="code">action = records.action_share()</field>
         </record>

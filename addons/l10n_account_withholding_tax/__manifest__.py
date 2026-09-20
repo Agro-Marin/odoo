@@ -24,5 +24,4 @@
             "l10n_account_withholding_tax/static/src/helpers/*.js",
         ],
     },
-    "installable": True,
 }

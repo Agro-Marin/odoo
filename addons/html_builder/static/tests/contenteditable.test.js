@@ -41,7 +41,7 @@ test("Media should not be replaceable if not inside a savable zone", async () =>
             <i class="fa-solid fa-shopping-cart fa-stack target" data-oe-model="ir.ui.view" data-oe-id="786" data-oe-field="arch" data-oe-xpath="/data/xpath/li[1]/a[1]"/>
         </header>`,
         styleContent: `
-            .fa {
+            .fa-solid {
                 display: flex;
                 justify-content: center;
                 align-items: center;

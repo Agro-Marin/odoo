@@ -35,7 +35,7 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 ┌───────────────────────────┐   ┌───────────────────────────────────────┐
 │ Per-file serve            │   │ Admin override? (config param)        │
 │   get_native_module_data  │   │ Circuit open? (_esbuild_cooldowns)    │
-│   → import_map per spec   │   │ Lock held? (pg_try_advisory_xact_lock)│
+│   → import_map per spec   │   │ Wait for pg_advisory_xact_lock        │
 │   → <link modulepreload>  │   └─────────────────┬─────────────────────┘
 │   → <script type=module>  │                     │  all green
 │       /<addon>/static/... │                     ▼
@@ -138,8 +138,9 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 |-----|---------|
 | `bundles` | This module's esbuild-compiled bundles |
 | `exports` | Module specifiers (starting with `@`) to expose from a compiled bundle when they belong to that bundle; merged into its exported members by `ir_qweb_assets_esbuild.py` |
-| `runtime_bundles` | Bundles fetched at runtime through `/web/bundle` (`loadBundle`). A property of the BUNDLE — no parent page is named. Aggregated into `EsmRegistry.runtime_bundle_names` (together with every `dynamic_children` child), which is the predicate `use_esm` reads in `web/controllers/webclient.py`; without it the route serves the legacy branch and every module-syntax file becomes a `console.error` stub while `loadBundle` still resolves. A runtime bundle with **no** declared parent is served **per file** (there is no page whose modules could be stubbed), so a bare `runtime_bundles` entry is the debug shape in production; declare the parent under `dynamic_children` to get the compiled child |
+| `runtime_bundles` | Bundles fetched at runtime through `/web/bundle` (`loadBundle`). A property of the BUNDLE — no parent page is named. Aggregated into `EsmRegistry.runtime_bundle_names` (together with every `dynamic_children` child), which is the predicate `use_esm` reads in `web/controllers/webclient.py`; without it the route serves the legacy branch and every module-syntax file becomes a `console.error` stub while `loadBundle` still resolves. A runtime bundle with **no** declared parent is served **per file** (there is no page whose modules could be stubbed), so a bare `runtime_bundles` entry is the debug shape in production; declare the parent under `dynamic_children` to get the compiled child. Because such a bundle is fetched into whatever page asks for it, `_get_export_consumers` counts it as a consumer of every page bundle, so a compiled page registers the specifiers it imports; before, `project_gantt.project_sharing_unit_tests` read `undefined` for `@web/views/kanban` and failed at `class … extends` |
 | `dynamic_children` | Parent → lazy children. Declaring a parent does three things: the parent's page does not bridge the child's specifiers; the child is a runtime bundle without restating it; and, since 2026-09-06, the child is **compiled** against that parent (`_get_compiled_runtime_payload`, below) instead of being served per file. With several parents the child is compiled against the modules **every** installed parent owns (intersection), so it loads on any of their pages |
+| `dynamic_children_from` | Page → the page whose `dynamic_children` it takes, declared by the module that owns the page. For a second page built on the same code as a base page, such as `knowledge.webclient` and `document.webclient`, which include `web.assets_backend` as `web.assets_web` does: children are keyed on the page name, so without it every child another module declares on `web.assets_web` (`spreadsheet.o_spreadsheet`, the `web_tour` runtimes, `html_editor`'s) is missing from the variant, whose import map then cannot resolve `@odoo/o-spreadsheet`. Expanded once in `_prepare_esm_registry`, so every reader sees an ordinary parent. The base must be a registered bundle that takes its children from nobody, one page names one base, and restating an inherited child is refused |
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `external_libs` | Bare specifier → root-relative URL for a library this module ships (`@odoo/owl`, `chartjs-chart-geo`, …). One specifier resolves to one URL and the owning module declares it; a second module declaring it differently is an error |
 | `exports` | Module specifiers (`@web/core/registry`, …) that must stay reachable **by name** from outside the bundle graph — a test's `browser_js`, a tour started from Python — which no scan of JavaScript sources can discover, so the module that owns them declares them. Aggregated into `EsmRegistry.exports`; `_get_exported_specs` (`ir_qweb_assets_esbuild.py`) adds them to a compiled page's exports beside the specifiers its consumers import. Anything not starting with `@` is rejected at registry build |
@@ -464,9 +465,29 @@ unset or unparseable.
 | `source_maps` | `""` | `EsbuildCompiler._ESBUILD_SOURCE_MAPS` (esbuild.py) | esbuild `--sourcemap=<mode>`. `""` (off), `"linked"` (sidecar `.js.map` + `sourceMappingURL` comment — DevTools fetches only when opened), `"external"` (sidecar without comment), `"inline"` (base64 data URL appended — ~2x bundle size). Unknown modes silently fall back to `""`. |
 | `cooldown_s` | `60.0` | `IrQweb._ESBUILD_COOLDOWN_S` (ir_qweb_assets.py) | Circuit-breaker cooldown after 1st failure |
 | `extended_cooldown_s` | `600.0` | `IrQweb._ESBUILD_EXTENDED_COOLDOWN_S` (ir_qweb_assets.py) | Cooldown after 2nd consecutive failure |
-| `lock_retries` | `1` | `IrQweb._ESBUILD_LOCK_RETRIES` (ir_qweb_assets.py) | Advisory-lock retry count |
-| `lock_retry_sleep_s` | `0.2` | `IrQweb._ESBUILD_LOCK_RETRY_SLEEP_S` (ir_qweb_assets.py) | Sleep between lock attempts |
 | `force_fallback_bundles` | `""` | — | Comma-separated bundle names to force into debug path |
+
+Compilation waits for the transaction-scoped advisory lock. Contention must not
+switch an individual bundle to the debug layout: that can instantiate dependencies
+twice alongside already bundled code. The former `lock_retries` and
+`lock_retry_sleep_s` parameters are no longer read. Database lock/statement timeouts
+propagate as errors; they do not select a different module layout. The lock covers
+compilation, not subsequent attachment publication, so a waiting request can still
+compile again if the preceding result has not been published yet.
+
+Dedicated attachment-writing transactions serialize the URL existence check and
+insertion under a separate publication lock. They use READ COMMITTED so a waiter
+sees the preceding writer's commit. The request transaction keeps its original
+isolation level. This prevents concurrent cold requests from persisting duplicate
+library and compiled-asset URLs through that path.
+
+A secondary bundle that explicitly lists a parent-owned module uses the parent's
+module just like a transitive dependency. It does not import and register that
+module again as an entry. External libraries retain their separate serving path.
+Parent stubs also replace relative imports through a source mirror with symlink
+preservation. Each addon retains separate static sibling directories (`tests`,
+`lib`, etc.). The source index includes a compiler-semantics version; increment it
+when changed compilation semantics could otherwise reuse an old artifact.
 
 Operators set these via the UI (Settings → Technical → System Parameters)
 or programmatically:
@@ -482,7 +503,9 @@ env["ir.config_parameter"].sudo().set_param("web.esbuild.timeout_s", "60")
 | `Failed to resolve module specifier` in browser | import map missing a spec | `odoo.assets.esm DEBUG event=no_native_modules` or validator error at startup |
 | esbuild subprocess non-zero exit | Syntax error in an ESM source | `odoo.assets.esbuild WARNING event=failed bundle=<name> exit=<code>` + stderr on next line |
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
-| Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
+| Cold request waits before compilation | Another worker holds the bundle lock | `odoo.assets.lock DEBUG event=waiting`, then `event=acquired wait_s=…` |
+| A dynamic child is served per file in production and stays so | The runtime group compiled but persisting it failed after both the read-write escalation and the request cursor (a database-level fault); `_get_runtime_group_urls_uncached` caches the empty result on purpose, so the group is not re-compiled on every request while the database faults | `odoo.assets.attach WARNING event=runtime_group_save_failed` once, then `odoo.assets.fallback INFO event=runtime_child_per_file` per request; any `assets` cache clear (attachment unlink, *Clear cache*, restart) retries the compile |
+| A read-only test cursor keeps declining a bundle after the cause is gone | `_get_esm_variant_nodes_cached` remembers a readonly decline per (bundle, params, satellites, page scope) in the `assets` LRU so the same test run does not retry a compile it cannot persist | `odoo.debug` `readonly_decline_remembered`; `clear_cache("assets")` drops the memo with everything else, which is the intended retry |
 | `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_prepare_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_get_esm_nodes_prod` (`ir_qweb_assets.py`). |
 

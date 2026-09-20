@@ -3,7 +3,10 @@ from datetime import timedelta
 
 from odoo import Command, _, api, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import frozendict
+
+_debug = DebugLog(__name__)
 
 
 class AccountPartialReconcile(models.Model):
@@ -50,9 +53,18 @@ class AccountPartialReconcile(models.Model):
                 move=move.display_name,
             )
         if currency.is_zero(paid):
+            _debug.logic("cash_basis_zero_payment_no", partial=self)
             return None
         if currency.is_zero(total):
             raise ValidationError(reason)
+        _debug.logic(
+            "cash_basis_percentage",
+            partial=self,
+            move=move,
+            paid=paid,
+            total=total,
+            currency=currency,
+        )
         return paid / total
 
     def _get_cash_basis_payment_rate(
@@ -60,6 +72,12 @@ class AccountPartialReconcile(models.Model):
     ):
         self.check_singleton()
         if source_line.currency_id != counterpart_line.currency_id:
+            _debug.logic(
+                "cash_basis_rate_cross_currency",
+                partial=self,
+                forced="forced_rate_from_register_payment" in self.env.context,
+                payment_date=payment_date,
+            )
             if "forced_rate_from_register_payment" in self.env.context:
                 return self.env.context["forced_rate_from_register_payment"]
             return self.env["res.currency"]._get_conversion_rate(
@@ -69,6 +87,7 @@ class AccountPartialReconcile(models.Model):
                 payment_date,
             )
         if source_line.move_id.company_currency_id.is_zero(amounts["rate_amount"]):
+            _debug.logic("cash_basis_rate_zero_amount", partial=self)
             return 0.0
         return amounts["rate_amount_currency"] / amounts["rate_amount"]
 
@@ -87,6 +106,7 @@ class AccountPartialReconcile(models.Model):
             "rate_amount_currency": sign * counterpart_line.amount_currency,
         }
 
+    @_debug.perf.timed
     def _prepare_cash_basis_partial_vals(
         self, source_line, counterpart_line, move_values
     ):
@@ -100,8 +120,15 @@ class AccountPartialReconcile(models.Model):
             amounts["rate_amount"] = source_line.balance
             amounts["rate_amount_currency"] = source_line.amount_currency
             payment_date = move.date
+            _debug.logic("cash_basis_rate_from_invoices", partial=self, move=move)
         else:
             payment_date = counterpart_line.date
+            _debug.logic(
+                "cash_basis_rate_from_counterpart",
+                partial=self,
+                move=move,
+                counterpart_move=counterpart_move,
+            )
 
         percentage = self._get_cash_basis_percentage(move, move_values, amounts)
         if percentage is None:
@@ -139,9 +166,16 @@ class AccountPartialReconcile(models.Model):
 
                 values_per_move[move.id] = move_values
                 move_values.setdefault("partials", []).append(partial_vals)
+        _debug.pipeline(
+            "cash_basis_values_collected",
+            partial=self,
+            moves_collected=len(collected_per_move),
+            moves_with_values=len(values_per_move),
+        )
         return values_per_move
 
     @api.model
+    @_debug.perf.timed
     def _prepare_cash_basis_base_line_vals(self, base_line, balance, amount_currency):
         account = (
             base_line.company_id.account_cash_basis_base_account_id
@@ -172,6 +206,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def _prepare_cash_basis_counterpart_base_line_vals(self, cb_base_line_vals):
         return {
             "name": cb_base_line_vals["name"],
@@ -186,6 +221,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def _prepare_cash_basis_tax_line_vals(self, tax_line, balance, amount_currency):
         tax_ids = tax_line.tax_ids.filtered(lambda x: x.tax_exigibility == "on_payment")
         base_tags = tax_ids._get_repartition_tags(
@@ -216,6 +252,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @_debug.perf.timed
     def _prepare_cash_basis_counterpart_tax_line_vals(self, tax_line, cb_tax_line_vals):
         return {
             "name": cb_tax_line_vals["name"],
@@ -256,6 +293,7 @@ class AccountPartialReconcile(models.Model):
             frozendict(tax_line_vals["analytic_distribution"] or {}),
         )
 
+    @_debug.perf.timed
     def _prepare_cash_basis_move_vals(self, move, partial_values):
         partial = partial_values["partial"]
         journal = partial._get_cash_basis_journal()
@@ -291,6 +329,7 @@ class AccountPartialReconcile(models.Model):
         residual_per_tax_line[line.id] -= amount_currency
         return amount_currency
 
+    @_debug.perf.timed
     def _prepare_cash_basis_line_vals(
         self, partial_values, caba_treatment, line, balance, amount_currency
     ):
@@ -344,8 +383,15 @@ class AccountPartialReconcile(models.Model):
                 lines_to_create[grouping_key] = {"vals": cb_line_vals}
                 if caba_treatment == "tax":
                     lines_to_create[grouping_key]["tax_line"] = line
+        _debug.pipeline(
+            "cash_basis_lines_grouped",
+            partial=partial_values.get("partial"),
+            lines=len(move_values["to_process_lines"]),
+            groups=len(lines_to_create),
+        )
         return lines_to_create
 
+    @_debug.perf.timed
     def _get_cash_basis_move_line_commands(
         self, lines_to_create, move_index, to_reconcile_after
     ):
@@ -376,9 +422,17 @@ class AccountPartialReconcile(models.Model):
                 Command.create(counterpart_vals),
                 Command.create(line_vals),
             ]
+        _debug.pipeline(
+            "cash_basis_line_commands",
+            move_index=move_index,
+            groups=len(lines_to_create),
+            commands=len(commands),
+            reconcile_after=len(to_reconcile_after),
+        )
         return commands
 
     @api.model
+    @_debug.perf.timed
     def _reconcile_cash_basis_transition_lines(self, moves, to_reconcile_after):
         reconciliation_plan = []
         for tax_lines, move_index, sequence in to_reconcile_after:
@@ -392,10 +446,17 @@ class AccountPartialReconcile(models.Model):
                 continue
             reconciliation_plan.append(counterpart_line + lines)
 
+        _debug.pipeline(
+            "transition_lines_planned",
+            moves=moves,
+            candidates=len(to_reconcile_after),
+            plan=len(reconciliation_plan),
+        )
         self.env["account.move.line"].with_context(add_caba_vals=True)._reconcile_plan(
             reconciliation_plan
         )
 
+    @_debug.perf.timed
     def _create_tax_cash_basis_moves(self):
         values_per_move = self._collect_tax_cash_basis_values()
         moves_to_create = []
@@ -430,6 +491,13 @@ class AccountPartialReconcile(models.Model):
             )
             .create(moves_to_create)
         )
+        _debug.pipeline(
+            "cash_basis",
+            partial=self,
+            moves=moves,
+            posting=sum(post_after_create),
+            moves_to_create_count=len(moves_to_create),
+        )
         moves.browse(
             move.id for move, post in zip(moves, post_after_create, strict=True) if post
         )._post(soft=False)
@@ -452,7 +520,14 @@ class AccountPartialReconcile(models.Model):
         debit_vals = collect(self.debit_move_id.move_id)
         credit_vals = collect(self.credit_move_id.move_id)
         if not debit_vals and not credit_vals:
+            _debug.logic("draft_caba_vals_empty", partial=self)
             return False
+        _debug.logic(
+            "draft_caba_vals_collected",
+            partial=self,
+            debit_lines=len(debit_vals.get("to_process_lines", [])),
+            credit_lines=len(credit_vals.get("to_process_lines", [])),
+        )
         return {
             "debit_caba_lines": [
                 [aml_type, aml.id]

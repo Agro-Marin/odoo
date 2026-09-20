@@ -3,6 +3,8 @@ from collections import defaultdict
 from odoo import _, api, fields, models, modules
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -10,14 +12,11 @@ class ResCompany(models.Model):
 
     internal_transit_location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Internal Transit Location",
-        check_company=True,
         ondelete="restrict",
+        check_company=True,
         help="Used for resupply routes between warehouses that belong to this company",
     )
-    stock_move_email_validation = fields.Boolean(
-        string="Email Confirmation picking",
-    )
+    stock_move_email_validation = fields.Boolean(string="Email Confirmation picking")
     stock_mail_confirmation_template_id = fields.Many2one(
         comodel_name="mail.template",
         string="Email Template confirmation picking",
@@ -40,7 +39,6 @@ class ResCompany(models.Model):
             ("11", "November"),
             ("12", "December"),
         ],
-        string="Annual Inventory Month",
         default="12",
         help="Annual inventory month for products not in a location with a cyclic inventory date. Set to no month if no automatic annual inventory.",
     )
@@ -52,14 +50,14 @@ class ResCompany(models.Model):
     )
     horizon_days = fields.Integer(
         string="Replenishment Horizon",
-        required=True,
         default=365,
+        required=True,
         help="""Configure your horizon to trigger reordering rules earlier to get
          a head start on replenishment and avoid delays, or trigger it just-in-time
          ('0 days') to avoid overstocking.""",
     )
 
-    stock_text_confirmation = fields.Boolean(string="Stock Text Confirmation")
+    stock_text_confirmation = fields.Boolean()
     stock_confirmation_type = fields.Selection(
         selection=[("sms", "SMS")],
         string="Confirmation Channel",
@@ -75,21 +73,27 @@ class ResCompany(models.Model):
                     _("The replenishment horizon cannot be negative.")
                 )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
         companies = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "res.company.create: stock setup for %s", dbg.rec(companies)
+        )
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
         companies_sudo = companies.sudo()
-        companies_sudo._create_per_company_locations()
-        companies_sudo._create_per_company_sequences()
-        companies_sudo._create_per_company_picking_types()
-        companies_sudo._create_per_company_rules()
-        companies_sudo._update_per_company_inter_company_locations(
-            inter_company_location
-        )
+        with dbg.timer(self.env, "per-company stock data for %s", dbg.rec(companies)):
+            companies_sudo._create_per_company_locations()
+            companies_sudo._create_per_company_sequences()
+            companies_sudo._create_per_company_picking_types()
+            companies_sudo._create_per_company_rules()
+            companies_sudo._update_per_company_inter_company_locations(
+                inter_company_location
+            )
         if modules.module.current_test:
+            dbg.logic.debug("res.company.create: test mode, creating warehouses")
             companies_sudo._create_warehouse()
         return companies
 
@@ -125,6 +129,9 @@ class ResCompany(models.Model):
             ],
         )
         for company, location in zip(self, locations, strict=True):
+            dbg.lifecycle.debug(
+                "[company:%s] transit location %s", company.id, location.id
+            )
             company.internal_transit_location_id = location.id
             company.partner_id.with_company(company)._update_stock_property_locations(
                 location
@@ -186,6 +193,10 @@ class ResCompany(models.Model):
             warehouse_by_company.setdefault(warehouse.company_id.id, warehouse)
         companies_without = self.filtered(
             lambda company: company.id not in warehouse_by_company
+        )
+        dbg.lifecycle.debug(
+            "_create_warehouse: companies without warehouse %s",
+            dbg.rec(companies_without),
         )
         vals_list = []
         taken_names = defaultdict(set)
@@ -271,8 +282,14 @@ class ResCompany(models.Model):
 
     def _update_per_company_inter_company_locations(self, inter_company_location):
         if not self.env.user.has_group("base.group_multi_company"):
+            dbg.logic.debug("inter-company locations skipped: no multi-company group")
             return
         all_companies = self._get_all_companies()
+        dbg.performance.debug(
+            "_update_per_company_inter_company_locations: %d x %d company pairs",
+            len(self),
+            len(all_companies),
+        )
         for company in self:
             other_companies = all_companies - company
             other_companies.partner_id.with_company(

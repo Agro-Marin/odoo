@@ -7,27 +7,29 @@ class PaymentCaptureWizard(models.TransientModel):
     _name = "payment.capture.wizard"
     _description = "Payment Capture Wizard"
 
-    transaction_ids = (
-        fields.Many2many(  # All the source txs related to the capture request
-            comodel_name="payment.transaction",
-            default=lambda self: self.env.context.get("active_ids"),
-            readonly=True,
-        )
+    transaction_ids = fields.Many2many(
+        # All the source txs related to the capture request
+        comodel_name="payment.transaction",
+        default=lambda self: self.env.context.get("active_ids"),
+        readonly=True,
     )
-    authorized_amount = fields.Monetary(
-        string="Authorized Amount", compute="_compute_authorized_amount"
-    )
+    authorized_amount = fields.Monetary(compute="_compute_authorized_amount")
     captured_amount = fields.Monetary(
-        string="Already Captured", compute="_compute_captured_amount"
+        string="Already Captured",
+        compute="_compute_captured_amount",
     )
     voided_amount = fields.Monetary(
-        string="Already Voided", compute="_compute_voided_amount"
+        string="Already Voided",
+        compute="_compute_voided_amount",
     )
     available_amount = fields.Monetary(
-        string="Maximum Capture Allowed", compute="_compute_available_amount"
+        string="Maximum Capture Allowed",
+        compute="_compute_available_amount",
     )
     amount_to_capture = fields.Monetary(
-        compute="_compute_amount_to_capture", store=True, readonly=False
+        compute="_compute_amount_to_capture",
+        store=True,
+        readonly=False,
     )
     is_amount_to_capture_valid = fields.Boolean(
         compute="_compute_is_amount_to_capture_valid"
@@ -35,9 +37,9 @@ class PaymentCaptureWizard(models.TransientModel):
     void_remaining_amount = fields.Boolean()
     currency_id = fields.Many2one(related="transaction_ids.currency_id")
     support_partial_capture = fields.Boolean(
-        help="Whether each of the transactions' provider supports the partial capture.",
         compute="_compute_support_partial_capture",
         compute_sudo=True,
+        help="Whether each of the transactions' provider supports the partial capture.",
     )
     has_draft_children = fields.Boolean(compute="_compute_has_draft_children")
     has_remaining_amount = fields.Boolean(compute="_compute_has_remaining_amount")

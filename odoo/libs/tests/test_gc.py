@@ -1,7 +1,16 @@
 import gc
+import subprocess
+import sys
 import unittest
 
-from odoo.libs.gc import _record_gc_timing, disabling_gc, gc_info, gc_set_timing
+from odoo.libs.gc import (
+    _record_gc_timing,
+    disabling_gc,
+    freeze_survivors,
+    gc_info,
+    gc_set_timing,
+    thaw,
+)
 
 
 class TestDisablingGc(unittest.TestCase):
@@ -49,6 +58,23 @@ class TestGcSetTiming(unittest.TestCase):
         gc_set_timing(enable=False)
         self.assertNotIn(_record_gc_timing, gc.callbacks)
 
+    def test_callback_is_gone_before_the_interpreter_tears_modules_down(self):
+        script = (
+            "import atexit, gc\n"
+            "from odoo.libs import gc as libgc\n"
+            "atexit.register(lambda: print(libgc._record_gc_timing in gc.callbacks))\n"
+            "libgc.gc_set_timing(enable=True)\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        )
+        self.assertEqual(result.stdout.strip(), "False", result.stderr)
+        self.assertNotIn("Exception ignored", result.stderr)
+
     def test_disable_when_not_registered_is_a_noop(self):
         gc_set_timing(enable=False)
         self.assertNotIn(_record_gc_timing, gc.callbacks)
@@ -87,3 +113,46 @@ class TestGcInfo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFreezeSurvivors(unittest.TestCase):
+    def tearDown(self):
+        gc.unfreeze()
+
+    def test_garbage_is_collected_not_frozen(self):
+        import weakref
+
+        class Node:
+            self: Node
+
+        survivor = Node()
+        cycle = Node()
+        cycle.self = cycle
+        cycle_ref = weakref.ref(cycle)
+        del cycle
+        freeze_survivors()
+        self.assertIsNone(
+            cycle_ref(), "a cycle frozen instead of collected leaks forever"
+        )
+        self.assertGreater(gc.get_freeze_count(), 0)
+        self.assertNotIn(
+            survivor, gc.get_objects(), "survivors leave the collected generations"
+        )
+
+    def test_thaw_returns_frozen_objects_to_collection(self):
+        import weakref
+
+        class Node:
+            self: Node
+
+        node = Node()
+        node.self = node
+        ref = weakref.ref(node)
+        freeze_survivors()
+        del node
+        gc.collect()
+        self.assertIsNotNone(ref(), "a frozen cycle is invisible to the collector")
+        thaw()
+        gc.collect()
+        self.assertIsNone(ref())
+        self.assertEqual(gc.get_freeze_count(), 0)

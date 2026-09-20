@@ -23,13 +23,11 @@ class PartnerProfile(models.Model):
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        help=(
-            "Leave empty for a scale every partner is measured against. "
-            "Setting it narrows the scale to that company's partners -- and to "
-            "*only* those: a partner with no company of its own resolves "
-            "against company-less bands, so a scale that is scoped by accident "
-            "classifies nobody."
-        ),
+        help="Leave empty for a scale every partner is measured against. "
+        "Setting it narrows the scale to that company's partners -- and to "
+        "*only* those: a partner with no company of its own resolves "
+        "against company-less bands, so a scale that is scoped by accident "
+        "classifies nobody.",
     )
     factor = fields.Float(
         default=1.0,

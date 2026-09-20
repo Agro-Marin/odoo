@@ -325,7 +325,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         deliberately_undeclared = {
             "account_id",
             "partner_id",
-            "analytic_coverage",
             "move_attachment_ids",
         }
         model = self.env["account.move.line"]
@@ -335,7 +334,11 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             if field.compute
             and not field.related
             and not self.env.registry.field_depends.get(field)
-            and not self.env.registry.field_depends_context.get(field)
+            and not [
+                key
+                for key in self.env.registry.field_depends_context.get(field, ())
+                if key != "access"
+            ]
         }
         self.assertFalse(
             undeclared - deliberately_undeclared,

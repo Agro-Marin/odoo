@@ -6,6 +6,7 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import AccessError
+from odoo.fields import Field
 from odoo.http import (
     STORED_SESSION_BYTES,
     GeoIP,
@@ -13,12 +14,14 @@ from odoo.http import (
     request,
     root,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, unique
 from odoo.tools.translate import _
 
 from .res_users import check_identity
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _MOBILE_PLATFORMS = frozenset(
     {
@@ -45,26 +48,37 @@ class ResDeviceLog(models.Model):
     _description = "Device Log"
     _rec_names_search = ["platform", "browser"]
 
-    session_identifier = fields.Char("Session Identifier", required=True, index="btree")
-    platform = fields.Char("Platform")
-    browser = fields.Char("Browser")
-    ip_address = fields.Char("IP Address")
-    country = fields.Char("Country")
-    city = fields.Char("City")
+    session_identifier = fields.Char(
+        index="btree",
+        required=True,
+    )
+    platform = fields.Char()
+    browser = fields.Char()
+    ip_address = fields.Char(string="IP Address")
+    country = fields.Char()
+    city = fields.Char()
     device_type = fields.Selection(
-        [("computer", "Computer"), ("mobile", "Mobile")], "Device Type"
+        selection=[("computer", "Computer"), ("mobile", "Mobile")]
     )
-    user_id = fields.Many2one("res.users", index="btree", ondelete="cascade")
-    first_activity = fields.Datetime("First Activity")
-    last_activity = fields.Datetime("Last Activity", index="btree")
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        index="btree",
+        ondelete="cascade",
+    )
+    first_activity = fields.Datetime()
+    last_activity = fields.Datetime(index="btree")
     revoked = fields.Boolean(
-        "Revoked",
         help="If True, the session file corresponding to this device"
-        " no longer exists on the filesystem.",
+        " no longer exists on the filesystem."
     )
-    is_current = fields.Boolean("Current Device", compute="_compute_is_current")
+    is_current = fields.Boolean(
+        string="Current Device",
+        compute="_compute_is_current",
+        order_by_sql="_is_current_order_sql",
+    )
     linked_ip_addresses = fields.Text(
-        "Linked IP address", compute="_compute_linked_ip_addresses"
+        string="Linked IP address",
+        compute="_compute_linked_ip_addresses",
     )
 
     _composite_idx = models.Index(
@@ -95,6 +109,11 @@ class ResDeviceLog(models.Model):
             aggregates=["ip_address:array_agg"],
         ):
             device_group_map[tuple(device_info)] = ip_array
+        _debug.perf.count(
+            "linked_ip_addresses_computed",
+            devices=len(self),
+            groups=len(device_group_map),
+        )
         for device in self:
             device.linked_ip_addresses = "\n".join(
                 OrderedSet(
@@ -111,22 +130,19 @@ class ResDeviceLog(models.Model):
                 )
             )
 
-    def _order_field_to_sql(
-        self,
-        alias: str,
-        field_name: str,
-        direction: Any,
-        nulls: Any,
-        query: Any,
+    def _is_current_order_sql(
+        self, field: Field, alias: str, direction: Any, nulls: Any, query: Any
     ) -> SQL:
-        if field_name == "is_current" and request and request.session.sid:
-            return SQL(
-                "%s = %s %s",
-                SQL.identifier(alias, "session_identifier"),
-                request.session.sid[:STORED_SESSION_BYTES],
-                direction,
-            )
-        return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
+        if not (request and request.session.sid):
+            # no session to compare against: the term sorts nothing
+            return SQL.EMPTY
+        _debug.logic("order_by_is_current", direction=str(direction))
+        return SQL(
+            "%s = %s %s",
+            SQL.identifier(alias, "session_identifier"),
+            request.session.sid[:STORED_SESSION_BYTES],
+            direction,
+        )
 
     def _is_mobile(self, platform: str | None) -> bool:
         if not platform:
@@ -137,18 +153,26 @@ class ResDeviceLog(models.Model):
     def _update_device(self, request: Any) -> None:
         trace = request.session.update_trace(request)
         if not trace:
+            _debug.logic("device_log_skipped", reason="trace_unchanged")
             return
 
         geoip = GeoIP(trace["ip_address"], app=request.app)
         user_id = request.session.uid
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
+        _debug.logic(
+            "device_log_cursor",
+            uid=user_id,
+            own_cursor=bool(self.env.cr.readonly),
+            mobile=self._is_mobile(trace["platform"]),
+        )
         if self.env.cr.readonly:
-            self.env.cr.rollback()
             cursor = self.env.registry.cursor(readonly=False)
         else:
             cursor = nullcontext(self.env.cr)
-        with cursor as cr:
+        # Contain this optional SQL write without adding savepoints to requests
+        # whose trace did not change, or flushing unrelated pending ORM work.
+        with cursor as cr, cr.savepoint(flush=False):
             cr.execute(
                 SQL(
                     """
@@ -175,6 +199,13 @@ class ResDeviceLog(models.Model):
                 )
             )
         _logger.info("User %d inserts device log (%s)", user_id, session_identifier)
+        _debug.lifecycle(
+            "device_log_inserted",
+            uid=user_id,
+            platform=trace["platform"],
+            browser=trace["browser"],
+            readonly_cursor=self.env.cr.readonly,
+        )
 
     @api.autovacuum
     def _gc_device_log(self) -> None:
@@ -202,6 +233,7 @@ class ResDeviceLog(models.Model):
             )
         )
         _logger.info("GC device logs delete %d entries", self.env.cr.rowcount)
+        _debug.lifecycle("gc_device_logs", count=self.env.cr.rowcount)
 
     @api.autovacuum
     def _update_revoked(self) -> None:
@@ -225,12 +257,18 @@ class ResDeviceLog(models.Model):
                 offset=offset,
             )
             if not candidate_device_log_ids:
+                _debug.lifecycle("revoke_sweep_done", offset=offset)
                 break
             offset += batch_size
             revoked_session_identifiers = (
                 root.session_store.get_missing_session_identifiers(
                     set(candidate_device_log_ids.mapped("session_identifier"))
                 )
+            )
+            _debug.pipeline(
+                "revoke_sweep",
+                candidates=len(candidate_device_log_ids),
+                missing_sessions=len(revoked_session_identifiers),
             )
             if revoked_session_identifiers:
                 to_revoke = candidate_device_log_ids.filtered(
@@ -241,6 +279,7 @@ class ResDeviceLog(models.Model):
                 to_revoke.write({"revoked": True})
                 self.env.cr.commit()
                 offset -= len(to_revoke)
+                _debug.lifecycle("device_logs_revoked", count=len(to_revoke), by="gc")
 
 
 class ResDevice(models.Model):
@@ -256,8 +295,10 @@ class ResDevice(models.Model):
 
     def _revoke(self) -> None:
         if not self:
+            _debug.logic("revoke_skipped", uid=self.env.uid, reason="empty_recordset")
             return
         if not self.env.is_system() and self.mapped("user_id") != self.env.user:
+            _debug.logic("revoke_refused", uid=self.env.uid, devices=self.ids)
             raise AccessError(_("You can only revoke your own devices."))
         ResDeviceLog = self.env["res.device.log"]
         session_identifiers = list(unique(device.session_identifier for device in self))
@@ -273,6 +314,13 @@ class ResDevice(models.Model):
         )
 
         must_logout = bool(self.filtered("is_current"))
+        _debug.lifecycle(
+            "devices_revoked",
+            uid=self.env.uid,
+            sessions=len(session_identifiers),
+            logs=len(revoked_devices),
+            logout=must_logout,
+        )
         if must_logout:
             request.session.logout()
 
@@ -314,6 +362,7 @@ class ResDevice(models.Model):
 
     def init(self) -> None:
         drop_view_if_exists(self.env.cr, self._table)
+        _debug.lifecycle("view_recreated", table=self._table)
         self.env.cr.execute(
             SQL(
                 """

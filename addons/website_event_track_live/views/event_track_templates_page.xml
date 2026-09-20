@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- MAIN: REMOVE HEADER/FOOTER IF WIDESCREEN -->
     <template id="event_track_main" inherit_id="website_event_track.event_track_main">
         <xpath expr="//t[@t-call='website_event.layout']" position="before">
             <t t-set="no_header" t-value="option_widescreen" />
@@ -9,11 +8,9 @@
         </xpath>
     </template>
 
-    <!-- MAIN: ADD VIDEO -->
     <template
         id="event_track_content"
         inherit_id="website_event_track.event_track_content">
-        <!-- Do not display "starting in" in case of replay mode as video is already available -->
         <xpath
             expr="//div[@t-elif='track.track_start_remaining']"
             position="attributes">
@@ -25,7 +22,6 @@
                 add="{{'o_youtube_chat' if track.is_youtube_chat_available else ''}}"
                 separator=" " />
         </xpath>
-        <!-- Add video -->
         <xpath expr="//div[@name='o_wesession_track_main']//div" position="before">
             <t
                 t-set="show_youtube_frame"
@@ -47,7 +43,6 @@
         </xpath>
     </template>
 
-    <!-- ASIDE: ADD CHAT TAB FOR VIDEOS -->
     <template id="event_track_aside" inherit_id="website_event_track.event_track_aside">
         <xpath expr="//div[@name='o_wevent_online_page_aside']" position="attributes">
             <attribute

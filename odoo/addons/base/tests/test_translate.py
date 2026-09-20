@@ -812,7 +812,7 @@ class TestTranslationWrite(TransactionCase):
     def test_flush_stale_flat_cache_entry_not_nulled(self):
         category = self.env["res.partner.tag"].create({"name": "Reblochon"})
         field = category._fields["name"]
-        core = self.env._core
+        core = self.env.core
 
         core.get_field_data(field).clear()
         core.set_value(field, category.id, "Reblochon")
@@ -1234,10 +1234,7 @@ class TestXMLTranslation(TransactionCase):
         val = {"en_US": archf % terms}
         for lang, trans_terms in kwargs.items():
             val[lang] = archf % trans_terms
-        query = """UPDATE ir_ui_view
-                      SET arch_db = %s
-                    WHERE id = %s"""
-        self.env.cr.execute(query, (Json(val), view.id))
+        self.env.backend.columns.write(view, "arch_db", [(view.id, Json(val))])
         return view
 
     def test_copy(self):

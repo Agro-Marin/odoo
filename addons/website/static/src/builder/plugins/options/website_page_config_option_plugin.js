@@ -4,12 +4,15 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { rgbaToHex } from "@web/core/utils/format/colors";
 
 import { FOOTER_COPYRIGHT } from "./footer_option_plugin.js";
 import { HEADER_TEMPLATE } from "./header/header_option_plugin.js";
 import { TopMenuVisibilityOption } from "./website_page_config_option.js";
+
+const log = makeLogger("website.builder.plugin.website_page_config_option_plugin");
 
 /**
  * @typedef { Object } WebsitePageConfigOptionShared
@@ -86,10 +89,14 @@ class WebsitePageConfigOptionPlugin extends Plugin {
             return;
         }
         this.isDirty = true;
+        log.logic("WebsitePageConfigOptionPlugin page options marked dirty");
     }
 
     onSave() {
         if (!this.isDirty) {
+            log.logic(
+                "WebsitePageConfigOptionPlugin save skipped: page options not dirty",
+            );
             return;
         }
         const pageOptions = {
@@ -115,6 +122,11 @@ class WebsitePageConfigOptionPlugin extends Plugin {
         }
 
         const mainObject = this.services.website.currentWebsite.metadata.mainObject;
+        log.pipeline("WebsitePageConfigOptionPlugin save page options", () => ({
+            model: mainObject.model,
+            id: mainObject.id,
+            options: Object.keys(args),
+        }));
         return Promise.all([
             this.services.orm.write(mainObject.model, [mainObject.id], args),
         ]);
@@ -128,6 +140,9 @@ class WebsitePageConfigOptionPlugin extends Plugin {
 
     setFooterVisible(show) {
         const footerEl = this.document.querySelector("#wrapwrap > footer");
+        log.pipeline("WebsitePageConfigOptionPlugin setFooterVisible", () => ({
+            show,
+        }));
         footerEl.classList.toggle("d-none", !show);
         footerEl.classList.toggle("o_snippet_invisible", !show);
         this.dependencies.visibility.onOptionVisibilityUpdate(footerEl, show);
@@ -135,6 +150,7 @@ class WebsitePageConfigOptionPlugin extends Plugin {
 
     onTargetVisibilityToggle(show, target) {
         if (show && target.matches("#wrapwrap > header")) {
+            log.logic("WebsitePageConfigOptionPlugin header shown: reset to regular");
             this.dependencies.builderActions.applyAction("setWebsiteHeaderVisibility", {
                 editingElement: target,
                 value: "regular",
@@ -142,6 +158,7 @@ class WebsitePageConfigOptionPlugin extends Plugin {
             });
         }
         if (show && target.matches("#wrapwrap > footer")) {
+            log.logic("WebsitePageConfigOptionPlugin footer shown: set visible");
             this.dependencies.builderActions.applyAction("setWebsiteFooterVisible", {
                 editingElement: target,
                 isPreviewing: false,
@@ -213,6 +230,11 @@ export class SetWebsiteHeaderVisibilityAction extends BaseWebsitePageConfigActio
     static id = "setWebsiteHeaderVisibility";
     apply({ editingElement, value: headerPositionValue, isPreviewing }) {
         const lastValue = this.websitePageConfig.getVisibilityItem();
+        log.pipeline("SetWebsiteHeaderVisibilityAction apply", () => ({
+            from: lastValue,
+            to: headerPositionValue,
+            isPreviewing,
+        }));
         this.history.applyCustomMutation({
             apply: () => this.visibilityHandlers[headerPositionValue](),
             revert: () => this.visibilityHandlers[lastValue](),

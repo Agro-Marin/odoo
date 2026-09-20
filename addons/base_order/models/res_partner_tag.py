@@ -1,5 +1,13 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import TransactionMemo
+
+RESERVED_TAGS = TransactionMemo(
+    "res.partner.tag.reserved", invalidated_by=("res.partner.tag",)
+)
+
+_debug = DebugLog(__name__)
 
 
 class ResPartnerTag(models.Model):
@@ -24,11 +32,19 @@ class ResPartnerTag(models.Model):
 
     @api.model
     def _get_domain_partner_allowed(self, order_type):
-        reserved = self.sudo().search(
-            Domain("group_ids", "!=", False)
-            & Domain("order_type", "in", (False, order_type)),
-        )
+        memo = RESERVED_TAGS(self.env)
+        if order_type not in memo:
+            memo[order_type] = (
+                self.sudo()
+                .search(
+                    Domain("group_ids", "!=", False)
+                    & Domain("order_type", "in", (False, order_type)),
+                )
+                .ids
+            )
+        reserved = self.sudo().browse(memo[order_type])
         if not reserved:
+            _debug.logic("partner_tags_unrestricted", order_type=order_type)
             return Domain.TRUE
 
         user_group_ids = set(self.env.user._get_effective_group_ids())
@@ -36,5 +52,14 @@ class ResPartnerTag(models.Model):
             lambda category: user_group_ids.intersection(category.group_ids.ids),
         )
         if not allowed:
+            _debug.logic(
+                "partner_tags_all_reserved", order_type=order_type, reserved=reserved
+            )
             return Domain.FALSE
+        _debug.logic(
+            "partner_tags_allowed",
+            order_type=order_type,
+            reserved=reserved,
+            allowed=allowed,
+        )
         return Domain("tag_ids", "child_of", allowed.ids)

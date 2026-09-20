@@ -5,6 +5,8 @@ import re
 import typing
 from collections import defaultdict
 
+from odoo.libs.debug_log import DebugLog
+
 from ..fields.misc import Id
 from ..fields.relational import Many2one
 from ..fields.temporal import Datetime
@@ -16,6 +18,7 @@ if typing.TYPE_CHECKING:
     from .table_objects import TableObject
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 _BASE_MODEL_INIT_PARAM_COUNT = 4
 
@@ -66,6 +69,12 @@ class MetaModel(type):
                     name,
                     attrs["_name"],
                 )
+                _debug.logic(
+                    "metaclass.name_derived",
+                    model=attrs["_name"],
+                    cls=name,
+                    module=attrs["_module"],
+                )
 
         return super().__new__(meta, name, bases, attrs)  # type: ignore[misc]
 
@@ -92,6 +101,11 @@ class MetaModel(type):
                 name,
                 attrs.get("__module__"),
             )
+            _debug.logic(
+                "metaclass.init_signature_mismatch",
+                cls=name,
+                module=attrs.get("__module__"),
+            )
 
         if not attrs.get("_register", True):
             return
@@ -102,6 +116,15 @@ class MetaModel(type):
         if cls._inherit is None:
             cls._inherit = ()
         inherit = (cls._inherit,) if isinstance(cls._inherit, str) else cls._inherit
+        _debug.lifecycle(
+            "metaclass.model_class_registered",
+            model=cls._name,
+            cls=name,
+            module=cls._module,
+            inherit=len(inherit),
+            abstract=cls._abstract,
+            extension=cls._name in inherit,
+        )
         if not cls._abstract and cls._name not in inherit:
             model_class = typing.cast("ModelClass", cls)
 

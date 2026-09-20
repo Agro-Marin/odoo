@@ -23,41 +23,51 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
             )
         return domain
 
-    name = fields.Char("Description")
+    name = fields.Char(string="Description")
     holiday_status_id = fields.Many2one(
-        "hr.leave.type",
+        comodel_name="hr.leave.type",
         string="Time Off Type",
         required=True,
         domain="[('company_id', 'in', [company_id, False])]",
     )
     allocation_mode = fields.Selection(
-        [
+        selection=[
             ("employee", "By Employee"),
             ("company", "By Company"),
             ("department", "By Department"),
             ("category", "By Employee Tag"),
         ],
-        string="Allocation Mode",
+        default="employee",
         readonly=False,
         required=True,
-        default="employee",
         help="Allow to create requests in batchs:\n- By Employee: for a specific employee"
         "\n- By Company: all employees of the specified company"
         "\n- By Department: all employees of the specified department"
         "\n- By Employee Tag: all employees of the specific employee group category",
     )
     employee_ids = fields.Many2many(
-        "hr.employee",
+        comodel_name="hr.employee",
         string="Employees",
         domain=lambda self: self._domain_employee_ids(),
     )
     company_id = fields.Many2one(
-        "res.company", default=lambda self: self.env.company, required=True
+        comodel_name="res.company",
+        default=lambda self: self.env.company,
+        required=True,
     )
-    department_id = fields.Many2one("hr.department")
-    tag_id = fields.Many2one("res.partner.tag", string="Employee Tag")
-    date_from = fields.Date("Start Date", required=True)
-    date_to = fields.Date("End Date", required=True)
+    department_id = fields.Many2one(comodel_name="hr.department")
+    tag_id = fields.Many2one(
+        comodel_name="res.partner.tag",
+        string="Employee Tag",
+    )
+    date_from = fields.Date(
+        string="Start Date",
+        required=True,
+    )
+    date_to = fields.Date(
+        string="End Date",
+        required=True,
+    )
 
     def _get_employees_from_allocation_mode(self):
         self.check_singleton()
@@ -172,7 +182,12 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
             )
             .create(vals_list)
         )
-        leaves._apply_leave_request()
+        # Only what is actually approved reserves the calendar. A request still
+        # waiting for an officer would otherwise book the employee's working
+        # time and put a meeting in their calendar before anyone said yes --
+        # and its approval would then reserve the same period a second time,
+        # because `_action_validate` applies it again.
+        leaves.filtered(lambda leave: leave.state == "validate")._apply_leave_request()
 
         return {
             "type": "ir.actions.act_window",

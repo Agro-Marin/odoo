@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="hr_leave_attendance_report"
+        name="Time Off Ledger"
+        parent="hr_attendance.menu_hr_attendance_reporting"
+        action="hr_leave_attendance_report_action"
+        sequence="15" />
+
+</odoo>

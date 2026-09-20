@@ -29,8 +29,8 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Appointment"
                         name="group_by_appointment"
+                        string="Appointment"
                         context="{'group_by': 'appointment_type_ids'}" />
                 </group>
             </search>
@@ -47,26 +47,25 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div
                         class="alert alert-warning"
                         role="alert"
                         invisible="appointment_count == 0">
                         This question is used by
                         <button
-                            class="oe_link p-0 align-baseline"
+                            name="action_view_appointment_types"
                             type="object"
-                            name="action_view_appointment_types">
-                            <field class="me-1" name="appointment_count" />appointments
+                            class="oe_link p-0 align-baseline">
+                            <field name="appointment_count" class="me-1" />appointments
                         </button>.
                     </div>
                     <field
                         name="question_type"
                         widget="selection_badge_icon_mapping"
-                        required="1"
-                        nolabel="1"
-                        options="{'size': 'sm', 'allowed_values': ['char_box', 'text_box', 'dropdown', 'simple_choice', 'multiple_choice'], 'icon_mapping': {'char_box': 'fa-font', 'text_box': 'fa-align-left', 'dropdown': 'fa-caret-down', 'simple_choice': 'fa-circle-o', 'multiple_choice': 'fa-check-square'}}" />
+                        options="{'size': 'sm', 'allowed_values': ['char_box', 'text_box', 'dropdown', 'simple_choice', 'multiple_choice'], 'icon_mapping': {'char_box': 'fa-font', 'text_box': 'fa-align-left', 'dropdown': 'fa-caret-down', 'simple_choice': 'fa-circle-o', 'multiple_choice': 'fa-check-square'}}"
+                        required="1" />
                     <div class="oe_title my-3">
                         <label for="title" />
                         <h1>
@@ -74,8 +73,8 @@
                                 name="title"
                                 placeholder="e.g. &quot;Anything else we should know?&quot;"
                                 widget="text"
-                                options="{'line_breaks': False}"
-                                default_focus="1" />
+                                default_focus="1"
+                                options="{'line_breaks': False}" />
                         </h1>
                     </div>
                     <group>
@@ -96,11 +95,10 @@
                     </group>
                     <field
                         name="description"
-                        class="oe-bordered-editor mb-4"
                         placeholder="Extra comments..."
-                        nolabel="1" />
+                        class="oe-bordered-editor mb-4" />
                     <notebook invisible="question_type in ('char_box', 'text_box')">
-                        <page string="Answers" name="answers">
+                        <page name="answers" string="Answers">
                             <field name="suggested_answer_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
@@ -130,8 +128,8 @@
                 <button
                     name="action_view_question_answer_inputs"
                     type="object"
-                    class="fa-solid fa-chart-column p-0"
-                    title="Answer Breakdown" />
+                    title="Answer Breakdown"
+                    class="fa-solid fa-chart-column p-0" />
             </list>
         </field>
     </record>

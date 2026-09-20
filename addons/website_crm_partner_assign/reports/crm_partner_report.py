@@ -8,17 +8,37 @@ class CrmPartnerReportAssign(models.Model):
     _description = "CRM Partnership Analysis"
 
     partner_id = fields.Many2one(
-        "res.partner", "Partner", required=False, readonly=True
+        comodel_name="res.partner",
+        readonly=True,
+        required=False,
     )
-    grade_id = fields.Many2one("res.partner.grade", "Grade", readonly=True)
-    activation = fields.Many2one("res.partner.activation", "Activation", index=True)
-    user_id = fields.Many2one("res.users", "User", readonly=True)
-    date_review = fields.Date("Latest Partner Review")
-    date_partnership = fields.Date("Partnership Date")
-    country_id = fields.Many2one("res.country", "Country", readonly=True)
-    nbr_opportunities = fields.Integer("# of Opportunity", readonly=True)
-    turnover = fields.Float("Turnover", readonly=True)
-    date = fields.Date("Invoice Account Date", readonly=True)
+    grade_id = fields.Many2one(
+        comodel_name="res.partner.grade",
+        readonly=True,
+    )
+    activation = fields.Many2one(
+        comodel_name="res.partner.activation",
+        index=True,
+    )
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        readonly=True,
+    )
+    date_review = fields.Date(string="Latest Partner Review")
+    date_partnership = fields.Date(string="Partnership Date")
+    country_id = fields.Many2one(
+        comodel_name="res.country",
+        readonly=True,
+    )
+    nbr_opportunities = fields.Integer(
+        string="# of Opportunity",
+        readonly=True,
+    )
+    turnover = fields.Float(readonly=True)
+    date = fields.Date(
+        string="Invoice Account Date",
+        readonly=True,
+    )
 
     _depends = {
         "account.invoice.report": [

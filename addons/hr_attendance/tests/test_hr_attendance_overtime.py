@@ -63,7 +63,7 @@ class TestHrAttendanceOvertime(HttpCase):
                 "name": "Marie-Edouard De La Court",
                 "user_id": cls.user.id,
                 "company_id": cls.company.id,
-                "tz": "UTC",
+                "tz": "Europe/Brussels",
                 "date_version": date(2020, 1, 1),
                 "contract_date_start": date(2020, 1, 1),
                 "resource_calendar_id": cls.company.resource_calendar_id.id,
@@ -74,7 +74,7 @@ class TestHrAttendanceOvertime(HttpCase):
             {
                 "name": "Yolanda",
                 "company_id": cls.company.id,
-                "tz": "UTC",
+                "tz": "Europe/Brussels",
                 "date_version": date(2020, 1, 1),
                 "contract_date_start": date(2020, 1, 1),
                 "resource_calendar_id": cls.company.resource_calendar_id.id,
@@ -128,7 +128,7 @@ class TestHrAttendanceOvertime(HttpCase):
             {
                 "name": "No Contract",
                 "company_id": cls.company.id,
-                "tz": "UTC",
+                "tz": "Europe/Brussels",
                 "resource_calendar_id": cls.company.resource_calendar_id.id,
                 "date_version": date(2020, 1, 1),
                 "contract_date_start": False,
@@ -138,7 +138,7 @@ class TestHrAttendanceOvertime(HttpCase):
             {
                 "name": "Future contract",
                 "company_id": cls.company.id,
-                "tz": "UTC",
+                "tz": "Europe/Brussels",
                 "resource_calendar_id": cls.company.resource_calendar_id.id,
                 "date_version": date(2020, 1, 1),
                 "contract_date_start": date(2030, 1, 1),
@@ -670,8 +670,19 @@ class TestHrAttendanceOvertime(HttpCase):
 
         with freeze_time("2024-01-01 22:00:00"):
             Attendance._cron_auto_check_out()
+            # The schedule is written in Europe/Brussels, so its 12:00-13:00
+            # lunch is 11:00-12:00 UTC and falls inside the 08:00-12:00 morning:
+            # three worked hours, not four. This read 9 and cut at 18:00 while
+            # the break was placed in the RESOURCE's zone (UTC here) instead of
+            # the schedule's, which put it at 12:00-13:00 UTC -- outside both
+            # attendances, deducted from neither.
+            self.assertEqual(morning.worked_hours, 3)
+            # The day is cut at exactly its budget: eight scheduled hours plus
+            # an hour of tolerance. Three were worked in the morning, so six
+            # more from the 13:00 UTC check-in.
+            self.assertEqual(afternoon.worked_hours, 6)
             self.assertEqual(morning.worked_hours + afternoon.worked_hours, 9)
-            self.assertEqual(afternoon.check_out, datetime(2024, 1, 1, 18, 0))
+            self.assertEqual(afternoon.check_out, datetime(2024, 1, 1, 19, 0))
 
     def test_auto_check_out_two_weeks_calendar(self):
         Attendance = self.env["hr.attendance"]
@@ -1127,7 +1138,7 @@ class TestHrAttendanceOvertime(HttpCase):
         employee_today = (
             fields.Datetime.now()
             .replace(tzinfo=UTC)
-            .astimezone(timezone(self.employee._get_tz()))
+            .astimezone(timezone(self.employee._get_schedule_tz()))
             .date()
         )
         for _ in range(2):
@@ -1156,10 +1167,10 @@ class TestHrAttendanceOvertime(HttpCase):
             company_de = self.env["res.company"].create({"name": "Odoo DE"})
 
             with Form(
-                self.env["resource.calendar.leaves"].with_company(company_be)
+                self.env["resource.schedule.exception"].with_company(company_be)
             ) as holiday_form:
                 holiday_form.name = "Armistice Day"
-                holiday_form.date_from = datetime(2025, 11, 11, 0, 0)
+                holiday_form.local_date_from = date(2025, 11, 11)
                 holiday_form.save()
 
             ruleset_be = (
@@ -1452,7 +1463,7 @@ class TestHrAttendanceOvertime(HttpCase):
                     "ruleset_id": ruleset.id,
                 }
             )
-            self.env["resource.calendar.leaves"].create(
+            self.env["resource.schedule.exception"].create(
                 {
                     "name": "Personal leave",
                     "resource_id": employee.resource_id.id,

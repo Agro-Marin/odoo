@@ -18,9 +18,7 @@
     }
 }
 
-// Index
 .o_wevent_index {
-    // Events List
     .o_wevent_events_list {
         .opt_events_list_columns {
             .card-header {
@@ -85,17 +83,13 @@
         }
     }
     a:has(.o_wevent_sidebar_figure) {
-        // This is required for Chrome. Without it, the <figcaption> element
-        // inside the second photo will not be editable properly.
         display: block;
     }
     .cover_auto {
-        // Set min-height to the same value as the header
         min-height: 200px !important;
     }
 }
 
-// Used in wevent and wevent_sale
 .o_wevent_event_date {
     top: $card-spacer-x;
     right: $card-spacer-x;

@@ -4,6 +4,8 @@ from itertools import batched
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -11,13 +13,20 @@ class StockScheduler(models.AbstractModel):
     _name = "stock.scheduler"
     _description = "Stock Scheduler"
 
+    @dbg.timed
     @api.model
     def run(self, use_new_cursor=False, company_id=False):
+        dbg.lifecycle.debug(
+            "stock scheduler run start new_cursor=%s company=%s",
+            use_new_cursor,
+            company_id,
+        )
         try:
             self._run_tasks(use_new_cursor=use_new_cursor, company_id=company_id)
         except Exception:
             _logger.exception("Error during stock scheduler")
             raise
+        dbg.lifecycle.debug("stock scheduler run done")
 
     @api.model
     def _get_tasks(self):
@@ -33,23 +42,31 @@ class StockScheduler(models.AbstractModel):
         if use_new_cursor:
             Cron._commit_progress(remaining=self._get_tasks_to_do())
         for task in self._get_tasks():
-            getattr(self, task)(
-                use_new_cursor=use_new_cursor,
-                company_id=company_id,
-            )
+            with dbg.timer(self.env, "scheduler task %s", task):
+                getattr(self, task)(
+                    use_new_cursor=use_new_cursor,
+                    company_id=company_id,
+                )
             if use_new_cursor:
                 Cron._commit_progress(1)
 
     @api.model
     def _update_orderpoint_values(self, use_new_cursor=False, company_id=False):
-        self.env["stock.warehouse.orderpoint"].search(
+        orderpoints = self.env["stock.warehouse.orderpoint"].search(
             self._get_domain_orderpoint(company_id=company_id, only_automatic=False),
-        ).sudo()._update_stored_values()
+        )
+        dbg.pipeline.debug(
+            "scheduler -> _update_stored_values on %s", dbg.rec(orderpoints)
+        )
+        orderpoints.sudo()._update_stored_values()
 
     @api.model
     def _replenish(self, use_new_cursor=False, company_id=False):
         orderpoints = self.env["stock.warehouse.orderpoint"].search(
             self._get_domain_orderpoint(company_id=company_id),
+        )
+        dbg.pipeline.debug(
+            "scheduler -> _procure_orderpoint_confirm %s", dbg.rec(orderpoints)
         )
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor,
@@ -63,6 +80,9 @@ class StockScheduler(models.AbstractModel):
         moves_to_assign = self.env["stock.move"].search(
             self._get_domain_moves_to_assign(company_id),
             order="date_reservation, priority desc, date asc, id asc",
+        )
+        dbg.pipeline.debug(
+            "scheduler -> _reserve_due_moves: %d moves due", len(moves_to_assign)
         )
         for moves_chunk in batched(moves_to_assign.ids, 1000, strict=False):
             self.env["stock.move"].browse(moves_chunk).sudo()._action_assign()

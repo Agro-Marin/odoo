@@ -2,9 +2,12 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
 CHATTER_PRODUCT_LIST_THRESHOLD = 50
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderLineFields(models.AbstractModel):
@@ -19,81 +22,59 @@ class MixinOrderLineFields(models.AbstractModel):
     order_id = fields.Many2one(
         comodel_name="mixin.order",
         string="Order Reference",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
 
     company_id = fields.Many2one(
-        related="order_id.company_id",
         comodel_name="res.company",
+        related="order_id.company_id",
         string="Company",
-        store=True,
-        precompute=True,
-        index=True,
     )
-    company_price_include = fields.Selection(
-        related="company_id.account_price_include",
-    )
+    company_price_include = fields.Selection(related="company_id.account_price_include")
     currency_id = fields.Many2one(
-        related="order_id.currency_id",
         comodel_name="res.currency",
+        related="order_id.currency_id",
         string="Currency",
-        store=True,
-        precompute=True,
         depends=["order_id.currency_id"],
     )
-    partner_id = fields.Many2one(
-        related="order_id.partner_id",
+    partner_id = fields.Many2one(  # noqa: E8529  One2many inverse of res.partner's order line lists
         comodel_name="res.partner",
+        related="order_id.partner_id",
         string="Partner",
-        store=True,
         precompute=True,
+        store=True,
         index="btree_not_null",
     )
     user_id = fields.Many2one(
-        related="order_id.user_id",
         comodel_name="res.users",
+        related="order_id.user_id",
         string="Responsible",
-        store=True,
-        precompute=True,
-        index="btree_not_null",
     )
     date_order = fields.Datetime(
         related="order_id.date_order",
         string="Order Date",
-        store=True,
-        precompute=True,
-        index=True,
     )
     date_confirmed = fields.Datetime(
         related="order_id.date_confirmed",
         string="Confirmation Date",
-        store=True,
-        precompute=True,
-        index=True,
     )
     state = fields.Selection(
         related="order_id.state",
         string="Order Status",
-        store=True,
-        precompute=True,
     )
     fiscal_position_id = fields.Many2one(
-        related="order_id.fiscal_position_id",
         comodel_name="account.fiscal.position",
+        related="order_id.fiscal_position_id",
     )
     tax_country_id = fields.Many2one(
-        related="order_id.tax_country_id",
         comodel_name="res.country",
+        related="order_id.tax_country_id",
     )
-    locked = fields.Boolean(
-        related="order_id.locked",
-    )
+    locked = fields.Boolean(related="order_id.locked")
 
-    product_categ_id = fields.Many2one(
-        related="product_id.categ_id",
-    )
+    product_categ_id = fields.Many2one(related="product_id.categ_id")
     product_type = fields.Selection(
         related="product_id.type",
         depends=["product_id"],
@@ -111,7 +92,7 @@ class MixinOrderLineFields(models.AbstractModel):
         compute="_compute_parent_id",
     )
 
-    sequence = fields.Integer(string="Sequence", default=10)
+    sequence = fields.Integer(default=10)
 
     display_type = fields.Selection(
         selection=[
@@ -124,24 +105,19 @@ class MixinOrderLineFields(models.AbstractModel):
 
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         change_default=True,
-        check_company=True,
+        index="btree_not_null",
         domain=lambda self: self._domain_product_id(),
         ondelete="restrict",
-        index="btree_not_null",
+        check_company=True,
     )
 
     product_template_attribute_value_ids = fields.Many2many(
         related="product_id.product_template_attribute_value_ids",
         depends=["product_id"],
     )
-    product_name_translated = fields.Text(
-        compute="_compute_product_name_translated",
-    )
-    product_is_archived = fields.Boolean(
-        compute="_compute_product_is_archived",
-    )
+    product_name_translated = fields.Text(compute="_compute_product_name_translated")
+    product_is_archived = fields.Boolean(compute="_compute_product_is_archived")
     allowed_uom_ids = fields.Many2many(
         comodel_name="uom.uom",
         compute="_compute_allowed_uom_ids",
@@ -150,8 +126,8 @@ class MixinOrderLineFields(models.AbstractModel):
         comodel_name="uom.uom",
         string="Unit",
         compute="_compute_product_uom_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         domain='[("id", "in", allowed_uom_ids)]',
         ondelete="restrict",
@@ -159,16 +135,14 @@ class MixinOrderLineFields(models.AbstractModel):
 
     name = fields.Text(
         string="Description",
-        required=True,
         compute="_compute_name",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
     )
 
-    is_downpayment = fields.Boolean(
-        string="Is a down payment",
-    )
+    is_downpayment = fields.Boolean(string="Is a down payment")
 
     is_expense = fields.Boolean(
         string="Is expense",
@@ -211,6 +185,7 @@ class MixinOrderLineFields(models.AbstractModel):
 
     def _get_order_type(self):
         if not self._order_type:
+            _debug.logic("order_type_undeclared", model=self._name)
             raise NotImplementedError(f"{self._name} must declare _order_type")
         return self._order_type
 
@@ -223,7 +198,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return
 
     @api.model
-    def _get_display_type_nullify_vals(self):
+    def _prepare_display_type_reset_vals(self):
         return {
             "product_id": False,
             "price_unit": False,
@@ -234,7 +209,7 @@ class MixinOrderLineFields(models.AbstractModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        nullify_vals = self._get_display_type_nullify_vals()
+        nullify_vals = self._prepare_display_type_reset_vals()
         for vals in vals_list:
             # Guard the caller's own values: nullifying a section line writes the
             # derived quantity itself, which the guard would otherwise refuse.
@@ -243,8 +218,10 @@ class MixinOrderLineFields(models.AbstractModel):
                 "display_type",
             ):
                 vals.update(nullify_vals)
+                _debug.logic("display_type_line_nullified", model=self._name)
 
         lines = super().create(vals_list)
+        _debug.lifecycle("create", lines=lines, rows=len(vals_list))
 
         lines.filtered(
             lambda line: line.order_id.state == "done",
@@ -256,8 +233,15 @@ class MixinOrderLineFields(models.AbstractModel):
         self._check_write_guards(vals)
         tracked = [f for f in self._get_fields_tracked_qty() if f in vals]
         changes = self._collect_qty_changes(vals, tracked) if tracked else {}
+        _debug.lifecycle("write", lines=self, fields=list(vals))
         result = super().write(vals)
         for field_name, field_changes in changes.items():
+            _debug.pipeline(
+                "quantity_changes_posted",
+                lines=self,
+                field=field_name,
+                changed=len(field_changes),
+            )
             self._post_quantity_changes(field_name, field_changes)
         return result
 
@@ -308,6 +292,12 @@ class MixinOrderLineFields(models.AbstractModel):
             if not line.product_uom_id or (
                 line._origin.product_id and line._origin.product_id != line.product_id
             ):
+                _debug.logic(
+                    "line_uom_defaulted",
+                    line=line,
+                    origin_product=line._origin.product_id,
+                    product=line.product_id,
+                )
                 line.product_uom_id = line._get_default_product_uom()
 
     def _get_default_product_uom(self):
@@ -430,6 +420,9 @@ class MixinOrderLineFields(models.AbstractModel):
         if not lines:
             return
 
+        _debug.logic(
+            "display_type_change_refused", lines=lines, new_type=new_type or "none"
+        )
         if len(lines) == 1:
             raise UserError(
                 _(
@@ -482,6 +475,12 @@ class MixinOrderLineFields(models.AbstractModel):
             )
         )
         if fields_info:
+            _debug.logic(
+                "write_refused",
+                lines=locked_lines,
+                reason="locked_order",
+                fields=",".join(sorted(protected_fields_modified)),
+            )
             raise UserError(
                 _(
                     "It is forbidden to modify the following fields in a locked order:\n%s",
@@ -521,6 +520,7 @@ class MixinOrderLineFields(models.AbstractModel):
                 lines_to_block[0].state,
                 lines_to_block[0].state,
             )
+            _debug.logic("line_unlink_refused", lines=lines_to_block, state=state_label)
             raise UserError(
                 _(
                     "Cannot delete a %(line_type)s which is in state '%(state)s'.\n"
@@ -546,8 +546,8 @@ class MixinOrderLineFields(models.AbstractModel):
         ],
         string="Transferred Qty Method",
         compute="_compute_qty_transferred_method",
-        store=True,
         precompute=True,
+        store=True,
         help="Method used to compute the transferred quantity:\n"
         "  - Manual: set manually on the line\n"
         "  - Analytic: sum of analytic line unit amounts\n"
@@ -558,8 +558,8 @@ class MixinOrderLineFields(models.AbstractModel):
         digits="Product Unit",
         compute="_compute_qty_transferred",
         store=True,
-        readonly=False,
         copy=False,
+        readonly=False,
     )
     qty_to_transfer = fields.Float(
         digits="Product Unit",
@@ -574,6 +574,12 @@ class MixinOrderLineFields(models.AbstractModel):
     @api.depends("is_expense", "product_id")
     def _compute_qty_transferred_method(self):
         for line in self:
+            _debug.logic(
+                "qty_transferred_method",
+                line=line,
+                expense=line.is_expense,
+                product_type=line.product_type or "none",
+            )
             if line.is_expense:
                 line.qty_transferred_method = "analytic"
             elif line.product_id and line.product_type == "service":
@@ -594,6 +600,7 @@ class MixinOrderLineFields(models.AbstractModel):
     @api.depends("qty_transferred")
     def _compute_qty_transferred_at_date(self):
         if not self._date_in_the_past():
+            _debug.logic("qty_at_date", lines=self, by="current_quantity")
             for line in self:
                 line.qty_transferred_at_date = line.qty_transferred
             return
@@ -618,6 +625,11 @@ class MixinOrderLineFields(models.AbstractModel):
             try:
                 line.with_context(uom_reconcile_strict=True)._prepare_qty_transferred()
             except UserError as error:
+                _debug.logic(
+                    "transferred_uom_not_convertible",
+                    line=line,
+                    uom=line.product_uom_id,
+                )
                 raise UserError(
                     _(
                         "Cannot invoice “%(line)s”: its transferred "
@@ -643,6 +655,11 @@ class MixinOrderLineFields(models.AbstractModel):
 
     def _check_analytic_distribution(self):
         business_domain = self._analytic_business_domain
+        _debug.pipeline(
+            "analytic_distribution_checked",
+            lines=self,
+            business_domain=business_domain or "none",
+        )
         for line in self._filtered_to_check_analytic_distribution():
             line._check_distribution(
                 product=line.product_id.id,
@@ -652,6 +669,7 @@ class MixinOrderLineFields(models.AbstractModel):
 
     def _hook_on_created_confirmed_lines(self):
         if self.env.context.get("no_log_for_new_lines"):
+            _debug.logic("extra_lines_not_logged", lines=self, reason="context_opt_out")
             return
 
         lines_by_order = defaultdict(self.browse)
@@ -683,6 +701,7 @@ class MixinOrderLineFields(models.AbstractModel):
                     count=count,
                     order_type=order._description.lower(),
                 )
+            _debug.lifecycle("extra_lines_logged", order=order, lines=order_lines)
             order.message_post(body=msg)
 
     def _get_product_catalog_lines_data(self, **kwargs):
@@ -693,13 +712,14 @@ class MixinOrderLineFields(models.AbstractModel):
             data = self[0]._get_catalog_multi_line_data(**kwargs)
             data["quantity"] = sum(
                 self.mapped(
-                    lambda line: line.product_uom_id._compute_quantity_report(
+                    lambda line: line.product_uom_id._get_quantity_report(
                         qty=line.product_qty,
                         to_unit=line.product_id.uom_id,
                     ),
                 ),
             )
             data["readOnly"] = True
+            _debug.logic("catalog_line_data", lines=self, by="multi_line")
             return data
         return {"quantity": 0}
 

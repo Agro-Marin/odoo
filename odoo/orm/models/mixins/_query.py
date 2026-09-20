@@ -3,6 +3,7 @@ import typing
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, Query, ormcache, partition
 from odoo.tools.translate import _
@@ -21,6 +22,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 
 class _QueryMixin(_ModelStubs):
@@ -89,9 +91,17 @@ class _QueryMixin(_ModelStubs):
             term = self._order_field_to_sql(
                 self._table, field_name, SQL.EMPTY, SQL.EMPTY, query
             )
+            sortable = bool(term)
         except ValueError, AccessError, NotImplementedError:
-            return False
-        return bool(term)
+            sortable = False
+        _debug.perf.count(
+            "query.field_sortable_probed",
+            model=self._name,
+            field=field_name,
+            sortable=sortable,
+            su=self.env.su,
+        )
+        return sortable
 
     def _order_field_to_sql(
         self,
@@ -113,11 +123,36 @@ class _QueryMixin(_ModelStubs):
                 field_name,
                 self.env.uid,
             )
+            _debug.logic(
+                "query.order_field_unreadable",
+                model=self._name,
+                field=field_name,
+                uid=self.env.uid,
+            )
             return SQL.EMPTY
+
+        if field.order_by_field:
+            return self._order_field_to_sql(
+                alias,
+                field.order_by_field + field_name[len(fname) :],
+                direction,
+                nulls,
+                query,
+            )
+        if field.order_by_sql:
+            return getattr(self, field.order_by_sql)(
+                field, alias, direction, nulls, query
+            )
 
         if field.is_many2one:
             seen = self.env.context.get("__m2o_order_seen", ())
             if field in seen:
+                _debug.logic(
+                    "query.order_m2o_cycle",
+                    model=self._name,
+                    field=fname,
+                    depth=len(seen),
+                )
                 return SQL.EMPTY
             self = self.with_context(__m2o_order_seen=frozenset((field, *seen)))
 
@@ -130,11 +165,7 @@ class _QueryMixin(_ModelStubs):
                 sql_field = self._field_to_sql(alias, field_name, query)
 
             if coorder == "id":
-                if query._any_value_orderby:
-                    sql_field = SQL("ANY_VALUE(%s)", sql_field)
-                elif query._collect_order_groupby:
-                    query._order_groupby.append(sql_field)
-                return SQL("%s %s %s", sql_field, direction, nulls)
+                return self._order_value_to_sql(sql_field, direction, nulls, query)
 
             terms = []
             if nulls.code == "NULLS FIRST":
@@ -153,13 +184,19 @@ class _QueryMixin(_ModelStubs):
         sql_field = self._field_to_sql(alias, field_name, query)
         if field.is_boolean:
             sql_field = SQL("COALESCE(%s, FALSE)", sql_field)
+        return self._order_value_to_sql(sql_field, direction, nulls, query)
 
+    def _order_value_to_sql(
+        self, sql_value: SQL, direction: SQL, nulls: SQL, query: Query
+    ) -> SQL:
+        """The ORDER BY term for a value: under a grouped query the value is
+        either aggregated or added to the GROUP BY, which an `order_by_sql`
+        hook composing its own value must do the same way."""
         if query._any_value_orderby:
-            sql_field = SQL("ANY_VALUE(%s)", sql_field)
+            sql_value = SQL("ANY_VALUE(%s)", sql_value)
         elif query._collect_order_groupby:
-            query._order_groupby.append(sql_field)
-
-        return SQL("%s %s %s", sql_field, direction, nulls)
+            query._order_groupby.append(sql_value)
+        return SQL("%s %s %s", sql_value, direction, nulls)
 
     @api.model
     def _search(
@@ -189,20 +226,26 @@ class _QueryMixin(_ModelStubs):
                 for leaf in domain.iter_conditions()
             )
         ):
+            _debug.logic(
+                "query.search.active_test_added",
+                model=self._name,
+                field=self._active_name,
+            )
             domain &= Domain(self._active_name, "=", True)
+
+        backend = self.env.backend
+        query = backend.search_raw(
+            self, domain, offset, limit, order, check_access=check_access
+        )
+        if query is not None:
+            prof.mark("raw")
+            return query
 
         domain = domain.optimize_full(typing.cast("BaseModel", self))
         if domain.is_false():
+            _debug.logic("query.search.domain_false", model=self._name)
             return self.browse()._as_query()
 
-        backend = self.env.backend
-        if check_access and not backend.supports_record_rules:
-            raise NotImplementedError(
-                f"{type(backend).__name__} does not enforce ir.rule record "
-                f"rules, so it cannot serve an access-checked search on "
-                f"{self._name}. Use a database-backed test tier, or pass "
-                f"bypass_access=True if the caller is genuinely trusted."
-            )
         return backend.search(
             self, domain, offset, limit, order, check_access=check_access, prof=prof
         )
@@ -232,6 +275,14 @@ class _QueryMixin(_ModelStubs):
                 )
             model, alias = path_field.join(model, alias, query)
 
+        _debug.logic(
+            "query.related_traversed",
+            model=self._name,
+            field=field.name,
+            related=field.related,
+            joins=len(path_fnames),
+            target=model._name,
+        )
         return model, model._fields[last_fname], alias
 
     def _field_to_sql(
@@ -255,6 +306,23 @@ class _QueryMixin(_ModelStubs):
 
         self._check_field_access(field, "read")
 
+        if field.value_sql:
+            # the field names the method that composes its SQL: an expression
+            # over other columns, a join it hangs on the query, a constant
+            if property_name:
+                raise ValueError(
+                    f"{field_expr!r}: a property of a field that composes its own SQL"
+                )
+            return getattr(self, field.value_sql)(field, alias, query)
+
+        if not property_name and alias == self._table:
+            # proven by the first fetch of the column to be exactly this
+            # identifier (see _fetch_term); spelled once, reused by every
+            # WHERE and ORDER BY on the model's own table
+            term = field._column_term
+            if term is not None:
+                return term
+
         sql = field.to_sql(self, alias)
         if property_name:
             if query is None:
@@ -271,4 +339,14 @@ class _QueryMixin(_ModelStubs):
         if not ids:
             return self
         valid_ids = {*self.env.backend.get_existing_ids(self, ids), *new_ids}
-        return self.browse(i for i in self._ids if i in valid_ids)
+        if _debug.logic.enabled and len(valid_ids) != len(self._ids):
+            _debug.logic(
+                "query.exists.missing",
+                model=self._name,
+                records=len(self._ids),
+                missing=len(self._ids) - len(valid_ids),
+            )
+        # one record of a batch stays one record of the batch
+        return self._spawn(
+            self.env, tuple(i for i in self._ids if i in valid_ids), self._prefetch_ids
+        )

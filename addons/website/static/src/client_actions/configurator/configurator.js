@@ -17,6 +17,8 @@ import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -30,6 +32,8 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 import { svgToPNG, webpToPNG } from "@website/js/utils";
 
 const sessionStorage = browser.sessionStorage;
+
+const log = makeLogger("website.configurator");
 
 export const ROUTES = {
     descriptionScreen: 2,
@@ -93,23 +97,15 @@ export const PALETTE_NAMES = [
     "default-21",
 ];
 
-// Attributes for which background color should be retrieved
-// from CSS and added in each palette.
 export const CUSTOM_BG_COLOR_ATTRS = ["menu", "footer"];
 
 const MAX_NBR_DISPLAY_MAIN_THEMES = 3;
 
 /**
- * Returns a list of maximum "resultNbrMax" themes that depends on the wanted
- * industry and the color palette.
- *
- * @param {Object} orm - The orm used for the server call.
- * @param {Object} state - The state that contains the wanted industry and color
- * palette.
- * @param {Number} resultNbrMax - The number of different wanted themes.
- * @returns {Promise<Array>} A list of objects that contains the different
- * theme names and their related text svgs (as result of a Promise). The length
- * of the list is at most 'resultNbrMax'.
+ * @param {Object} orm
+ * @param {Object} state
+ * @param {Number} resultNbrMax
+ * @returns {Promise<Array>}
  */
 async function getRecommendedThemes(
     orm,
@@ -122,10 +118,6 @@ async function getRecommendedThemes(
         result_nbr_max: resultNbrMax,
     });
 }
-
-//------------------------------------------------------------------------------
-// Components
-//------------------------------------------------------------------------------
 
 export class SkipButton extends Component {
     static template = "website.Configurator.SkipButton";
@@ -142,6 +134,7 @@ export class WelcomeScreen extends Component {
         navigate: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.state = useStore();
     }
 
@@ -158,6 +151,7 @@ export class DescriptionScreen extends Component {
         skip: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.industrySelection = useRef("industrySelection");
         this.purposeSelectionRef = useRef("purposeSelection");
         this.state = useStore();
@@ -166,7 +160,6 @@ export class DescriptionScreen extends Component {
 
         this.splitRegex = /[|\s,]+/;
 
-        // Get all words from the industry names and synonyms
         this.dictionarySet = new Set();
         for (const industry of this.state.industries) {
             let industryWords = this._splitToSet(industry.label);
@@ -177,15 +170,12 @@ export class DescriptionScreen extends Component {
             }
             this.dictionarySet = this.dictionarySet.union(industryWords);
         }
+        log.pipeline("DescriptionScreen dictionary built", () => ({
+            words: this.dictionarySet.size,
+        }));
 
         onMounted(() => this.onMounted());
 
-        // Autofocus the next field once the current one is confirmed.
-        // Guarded: this effect runs on every patch, including ones where the
-        // field it wants to focus is not in the DOM yet. An unguarded
-        // dereference threw out of `onPatched`, which Owl turns into an
-        // OwlError that takes the whole configurator down -- for a hint that
-        // is optional by nature.
         useEffect(
             (selectedType, selectedIndustry) => {
                 if (selectedType && !selectedIndustry) {
@@ -200,7 +190,6 @@ export class DescriptionScreen extends Component {
 
         this.typeDropdown = useDropdownState();
         this.purposeDropdown = useDropdownState();
-        // The guided flow leaves each menu open until its step is answered.
         useEffect(
             (selectedType) => {
                 if (selectedType) {
@@ -227,9 +216,6 @@ export class DescriptionScreen extends Component {
         this.selectWebsitePurpose();
     }
     /**
-     * Set the input's parent label value to automatically adapt input size
-     * and update the selected industry.
-     *
      * @private
      * @param {string} label
      * @param {number} id
@@ -252,22 +238,13 @@ export class DescriptionScreen extends Component {
         ];
     }
     /**
-     * Called each time the autocomplete input's value changes. Only industries
-     * having a label or a synonym containing all terms of the input value are
-     * kept.
-     * The order received from IAP is kept (expected to be on descending hit
-     * count) unless there are 7 or less matches in which case the results are
-     * sorted alphabetically.
-     * The result size is limited to 30.
-     *
-     * @param {String} term input current value
+     * @param {String} term
      */
     _autocompleteSearch(term) {
+        const endSearch = log.perf("DescriptionScreen autocompleteSearch", { term });
         this.state.selectedIndustry = undefined;
         const termsSet = this._splitToSet(term);
 
-        //-------words correction--------
-        // Check and correct all the terms
         const correctedSet = new Set();
         for (const term of termsSet) {
             if (this.dictionarySet.has(term)) {
@@ -279,29 +256,21 @@ export class DescriptionScreen extends Component {
         }
         let terms = Array.from(correctedSet);
         const limit = 30;
-        // `this.state.industries` is already sorted by hit count (from IAP).
-        // That order should be kept after manipulating the recordset.
         let matches = this.state.industries.filter((val, index) =>
-            // To match, every term should be contained in the label
             terms.every((term) => val.label.toLowerCase().includes(term)),
         );
 
         matches = matches.sort((x, y) => x.hitCountOrder - y.hitCountOrder);
         if (matches.length > limit) {
-            // Keep matches with the least number of words so that e.g.
-            // "restaurant" remains available even if there are 30 specific
-            // sub-types that have a higher hit count.
             matches = matches
                 .sort((x, y) => x.wordCount - y.wordCount)
                 .slice(0, limit)
                 .sort((x, y) => x.hitCountOrder - y.hitCountOrder);
         } else {
             let synonymMatches = this.state.industries.filter((val, index) => {
-                // To match, every term should be contained in the synonym
                 for (const candidate of [
                     ...(val.synonyms || "").split(this.splitRegex),
                 ]) {
-                    // Check if industry label has already matched
                     if (
                         terms.every((term) => candidate.toLowerCase().includes(term)) &&
                         !matches.includes(val)
@@ -320,9 +289,11 @@ export class DescriptionScreen extends Component {
             }
         }
         if (matches.length === 0) {
+            log.logic("autocompleteSearch: no industry match, free label", { term });
             matches = [{ label: term, id: -1 }];
             terms = [term];
         }
+        endSearch(() => ({ matches: matches.length, terms }));
         return matches.map((match) => ({
             label: match.label,
             labelTermOrder: this._getMatchTermOrder(match.label, terms),
@@ -331,15 +302,9 @@ export class DescriptionScreen extends Component {
     }
 
     /**
-     * Splits the string parameter 'label' into bits based on the location
-     * of the 'terms' typed by the user.
-     *
      * @param {string} label
      * @param {string[]} terms
      * @returns {object}
-     * The return object 'matchTermOrder' contains two lists:
-     * - 'labelBits' store all the segments of the split 'label'
-     * - 'searchTermIndexes' keeps the indexes of the bits that matches with the 'terms'
      */
     _getMatchTermOrder(label, terms) {
         const sortedTerms = terms.sort((a, b) => b.length - a.length);
@@ -363,7 +328,6 @@ export class DescriptionScreen extends Component {
                 bitIndex += splitBits.length;
             }
         }
-        // Saves the indexes of the segments matching the terms
         const labelBits = [];
         for (const i in matchTermOrder.labelBits) {
             labelBits.push({
@@ -391,9 +355,15 @@ export class DescriptionScreen extends Component {
     checkDescriptionCompletion() {
         const { selectedType, selectedPurpose, selectedIndustry } = this.state;
         if (selectedType && selectedPurpose && selectedIndustry) {
-            // If the industry name is not known by the server, send it to the
-            // IAP server.
+            log.logic("description complete: go to palette", () => ({
+                selectedType,
+                selectedPurpose,
+                industryId: selectedIndustry.id,
+            }));
             if (selectedIndustry.id === -1) {
+                log.logic("report configurator_missing_industry", () => ({
+                    label: selectedIndustry.label,
+                }));
                 this.orm.call("website", "configurator_missing_industry", [], {
                     unknown_industry: selectedIndustry.label,
                 });
@@ -403,7 +373,7 @@ export class DescriptionScreen extends Component {
     }
     onAutocompleteInput({ inputValue }) {
         if (!inputValue) {
-            this.state.selectIndustry(); // reset
+            this.state.selectIndustry();
         }
     }
 }
@@ -416,6 +386,7 @@ export class PaletteSelectionScreen extends Component {
         skip: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.state = useStore();
         this.logoInputRef = useRef("logoSelectionInput");
         this.notification = useService("notification");
@@ -423,6 +394,7 @@ export class PaletteSelectionScreen extends Component {
 
         onMounted(() => {
             if (this.state.logo) {
+                log.logic("PaletteSelectionScreen mounted with logo: update palettes");
                 this.updatePalettes();
             }
         });
@@ -433,19 +405,17 @@ export class PaletteSelectionScreen extends Component {
     }
 
     /**
-     * Removes the previously uploaded logo.
-     *
      * @param {Event} ev
      */
     async removeLogo(ev) {
         ev.stopPropagation();
-        // Permit to trigger onChange even with the same file.
         this.logoInputRef.el.value = "";
         if (this.state.logoAttachmentId) {
+            const endRemove = log.perf("removeLogo remove attachment");
             await this._removeAttachments([this.state.logoAttachmentId]);
+            endRemove();
         }
         this.state.changeLogo();
-        // Remove recommended palette.
         this.state.setRecommendedPalette();
     }
 
@@ -455,6 +425,10 @@ export class PaletteSelectionScreen extends Component {
             const previousLogoAttachmentId = this.state.logoAttachmentId;
             const file = logoSelectInput.files[0];
             if (file.size > 2500000) {
+                log.logic("changeLogo rejected: file too large", () => ({
+                    name: file.name,
+                    size: file.size,
+                }));
                 this.notification.add(
                     _t(
                         "The logo is too large. Please upload a logo smaller than 2.5 MB.",
@@ -466,19 +440,30 @@ export class PaletteSelectionScreen extends Component {
                 );
                 return;
             }
+            const endUpload = log.perf("changeLogo read+upload", () => ({
+                name: file.name,
+                size: file.size,
+            }));
             const data = await getDataURLFromFile(file);
             const attachment = await rpc("/web_editor/attachment/add_data", {
                 name: "logo",
                 data: data.split(",")[1],
                 is_image: true,
             });
+            endUpload(() => ({ attachmentId: attachment.id, error: attachment.error }));
             if (!attachment.error) {
                 if (previousLogoAttachmentId) {
+                    log.logic("changeLogo replace previous attachment", {
+                        previousLogoAttachmentId,
+                    });
                     await this._removeAttachments([previousLogoAttachmentId]);
                 }
                 this.state.changeLogo(data, attachment.id);
                 this.updatePalettes();
             } else {
+                log.logic("changeLogo upload error", () => ({
+                    error: attachment.error,
+                }));
                 this.notification.add(attachment.error, {
                     title: file.name,
                 });
@@ -488,37 +473,37 @@ export class PaletteSelectionScreen extends Component {
 
     async updatePalettes() {
         let img = this.state.logo;
+        const endConvert = log.perf("updatePalettes convert logo");
         if (img.startsWith("data:image/svg+xml")) {
             img = await svgToPNG(img);
         }
         if (img.startsWith("data:image/webp")) {
             img = await webpToPNG(img);
         }
+        endConvert();
         img = img.split(",")[1];
+        const endColors = log.perf("extract_image_primary_secondary_colors");
         const [color1, color2] = await this.orm.call(
             "base.document.layout",
             "extract_image_primary_secondary_colors",
             [img],
             { mitigate: 255 },
         );
+        endColors({ color1, color2 });
         this.state.setRecommendedPalette(color1, color2);
     }
 
     selectPalette(paletteName) {
+        log.logic("PaletteSelectionScreen selectPalette", { paletteName });
         this.state.selectPalette(paletteName);
         this.props.navigate(ROUTES.featuresSelectionScreen);
     }
 
     /**
-     * Removes the attachments from the DB.
-     *
      * @private
-     * @param {Array<number>} ids the attachment ids to remove
+     * @param {Array<number>} ids
      */
     async _removeAttachments(ids) {
-        // Return the promise: callers `await` this to sequence the removal
-        // before the next logo/palette write, and to surface RPC errors instead
-        // of dropping them as an unhandled rejection.
         return rpc("/html_editor/attachment/remove", { ids: ids });
     }
 }
@@ -527,25 +512,26 @@ export class ApplyConfiguratorScreen extends Component {
     static template = "";
     static props = ["*"];
     setup() {
+        useLifecycleLog(log);
         this.websiteService = useService("website");
     }
 
     async applyConfigurator(themeName) {
+        log.logic("applyConfigurator", { themeName });
         if (!this.state.selectedIndustry) {
+            log.logic("applyConfigurator back: no industry");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
         if (!this.state.selectedPalette) {
+            log.logic("applyConfigurator back: no palette");
             return this.props.navigate(ROUTES.paletteSelectionScreen);
         }
         if (!this.state.selectedPurpose && !this.state.formerSelectedPurpose) {
-            // Neither is set (e.g. browser back/forward through the flow);
-            // getConfigurationData would crash on WEBSITE_PURPOSES[undefined].name.
+            log.logic("applyConfigurator back: no purpose");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
         if (!this.state.selectedType) {
-            // Same crash class as above: getConfigurationData reads
-            // WEBSITE_TYPES[this.state.selectedType].name, and selectedType is
-            // restored from sessionStorage so it can be undefined here.
+            log.logic("applyConfigurator back: no website type");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
 
@@ -558,11 +544,16 @@ export class ApplyConfiguratorScreen extends Component {
                     data,
                 );
             } catch (error) {
-                // Wait a bit before retrying or allowing manual retry.
+                log.logic("configurator_apply failed", () => ({
+                    retryCount,
+                    message: error?.message,
+                }));
                 await delay(5000);
                 if (retryCount < 3) {
+                    log.pipeline("configurator_apply retry", { retryCount });
                     return attemptConfiguratorApply(data, retryCount + 1);
                 }
+                log.logic("configurator_apply giving up", { retryCount });
                 document.querySelector(".o_website_loader_container").remove();
                 throw error;
             }
@@ -572,6 +563,9 @@ export class ApplyConfiguratorScreen extends Component {
             const selectedFeatures = Object.values(this.state.features)
                 .filter((feature) => feature.selected)
                 .map((feature) => feature.id);
+            log.pipeline("applyConfigurator show loader", () => ({
+                features: selectedFeatures.length,
+            }));
             this.websiteService.showLoader({
                 showTips: true,
                 selectedFeatures: selectedFeatures,
@@ -579,6 +573,7 @@ export class ApplyConfiguratorScreen extends Component {
             });
             let selectedPalette = this.state.selectedPalette.name;
             if (!selectedPalette) {
+                log.logic("applyConfigurator custom (recommended) palette");
                 selectedPalette = [
                     this.state.selectedPalette.color1,
                     this.state.selectedPalette.color2,
@@ -587,16 +582,18 @@ export class ApplyConfiguratorScreen extends Component {
                     this.state.selectedPalette.color5,
                 ];
             }
+            const endApply = log.perf("configurator_apply", { themeName });
             const resp = await attemptConfiguratorApply(
                 this.getConfigurationData(selectedFeatures, selectedPalette, themeName),
             );
+            endApply(() => ({ websiteId: resp.website_id }));
 
             this.props.clearStorage();
 
             this.websiteService.prepareOutLoader();
-            // Here the website service goToWebsite method is not used because
-            // the web client needs to be reloaded after the new modules have
-            // been installed.
+            log.pipeline("applyConfigurator redirect to preview", () => ({
+                websiteId: resp.website_id,
+            }));
             redirect(
                 `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
                     resp.website_id,
@@ -631,13 +628,12 @@ export class FeaturesSelectionScreen extends Component {
     };
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useStore();
     }
 
     /**
-     * Return the theme selection screen as the next step, unless overridden.
-     *
-     * @return {int} Next step route.
+     * @return {int}
      */
     static nextStep() {
         return ROUTES.themeSelectionScreen;
@@ -646,6 +642,12 @@ export class FeaturesSelectionScreen extends Component {
     async buildWebsite() {
         const industryId =
             this.state.selectedIndustry && this.state.selectedIndustry.id;
+        log.logic("buildWebsite", () => ({
+            industryId,
+            type: this.state.selectedType,
+            purpose: this.state.selectedPurpose,
+            palette: this.state.selectedPalette,
+        }));
         if (!industryId) {
             return this.props.navigate(ROUTES.descriptionScreen);
         }
@@ -684,8 +686,11 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             this.extraThemeSVGPreviews.push(useRef(`ExtraThemePreview${i}`));
         }
         onWillStart(async () => {
+            const endThemes = log.perf("configurator_recommended_themes");
             const themes = await getRecommendedThemes(this.orm, this.state);
+            endThemes(() => ({ themes: themes.length }));
             if (!themes.length) {
+                log.logic("no recommended theme: apply theme_default");
                 await this.applyConfigurator("theme_default");
             } else {
                 this.state.updateRecommendedThemes(themes);
@@ -706,12 +711,6 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
         );
     }
 
-    /**
-     * The button should be shown if we never tried to load the extra themes and
-     * if they are enough main themes already displayed. If this last condition
-     * is not fulfilled, there is no need to display the button as no more will
-     * be displayed.
-     */
     get showViewMoreThemesButton() {
         return (
             !this.state.extraThemesLoaded &&
@@ -720,18 +719,18 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
     }
 
     /**
-     * Transforms text svgs into svg elements and adds a loading effect that
-     * blocks the UI during the loading of the images inside those svg elements.
-     *
-     * @param {Array<Object>} themes - The text svgs.
-     * @param {Array} themeSVGPreviews - A reference to the svg elements.
+     * @param {Array<Object>} themes
+     * @param {Array} themeSVGPreviews
      */
     blockUiDuringImageLoading(themes, themeSVGPreviews) {
         if (!themes.length) {
-            // There is no svg to transform
+            log.logic("blockUiDuringImageLoading skip: no themes");
             return;
         }
         const proms = [];
+        const endImages = log.perf("blockUiDuringImageLoading", () => ({
+            themes: themes.length,
+        }));
         this.uiService.block({ delay: 700 });
         themes.forEach((theme, idx) => {
             const svgEl = new DOMParser().parseFromString(
@@ -760,31 +759,39 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             }
             themeSVGPreviews[idx].el.appendChild(svgEl);
         });
-        // When all the images inside the svgs are loaded then remove the
-        // loading effect.
+        log.pipeline("theme previews appended, waiting images", () => ({
+            themes: themes.length,
+            images: proms.length,
+        }));
         Promise.allSettled(proms).then(() => {
+            endImages(() => ({ images: proms.length }));
             this.uiService.unblock();
         });
     }
 
     async chooseTheme(themeName) {
+        log.logic("chooseTheme", { themeName });
         await this.applyConfigurator(themeName);
     }
 
     async getMoreThemes() {
         this.uiService.block();
+        const endMore = log.perf("getMoreThemes");
         const themes = await getRecommendedThemes(
             this.orm,
             this.state,
             this.maxNbrDisplayExtraThemes,
         );
-        // Filter the extra themes to not propose a theme that is already
-        // present in the main themes.
+        endMore(() => ({ themes: themes.length }));
         const mainThemeNames = this.state.themes.map((theme) => theme.name);
         this.state.extraThemes = themes.filter(
             (extraTheme) => !mainThemeNames.includes(extraTheme.name),
         );
         this.state.extraThemesLoaded = true;
+        log.pipeline("getMoreThemes extra themes", () => ({
+            fetched: themes.length,
+            main: mainThemeNames.length,
+        }));
         this.uiService.unblock();
     }
 
@@ -793,18 +800,12 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
     }
 }
 
-//------------------------------------------------------------------------------
-// Store
-//------------------------------------------------------------------------------
-
 export class Store {
     async start(getInitialState) {
+        const endStart = log.perf("Store start");
         Object.assign(this, await getInitialState());
+        endStart();
     }
-
-    //-------------------------------------------------------------------------
-    // Getters
-    //-------------------------------------------------------------------------
 
     getWebsiteTypes() {
         return Object.values(WEBSITE_TYPES);
@@ -842,11 +843,8 @@ export class Store {
         return palette ? palette.name || "recommendedPalette" : false;
     }
 
-    //-------------------------------------------------------------------------
-    // Actions
-    //-------------------------------------------------------------------------
-
     selectWebsiteType(id) {
+        log.logic("Store selectWebsiteType", { id });
         Object.values(this.features)
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
@@ -858,21 +856,19 @@ export class Store {
     }
 
     selectWebsitePurpose(id) {
-        // Keep track or the former selection in order to be able to keep
-        // the auto-advance navigation scheme while being able to use the
-        // browser's back and forward buttons.
+        log.logic("Store selectWebsitePurpose", { id });
         if (!id && this.selectedPurpose) {
             this.formerSelectedPurpose = this.selectedPurpose;
         }
         Object.values(this.features)
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
-                // need to check id, since we set to undefined in mount() to avoid the auto next screen on back button
-                feature.selected |=
-                    id &&
-                    feature.website_config_preselection.includes(
-                        WEBSITE_PURPOSES[id].name,
-                    );
+                feature.selected =
+                    feature.selected ||
+                    (id &&
+                        feature.website_config_preselection.includes(
+                            WEBSITE_PURPOSES[id].name,
+                        ));
             });
         this.selectedPurpose = id;
     }
@@ -891,6 +887,7 @@ export class Store {
     }
 
     selectPalette(paletteName) {
+        log.logic("Store selectPalette", { paletteName });
         if (paletteName === "recommendedPalette") {
             this.selectedPalette = this.recommendedPalette;
         } else {
@@ -901,10 +898,12 @@ export class Store {
     toggleFeature(featureId) {
         const feature = this.features[featureId];
         const isModuleInstalled = feature.module_state === "installed";
+        log.logic("Store toggleFeature", { featureId, isModuleInstalled });
         feature.selected = !feature.selected || isModuleInstalled;
     }
 
     setRecommendedPalette(color1, color2) {
+        log.logic("Store setRecommendedPalette", { color1, color2 });
         if (color1 && color2) {
             if (color1 === color2) {
                 color2 = mixCssColors("#FFFFFF", color1, 0.2);
@@ -948,16 +947,16 @@ export class Configurator extends Component {
     static props = { ...standardActionServiceProps };
 
     setup() {
+        useLifecycleLog(log);
         this.orm = useService("orm");
         this.action = useService("action");
         this.website = useService("website");
 
-        // Using the back button must update the router state.
         useExternalListener(window, "popstate", (ev) => {
-            // FIXME: this doesn't work unless this component is already mounted so navigating through
-            // history from a different client action will not work.
             if (ev.state && "configuratorStep" in ev.state) {
-                // Do not use navigate because URL is already updated.
+                log.logic("popstate restore step", () => ({
+                    step: ev.state.configuratorStep,
+                }));
                 this.state.currentStep = ev.state.configuratorStep;
             }
         });
@@ -972,18 +971,21 @@ export class Configurator extends Component {
         useSubEnv({ store });
 
         onWillStart(async () => {
+            const endWebsite = log.perf("get_current_website");
             this.websiteId = (await this.orm.call("website", "get_current_website"))[0];
+            endWebsite(() => ({ websiteId: this.websiteId }));
 
             await store.start(() => this.getInitialState());
             this.updateStorage(store);
             if (!store.industries || store.configurator_done) {
+                log.logic("willStart: nothing to configure, skip", () => ({
+                    industries: Boolean(store.industries),
+                    done: store.configurator_done,
+                }));
                 await this.skipConfigurator();
             }
         });
 
-        // This is a hack to overwrite the history state, modified by the
-        // router service after executing an action. Ideally, the router
-        // service would let us push a state with a new pathname.
         onMounted(() => {
             setTimeout(() => {
                 router.cancelPushes();
@@ -1037,6 +1039,11 @@ export class Configurator extends Component {
     }
 
     navigate(step, reload = false) {
+        log.lifecycle("navigate", () => ({
+            from: this.state.currentStep,
+            to: step,
+            reload,
+        }));
         this.state.currentStep = step;
         if (reload) {
             redirect(this.pathname);
@@ -1046,12 +1053,18 @@ export class Configurator extends Component {
     }
 
     clearStorage() {
+        log.lifecycle("clearStorage", () => ({ key: this.storageItemName }));
         sessionStorage.removeItem(this.storageItemName);
     }
 
     async getInitialState() {
-        // Load values from python and iap
+        const endInit = log.perf("configurator_init");
         const results = await this.orm.call("website", "configurator_init");
+        endInit(() => ({
+            industries: results.industries?.length,
+            features: results.features?.length,
+            done: results.configurator_done,
+        }));
         const r = {
             industries: results.industries,
             logo: results.logo ? "data:image/png;base64," + results.logo : false,
@@ -1063,7 +1076,6 @@ export class Configurator extends Component {
             hitCountOrder: index,
         }));
 
-        // Load palettes from the current CSS
         const palettes = {};
         const style = window.getComputedStyle(document.documentElement);
 
@@ -1085,12 +1097,21 @@ export class Configurator extends Component {
             });
             palettes[paletteName] = palette;
         });
+        log.pipeline("getInitialState palettes read", () => ({
+            palettes: PALETTE_NAMES.length,
+        }));
 
         const localState = JSON.parse(sessionStorage.getItem(this.storageItemName));
         if (localState) {
+            log.logic("getInitialState restore from sessionStorage", () => ({
+                industry: Boolean(localState.selectedIndustry),
+                palette: Boolean(localState.selectedPalette),
+            }));
             let themes = [];
             if (localState.selectedIndustry && localState.selectedPalette) {
+                const endThemes = log.perf("getInitialState recommended themes");
                 themes = await getRecommendedThemes(this.orm, localState);
+                endThemes(() => ({ themes: themes.length }));
             }
             return Object.assign(r, { ...localState, palettes, themes });
         }
@@ -1106,8 +1127,9 @@ export class Configurator extends Component {
                 : [];
         });
 
-        // Palette color used by default as background color for menu and footer.
-        // Needed to build the recommended palette.
+        log.pipeline("getInitialState fresh state", () => ({
+            features: Object.keys(features).length,
+        }));
         const defaultColors = {};
         CUSTOM_BG_COLOR_ATTRS.forEach((attr) => {
             const color = getCSSVariableValue(`o-default-${attr}-bg`, style);
@@ -1148,12 +1170,12 @@ export class Configurator extends Component {
     }
 
     async skipConfigurator() {
+        log.logic("skipConfigurator");
         this.website.showLoader({ showTips: true });
+        const endSkip = log.perf("configurator_skip");
         const redirectUrl = await this.orm.call("website", "configurator_skip");
+        endSkip();
         this.clearStorage();
-        // Here the website service goToWebsite method is not used because
-        // the web client needs to be reloaded after the new modules have
-        // been installed.
         await this.action.doAction(redirectUrl);
     }
 }

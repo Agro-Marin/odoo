@@ -1117,7 +1117,7 @@ action = {
                     lambda f: f.name == "date_automation_last"
                 ).id,
                 "trg_date_range": 2,
-                "trg_date_range_type": "minutes",
+                "trg_date_range_type": "minute",
                 "trg_date_range_mode": "after",
             }
         )
@@ -2186,6 +2186,7 @@ class TestHttp(common.HttpCase):
         automation = create_automation(
             self,
             trigger="on_webhook",
+            auth_type="none",
             model_id=model.id,
             record_getter=record_getter,
             _actions={
@@ -2220,6 +2221,7 @@ class TestHttp(common.HttpCase):
         automation = create_automation(
             self,
             trigger="on_webhook",
+            auth_type="none",
             model_id=model.id,
             record_getter=record_getter,
             _actions={
@@ -2259,6 +2261,7 @@ class TestHttp(common.HttpCase):
         automation_receiver = create_automation(
             self,
             trigger="on_webhook",
+            auth_type="none",
             model_id=model.id,
             record_getter="model.env[payload.get('_model')].browse(int(payload.get('_id')))",
             _actions={
@@ -2281,14 +2284,13 @@ class TestHttp(common.HttpCase):
             },
         )
 
-        with patch(
-            "odoo.addons.base.models.ir_actions_server._get_webhook_blocked_reason",
-            return_value=None,
-        ):
-            obj.name = "new_name"
-            self.cr.flush()
-            with self.allow_requests(all_requests=True):
-                self.cr.postcommit.run()  # webhooks run in postcommit
+        self.env["ir.config_parameter"].set_param(
+            "base.egress_allowed_networks", "127.0.0.0/8, ::1/128"
+        )
+        obj.name = "new_name"
+        self.cr.flush()
+        with self.allow_requests(all_requests=True):
+            self.cr.postcommit.run()  # webhooks run in postcommit
         self.cr.clear()
         self._wait_remaining_requests()
         self.assertEqual(
@@ -2321,7 +2323,7 @@ class TestHttp(common.HttpCase):
                 active_id=obj.id,
                 active_ids=obj.ids,
             ).run()
-        self.assertIn("not a globally routable range", str(caught.exception))
+        self.assertIn("127.0.0.1 is a loopback address", str(caught.exception))
 
     def test_on_change_get_views_cache(self):
         model_name = "automation.lead.test"

@@ -62,7 +62,7 @@ class AccountEdiFormat(models.Model):
         ) or self._l10n_eg_get_eta_api_domain(production_enviroment)
         request_url = api_domain + request_url
         try:
-            session = requests.session()
+            session = self.env["ir.egress"].session(purpose="l10n_eg_eta")
             session.mount("https://", LegacyHTTPAdapter())
             request_response = session.request(
                 method,
@@ -311,7 +311,7 @@ class AccountEdiFormat(models.Model):
         return {"error": _("PDF Document is not available")}
 
     @api.model
-    def _l10n_eg_validate_info_address(self, partner_id, issuer=False, invoice=False):
+    def _l10n_eg_is_info_address_complete(self, partner_id, issuer=False, invoice=False):
         fields = ["country_id", "state_id", "city", "street", "l10n_eg_building_no"]
         if (
             invoice
@@ -620,11 +620,11 @@ class AccountEdiFormat(models.Model):
             errors.append(
                 _("Please set the all the ETA information on the invoice's journal")
             )
-        if not self._l10n_eg_validate_info_address(
+        if not self._l10n_eg_is_info_address_complete(
             invoice.journal_id.l10n_eg_branch_id
         ):
             errors.append(_("Please add all the required fields in the branch details"))
-        if not self._l10n_eg_validate_info_address(invoice.partner_id, invoice=invoice):
+        if not self._l10n_eg_is_info_address_complete(invoice.partner_id, invoice=invoice):
             errors.append(
                 _("Please add all the required fields in the customer details")
             )

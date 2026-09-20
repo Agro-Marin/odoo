@@ -18,7 +18,7 @@ class GamificationActivity(models.Model):
     _rec_name = "summary"
 
     activity_type = fields.Selection(
-        [
+        selection=[
             ("badge", "Badge Earned"),
             ("kudos", "Kudos Sent"),
             ("achievement", "Achievement Unlocked"),
@@ -29,51 +29,61 @@ class GamificationActivity(models.Model):
             ("skill_unlocked", "Skill Unlocked"),
         ],
         string="Type",
-        required=True,
-        readonly=True,
         index=True,
+        readonly=True,
+        required=True,
     )
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
-        required=True,
+        comodel_name="res.users",
         index=True,
-        ondelete="cascade",
         readonly=True,
+        required=True,
+        ondelete="cascade",
     )
     target_user_id = fields.Many2one(
-        "res.users",
-        string="Target User",
+        comodel_name="res.users",
         index=True,
-        ondelete="set null",
         readonly=True,
+        ondelete="set null",
         help="Secondary user (e.g. kudos recipient).",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         related="user_id.company_id",
-        store=True,
-        index=True,
+        string="Company",
     )
-    summary = fields.Char("Summary", required=True, readonly=True)
-    icon = fields.Char("Icon CSS", readonly=True)
-    activity_date = fields.Datetime(
-        "Date",
-        default=fields.Datetime.now,
+    summary = fields.Char(
         readonly=True,
+        required=True,
+    )
+    icon = fields.Char(
+        string="Icon CSS",
+        readonly=True,
+    )
+    activity_date = fields.Datetime(
+        string="Date",
+        default=fields.Datetime.now,
         index=True,
+        readonly=True,
     )
 
     # Optional references to source records
-    badge_id = fields.Many2one("gamification.badge", ondelete="set null", readonly=True)
+    badge_id = fields.Many2one(
+        comodel_name="gamification.badge",
+        readonly=True,
+        ondelete="set null",
+    )
     achievement_id = fields.Many2one(
-        "gamification.achievement", ondelete="set null", readonly=True
+        comodel_name="gamification.achievement",
+        readonly=True,
+        ondelete="set null",
     )
     challenge_id = fields.Many2one(
-        "gamification.challenge", ondelete="set null", readonly=True
+        comodel_name="gamification.challenge",
+        readonly=True,
+        ondelete="set null",
     )
-    karma_gained = fields.Integer("Karma Gained", readonly=True)
+    karma_gained = fields.Integer(readonly=True)
 
     # ── Factory methods (called by source models) ───────────────────
     #

@@ -1,13 +1,28 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class ResourceResource(models.Model):
     _inherit = "resource.resource"
 
-    asset_id = fields.Many2one("resource.asset", compute="_compute_asset_id")
+    asset_ids = fields.One2many(
+        comodel_name="resource.asset",
+        inverse_name="resource_id",
+        string="Assets",
+    )
+    asset_id = fields.Many2one(
+        comodel_name="resource.asset",
+        compute="_compute_asset_id",
+        store=True,
+        index="btree_not_null",
+    )
 
+    @api.depends("asset_ids")
     def _compute_asset_id(self):
-        assets = self.env["resource.asset"].search([("resource_id", "in", self.ids)])
-        by_resource = {asset.resource_id.id: asset for asset in assets}
-        for resource in self:
-            resource.asset_id = by_resource.get(resource.id)
+        for resource in self.with_context(active_test=False):
+            resource.asset_id = resource.asset_ids[:1]
+
+    def _on_custody_changed(self, role, changes, planned=False):
+        super()._on_custody_changed(role, changes, planned=planned)
+        self.with_context(active_test=False).asset_id._on_custody_changed(
+            role, changes, planned=planned
+        )

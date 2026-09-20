@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools.assets.esm_registry import esm_registry
@@ -475,6 +475,60 @@ class TestCollectingUrlsIsNotRenderingThem(TransactionCase):
         html = self._with_request(req, lambda q: str(q._render(view.id)))
         self.assertIn('type="importmap"', html)
         self.assertTrue(req._esm_import_map_rendered)
+
+    def test_a_mocked_request_still_opens_a_document(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "native esm page under a mocked request",
+                "type": "qweb",
+                "arch": f'<div><t t-call-assets="{self.BUNDLE}" t-css="false"/></div>',
+            }
+        )
+        req = Mock()
+        html = self._with_request(req, lambda q: str(q._render(view.id)))
+        self.assertIn('type="importmap"', html)
+        self.assertEqual(req._esm_page_bundles, (self.BUNDLE,))
+
+    def test_each_document_rendered_in_one_request_keeps_its_map(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "native esm document",
+                "type": "qweb",
+                "arch": f'<div><t t-call-assets="{self.BUNDLE}" t-css="false"/></div>',
+            }
+        )
+        req = SimpleNamespace()
+        first = self._with_request(req, lambda q: str(q._render(view.id)))
+        second = self._with_request(req, lambda q: str(q._render(view.id)))
+        self.assertIn('type="importmap"', first)
+        self.assertIn(
+            'type="importmap"',
+            second,
+            "a second document, such as the iframe Studio's report editor renders "
+            "after the report, cannot resolve a specifier only the first one mapped",
+        )
+
+    def test_a_render_nested_in_a_render_is_part_of_its_document(self):
+        req = SimpleNamespace()
+        IrQweb = self.env["ir.qweb"]
+
+        def nested(q):
+            inner = self.env["ir.ui.view"].create(
+                {
+                    "name": "nested esm fragment",
+                    "type": "qweb",
+                    "arch": f'<div><t t-call-assets="{self.BUNDLE}" t-css="false"/></div>',
+                }
+            )
+            return str(q._render(inner.id))
+
+        req._esm_document_open = True
+        first, _ = self._with_request(
+            req, lambda q: q._get_native_module_nodes(self.BUNDLE)
+        )
+        fragment = self._with_request(req, nested)
+        self.assertTrue(any(IrQweb._is_import_map_node(n) for n in first))
+        self.assertNotIn('type="importmap"', fragment)
 
     def test_a_second_render_on_the_page_still_drops_the_map(self):
         req = SimpleNamespace()

@@ -1,6 +1,6 @@
 {
     "name": "POS Pine Labs",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Integrate your POS with Pine Labs payment terminals",
@@ -20,6 +20,7 @@ Features include:
     "license": "LGPL-3",
     "depends": [
         "point_of_sale",
+        "integration",
     ],
     "data": [
         "views/pos_payment_views.xml",
@@ -33,5 +34,4 @@ Features include:
             "pos_pine_labs/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

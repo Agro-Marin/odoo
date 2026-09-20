@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">
                 <filter
-                    string="Published Events"
                     name="is_published"
+                    string="Published Events"
                     domain="[('is_published', '=', True)]" />
             </xpath>
         </field>

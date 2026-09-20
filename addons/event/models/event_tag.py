@@ -14,9 +14,16 @@ class EventTagCategory(models.Model):
         """
         return (self.search([], order="sequence desc", limit=1).sequence or 0) + 1
 
-    name = fields.Char("Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=_default_sequence)
-    tag_ids = fields.One2many("event.tag", "category_id", string="Tags")
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=_default_sequence)
+    tag_ids = fields.One2many(
+        comodel_name="event.tag",
+        inverse_name="category_id",
+        string="Tags",
+    )
 
 
 class EventTag(models.Model):
@@ -25,17 +32,20 @@ class EventTag(models.Model):
     _description = "Event Tag"
     _order = "category_sequence, sequence, id"
 
-    name = fields.Char("Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=0)
-    category_id = fields.Many2one(
-        "event.tag.category",
-        string="Category",
+    name = fields.Char(
+        translate=True,
         required=True,
+    )
+    sequence = fields.Integer(default=0)
+    category_id = fields.Many2one(
+        comodel_name="event.tag.category",
         index=True,
+        required=True,
         ondelete="cascade",
     )
     category_sequence = fields.Integer(
-        related="category_id.sequence", string="Category Sequence", store=True
+        related="category_id.sequence",
+        string="Category Sequence",
     )
     color = fields.Integer(
         string="Color Index",

@@ -19,7 +19,7 @@
                         name="service_upsell_threshold"
                         widget="percentage"
                         class="oe_inline o_field_highlight" />
-                    of hours sold. <field name="service_upsell_threshold_ratio" class="oe_inline" invisible="not service_upsell_threshold_ratio" />
+                    of hours sold. <field name="service_upsell_threshold_ratio" invisible="not service_upsell_threshold_ratio" class="oe_inline" />
                 </div>
             </field>
         </field>
@@ -34,16 +34,16 @@
             <filter name="combo" position="after">
                 <separator />
                 <filter
-                    string="Time-based services"
                     name="product_time_based"
+                    string="Time-based services"
                     domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transferred'), ('service_type', '=', 'timesheet')]" />
                 <filter
-                    string="Fixed price services"
                     name="product_service_fixed"
+                    string="Fixed price services"
                     domain="[('type', '=', 'service'), ('invoice_policy', '=', 'ordered'), ('service_type', '=', 'timesheet')]" />
                 <filter
-                    string="Milestone services"
                     name="product_service_milestone"
+                    string="Milestone services"
                     domain="[('type', '=', 'service'), ('invoice_policy', '=', 'transferred'), ('service_type', '=', 'manual')]" />
             </filter>
         </field>

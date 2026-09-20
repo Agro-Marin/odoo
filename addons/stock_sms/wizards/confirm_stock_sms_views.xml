@@ -12,16 +12,16 @@
                     <button
                         name="send_sms"
                         type="object"
-                        data-hotkey="q"
                         string="Confirm"
-                        class="oe_highlight" />
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <button
                         name="dont_send_sms"
                         type="object"
-                        data-hotkey="w"
                         string="Disable SMS"
-                        class="btn btn-secondary" />
-                    <button special="cancel" data-hotkey="x" string="Cancel" />
+                        class="btn btn-secondary"
+                        data-hotkey="w" />
+                    <button special="cancel" string="Cancel" data-hotkey="x" />
                 </footer>
             </form>
         </field>

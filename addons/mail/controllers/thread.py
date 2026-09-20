@@ -7,6 +7,7 @@ from markupsafe import Markup
 from odoo import http, models
 from odoo.exceptions import UserError
 from odoo.http import NotFound, request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import email_normalize
 from odoo.tools.misc import is_valid_limited_field_access_token
 
@@ -18,6 +19,7 @@ from odoo.addons.mail.controllers.utils import (
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.mail_message import MailMessage
@@ -56,6 +58,7 @@ class ThreadController(http.Controller):
             raise NotFound
         allowed = cls.CLIENT_CONTEXT_KEYS
         if dropped := set(context) - allowed:
+            _debug.logic("client_context_dropped", keys=sorted(dropped))
             _logger.debug("Ignoring context keys from the client: %s", sorted(dropped))
         request.update_context(
             **{key: value for key, value in context.items() if key in allowed}
@@ -79,6 +82,12 @@ class ThreadController(http.Controller):
         access_mode = thread_su._mail_get_operation_for_mail_message_operation(
             "create"
         ).get(thread_su)
+        _debug.logic(
+            "post_access_mode",
+            model=thread_model,
+            record=thread_su.id,
+            mode=access_mode or None,
+        )
         if not access_mode:
             return request.env[thread_model]
         return cls._get_thread_with_access(
@@ -110,9 +119,16 @@ class ThreadController(http.Controller):
         thread = self._get_thread_with_access(thread_model, thread_id, mode="read")
         if not thread:
             raise NotFound
-        return message_fetch_response(
-            thread=thread, fetch_params=fetch_params, mark_done=True
-        )
+        with _debug.perf(
+            "thread_messages",
+            cr=request.env.cr,
+            model=thread_model,
+            record=thread.id,
+            params=sorted(fetch_params) if isinstance(fetch_params, dict) else None,
+        ):
+            return message_fetch_response(
+                thread=thread, fetch_params=fetch_params, mark_done=True
+            )
 
     @http.route(
         "/mail/thread/recipients", methods=["POST"], type="jsonrpc", auth="user"
@@ -211,6 +227,13 @@ class ThreadController(http.Controller):
         partners = (thread or model)._partner_get_or_create_from_emails_single(
             emails,
             no_create=not request.env.user.has_group("base.group_partner_manager"),
+        )
+        _debug.logic(
+            "partners_from_email",
+            model=thread_model,
+            record=record_id or None,
+            emails=len(emails),
+            partners=len(partners),
         )
         source_by_normalized = {}
         for email in emails:
@@ -339,6 +362,15 @@ class ThreadController(http.Controller):
         )
         mention_tokens = post_data.get("partner_ids_mention_token") or {}
         mentionable_ids = self._mentionable_partner_ids(thread)
+        _debug.logic(
+            "message_partners",
+            model=thread._name,
+            record=thread.id,
+            asked=len(partners),
+            readable=len(readable_ids),
+            tokens=len(mention_tokens),
+            emails=len(partner_emails or ()),
+        )
         return partners.filtered(
             lambda p: (
                 p.id in readable_ids
@@ -377,14 +409,25 @@ class ThreadController(http.Controller):
                 kwargs.get("canned_response_ids")
             )
         if not self._has_post_write_access(thread):
+            _debug.logic(
+                "post_without_write_access", model=thread._name, record=thread.id
+            )
             thread = thread.with_context(
                 mail_post_autofollow_author_skip=True, mail_post_autofollow=False
             )
-        message = thread.sudo().message_post(
-            **self._prepare_message_data(
-                post_data, thread=thread, from_create=True, **kwargs
-            ),
-        )
+        with _debug.perf(
+            "message_post",
+            cr=request.env.cr,
+            model=thread._name,
+            record=thread.id,
+            uid=request.env.uid,
+        ) as span:
+            message = thread.sudo().message_post(
+                **self._prepare_message_data(
+                    post_data, thread=thread, from_create=True, **kwargs
+                ),
+            )
+            span.set(message=message.id)
         return {
             "store_data": store.add(message).get_result(),
             "message_id": message.id,
@@ -399,6 +442,9 @@ class ThreadController(http.Controller):
     ) -> dict:
         message = self._get_message_with_access(message_id, mode="create", **kwargs)
         if not message or not self._can_edit_message(message, **kwargs):
+            _debug.logic(
+                "update_content_refused", message=message_id, uid=request.env.uid
+            )
             raise NotFound
         message = message.sudo()
         thread = _to_thread_model(message.model).browse(message.res_id)
@@ -424,6 +470,13 @@ class ThreadController(http.Controller):
         if not thread:
             raise NotFound
         partner_ids = to_record_ids(partner_ids)
+        _debug.lifecycle(
+            "follower_change",
+            model=res_model,
+            record=thread.id,
+            partners=len(partner_ids),
+            subscribe=subscribe,
+        )
         if subscribe:
             thread.message_subscribe(partner_ids)
         else:

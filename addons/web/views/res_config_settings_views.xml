@@ -10,13 +10,13 @@
             <xpath expr="//form" position="inside">
                 <field name="is_root_company" invisible="1" />
                 <app
-                    data-string="General Settings"
-                    string="General Settings"
                     name="general_settings"
+                    string="General Settings"
+                    data-string="General Settings"
                     logo="/base/static/description/settings.png">
 
                     <div id="invite_users">
-                        <block title="Users" name="users_setting_container">
+                        <block name="users_setting_container" title="Users">
                             <setting id="invite_users_setting">
                                 <widget name="res_config_invite_users" />
                             </setting>
@@ -39,21 +39,21 @@
                                 </span>
                                 <widget
                                     name="documentation_link"
-                                    path="/applications/general/users.html"
-                                    icon="fa-question-circle" />
+                                    icon="fa-question-circle"
+                                    path="/applications/general/users.html" />
                                 <br />
                                 <button
                                     name="%(base.action_res_users)d"
-                                    icon="oi-arrow-right"
                                     type="action"
                                     string="Manage Users"
+                                    icon="oi-arrow-right"
                                     class="btn-link o_web_settings_access_rights" />
                             </setting>
                         </block>
                     </div>
 
                     <div id="languages">
-                        <block title="Languages" name="languages_setting_container">
+                        <block name="languages_setting_container" title="Languages">
                             <setting id="languages_setting">
                                 <div class="w-50">
                                     <field
@@ -73,17 +73,17 @@
                                 <div class="mt8">
                                     <button
                                         name="%(base.action_view_base_language_install)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Add Languages"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                                 <div class="mt8" groups="base.group_no_one">
                                     <button
                                         name="%(base.res_lang_act_window)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Manage Languages"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                             </setting>
@@ -91,7 +91,7 @@
                     </div>
 
                     <div id="companies">
-                        <block title="Companies" name="companies_setting_container">
+                        <block name="companies_setting_container" title="Companies">
                             <field name="company_id" invisible="1" />
                             <setting id="company_details_settings">
                                 <field
@@ -106,9 +106,9 @@
                                 <br />
                                 <button
                                     name="open_company"
-                                    icon="oi-arrow-right"
                                     type="object"
                                     string="Update Info"
+                                    icon="oi-arrow-right"
                                     class="btn-link" />
                             </setting>
                             <setting id="companies_setting">
@@ -130,9 +130,9 @@
                                 <div class="mt8">
                                     <button
                                         name="%(base.action_res_company_form)d"
-                                        icon="oi-arrow-right"
                                         type="action"
                                         string="Manage Companies"
+                                        icon="oi-arrow-right"
                                         class="btn-link" />
                                 </div>
                             </setting>
@@ -154,36 +154,36 @@
                                     </div>
                                     <button
                                         name="%(web.action_base_document_layout_configurator)d"
-                                        string="Configure Document Layout"
                                         type="action"
-                                        class="oe_link"
-                                        icon="oi-arrow-right" />
+                                        string="Configure Document Layout"
+                                        icon="oi-arrow-right"
+                                        class="oe_link" />
                                     <br groups="base.group_no_one" />
                                     <button
                                         name="edit_external_header"
-                                        string="Edit Layout"
                                         type="object"
-                                        class="oe_link"
+                                        string="Edit Layout"
+                                        icon="oi-arrow-right"
                                         groups="base.group_no_one"
-                                        icon="oi-arrow-right" />
+                                        class="oe_link" />
                                     <br groups="base.group_no_one" />
                                     <button
                                         name="%(web.action_report_externalpreview)d"
-                                        string="Preview Document"
                                         type="action"
-                                        class="oe_link"
+                                        string="Preview Document"
+                                        icon="oi-arrow-right"
                                         groups="base.group_no_one"
-                                        icon="oi-arrow-right" />
+                                        class="oe_link" />
                                 </div>
                             </setting>
                             <field name="company_id" invisible="1" />
                             <setting
                                 id="inter_company"
                                 string="Inter-Company Transactions"
-                                company_dependent="1"
+                                title="Configure company rules to automatically create SO/PO when one of your company sells/buys to another of your company."
                                 help="Create corresponding in/out orders and bills when you sell/buy between your companies"
                                 groups="base.group_multi_company"
-                                title="Configure company rules to automatically create SO/PO when one of your company sells/buys to another of your company.">
+                                company_dependent="1">
                                 <field
                                     name="module_account_inter_company_rules"
                                     widget="upgrade_boolean" />
@@ -200,34 +200,34 @@
                     <div id="emails" />
 
                     <div id="contacts_settings">
-                        <block title="Contacts" name="contacts_setting_container">
+                        <block name="contacts_setting_container" title="Contacts">
                             <setting
                                 id="sms"
                                 string="Send SMS"
-                                documentation="/applications/marketing/sms_marketing/pricing/pricing_and_faq.html"
-                                help="Send texts to your contacts">
+                                help="Send texts to your contacts"
+                                documentation="/applications/marketing/sms_marketing/pricing/pricing_and_faq.html">
                                 <field name="module_sms" invisible="1" />
                             </setting>
                             <setting
-                                help="Automatically enrich your contact base with company data"
+                                id="partner_autocomplete"
                                 title="When populating your address book, Odoo provides a list of matching companies. When selecting one item, the company data and logo are auto-filled."
-                                id="partner_autocomplete">
+                                help="Automatically enrich your contact base with company data">
                                 <field name="module_partner_autocomplete" />
                             </setting>
                         </block>
                     </div>
 
-                    <block title="Permissions" id="user_default_rights">
+                    <block id="user_default_rights" title="Permissions">
                         <setting
+                            id="access_rights"
                             string="Default Access Rights"
-                            help="Set custom access rights for new users"
                             title="By default, new users get highest access rights for all installed apps. If unchecked, new users will only have basic employee access."
-                            id="access_rights">
+                            help="Set custom access rights for new users">
                             <div class="content-group">
                                 <div class="mt8">
                                     <button
-                                        type="object"
                                         name="open_new_user_default_groups"
+                                        type="object"
                                         string="Default Access Rights"
                                         icon="oi-arrow-right"
                                         class="btn-link" />
@@ -239,18 +239,18 @@
                             help="API Keys allow your users to access Odoo with external tools when multi-factor authentication is enabled."
                             groups="base.group_system">
                             <button
-                                type="action"
                                 name="%(base.action_apikeys_admin)d"
+                                type="action"
                                 string="Manage API Keys"
                                 icon="oi-arrow-right"
                                 class="btn-link" />
                         </setting>
                         <setting
+                            id="allow_import"
                             string="Import &amp; Export"
                             help="Allow users to import data from CSV/XLS/XLSX/ODS files"
-                            documentation="/applications/general/export_import_data.html"
                             groups="base.group_no_one"
-                            id="allow_import">
+                            documentation="/applications/general/export_import_data.html">
                             <field name="module_base_import" />
                         </setting>
                         <setting
@@ -262,8 +262,8 @@
                     </block>
 
                     <block
-                        title="Progressive Web App"
                         id="pwa_settings"
+                        title="Progressive Web App"
                         groups="base.group_no_one">
                         <setting
                             help="This name will be used for the application when Odoo is installed through the browser.">
@@ -271,18 +271,18 @@
                         </setting>
                     </block>
 
-                    <block title="Integrations" name="integration">
+                    <block name="integration" title="Integrations">
                         <setting
+                            id="mail_pluggin_setting"
                             string="Mail Plugin"
-                            documentation="/applications/productivity/mail_plugins.html"
                             help="Integrate with mail client plugins"
-                            id="mail_pluggin_setting">
+                            documentation="/applications/productivity/mail_plugins.html">
                             <field name="module_mail_plugin" />
                         </setting>
                         <setting
+                            id="module_auth_oauth"
                             string="OAuth Authentication"
-                            help="Use external accounts to log in (Google, Facebook, etc.)"
-                            id="module_auth_oauth">
+                            help="Use external accounts to log in (Google, Facebook, etc.)">
                             <field name="module_auth_oauth" />
                             <div
                                 class="content-group mt16"
@@ -293,10 +293,10 @@
                             </div>
                         </setting>
                         <setting
+                            id="module_auth_ldap"
                             string="LDAP Authentication"
                             help="Use LDAP credentials to log in"
-                            documentation="/applications/general/auth/ldap.html"
-                            id="module_auth_ldap">
+                            documentation="/applications/general/auth/ldap.html">
                             <field name="module_auth_ldap" />
                             <div
                                 class="content-group"
@@ -307,9 +307,9 @@
                             </div>
                         </setting>
                         <setting
-                            documentation="/applications/websites/website/optimize/unsplash.html"
+                            id="unsplash"
                             help="Find free high-resolution images from Unsplash"
-                            id="unsplash">
+                            documentation="/applications/websites/website/optimize/unsplash.html">
                             <field name="module_web_unsplash" />
                             <div
                                 class="content-group"
@@ -320,9 +320,9 @@
                             </div>
                         </setting>
                         <setting
+                            id="geocoding"
                             string="Geolocation"
                             help="Geolocate your partners"
-                            id="geocoding"
                             documentation="/applications/general/integrations/geolocation.html">
                             <field name="module_geocoding" />
                             <div
@@ -334,8 +334,8 @@
                             </div>
                         </setting>
                         <setting
-                            help="Protect your forms from spam and abuse."
-                            id="recaptcha">
+                            id="recaptcha"
+                            help="Protect your forms from spam and abuse.">
                             <field name="module_google_recaptcha" />
                             <div
                                 class="content-group"
@@ -346,8 +346,8 @@
                             </div>
                         </setting>
                         <setting
-                            help="Protect your forms with CF Turnstile."
-                            id="cf-turnstile">
+                            id="cf-turnstile"
+                            help="Protect your forms with CF Turnstile.">
                             <field name="module_website_cf_turnstile" />
                             <div
                                 class="content-group"
@@ -358,8 +358,8 @@
                             </div>
                         </setting>
                         <setting
-                            help="Autocomplete partner addresses with Google Places"
-                            id="google_address_autocomplete">
+                            id="google_address_autocomplete"
+                            help="Autocomplete partner addresses with Google Places">
                             <field name="module_google_address_autocomplete" />
                             <div
                                 class="content-group"
@@ -372,9 +372,9 @@
                     </block>
 
                     <block
+                        name="performance"
                         title="Performance"
-                        groups="base.group_no_one"
-                        name="performance">
+                        groups="base.group_no_one">
                         <setting
                             id="profiling_enabled_until"
                             help="Enable the profiling tool. Profiling may impact performance while being active.">
@@ -384,7 +384,7 @@
 
                     <widget name="res_config_dev_tool" />
                     <div id="about">
-                        <block title="About" name="about_setting_container">
+                        <block name="about_setting_container" title="About">
                             <widget name="res_config_edition" />
                         </block>
                     </div>

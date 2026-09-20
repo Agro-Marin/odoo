@@ -60,9 +60,21 @@ class TestWebController(HttpCase):
             self.assertEqual(payload["status"], "fail")
             self.assertEqual(payload["checks"]["db"], "fail")
 
+    def test_readyz_registries_pass_once_the_preload_is_done(self):
+        response = self.url_open("/web/readyz")
+        self.assertEqual(response.json()["checks"]["registries"], "pass")
+
+    def test_readyz_loading_while_a_registry_preloads(self):
+        with patch("odoo.service.server.is_ready", return_value=False):
+            response = self.url_open("/web/readyz")
+            self.assertEqual(response.status_code, 503)
+            payload = response.json()
+            self.assertEqual(payload["status"], "fail")
+            self.assertEqual(payload["checks"]["registries"], "loading")
+
     def test_readyz_data_dir_fail(self):
         with patch(
-            "odoo.addons.web.controllers.home.os.access",
+            "odoo.addons.web.controllers.health.os.access",
             return_value=False,
         ):
             response = self.url_open("/web/readyz")
@@ -89,7 +101,7 @@ class TestWebMetrics(HttpCase):
         self.assertEqual(response.status_code, 404)
 
     def test_rejects_a_missing_or_wrong_token(self):
-        logger = "odoo.addons.web.controllers.home"
+        logger = "odoo.addons.web.controllers.health"
         with (
             patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}),
             self.assertLogs(logger, "WARNING") as capture,

@@ -243,9 +243,7 @@ class WebsiteLinksCharts extends Interaction {
     }
 
     getLastWeekClicksByCountry() {
-        // 7 days * 24 hours * 60 minutes * 60 seconds * 1000 milliseconds.
         const aWeekAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        // get the date in the format YYYY-MM-DD.
         const aWeekAgoString = aWeekAgoDate.toISOString().split("T")[0];
         return this.orm.formattedReadGroup(
             "link.tracker.click",
@@ -256,9 +254,7 @@ class WebsiteLinksCharts extends Interaction {
     }
 
     getLastMonthClicksByCountry() {
-        // 30 days * 24 hours * 60 minutes * 60 seconds * 1000 milliseconds.
         const aMonthAgoDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        // get the date in the format YYYY-MM-DD.
         const aMonthAgoString = aMonthAgoDate.toISOString().split("T")[0];
         return this.orm.formattedReadGroup(
             "link.tracker.click",

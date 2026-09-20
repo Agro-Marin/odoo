@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, press, queryAll, waitFor, waitUntil } from "@odoo/hoot-dom";
+import { click, hover, press, queryAll, waitFor, waitUntil } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onRendered, reactive, useRef, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -129,6 +129,7 @@ test("the active emoji is read from the rendered list, not from the DOM", async 
     expect(() => instance.activeEmoji).not.toThrow();
 });
 
+test.tags("desktop");
 test("hovering an emoji updates the placeholder without re-rendering the grid", async () => {
     let renders = 0;
     class Probe extends EmojiPicker {
@@ -142,7 +143,7 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
     expect(cells.length).toBeGreaterThan(1);
 
     renders = 0;
-    cells[3].dispatchEvent(new MouseEvent("mouseenter"));
+    await hover(cells[3]);
     await animationFrame();
 
     expect(renders).toBe(0);
@@ -150,6 +151,103 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
         "placeholder",
         picker.getEmojisFromSearch()[3].shortcodes.join(" "),
     );
+
+    await hover(cells[3].firstElementChild);
+    await animationFrame();
+    expect(".o-EmojiPicker input").toHaveAttribute(
+        "placeholder",
+        picker.getEmojisFromSearch()[3].shortcodes.join(" "),
+    );
+
+    await hover(".o-EmojiPicker-navbar");
+    await animationFrame();
+    expect(".o-EmojiPicker input").toHaveAttribute(
+        "placeholder",
+        picker.getEmojisFromSearch()[0].shortcodes.join(" "),
+    );
+});
+
+test("the picker mounts in two renders: the navbar's first resize notification adds none", async () => {
+    await loadEmoji();
+    let renders = 0;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        }
+    }
+    const picker = await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    await animationFrame();
+    expect(picker.state.emojiNavbarRepr).not.toBe(undefined);
+    expect(renders).toBe(2);
+});
+
+test("searching and scrolling never build the keyboard grid; the first arrow key does, once", async () => {
+    await loadEmoji();
+    let builds = 0;
+    /** @type {any} */
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+        computeEmojiMatrix() {
+            builds++;
+            return super.computeEmojiMatrix();
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    expect(builds).toBe(0);
+
+    picker.state.searchTerm = "ca";
+    await animationFrame();
+    await animationFrame();
+    picker.state.searchTerm = "";
+    await animationFrame();
+    await animationFrame();
+    picker.state.categoryId = picker.categories[2].sortId;
+    await animationFrame();
+    expect(builds).toBe(0);
+    expect(".o-EmojiPicker input").not.toHaveAttribute("model");
+
+    picker.handleNavigation("ArrowRight");
+    picker.handleNavigation("ArrowDown");
+    await animationFrame();
+    expect(builds).toBe(1);
+    expect(picker.state.activeEmojiIndex).not.toBe(0);
+});
+
+test("the grid listens for its cells: mounting them adds three listeners, not three per cell", async () => {
+    await loadEmoji();
+    const counts = {
+        click: 0,
+        mouseover: 0,
+        mouseout: 0,
+        mouseenter: 0,
+        mouseleave: 0,
+    };
+    const { addEventListener } = EventTarget.prototype;
+    patchWithCleanup(EventTarget.prototype, {
+        /** @type {typeof addEventListener} */
+        addEventListener(type, listener, options) {
+            if (type in counts) {
+                counts[type]++;
+            }
+            return addEventListener.call(this, type, listener, options);
+        },
+    });
+    await mountWithCleanup(EmojiPicker, { props: { onSelect: () => {} } });
+    const cells = queryAll(".o-EmojiPicker-content .o-Emoji").length;
+    expect(cells).toBeGreaterThan(1000);
+    expect(counts.mouseenter + counts.mouseleave).toBe(0);
+    expect(counts.click + counts.mouseover + counts.mouseout).toBeLessThan(cells);
+
+    await click(".o-EmojiPicker-content .o-Emoji:eq(5)");
+    await animationFrame();
+    expect(counts.click + counts.mouseover + counts.mouseout).toBeLessThan(cells);
 });
 
 test("adaptNavbar survives a navbar with no emoji rendered", async () => {

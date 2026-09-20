@@ -1,17 +1,22 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class WebsiteVisitor(models.Model):
     _inherit = "website.visitor"
 
     lead_ids = fields.Many2many(
-        "crm.lead", string="Leads", groups="sales_team.group_sale_salesman"
+        comodel_name="crm.lead",
+        string="Leads",
+        groups="sale.group_sale_salesman",
     )
     lead_count = fields.Count(
-        "lead_ids",
-        "# Leads",
-        groups="sales_team.group_sale_salesman",
+        count_of="lead_ids",
+        string="# Leads",
+        groups="sale.group_sale_salesman",
     )
 
     @api.depends(
@@ -30,6 +35,12 @@ class WebsiteVisitor(models.Model):
         visitor_to_lead_ids = {
             visitor.id: visitor.lead_ids.ids for visitor in left_visitors
         }
+        _debug.pipeline(
+            "email_phone_from_leads",
+            visitors=self,
+            incomplete=len(left_visitors),
+            leads=leads,
+        )
 
         for visitor in left_visitors:
             visitor_leads = leads.filtered(
@@ -62,6 +73,12 @@ class WebsiteVisitor(models.Model):
             if not partners:
                 main_lead = self.lead_ids[0]
                 main_lead._handle_partner_assignment(create_missing=True)
+                _debug.lifecycle(
+                    "partner_created_for_visitor",
+                    visitor=self,
+                    lead=main_lead,
+                    partner=main_lead.partner_id,
+                )
                 self.partner_id = main_lead.partner_id.id
             return True
         return check
@@ -71,6 +88,9 @@ class WebsiteVisitor(models.Model):
 
     def _merge_visitor(self, target):
         if self.lead_ids:
+            _debug.lifecycle(
+                "leads_reassigned", visitor=self, target=target, leads=self.lead_ids
+            )
             target.write({"lead_ids": [(4, lead.id) for lead in self.lead_ids]})
 
         return super()._merge_visitor(target)

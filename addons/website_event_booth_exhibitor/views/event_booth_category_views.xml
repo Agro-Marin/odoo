@@ -10,7 +10,7 @@
             <field name="priority" eval="2" />
             <field name="arch" type="xml">
                 <group name="main" position="inside">
-                    <group string="Sponsorship" name="sponsor">
+                    <group name="sponsor" string="Sponsorship">
                         <field name="use_sponsor" />
                         <field
                             name="sponsor_type_id"

@@ -2,7 +2,7 @@
 import { ProductNameAndDescriptionField } from "@product/product_name_and_description/product_name_and_description";
 import { isTerminalState } from "@stock/utils/stock_state";
 import { registry } from "@web/core/registry";
-import { many2OneField } from "@web/fields/relational/many2one";
+import { buildM2OFieldDescription } from "@web/fields/relational/many2one";
 
 export class MoveProductLabelField extends ProductNameAndDescriptionField {
     static template = "stock.MoveProductLabelField";
@@ -32,8 +32,5 @@ export class MoveProductLabelField extends ProductNameAndDescriptionField {
     }
 }
 
-export const moveProductLabelField = {
-    ...many2OneField,
-    component: MoveProductLabelField,
-};
+export const moveProductLabelField = buildM2OFieldDescription(MoveProductLabelField);
 registry.category("fields").add("move_product_label_field", moveProductLabelField);

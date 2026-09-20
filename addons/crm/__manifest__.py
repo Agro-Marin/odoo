@@ -1,6 +1,6 @@
 {
     "name": "CRM",
-    "version": "1.10",
+    "version": "2.0",
     "category": "Sales/CRM",
     "sequence": 15,
     "summary": "Track leads and close opportunities",
@@ -8,7 +8,8 @@
     "website": "https://www.odoo.com/app/crm",
     "license": "LGPL-3",
     "depends": [
-        "sales_team",
+        "sale",
+        "sale_team",
         "mail",
         "calendar",
         "utm",
@@ -41,7 +42,7 @@
         "views/crm_lost_reason_views.xml",
         "views/crm_stage_views.xml",
         "views/crm_lead_views.xml",
-        "views/crm_team_member_views.xml",
+        "views/team_member_views.xml",
         "views/digest_views.xml",
         "views/mail_activity_plan_views.xml",
         "views/mail_activity_views.xml",
@@ -50,7 +51,7 @@
         "views/utm_campaign_views.xml",
         "reports/crm_activity_report_views.xml",
         "reports/crm_opportunity_report_views.xml",
-        "views/crm_team_views.xml",
+        "views/team_team_views.xml",
         "views/crm_menu_views.xml",
         "views/crm_helper_templates.xml",
     ],
@@ -75,6 +76,5 @@
             "crm/static/tests/crm_mock_server.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

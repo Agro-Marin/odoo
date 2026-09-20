@@ -1,5 +1,5 @@
 {
-    "name": "T\u00fcrkiye - Accounting",
+    "name": "Türkiye - Accounting",
     "version": "1.3",
     "category": "Accounting/Localizations/Account Charts",
     "description": """

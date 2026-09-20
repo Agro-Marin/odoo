@@ -7,8 +7,11 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrUiView(models.Model):
@@ -16,22 +19,30 @@ class IrUiView(models.Model):
 
     _inherit = ["ir.ui.view", "mixin.website.seo.metadata"]
 
-    website_id = fields.Many2one("website", ondelete="cascade", string="Website")
-    page_ids = fields.One2many("website.page", "view_id")
-    controller_page_ids = fields.One2many("website.controller.page", "view_id")
+    website_id = fields.Many2one(
+        comodel_name="website",
+        ondelete="cascade",
+    )
+    page_ids = fields.One2many(
+        comodel_name="website.page",
+        inverse_name="view_id",
+    )
+    controller_page_ids = fields.One2many(
+        comodel_name="website.controller.page",
+        inverse_name="view_id",
+    )
     first_page_id = fields.Many2one(
-        "website.page",
+        comodel_name="website.page",
         string="Website Page",
-        help="First page linked to this view",
         compute="_compute_first_page_id",
+        help="First page linked to this view",
     )
     track = fields.Boolean(
-        string="Track",
         default=False,
         help="Allow to specify for one page of the website to be trackable or not",
     )
     visibility = fields.Selection(
-        [
+        selection=[
             ("", "Public"),
             ("connected", "Signed In"),
             ("restricted_group", "Restricted Group"),
@@ -39,7 +50,10 @@ class IrUiView(models.Model):
         ],
         default="",
     )
-    visibility_password = fields.Char(groups="base.group_system", copy=False)
+    visibility_password = fields.Char(
+        copy=False,
+        groups="base.group_system",
+    )
     visibility_password_display = fields.Char(
         compute="_compute_visibility_password_display",
         inverse="_inverse_visibility_password_display",
@@ -57,26 +71,19 @@ class IrUiView(models.Model):
         crypt_context = self.env.user._get_crypt_context()
         for r in self:
             if r.type == "qweb":
-                # visibility_password is written via sudo() below (it has
-                # groups="base.group_system"), which bypasses the normal
-                # write ACL/record-rule check; check_access re-asserts that
-                # the current (non-sudo) user is actually allowed to write
-                # to this record at all, instead of a field self-assignment
-                # that only achieved this as a side effect of re-entering
-                # the full COW write() override.
                 r.check_access("write")
+                _debug.lifecycle(
+                    "visibility_password_set",
+                    view=r.id,
+                    cleared=not r.visibility_password_display,
+                )
                 r.sudo().visibility_password = (
                     r.visibility_password_display
                     and crypt_context.hash(r.visibility_password_display)
                 ) or ""
 
     def _compute_first_page_id(self):
-        # One search for every view, not one per view. This backs the
-        # `first_page_id` column of the Website > Pages list, so the old
-        # `limit=1` per record cost a query per row on screen.
         pages = self.env["website.page"].search([("view_id", "in", self.ids)])
-        # `search` hands them back in the model's own order, so the first one
-        # seen per view is the one `limit=1` used to return.
         first_by_view = {}
         for page in pages:
             first_by_view.setdefault(page.view_id.id, page)
@@ -95,10 +102,21 @@ class IrUiView(models.Model):
             else:
                 new_website_id = vals["website_id"]
                 if not new_website_id:
+                    _debug.logic(
+                        "view_create_refused",
+                        reason="generic_from_website_env",
+                        website=website_id,
+                    )
                     raise ValueError(
                         f"Trying to create a generic view from a website {website_id} environment"
                     )
                 if new_website_id != website_id:
+                    _debug.logic(
+                        "view_create_refused",
+                        reason="website_mismatch",
+                        website=website_id,
+                        requested=new_website_id,
+                    )
                     raise ValueError(
                         f"Trying to create a view for website {new_website_id} from a website {website_id} environment"
                     )
@@ -136,6 +154,9 @@ class IrUiView(models.Model):
             pages = view.page_ids
 
             if view.website_id:
+                _debug.logic(
+                    "cow_write", by="already_specific", view=view.id, key=view.key
+                )
                 super(IrUiView, view).write(vals)
                 continue
 
@@ -147,15 +168,33 @@ class IrUiView(models.Model):
                 limit=1,
             )
             if website_specific_view:
+                _debug.logic(
+                    "cow_write",
+                    by="existing_specific",
+                    view=view.id,
+                    specific=website_specific_view.id,
+                )
                 super(IrUiView, website_specific_view).write(vals)
                 continue
 
             copy_vals = {"website_id": current_website_id, "key": view.key}
             if vals.get("inherit_id"):
                 copy_vals["inherit_id"] = vals["inherit_id"]
+                if "mode" in vals:
+                    copy_vals["mode"] = vals["mode"]
+                # the copy carries the generic's mode; the change implies
+                # the same default it would on the generic itself
+                copy_vals = view._default_mode(copy_vals)
             website_specific_view = view.copy(copy_vals)
 
             website = view.env["website"].browse(current_website_id)
+            _debug.lifecycle(
+                "cow_copied",
+                view=view.id,
+                key=view.key,
+                specific=website_specific_view.id,
+                website=current_website_id,
+            )
             view._create_website_specific_pages_for_view(website_specific_view, website)
 
             for (
@@ -174,8 +213,19 @@ class IrUiView(models.Model):
                         child, website
                     )
                     inherit_child.inherit_children_ids.write({"inherit_id": child.id})
+                    _debug.lifecycle(
+                        "cow_child_rehomed",
+                        child=inherit_child.id,
+                        copy=child.id,
+                        parent=website_specific_view.id,
+                    )
                     inherit_child.unlink()
                 else:
+                    _debug.lifecycle(
+                        "cow_child_reparented",
+                        child=inherit_child.id,
+                        parent=website_specific_view.id,
+                    )
                     inherit_child.write({"inherit_id": website_specific_view.id})
 
             super(IrUiView, website_specific_view).write(vals)
@@ -211,6 +261,11 @@ class IrUiView(models.Model):
         """
         self.env.cr.execute(query, (regex,))
         result = dict(self.env.cr.fetchall())
+        _debug.pipeline(
+            "specific_views_to_create",
+            modules=len(processed_modules),
+            generic_views=len(result),
+        )
 
         for record in self.browse(result.keys()):
             specific_parent_view_ids, website_ids = result[record.id]
@@ -225,29 +280,45 @@ class IrUiView(models.Model):
         super()._create_all_specific_views(processed_modules)
 
     def unlink(self):
+        if not self:
+            return True
         current_website_id = self.env.context.get("website_id")
 
-        # ids of the per-other-website copies the COU loop below creates to
-        # preserve this generic view for websites other than the current
-        # one -- excluded from the install-time sweep further down so it
-        # cannot delete the very copies just created in this same call.
         preserved_view_ids = set()
         if current_website_id and not self.env.context.get("no_cow"):
-            for view in self.filtered(lambda view: not view.website_id):
-                for w in self.env["website"].search([("id", "!=", current_website_id)]):
+            generic_views = self.filtered(lambda view: not view.website_id)
+            other_websites = self.env["website"].search(
+                [("id", "!=", current_website_id)]
+            )
+            for view in generic_views:
+                for w in other_websites:
                     view.with_context(website_id=w.id).write({"name": view.name})
-                    preserved = self.search(
-                        [("key", "=", view.key), ("website_id", "=", w.id)], limit=1
+            if generic_views and other_websites:
+                first_per_website_key = {}
+                for preserved in self.search(
+                    [
+                        ("key", "in", generic_views.mapped("key")),
+                        ("website_id", "in", other_websites.ids),
+                    ]
+                ):
+                    first_per_website_key.setdefault(
+                        (preserved.key, preserved.website_id.id), preserved.id
                     )
-                    if preserved:
-                        preserved_view_ids.add(preserved.id)
+                preserved_view_ids = set(first_per_website_key.values())
 
         specific_views = self.env["ir.ui.view"]
-        if self and self.pool._init:
+        if self and not self.pool.ready:
             for view in self.filtered(lambda view: not view.website_id):
                 specific_views += view._get_views_specific()
             specific_views -= self.browse(preserved_view_ids)
 
+        _debug.lifecycle(
+            "unlink",
+            views=self,
+            count=len(self),
+            specific=len(specific_views),
+            preserved=len(preserved_view_ids),
+        )
         result = super(IrUiView, self + specific_views).unlink()
         self.env.registry.clear_cache("templates")
         return result
@@ -263,6 +334,13 @@ class IrUiView(models.Model):
             page.menu_ids.filtered(
                 lambda m: m.website_id.id == website.id
             ).page_id = new_page.id
+            _debug.lifecycle(
+                "specific_page_created",
+                page=page.id,
+                copy=new_page.id,
+                view=new_view.id,
+                website=website.id,
+            )
 
     def get_view_hierarchy(self):
         self.check_singleton()
@@ -321,6 +399,12 @@ class IrUiView(models.Model):
             or (not view.website_id and view.key not in specific_views_keys)
         ]
 
+        _debug.perf.count(
+            "most_specific_filtered",
+            website=current_website_id,
+            candidates=len(self),
+            kept=len(most_specific_views),
+        )
         return self.browse().union(*most_specific_views)
 
     @api.model
@@ -341,36 +425,49 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_views_inheriting(self):
-        if not self.env.context.get("website_id"):
-            return super()._get_views_inheriting()
+        views = self
+        if not views.env.context.get("website_id"):
+            # a website-specific view resolves in its own website: outside
+            # one, the generic domain would drop it from its own tree. The
+            # generic resolution comes first -- its fetch is the one that
+            # reads the chain -- and only a specific chain resolves again
+            generic = super()._get_views_inheriting()
+            website_ids = views.website_id.ids
+            if len(website_ids) != 1:
+                return generic
+            _debug.logic(
+                "views_inheriting.website_from_views",
+                views=len(views),
+                website=website_ids[0],
+            )
+            views = views.with_context(website_id=website_ids[0])
 
         views = super(
-            IrUiView, self.with_context(active_test=False)
+            IrUiView, views.with_context(active_test=False)
         )._get_views_inheriting()
         return views._filtered_most_specific().filtered("active")
 
-    @api.model
-    def _get_filter_xmlid_query(self):
+    def _get_sql_view_loaded(self, view, modules):
+        loaded = super()._get_sql_view_loaded(view, modules)
         if not self.env.context.get("website_id"):
-            return super()._get_filter_xmlid_query()
-        else:
-            return """SELECT res_id
-                    FROM   ir_model_data
-                    WHERE  res_id = ANY(%(res_ids)s)
-                        AND model = 'ir.ui.view'
-                        AND module = ANY(%(modules)s)
-                    UNION
-                    SELECT sview.id
-                    FROM   ir_ui_view sview
-                        INNER JOIN ir_ui_view oview USING (key)
-                        INNER JOIN ir_model_data d
-                                ON oview.id = d.res_id
-                                    AND d.model = 'ir.ui.view'
-                                    AND d.module = ANY(%(modules)s)
-                    WHERE  sview.id = ANY(%(res_ids)s)
-                        AND sview.website_id IS NOT NULL
-                        AND oview.website_id IS NULL;
-                    """
+            return loaded
+        _debug.logic(
+            "loaded_views_include_website_copies",
+            website=self.env.context.get("website_id"),
+        )
+        generic = SQL.identifier("generic")
+        return SQL(
+            """(%s OR (%s.website_id IS NOT NULL AND EXISTS (
+                SELECT 1 FROM ir_ui_view generic
+                WHERE generic.key = %s.key
+                AND generic.website_id IS NULL
+                AND %s
+            )))""",
+            loaded,
+            view,
+            view,
+            super()._get_sql_view_loaded(generic, modules),
+        )
 
     @api.model
     def _get_field_names_in_cached_template(self):
@@ -398,6 +495,11 @@ class IrUiView(models.Model):
         data = super()._get_views_by_ref(ids_or_xmlids)
         for key in list(data):
             if isinstance(data[key], MissingError):
+                _debug.logic(
+                    "view_ref_missing",
+                    ref=key,
+                    website=self.env.context.get("website_id"),
+                )
                 data[key] = MissingError(
                     self.env._(
                         "%(error)s (website: %(website_id)s)",
@@ -433,6 +535,7 @@ class IrUiView(models.Model):
             "website.group_website_designer"
         ):
             if visibility == "connected" and request.website.is_public_user():
+                _debug.logic("visibility_refused", reason="connected", view=self.id)
                 error = werkzeug.exceptions.Forbidden()
             elif visibility == "password" and self.id not in request.session.get(
                 "views_unlock", []
@@ -442,13 +545,22 @@ class IrUiView(models.Model):
                 if (
                     pwd
                     and stored_password
-                    and self.env.user._get_crypt_context().verify(pwd, stored_password)
+                    and self.env.user._get_crypt_context().is_password_valid(
+                        pwd, stored_password
+                    )
                 ):
+                    _debug.lifecycle("visibility_unlocked", view=self.id)
                     request.session["views_unlock"] = [
                         *request.session.get("views_unlock", []),
                         self.id,
                     ]
                 else:
+                    _debug.logic(
+                        "visibility_refused",
+                        reason="password",
+                        view=self.id,
+                        supplied=bool(pwd),
+                    )
                     error = werkzeug.exceptions.Forbidden(
                         "website_visibility_password_required"
                     )
@@ -457,6 +569,12 @@ class IrUiView(models.Model):
                 try:
                     self._check_view_access()
                 except AccessError:
+                    _debug.logic(
+                        "visibility_refused",
+                        reason="view_access",
+                        view=self.id,
+                        visibility=visibility,
+                    )
                     error = werkzeug.exceptions.Forbidden()
 
         if error:
@@ -511,7 +629,14 @@ class IrUiView(models.Model):
                 limit=1,
             )
             if website_specific_view:
+                _debug.logic(
+                    "save_retargeted",
+                    view=self.id,
+                    specific=website_specific_view.id,
+                    website=current_website.id,
+                )
                 self = website_specific_view
+        _debug.lifecycle("save", view=self.id, key=self.key, xpath=xpath or None)
         super().save(value, xpath=xpath)
 
     @api.model

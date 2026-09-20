@@ -12,24 +12,26 @@ from odoo.addons.payment_redsys import const
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "redsys_secret_key": "redsys_secret_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("redsys", "Redsys")], ondelete={"redsys": "set default"}
+        selection_add=[("redsys", "Redsys")],
+        ondelete={"redsys": "set default"},
     )
     redsys_merchant_code = fields.Char(
-        string="Redsys Merchant Code",
-        required_if_provider="redsys",
         copy=False,
+        required_if_provider="redsys",
     )
     redsys_merchant_terminal = fields.Char(
-        string="Redsys Merchant Terminal",
-        required_if_provider="redsys",
         copy=False,
+        required_if_provider="redsys",
     )
     redsys_secret_key = fields.Char(
-        string="Redsys Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="redsys",
-        copy=False,
         groups="base.group_system",
     )
 
@@ -50,7 +52,7 @@ class PaymentProvider(models.Model):
         else:  # 'test'
             return "https://sis-t.redsys.es:25443/sis/realizarPago"
 
-    def _redsys_calculate_signature(self, merchant_parameters, reference, secret_key):
+    def _get_redsys_signature(self, merchant_parameters, reference, secret_key):
         """Calculate the signature for the provided data.
 
         See https://pagosonline.redsys.es/desarrolladores-inicio/documentacion-operativa/firmar-una-operacion.
@@ -72,5 +74,4 @@ class PaymentProvider(models.Model):
         # 3. Create HMAC-SHA256 using the derived key and merchant parameters.
         hmac_obj = hmac.new(derived_key, merchant_parameters.encode(), hashlib.sha256)
         # 4. Encode the HMAC result in Base64.
-        signature = base64.urlsafe_b64encode(hmac_obj.digest()).decode()
-        return signature
+        return base64.urlsafe_b64encode(hmac_obj.digest()).decode()

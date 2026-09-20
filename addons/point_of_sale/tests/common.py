@@ -2,8 +2,9 @@ import logging
 from datetime import datetime
 from itertools import starmap
 from random import randint
+from unittest.mock import patch
 
-from odoo import fields, tools
+from odoo import fields, models, tools
 from odoo.fields import Command
 from odoo.tests import Form
 
@@ -24,9 +25,14 @@ def archive_products(env):
     Naming the tip here instead duplicated that extension point with a fixed
     list of one, so this raised as soon as any of them was installed.
     """
-    all_pos_product = env["product.template"].search([("available_in_pos", "=", True)])
+    Template = env["product.template"]
+    all_pos_product = Template.search([("available_in_pos", "=", True)])
     reserved = all_pos_product._filtered_pos_special_products()
-    (all_pos_product - reserved).write({"active": False})
+    # demo data leaves sessions open, and the fixtures replace the whole catalog
+    with patch.object(
+        type(Template), "_is_blocked_by_open_pos_session", return_value=False
+    ):
+        (all_pos_product - reserved).write({"active": False})
 
 
 class CommonPosTest(ValuationReconciliationTestCommon):
@@ -34,11 +40,11 @@ class CommonPosTest(ValuationReconciliationTestCommon):
     def get_default_groups(cls):
         # The POS fixtures flip `available_in_pos` on the products they build,
         # and that field is gated on the sales manager group. point_of_sale
-        # does not depend on sales_team, so resolve it optionally, the way
+        # does not depend on sale_team, so resolve it optionally, the way
         # AccountTestInvoicingCommon resolves mrp, purchase and stock.
         no_group = cls.env["res.groups"].browse()
         return super().get_default_groups() | (
-            cls.env.ref("sales_team.group_sale_manager", False) or no_group
+            cls.env.ref("sale.group_sale_manager", False) or no_group
         )
 
     @classmethod
@@ -510,11 +516,11 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
     def get_default_groups(cls):
         # The POS fixtures flip `available_in_pos` on the products they build,
         # and that field is gated on the sales manager group. point_of_sale
-        # does not depend on sales_team, so resolve it optionally, the way
+        # does not depend on sale_team, so resolve it optionally, the way
         # AccountTestInvoicingCommon resolves mrp, purchase and stock.
         no_group = cls.env["res.groups"].browse()
         return super().get_default_groups() | (
-            cls.env.ref("sales_team.group_sale_manager", False) or no_group
+            cls.env.ref("sale.group_sale_manager", False) or no_group
         )
 
     @classmethod
@@ -1153,7 +1159,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
     def _start_pos_session(self, payment_methods, opening_cash):
         self.config.write({"payment_method_ids": [(6, 0, payment_methods.ids)]})
         pos_session = self.open_new_session(opening_cash)
-        self.assertEqual(
+        self.assertCountEqual(
             self.config.payment_method_ids.ids,
             pos_session.payment_method_ids.ids,
             msg="Payment methods in the config should be the same as the session.",
@@ -1322,6 +1328,11 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                         else "not_reconciled"
                     )
             account_move_line_ids = account_move.line_ids.filtered(line_ids_predicate)
+            account_move_line_ids, line_ids, reconciliation_statuses = (
+                self._align_lines_for_comparison(
+                    account_move_line_ids, line_ids, reconciliation_statuses
+                )
+            )
             self.assertRecordValues(account_move_line_ids, line_ids)
             self.assertRecordValues(account_move, [expected_account_move_vals])
 
@@ -1343,6 +1354,39 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                     self.assertFalse(line.reconciled)
         else:
             self.assertFalse(account_move)
+
+    @staticmethod
+    def _comparison_key(value):
+        if isinstance(value, models.BaseModel):
+            value = value.id if len(value) <= 1 else sorted(value.ids)
+        if value is None:
+            return "False"
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, int | float):
+            return f"{float(value):.6f}"
+        return str(value)
+
+    def _align_lines_for_comparison(self, lines, expected_lines, statuses):
+        if not expected_lines:
+            return lines, expected_lines, statuses
+        field_names = list(expected_lines[0])
+
+        def expected_key(index):
+            return tuple(
+                self._comparison_key(expected_lines[index].get(name))
+                for name in field_names
+            )
+
+        def line_key(line):
+            return tuple(self._comparison_key(line[name]) for name in field_names)
+
+        order = sorted(range(len(expected_lines)), key=expected_key)
+        return (
+            lines.sorted(line_key),
+            [expected_lines[index] for index in order],
+            [statuses[index] for index in order],
+        )
 
     def make_payment(self, order, payment_method, amount):
         payment_context = {"active_id": order.id, "active_ids": order.ids}

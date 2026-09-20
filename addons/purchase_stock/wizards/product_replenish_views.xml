@@ -12,10 +12,10 @@
                     <field name="show_vendor" invisible="1" />
                     <field
                         name="supplier_id"
-                        invisible="not show_vendor"
-                        required="show_vendor"
                         domain="[('product_tmpl_id', '=', product_tmpl_id)]"
-                        options="{'no_open': 1, 'no_create': 1}" />
+                        options="{'no_open': 1, 'no_create': 1}"
+                        invisible="not show_vendor"
+                        required="show_vendor" />
                 </div>
             </xpath>
         </field>

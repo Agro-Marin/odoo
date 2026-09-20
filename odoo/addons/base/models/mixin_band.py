@@ -2,6 +2,9 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinBand(models.AbstractModel):
@@ -18,9 +21,7 @@ class MixinBand(models.AbstractModel):
         "the next band. 0 means no upper limit, which the highest band of a "
         "scale should use so nothing falls off the top.",
     )
-    active = fields.Boolean(
-        default=True,
-    )
+    active = fields.Boolean(default=True)
 
     def _is_band(self):
         return True
@@ -46,6 +47,12 @@ class MixinBand(models.AbstractModel):
         for record in self:
             if not record._is_band():
                 if record.min_value or record.max_value:
+                    _debug.logic(
+                        "band_rejected",
+                        model=self._name,
+                        record=record.id,
+                        reason="bounds_on_non_band",
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(name)s: bounds only apply to a band.",
@@ -54,6 +61,12 @@ class MixinBand(models.AbstractModel):
                     )
                 continue
             if record.min_value < 0:
+                _debug.logic(
+                    "band_rejected",
+                    model=self._name,
+                    record=record.id,
+                    reason="negative_lower_bound",
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s: the lower bound cannot be negative.",
@@ -61,6 +74,12 @@ class MixinBand(models.AbstractModel):
                     )
                 )
             if record.max_value and record.max_value <= record.min_value:
+                _debug.logic(
+                    "band_rejected",
+                    model=self._name,
+                    record=record.id,
+                    reason="upper_not_above_lower",
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s: the upper bound (%(max)s) must be greater "
@@ -75,13 +94,29 @@ class MixinBand(models.AbstractModel):
                 continue
             scales[repr(record._get_domain_band_scope())] |= record
 
+        _debug.pipeline(
+            "band_overlap_check",
+            model=self._name,
+            records=len(self),
+            scales=len(scales),
+        )
         for records in scales.values():
             candidates = records.search(records[0]._get_domain_band_scope())
+            _debug.perf.count(
+                "band_scale_candidates", model=self._name, candidates=len(candidates)
+            )
             for record in records:
                 for other in candidates:
                     if other == record or not other._is_band():
                         continue
                     if record._is_range_overlapping(record, other):
+                        _debug.logic(
+                            "band_rejected",
+                            model=self._name,
+                            record=record.id,
+                            other=other.id,
+                            reason="overlap",
+                        )
                         raise ValidationError(
                             self.env._(
                                 "%(a)s overlaps with %(b)s.",

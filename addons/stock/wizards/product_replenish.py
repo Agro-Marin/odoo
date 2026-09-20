@@ -2,16 +2,17 @@ from odoo import _, api, fields, models
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
+
 
 class ProductReplenish(models.TransientModel):
     _name = "product.replenish"
-    _inherit = ["mixin.stock.replenish"]
+    _inherit = ["mixin.stock.replenish", "mixin.product.variant.selector"]
     _description = "Product Replenish"
     _check_company_auto = True
 
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
     )
     product_tmpl_id = fields.Many2one(
@@ -19,11 +20,9 @@ class ProductReplenish(models.TransientModel):
         string="Product Template",
         required=True,
     )
-    product_has_variants = fields.Boolean(
-        string="Has variants", required=True, default=False
-    )
     allowed_uom_ids = fields.Many2many(
-        comodel_name="uom.uom", compute="_compute_allowed_uom_ids"
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
     )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
@@ -32,27 +31,26 @@ class ProductReplenish(models.TransientModel):
         domain="[('id', 'in', allowed_uom_ids)]",
     )
     forecast_uom_id = fields.Many2one(related="product_id.uom_id")
-    quantity = fields.Float(string="Quantity", required=True, default=1)
+    quantity = fields.Float(
+        default=1,
+        required=True,
+    )
     date_planned = fields.Datetime(
         string="Scheduled Date",
-        required=True,
         compute="_compute_date_planned",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
         help="Date at which the replenishment should take place.",
     )
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
-        string="Warehouse",
         required=True,
         check_company=True,
     )
     company_id = fields.Many2one(comodel_name="res.company")
-    forecasted_quantity = fields.Float(
-        string="Forecasted Quantity",
-        compute="_compute_forecasted_quantity",
-    )
+    forecasted_quantity = fields.Float(compute="_compute_forecasted_quantity")
 
     @api.onchange("product_id", "warehouse_id")
     def _onchange_product_id(self):
@@ -87,24 +85,10 @@ class ProductReplenish(models.TransientModel):
     @api.model
     def default_get(self, fields):
         res = super().default_get(fields)
-        product_tmpl_id = self.env["product.template"]
-        if self.env.context.get("default_product_id"):
-            product_id = self.env["product.product"].browse(
-                self.env.context["default_product_id"]
-            )
-            product_tmpl_id = product_id.product_tmpl_id
-            if "product_id" in fields:
-                res["product_tmpl_id"] = product_id.product_tmpl_id.id
-                res["product_id"] = product_id.id
-        elif self.env.context.get("default_product_tmpl_id"):
-            product_tmpl_id = self.env["product.template"].browse(
-                self.env.context["default_product_tmpl_id"]
-            )
-            if "product_id" in fields:
-                res["product_tmpl_id"] = product_tmpl_id.id
-                res["product_id"] = product_tmpl_id.product_variant_id.id
-                if len(product_tmpl_id.product_variant_ids) > 1:
-                    res["product_has_variants"] = True
+        product_tmpl_id, variant_vals = self._get_product_variant_selector_defaults(
+            fields
+        )
+        res.update(variant_vals)
         company = product_tmpl_id.company_id or self.env.company
         if "product_uom_id" in fields:
             res["product_uom_id"] = product_tmpl_id.uom_id.id
@@ -125,6 +109,11 @@ class ProductReplenish(models.TransientModel):
                 res["route_id"] = product_tmpl_id.route_ids.filtered(
                     lambda r: r.company_id == company or not r.company_id
                 )[:1].id
+            dbg.logic.debug(
+                "product.replenish default route for template %s: %s",
+                product_tmpl_id.id,
+                res["route_id"],
+            )
         return res
 
     def _get_date_planned(self, route, **kwargs):
@@ -132,9 +121,18 @@ class ProductReplenish(models.TransientModel):
         delay = sum(route.rule_ids.mapped("delay"))
         return fields.Datetime.add(now, days=delay)
 
+    @dbg.timed
     def action_replenish(self):
         self.check_singleton()
         now = self.env.cr.now()
+        dbg.pipeline.debug(
+            "product.replenish: product %s qty %s route %s warehouse %s date %s",
+            self.product_id.id,
+            self.quantity,
+            self.route_id.id,
+            self.warehouse_id.id,
+            self.date_planned,
+        )
         self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
             [
                 self.env["stock.rule"].Procurement(
@@ -150,6 +148,7 @@ class ProductReplenish(models.TransientModel):
             ]
         )
         move = self._get_record_to_notify(now)
+        dbg.logic.debug("product.replenish: record to notify %s", dbg.rec(move))
         notification = self._prepare_action_replenishment_order_notification(move)
         act_window_close = {
             "type": "ir.actions.act_window_close",

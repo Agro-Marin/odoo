@@ -1,30 +1,29 @@
-import json
 import logging
 import re
-from uuid import uuid4
 
 import psycopg
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
 
-# Vault fields a secret can land in directly. Anything else is a key in
-# `credential_data`, which is what carries the secrets the vault has no field
-# for -- Easypost's two are the same credential for two environments, not a key
-# and a secret, so neither `api_key` nor `api_secret` describes them.
-NATIVE_CREDENTIAL_FIELDS = frozenset({"api_key", "api_secret", "username", "password"})
+
+_debug = DebugLog(__name__)
 
 
 class DeliveryCarrier(models.Model):
     """Shipping carrier: rate computation and delivery-method configuration."""
 
     _name = "delivery.carrier"
+    _inherit = ["mixin.credential.holder", "mixin.integration.connected"]
     _description = "Shipping Methods"
     _order = "sequence, id"
+    _credential_holder_field = "carrier_credential_id"
+    _credential_purpose = "delivery:carrier"
 
     # To add an external provider: inherit this model, extend the
     # "delivery_type" selection with a ('<my_provider>', 'My Provider') pair,
@@ -36,12 +35,19 @@ class DeliveryCarrier(models.Model):
     # Internals for shipping providers #
     # -------------------------------- #
 
-    name = fields.Char("Delivery Method", required=True, translate=True)
+    name = fields.Char(
+        string="Delivery Method",
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(default=True)
-    sequence = fields.Integer(help="Determine the display order", default=10)
+    sequence = fields.Integer(
+        default=10,
+        help="Determine the display order",
+    )
     # This field will be overwritten by internal shipping providers by adding their own type (ex: 'fedex')
     delivery_type = fields.Selection(
-        [("base_on_rule", "Based on Rules"), ("fixed", "Fixed Price")],
+        selection=[("base_on_rule", "Based on Rules"), ("fixed", "Fixed Price")],
         string="Provider",
         default="fixed",
         required=True,
@@ -51,27 +57,32 @@ class DeliveryCarrier(models.Model):
         help="Allow customers to choose Cash on Delivery as their payment method.",
     )
     integration_level = fields.Selection(
-        [("rate", "Get Rate"), ("rate_and_ship", "Get Rate and Create Shipment")],
-        string="Integration Level",
+        selection=[
+            ("rate", "Get Rate"),
+            ("rate_and_ship", "Get Rate and Create Shipment"),
+        ],
         default="rate_and_ship",
         help="Action while validating Delivery Orders",
     )
     prod_environment = fields.Boolean(
-        "Environment",
+        string="Environment",
         help="Set to True if your credentials are certified for production.",
     )
     debug_logging = fields.Boolean(
-        "Debug logging", help="Log requests in order to ease debugging"
+        string="Debug logging",
+        help="Log requests in order to ease debugging",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         related="product_id.company_id",
-        store=True,
+        string="Company",
         readonly=False,
     )
     product_id = fields.Many2one(
-        "product.product", string="Delivery Product", required=True, ondelete="restrict"
+        comodel_name="product.product",
+        string="Delivery Product",
+        required=True,
+        ondelete="restrict",
     )
     tracking_url = fields.Char(
         string="Tracking Link",
@@ -88,37 +99,35 @@ class DeliveryCarrier(models.Model):
     )
 
     country_ids = fields.Many2many(
-        "res.country",
-        "delivery_carrier_country_rel",
-        "carrier_id",
-        "country_id",
-        "Countries",
+        comodel_name="res.country",
+        relation="delivery_carrier_country_rel",
+        column1="carrier_id",
+        column2="country_id",
+        string="Countries",
     )
     state_ids = fields.Many2many(
-        "res.country.state",
-        "delivery_carrier_state_rel",
-        "carrier_id",
-        "state_id",
-        "States",
+        comodel_name="res.country.state",
+        relation="delivery_carrier_state_rel",
+        column1="carrier_id",
+        column2="state_id",
+        string="States",
     )
     zip_prefix_ids = fields.Many2many(
-        "delivery.zip.prefix",
-        "delivery_zip_prefix_rel",
-        "carrier_id",
-        "zip_prefix_id",
-        "Zip Prefixes",
+        comodel_name="delivery.zip.prefix",
+        relation="delivery_zip_prefix_rel",
+        column1="carrier_id",
+        column2="zip_prefix_id",
+        string="Zip Prefixes",
         help="Prefixes of zip codes that this carrier applies to. Note that regular expressions can be used to support countries with varying zip code lengths, i.e. '$' can be added to end of prefix to match the exact zip (e.g. '100$' will only match '100' and not '1000')",
     )
 
     max_weight = fields.Float(
-        "Max Weight",
-        help="If the total weight of the order is over this weight, the method won't be available.",
+        help="If the total weight of the order is over this weight, the method won't be available."
     )
-    # Every carrier's secrets rest in credential.credential, and the
-    # plumbing is here rather than in each carrier module because the shape
-    # repeats twenty-two times across ten of them. The carriers keep their own
-    # field NAMES -- they are in the views and in every request builder -- and
-    # turn them into doors onto this.
+    # Every carrier's secrets rest in credential.credential, through
+    # mixin.credential.holder. The carriers keep their own field NAMES -- they
+    # are in the views and in every request builder -- and declare them as doors
+    # in `_CREDENTIAL_FIELDS`.
     #
     # The vault field a given secret maps to is the carrier's decision, because
     # the shapes differ: DHL has a key and a secret, Sendcloud has one key,
@@ -127,37 +136,37 @@ class DeliveryCarrier(models.Model):
     carrier_credential_id = fields.Many2one(
         comodel_name="credential.credential",
         string="Credential",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
         groups="base.group_system",
         help="Holds this carrier's API secrets.",
     )
 
     weight_uom_name = fields.Char(
-        string="Weight unit of measure label", compute="_compute_weight_uom_name"
+        string="Weight unit of measure label",
+        compute="_compute_weight_uom_name",
     )
     max_volume = fields.Float(
-        "Max Volume",
-        help="If the total volume of the order is over this volume, the method won't be available.",
+        help="If the total volume of the order is over this volume, the method won't be available."
     )
     volume_uom_name = fields.Char(
-        string="Volume unit of measure label", compute="_compute_volume_uom_name"
+        string="Volume unit of measure label",
+        compute="_compute_volume_uom_name",
     )
     must_have_tag_ids = fields.Many2many(
-        string="Must Have Tags",
         comodel_name="product.tag",
         relation="product_tag_delivery_carrier_must_have_rel",
+        string="Must Have Tags",
         help="The method is available only if at least one product of the order has one of these tags.",
     )
     excluded_tag_ids = fields.Many2many(
-        string="Excluded Tags",
         comodel_name="product.tag",
         relation="product_tag_delivery_carrier_excluded_rel",
+        string="Excluded Tags",
         help="The method is NOT available if at least one product of the order has one of these tags.",
     )
 
     carrier_description = fields.Text(
-        "Carrier Description",
         translate=True,
         help="A description of the delivery method that you want to communicate to your customers on the Sales Order and sales confirmation email."
         "E.g. instructions for customers to follow.",
@@ -168,12 +177,11 @@ class DeliveryCarrier(models.Model):
         help="This fixed amount will be added to the shipping price."
     )
     free_over = fields.Boolean(
-        "Free if order amount is above",
-        help="If the order total amount (shipping excluded) is above or equal to this value, the customer benefits from a free shipping",
+        string="Free if order amount is above",
         default=False,
+        help="If the order total amount (shipping excluded) is above or equal to this value, the customer benefits from a free shipping",
     )
     amount = fields.Float(
-        string="Amount",
         default=1000,
         help="Amount of the order to benefit from a free shipping, expressed in the company currency",
     )
@@ -192,13 +200,16 @@ class DeliveryCarrier(models.Model):
         compute="_compute_supports_shipping_insurance"
     )
     shipping_insurance = fields.Integer(
-        "Insurance Percentage",
-        help="Shipping insurance is a service which may reimburse senders whose parcels are lost, stolen, and/or damaged in transit.",
+        string="Insurance Percentage",
         default=0,
+        help="Shipping insurance is a service which may reimburse senders whose parcels are lost, stolen, and/or damaged in transit.",
     )
 
     price_rule_ids = fields.One2many(
-        "delivery.price.rule", "carrier_id", "Pricing Rules", copy=True
+        comodel_name="delivery.price.rule",
+        inverse_name="carrier_id",
+        string="Pricing Rules",
+        copy=True,
     )
 
     _margin_not_under_100_percent = models.Constraint(
@@ -211,6 +222,17 @@ class DeliveryCarrier(models.Model):
     )
 
     @api.constrains("must_have_tag_ids", "excluded_tag_ids")
+    def _integration_connection_service(self) -> tuple[str, str, str]:
+        self.check_singleton()
+        label = dict(
+            self._fields["delivery_type"]._description_selection(self.env)
+        ).get(self.delivery_type, self.delivery_type)
+        return (
+            f"delivery_{self.delivery_type}",
+            self.env._("Delivery: %s", label),
+            "delivery",
+        )
+
     def _check_tags(self):
         for carrier in self:
             if carrier.must_have_tag_ids & carrier.excluded_tag_ids:
@@ -284,11 +306,20 @@ class DeliveryCarrier(models.Model):
 
         return True
 
-    def available_carriers(self, partner, source):
+    def _filtered_available_carriers(self, partner, source):
+        _debug.pipeline(
+            "carriers_filter_enter", carriers=self, partner=partner.id, source=source
+        )
         return self.filtered(lambda c: c._match(partner, source))
 
     def _match(self, partner, source):
         self.check_singleton()
+        _debug.logic(
+            "carrier_match_enter",
+            carrier=self.id,
+            partner=partner.id,
+            source=source,
+        )
         return (
             self._match_address(partner)
             and self._match_must_have_tags(source)
@@ -300,8 +331,20 @@ class DeliveryCarrier(models.Model):
     def _match_address(self, partner):
         self.check_singleton()
         if self.country_ids and partner.country_id not in self.country_ids:
+            _debug.logic(
+                "carrier_rejected",
+                carrier=self.id,
+                by="country",
+                partner_country=partner.country_id.id,
+            )
             return False
         if self.state_ids and partner.state_id not in self.state_ids:
+            _debug.logic(
+                "carrier_rejected",
+                carrier=self.id,
+                by="state",
+                partner_state=partner.state_id.id,
+            )
             return False
         if self.zip_prefix_ids:
             regex = re.compile(
@@ -313,6 +356,12 @@ class DeliveryCarrier(models.Model):
                 )
             )
             if not partner.zip or not re.match(regex, partner.zip.upper()):
+                _debug.logic(
+                    "carrier_rejected",
+                    carrier=self.id,
+                    by="zip_prefix",
+                    partner_zip=partner.zip or "",
+                )
                 return False
         return True
 
@@ -324,6 +373,12 @@ class DeliveryCarrier(models.Model):
             products = source.move_ids.with_prefetch().mapped("product_id")
         else:
             raise UserError(_("Invalid source document type"))
+        _debug.logic(
+            "carrier_match_must_have_tags",
+            carrier=self.id,
+            required=self.must_have_tag_ids,
+            products=products,
+        )
         return not self.must_have_tag_ids or any(
             tag in products.all_product_tag_ids for tag in self.must_have_tag_ids
         )
@@ -336,6 +391,12 @@ class DeliveryCarrier(models.Model):
             products = source.move_ids.with_prefetch().mapped("product_id")
         else:
             raise UserError(_("Invalid source document type"))
+        _debug.logic(
+            "carrier_match_excluded_tags",
+            carrier=self.id,
+            excluded=self.excluded_tag_ids,
+            products=products,
+        )
         return not any(
             tag in products.all_product_tag_ids for tag in self.excluded_tag_ids
         )
@@ -354,6 +415,12 @@ class DeliveryCarrier(models.Model):
             )
         else:
             raise UserError(_("Invalid source document type"))
+        _debug.logic(
+            "carrier_match_weight",
+            carrier=self.id,
+            total=total_weight,
+            max=self.max_weight,
+        )
         return not self.max_weight or total_weight <= self.max_weight
 
     def _match_volume(self, source):
@@ -370,6 +437,12 @@ class DeliveryCarrier(models.Model):
             )
         else:
             raise UserError(_("Invalid source document type"))
+        _debug.logic(
+            "carrier_match_volume",
+            carrier=self.id,
+            total=total_volume,
+            max=self.max_volume,
+        )
         return not self.max_volume or total_volume <= self.max_volume
 
     @api.onchange("integration_level")
@@ -397,34 +470,10 @@ class DeliveryCarrier(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        doors = self._credential_doors_to_copy(default or {})
         return [
-            dict(
-                vals,
-                name=self.env._("%s (copy)", carrier.name),
-                **{door: carrier[door] for door in doors if carrier[door]},
-            )
+            dict(vals, name=self.env._("%s (copy)", carrier.name))
             for carrier, vals in zip(self, vals_list, strict=True)
         ]
-
-    def _credential_doors_to_copy(self, default):
-        """One readable door per vault field, for the secrets a copy must carry.
-
-        `carrier_credential_id` is not copied: two carriers sharing one vault
-        record would rewrite each other's secrets through their doors, and
-        clearing one would unlink the other's. The copy re-enters the secrets
-        through the doors instead, so `create` builds it a credential of its own
-        before any constraint that reads a door runs.
-        """
-        field_map = self._credential_field_map()
-        given = {field_map[name] for name in default if name in field_map}
-        doors = {}
-        for door, vault_field in field_map.items():
-            if vault_field in given or vault_field in doors:
-                continue
-            if self._has_field_access(self._fields[door], "read"):
-                doors[vault_field] = door
-        return list(doors.values())
 
     def copy_translations(self, new, excluded=()):
         # ``copy_data`` renames ``name`` in the duplicating user's language
@@ -445,11 +494,14 @@ class DeliveryCarrier(models.Model):
         return self.delivery_type
 
     def _apply_margins(self, price, order=False):
+        _debug.logic(
+            "carrier_margin_apply", carrier=self.id, price=price, margin=self.margin
+        )
         self.check_singleton()
         if self.delivery_type == "fixed":
             return float(price)
         fixed_margin_in_sale_currency = (
-            self._compute_currency_id(order, self.fixed_margin, "company_to_pricelist")
+            self._get_converted_price(order, self.fixed_margin, "company_to_pricelist")
             if order
             else self.fixed_margin
         )
@@ -475,6 +527,12 @@ class DeliveryCarrier(models.Model):
         """
         # TODO maybe the currency code?
         self.check_singleton()
+        _debug.pipeline(
+            "rate_shipment_enter",
+            carrier=self.id,
+            delivery_type=self.delivery_type,
+            order=order.id,
+        )
         if hasattr(self, "%s_rate_shipment" % self.delivery_type):
             res = getattr(self, "%s_rate_shipment" % self.delivery_type)(order)
             # apply fiscal position
@@ -493,12 +551,12 @@ class DeliveryCarrier(models.Model):
             # save the real price in case a free_over rule overide it to 0
             res["carrier_price"] = res["price"]
             # free when order is large enough
-            amount_without_delivery = order._compute_amount_total_without_delivery()
+            amount_without_delivery = order._get_amount_total_without_delivery()
             if (
                 res["success"]
                 and self.free_over
                 and self.delivery_type != "base_on_rule"
-                and self._compute_currency_id(
+                and self._get_converted_price(
                     order, amount_without_delivery, "pricelist_to_company"
                 )
                 >= self.amount
@@ -507,9 +565,27 @@ class DeliveryCarrier(models.Model):
                     "The shipping is free since the order amount exceeds %.2f.",
                     self.amount,
                 )
+                _debug.logic(
+                    "shipping_free_over",
+                    carrier=self.id,
+                    order=order.id,
+                    threshold=self.amount,
+                )
                 res["price"] = 0.0
+            _debug.pipeline(
+                "rate_shipment_done",
+                carrier=self.id,
+                order=order.id,
+                success=res["success"],
+                price=res["price"],
+            )
             return res
         else:
+            _debug.logic(
+                "rate_shipment_unsupported",
+                carrier=self.id,
+                delivery_type=self.delivery_type,
+            )
             return {
                 "success": False,
                 "price": 0.0,
@@ -553,7 +629,6 @@ class DeliveryCarrier(models.Model):
         compute="_compute_fixed_price",
         inverse="_inverse_fixed_price",
         store=True,
-        string="Fixed Price",
     )
 
     @api.depends("product_id.list_price", "product_id.product_tmpl_id.list_price")
@@ -568,6 +643,13 @@ class DeliveryCarrier(models.Model):
     def fixed_rate_shipment(self, order):
         carrier = self._match_address(order.partner_shipping_id)
         if not carrier:
+            _debug.logic(
+                "rate_refused",
+                carrier=self.id,
+                reason="address_not_matched",
+                order=order.id,
+                rating="fixed_rate_shipment",
+            )
             return {
                 "success": False,
                 "price": 0.0,
@@ -591,6 +673,13 @@ class DeliveryCarrier(models.Model):
     def base_on_rule_rate_shipment(self, order):
         carrier = self._match_address(order.partner_shipping_id)
         if not carrier:
+            _debug.logic(
+                "rate_refused",
+                carrier=self.id,
+                reason="address_not_matched",
+                order=order.id,
+                rating="base_on_rule_rate_shipment",
+            )
             return {
                 "success": False,
                 "price": 0.0,
@@ -603,6 +692,12 @@ class DeliveryCarrier(models.Model):
         try:
             price_unit = self._get_price_available(order)
         except UserError as e:
+            _debug.logic(
+                "rate_refused",
+                carrier=self.id,
+                reason="price_rule_error",
+                order=order.id,
+            )
             return {
                 "success": False,
                 "price": 0.0,
@@ -610,7 +705,7 @@ class DeliveryCarrier(models.Model):
                 "warning_message": False,
             }
 
-        price_unit = self._compute_currency_id(
+        price_unit = self._get_converted_price(
             order, price_unit, "company_to_pricelist"
         )
 
@@ -633,7 +728,7 @@ class DeliveryCarrier(models.Model):
             return pricelist_currency, company_currency
         return None
 
-    def _compute_currency_id(self, order, price, conversion):
+    def _get_converted_price(self, order, price, conversion):
         from_currency, to_currency = self._get_conversion_currencies(order, conversion)
         if from_currency.id == to_currency.id:
             return price
@@ -658,7 +753,7 @@ class DeliveryCarrier(models.Model):
                 continue
             # `product_uom_qty` IS the line quantity already converted to the
             # product's reference UoM, which is the unit `weight`/`volume` are
-            # expressed in. Running it through `_compute_quantity` again converted
+            # expressed in. Running it through `_get_quantity_in_unit` again converted
             # a second time and inflated every weight/volume on a line whose UoM
             # differs from the product's (12 Units sold as 1 Dozen weighed as 144).
             qty = line.product_uom_qty
@@ -668,14 +763,23 @@ class DeliveryCarrier(models.Model):
                 (line.product_id.weight or 0.0) * (line.product_id.volume or 0.0) * qty
             )
             quantity += qty
-        total = order._compute_amount_total_without_delivery()
+        total = order._get_amount_total_without_delivery()
 
-        total = self._compute_currency_id(order, total, "pricelist_to_company")
+        total = self._get_converted_price(order, total, "pricelist_to_company")
         # weight is either,
         # 1- weight chosen by user in choose.delivery.carrier wizard passed by context
         # 2- saved weight to use on sale order
         # 3- total order line weight as fallback
         weight = self.env.context.get("order_weight") or order.shipping_weight or weight
+        _debug.logic(
+            "price_available_inputs",
+            carrier=self.id,
+            order=order.id,
+            total=total,
+            weight=weight,
+            volume=volume,
+            quantity=quantity,
+        )
         return self._get_price_from_picking(total, weight, volume, quantity, wv=wv)
 
     def _get_price_dict(self, total, weight, volume, quantity, wv=0.0):
@@ -712,180 +816,3 @@ class DeliveryCarrier(models.Model):
             raise UserError(_("Not available for current order"))
 
         return price
-
-    # Which of a carrier's own fields are doors onto the credential, and which
-    # vault field each lands in. A carrier extends this; the base holds none.
-    #
-    # It exists because an inverse is too late for some carriers. `create` runs
-    # `_validate_fields` INSIDE `_create`, before the inverse of a non-stored
-    # field has been called, so an `@api.constrains` that reads a door -- and
-    # `delivery_sendcloud` has exactly one -- sees an empty value and refuses the
-    # record. Routing the secrets in `create` puts the credential on the vals, so
-    # the door reads correctly by the time the constraint runs.
-    _CREDENTIAL_FIELDS: dict[str, str] = {}
-
-    def _credential_field_map(self):
-        """Every carrier's mapping, merged.
-
-        `_CREDENTIAL_FIELDS` is a plain class attribute, and six carrier modules
-        all extend `delivery.carrier` -- so reading it directly returns only the
-        LAST-loaded module's dict and silently drops the rest. Each carrier
-        passes its own tests alone and the combination fails, which is how this
-        was found: with `delivery_shiprocket` installed, `delivery_sendcloud`'s
-        secret stopped reaching the vault and its create-time constraint refused
-        every carrier.
-
-        Walking the MRO in reverse merges the contributions in load order.
-        """
-        mapping: dict[str, str] = {}
-        for cls in reversed(type(self).mro()):
-            mapping.update(getattr(cls, "_CREDENTIAL_FIELDS", None) or {})
-        return mapping
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        field_map = self._credential_field_map()
-        if field_map:
-            for vals in vals_list:
-                secrets = {
-                    field_map[name]: vals.pop(name)
-                    for name in list(vals)
-                    if name in field_map
-                }
-                secrets = {k: v for k, v in secrets.items() if v}
-                if secrets:
-                    native = {
-                        k: v
-                        for k, v in secrets.items()
-                        if k in NATIVE_CREDENTIAL_FIELDS
-                    }
-                    extra = {
-                        k: v
-                        for k, v in secrets.items()
-                        if k not in NATIVE_CREDENTIAL_FIELDS
-                    }
-                    # A placeholder unique name: the carrier has no id yet, and
-                    # the UNIQUE index on (company_id, name) does not wait. It is
-                    # replaced with the real one below, once the carrier exists.
-                    vals["carrier_credential_id"] = (
-                        self.env["credential.credential"]
-                        .sudo()
-                        .create(
-                            {
-                                "name": f"{vals.get('name') or _('Carrier')} "
-                                f"[{uuid4().hex[:12]}]",
-                                "category_id": self.env.ref(
-                                    "credential.credential_category_custom"
-                                ).id,
-                                "company_id": vals.get("company_id")
-                                or self.env.company.id,
-                                **native,
-                                **(
-                                    {"credential_data": json.dumps(extra)}
-                                    if extra
-                                    else {}
-                                ),
-                            }
-                        )
-                        .id
-                    )
-        records = super().create(vals_list)
-        for record in records:
-            if record.carrier_credential_id:
-                record.carrier_credential_id.sudo().name = (
-                    record._carrier_credential_name()
-                )
-        return records
-
-    def _carrier_credential_name(self):
-        """A name no other carrier's credential can collide with.
-
-        `credential.credential` holds a UNIQUE index on (company_id, name) --
-        and on (name) alone for system-wide ones -- while two delivery carriers
-        may legitimately share a name. The carrier id is what separates them.
-        """
-        self.check_singleton()
-        return f"{self.name or _('Carrier')} [#{self.id}]"
-
-    def _carrier_secret(self, field_name):
-        """One secret out of this carrier's credential, or False."""
-        self.check_singleton()
-        credential = self.carrier_credential_id.sudo()
-        if not credential:
-            return False
-        if field_name in NATIVE_CREDENTIAL_FIELDS:
-            return credential[field_name] or False
-        try:
-            data = json.loads(credential.credential_data or "{}")
-        except ValueError:
-            _logger.warning(
-                "Carrier %s has a credential whose data is not JSON", self.id
-            )
-            return False
-        return data.get(field_name) or False
-
-    def _carrier_store_secret(self, field_name, value):
-        """Write one secret into this carrier's credential.
-
-        One field at a time, because a carrier writes them one at a time: an
-        inverse fires per field, and a store that rewrote the whole credential
-        would clear the siblings that were not part of this write.
-        """
-        self.check_singleton()
-        credential = self.carrier_credential_id.sudo()
-        native = field_name in NATIVE_CREDENTIAL_FIELDS
-
-        if not credential:
-            if not value:
-                return
-            # `custom`, not `api_key`: the api_key category requires an api_key or
-            # a credential_value at create, and a carrier's FIRST write is often
-            # neither -- DHL's inverse may fire for the secret before the key.
-            # Satisfying that constraint with a placeholder would leave the
-            # placeholder readable as the key. `custom` names no required field,
-            # which is the honest shape for a record whose contents differ per
-            # carrier.
-            credential = (
-                self.env["credential.credential"]
-                .sudo()
-                .create(
-                    {
-                        # The carrier id is part of the name because `credential.credential`
-                        # holds a UNIQUE index on (company_id, name), and two carriers may
-                        # legitimately share a name -- a production and a test Sendcloud,
-                        # say. Without it the second one's first secret fails to store.
-                        "name": self._carrier_credential_name(),
-                        "category_id": self.env.ref(
-                            "credential.credential_category_custom"
-                        ).id,
-                        "company_id": self.company_id.id,
-                    }
-                )
-            )
-            self.carrier_credential_id = credential.id
-
-        if native:
-            credential[field_name] = value or False
-        else:
-            try:
-                data = json.loads(credential.credential_data or "{}")
-            except ValueError:
-                data = {}
-            if value:
-                data[field_name] = value
-            else:
-                data.pop(field_name, None)
-            credential.credential_data = json.dumps(data)
-
-        if not any(
-            (
-                credential.api_key,
-                credential.api_secret,
-                credential.username,
-                credential.password,
-                json.loads(credential.credential_data or "{}"),
-            )
-        ):
-            # Nothing left: a carrier holding no secrets holds no credential.
-            self.carrier_credential_id = False
-            credential.unlink()

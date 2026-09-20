@@ -5,8 +5,11 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils, format_date
 from odoo.tools.misc import formatLang
+
+_debug = DebugLog(__name__)
 
 
 def _ellipsis(string, size):
@@ -26,52 +29,64 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         )
 
     res_model = fields.Char(
-        compute="_compute_selection", store=True, precompute=True, readonly=True
+        compute="_compute_selection",
+        precompute=True,
+        store=True,
+        readonly=True,
     )
     res_ids = fields.Json(
-        compute="_compute_selection", store=True, precompute=True, readonly=True
+        compute="_compute_selection",
+        precompute=True,
+        store=True,
+        readonly=True,
     )
-    is_purchase = fields.Boolean(compute="_compute_is_purchase", store=True)
+    is_purchase = fields.Boolean(
+        compute="_compute_is_purchase",
+        store=True,
+    )
     company_id = fields.Many2one(
-        "res.company", compute="_compute_company_id", store=True, precompute=True
+        comodel_name="res.company",
+        compute="_compute_company_id",
+        precompute=True,
+        store=True,
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_journal_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
-        domain="[('type', '=', 'general')]",
         required=True,
+        domain="[('type', '=', 'general')]",
         check_company=True,
-        string="Journal",
     )
-    date = fields.Date(default=_default_date, required=True)
+    date = fields.Date(
+        default=_default_date,
+        required=True,
+    )
     reversal_date = fields.Date(
         compute="_compute_reversal_date",
-        required=True,
-        readonly=False,
-        store=True,
         precompute=True,
+        store=True,
+        readonly=False,
+        required=True,
     )
     amount = fields.Monetary(
-        string="Amount",
         help="Specify an arbitrary value that will be accrued on a \
-        default account for the entire order, regardless of the products on the different lines.",
+        default account for the entire order, regardless of the products on the different lines."
     )
     currency_id = fields.Many2one(
         related="company_id.currency_id",
         string="Company Currency",
         readonly=True,
-        store=True,
         help="Utility field to express amount currency",
     )
     account_id = fields.Many2one(
         comodel_name="account.account",
-        required=True,
         string="Accrual Account",
-        check_company=True,
+        required=True,
         domain="[('account_type', '=', 'liability_current' if is_purchase else 'asset_current')]",
+        check_company=True,
     )
     preview_data = fields.Text(compute="_compute_preview_data")
     display_amount = fields.Boolean(compute="_compute_display_amount")
@@ -130,11 +145,12 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )[:1]
 
     @api.depends("date", "journal_id", "account_id", "amount", "res_model", "res_ids")
+    @_debug.perf.timed
     def _compute_preview_data(self):
         for record in self:
             preview_vals = [
                 self.env["account.move"]._move_dict_to_preview_vals(
-                    record._get_move_vals()[0],
+                    record._prepare_accrual_move_data()[0],
                     record.company_id.currency_id,
                 )
             ]
@@ -170,7 +186,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         else:
             return accounts["income"]
 
-    def _get_aml_vals(
+    def _prepare_aml_vals(
         self,
         order,
         balance,
@@ -199,6 +215,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     def _get_accrual_orders_and_lines(self):
         selected = self._get_selected_records()
         if selected is None:
+            _debug.logic("accrual_orders_rejected", accrual=self, reason="no_selection")
             raise UserError(_("Select the orders to accrue first."))
         selected = selected.with_company(self.company_id)
         if self.res_model in ("purchase.order.line", "sale.order.line"):
@@ -210,18 +227,24 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         is_purchase = orders._name == "purchase.order"
 
         if orders.filtered(lambda o: o.company_id != self.company_id):
+            _debug.logic(
+                "accrual_orders_rejected", accrual=self, reason="multi_company"
+            )
             raise UserError(
                 _("Entries can only be created for a single company at a time.")
             )
         if len(orders.currency_id) > 1:
+            _debug.logic(
+                "accrual_orders_rejected", accrual=self, reason="multi_currency"
+            )
             raise UserError(
                 _("Cannot create an accrual entry with orders in different currencies.")
             )
         return orders, lines, is_purchase
 
-    def _get_manual_accrual_aml_vals(self, order, order_line, is_purchase):
+    def _prepare_manual_accrual_aml_vals(self, order, order_line, is_purchase):
         account = self._get_computed_account(order, order_line.product_id, is_purchase)
-        return self._get_aml_vals(
+        return self._prepare_aml_vals(
             order,
             self.amount,
             0,
@@ -255,6 +278,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )
         )
 
+    @_debug.perf.timed
     def _get_purchase_accrual_line_amounts(self, order, order_line):
         product = order_line.product_id
         _expense_account, stock_variation_account = (
@@ -296,6 +320,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         )
         return amount, amount_currency, account, label
 
+    @_debug.perf.timed
     def _get_sale_accrual_line_amounts(
         self, order, order_line, amounts_by_perpetual_account
     ):
@@ -329,7 +354,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )
         return amount, amount_currency, account, label
 
-    def _get_order_accrual_aml_vals(
+    def _prepare_order_accrual_aml_vals(
         self, order, lines, is_purchase, amounts_by_perpetual_account
     ):
         values = []
@@ -346,7 +371,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     )
                 )
             values.append(
-                self._get_aml_vals(
+                self._prepare_aml_vals(
                     order,
                     amount,
                     amount_currency,
@@ -372,7 +397,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 )
         return analytic_distribution
 
-    def _get_perpetual_valuation_aml_vals(
+    def _prepare_perpetual_valuation_aml_vals(
         self, orders, is_purchase, amounts_by_perpetual_account
     ):
         values = []
@@ -387,7 +412,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             else:
                 label = _("(*) Goods Invoiced not Delivered (perpetual valuation)")
             values.append(
-                self._get_aml_vals(
+                self._prepare_aml_vals(
                     orders,
                     amount,
                     0.0,
@@ -397,13 +422,20 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 )
             )
             values.append(
-                self._get_aml_vals(
+                self._prepare_aml_vals(
                     orders, -amount, 0.0, expense_account.id, is_purchase, label=label
                 )
             )
+        _debug.pipeline(
+            "perpetual_valuation_lines_built",
+            accrual=self,
+            account_pairs=len(amounts_by_perpetual_account),
+            lines=len(values),
+        )
         return values
 
-    def _get_move_vals(self):
+    @_debug.perf.timed
+    def _prepare_accrual_move_data(self):
         self.check_singleton()
         orders, lines, is_purchase = self._get_accrual_orders_and_lines()
         move_lines = []
@@ -411,19 +443,28 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         total_balance = 0.0
         amounts_by_perpetual_account = defaultdict(float)
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "accrual_mode_chosen",
+                accrual=self,
+                is_purchase=is_purchase,
+                orders=len(orders),
+                lines=len(lines),
+                manual_amount=len(orders) == 1 and bool(self.amount),
+            )
         for order, product_lines in lines.grouped("order_id").items():
             if len(orders) == 1 and product_lines and self.amount and order.line_ids:
                 total_balance = self.amount
                 move_lines.append(
                     Command.create(
-                        self._get_manual_accrual_aml_vals(
+                        self._prepare_manual_accrual_aml_vals(
                             order, product_lines[0], is_purchase
                         )
                     )
                 )
                 orders_with_entries |= order
             else:
-                order_vals, order_balance = self._get_order_accrual_aml_vals(
+                order_vals, order_balance = self._prepare_order_accrual_aml_vals(
                     order, lines, is_purchase, amounts_by_perpetual_account
                 )
                 if order_vals:
@@ -431,10 +472,18 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     total_balance += order_balance
                     orders_with_entries |= order
 
+        _debug.pipeline(
+            "accrual_order_lines_built",
+            accrual=self,
+            orders_with_entries=orders_with_entries,
+            move_lines=len(move_lines),
+            total_balance=total_balance,
+            perpetual_account_pairs=len(amounts_by_perpetual_account),
+        )
         if not self.company_id.currency_id.is_zero(total_balance):
             move_lines.append(
                 Command.create(
-                    self._get_aml_vals(
+                    self._prepare_aml_vals(
                         orders,
                         -total_balance,
                         0.0,
@@ -450,11 +499,16 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
         move_lines += [
             Command.create(vals)
-            for vals in self._get_perpetual_valuation_aml_vals(
+            for vals in self._prepare_perpetual_valuation_aml_vals(
                 orders, is_purchase, amounts_by_perpetual_account
             )
         ]
 
+        _debug.pipeline(
+            "accrual_move_lines_completed",
+            accrual=self,
+            move_lines=len(move_lines),
+        )
         move_type = _("Expense") if is_purchase else _("Revenue")
         move_vals = {
             "ref": _(
@@ -485,7 +539,14 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
         if self.reversal_date <= self.date:
             raise UserError(_("Reversal date must be posterior to date."))
-        move_vals, orders_with_entries = self._get_move_vals()
+        move_vals, orders_with_entries = self._prepare_accrual_move_data()
+        _debug.pipeline(
+            "reversal",
+            accrual=self,
+            count=len(move_vals.get("line_ids", [])),
+            orders_with_entries=orders_with_entries,
+            reversal_date=self.reversal_date,
+        )
         move = self.env["account.move"].create(move_vals)
         move._post()
         reverse_move = move._reverse_moves(

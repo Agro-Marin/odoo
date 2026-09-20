@@ -40,7 +40,7 @@ function getTemplate(disabled = false) {
 }
 
 describe("mail popup", () => {
-    beforeEach(() => defineStyle(/* css */ `* { transition: none !important; }`));
+    beforeEach(() => defineStyle(`* { transition: none !important; }`));
     test("popup is shown if user is not subscribed (mail input not disabled)", async () => {
         const { core } = await startInteractions(getTemplate());
         expect(core.interactions).toHaveLength(1);

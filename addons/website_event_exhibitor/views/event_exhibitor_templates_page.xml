@@ -13,11 +13,8 @@
 
 
             <div class="o_wevent_online o_wesponsor_index">
-                <!-- Options -->
                 <t t-set="option_widescreen" t-value="option_widescreen or False" />
-                <!-- Drag/Drop Area -->
                 <div id="oe_structure_wesponsor_index_1" class="oe_structure" />
-                <!-- Content -->
                 <div
                     t-att-class="'o_wevent_online_page_container %s' % ('container pb-3' if not option_widescreen else 'container-fluid pb-3')">
                     <div
@@ -28,19 +25,14 @@
                         <t t-call="website_event_exhibitor.exhibitor_main" />
                     </div>
                 </div>
-                <!-- Drag/Drop Area -->
                 <div id="oe_structure_wesponsor_index_2" class="oe_structure" />
             </div>
         </t>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- CONTENT: MAIN TEMPLATES -->
-    <!-- ============================================================ -->
     <template id="exhibitor_main" name="Exhibitor: Main Content">
         <div
             t-att-class="'o_wesponsor_exhibitor_main mt-3 px-0 %s' % ('col-lg-10' if option_widescreen else 'col-lg-9 ps-lg-3 ps-xxl-5')">
-            <!-- EVENT NOT STARTED ALERTS -->
             <t t-if="not sponsor.event_id.is_ongoing">
                 <div
                     t-if="sponsor.event_id.is_done"
@@ -77,7 +69,6 @@
                     <span t-else="">Join us there to meet <b t-out="sponsor.partner_name" />!</span>
                 </div>
             </t>
-            <!-- SPONSOR DESCRIPTION -->
             <div class="h5 m-3">
                 About <t t-out="sponsor.name" />
             </div>
@@ -153,7 +144,6 @@
                     </a>
                 </div>
             </div>
-            <!-- Website description -->
             <div
                 t-if="not is_html_empty(sponsor.website_description)"
                 t-field="sponsor.website_description"
@@ -171,9 +161,6 @@
         </div>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- ASIDE: CONTROL PANEL -->
-    <!-- ============================================================ -->
     <template id="exhibitor_aside" name="Exhibitor: Aside">
         <div
             t-att-class="'o_wevent_online_page_aside o_wesponsor_exhibitor_aside col-12 mt-3 ps-0 pe-0 border %s' % ('col-lg-2' if option_widescreen else 'col-lg-3')">

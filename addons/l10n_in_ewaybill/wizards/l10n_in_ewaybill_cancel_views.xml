@@ -16,15 +16,15 @@
                     </group>
                     <footer>
                         <button
-                            string="Cancel Ewaybill"
                             name="cancel_ewaybill"
                             type="object"
+                            string="Cancel Ewaybill"
                             class="btn-primary"
                             data-hotkey="c" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

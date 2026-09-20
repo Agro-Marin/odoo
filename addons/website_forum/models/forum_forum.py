@@ -4,11 +4,12 @@ from operator import itemgetter
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import html_translate
 
-MOST_USED_TAGS_COUNT = (
-    5  # Number of tags to track as "most used" to display on frontend
-)
+_debug = DebugLog(__name__)
+
+MOST_USED_TAGS_COUNT = 5
 
 
 class ForumForum(models.Model):
@@ -46,39 +47,47 @@ class ForumForum(models.Model):
             "register_text": _("Sign up"),
         }
 
-    # description and use
-    name = fields.Char("Forum Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=1)
+    name = fields.Char(
+        string="Forum Name",
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=1)
     mode = fields.Selection(
-        [
+        selection=[
             ("questions", "Questions (1 answer)"),
             ("discussions", "Discussions (multiple answers)"),
         ],
-        string="Mode",
-        required=True,
         default="questions",
+        required=True,
         help="Questions mode: only one answer allowed\n Discussions mode: multiple answers allowed",
     )
     privacy = fields.Selection(
-        [("public", "Public"), ("connected", "Signed In"), ("private", "Some users")],
-        help="Public: Forum is public\nSigned In: Forum is visible for signed in users\nSome users: Forum and their content are hidden for non members of selected group",
+        selection=[
+            ("public", "Public"),
+            ("connected", "Signed In"),
+            ("private", "Some users"),
+        ],
         default="public",
+        help="Public: Forum is public\nSigned In: Forum is visible for signed in users\nSome users: Forum and their content are hidden for non members of selected group",
     )
-    authorized_group_id = fields.Many2one("res.groups", "Authorized Group")
+    authorized_group_id = fields.Many2one(comodel_name="res.groups")
     active = fields.Boolean(default=True)
     faq = fields.Html(
-        "Guidelines", translate=html_translate, sanitize=True, sanitize_overridable=True
-    )
-    description = fields.Text("Description", translate=True)
-    welcome_message = fields.Html(
-        "Welcome Message",
+        string="Guidelines",
         translate=html_translate,
-        default=_default_welcome_message,
+        sanitize=True,
+        sanitize_overridable=True,
+    )
+    description = fields.Text(translate=True)
+    welcome_message = fields.Html(
+        translate=html_translate,
         sanitize_attributes=False,
         sanitize_form=False,
+        default=_default_welcome_message,
     )
     default_order = fields.Selection(
-        [
+        selection=[
             ("create_date desc", "Newest"),
             ("last_activity_date desc", "Last Updated"),
             ("vote_count desc", "Most Voted"),
@@ -86,102 +95,218 @@ class ForumForum(models.Model):
             ("child_count desc", "Answered"),
         ],
         string="Default",
-        required=True,
         default="last_activity_date desc",
+        required=True,
     )
     relevancy_post_vote = fields.Float(
-        "First Relevance Parameter",
+        string="First Relevance Parameter",
         default=0.8,
         help="This formula is used in order to sort by relevance. The variable 'votes' represents number of votes for a post, and 'days' is number of days since the post creation",
     )
-    relevancy_time_decay = fields.Float("Second Relevance Parameter", default=1.8)
+    relevancy_time_decay = fields.Float(
+        string="Second Relevance Parameter",
+        default=1.8,
+    )
     allow_share = fields.Boolean(
-        "Sharing Options",
+        string="Sharing Options",
         default=True,
         help="After posting the user will be proposed to share its question "
         "or answer on social networks, enabling social network propagation "
         "of the forum content.",
     )
-    # posts statistics
-    post_ids = fields.One2many("forum.post", "forum_id", string="Posts")
-    last_post_id = fields.Many2one("forum.post", compute="_compute_last_post_id")
-    total_posts = fields.Integer("# Posts", compute="_compute_forum_statistics")
-    total_views = fields.Integer("# Views", compute="_compute_forum_statistics")
-    total_answers = fields.Integer("# Answers", compute="_compute_forum_statistics")
-    total_favorites = fields.Integer("# Favorites", compute="_compute_forum_statistics")
+    post_ids = fields.One2many(
+        comodel_name="forum.post",
+        inverse_name="forum_id",
+        string="Posts",
+    )
+    last_post_id = fields.Many2one(
+        comodel_name="forum.post",
+        compute="_compute_last_post_id",
+    )
+    total_posts = fields.Integer(
+        string="# Posts",
+        compute="_compute_forum_statistics",
+    )
+    total_views = fields.Integer(
+        string="# Views",
+        compute="_compute_forum_statistics",
+    )
+    total_answers = fields.Integer(
+        string="# Answers",
+        compute="_compute_forum_statistics",
+    )
+    total_favorites = fields.Integer(
+        string="# Favorites",
+        compute="_compute_forum_statistics",
+    )
     count_posts_waiting_validation = fields.Integer(
         string="Number of posts waiting for validation",
         compute="_compute_moderation_counts",
     )
     count_flagged_posts = fields.Integer(
-        string="Number of flagged posts", compute="_compute_moderation_counts"
+        string="Number of flagged posts",
+        compute="_compute_moderation_counts",
     )
-    # karma generation
-    karma_gen_question_new = fields.Integer(string="Asking a question", default=2)
-    karma_gen_question_upvote = fields.Integer(string="Question upvoted", default=5)
+    karma_gen_question_new = fields.Integer(
+        string="Asking a question",
+        default=2,
+    )
+    karma_gen_question_upvote = fields.Integer(
+        string="Question upvoted",
+        default=5,
+    )
     karma_gen_question_downvote = fields.Integer(
-        string="Question downvoted", default=-2
+        string="Question downvoted",
+        default=-2,
     )
-    karma_gen_answer_upvote = fields.Integer(string="Answer upvoted", default=10)
-    karma_gen_answer_downvote = fields.Integer(string="Answer downvoted", default=-2)
-    karma_gen_answer_accept = fields.Integer(string="Accepting an answer", default=2)
-    karma_gen_answer_accepted = fields.Integer(string="Answer accepted", default=15)
-    karma_gen_answer_flagged = fields.Integer(string="Answer flagged", default=-100)
-    # karma-based actions
-    karma_ask = fields.Integer(string="Ask questions", default=3)
-    karma_answer = fields.Integer(string="Answer questions", default=3)
-    karma_edit_own = fields.Integer(string="Edit own posts", default=1)
-    karma_edit_all = fields.Integer(string="Edit all posts", default=300)
-    karma_edit_retag = fields.Integer(string="Change question tags", default=75)
-    karma_close_own = fields.Integer(string="Close own posts", default=100)
-    karma_close_all = fields.Integer(string="Close all posts", default=500)
-    karma_unlink_own = fields.Integer(string="Delete own posts", default=500)
-    karma_unlink_all = fields.Integer(string="Delete all posts", default=1000)
-    karma_tag_create = fields.Integer(string="Create new tags", default=30)
-    karma_upvote = fields.Integer(string="Upvote", default=5)
-    karma_downvote = fields.Integer(string="Downvote", default=50)
-    karma_answer_accept_own = fields.Integer(
-        string="Accept an answer on own questions", default=20
+    karma_gen_answer_upvote = fields.Integer(
+        string="Answer upvoted",
+        default=10,
     )
-    karma_answer_accept_all = fields.Integer(
-        string="Accept an answer to all questions", default=500
+    karma_gen_answer_downvote = fields.Integer(
+        string="Answer downvoted",
+        default=-2,
     )
-    karma_comment_own = fields.Integer(string="Comment own posts", default=1)
-    karma_comment_all = fields.Integer(string="Comment all posts", default=1)
-    karma_comment_convert_own = fields.Integer(
-        string="Convert own comments to answers", default=50
+    karma_gen_answer_accept = fields.Integer(
+        string="Accepting an answer",
+        default=2,
     )
-    karma_comment_convert_all = fields.Integer(
-        string="Convert all comments to answers", default=500
+    karma_gen_answer_accepted = fields.Integer(
+        string="Answer accepted",
+        default=15,
     )
-    karma_comment_unlink_own = fields.Integer(string="Delete own comments", default=50)
-    karma_comment_unlink_all = fields.Integer(string="Delete all comments", default=500)
-    karma_flag = fields.Integer(string="Flag a post as offensive", default=500)
-    karma_dofollow = fields.Integer(
-        string="Nofollow links",
-        help="If the author has not enough karma, a nofollow attribute is added to links",
+    karma_gen_answer_flagged = fields.Integer(
+        string="Answer flagged",
+        default=-100,
+    )
+    karma_ask = fields.Integer(
+        string="Ask questions",
+        default=3,
+    )
+    karma_answer = fields.Integer(
+        string="Answer questions",
+        default=3,
+    )
+    karma_edit_own = fields.Integer(
+        string="Edit own posts",
+        default=1,
+    )
+    karma_edit_all = fields.Integer(
+        string="Edit all posts",
+        default=300,
+    )
+    karma_edit_retag = fields.Integer(
+        string="Change question tags",
+        default=75,
+    )
+    karma_close_own = fields.Integer(
+        string="Close own posts",
+        default=100,
+    )
+    karma_close_all = fields.Integer(
+        string="Close all posts",
         default=500,
     )
-    karma_editor = fields.Integer(string="Editor Features: image and links", default=30)
-    karma_user_bio = fields.Integer(
-        string="Display detailed user biography", default=750
+    karma_unlink_own = fields.Integer(
+        string="Delete own posts",
+        default=500,
     )
-    karma_post = fields.Integer(string="Ask questions without validation", default=100)
-    karma_moderate = fields.Integer(string="Moderate posts", default=1000)
+    karma_unlink_all = fields.Integer(
+        string="Delete all posts",
+        default=1000,
+    )
+    karma_tag_create = fields.Integer(
+        string="Create new tags",
+        default=30,
+    )
+    karma_upvote = fields.Integer(
+        string="Upvote",
+        default=5,
+    )
+    karma_downvote = fields.Integer(
+        string="Downvote",
+        default=50,
+    )
+    karma_answer_accept_own = fields.Integer(
+        string="Accept an answer on own questions",
+        default=20,
+    )
+    karma_answer_accept_all = fields.Integer(
+        string="Accept an answer to all questions",
+        default=500,
+    )
+    karma_comment_own = fields.Integer(
+        string="Comment own posts",
+        default=1,
+    )
+    karma_comment_all = fields.Integer(
+        string="Comment all posts",
+        default=1,
+    )
+    karma_comment_convert_own = fields.Integer(
+        string="Convert own comments to answers",
+        default=50,
+    )
+    karma_comment_convert_all = fields.Integer(
+        string="Convert all comments to answers",
+        default=500,
+    )
+    karma_comment_unlink_own = fields.Integer(
+        string="Delete own comments",
+        default=50,
+    )
+    karma_comment_unlink_all = fields.Integer(
+        string="Delete all comments",
+        default=500,
+    )
+    karma_flag = fields.Integer(
+        string="Flag a post as offensive",
+        default=500,
+    )
+    karma_dofollow = fields.Integer(
+        string="Nofollow links",
+        default=500,
+        help="If the author has not enough karma, a nofollow attribute is added to links",
+    )
+    karma_editor = fields.Integer(
+        string="Editor Features: image and links",
+        default=30,
+    )
+    karma_user_bio = fields.Integer(
+        string="Display detailed user biography",
+        default=750,
+    )
+    karma_post = fields.Integer(
+        string="Ask questions without validation",
+        default=100,
+    )
+    karma_moderate = fields.Integer(
+        string="Moderate posts",
+        default=1000,
+    )
     has_pending_post = fields.Boolean(
-        string="Has pending post", compute="_compute_has_pending_post"
+        string="Has pending post",
+        compute="_compute_has_pending_post",
     )
     can_moderate = fields.Boolean(
-        string="Is a moderator", compute="_compute_can_moderate"
+        string="Is a moderator",
+        compute="_compute_can_moderate",
     )
 
-    # tags
-    tag_ids = fields.One2many("forum.tag", "forum_id", string="Tags")
+    tag_ids = fields.One2many(
+        comodel_name="forum.tag",
+        inverse_name="forum_id",
+        string="Tags",
+    )
     tag_most_used_ids = fields.One2many(
-        "forum.tag", string="Most used tags", compute="_compute_tag_ids_usage"
+        comodel_name="forum.tag",
+        string="Most used tags",
+        compute="_compute_tag_ids_usage",
     )
     tag_unused_ids = fields.One2many(
-        "forum.tag", string="Unused tags", compute="_compute_tag_ids_usage"
+        comodel_name="forum.tag",
+        string="Unused tags",
+        compute="_compute_tag_ids_usage",
     )
 
     @api.depends_context("uid")
@@ -232,7 +357,7 @@ class ForumForum(models.Model):
             )(tag_data)
             if tag_forum_id[0] != current_forum_id:
                 current_forum_id = tag_forum_id[0]
-            if not posts_count:  # Could be 0 or None
+            if not posts_count:
                 forum_tags[current_forum_id]["unused_ids"].append(tag_id)
             elif (
                 len(forum_tags[current_forum_id]["most_used_ids"])
@@ -323,16 +448,10 @@ class ForumForum(models.Model):
             forum.count_posts_waiting_validation = counts.get((forum.id, "pending"), 0)
             forum.count_flagged_posts = counts.get((forum.id, "flagged"), 0)
 
-    # EXTENDS WEBSITE.MULTI.MIXIN
-
-    def _compute_website_url(self):
+    def _get_forum_url(self):
         if not self.id:
             return False
         return f"/forum/{self.env['ir.http']._slug(self)}"
-
-    # ----------------------------------------------------------------------
-    # CRUD
-    # ----------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -355,7 +474,6 @@ class ForumForum(models.Model):
 
         res = super().write(vals)
         if "active" in vals:
-            # archiving/unarchiving a forum does it on its posts, too
             self.env["forum.post"].with_context(active_test=False).search(
                 [("forum_id", "in", self.ids)]
             ).write({"active": vals["active"]})
@@ -370,10 +488,6 @@ class ForumForum(models.Model):
                 "website_forum.faq_accordion", {"forum": forum}
             )
 
-    # ----------------------------------------------------------------------
-    # TOOLS
-    # ----------------------------------------------------------------------
-
     def _tag_to_write_vals(self, tags=""):
         Tag = self.env["forum.tag"]
         post_tags = []
@@ -382,15 +496,13 @@ class ForumForum(models.Model):
         for tag_id_or_new_name in (
             tag.strip() for tag in tags.split(",") if tag and tag.strip()
         ):
-            if tag_id_or_new_name.startswith("_"):  # it's a new tag
+            if tag_id_or_new_name.startswith("_"):
                 tag_name = tag_id_or_new_name[1:]
-                # check that not already created meanwhile or maybe excluded by the limit on the search
-                tag_ids = Tag.search(
+                tag_ids = Tag.search(  # noqa: E8507 - one lookup per submitted tag name; the tag may have been created by an earlier pass
                     [("name", "=", tag_name), ("forum_id", "=", self.id)], limit=1
                 )
                 if tag_ids:
                     existing_keep.append(tag_ids.id)
-                # check if user have Karma needed to create need tag
                 elif user.exists() and user.karma >= self.karma_tag_create and tag_name:
                     post_tags.append((0, 0, {"name": tag_name, "forum_id": self.id}))
             else:
@@ -399,23 +511,15 @@ class ForumForum(models.Model):
         return post_tags
 
     def _get_tags_first_char(self, tags=None):
-        """Get set of first letter of forum tags.
-
-        :param tags: tags recordset to further filter forum's tags that are also in these tags.
-        """
         tag_ids = self.tag_ids if tags is None else (self.tag_ids & tags)
         return sorted({tag.name[0].upper() for tag in tag_ids if len(tag.name)})
 
-    # ----------------------------------------------------------------------
-    # WEBSITE
-    # ----------------------------------------------------------------------
-
     def go_to_website(self):
         self.check_singleton()
-        website_url = self._compute_website_url()
+        website_url = self._get_forum_url()
         if not website_url:
             return False
-        return self.env["website"].get_client_action(self._compute_website_url())
+        return self.env["website"].get_client_action(self._get_forum_url())
 
     @api.model
     def _search_get_detail(self, website, order, options):
@@ -451,5 +555,5 @@ class ForumForum(models.Model):
             fetch_fields, mapping, icon, limit
         )
         for forum, data in zip(self, results_data, strict=True):
-            data["website_url"] = forum._compute_website_url()
+            data["website_url"] = forum._get_forum_url()
         return results_data

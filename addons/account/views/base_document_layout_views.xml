@@ -13,8 +13,8 @@
                 <field
                     name="account_number"
                     string="Bank Account Number"
-                    required="qr_code"
-                    placeholder="BE71096123456769" />
+                    placeholder="BE71096123456769"
+                    required="qr_code" />
                 <field name="qr_code" string="QR Code" invisible="not from_invoice" />
             </xpath>
         </field>

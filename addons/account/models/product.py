@@ -4,11 +4,14 @@ from itertools import batched
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.models import PREFETCH_MAX
 from odoo.tools import SQL, format_amount
 
 _logger = logging.getLogger(__name__)
+
+_debug = DebugLog(__name__)
 
 
 DEFAULT_NAME_SIMILARITY_THRESHOLD = 0.9
@@ -21,53 +24,51 @@ class ProductTemplate(models.Model):
     _inherit = ["product.template", "mixin.fiscal.country.codes"]
 
     taxes_id = fields.Many2many(
-        "account.tax",
-        "product_taxes_rel",
-        "prod_id",
-        "tax_id",
+        comodel_name="account.tax",
+        relation="product_taxes_rel",
+        column1="prod_id",
+        column2="tax_id",
         string="Sales Taxes",
-        help="Default taxes used when selling the product",
-        domain=[("type_tax_use", "=", "sale")],
         default=lambda self: (
             self.env.companies.account_sale_tax_id
             or self.env.companies.root_id.sudo().account_sale_tax_id
         ),
+        domain=[("type_tax_use", "=", "sale")],
+        help="Default taxes used when selling the product",
     )
-    tax_string = fields.Char(
-        compute="_compute_tax_string",
-    )
+    tax_string = fields.Char(compute="_compute_tax_string")
     supplier_taxes_id = fields.Many2many(
-        "account.tax",
-        "product_supplier_taxes_rel",
-        "prod_id",
-        "tax_id",
+        comodel_name="account.tax",
+        relation="product_supplier_taxes_rel",
+        column1="prod_id",
+        column2="tax_id",
         string="Purchase Taxes",
-        help="Default taxes used when buying the product",
-        domain=[("type_tax_use", "=", "purchase")],
         default=lambda self: (
             self.env.companies.account_purchase_tax_id
             or self.env.companies.root_id.sudo().account_purchase_tax_id
         ),
+        domain=[("type_tax_use", "=", "purchase")],
+        help="Default taxes used when buying the product",
     )
     property_account_income_id = fields.Many2one(
-        "account.account",
-        company_dependent=True,
-        ondelete="restrict",
+        comodel_name="account.account",
         string="Income Account",
+        company_dependent=True,
         domain=ACCOUNT_DOMAIN,
+        ondelete="restrict",
         help="Keep this field empty to use the default value from the product category.",
     )
     property_account_expense_id = fields.Many2one(
-        "account.account",
-        company_dependent=True,
-        ondelete="restrict",
+        comodel_name="account.account",
         string="Expense Account",
+        company_dependent=True,
         domain=ACCOUNT_DOMAIN,
+        ondelete="restrict",
         help="Keep this field empty to use the default value from the product category. If anglo-saxon accounting with automated valuation method is configured, the expense account on the product category will be used.",
     )
     account_tag_ids = fields.Many2many(
-        string="Account Tags",
         comodel_name="account.account.tag",
+        string="Account Tags",
         domain="[('applicability', '=', 'products')]",
         help="Tags to be set on the base and tax journal items created for this product.",
     )
@@ -121,6 +122,7 @@ class ProductTemplate(models.Model):
         for record in self:
             record.tax_string = record._prepare_tax_string(record.list_price)
 
+    @_debug.perf.timed
     def _prepare_tax_string(self, price):
         currency = self.currency_id
         res = self.taxes_id._filter_taxes_by_company(self.env.company).compute_all(
@@ -149,6 +151,7 @@ class ProductTemplate(models.Model):
             tax_string = " "
         return tax_string
 
+    @_debug.perf.timed
     def _check_uom_not_used_on_a_posted_entry(self):
         if not self:
             return
@@ -168,6 +171,7 @@ class ProductTemplate(models.Model):
         )
         row = self.env.cr.fetchone()
         if row:
+            _debug.logic("uom_change_rejected", templates=self, used_template=row[0])
             raise ValidationError(
                 _(
                     "%(product)s is already used on posted journal entries.\n"
@@ -207,7 +211,15 @@ class ProductTemplate(models.Model):
         )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         products = super().create(vals_list)
         products_without_company = products.filtered(lambda p: not p.company_id)
         if products_without_company:
@@ -216,12 +228,19 @@ class ProductTemplate(models.Model):
                 .sudo()
                 .search(["!", ("id", "child_of", self.env.companies.ids)])
             )
+            _debug.logic(
+                "default_taxes_forced",
+                products=products_without_company,
+                other_companies=other_companies,
+            )
             if other_companies:
                 products_without_company.sudo()._force_default_tax(other_companies)
         products.sudo()._clear_taxes_of_combo_products()
         return products
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         if "uom_id" in vals:
             self.filtered(
                 lambda product: product.uom_id.id != vals["uom_id"]
@@ -255,6 +274,7 @@ class ProductProduct(models.Model):
     def _get_product_accounts(self, fiscal_pos=None):
         return self.product_tmpl_id._get_product_accounts(fiscal_pos=fiscal_pos)
 
+    @_debug.perf.timed
     def _get_tax_included_unit_price(
         self,
         company,
@@ -287,6 +307,12 @@ class ProductProduct(models.Model):
             elif document_type == "purchase":
                 product_price_unit = self.with_company(company).standard_price
             else:
+                _debug.logic(
+                    "unit_price_skipped",
+                    product=self,
+                    document_type=document_type,
+                    reason="no_price_source",
+                )
                 return 0.0
         if product_taxes is None:
             if document_type == "sale":
@@ -296,7 +322,7 @@ class ProductProduct(models.Model):
         if product_taxes:
             product_taxes = product_taxes._filter_taxes_by_company(company)
         if product_uom_id and self.uom_id != product_uom_id:
-            product_price_unit = self.uom_id._compute_price(
+            product_price_unit = self.uom_id._get_price_in_unit(
                 product_price_unit, product_uom_id
             )
 
@@ -312,6 +338,17 @@ class ProductProduct(models.Model):
                 product_price_unit, currency, company, document_date, round=False
             )
 
+        _debug.logic(
+            "unit_price_resolved",
+            product=self,
+            company=company,
+            document_type=document_type,
+            taxes=product_taxes,
+            fiscal_position=fiscal_position,
+            currency=currency,
+            product_currency=product_currency,
+            price=product_price_unit,
+        )
         return product_price_unit
 
     def _get_tax_included_unit_price_from_price(
@@ -423,6 +460,13 @@ class ProductProduct(models.Model):
                     best_ratio = ratio
                     best_product = product
             products.invalidate_recordset()
+        _debug.pipeline(
+            "name_similarity_matched",
+            candidates=len(candidate_ids),
+            threshold=threshold,
+            best=best_product,
+            ratio=best_ratio,
+        )
         return best_product
 
     def _get_import_criteria_from_name(self, product_values):
@@ -464,6 +508,7 @@ class ProductProduct(models.Model):
         return extra_domain, order_fields
 
     @api.model
+    @_debug.perf.timed
     def _get_product_from_search_plan(
         self, search_plan, company, product_values, extra_domain=None
     ):
@@ -495,7 +540,13 @@ class ProductProduct(models.Model):
                 else:
                     continue
                 if product:
+                    _debug.logic(
+                        "import_product_matched",
+                        product=product,
+                        criteria=criteria.get("domain") or search_method.__name__,
+                    )
                     return product
+        _debug.logic("import_no_product_matched", fields=sorted(product_values))
         return self.browse()
 
     @api.model

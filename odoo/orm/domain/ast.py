@@ -12,7 +12,9 @@ import typing
 import warnings
 
 from odoo.exceptions import UserError
-from odoo.tools import SQL, OrderedSet, Query, classproperty
+from odoo.libs.collections import FrozenOrderedSet
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import SQL, OrderedSet, Query, classproperty, frozendict
 
 from .._recordset import is_recordset
 from ..parsing import parse_field_expr
@@ -39,6 +41,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 _logger = logging.getLogger("odoo.domains")
+_debug = DebugLog(__name__)
 
 
 def _parse_prefix_domain(arg, internal: bool) -> Domain:
@@ -94,7 +97,7 @@ MAX_DOMAIN_NESTING = 100
 
 
 def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
-    if left.__class__ in (list, tuple, set, frozenset, OrderedSet):
+    if left.__class__ in (list, tuple, set, frozenset, OrderedSet, FrozenOrderedSet):
         if len(left) != len(right):
             return False
         try:
@@ -102,6 +105,49 @@ def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
         except TypeError:
             return left == right
     return left == right
+
+
+def _thaw_comparand(operator: str, value: typing.Any) -> typing.Any:
+    if isinstance(value, Domain):
+        return list(value)
+    if not isinstance(value, COLLECTION_TYPES):
+        return value
+    if operator not in SUBDOMAIN_OPERATORS:
+        return list(value)
+    return [_thaw_condition(item) for item in value]
+
+
+def _thaw_condition(item: typing.Any) -> typing.Any:
+    if isinstance(item, tuple) and len(item) == 3 and isinstance(item[0], str):
+        field_expr, operator, value = item
+        return (field_expr, operator, _thaw_comparand(operator, value))
+    return item
+
+
+def _freeze_comparand(value: typing.Any, path: set[int] | None = None) -> typing.Any:
+    if not isinstance(value, (list, tuple, set, frozenset, dict, OrderedSet)):
+        return value
+    if path is None:
+        path = set()
+    marker = id(value)
+    if marker in path:
+        raise ValueError("Cyclic domain operand")
+    if len(path) >= MAX_DOMAIN_NESTING:
+        raise ValueError("Domain nesting too deep to freeze")
+    path.add(marker)
+    try:
+        if isinstance(value, dict):
+            return frozendict(
+                (key, _freeze_comparand(item, path)) for key, item in value.items()
+            )
+        items = (_freeze_comparand(item, path) for item in value)
+        if isinstance(value, OrderedSet):
+            return FrozenOrderedSet(items)
+        if isinstance(value, (set, frozenset)):
+            return frozenset(items)
+        return tuple(items)
+    finally:
+        path.remove(marker)
 
 
 class DomainOptimizationError(ValueError):
@@ -113,6 +159,7 @@ def _recursion_error_as_value_error():
     try:
         yield
     except RecursionError:
+        _debug.logic("domain.optimize.recursion_exhausted")
         raise ValueError(
             "Domain nesting too deep to optimize: combined n-ary and 'any' "
             "nesting exhausts the evaluation stack"
@@ -199,7 +246,7 @@ def _get_nary_sort_key(
             order = "1any"
         elif positive_op == "any!":
             order = "2any"
-        elif positive_op.endswith("like"):
+        elif positive_op.endswith("like") or positive_op == "=~":
             order = "like"
         else:
             order = positive_op
@@ -413,6 +460,11 @@ class Domain:
         if opt_model == model_name and opt_level >= level:
             return self
         if opt_model is not None and opt_model != model_name:
+            _debug.logic(
+                "domain.optimize.model_changed",
+                model=model_name,
+                previous_model=opt_model,
+            )
             domain = self._reset_opt_copy()
         else:
             domain = self
@@ -430,6 +482,18 @@ class Domain:
             previous, domain = domain, domain._optimize_step(model, next_level)
             if domain == previous and domain._opt[0] < next_level:
                 object.__setattr__(domain, "_opt", (next_level, model_name))
+        if _debug.perf.enabled and count > 4:
+            _debug.perf.count(
+                "domain.optimize.iterations",
+                model=model_name,
+                level=level.name,
+                iterations=count,
+                conditions=sum(1 for _condition in domain.iter_conditions()),
+                head=next(
+                    (condition.field_expr for condition in domain.iter_conditions()),
+                    None,
+                ),
+            )
         return domain
 
     def _reset_opt_copy(self) -> Domain:
@@ -657,6 +721,15 @@ class DomainNary(Domain):
                     continue
                 merged = merge(cls, children, model)
                 if merged is not children:
+                    if _debug.logic.enabled:
+                        _debug.logic(
+                            "domain.nary.merged",
+                            model=model._name,
+                            kind=cls.__name__,
+                            merge=getattr(merge, "__name__", type(merge).__name__),
+                            before=len(children),
+                            after=len(merged),
+                        )
                     present_ops = {
                         c.operator for c in merged if isinstance(c, DomainCondition)
                     }
@@ -749,6 +822,11 @@ class DomainCustom(Domain):
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         if self._filtered is not None:
             return self._filtered
+        _debug.logic(
+            "domain.custom.predicate_via_search",
+            model=records._name,
+            records=len(records),
+        )
         query = records._search(
             DomainCondition("id", "in", records.ids) & self, order="id"
         )
@@ -771,6 +849,70 @@ class DomainCustom(Domain):
         return self._sql(model, alias, query)
 
 
+def _defines_the_condition(field: Field, su: bool) -> bool:
+    # a search method answers the condition instead of the field's value. A
+    # related or inherited field's generic search is the path rewrite, whose
+    # sub-select a record rule may narrow for a user but never for the
+    # superuser: as the superuser the in-memory read through the path answers
+    # the same, unless the path ends on a field with a search method of its own
+    search = field.search
+    if not search:
+        return False
+    if getattr(search, "__func__", None) is not _search_related_function():
+        return True
+    if not su:
+        return True
+    target = field.related_field
+    return _defines_the_condition(target, su) if target is not None else False
+
+
+@functools.cache
+def _search_related_function():
+    from ..fields.base import Field as _Field
+
+    return _Field._search_related
+
+
+def ids_selected_without_query(domain: Domain) -> OrderedSet | None:
+    if domain.is_false():
+        return OrderedSet()
+    if (
+        isinstance(domain, DomainCondition)
+        and domain.field_expr == "id"
+        and domain.operator == "in"
+        and isinstance(
+            domain.value, (list, tuple, set, frozenset, OrderedSet, FrozenOrderedSet)
+        )
+        and all(isinstance(id_, int) for id_ in domain.value)
+    ):
+        return OrderedSet(domain.value)
+    return None
+
+
+def _ids_matched_without_query(domain: Domain, universe: frozenset) -> set | None:
+    if domain.is_false():
+        return set()
+    if isinstance(domain, DomainCondition):
+        if domain.field_expr != "id" or not isinstance(
+            domain.value, (list, tuple, set, frozenset, OrderedSet, FrozenOrderedSet)
+        ):
+            return None
+        if domain.operator == "in":
+            return set(universe.intersection(domain.value))
+        return None
+    if isinstance(domain, (DomainAnd, DomainOr)):
+        parts: list[set] = []
+        for child in domain.children:
+            part = _ids_matched_without_query(child, universe)
+            if part is None:
+                return None
+            parts.append(part)
+        if isinstance(domain, DomainAnd):
+            return set(universe.intersection(*parts))
+        return set().union(*parts)
+    return None
+
+
 class DomainCondition(Domain):
     __slots__ = (
         "_field_instance",
@@ -790,7 +932,7 @@ class DomainCondition(Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
-        object.__setattr__(self, "value", value)
+        object.__setattr__(self, "value", _freeze_comparand(value))
         object.__setattr__(
             self,
             "_depth",
@@ -805,6 +947,11 @@ class DomainCondition(Domain):
             raise self._prepare_condition_error("Empty field name", error=TypeError)
         op = self.operator.lower()
         if op != self.operator:
+            _debug.logic(
+                "domain.normalize.operator_lowercased",
+                field_expr=self.field_expr,
+                operator=self.operator,
+            )
             warnings.warn(
                 f"Deprecated since 19.0, the domain condition {(self.field_expr, self.operator, self.value)!r} should have a lower-case operator",
                 DeprecationWarning,
@@ -819,6 +966,11 @@ class DomainCondition(Domain):
         if value is None:
             value = False
         elif isinstance(value, NewId):
+            _debug.logic(
+                "domain.normalize.new_id_dropped",
+                field_expr=self.field_expr,
+                operator=op,
+            )
             _logger.warning(
                 "Domains don't support NewId, use .ids instead, for %r",
                 (self.field_expr, self.operator, self.value),
@@ -826,6 +978,13 @@ class DomainCondition(Domain):
             op = "not in" if op in NEGATIVE_CONDITION_OPERATORS else "in"
             value = []
         elif is_recordset(value):
+            _debug.logic(
+                "domain.normalize.recordset_to_ids",
+                field_expr=self.field_expr,
+                operator=op,
+                model=value._name,
+                ids=len(value),
+            )
             _logger.warning(
                 "The domain condition %r should not have a value which is a model",
                 (self.field_expr, self.operator, self.value),
@@ -834,6 +993,12 @@ class DomainCondition(Domain):
         elif isinstance(value, (Domain, Query, SQL)) and op not in (
             SUBDOMAIN_OR_IN_OPERATORS
         ):
+            _debug.logic(
+                "domain.normalize.subquery_without_any",
+                field_expr=self.field_expr,
+                operator=op,
+                value_type=type(value).__name__,
+            )
             _logger.warning(
                 "The domain condition %r should use the 'any' or 'not any' operator.",
                 (self.field_expr, self.operator, self.value),
@@ -852,18 +1017,28 @@ class DomainCondition(Domain):
     def _negate(self, model: BaseModel) -> Domain:
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
             condition: Domain = DomainCondition(self.field_expr, neg_op, self.value)
-            if self._get_field(model).falsy_value is None:
+            null_included = self._get_field(model).falsy_value is None
+            if null_included:
                 is_null = DomainCondition(self.field_expr, "in", OrderedSet([False]))
                 condition = is_null | condition
+            _debug.logic(
+                "domain.negate.inequality",
+                model=model._name,
+                field_expr=self.field_expr,
+                operator=self.operator,
+                negated=neg_op,
+                null_included=null_included,
+            )
             return condition
 
         return super()._negate(model)
 
     def __iter__(self) -> typing.Iterator[tuple[str, str, object]]:
-        field_expr, op, value = self.field_expr, self.operator, self.value
-        if isinstance(value, (*COLLECTION_TYPES, Domain)):
-            value = list(value)
-        yield (field_expr, op, value)
+        yield (
+            self.field_expr,
+            self.operator,
+            _thaw_comparand(self.operator, self.value),
+        )
 
     def __eq__(self, other: object) -> bool:
         return self is other or (
@@ -871,7 +1046,12 @@ class DomainCondition(Domain):
             and self.field_expr == other.field_expr
             and self.operator == other.operator
             and self.value.__class__ is other.value.__class__
-            and _is_comparand_equal(self.value, other.value)
+            and (
+                self.value == other.value
+                if self.operator in SUBDOMAIN_OPERATORS
+                and isinstance(self.value, tuple)
+                else _is_comparand_equal(self.value, other.value)
+            )
         )
 
     def __hash__(self) -> int:
@@ -881,7 +1061,14 @@ class DomainCondition(Domain):
             pass
         value = self.value
         try:
-            if value.__class__ in (list, tuple, set, frozenset, OrderedSet):
+            if value.__class__ in (
+                list,
+                tuple,
+                set,
+                frozenset,
+                OrderedSet,
+                FrozenOrderedSet,
+            ):
                 h = hash(
                     (
                         self.field_expr,
@@ -949,6 +1136,12 @@ class DomainCondition(Domain):
                 parent_domain = DomainCondition(
                     self.field_expr, self.operator, self.value
                 )
+                _debug.logic(
+                    "domain.condition.inherited_delegated",
+                    model=model._name,
+                    field=self.field_expr,
+                    parent=parent_fname,
+                )
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
@@ -962,6 +1155,14 @@ class DomainCondition(Domain):
                 if domain != self:
                     domain = domain.optimize(model)
                     if domain != self:
+                        if _debug.logic.enabled:
+                            _debug.logic(
+                                "domain.condition.search_method_applied",
+                                model=model._name,
+                                field=self.field_expr,
+                                operator=self.operator,
+                                conditions=sum(1 for _c in domain.iter_conditions()),
+                            )
                         return domain
 
         optimizations = _OPTIMIZATIONS_FOR[level]
@@ -1000,6 +1201,13 @@ class DomainCondition(Domain):
         if original_exception is None and (inversed_op := INVERSE_OPERATOR.get(op)):
             computed_domain = field.get_search_domain(model, inversed_op, value)
             if computed_domain is not NotImplemented:
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="inverse_operator",
+                )
                 return ~Domain(computed_domain, internal=True)
         try:
             if op in ("any!", "not any!"):
@@ -1010,11 +1218,27 @@ class DomainCondition(Domain):
                     model.sudo()
                 )
                 _logger.warning("Field %s should implement any! operator", field)
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="any_without_bang",
+                )
                 return computed_domain
         except (NotImplementedError, UserError) as e:
             if original_exception is None:
                 original_exception = e
         try:
+            if _debug.logic.enabled and op in ("in", "not in"):
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="per_value",
+                    values=len(value),
+                )
             if op == "in":
                 return Domain.OR(
                     Domain(field.get_search_domain(model, "=", v), internal=True)
@@ -1037,13 +1261,15 @@ class DomainCondition(Domain):
                 field_label=self._get_field(model).get_description(
                     model.env, ["string"]
                 )["string"],
-                model_label=f"{model.env['ir.model']._get(model._name).name!r} ({model._name})",
+                model_label=f"{model.env.registry.metaschema.model_description(model.env, model._name)!r} ({model._name})",
             )
         )
 
     def _is_search_defined(self, records: BaseModel) -> bool:
         field = self._get_field(records)
-        return bool((field.search and field.name == self.field_expr) or field.inherited)
+        if field.name != self.field_expr:
+            return False
+        return _defines_the_condition(field, records.env.su)
 
     def _search_defined_predicate(
         self, records: BaseModel
@@ -1051,10 +1277,27 @@ class DomainCondition(Domain):
         real_ids = [id_ for id_ in records._ids if id_]
         matched: set = set()
         if real_ids:
-            query = records.with_context(active_test=False)._search(
-                DomainCondition("id", "in", OrderedSet(real_ids)) & self
+            scoped = records.with_context(active_test=False)
+            candidates = DomainCondition("id", "in", OrderedSet(real_ids)) & self
+            answered = None
+            if scoped.env.su:
+                with _recursion_error_as_value_error():
+                    answered = _ids_matched_without_query(
+                        self.optimize_full(scoped), frozenset(real_ids)
+                    )
+            if answered is None:
+                query = scoped._search(candidates)
+                matched = set(query.get_result_ids())
+            else:
+                matched = answered
+            _debug.logic(
+                "domain.predicate.search_defined_query",
+                model=records._name,
+                field=self.field_expr,
+                operator=self.operator,
+                records=len(real_ids),
+                matched=len(matched),
             )
-            matched = set(query.get_result_ids())
 
         if all(records._ids):
             return lambda rec: rec._ids[0] in matched
@@ -1074,20 +1317,53 @@ class DomainCondition(Domain):
 
         op = self.operator
         if op in ("child_of", "parent_of"):
+            _debug.logic(
+                "domain.predicate.hierarchy_expanded",
+                model=records._name,
+                field_expr=self.field_expr,
+                operator=op,
+                records=len(records),
+            )
             with _recursion_error_as_value_error():
                 domain = self._optimize(records, OptimizationLevel.FULL)
             return domain._as_predicate(records)
 
-        if self._is_search_defined(records):
-            return self._search_defined_predicate(records)
+        # a fully optimized condition already ran its search method, which
+        # answered with this very condition (a stored field searching itself):
+        # the column answers now, or the in-memory search would loop
+        if opt_level < OptimizationLevel.FULL:
+            if self._is_search_defined(records):
+                return self._search_defined_predicate(records)
+            if self._is_related_path(records):
+                # the superuser walks the related path in memory: the FULL
+                # rewrite is the `any` chain the sub-select would join, and
+                # no rule narrows it for the superuser
+                with _recursion_error_as_value_error():
+                    domain = self._optimize(records, OptimizationLevel.FULL)
+                if domain is not self:
+                    return domain._as_predicate(records)
 
         return self._get_value_predicate(records)
+
+    def _is_related_path(self, records: BaseModel) -> bool:
+        field = self._get_field(records)
+        return (
+            field.name == self.field_expr
+            and getattr(field.search, "__func__", None) is _search_related_function()
+        )
 
     def _get_value_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         op = self.operator
         if not all(records._ids):
             fallback = getattr(self, "_predicate_fallback", None)
             if fallback is not None:
+                _debug.logic(
+                    "domain.predicate.new_records_fallback",
+                    model=records._name,
+                    field_expr=self.field_expr,
+                    operator=op,
+                    records=len(records),
+                )
                 return fallback._as_predicate(records)
 
         if op not in STANDARD_CONDITION_OPERATORS:
@@ -1105,6 +1381,13 @@ class DomainCondition(Domain):
                 op = "not any!"
             positive_operator = "any!"
             field_expr = "id"
+            _debug.logic(
+                "domain.predicate.sql_value_via_search",
+                model=records._name,
+                field_expr=self.field_expr,
+                operator=self.operator,
+                records=len(records),
+            )
             value = records.with_context(active_test=False)._search(
                 DomainCondition("id", "in", OrderedSet(records.ids)) & condition
             )
@@ -1122,6 +1405,13 @@ class DomainCondition(Domain):
             # domain is cached across requests, so a Query inside it may still
             # point at the closed cursor of the request that built it.
             value = set(value.get_result_ids(records.env))
+            _debug.logic(
+                "domain.predicate.query_resolved",
+                model=records._name,
+                field=field_expr,
+                operator=op,
+                ids=len(value),
+            )
             return DomainCondition(field_expr, op, value)._as_predicate(records)
 
         field = self._get_field(records)
@@ -1169,4 +1459,5 @@ __all__ = [
     "DomainOptimizationError",
     "DomainOr",
     "OptimizationLevel",
+    "ids_selected_without_query",
 ]

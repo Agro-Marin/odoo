@@ -39,34 +39,33 @@ class AccountTaxGroup(models.Model):
     _check_company_auto = True
     _check_company_domain = models.check_companies_domain_parent_of
 
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     sequence = fields.Integer(default=10)
     company_ids = fields.Many2many(
-        "res.company",
+        comodel_name="res.company",
         string="Companies",
-        required=True,
         depends_context=("uid",),
         default=lambda self: self.env.company,
+        required=True,
     )
     country_id = fields.Many2one(
-        string="Country",
         comodel_name="res.country",
         compute="_compute_country_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         help="The country for which this tax group is applicable.",
     )
     country_code = fields.Char(related="country_id.code")
     preceding_subtotal = fields.Char(
-        string="Preceding Subtotal",
-        help=(
-            "If set, this value will be used on documents as the label of a "
-            "subtotal excluding this tax group before displaying it. "
-            "If not set, the tax group will be displayed after the "
-            "'Untaxed amount' subtotal."
-        ),
         translate=True,
+        help="If set, this value will be used on documents as the label of a "
+        "subtotal excluding this tax group before displaying it. "
+        "If not set, the tax group will be displayed after the "
+        "'Untaxed amount' subtotal.",
     )
     pos_receipt_label = fields.Char(string="PoS receipt label")
 
@@ -105,39 +104,37 @@ class AccountTax(models.Model):
     _check_company_auto = True
     _rec_names_search = ["name", "description", "invoice_label"]
     _check_company_domain = models.check_companies_domain_parent_of
+    _search_visibility_fields = ()
 
     name = fields.Char(
         string="Tax Name",
-        required=True,
         translate=True,
+        required=True,
         tracking=True,
     )
     type_tax_use = fields.Selection(
-        TYPE_TAX_USE,
+        selection=TYPE_TAX_USE,
         string="Tax Type",
-        required=True,
         default="sale",
+        required=True,
         tracking=True,
-        help=(
-            "Determines where the tax is selectable. Note: 'None' means a tax "
-            "can't be used by itself, however it can still be used in a group."
-        ),
+        help="Determines where the tax is selectable. Note: 'None' means a tax "
+        "can't be used by itself, however it can still be used in a group.",
     )
     tax_scope = fields.Selection(
-        [("service", "Services"), ("consu", "Goods")],
-        string="Tax Scope",
+        selection=[("service", "Services"), ("consu", "Goods")]
     )
     amount_type = fields.Selection(
-        default="percent",
-        string="Tax Computation",
-        required=True,
-        tracking=True,
         selection=[
             ("group", "Group of Taxes"),
             ("fixed", "Fixed"),
             ("percent", "Percentage"),
             ("division", "Percentage Tax Included"),
         ],
+        string="Tax Computation",
+        default="percent",
+        required=True,
+        tracking=True,
         help="""
     - Group of Taxes: The tax is a set of sub taxes.
     - Fixed: The tax amount stays the same whatever the price.
@@ -154,28 +151,36 @@ class AccountTax(models.Model):
         help="Set active to false to hide the tax without removing it.",
     )
     company_ids = fields.Many2many(
-        "res.company",
+        comodel_name="res.company",
         string="Companies",
-        required=True,
         depends_context=("uid",),
         default=lambda self: self.env.company,
+        required=True,
     )
     children_tax_ids = fields.Many2many(
-        "account.tax",
-        "account_tax_filiation_rel",
-        "parent_tax",
-        "child_tax",
-        check_company=True,
+        comodel_name="account.tax",
+        relation="account_tax_filiation_rel",
+        column1="parent_tax",
+        column2="child_tax",
         string="Children Taxes",
+        check_company=True,
     )
     sequence = fields.Integer(
-        required=True,
         default=1,
+        required=True,
         help="The sequence field is used to define order in which the tax lines are applied.",
     )
-    amount = fields.Float(required=True, digits=(16, 4), default=0.0, tracking=True)
-    description = fields.Html(string="Description", translate=html_translate)
-    invoice_label = fields.Char(string="Label on Invoices", translate=True)
+    amount = fields.Float(
+        digits=(16, 4),
+        default=0.0,
+        required=True,
+        tracking=True,
+    )
+    description = fields.Html(translate=html_translate)
+    invoice_label = fields.Char(
+        string="Label on Invoices",
+        translate=True,
+    )
     tax_label = fields.Char(compute="_compute_tax_label")
 
     price_include = fields.Boolean(
@@ -191,10 +196,8 @@ class AccountTax(models.Model):
         selection=[("tax_included", "Tax Included"), ("tax_excluded", "Tax Excluded")],
         string="Included in Price",
         tracking=True,
-        help=(
-            "Overrides the Company's default on whether the price you use on "
-            "the product and invoices includes this tax."
-        ),
+        help="Overrides the Company's default on whether the price you use on "
+        "the product and invoices includes this tax.",
     )
     include_base_amount = fields.Boolean(
         string="Affect Base of Subsequent Taxes",
@@ -211,52 +214,53 @@ class AccountTax(models.Model):
 
     tax_group_id = fields.Many2one(
         comodel_name="account.tax.group",
-        string="Tax Group",
         compute="_compute_tax_group_id",
-        readonly=False,
-        store=True,
-        required=True,
         precompute=True,
+        store=True,
+        readonly=False,
+        required=True,
         domain="[('country_id', 'in', (country_id, False))]",
     )
     invoice_repartition_line_ids = fields.One2many(
-        string="Distribution for Invoices",
         comodel_name="account.tax.repartition.line",
+        inverse_name="tax_id",
+        string="Distribution for Invoices",
         compute="_compute_invoice_repartition_line_ids",
         store=True,
         readonly=False,
-        inverse_name="tax_id",
         domain=[("document_type", "=", "invoice")],
         help="Distribution when the tax is used on an invoice",
     )
     refund_repartition_line_ids = fields.One2many(
-        string="Distribution for Refund Invoices",
         comodel_name="account.tax.repartition.line",
+        inverse_name="tax_id",
+        string="Distribution for Refund Invoices",
         compute="_compute_refund_repartition_line_ids",
         store=True,
         readonly=False,
-        inverse_name="tax_id",
         domain=[("document_type", "=", "refund")],
         help="Distribution when the tax is used on a refund",
     )
     repartition_line_ids = fields.One2many(
-        string="Distribution",
         comodel_name="account.tax.repartition.line",
         inverse_name="tax_id",
+        string="Distribution",
         copy=True,
     )
 
     country_id = fields.Many2one(
-        string="Country",
         comodel_name="res.country",
         compute="_compute_country_id",
-        readonly=False,
-        store=True,
-        required=True,
         precompute=True,
+        store=True,
+        readonly=False,
+        required=True,
         help="The country for which this tax is applicable.",
     )
-    country_code = fields.Char(related="country_id.code", readonly=True)
+    country_code = fields.Char(
+        related="country_id.code",
+        readonly=True,
+    )
 
     has_negative_factor = fields.Boolean(compute="_compute_has_negative_factor")
 
@@ -293,7 +297,7 @@ class AccountTax(models.Model):
                 for tax in taxes
                 if tax.type_tax_use != "none"
             ]
-            if duplicates := self.sudo().search(Domain.OR(domains)):
+            if duplicates := self.sudo().search(Domain.OR(domains)):  # noqa: E8507 - one query per company; taxes sharing one were merged above
                 raise ValidationError(
                     self.env._(
                         "Tax names must be unique!\n%(taxes)s",
@@ -491,13 +495,13 @@ class AccountTax(models.Model):
             ):
                 by_country[tax.country_id] += tax
         for country, taxes in by_country.items():
-            taxes.tax_group_id = self.env["account.tax.group"].search(
+            taxes.tax_group_id = self.env["account.tax.group"].search(  # noqa: E8507 - one lookup per country of the batch
                 [
                     *self.env["account.tax.group"]._check_company_domain(company),
                     ("country_id", "=", country.id),
                 ],
                 limit=1,
-            ) or self.env["account.tax.group"].search(
+            ) or self.env["account.tax.group"].search(  # noqa: E8507 - one lookup per country of the batch
                 [
                     *self.env["account.tax.group"]._check_company_domain(company),
                     ("country_id", "=", False),
@@ -621,7 +625,7 @@ class AccountTax(models.Model):
         for tax in self:
             tax.tax_label = tax.invoice_label or tax.name
 
-    def _sanitize_vals(self, vals):
+    def _normalize_vals(self, vals):
         sanitized = vals.copy()
 
         if sanitized.get("description") and not re.search(
@@ -683,12 +687,12 @@ class AccountTax(models.Model):
             }
         )
         taxes = super(AccountTax, self.with_context(context)).create(
-            [self._sanitize_vals(vals) for vals in vals_list]
+            [self._normalize_vals(vals) for vals in vals_list]
         )
         return taxes.with_context(self.env.context)
 
     def write(self, vals):
-        return super().write(self._sanitize_vals(vals))
+        return super().write(self._normalize_vals(vals))
 
     def copy_data(self, default=None):
         default = dict(default or {})
@@ -4063,7 +4067,7 @@ class AccountTax(models.Model):
                     aggregated_values[raw_base_field] += amount_to_distribute
                     values[raw_base_field] += amount_to_distribute
 
-    def _compute_all_special_mode(self, handle_price_include):
+    def _get_all_special_mode(self, handle_price_include):
         if "force_price_include" in self.env.context:
             return (
                 "total_included"
@@ -4106,7 +4110,7 @@ class AccountTax(models.Model):
         company = company._get_accessible_branches()[:1] or company
 
         currency = currency or company.currency_id
-        special_mode = self._compute_all_special_mode(handle_price_include)
+        special_mode = self._get_all_special_mode(handle_price_include)
 
         base_line = self._prepare_base_line_for_taxes_computation(
             None,
@@ -4203,8 +4207,8 @@ class AccountTaxRepartitionLine(models.Model):
 
     factor_percent = fields.Float(
         string="%",
-        default=100,
         digits=(16, 12),
+        default=100,
         required=True,
         help="Factor to apply on the account move lines generated from this distribution line, in percents",
     )
@@ -4214,15 +4218,15 @@ class AccountTaxRepartitionLine(models.Model):
         help="Factor to apply on the account move lines generated from this distribution line",
     )
     repartition_type = fields.Selection(
-        string="Based On",
         selection=[("base", "Base"), ("tax", "of tax")],
-        required=True,
+        string="Based On",
         default="tax",
+        required=True,
         help="Base on which the factor will be applied.",
     )
     document_type = fields.Selection(
-        string="Related to",
         selection=[("invoice", "Invoice"), ("refund", "Refund")],
+        string="Related to",
         required=True,
     )
     tax_id = fields.Many2one(
@@ -4232,20 +4236,17 @@ class AccountTaxRepartitionLine(models.Model):
         check_company=True,
     )
     company_ids = fields.Many2many(
-        string="Companies",
         comodel_name="res.company",
         related="tax_id.company_ids",
+        string="Companies",
         help="The companies this distribution line belongs to.",
     )
     sequence = fields.Integer(
-        string="Sequence",
         default=1,
-        help=(
-            "The order in which distribution lines are displayed and matched. "
-            "For refunds to work properly, invoice distribution lines should be "
-            "arranged in the same order as the credit note distribution lines "
-            "they correspond to."
-        ),
+        help="The order in which distribution lines are displayed and matched. "
+        "For refunds to work properly, invoice distribution lines should be "
+        "arranged in the same order as the credit note distribution lines "
+        "they correspond to.",
     )
 
     @api.depends("factor_percent")

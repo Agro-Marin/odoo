@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.bus");
 export class DiscussCorePublicWeb {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -16,17 +19,6 @@ export class DiscussCorePublicWeb {
         this.busService = services.bus_service;
         this.notificationService = services.notification;
         this.rtcService = services["discuss.rtc"];
-        try {
-            this.sidebarCategoriesBroadcast = new browser.BroadcastChannel(
-                "discuss_core_public_web.sidebar_categories",
-            );
-            this.sidebarCategoriesBroadcast.addEventListener(
-                "message",
-                /** @param {MessageEvent<{id: number, open: boolean}>} ev */
-                ({ data: { id, open } }) =>
-                    this.store.DiscussAppCategory.get(id)?.applyBroadcastedOpen(open),
-            );
-        } catch {}
         this.busService.subscribe("discuss.channel/joined", (payload) =>
             this.onChannelJoined(payload),
         );
@@ -50,6 +42,11 @@ export class DiscussCorePublicWeb {
         invite_to_rtc_call,
         invited_by_user_id: invitedByUserId,
     }) {
+        log.pipeline("discuss.channel/joined", () => ({
+            channel_id,
+            invite_to_rtc_call,
+            invitedByUserId,
+        }));
         this.store.insert(data);
         await this.store.fetchChannel(channel_id);
         const thread = this.store.Thread.get({
@@ -59,7 +56,7 @@ export class DiscussCorePublicWeb {
         if (
             thread &&
             invitedByUserId &&
-            invitedByUserId !== this.store.self_partner?.main_user_id?.id &&
+            invitedByUserId !== this.store.selfUser?.id &&
             !invite_to_rtc_call
         ) {
             this.notificationService.add(
@@ -74,6 +71,7 @@ export class DiscussCorePublicWeb {
      * @param {Object} data
      */
     async onServiceWorkerMessage(action, data) {
+        log.pipeline("serviceWorker message", () => ({ action, data }));
         if (action === "OPEN_CHANNEL") {
             await this.openPushedChannel(data);
         } else if (action === "OPEN_RECORD") {
@@ -95,6 +93,10 @@ export class DiscussCorePublicWeb {
         if (!data.joinCall || !channel || this.rtcService.state.channel?.eq(channel)) {
             return;
         }
+        log.logic("openPushedChannel joins call", () => ({
+            channel: channel.localId,
+            leavingCurrent: Boolean(this.rtcService.state.channel),
+        }));
         if (this.rtcService.state.channel) {
             await this.rtcService.leaveCall();
         }
@@ -103,6 +105,7 @@ export class DiscussCorePublicWeb {
 
     /** @param {Object} [data] */
     downloadRtcLogs(data) {
+        log.logic("downloadRtcLogs");
         const logs = data || {};
         logs.odooInfo = odoo.info;
         const blob = new Blob([JSON.stringify(logs)], { type: "application/json" });
@@ -113,14 +116,6 @@ export class DiscussCorePublicWeb {
         downloadLink.href = url;
         downloadLink.click();
         URL.revokeObjectURL(url);
-    }
-
-    /** @param {import("models").DiscussAppCategory} category */
-    broadcastCategoryState(category) {
-        this.sidebarCategoriesBroadcast?.postMessage({
-            id: category.id,
-            open: category.open,
-        });
     }
 }
 

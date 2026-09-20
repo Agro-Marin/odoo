@@ -3,7 +3,12 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _
+
+from .ir_actions_actions import WINDOW_TARGETS
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsAct_Window(models.Model):
@@ -11,12 +16,9 @@ class IrActionsAct_Window(models.Model):
     _description = "Action Window"
     _table = "ir_act_window"
     _inherit = ["ir.actions.actions"]
-    _order = "name, id"
-    _allow_sudo_commands = False
 
-    type = fields.Char(default="ir.actions.act_window")
     view_id = fields.Many2one(
-        "ir.ui.view",
+        comodel_name="ir.ui.view",
         string="View Ref.",
         ondelete="set null",
     )
@@ -40,18 +42,13 @@ class IrActionsAct_Window(models.Model):
         help="Model name of the object to open in the view window",
     )
     target = fields.Selection(
-        [
-            ("current", "Current Window"),
-            ("new", "New Window"),
-            ("fullscreen", "Full Screen"),
-            ("main", "Main action of Current Window"),
-        ],
-        default="current",
+        selection=WINDOW_TARGETS,
         string="Target Window",
+        default="current",
     )
     view_mode = fields.Char(
-        required=True,
         default="list,form",
+        required=True,
         help="Comma-separated list of allowed view modes, such as 'form', 'list', 'calendar', etc. (Default: list,form)",
     )
     mobile_view_mode = fields.Char(
@@ -63,9 +60,9 @@ class IrActionsAct_Window(models.Model):
         help="Used to filter menu and home actions from the user form.",
     )
     view_ids = fields.One2many(
-        "ir.actions.act_window.view",
-        "act_window_id",
-        string="No of Views",
+        comodel_name="ir.actions.act_window.view",
+        inverse_name="act_window_id",
+        string="Views",
     )
     views = fields.Binary(
         compute="_compute_views",
@@ -78,24 +75,24 @@ class IrActionsAct_Window(models.Model):
         help="Default limit for the list view",
     )
     group_ids = fields.Many2many(
-        "res.groups",
-        "ir_act_window_group_rel",
-        "act_id",
-        "gid",
+        comodel_name="res.groups",
+        relation="ir_act_window_group_rel",
+        column1="act_id",
+        column2="gid",
         string="Groups",
     )
     search_view_id = fields.Many2one(
-        "ir.ui.view",
+        comodel_name="ir.ui.view",
         string="Search View Ref.",
         ondelete="set null",
     )
     all_embedded_action_ids = fields.One2many(
-        "ir.embedded.actions",
-        "parent_action_id",
+        comodel_name="ir.embedded.actions",
+        inverse_name="parent_action_id",
         string="All Embedded Actions",
     )
     embedded_action_ids = fields.One2many(
-        "ir.embedded.actions",
+        comodel_name="ir.embedded.actions",
         compute="_compute_embedded_action_ids",
     )
     cache = fields.Boolean(
@@ -108,6 +105,7 @@ class IrActionsAct_Window(models.Model):
     def _check_model(self) -> None:
         for action in self:
             if action.res_model not in self.env:
+                _debug.logic("model_unknown", action=action.id, model=action.res_model)
                 raise ValidationError(
                     _(
                         "Invalid model name “%s” in action definition.",
@@ -120,10 +118,12 @@ class IrActionsAct_Window(models.Model):
         for rec in self:
             modes = rec.view_mode.split(",")
             if not all(modes):
+                _debug.logic("view_mode_refused", action=rec.id, reason="empty_mode")
                 raise ValidationError(
                     _("Empty view mode in view_mode: “%s”", rec.view_mode)
                 )
             if len(modes) != len(set(modes)):
+                _debug.logic("view_mode_refused", action=rec.id, reason="duplicate")
                 raise ValidationError(
                     _(
                         "The modes in view_mode must not be duplicated: %s",
@@ -131,6 +131,7 @@ class IrActionsAct_Window(models.Model):
                     )
                 )
             if any(" " in mode for mode in modes):
+                _debug.logic("view_mode_refused", action=rec.id, reason="spaces")
                 raise ValidationError(_("No spaces allowed in view_mode: “%s”", modes))
         self._check_view_type_vocabulary("view_mode")
         self._check_view_type_vocabulary("mobile_view_mode")
@@ -145,15 +146,25 @@ class IrActionsAct_Window(models.Model):
             )
             for vals in vals_list
         ]
+        _debug.lifecycle(
+            "create",
+            count=len(vals_list),
+            models=sorted({vals.get("res_model") or "" for vals in vals_list}),
+        )
         return super().create(vals_list)
 
     @api.depends("all_embedded_action_ids.is_visible")
     @api.depends_context("active_id", "active_model", "uid")
     def _compute_embedded_action_ids(self) -> None:
         for action in self:
-            action.embedded_action_ids = action.all_embedded_action_ids.filtered(
-                "is_visible"
+            visible = action.all_embedded_action_ids.filtered("is_visible")
+            _debug.logic(
+                "embedded_visible",
+                action=action.id,
+                total=len(action.all_embedded_action_ids),
+                visible=len(visible),
             )
+            action.embedded_action_ids = visible
 
     @api.depends(
         "view_ids.view_mode",
@@ -173,14 +184,28 @@ class IrActionsAct_Window(models.Model):
             if act.view_id and act.view_id.type in missing_modes:
                 missing_modes.remove(act.view_id.type)
                 views.append((act.view_id.id, act.view_id.type))
+                _debug.logic("reference_view_used", action=act.id, view=act.view_id.id)
             views.extend((False, mode) for mode in missing_modes)
+            _debug.logic(
+                "views_computed",
+                action=act.id,
+                explicit=len(lines),
+                unbacked=len(missing_modes),
+            )
             act.views = views
 
     def _get_empty_list_help(self, stored_help: str | bool) -> str | bool:
         self.check_singleton()
         if self.res_model not in self.env:
+            _debug.logic("empty_list_help_stored", action=self.id, model=self.res_model)
             return stored_help
-        ctx = self.env["ir.actions.actions"]._eval_action_context(self.context)
+        ctx = self._eval_action_context(self.context)
+        _debug.logic(
+            "empty_list_help_delegated",
+            action=self.id,
+            model=self.res_model,
+            context_keys=len(ctx),
+        )
         return (
             self.with_context({**self.env.context, **ctx})
             .env[self.res_model]
@@ -189,6 +214,12 @@ class IrActionsAct_Window(models.Model):
 
     def _get_field_target_model(self) -> str:
         return "res_model"
+
+    def _get_field_groups(self) -> str:
+        return "group_ids"
+
+    def _get_fields_binding_extra(self) -> tuple[str, ...]:
+        return ("group_ids", "res_model", "domain")
 
     def _get_fields_readable(self) -> frozenset[str]:
         return super()._get_fields_readable() | {
@@ -218,6 +249,12 @@ class IrActionsAct_Window(models.Model):
                 sorted(embedded._get_fields_readable())
             )
         result["help"] = self._get_empty_list_help(result.get("help", ""))
+        _debug.pipeline(
+            "action_dict",
+            action=self.id,
+            model=self.res_model,
+            embedded=len(result["embedded_action_ids"] or ()),
+        )
         return result
 
     @api.model
@@ -229,15 +266,33 @@ class IrActionsAct_Window(models.Model):
         ``No default view of type '<type>' could be found!`` the next time the
         action opens.
         """
-        for model, view_type in candidates:
-            if self.env["ir.ui.view"].search_count(
-                [("model", "=", model), ("type", "=", view_type)]
-            ):
-                continue
-            actions = self.search(
-                [("res_model", "=", model), ("view_mode", "like", view_type)]
+        if not candidates:
+            return
+        covered = set(
+            self.env["ir.ui.view"]._read_group(
+                [
+                    ("model", "in", [model for model, _type in candidates]),
+                    ("type", "in", [view_type for _model, view_type in candidates]),
+                ],
+                groupby=["model", "type"],
             )
-            for action in actions:
+        )
+        missing = candidates - covered
+        _debug.pipeline(
+            "view_modes_check", candidates=len(candidates), missing=len(missing)
+        )
+        if not missing:
+            return
+        actions_by_model = self.search(
+            [("res_model", "in", [model for model, _type in missing])]
+        ).grouped("res_model")
+        _debug.perf.count(
+            "view_modes_actions",
+            models=len(actions_by_model),
+            actions=sum(len(acts) for acts in actions_by_model.values()),
+        )
+        for model, view_type in missing:
+            for action in actions_by_model.get(model, self.browse()):
                 modes = action.view_mode.split(",")
                 if view_type not in modes:
                     continue
@@ -245,4 +300,11 @@ class IrActionsAct_Window(models.Model):
                     [("view_mode", "=", view_type)]
                 ).unlink()
                 remaining = [mode for mode in modes if mode != view_type]
+                _debug.lifecycle(
+                    "view_mode_removed",
+                    action=action.id,
+                    model=model,
+                    view_type=view_type,
+                    remaining=remaining,
+                )
                 action.view_mode = ",".join(remaining) or "list"

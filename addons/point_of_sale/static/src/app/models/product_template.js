@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalize } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 
 import { ProductTemplateAccounting } from "./accounting/product_template_accounting.js";
+const log = makeLogger("pos.product");
 
 export class ProductTemplate extends ProductTemplateAccounting {
     static pythonModel = "product.template";
@@ -88,6 +90,7 @@ export class ProductTemplate extends ProductTemplateAccounting {
         if (!this._archived_combinations) {
             return false;
         }
+        const endCheck = log.perf("isArchivedCombination");
         const excludedPTAV = new Set();
         let isCombinationArchived = false;
         for (const archivedCombination of this._archived_combinations) {
@@ -110,6 +113,13 @@ export class ProductTemplate extends ProductTemplateAccounting {
             attribute_line.product_template_value_ids.forEach((ptav) => {
                 ptav["excluded"] = excludedPTAV.has(ptav.id);
             });
+        });
+        endCheck({
+            template: this.id,
+            selected: attributeValueIds.length,
+            archivedCombinations: this._archived_combinations.length,
+            excluded: excludedPTAV.size,
+            isCombinationArchived,
         });
         return isCombinationArchived;
     }

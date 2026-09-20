@@ -35,10 +35,6 @@ export class DonationForm extends Interaction {
         }
     }
     /**
-     * Validates the custom donation amount input field. Displays a warning if
-     * the input is empty, zero, or invalid, and also if the amount is below the
-     * minimum threshold.
-     *
      * @param {Event} ev
      */
     onChangeAmountInput(ev) {
@@ -53,10 +49,6 @@ export class DonationForm extends Interaction {
         );
     }
     /**
-     * Handles the selection of donation amount options. If "Other Amount" is
-     * selected, triggers validation for custom input. Otherwise, it clears the
-     * custom amount input and hides all warnings when another option is chosen.
-     *
      * @param {Event} ev
      */
     onSelectRadioButton(ev) {

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="view_move_form_l10n_pl_edi" model="ir.ui.view">
@@ -9,16 +10,16 @@
             <xpath expr="//button[@name='action_invoice_sent']" position="before">
                 <button
                     name="action_l10n_pl_edi_update_invoice_status"
+                    type="object"
                     string="Check Sending"
                     invisible="(l10n_pl_edi_status != 'sent') or not l10n_pl_edi_ref"
-                    type="object"
                     class="oe_highlight"
                     data-hotkey="shift+K" />
                 <button
                     name="action_l10n_pl_edi_get_invoice_UPO"
+                    type="object"
                     string="Download UPO"
                     invisible="(l10n_pl_edi_status != 'accepted') or l10n_pl_edi_upo_id"
-                    type="object"
                     class="oe_highlight"
                     data-hotkey="shift+U" />
             </xpath>
@@ -31,8 +32,8 @@
                     <div class="d-flex align-items-center">
                         <field
                             name="l10n_pl_edi_header"
-                            class="oe_inline"
-                            readonly="1" />
+                            readonly="1"
+                            class="oe_inline" />
                     </div>
                 </div>
             </xpath>

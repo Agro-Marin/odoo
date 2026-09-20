@@ -11,10 +11,10 @@
                     <button
                         name="action_view_leads"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-star"
-                        invisible="lead_count == 0">
-                        <field string="Leads" name="lead_count" widget="statinfo" />
+                        invisible="lead_count == 0"
+                        class="oe_stat_button">
+                        <field name="lead_count" string="Leads" widget="statinfo" />
                     </button>
                 </div>
             </field>

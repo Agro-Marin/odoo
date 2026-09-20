@@ -3,7 +3,6 @@
 function initialize_map() {
     "use strict";
 
-    // MAP CONFIG AND LOADING
     var map = new google.maps.Map(document.getElementById("odoo-google-map"), {
         zoom: 1,
         center: { lat: 0.0, lng: 0.0 },
@@ -11,10 +10,8 @@ function initialize_map() {
         gestureHandling: "greedy",
     });
 
-    // ENABLE ADDRESS GEOCODING
     var Geocoder = new google.maps.Geocoder();
 
-    // INFO BUBBLES
     var infoWindow = new google.maps.InfoWindow();
     var partners = new google.maps.MarkerImage(
         "/website_google_map/static/src/img/partners.png",
@@ -30,7 +27,6 @@ function initialize_map() {
         infoWindow.close();
     });
 
-    // Display the bubble once clicked
     var onMarkerClick = function () {
         var marker = this;
         var p = marker.partner;
@@ -53,11 +49,8 @@ function initialize_map() {
         infoWindow.open(map, marker);
     };
 
-    // Create a bubble for a partner
     var set_marker = function (partner) {
         return new Promise((resolve, reject) => {
-            // If no lat & long, geocode address
-            // TODO: a server cronjob that will store these coordinates in database instead of resolving them on-the-fly
             if (!partner.latitude && !partner.longitude) {
                 Geocoder.geocode(
                     { address: partner.address },
@@ -108,9 +101,7 @@ function initialize_map() {
 
     /* eslint-disable no-undef */
     async function initializeMarkers(odooPartnerData) {
-        // Create the markers and cluster them on the map
         if (odooPartnerData) {
-            /* odoo_partner_data special variable should have been defined in google_map.xml */
             const markerPromises = [];
             for (var i = 0; i < odoo_partner_data.counter; i++) {
                 const prom = set_marker(odoo_partner_data.partners[i]).catch((error) =>
@@ -121,7 +112,6 @@ function initialize_map() {
             await Promise.all(markerPromises);
             new MarkerClusterer(map, markers, options);
 
-            // auto center map and auto zoom
             const bounds = new google.maps.LatLngBounds();
             markers.forEach((n) => bounds.extend(n.position));
             map.setCenter(bounds.getCenter());
@@ -130,10 +120,8 @@ function initialize_map() {
         }
     }
 
-    // Call the function to initialize markers
     initializeMarkers(odoo_partner_data);
     /* eslint-enable no-undef */
 }
 
-// Initialize map once the DOM has been loaded
 google.maps.event.addDomListener(window, "load", initialize_map);

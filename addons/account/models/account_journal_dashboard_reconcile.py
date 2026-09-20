@@ -1,11 +1,16 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class AccountJournal(models.Model):
     _inherit = "account.journal"
 
+    @_debug.perf.timed
     def action_view_reconcile(self):
+        _debug.lifecycle("action_view_reconcile", records=self)
         self.check_singleton()
 
         if self.type in ("bank", "cash", "credit"):
@@ -21,7 +26,9 @@ class AccountJournal(models.Model):
         else:
             return self.env["account.move.line"]._action_view_unreconciled()
 
+    @_debug.perf.timed
     def action_view_to_check(self):
+        _debug.lifecycle("action_view_to_check", records=self)
         self.check_singleton()
         return self.env[
             "account.bank.statement.line"
@@ -33,7 +40,9 @@ class AccountJournal(models.Model):
             },
         )
 
+    @_debug.perf.timed
     def action_view_bank_transactions(self):
+        _debug.lifecycle("action_view_bank_transactions", records=self)
         self.check_singleton()
         return self.env[
             "account.bank.statement.line"
@@ -45,7 +54,9 @@ class AccountJournal(models.Model):
             kanban_first=False,
         )
 
+    @_debug.perf.timed
     def action_view_reconcile_statement(self):
+        _debug.lifecycle("action_view_reconcile_statement", records=self)
         return self.env[
             "account.bank.statement.line"
         ]._action_view_bank_reconciliation_widget(
@@ -55,7 +66,9 @@ class AccountJournal(models.Model):
             },
         )
 
+    @_debug.perf.timed
     def open_invalid_statements_action(self):
+        _debug.lifecycle("open_invalid_statements_action", records=self)
         self.check_singleton()
         if self.env["account.bank.statement"].search(
             [("journal_id", "=", self.id), ("first_line_index", "=", False)], limit=1
@@ -73,7 +86,9 @@ class AccountJournal(models.Model):
             kanban_first=False,
         )
 
+    @_debug.perf.timed
     def open_action(self):
+        _debug.lifecycle("open_action", records=self)
         if self.type in ("bank", "cash", "credit") and not self.env.context.get(
             "action_name"
         ):

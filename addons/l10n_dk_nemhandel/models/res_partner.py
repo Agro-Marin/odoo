@@ -18,7 +18,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     invoice_sending_method = fields.Selection(
-        selection_add=[("nemhandel", "By Nemhandel")],
+        selection_add=[("nemhandel", "By Nemhandel")]
     )
     invoice_edi_format = fields.Selection(selection_add=[("oioubl_21", "OIOUBL 2.1")])
     nemhandel_verification_state = fields.Selection(
@@ -32,26 +32,26 @@ class ResPartner(models.Model):
     )
 
     nemhandel_identifier_type = fields.Selection(
-        string="Nemhandel Endpoint Type",
-        help="Unique identifier used by OIOUBL and Nemhandel",
-        compute="_compute_nemhandel_identifier_type",
-        store=True,
-        readonly=False,
-        tracking=True,
         selection=[
             ("0088", "EAN/GLN"),
             ("0184", "CVR"),
             ("9918", "IBAN"),
             ("0198", "SE"),
         ],
+        string="Nemhandel Endpoint Type",
+        compute="_compute_nemhandel_identifier_type",
+        store=True,
+        readonly=False,
+        tracking=True,
+        help="Unique identifier used by OIOUBL and Nemhandel",
     )
     nemhandel_identifier_value = fields.Char(
         string="Nemhandel Endpoint",
-        help="Code used to identify the Endpoint on Nemhandel",
         compute="_compute_nemhandel_identifier_value",
         store=True,
         readonly=False,
         tracking=True,
+        help="Code used to identify the Endpoint on Nemhandel",
     )
 
     is_using_nemhandel = fields.Boolean(compute="_compute_is_using_nemhandel")
@@ -146,7 +146,9 @@ class ResPartner(models.Model):
         sml_zone = "edel.sml-demo" if edi_mode == "test" else "edel.sml"
         smp_url = f"http://B-{hash_participant}.iso6523-actorid-upis.{sml_zone}.dataudveksling.dk/{endpoint_participant}"
         try:
-            response = requests.get(smp_url, timeout=TIMEOUT)
+            response = self.env["ir.egress"].request(
+                "GET", smp_url, purpose="nemhandel", timeout=TIMEOUT
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             _logger.info(e)
@@ -154,7 +156,7 @@ class ResPartner(models.Model):
         return response.content
 
     @api.model
-    def _nemhandel_lookup_participant(self, edi_identification):
+    def _nemhandel_get_participant(self, edi_identification):
         """NAPTR DNS nemhandel participant lookup through Odoo's Nemhandel proxy"""
         if (edi_mode := self.env.company._get_nemhandel_edi_mode()) == "demo":
             return None
@@ -169,7 +171,9 @@ class ResPartner(models.Model):
         endpoint = f"{origin}/api/peppol/1/lookup?{query}"
 
         try:
-            response = requests.get(endpoint, timeout=TIMEOUT)
+            response = self.env["ir.egress"].request(
+                "GET", endpoint, purpose="nemhandel", timeout=TIMEOUT
+            )
         except requests.exceptions.RequestException as e:
             _logger.error(
                 "failed to query nemhandel participant %s: %s", edi_identification, e
@@ -299,7 +303,7 @@ class ResPartner(models.Model):
                 continue
 
             if all_companies is None:
-                all_companies = self.env["res.company"].sudo().search([])
+                all_companies = self.env["res.company"].sudo().search([])  # noqa: E8507 - computed once, on first need
 
             for company in all_companies:
                 partner.button_nemhandel_check_partner_endpoint(company=company)
@@ -358,7 +362,7 @@ class ResPartner(models.Model):
             return "not_verified"
 
         edi_identification = f"{self.nemhandel_identifier_type}:{self.nemhandel_identifier_value}".lower()
-        participant_info = self._nemhandel_lookup_participant(edi_identification)
+        participant_info = self._nemhandel_get_participant(edi_identification)
         if participant_info is None:
             return "not_valid"
 

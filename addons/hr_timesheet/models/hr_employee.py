@@ -1,13 +1,17 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
     has_timesheet = fields.Boolean(
-        compute="_compute_has_timesheet", export_string_translation=False
+        export_string_translation=False,
+        compute="_compute_has_timesheet",
     )
 
     def _compute_has_timesheet(self):
@@ -28,6 +32,7 @@ class HrEmployee(models.Model):
         else:
             result = {}
 
+        _debug.perf.count("has_timesheet_probed", employees=self, rows=len(result))
         for employee in self:
             employee.has_timesheet = result.get(employee._origin.id, False)
 
@@ -69,6 +74,9 @@ class HrEmployee(models.Model):
             and wizard.has_timesheet
             and not wizard.has_active_employee
         ):
+            _debug.logic(
+                "employee_delete_refused", reason="has_timesheets", employees=self
+            )
             raise UserError(_("You cannot delete employees who have timesheets."))
 
         return {

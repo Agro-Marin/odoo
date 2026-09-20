@@ -9,17 +9,17 @@ _logger = logging.getLogger(__name__)
 class ExchangeChannel(models.Model):
     _name = "exchange.channel"
     _description = "Exchange Channel"
-    _inherits = {"api.endpoint.outbound": "endpoint_id"}
+    _inherits = {"integration.service": "endpoint_id"}
     _order = "sequence, name"
 
     # FIELDS
 
     # Transport block
     endpoint_id = fields.Many2one(
-        comodel_name="api.endpoint.outbound",
+        comodel_name="integration.service",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
         help="Auth, rate limiting, retry policy, caching and TLS live on the "
         "endpoint. A channel adds only what the counterparty decides.",
     )
@@ -27,8 +27,8 @@ class ExchangeChannel(models.Model):
     # Protocol block
     protocol = fields.Selection(
         selection="_selection_protocol",
-        required=True,
         index=True,
+        required=True,
     )
     counterparty = fields.Selection(
         selection=[
@@ -36,9 +36,9 @@ class ExchangeChannel(models.Model):
             ("partner", "Trading partner"),
             ("agent", "Licensed agent or access point"),
         ],
-        required=True,
         default="authority",
         index=True,
+        required=True,
         help="The three things 'EDI' names -- fiscal clearance, partner "
         "interchange, document import -- on the record rather than in a "
         "module name. Only 'partner' is interchange in the strict sense.",
@@ -53,7 +53,7 @@ class ExchangeChannel(models.Model):
     )
     participant = fields.Char(
         help="Our identifier at the counterparty -- a Peppol participant id, "
-        "an issuer RFC, a taxpayer number.",
+        "an issuer RFC, a taxpayer number."
     )
 
     # Policy block
@@ -64,28 +64,22 @@ class ExchangeChannel(models.Model):
     )
     is_chained = fields.Boolean(
         help="The counterparty requires each document to reference the "
-        "previous one, so transmissions on this channel form a chain.",
+        "previous one, so transmissions on this channel form a chain."
     )
     is_inbox_enabled = fields.Boolean(
         default=False,
         help="The counterparty holds documents addressed to us that must be "
         "polled for. Off for a send-only channel.",
     )
-    date_last_inbox = fields.Datetime(
-        readonly=True,
-    )
+    date_last_inbox = fields.Datetime(readonly=True)
 
     # Transmission block
     transmission_ids = fields.One2many(
         comodel_name="exchange.transmission",
         inverse_name="channel_id",
     )
-    count_transmission = fields.Integer(
-        compute="_compute_transmission_counts",
-    )
-    count_transmission_open = fields.Integer(
-        compute="_compute_transmission_counts",
-    )
+    count_transmission = fields.Integer(compute="_compute_transmission_counts")
+    count_transmission_open = fields.Integer(compute="_compute_transmission_counts")
 
     # SELECTION METHODS
 
@@ -98,7 +92,7 @@ class ExchangeChannel(models.Model):
     @api.constrains("protocol", "company_id", "endpoint_id", "active")
     def _check_protocol_is_unique_per_company(self):
         for channel in self.filtered("active"):
-            duplicate = self.search(
+            duplicate = self.search(  # noqa: E8507 - one probe per channel, on its own protocol and company
                 [
                     ("id", "!=", channel.id),
                     ("protocol", "=", channel.protocol),

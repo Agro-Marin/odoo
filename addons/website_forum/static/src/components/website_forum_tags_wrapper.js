@@ -12,7 +12,7 @@ export class WebsiteForumTagsWrapper extends Component {
     };
     static props = {
         defaulValue: { optional: true, type: Array },
-        isReadOnly: { optional: true, Type: Boolean },
+        isReadOnly: { optional: true, type: Boolean },
     };
 
     setup() {
@@ -25,11 +25,6 @@ export class WebsiteForumTagsWrapper extends Component {
     }
 
     showCreateOption(searchValue) {
-        // The "Create" option should not be visible if:
-        // 1. Tag length is less than 2.
-        // 2. The tag already exists (tags are created on form submission, so
-        // consider the current value).
-        // 3. There is insufficient karma.
         const karma = document.querySelector("#karma").value;
         const editKarma = document.querySelector("#karma_edit_retag").value;
         const hasEnoughKarma = parseInt(karma) >= parseInt(editKarma);

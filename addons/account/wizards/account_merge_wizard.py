@@ -2,14 +2,17 @@ import json
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class AccountMergeWizard(models.TransientModel):
     _name = "account.merge.wizard"
     _description = "Account merge wizard"
 
-    account_ids = fields.Many2many("account.account")
+    account_ids = fields.Many2many(comodel_name="account.account")
     is_group_by_name = fields.Boolean(
         string="Group by name?",
         default=False,
@@ -25,7 +28,9 @@ class AccountMergeWizard(models.TransientModel):
     disable_merge_button = fields.Boolean(compute="_compute_disable_merge_button")
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields_list):
+        _debug.lifecycle("default_get", records=self)
         res = super().default_get(fields_list)
         if not set(fields_list) & {"account_ids", "wizard_line_ids"} or set(
             res.keys()
@@ -33,11 +38,20 @@ class AccountMergeWizard(models.TransientModel):
             "account_ids",
             "wizard_line_ids",
         }:
+            _debug.logic(
+                "merge_defaults_skipped", reason="accounts_not_requested_or_set"
+            )
             return res
 
         if self.env.context.get("active_model") != "account.account":
+            _debug.logic(
+                "merge_defaults_rejected",
+                reason="not_accounts",
+                active_model=self.env.context.get("active_model"),
+            )
             raise UserError(_("This can only be used on accounts."))
         if len(self.env.context.get("active_ids") or []) < 2:
+            _debug.logic("merge_defaults_rejected", reason="fewer_than_two_accounts")
             raise UserError(_("You must select at least 2 accounts."))
 
         res["account_ids"] = [Command.set(self.env.context.get("active_ids"))]
@@ -57,6 +71,7 @@ class AccountMergeWizard(models.TransientModel):
         return tuple(account[field] for field in grouping_fields)
 
     @api.depends("is_group_by_name", "account_ids")
+    @_debug.perf.timed
     def _compute_wizard_line_ids(self):
         for wizard in self:
             accounts = wizard.account_ids._origin.filtered(
@@ -88,6 +103,13 @@ class AccountMergeWizard(models.TransientModel):
                     for account in group_accounts
                 )
 
+            _debug.pipeline(
+                "merge_groups_built",
+                wizard=wizard,
+                accounts=len(accounts),
+                wizard_lines=len(wizard_lines_vals_list),
+                group_by_name=wizard.is_group_by_name,
+            )
             wizard.wizard_line_ids = [Command.clear()] + [
                 Command.create(vals) for vals in wizard_lines_vals_list
             ]
@@ -118,7 +140,9 @@ class AccountMergeWizard(models.TransientModel):
             "view_mode": "form",
         }
 
+    @_debug.perf.timed
     def action_merge(self):
+        _debug.lifecycle("action_merge", records=self)
         for wizard in self:
             wizard_lines_selected = wizard.wizard_line_ids.filtered(
                 lambda l: l.display_type == "account" and l.is_selected and not l.info
@@ -145,6 +169,7 @@ class AccountMergeWizard(models.TransientModel):
         }
 
     @api.model
+    @_debug.perf.timed
     def _check_access_rights(self, accounts):
         accounts.check_access("write")
         if forbidden_companies := (
@@ -168,6 +193,7 @@ class AccountMergeWizard(models.TransientModel):
                 account_ids=tuple(accounts.ids),
             )
         )
+        _debug.perf.count("merged_account_names_fetched", rows=len(account_names))
         account_name_by_id = dict(account_names)
         merged_account_name = {}
         for account_id in accounts.ids[::-1]:
@@ -188,6 +214,7 @@ class AccountMergeWizard(models.TransientModel):
                 account_to_merge_into_id=account_to_merge_into.id,
             )
         )
+        _debug.perf.count("merged_account_name_written", rows=self.env.cr.rowcount)
 
         self.env.invalidate_all()
         self.env.cr.execute(
@@ -199,11 +226,14 @@ class AccountMergeWizard(models.TransientModel):
                 account_ids_to_delete=tuple(accounts_to_remove.ids),
             )
         )
+        _debug.perf.count("merged_accounts_deleted", rows=self.env.cr.rowcount)
 
         self.env.registry.clear_cache()
 
     @api.model
+    @_debug.perf.timed
     def _action_merge(self, accounts):
+        _debug.lifecycle("_action_merge", records=self)
         company_ids_to_write = accounts.sudo().company_ids
         code_by_company = self.env.execute_query(
             SQL(
@@ -219,6 +249,12 @@ class AccountMergeWizard(models.TransientModel):
 
         account_to_merge_into = accounts[0]
         accounts_to_remove = accounts[1:]
+        _debug.pipeline(
+            "merge_accounts",
+            accounts_to_remove=accounts_to_remove,
+            account_to_merge_into=account_to_merge_into,
+            codes=code_by_company,
+        )
 
         self._check_access_rights(accounts)
 
@@ -248,6 +284,7 @@ class AccountMergeWizard(models.TransientModel):
                 account_to_merge_into_id=account_to_merge_into.id,
             )
         )
+        _debug.perf.count("merged_account_codes_written", rows=self.env.cr.rowcount)
 
         account_to_merge_into.sudo().company_ids = company_ids_to_write
         self.env.add_to_compute(
@@ -277,17 +314,15 @@ class AccountMergeWizardLine(models.TransientModel):
     )
     is_selected = fields.Boolean()
     account_id = fields.Many2one(
-        string="Account",
         comodel_name="account.account",
-        ondelete="cascade",
         readonly=True,
+        ondelete="cascade",
     )
     company_ids = fields.Many2many(
-        string="Companies",
         related="account_id.company_ids",
+        string="Companies",
     )
     info = fields.Char(
-        string="Info",
         compute="_compute_info",
         help="Contains either the section name or error message, depending on the line type.",
     )
@@ -296,6 +331,7 @@ class AccountMergeWizardLine(models.TransientModel):
     )
 
     @api.depends("account_id")
+    @_debug.perf.timed
     def _compute_account_has_hashed_entries(self):
         query = self.env["account.move.line"]._search(
             [
@@ -307,6 +343,7 @@ class AccountMergeWizardLine(models.TransientModel):
         query_result = self.env.execute_query(
             query.select(SQL("DISTINCT account_move_line.account_id"))
         )
+        _debug.perf.count("hashed_entry_accounts_fetched", rows=len(query_result))
         accounts_with_hashed_entries_ids = {r[0] for r in query_result}
         wizard_lines_with_hashed_entries = self.filtered(
             lambda l: l.account_id.id in accounts_with_hashed_entries_ids
@@ -327,6 +364,7 @@ class AccountMergeWizardLine(models.TransientModel):
             wizard_line_group._update_info_company_conflict()
             wizard_line_group._update_info_hashed_moves_conflict()
 
+    @_debug.perf.timed
     def _get_group_name(self):
         self.check_singleton()
 
@@ -367,6 +405,11 @@ class AccountMergeWizardLine(models.TransientModel):
         for wizard_line in self:
             if wizard_line.is_selected and not wizard_line.info:
                 if shared_companies := (wizard_line.company_ids & companies_seen):
+                    _debug.logic(
+                        "merge_company_conflict",
+                        wizard_line=wizard_line,
+                        companies=shared_companies,
+                    )
                     wizard_line.info = _(
                         "Belongs to the same company as %s.",
                         account_belonging_to_company[shared_companies[0]].display_name,

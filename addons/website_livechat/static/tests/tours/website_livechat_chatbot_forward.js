@@ -21,7 +21,6 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_forward", {
             trigger: messagesContain("I'll forward you to an operator."),
         },
         {
-            // Wait for the operator to be added: composer is only enabled at that point.
             trigger: ".o-livechat-root:shadow .o-mail-Composer-input:enabled",
             run: "edit Hello, I need help!",
         },

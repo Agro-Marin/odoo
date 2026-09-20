@@ -5,6 +5,7 @@ import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { useTagNavigation } from "@web/components/record_selectors";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { isEmail } from "@web/core/utils/format/strings";
@@ -15,6 +16,8 @@ import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsList } from "./recipients_input_tags_list.js";
 import { RecipientsPopover } from "./recipients_popover.js";
+
+const log = makeLogger("mail.recipients");
 
 export class RecipientsInput extends Component {
     static template = "mail.RecipientsInput";
@@ -66,16 +69,11 @@ export class RecipientsInput extends Component {
 
     /** @returns {Set<number>} */
     getExcludedRecipientPartnerIds() {
-        const partnerIds = new Set();
-        const recipients = this.getAllMailThreadRecipients();
-
-        for (const recipient of recipients) {
-            if (recipient.partner_id) {
-                partnerIds.add(recipient.partner_id);
-            }
-        }
-
-        return partnerIds;
+        return new Set(
+            this.props.thread.allRecipients
+                .map((recipient) => recipient.partner_id)
+                .filter(/** @returns {id is number} */ (id) => typeof id === "number"),
+        );
     }
     /**
      * @param {string} name
@@ -84,6 +82,7 @@ export class RecipientsInput extends Component {
      * @param {number} limit
      */
     async searchRecipientCandidates(name, email, partnerIds, limit) {
+        const endSearch = log.perf("searchRecipientCandidates");
         const matches = await this.orm.searchRead(
             "res.partner",
             [
@@ -95,7 +94,7 @@ export class RecipientsInput extends Component {
             ["display_name", "email", "id", "lang", "name"],
             { limit },
         );
-
+        endSearch({ name, email, excluded: partnerIds.size, matches: matches.length });
         return matches;
     }
     /**
@@ -103,28 +102,22 @@ export class RecipientsInput extends Component {
      * @returns {Object[]}
      */
     toRecipientOptions(matches) {
-        const options = [];
-        options.push(
-            ...matches.map((match) => ({
-                label: match.email
-                    ? _t("%(partner_name)s <%(partner_email)s>", {
-                          partner_name:
-                              match.name || match.display_name || _t("Unnamed"),
-                          partner_email: match.email,
-                      })
-                    : match.name || match.display_name || _t("Unnamed"),
-                onSelect: () => {
-                    this.insertAdditionalRecipient({
-                        display_name: match.display_name,
-                        email: match.email,
-                        name: match.name,
-                        partner_id: match.id,
-                    });
-                },
-            })),
-        );
-
-        return options;
+        return matches.map((match) => ({
+            label: match.email
+                ? _t("%(partner_name)s <%(partner_email)s>", {
+                      partner_name: match.name || match.display_name || _t("Unnamed"),
+                      partner_email: match.email,
+                  })
+                : match.name || match.display_name || _t("Unnamed"),
+            onSelect: () => {
+                this.insertAdditionalRecipient({
+                    display_name: match.display_name,
+                    email: match.email,
+                    name: match.name,
+                    partner_id: match.id,
+                });
+            },
+        }));
     }
     /** @returns {Object} */
     makeSearchMoreOption() {
@@ -155,6 +148,11 @@ export class RecipientsInput extends Component {
                     thread_id: this.props.thread.id,
                     emails: [term],
                 });
+                log.logic("create recipient from email", () => ({
+                    thread: this.props.thread.localId,
+                    email,
+                    found: partners.length,
+                }));
                 if (partners.length) {
                     const partner = partners[0];
                     this.insertAdditionalRecipient({
@@ -175,6 +173,11 @@ export class RecipientsInput extends Component {
                 const [partnerId] = await this.orm.create("res.partner", [
                     { name, email },
                 ]);
+                log.logic("create recipient partner", () => ({
+                    thread: this.props.thread.localId,
+                    name,
+                    partnerId,
+                }));
                 this.insertAdditionalRecipient({
                     email,
                     name,
@@ -261,6 +264,11 @@ export class RecipientsInput extends Component {
                     }
                 },
                 onDelete: () => {
+                    log.logic("delete recipient tag", () => ({
+                        thread: this.props.thread.localId,
+                        recipientField,
+                        partnerId: recipient.partner_id,
+                    }));
                     this.props.thread[recipientField] = this.props.thread[
                         recipientField
                     ].filter(
@@ -281,29 +289,21 @@ export class RecipientsInput extends Component {
         return tags;
     }
 
-    /** @returns {SuggestedRecipient[]} */
-    getAllMailThreadRecipients() {
-        return [
-            ...this.props.thread.suggestedRecipients,
-            ...this.props.thread.additionalRecipients,
-        ];
-    }
-
     /**
      * @param {string} emailNormalized
      * @param {number} recipientPartnerId
      */
     async updateRecipient(emailNormalized, recipientPartnerId) {
+        log.logic("updateRecipient", () => ({ recipientPartnerId }));
         await this.orm.write("res.partner", [recipientPartnerId], {
             email: emailNormalized,
         });
-        const allRecipients = this.getAllMailThreadRecipients();
-        allRecipients.some((oldRecipient) => {
-            if (oldRecipient.partner_id === recipientPartnerId) {
-                oldRecipient.email = emailNormalized;
-                return true;
-            }
-        });
+        const recipient = this.props.thread.allRecipients.find(
+            (candidate) => candidate.partner_id === recipientPartnerId,
+        );
+        if (recipient) {
+            recipient.email = emailNormalized;
+        }
     }
 
     /**
@@ -311,7 +311,7 @@ export class RecipientsInput extends Component {
      * @returns {boolean}
      */
     hasRecipient(recipient) {
-        return this.getAllMailThreadRecipients().some((current) =>
+        return this.props.thread.allRecipients.some((current) =>
             current.partner_id && recipient.partner_id
                 ? current.partner_id === recipient.partner_id
                 : Boolean(current.email) && current.email === recipient.email,
@@ -321,8 +321,17 @@ export class RecipientsInput extends Component {
     /** @param {SuggestedRecipient} recipient */
     insertAdditionalRecipient(recipient) {
         if (this.hasRecipient(recipient)) {
+            log.logic("insertAdditionalRecipient duplicate", () => ({
+                partnerId: recipient.partner_id,
+                email: recipient.email,
+            }));
             return;
         }
+        log.logic("insertAdditionalRecipient", () => ({
+            thread: this.props.thread.localId,
+            partnerId: recipient.partner_id,
+            email: recipient.email,
+        }));
         this.props.thread.additionalRecipients.push(recipient);
     }
 

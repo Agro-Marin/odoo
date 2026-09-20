@@ -13,5 +13,4 @@
         "ir.model.access.csv",
         "demo_data.xml",
     ],
-    "installable": True,
 }

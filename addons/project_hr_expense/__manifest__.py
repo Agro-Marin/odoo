@@ -16,6 +16,5 @@
     "demo": [
         "demo/project_hr_expense_demo.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

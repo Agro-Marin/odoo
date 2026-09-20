@@ -12,7 +12,17 @@ DPOPAY_DEFAULT_TIMEOUT = 35
 
 
 class PosPaymentMethod(models.Model):
-    _inherit = "pos.payment.method"
+    _inherit = ["pos.payment.method", "mixin.integration.connected"]
+
+    def _integration_connection_service(self):
+        if self.use_payment_terminal == "dpopay":
+            return "pos_dpopay", self.env._("Point of Sale: DPO Pay"), "payment"
+        return super()._integration_connection_service()
+
+    _CREDENTIAL_FIELDS = {
+        "dpopay_client_secret": "dpopay_client_secret",
+        "dpopay_bearer_token": "dpopay_bearer_token",
+    }
 
     dpopay_client_id = fields.Char(
         string="DPO Pay Client ID",
@@ -20,6 +30,9 @@ class PosPaymentMethod(models.Model):
     )
     dpopay_client_secret = fields.Char(
         string="DPO Pay Client Secret",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        copy=True,
         help="The Client Secret provided by DPO Pay for secure access. Keep it confidential.",
     )
     dpopay_mid = fields.Char(
@@ -44,7 +57,10 @@ class PosPaymentMethod(models.Model):
         help="Check this to use DPO Pay's sandbox environment for testing purposes.",
     )
     dpopay_bearer_token = fields.Char(
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         default="Token",
+        copy=True,
         help="Bearer token used for authenticating requests. Automatically refreshed when expired.",
     )
 
@@ -95,7 +111,9 @@ class PosPaymentMethod(models.Model):
         url = f"{self._get_dpopay_base_url(is_token=True)}/tokenkc/generate"
 
         _logger.info("Sending request to %s to generate new token", url)
-        response = requests.get(url, auth=auth, timeout=DPOPAY_DEFAULT_TIMEOUT)
+        response = self._get_integration_connection()._egress_request(
+            "GET", url, purpose="pos_dpopay", auth=auth, timeout=DPOPAY_DEFAULT_TIMEOUT
+        )
         response_json = response.json()
         response.raise_for_status()
         access_token = response_json.get("access_token")
@@ -134,8 +152,13 @@ class PosPaymentMethod(models.Model):
                     mode,
                     list(headers.keys()),
                 )
-                response = requests.post(
-                    url, json=payload, headers=headers, timeout=DPOPAY_DEFAULT_TIMEOUT
+                response = self._get_integration_connection()._egress_request(
+                    "POST",
+                    url,
+                    purpose="pos_dpopay",
+                    json=payload,
+                    headers=headers,
+                    timeout=DPOPAY_DEFAULT_TIMEOUT,
                 )
                 response_json = response.json()
                 return response, response_json

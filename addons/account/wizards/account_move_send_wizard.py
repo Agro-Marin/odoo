@@ -1,8 +1,11 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import get_lang
 
 from odoo.addons.mail.wizards.mail_compose_message import _reopen
+
+_debug = DebugLog(__name__)
 
 
 class AccountMoveSendWizard(models.TransientModel):
@@ -10,9 +13,13 @@ class AccountMoveSendWizard(models.TransientModel):
     _inherit = ["mixin.account.move.send", "mixin.mail.composer"]
     _description = "Account Move Send Wizard"
 
-    move_id = fields.Many2one(comodel_name="account.move", required=True)
+    move_id = fields.Many2one(
+        comodel_name="account.move",
+        required=True,
+    )
     company_id = fields.Many2one(
-        comodel_name="res.company", related="move_id.company_id"
+        comodel_name="res.company",
+        related="move_id.company_id",
     )
     alerts = fields.Json(compute="_compute_alerts")
     sending_methods = fields.Json(
@@ -22,11 +29,11 @@ class AccountMoveSendWizard(models.TransientModel):
     sending_method_checkboxes = fields.Json(
         compute="_compute_sending_method_checkboxes",
         precompute=True,
-        readonly=False,
         store=True,
+        readonly=False,
     )
     display_attachments_widget = fields.Boolean(
-        compute="_compute_display_attachments_widget",
+        compute="_compute_display_attachments_widget"
     )
     extra_edis = fields.Json(
         compute="_compute_extra_edis",
@@ -35,8 +42,8 @@ class AccountMoveSendWizard(models.TransientModel):
     extra_edi_checkboxes = fields.Json(
         compute="_compute_extra_edi_checkboxes",
         precompute=True,
-        readonly=False,
         store=True,
+        readonly=False,
     )
     invoice_edi_format = fields.Selection(
         selection=lambda self: (
@@ -47,10 +54,10 @@ class AccountMoveSendWizard(models.TransientModel):
     pdf_report_id = fields.Many2one(
         comodel_name="ir.actions.report",
         string="Invoice report",
-        domain="[('id', 'in', available_pdf_report_ids)]",
         compute="_compute_pdf_report_id",
-        readonly=False,
         store=True,
+        readonly=False,
+        domain="[('id', 'in', available_pdf_report_ids)]",
     )
     available_pdf_report_ids = fields.One2many(
         comodel_name="ir.actions.report",
@@ -60,13 +67,17 @@ class AccountMoveSendWizard(models.TransientModel):
     display_pdf_report_id = fields.Boolean(compute="_compute_display_pdf_report_id")
 
     template_id = fields.Many2one(
-        domain="[('model', '=', 'account.move')]",
         compute="_compute_template_id",
         compute_sudo=True,
-        readonly=False,
         store=True,
+        readonly=False,
+        domain="[('model', '=', 'account.move')]",
     )
-    lang = fields.Char(compute="_compute_lang", precompute=False, compute_sudo=True)
+    lang = fields.Char(
+        compute="_compute_lang",
+        precompute=False,
+        compute_sudo=True,
+    )
     mail_partner_ids = fields.Many2many(
         comodel_name="res.partner",
         string="To",
@@ -84,15 +95,23 @@ class AccountMoveSendWizard(models.TransientModel):
     )
 
     model = fields.Char(
-        "Related Document Model", compute="_compute_model", readonly=False, store=True
+        string="Related Document Model",
+        compute="_compute_model",
+        store=True,
+        readonly=False,
     )
     res_ids = fields.Text(
-        "Related Document IDs", compute="_compute_res_ids", readonly=False, store=True
+        string="Related Document IDs",
+        compute="_compute_res_ids",
+        store=True,
+        readonly=False,
     )
-    template_name = fields.Char("Template Name")
+    template_name = fields.Char()
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields_list):
+        _debug.lifecycle("default_get", records=self)
         results = super().default_get(fields_list)
         active_ids = self.env.context.get("active_ids", [])
         if "move_id" in fields_list and "move_id" not in results and active_ids:
@@ -127,6 +146,7 @@ class AccountMoveSendWizard(models.TransientModel):
             }
 
     @api.depends("move_id")
+    @_debug.perf.timed
     def _compute_sending_method_checkboxes(self):
         methods = self.env["ir.model.fields"].get_field_selection(
             "res.partner", "invoice_sending_method"
@@ -272,7 +292,7 @@ class AccountMoveSendWizard(models.TransientModel):
                 x for x in wizard.mail_attachments_widget or [] if x.get("manual")
             ]
             wizard.mail_attachments_widget = (
-                self._get_default_mail_attachments_widget(
+                self._prepare_mail_attachments_widget(
                     wizard.move_id,
                     wizard.template_id,
                     invoice_edi_format=wizard.invoice_edi_format,
@@ -305,7 +325,9 @@ class AccountMoveSendWizard(models.TransientModel):
     def _compute_render_model(self):
         self.render_model = "account.move"
 
+    @_debug.perf.timed
     def open_template_creation_wizard(self):
+        _debug.lifecycle("open_template_creation_wizard", records=self)
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",
@@ -360,6 +382,7 @@ class AccountMoveSendWizard(models.TransientModel):
             wizard.attachments_not_supported = {}
 
     @api.constrains("move_id")
+    @_debug.perf.timed
     def _check_move_id_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_id)
@@ -396,6 +419,14 @@ class AccountMoveSendWizard(models.TransientModel):
             )
         if self.display_attachments_widget:
             send_settings["mail_attachments_widget"] = self.mail_attachments_widget
+        _debug.pipeline(
+            "sending_settings_built",
+            wizard=self,
+            sending_methods=send_settings.get("sending_methods"),
+            invoice_edi_format=send_settings.get("invoice_edi_format"),
+            with_mail="mail_template" in send_settings,
+            with_attachments_widget="mail_attachments_widget" in send_settings,
+        )
         return send_settings
 
     def _update_preferred_settings(self):
@@ -409,18 +440,31 @@ class AccountMoveSendWizard(models.TransientModel):
             )
 
     @api.model
+    @_debug.perf.timed
     def _action_download(self, attachments):
+        _debug.lifecycle("_action_download", records=self)
         return {
             "type": "ir.actions.act_url",
             "url": f"/account/download_invoice_attachments/{','.join(map(str, attachments.ids))}",
             "close": True,
         }
 
+    @_debug.perf.timed
     def action_send_and_print(self, allow_fallback_pdf=False):
+        _debug.lifecycle("action_send_and_print", records=self)
         self.check_singleton()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)
         self._update_preferred_settings()
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "action_send_and_print",
+                sendwizard=self,
+                move=self.move_id,
+                methods=self.sending_methods,
+                edis=self.extra_edis,
+                fallback=allow_fallback_pdf,
+            )
         attachments = self._generate_and_send_invoices(
             self.move_id,
             **self._get_sending_settings(),

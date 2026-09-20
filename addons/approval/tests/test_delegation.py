@@ -2,11 +2,13 @@ from ast import literal_eval
 from datetime import timedelta
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, add_category_approver
 
 
 @tagged("post_install", "-at_install")
@@ -41,13 +43,7 @@ class TestApprovalDelegation(common.TransactionCase):
             }
         )
 
-        cls.env["approval.category.approver"].create(
-            {
-                "user_id": cls.approver_user.id,
-                "category_id": cls.category.id,
-                "required": True,
-            }
-        )
+        add_category_approver(cls.category, cls.approver_user, required=True)
 
     def _create_pending_request(self):
         request = self.env["approval.request"].create(
@@ -911,7 +907,7 @@ class TestDelegationScopeIsLiveRequestsOnly(ApprovalCommon):
         category = self._make_category(
             name="Sequential Chain",
             approvers=[(self.approver_1, False, 10), (self.approver_2, False, 20)],
-            approve_sequentially=True,
+            in_order=True,
             approval_minimum=2,
         )
         request = self._prepare_request(category)
@@ -925,3 +921,71 @@ class TestDelegationScopeIsLiveRequestsOnly(ApprovalCommon):
         self.env.flush_all()
 
         self.assertEqual(waiting.delegate_id, self.manager_user)
+
+
+@tagged("post_install", "-at_install")
+class TestDelegatedActivityHolder(ApprovalCommon):
+    """The approval activity is held by whoever may decide the row that day."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.category = cls._make_category(
+            "Delegated activity", approvers=[(cls.approver_1, True, 10)]
+        )
+        cls.delegate = cls.approver_2
+
+    def _holders(self, request):
+        return request._get_approval_activities().user_id
+
+    def _row(self, request):
+        return request.approver_ids.filtered(
+            lambda approver: approver.user_id == self.approver_1
+        )
+
+    def _delegate(self, request, start, end):
+        self._row(request).sudo().write(
+            {
+                "delegate_id": self.delegate.id,
+                "delegate_start_date": start,
+                "delegate_end_date": end,
+            }
+        )
+
+    def test_a_delegation_written_on_the_row_hands_the_activity_over(self):
+        request = self._prepare_request(self.category)
+        self.assertEqual(self._holders(request), self.approver_1)
+        self._delegate_row(self._row(request), self.delegate)
+        self.assertEqual(self._holders(request), self.delegate)
+
+    def test_ending_a_delegation_on_the_row_hands_it_back(self):
+        request = self._prepare_request(self.category)
+        self._delegate_row(self._row(request), self.delegate)
+        self._row(request).sudo().write(
+            {
+                "delegate_id": False,
+                "delegate_start_date": False,
+                "delegate_end_date": False,
+            }
+        )
+        self.assertEqual(self._holders(request), self.approver_1)
+
+    def test_the_activity_returns_when_the_window_closes(self):
+        request = self._prepare_request(self.category)
+        today = fields.Date.today()
+        self._delegate(request, today, today + timedelta(days=1))
+        self.assertEqual(self._holders(request), self.delegate)
+        with freeze_time(today + timedelta(days=3)):
+            self.env["approval.approver"].invalidate_model(["is_delegated"])
+            self.env["approval.approver"].cron_hand_delegated_activities_over()
+        self.assertEqual(self._holders(request), self.approver_1)
+
+    def test_the_activity_moves_when_a_scheduled_window_opens(self):
+        request = self._prepare_request(self.category)
+        today = fields.Date.today()
+        self._delegate(request, today + timedelta(days=2), today + timedelta(days=4))
+        self.assertEqual(self._holders(request), self.approver_1)
+        with freeze_time(today + timedelta(days=3)):
+            self.env["approval.approver"].invalidate_model(["is_delegated"])
+            self.env["approval.approver"].cron_hand_delegated_activities_over()
+        self.assertEqual(self._holders(request), self.delegate)

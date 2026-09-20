@@ -452,9 +452,9 @@ class TestProductAuditFixes(ProductCommon):
             template.uom_id._has_common_reference(liter), "sanity: incompatible units"
         )
         with self.assertRaises(UserError):
-            template._compute_price("list_price", uom=liter)
+            template._get_prices("list_price", uom=liter)
         with self.assertRaises(UserError):
-            template.product_variant_id._compute_price("list_price", uom=liter)
+            template.product_variant_id._get_prices("list_price", uom=liter)
 
     def test_price_in_compatible_uom_still_converts(self):
         dozen = self.env.ref("uom.product_uom_dozen")
@@ -463,8 +463,8 @@ class TestProductAuditFixes(ProductCommon):
             {"name": "UomOk", "list_price": 12.0, "uom_id": unit.id}
         )
         self.assertAlmostEqual(
-            template._compute_price("list_price", uom=dozen)[template.id],
-            unit._compute_price(12.0, dozen),
+            template._get_prices("list_price", uom=dozen)[template.id],
+            unit._get_price_in_unit(12.0, dozen),
             places=6,
         )
 
@@ -497,7 +497,7 @@ class TestProductAuditFixes(ProductCommon):
             "default_name": "SO0001",
             "allowed_company_ids": [self.env.company.id],
         }
-        forwarded = order.with_context(**context)._get_catalog_action_context()
+        forwarded = order.with_context(**context)._prepare_catalog_action_context()
         self.assertNotIn("default_partner_id", forwarded)
         self.assertNotIn("default_name", forwarded)
         self.assertIn(
@@ -507,7 +507,7 @@ class TestProductAuditFixes(ProductCommon):
     def test_pricelist_report_rejects_oversized_product_list(self):
         Report = self.env["report.product.report_pricelist"]
         with self.assertRaises(UserError):
-            Report._get_report_data(
+            Report._prepare_pricelist_rendering_context(
                 {
                     "active_model": "product.template",
                     "active_ids": list(range(Report.MAX_PRODUCTS + 1)),
@@ -537,7 +537,7 @@ class TestProductAuditFixes(ProductCommon):
         def query_count(products):
             self.env.invalidate_all()
             before = self.env.cr.sql_statement_count
-            Report._get_report_data(
+            Report._prepare_pricelist_rendering_context(
                 {
                     "active_model": "product.template",
                     "active_ids": products.ids,
@@ -577,7 +577,7 @@ class TestProductAuditFixes(ProductCommon):
         )
         self.env.flush_all()
 
-        data = Report._get_report_data(
+        data = Report._prepare_pricelist_rendering_context(
             {
                 "active_model": "product.template",
                 "active_ids": templates.ids,
@@ -1030,7 +1030,7 @@ class TestProductAuditFixes(ProductCommon):
 
         self.assertEqual(template.standard_price, 0.0, "template mirrors no variant")
         self.assertAlmostEqual(
-            template._compute_price("standard_price")[template.id], 10.0, places=2
+            template._get_prices("standard_price")[template.id], 10.0, places=2
         )
 
     def test_multi_variant_template_cost_follows_variant_order(self):
@@ -1041,7 +1041,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertAlmostEqual(
-            template._compute_price("standard_price")[template.id], 10.0, places=2
+            template._get_prices("standard_price")[template.id], 10.0, places=2
         )
 
         second.default_code = "AAA-first"
@@ -1049,7 +1049,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.invalidate_all()
 
         self.assertAlmostEqual(
-            template._compute_price("standard_price")[template.id],
+            template._get_prices("standard_price")[template.id],
             999.0,
             places=2,
             msg="cost basis follows variant ordering, not any cost edit",

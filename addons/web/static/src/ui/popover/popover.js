@@ -3,6 +3,8 @@
 
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import { prefersReducedMotion } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { usePosition } from "@web/core/position/position_hook";
 import { reverseForRTL } from "@web/core/position/utils";
@@ -22,6 +24,8 @@ const POPOVERS = new WeakMap();
 export function getPopoverForTarget(target) {
     return POPOVERS.get(target);
 }
+
+const log = makeLogger("web.ui.popover");
 
 export class Popover extends Component {
     static template = "web.Popover";
@@ -71,6 +75,7 @@ export class Popover extends Component {
     hasTarget = true;
 
     setup() {
+        useLifecycleLog(log);
         if (this.props.setActiveElement) {
             useActiveElement("ref");
         } else if (this.props.closeOnEscape && odoo.debug) {
@@ -94,7 +99,15 @@ export class Popover extends Component {
             this.animationDone = true;
         }
 
-        const resizeObserver = new ResizeObserver(() => this.onResized());
+        // the observer's first delivery reports the size the popover was just
+        // positioned for; only later deliveries are resizes
+        let observedOnce = false;
+        const resizeObserver = new ResizeObserver(() => {
+            if (observedOnce) {
+                this.onResized();
+            }
+            observedOnce = true;
+        });
 
         onMounted(() => {
             POPOVERS.set(this.props.target, this.popoverRef.el);

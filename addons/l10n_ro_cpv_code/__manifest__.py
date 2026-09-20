@@ -16,5 +16,4 @@ The Romanian CIUS-RO format requires, in some case, the precise categorisation o
         "views/product_views.xml",
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

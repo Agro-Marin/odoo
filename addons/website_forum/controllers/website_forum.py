@@ -2,14 +2,13 @@ import json
 import logging
 from urllib.parse import unquote_plus
 
-import lxml
-import requests
 import werkzeug.exceptions
 
 from odoo import _, http, tools
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import is_html_empty
 from odoo.tools.translate import LazyTranslate
 
@@ -18,6 +17,7 @@ from odoo.addons.website_profile.controllers.main import WebsiteProfile
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class WebsiteForum(WebsiteProfile):
@@ -74,9 +74,6 @@ class WebsiteForum(WebsiteProfile):
             }
         )
         return values
-
-    # Forum
-    # --------------------------------------------------
 
     @http.route(
         ["/forum"],
@@ -167,8 +164,6 @@ class WebsiteForum(WebsiteProfile):
         if author == request.env.user:
             my = "mine"
         if sorting:
-            # check that sorting is valid
-            # retro-compatibility for V8 and google links
             try:
                 sorting = unquote_plus(sorting)
                 Post._order_to_sql(sorting, Post._search([], bypass_access=True))
@@ -283,9 +278,6 @@ class WebsiteForum(WebsiteProfile):
         )
         return request.render("website_forum.faq_karma", values)
 
-    # Tags
-    # --------------------------------------------------
-
     @http.route(
         "/forum/get_tags",
         type="http",
@@ -320,21 +312,12 @@ class WebsiteForum(WebsiteProfile):
         readonly=True,
     )
     def tags(self, forum, tag_char="", filters="all", search="", **post):
-        """Render a list of tags matching filters and search parameters.
-
-        :param forum: Forum
-        :param string tag_char: Only tags starting with a single character `tag_char`
-        :param filters: One of 'all'|'followed'|'most_used'|'unused'.
-          Can be combined with `search` and `tag_char`.
-        :param string search: Search query using "forum_tags_only" `search_type`
-        :param dict post: additional options passed to `_prepare_user_values`
-        """
         if (
             not isinstance(tag_char, str)
             or len(tag_char) > 1
             or (tag_char and not tag_char.isalpha())
         ):
-            # So that further development does not miss this. Users shouldn't see it with normal usage.
+            _debug.logic("forum_tags_refused", reason="bad_tag_char", forum=forum.id)
             raise werkzeug.exceptions.BadRequest(
                 _('Bad "tag_char" value "%(tag_char)s"', tag_char=tag_char)
             )
@@ -346,7 +329,6 @@ class WebsiteForum(WebsiteProfile):
         if filters == "followed" and not request.env.user._is_public():
             domain = Domain.AND([domain, [("message_is_follower", "=", True)]])
 
-        # Build tags result without using tag_char to build pager, then return tags matching it
         values = self._prepare_user_values(forum=forum, searches={"tags": True}, **post)
         tags = request.env["forum.tag"]
 
@@ -375,6 +357,12 @@ class WebsiteForum(WebsiteProfile):
             if not search:
                 tags = request.env["forum.tag"].search(domain, limit=None, order=order)
         else:
+            _debug.logic(
+                "forum_tags_refused",
+                reason="bad_filter",
+                forum=forum.id,
+                filter=str(filters),
+            )
             raise werkzeug.exceptions.BadRequest(
                 _('Bad "filters" value "%(filters)s".', filters=filters)
             )
@@ -397,25 +385,6 @@ class WebsiteForum(WebsiteProfile):
         )
         return request.render("website_forum.forum_index_tags", values)
 
-    # Questions
-    # --------------------------------------------------
-
-    @http.route(
-        "/forum/get_url_title",
-        type="jsonrpc",
-        auth="user",
-        methods=["POST"],
-        website=True,
-    )
-    def get_url_title(self, **kwargs):
-        try:
-            req = requests.get(kwargs.get("url"), timeout=10)
-            req.raise_for_status()
-            arch = lxml.html.fromstring(req.content)
-            return arch.find(".//title").text
-        except OSError:
-            return False
-
     @http.route(
         [
             """/forum/<model("forum.forum"):forum>/question/<model("forum.post", "[('forum_id','=',forum.id),('parent_id','=',False),('can_view', '=', True)]"):question>"""
@@ -426,7 +395,6 @@ class WebsiteForum(WebsiteProfile):
         sitemap=False,
     )
     def old_question(self, forum, question, **post):
-        # Compatibility pre-v14
         slug = request.env["ir.http"]._slug
         return request.redirect(
             "/forum/%s/%s" % (slug(forum), slug(question)), code=301
@@ -471,19 +439,30 @@ class WebsiteForum(WebsiteProfile):
     )
     def question(self, forum, question, **post):
         if not forum.active:
+            _debug.logic(
+                "forum_question_refused", reason="forum_archived", forum=forum.id
+            )
             return request.render("website_forum.header", {"forum": forum})
 
-        # Hide posts from abusers (negative karma), except for moderators
         if not question.can_view:
+            _debug.logic(
+                "forum_question_refused", reason="cannot_view", post=question.id
+            )
             raise werkzeug.exceptions.NotFound
 
-        # Hide pending posts from non-moderators and non-creator
         user = request.env.user
         if (
             question.state == "pending"
             and user.karma < forum.karma_post
             and question.create_uid != user
         ):
+            _debug.logic(
+                "forum_question_refused",
+                reason="pending_low_karma",
+                post=question.id,
+                karma=user.karma,
+                required=forum.karma_post,
+            )
             raise werkzeug.exceptions.NotFound
 
         if question.parent_id:
@@ -491,7 +470,6 @@ class WebsiteForum(WebsiteProfile):
             redirect_url = "/forum/%s/%s" % (slug(forum), slug(question.parent_id))
             return request.redirect(redirect_url, 301)
         values = self._prepare_question_template_vals(forum, post, question)
-        # increment view counter
         question.sudo()._set_viewed()
 
         return request.render("website_forum.post_description_full", values)
@@ -507,9 +485,6 @@ class WebsiteForum(WebsiteProfile):
         favorite = not question.is_user_favorite
         question._update_user_favorite(favorite)
         if favorite:
-            # Automatically add the user as follower of the posts that he
-            # favorites (on unfavorite we chose to keep him as a follower until
-            # he decides to not follow anymore).
             question.sudo().message_subscribe(request.env.user.partner_id.ids)
         return favorite
 
@@ -547,6 +522,11 @@ class WebsiteForum(WebsiteProfile):
                 answer = record
                 break
         else:
+            _debug.logic(
+                "forum_edit_answer_refused",
+                reason="no_answer_of_mine",
+                post=question.id,
+            )
             raise werkzeug.exceptions.NotFound
         slug = request.env["ir.http"]._slug
         return request.redirect(f"/forum/{slug(forum)}/post/{slug(answer)}/edit")
@@ -599,8 +579,6 @@ class WebsiteForum(WebsiteProfile):
         slug = request.env["ir.http"]._slug
         return request.redirect("/forum/%s/%s" % (slug(forum), slug(question)))
 
-    # Post
-    # --------------------------------------------------
     @http.route(
         ['/forum/<model("forum.forum"):forum>/ask'],
         type="http",
@@ -670,7 +648,6 @@ class WebsiteForum(WebsiteProfile):
     def post_comment(self, forum, post, **kwargs):
         question = post.parent_id or post
         if kwargs.get("comment") and post.forum_id.id == forum.id:
-            # TDE FIXME: check that post_id is the question or one of its answers
             body = tools.mail.plaintext2html(kwargs["comment"])
             post.with_context(mail_post_autofollow_author_skip=True).message_post(
                 body=body, message_type="comment", subtype_xmlid="mail.mt_comment"
@@ -691,7 +668,6 @@ class WebsiteForum(WebsiteProfile):
         if request.env.uid == post.create_uid.id:
             return {"error": "own_post"}
 
-        # set all answers to False, only one can be accepted
         (post.parent_id.child_ids - post).write({"is_correct": False})
         post.is_correct = not post.is_correct
         return post.is_correct
@@ -762,9 +738,6 @@ class WebsiteForum(WebsiteProfile):
         slug = request.env["ir.http"]._slug
         return request.redirect("/forum/%s/%s" % (slug(forum), slug(question)))
 
-    #  JSON utilities
-    # --------------------------------------------------
-
     @http.route(
         '/forum/<model("forum.forum"):forum>/post/<model("forum.post"):post>/upvote',
         type="jsonrpc",
@@ -789,9 +762,6 @@ class WebsiteForum(WebsiteProfile):
         upvote = post.user_vote < 0
         return post.vote(upvote=upvote)
 
-    # Moderation Tools
-    # --------------------------------------------------
-
     @http.route(
         '/forum/<model("forum.forum"):forum>/validation_queue',
         type="http",
@@ -801,6 +771,13 @@ class WebsiteForum(WebsiteProfile):
     def validation_queue(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
+            _debug.logic(
+                "moderation_refused",
+                queue="validation",
+                forum=forum.id,
+                karma=user.karma,
+                required=forum.karma_moderate,
+            )
             raise werkzeug.exceptions.NotFound
 
         Post = request.env["forum.post"]
@@ -826,6 +803,13 @@ class WebsiteForum(WebsiteProfile):
     def flagged_queue(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
+            _debug.logic(
+                "moderation_refused",
+                queue="flagged",
+                forum=forum.id,
+                karma=user.karma,
+                required=forum.karma_moderate,
+            )
             raise werkzeug.exceptions.NotFound
 
         Post = request.env["forum.post"]
@@ -854,6 +838,13 @@ class WebsiteForum(WebsiteProfile):
     def offensive_posts(self, forum, **kwargs):
         user = request.env.user
         if user.karma < forum.karma_moderate:
+            _debug.logic(
+                "moderation_refused",
+                queue="offensive",
+                forum=forum.id,
+                karma=user.karma,
+                required=forum.karma_moderate,
+            )
             raise werkzeug.exceptions.NotFound
 
         Post = request.env["forum.post"]
@@ -882,6 +873,13 @@ class WebsiteForum(WebsiteProfile):
     )
     def closed_posts(self, forum, **kwargs):
         if request.env.user.karma < forum.karma_moderate:
+            _debug.logic(
+                "moderation_refused",
+                queue="closed",
+                forum=forum.id,
+                karma=request.env.user.karma,
+                required=forum.karma_moderate,
+            )
             raise werkzeug.exceptions.NotFound
 
         closed_posts_ids = request.env["forum.post"].search(
@@ -914,7 +912,7 @@ class WebsiteForum(WebsiteProfile):
             url = f"/forum/{slug(forum)}/closed_posts"
         else:
             url = f"/forum/{slug(forum)}/validation_queue"
-        post.validate()
+        post.accept_post()
         return request.redirect(url)
 
     @http.route(
@@ -944,6 +942,9 @@ class WebsiteForum(WebsiteProfile):
     )
     def post_json_ask_for_mark_as_offensive(self, post, **kwargs):
         if not post.can_moderate:
+            _debug.logic(
+                "mark_offensive_refused", reason="cannot_moderate", post=post.id
+            )
             raise AccessError(
                 _(
                     "%d karma required to mark a post as offensive.",
@@ -989,8 +990,6 @@ class WebsiteForum(WebsiteProfile):
             url = f"/forum/{slug(forum)}/{slug(post)}"
         return request.redirect(url)
 
-    # User
-    # --------------------------------------------------
     @http.route(
         ['/forum/<model("forum.forum"):forum>/partner/<int:partner_id>'],
         type="http",
@@ -1008,9 +1007,6 @@ class WebsiteForum(WebsiteProfile):
                     f"/forum/{slug(forum)}/user/{partner.user_ids[0].id}"
                 )
         return request.redirect("/forum/" + request.env["ir.http"]._slug(forum))
-
-    # Profile
-    # -----------------------------------
 
     def _prepare_user_profile_values(self, user, **post):
         values = super()._prepare_user_profile_values(user, **post)
@@ -1044,7 +1040,6 @@ class WebsiteForum(WebsiteProfile):
         Data = request.env["ir.model.data"]
         search_values = {}
 
-        # questions and answers by user
         question_base_domain = Domain(
             [
                 ("parent_id", "=", False),
@@ -1065,8 +1060,6 @@ class WebsiteForum(WebsiteProfile):
         count_user_questions = len(user_question_ids)
         min_karma_unlink = min(forums.mapped("karma_unlink_all"))
 
-        # limit length of visible posts by default for performance reasons, except for the high
-        # karma users (not many of them, and they need it to properly moderate the forum)
         post_display_limit = None
         if request.env.user.karma < min_karma_unlink:
             post_display_limit = 20
@@ -1092,7 +1085,6 @@ class WebsiteForum(WebsiteProfile):
         count_user_answers = len(user_answer_ids)
         user_answers = user_answer_ids[:post_display_limit]
 
-        # showing questions which user following
         post_ids = [
             follower.res_id
             for follower in Followers.sudo().search(
@@ -1110,7 +1102,6 @@ class WebsiteForum(WebsiteProfile):
             ]
         )
 
-        # showing Favorite questions of user.
         favorite = Post.search(
             [
                 ("favorite_user_ids", "=", user.id),
@@ -1119,7 +1110,6 @@ class WebsiteForum(WebsiteProfile):
             ]
         )
 
-        # votes which given on users questions and answers.
         data = Vote._read_group(
             [("forum_id", "in", forums.ids), ("recipient_id", "=", user.id)],
             ["vote"],
@@ -1132,12 +1122,10 @@ class WebsiteForum(WebsiteProfile):
             elif vote == "-1":
                 down_votes = count
 
-        # Votes which given by users on others questions and answers.
         vote_ids = Vote.search(
             [("user_id", "=", user.id), ("forum_id", "in", forums.ids)]
         )
 
-        # activity by user.
         comment = Data._get_xmlid_target("mail.mt_comment")[1]
         activities = Activity.search(
             [
@@ -1197,9 +1185,6 @@ class WebsiteForum(WebsiteProfile):
             values["active_tab"] = "activities"
 
         return values
-
-    # Messaging
-    # --------------------------------------------------
 
     @http.route(
         '/forum/<model("forum.forum"):forum>/post/<model("forum.post"):post>/comment/<model("mail.message"):comment>/convert_to_answer',

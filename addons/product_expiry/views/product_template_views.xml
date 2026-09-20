@@ -14,8 +14,8 @@
             </group>
             <group name="stock_property" position="after">
                 <group
-                    string="Dates"
                     name="expiry_and_lots"
+                    string="Dates"
                     groups="stock.group_production_lot"
                     invisible="tracking == 'none' or not use_expiration_date">
                     <label for="expiration_time" />

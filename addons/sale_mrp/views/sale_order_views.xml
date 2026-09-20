@@ -10,14 +10,14 @@
                 <button
                     name="action_view_mrp_production"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-wrench"
+                    groups="mrp.group_mrp_user"
                     invisible="mrp_production_count == 0"
-                    groups="mrp.group_mrp_user">
+                    class="oe_stat_button">
                     <field
                         name="mrp_production_count"
-                        widget="statinfo"
-                        string="Manufacturing" />
+                        string="Manufacturing"
+                        widget="statinfo" />
                 </button>
             </div>
         </field>

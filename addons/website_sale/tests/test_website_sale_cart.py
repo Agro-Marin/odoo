@@ -37,7 +37,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         )
 
     def test_add_cart_deleted_product(self):
-        # Unlink published product.
         product_template_id = self.product.product_tmpl_id
         product_id = self.product.id
         self.product.unlink()
@@ -51,9 +50,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
     def test_add_cart_unpublished_product(self):
-        # Try to add an unpublished product
         self.product.website_published = False
-        # Environment must be public user as admin can add unpublished products to cart
         website = self.website.with_user(self.public_user)
 
         with self.assertRaises(UserError), MockRequest(website.env, website=website):
@@ -63,7 +60,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 quantity=1,
             )
 
-        # public but remove sale_ok
         self.product.sale_ok = False
         self.product.website_published = True
 
@@ -75,7 +71,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
     def test_add_cart_archived_product(self):
-        # Try to add an archived product
         self.product.active = False
         website = self.website.with_user(self.public_user)
 
@@ -87,13 +82,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
     def test_zero_price_product_rule(self):
-        """
-        With the `prevent_zero_price_sale` that we have on website, we can't add free products
-        to our cart.
-        There is an exception for certain product types specified by the
-        `_get_product_types_allow_zero_price` method, so this test ensures that it works
-        by mocking that function to return the "service" product type.
-        """
         website_prevent_zero_price = self.env["website"].create(
             {
                 "name": "Prevent zero price sale",
@@ -138,7 +126,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             ),
             MockRequest(self.env, website=website_prevent_zero_price),
         ):
-            # service_tracking 'no' should not raise error
             with MockRequest(self.env, website=website_prevent_zero_price):
                 self.WebsiteSaleCartController.add_to_cart(
                     product_template_id=product_service.product_tmpl_id,
@@ -162,7 +149,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 product_id=self.product.id,
                 quantity=1,
             )
-            # Try processing payment with the old amount
             with self.assertRaises(UserError):
                 PaymentPortal().shop_payment_transaction(
                     sale_order.id, sale_order.access_token, amount=old_amount
@@ -178,21 +164,18 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                     "access_token": "test_token",
                 }
             )
-            # Try processing payment with a storable product and no carrier_id
             with self.assertRaises(ValidationError):
                 PaymentPortal().shop_payment_transaction(
                     sale_order.id, sale_order.access_token
                 )
 
     def test_update_cart_zero_qty(self):
-        # Try to remove a product that has already been removed
         portal_user = self.user_portal
         website = self.website.with_user(portal_user)
 
         SaleOrderLine = self.env["sale.order.line"]
 
         with MockRequest(website.env, website=website) as request:
-            # add the product to the cart
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=self.product.product_tmpl_id,
                 product_id=self.product.id,
@@ -201,7 +184,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             sale_order = request.cart
             self.assertEqual(sale_order.amount_untaxed, 1000.0)
 
-            # remove the product from the cart
             self.WebsiteSaleCartController.update_cart(
                 line_id=sale_order.line_ids.id,
                 quantity=0,
@@ -209,7 +191,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.assertEqual(sale_order.amount_total, 0.0)
             self.assertEqual(sale_order.line_ids, SaleOrderLine)
 
-            # removing the product again doesn't add a line with zero quantity
             self.WebsiteSaleCartController.update_cart(
                 line_id=sale_order.line_ids.id,
                 quantity=0,
@@ -218,7 +199,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.assertEqual(sale_order.line_ids, SaleOrderLine)
 
     def test_unpublished_accessory_product_visibility(self):
-        # Check if unpublished product is shown to public user
         accessory_product = self.env["product.product"].create(
             {
                 "name": "Access Product",
@@ -257,17 +237,13 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
 
     def test_cart_update_with_fpos(self):
-        # We will test that the mapping of an 10% included tax by a 6% by a fiscal position is taken
-        # into account when updating the cart
         self._enable_pricelists()
         pricelist = self.pricelist
-        # Create fiscal position mapping taxes 10% -> 6%
         fpos = self.env["account.fiscal.position"].create(
             {
                 "name": "test",
             }
         )
-        # Add 10% tax on product
         tax10, tax6 = self.env["account.tax"].create(
             [
                 {
@@ -295,7 +271,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             }
         )
 
-        # Add discount of 50% for pricelist
         pricelist.write(
             {
                 "item_ids": [
@@ -340,9 +315,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         )
 
     def test_cart_update_with_fpos_no_variant_product(self):
-        # We will test that the mapping of an 10% included tax by a 0% by a fiscal position is taken
-        # into account when updating the cart for no_variant product
-        # Add 10% tax on product
         fpos = self.env["account.fiscal.position"].create(
             {
                 "name": "test",
@@ -367,7 +339,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         )
         tax0.original_tax_ids = tax10
 
-        # create an attribute with one variant
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "test_attr",
@@ -402,7 +373,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         )
         product = product_template.product_variant_id
 
-        # create a so for user using the fiscal position
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.env.user.partner_id.id,
@@ -428,8 +398,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         )
 
     def test_cart_lines_aggregation(self):
-        # Adding a product with the same no_variant attributes combination twice should create only
-        # one SOLine
         product_no_variants = self.env["product.template"].create(
             {
                 "name": "No variants product (TEST)",
@@ -463,7 +431,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(len(self.empty_cart.line_ids), 1)
         self.assertEqual(self.empty_cart.line_ids.product_qty, 2)
 
-        # Providing `no_variant_attribute_value_ids` should be optional if there's only 1 value...
         product_no_variants.attribute_line_ids.value_ids = (
             self.no_variant_attribute.value_ids[0]
         )
@@ -471,7 +438,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(len(self.empty_cart.line_ids), 1)
         self.assertEqual(self.empty_cart.line_ids.product_qty, 3)
 
-        # ...except if it's a multi-checkbox attribute, making the value optional
         self.no_variant_attribute.display_type = "multi"
         add_one(no_variant_attribute_value_ids=[])
         self.assertEqual(len(self.empty_cart.line_ids), 2)
@@ -482,9 +448,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
         self.assertEqual(self.empty_cart.line_ids.mapped("product_qty"), [4, 1])
 
     def test_cart_new_pricelist_from_geoip(self):
-        """Check that, when adding a new partner to a website order, the partner's GeoIP
-        is factored into the pricelist recomputation.
-        """
         self._enable_pricelists()
         eu_group = self.env.ref("base.europe")
         not_eu_group = self.env["res.country.group"].create(
@@ -530,9 +493,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.assertEqual(cart.pricelist_id, pricelist_not_eu)
 
     def test_remove_archived_product_line(self):
-        """If an order has a line containing an archived product,
-        it is removed when opening the order in the cart."""
-        # Arrange
         user = self.public_user
         website = self.website.with_user(user)
         product = self.env["product.product"].create(
@@ -550,7 +510,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
             order = request.cart
 
-            # pre-condition: the order contains an active product
             self.assertRecordValues(
                 order.line_ids,
                 [
@@ -561,17 +520,12 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
             self.assertTrue(product.active)
 
-            # Act: archive the product and open the cart
             product.active = False
             self.WebsiteSaleCartController.cart()
 
-            # Assert: the line has been removed
             self.assertFalse(order.line_ids)
 
     def test_keep_note_line(self):
-        """If an order has a line containing a note,
-        it is not removed when opening the order in the cart."""
-        # Arrange
         user = self.public_user
         website = self.website.with_user(user)
         with MockRequest(self.env(user=user), website=website) as request:
@@ -585,7 +539,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 )
             ]
 
-            # pre-condition: the order contains only a note line
             self.assertRecordValues(
                 order.line_ids,
                 [
@@ -595,10 +548,8 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
                 ],
             )
 
-            # Act: open the cart
             self.WebsiteSaleCartController.cart()
 
-            # Assert: the line is still there
             self.assertRecordValues(
                 order.line_ids,
                 [
@@ -633,8 +584,6 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.WebsiteSaleController.shop_checkout()
 
     def test_add_to_cart_company_branch(self):
-        """Test that a product/website from a company branch
-        can be added to the cart."""
         branch_a = self.env["res.company"].create(
             {
                 "name": "Branch A",
@@ -661,22 +610,17 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             self.assertEqual(data["quantity"], 1)
 
     def test_get_cart_after_company_change(self):
-        """Finding the customer cart shouldn't crash even if their company changed."""
         internal_user = self.env.ref("base.user_admin")
         website = self.website.with_user(internal_user)
         with MockRequest(website.env, website=website):
-            # Create a cart for the user
             self.WebsiteSaleCartController.add_to_cart(
                 product_template_id=self.product.product_tmpl_id,
                 product_id=self.product.id,
                 quantity=1,
             )
 
-        # Change the user's company (will also update the user's partner)
         other_company = self.env["res.company"].create({"name": "Other Company"})
         internal_user.company_ids = [Command.link(other_company.id)]
         internal_user.company_id = other_company
         with MockRequest(website.env, website=website) as request:
-            # We shouldn't find any abandonned cart if the customer isn't allowed to
-            # buy from this website (because their contact belongs to another company)
             self.assertFalse(request.cart)

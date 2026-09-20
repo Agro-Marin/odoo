@@ -28,23 +28,23 @@
                 </group>
                 <footer>
                     <button
-                        string="Merge"
                         name="action_merge"
                         type="object"
+                        string="Merge"
+                        invisible="disable_merge_button"
                         class="oe_highlight"
-                        data-hotkey="q"
-                        invisible="disable_merge_button" />
+                        data-hotkey="q" />
                     <button
-                        string="Merge"
                         name="action_merge"
                         type="object"
+                        string="Merge"
+                        invisible="not disable_merge_button"
                         class="oe_highlight disabled"
-                        data-hotkey="q"
-                        invisible="not disable_merge_button" />
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -52,30 +52,32 @@
     </record>
 
     <record id="account_tax_merge_wizard_action" model="ir.actions.act_window">
-        <field name="name">Merge taxes</field>
+        <field name="name">Merge Taxes…</field>
         <field name="res_model">account.tax.merge.wizard</field>
         <field name="view_mode">form</field>
         <field name="view_id" eval="ref('account.account_tax_merge_wizard_form')" />
         <field name="target">new</field>
         <field name="binding_model_id" ref="account_tax.model_account_tax" />
-        <field name="binding_view_types">list</field>
         <field name="binding_type">action</field>
+        <field name="binding_view_types">list</field>
+        <field name="binding_icon">fa-solid fa-code-merge</field>
         <field
             name="group_ids"
-            eval="[(6, 0, [ref('account.group_account_manager')])]" />
+            eval="[Command.set([ref('account.group_account_manager')])]" />
     </record>
 
     <record id="action_unmerge_taxes" model="ir.actions.server">
-        <field name="name">Unmerge tax</field>
+        <field name="name">Unmerge Tax</field>
         <field name="model_id" ref="account_tax.model_account_tax" />
         <field name="binding_model_id" ref="account_tax.model_account_tax" />
         <field name="binding_view_types">form,list</field>
-        <field name="state">code</field>
-        <field name="code">if records:
-    action = records.action_unmerge()</field>
+        <field name="binding_icon">fa-solid fa-code-fork</field>
         <field
             name="group_ids"
             eval="[Command.link(ref('account.group_account_manager'))]" />
+        <field name="state">code</field>
+        <field name="code">if records:
+    action = records.action_unmerge()</field>
     </record>
 
 </odoo>

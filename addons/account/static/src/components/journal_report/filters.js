@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-
 import { AccountReport } from "@account/components/account_report/account_report";
 import { AccountReportFilters } from "@account/components/account_report/filters/filters";
+import { _t } from "@web/core/translation";
 
 export class JournalReportFilters extends AccountReportFilters {
     get filterExtraOptionsData() {

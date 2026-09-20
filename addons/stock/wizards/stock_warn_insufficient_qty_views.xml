@@ -29,14 +29,14 @@
                 <footer>
                     <button
                         name="cancel_button"
+                        special="cancel"
                         string="Discard"
                         class="btn-primary"
-                        special="cancel"
                         data-hotkey="x" />
                     <button
-                        string="Confirm"
                         name="action_done"
                         type="object"
+                        string="Confirm"
                         class="btn-secondary"
                         data-hotkey="q" />
                 </footer>
@@ -55,9 +55,9 @@
             </xpath>
             <xpath expr="//button[@name='cancel_button']" position="replace">
                 <button
-                    string="Discard"
                     name="action_cancel"
                     type="object"
+                    string="Discard"
                     class="btn-primary" />
             </xpath>
         </field>

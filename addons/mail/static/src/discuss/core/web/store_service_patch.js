@@ -3,7 +3,10 @@
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.store");
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
@@ -21,11 +24,7 @@ const StorePatch = {
         let channelsContribution = channelsFetched ? 0 : this.initChannelsUnreadCounter;
         let channelsNeedactionCounter = 0;
         for (const thread of this.counterChannels) {
-            if (
-                channelsFetched &&
-                thread.displayToSelf &&
-                !thread.self_member_id?.mute_until_dt
-            ) {
+            if (channelsFetched && thread.displayToSelf && !thread.isMuted) {
                 channelsContribution++;
             }
             channelsNeedactionCounter += thread.message_needaction_counter;
@@ -45,9 +44,7 @@ const StorePatch = {
     /** @returns {import("models").Thread[]} */
     getSelfRecentChannels() {
         return Object.values(this.Thread.records)
-            .filter(
-                (thread) => thread.model === "discuss.channel" && thread.self_member_id,
-            )
+            .filter((thread) => thread.isChannelKind && thread.self_member_id)
             .sort(
                 (a, b) =>
                     compareDatetime(b.lastInterestDt, a.lastInterestDt) ||
@@ -57,6 +54,7 @@ const StorePatch = {
     onStarted() {
         super.onStarted();
         if (this.discuss.isActive) {
+            log.logic("discuss active at start: fetch channels");
             this.channels.fetch();
         }
     },

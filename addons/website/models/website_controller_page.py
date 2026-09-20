@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class WebsiteControllerPage(models.Model):
@@ -11,25 +14,35 @@ class WebsiteControllerPage(models.Model):
     ]
     _description = "Model Page"
     _order = "website_id, id DESC"
-    _unique_name_slugified = models.Constraint(
-        "UNIQUE(name_slugified, website_id)",
+    _unique_name_slugified = models.UniqueIndex(
+        "(name_slugified, website_id) "
+        "WHERE name_slugified IS NOT NULL AND website_id IS NOT NULL",
         "url should be unique per website",
     )
 
     view_id = fields.Many2one(
-        "ir.ui.view",
+        comodel_name="ir.ui.view",
         string="Listing view",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     record_view_id = fields.Many2one(
-        "ir.ui.view", string="Record view", ondelete="cascade"
+        comodel_name="ir.ui.view",
+        string="Record view",
+        ondelete="cascade",
     )
-    menu_ids = fields.One2many("website.menu", "controller_page_id", "Related Menus")
+    menu_ids = fields.One2many(
+        comodel_name="website.menu",
+        inverse_name="controller_page_id",
+        string="Related Menus",
+    )
 
-    website_id = fields.Many2one(
-        related="view_id.website_id", store=True, readonly=False, ondelete="cascade"
+    website_id = fields.Many2one(  # noqa: E8529  UNIQUE (name_slugified, website_id) partial
+        related="view_id.website_id",
+        store=True,
+        readonly=False,
+        ondelete="cascade",
     )
 
     name = fields.Char(
@@ -37,21 +50,25 @@ class WebsiteControllerPage(models.Model):
         compute="_compute_name",
         inverse="_inverse_name",
         precompute=True,
-        required=True,
         store=True,
+        required=True,
     )
     name_slugified = fields.Char(
+        string="URL",
         compute="_compute_name_slugified",
         inverse="_inverse_name_slugified",
         precompute=True,
         store=True,
-        string="URL",
         help="The name of the page usable in a URL",
     )
-    url_demo = fields.Char(string="Demo URL", compute="_compute_url_demo")
+    url_demo = fields.Char(
+        string="Demo URL",
+        compute="_compute_url_demo",
+    )
 
     record_domain = fields.Char(
-        string="Domain", help="Domain to restrict records that can be viewed publicly"
+        string="Domain",
+        help="Domain to restrict records that can be viewed publicly",
     )
     default_layout = fields.Selection(
         selection=[
@@ -65,6 +82,11 @@ class WebsiteControllerPage(models.Model):
         for model_id in self.mapped("model_id"):
             Model = self.env[model_id.model]
             if Model._transient or Model._abstract or not Model._auto:
+                _debug.logic(
+                    "controller_page_refused",
+                    reason="not_a_concrete_model",
+                    model=model_id.model,
+                )
                 raise ValidationError(
                     self.env._("A page must be set to display a concrete model.")
                 )
@@ -107,13 +129,21 @@ class WebsiteControllerPage(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
+        _debug.lifecycle("create", pages=res, count=len(res))
         res._check_user_has_model_access()
         return res
 
     def write(self, vals):
         res = super().write(vals)
+        _debug.lifecycle("write", pages=self, count=len(self), fields=sorted(vals))
         if "name" in vals or "name_slugified" in vals:
             for rec in self:
+                _debug.lifecycle(
+                    "controller_page_menus_renamed",
+                    page=rec.id,
+                    menus=len(rec.menu_ids),
+                    url=f"/model/{rec.name_slugified}",
+                )
                 rec.menu_ids.write(
                     {
                         "url": f"/model/{rec.name_slugified}",
@@ -129,6 +159,9 @@ class WebsiteControllerPage(models.Model):
             lambda v: v.controller_page_ids <= self and not v.inherit_children_ids
         )
         self -= views_to_delete.controller_page_ids
+        _debug.lifecycle(
+            "unlink", pages=self, count=len(self), views=len(views_to_delete)
+        )
         views_to_delete.unlink()
 
         if self:

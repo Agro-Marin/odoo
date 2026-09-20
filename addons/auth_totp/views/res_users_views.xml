@@ -38,11 +38,11 @@
                     </div>
                     <field name="totp_enabled" invisible="1" />
                     <button
-                        invisible="totp_enabled or id != uid"
                         name="action_totp_enable_wizard"
                         type="object"
-                        class="btn btn-secondary h-100 my-auto"
-                        string="Enable 2FA" />
+                        string="Enable 2FA"
+                        invisible="totp_enabled or id != uid"
+                        class="btn btn-secondary h-100 my-auto" />
                     <div
                         invisible="totp_enabled or id == uid"
                         name="div_action_totp_enable_wizard"
@@ -90,11 +90,11 @@
                     </div>
                     <field name="totp_enabled" invisible="1" />
                     <button
-                        invisible="totp_enabled"
                         name="action_totp_enable_wizard"
                         type="object"
-                        class="btn btn-secondary h-100 my-auto"
-                        string="Enable 2FA" />
+                        string="Enable 2FA"
+                        invisible="totp_enabled"
+                        class="btn btn-secondary h-100 my-auto" />
                     <div
                         invisible="not totp_enabled"
                         class="h-100 d-flex flex-wrap align-items-center my-auto">

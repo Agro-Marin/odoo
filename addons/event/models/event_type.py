@@ -26,7 +26,7 @@ class EventType(models.Model):
                 0,
                 {
                     "interval_nbr": 1,
-                    "interval_unit": "hours",
+                    "interval_unit": "hour",
                     "interval_type": "before_event",
                     "template_ref": "mail.template, %i"
                     % self.env.ref("event.event_reminder").id,
@@ -37,7 +37,7 @@ class EventType(models.Model):
                 0,
                 {
                     "interval_nbr": 3,
-                    "interval_unit": "days",
+                    "interval_unit": "day",
                     "interval_type": "before_event",
                     "template_ref": "mail.template, %i"
                     % self.env.ref("event.event_reminder").id,
@@ -52,43 +52,54 @@ class EventType(models.Model):
             .ids
         )
 
-    name = fields.Char("Event Template", required=True, translate=True)
-    note = fields.Html(string="Note")
+    name = fields.Char(
+        string="Event Template",
+        translate=True,
+        required=True,
+    )
+    note = fields.Html()
     sequence = fields.Integer(default=10)
     # tickets
     event_type_ticket_ids = fields.One2many(
-        "event.type.ticket", "event_type_id", string="Tickets"
+        comodel_name="event.type.ticket",
+        inverse_name="event_type_id",
+        string="Tickets",
     )
-    tag_ids = fields.Many2many("event.tag", string="Tags")
+    tag_ids = fields.Many2many(
+        comodel_name="event.tag",
+        string="Tags",
+    )
     # registration
-    has_seats_limitation = fields.Boolean("Limited Seats")
+    has_seats_limitation = fields.Boolean(string="Limited Seats")
     seats_max = fields.Integer(
-        "Maximum Registrations",
+        string="Maximum Registrations",
         compute="_compute_seats_max",
-        readonly=False,
         store=True,
+        readonly=False,
         help="It will select this default maximum value when you choose this event",
     )
     default_timezone = fields.Selection(
-        _selection_timezones,
+        selection=_selection_timezones,
         string="Timezone",
         default=lambda self: self.env.user.tz or "UTC",
     )
     # communication
     event_type_mail_ids = fields.One2many(
-        "event.type.mail",
-        "event_type_id",
+        comodel_name="event.type.mail",
+        inverse_name="event_type_id",
         string="Mail Schedule",
         default=_default_event_type_mail_ids,
     )
     # ticket reports
     ticket_instructions = fields.Html(
-        "Ticket Instructions",
         translate=True,
         help="This information will be printed on your tickets.",
     )
     question_ids = fields.Many2many(
-        "event.question", default=_default_question_ids, string="Questions", copy=True
+        comodel_name="event.question",
+        string="Questions",
+        default=_default_question_ids,
+        copy=True,
     )
 
     @api.depends("has_seats_limitation")

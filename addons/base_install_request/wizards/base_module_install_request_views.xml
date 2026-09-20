@@ -1,38 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="base_module_install_request_view_form_record" model="ir.ui.view">
+        <field name="name">base.module.install.request.view.form.record</field>
+        <field name="model">base.module.install.request</field>
+        <field name="arch" type="xml">
+            <form string="Activation Request" create="0">
+                <header />
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="module_id" />
+                            <field name="user_id" />
+                        </group>
+                        <group name="decision" />
+                    </group>
+                    <group string="Why is this module needed?">
+                        <field name="body_html" colspan="2" nolabel="1" readonly="1" />
+                    </group>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
     <record id="base_module_install_request_view_form" model="ir.ui.view">
         <field name="name">base.module.install.request.view.form</field>
         <field name="model">base.module.install.request</field>
+        <field name="priority">20</field>
         <field name="arch" type="xml">
             <form>
                 <field name="module_id" invisible="1" />
                 <group string="Send to:">
                     <field
-                        colspan="2"
                         name="user_ids"
                         widget="many2many_tags"
+                        colspan="2"
                         nolabel="1" />
                 </group>
                 <group string="Why do you need this module?">
                     <field
-                        colspan="2"
                         name="body_html"
+                        placeholder="e.g. I'd like to use the SMS Marketing module to organize the promotion of our internal events, and exhibitions. I need access for 3 people of my team."
                         widget="html"
-                        nolabel="1"
-                        placeholder="e.g. I'd like to use the SMS Marketing module to organize the promotion of our internal events, and exhibitions. I need access for 3 people of my team." />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
                 <footer>
                     <button
+                        name="action_send_request"
+                        type="object"
                         string="Request Activation"
                         class="btn-primary"
-                        type="object"
-                        name="action_send_request"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -49,15 +73,15 @@
                 <field name="modules_description" />
                 <footer>
                     <button
+                        name="action_install_module"
+                        type="object"
                         string="Install App"
                         class="btn-primary"
-                        type="object"
-                        name="action_install_module"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

@@ -7,6 +7,6 @@ patch(Thread.prototype, {
         return false;
     },
     get hasAttachmentPanel() {
-        return this.channel_type !== "livechat" && super.hasAttachmentPanel;
+        return !this.isLivechat && super.hasAttachmentPanel;
     },
 });

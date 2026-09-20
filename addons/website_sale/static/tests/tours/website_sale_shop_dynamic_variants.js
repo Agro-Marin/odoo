@@ -1,7 +1,6 @@
 import { registry } from "@web/core/registry";
 import * as tourUtils from "@website_sale/js/tours/tour_utils";
 
-// This tour relies on a data created from the python test.
 registry.category("web_tour.tours").add("tour_shop_dynamic_variants", {
     url: "/shop?search=Dynamic Product",
     steps: () => [

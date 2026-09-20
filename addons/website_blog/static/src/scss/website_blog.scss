@@ -1,9 +1,6 @@
-// ======= VARIABLES =======
 $o-wblog-sidebar-width: 280px;
 $o-wblog-loader-size: 50px;
 
-// ======= ANIMATIONS =======
-// Generic fade-in
 @keyframes o-wblog-fade-In {
     0% {
         opacity: 0;
@@ -30,11 +27,6 @@ $o-wblog-loader-size: 50px;
     }
 }
 
-// ======== MIXINS =========
-// Create easing-linear-gradients. Compared to the standards liner-gradients
-// these are smoother and blends into their context increasing readability when
-// acts as background for text placed over images.
-// based on: https://css-tricks.com/easing-linear-gradients/
 @mixin o-wbblog-scrim-gradient($colorFrom, $colorTo) {
     $scrimStops:
         0% 0%,
@@ -62,16 +54,8 @@ $o-wblog-loader-size: 50px;
     background-image: linear-gradient(#{$stops});
 }
 
-//------------------------------------------------------------------------------
-// Website Blog
-//------------------------------------------------------------------------------
 .website_blog {
     .o_wblog_page_cards_bg {
-        // To be applied to the main container when 'card design' option is
-        // enabled. Provide a slight darker bg that will blend the background
-        // color chosen by the user, visually increasing the contrast in case of
-        // brights (or white) backgrounds.
-        // It shouldn't be noticeable on dark backgrounds.
         background-color: rgba(black, 0.005);
     }
 
@@ -79,9 +63,6 @@ $o-wblog-loader-size: 50px;
         max-width: map-get($container-max-widths, md) + $o-wblog-sidebar-width;
     }
 
-    // This option class is assigned to the post's content using the "Customize"
-    // menu. The aim is to be able to write simple articles on the fly,
-    // achieving a good design without being forced to use snippets.
     .o_wblog_read_text {
         @include font-size(18px);
         font-weight: 300;
@@ -95,8 +76,6 @@ $o-wblog-loader-size: 50px;
     }
 
     .o_wblog_author_avatar_date {
-        // Resize in order to double the current font-size and accommodate
-        // two text lines, name and date.
         width: 2em;
         height: 2em;
         max-width: none;
@@ -111,8 +90,6 @@ $o-wblog-loader-size: 50px;
         }
     }
 
-    // Blog Post Page
-    // ==============================================
     #o_wblog_post_content {
         min-height: 350px !important;
 
@@ -126,8 +103,6 @@ $o-wblog-loader-size: 50px;
 
     #o_wblog_post_content,
     .blog_header {
-        // Remove the '/' separators from breadcrumbs on small devices, as only
-        // the blog category is displayed on small screens.
         @include media-breakpoint-down(lg) {
             > nav.breadcrumb .breadcrumb-item {
                 padding-left: 0;
@@ -145,25 +120,16 @@ $o-wblog-loader-size: 50px;
         }
     }
 
-    // Blog Post Page Cover
-    // ==============================================
     .o_wblog_post_page_cover {
-        // "Latest Blog" Tag
         .o_wblog_post_title > .h4 {
             color: var(--o-cc3-btn-secondary-text);
         }
 
-        // Cover sizes
-        // ==============================================
         &.cover_auto {
             padding: 3rem 0;
-            // The actual height will always be 'auto'. The following
-            // min-height rule is set to trigger the page transition only.
             min-height: 1px;
         }
 
-        // "Regular Cover" design sizes
-        // ==============================================
         &.o_wblog_post_page_cover_regular {
             &.o_full_screen_height {
                 min-height: 70vh !important;
@@ -179,7 +145,6 @@ $o-wblog-loader-size: 50px;
             }
         }
 
-        // If a cover image is defined, adapt inner typography
         &.o_record_has_cover {
             .o_record_cover_image:after {
                 content: "";
@@ -200,24 +165,19 @@ $o-wblog-loader-size: 50px;
         }
     }
 
-    // Blog Post Specific
-    // ==============================================
     .o_wblog_post_title {
         .o_wblog_post_name {
             font-weight: $display-font-weight;
             line-height: $display-line-height;
-            // Default font-size.
             @include font-size(map-get($display-font-sizes, 4));
         }
 
         .o_wblog_post_subtitle {
             font-weight: $lead-font-weight;
-            // Default font-size.
             @include font-size($lead-font-size);
         }
     }
 
-    // Refine multi-lines titles when using 'regular' cover
     .o_wblog_regular_cover_container .o_wblog_post_name {
         line-height: 1;
         padding-bottom: 0.5rem;
@@ -225,7 +185,6 @@ $o-wblog-loader-size: 50px;
 
     .o_wblog_post_page_cover_footer {
         min-height: 33vh;
-        // Emulate native jQuery 'swing' easing to match js code
         transition: all 0.3s cubic-bezier(0.02, 0.01, 0.47, 1);
     }
 
@@ -257,16 +216,12 @@ $o-wblog-loader-size: 50px;
         animation: o-wblog-fade-In 1s cubic-bezier(0.02, 0.01, 0.47, 1);
     }
 
-    // Blog Index Pages
-    // ==============================================
     #o_wblog_posts_loop {
         .o_record_cover_container {
             box-shadow: inset 0 0 0 1px rgba(white, 0.3);
 
             padding-top: 33%;
             height: auto !important;
-            // This is mandatory as we do not want the CoverProperties
-            // sizing classes to be applied here
             min-height: auto !important;
 
             &:hover .o_record_cover_image {
@@ -275,7 +230,6 @@ $o-wblog-loader-size: 50px;
         }
 
         .o_wblog_normalize_font {
-            // normalize fonts
             @include font-size(13px);
             line-height: 1.45;
         }
@@ -302,29 +256,20 @@ $o-wblog-loader-size: 50px;
     }
 
     > nav > .container {
-        // If the navbar contains at least 10 items (random choice), the search
-        // input is placed at the top to avoid being centered in a multi-line
-        // navbar, which wouldn’t look good.
         &:has(> ul.navbar-nav .nav-item:nth-child(10)) .o_searchbar_form {
             align-self: start;
         }
     }
 
-    //  Editor Helpers
-    // ==============================================
     body.editor_enable & {
-        // Make empty covers visible in edit mode
         .o_record_cover_container.o_wblog_post_page_cover:not(.o_record_has_cover) {
             padding: 30px 0;
         }
 
-        // Hide the big "DRAG BUILDING BLOCKS HERE" box when inside a sidebar.
-        // The purple lines are enough to help the user dropping snippets.
         #o_wblog_sidebar .oe_structure:empty {
             display: none;
         }
 
-        // Prevent users from using the select in the sidebar during edit.
         .o_wblog_sidebar_block select[name="archive"] {
             pointer-events: none;
         }

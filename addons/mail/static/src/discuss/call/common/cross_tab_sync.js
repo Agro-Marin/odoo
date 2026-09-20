@@ -1,6 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.rtc.crosstab");
 
 export const CROSS_TAB_HOST_MESSAGE = {
     PING: "PING",
@@ -54,6 +57,7 @@ export class CrossTabSync {
     }
 
     start() {
+        log.lifecycle("start", () => ({ available: Boolean(this._broadcastChannel) }));
         if (this._broadcastChannel) {
             this._broadcastChannel.onmessage = this._onMessage.bind(this);
             this.post({ type: CROSS_TAB_CLIENT_MESSAGE.INIT });
@@ -66,9 +70,16 @@ export class CrossTabSync {
             this.hooks.log("broadcast channel not available");
             return;
         }
+        if (message.type !== CROSS_TAB_HOST_MESSAGE.PING) {
+            log.pipeline("post", () => message);
+        }
         try {
             this._broadcastChannel.postMessage(message);
         } catch (error) {
+            log.logic("post failed", () => ({
+                type: message.type,
+                message: error?.message,
+            }));
             this.hooks.log("failed to post message to broadcast channel", {
                 error,
             });
@@ -77,6 +88,7 @@ export class CrossTabSync {
 
     /** @param {number} sessionId */
     host(sessionId) {
+        log.lifecycle("host", () => ({ sessionId }));
         this.state.remoteChannelId = undefined;
         this.state.remoteSessionId = sessionId;
     }
@@ -144,12 +156,24 @@ export class CrossTabSync {
     _resetTimeout() {
         browser.clearTimeout(this._crossTabTimeoutId);
         this._crossTabTimeoutId = browser.setTimeout(() => {
+            log.lifecycle("host ping timeout", () => ({
+                remoteSessionId: this.state.remoteSessionId,
+            }));
             this.hooks.onHostClosed();
         }, PING_INTERVAL + 10_000);
     }
 
     /** @param {MessageEvent} ev */
     async _onMessage({ data: { type, hostedChannelId, hostedSessionId, changes } }) {
+        if (type !== CROSS_TAB_HOST_MESSAGE.PING) {
+            log.pipeline("message", () => ({
+                type,
+                hostedChannelId,
+                hostedSessionId,
+                changes,
+                isHost: this.hooks.isHost(),
+            }));
+        }
         switch (type) {
             case CROSS_TAB_HOST_MESSAGE.UPDATE_REMOTE:
                 if (this.hooks.isHost()) {
@@ -213,6 +237,7 @@ export class CrossTabSync {
     }
 
     dispose() {
+        log.lifecycle("dispose");
         browser.clearTimeout(this._crossTabTimeoutId);
         this.state.remoteSessionId = undefined;
         this.state.remoteChannelId = undefined;

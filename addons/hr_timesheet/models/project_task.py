@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.rating.models.rating_data import OPERATOR_MAPPING
@@ -23,6 +24,8 @@ PROJECT_TASK_READABLE_FIELDS = {
     "total_hours_spent",
 }
 
+_debug = DebugLog(__name__)
+
 
 class ProjectTask(models.Model):
     _name = "project.task"
@@ -32,60 +35,68 @@ class ProjectTask(models.Model):
         domain="['|', ('company_id', '=', False), ('company_id', '=?',  company_id), ('is_internal_project', '=', False), ('is_template', 'in', [is_template, False])]"
     )
     analytic_account_active = fields.Boolean(
-        "Active Analytic Account",
         related="project_id.analytic_account_active",
+        string="Active Analytic Account",
         export_string_translation=False,
     )
     allow_timesheets = fields.Boolean(
-        "Allow timesheets",
+        string="Allow timesheets",
+        export_string_translation=False,
         compute="_compute_allow_timesheets",
         search="_search_allow_timesheets",
         compute_sudo=True,
         readonly=True,
-        export_string_translation=False,
     )
     remaining_hours = fields.Float(
-        "Time Remaining",
+        string="Time Remaining",
         compute="_compute_remaining_hours",
         store=True,
         readonly=True,
         help="Number of planned hours minus the number of hours spent.",
     )
     remaining_hours_percentage = fields.Float(
+        export_string_translation=False,
         compute="_compute_remaining_hours_percentage",
         search="_search_remaining_hours_percentage",
-        export_string_translation=False,
     )
     effective_hours = fields.Float(
-        "Time Spent", compute="_compute_effective_hours", compute_sudo=True, store=True
+        string="Time Spent",
+        compute="_compute_effective_hours",
+        compute_sudo=True,
+        store=True,
     )
     total_hours_spent = fields.Float(
-        "Total Time Spent",
+        string="Total Time Spent",
         compute="_compute_total_hours_spent",
         store=True,
         help="Time spent on this task and its sub-tasks (and their own sub-tasks).",
     )
     progress = fields.Float(
-        "Progress", compute="_compute_progress_hours", store=True, aggregator="avg"
+        compute="_compute_progress_hours",
+        store=True,
+        aggregator="avg",
     )
-    overtime = fields.Float(compute="_compute_progress_hours", store=True)
+    overtime = fields.Float(
+        compute="_compute_progress_hours",
+        store=True,
+    )
     subtask_effective_hours = fields.Float(
-        "Time Spent on Sub-tasks",
+        string="Time Spent on Sub-tasks",
         compute="_compute_subtask_effective_hours",
         recursive=True,
         store=True,
         help="Time spent on the sub-tasks (and their own sub-tasks) of this task.",
     )
     timesheet_ids = fields.One2many(
-        "account.analytic.line",
-        "task_id",
-        "Timesheets",
+        comodel_name="account.analytic.line",
+        inverse_name="task_id",
+        string="Timesheets",
         export_string_translation=False,
     )
     encode_uom_in_days = fields.Boolean(
+        export_string_translation=False,
         compute="_compute_encode_uom_in_days",
         default=lambda self: self._uom_in_days(),
-        export_string_translation=False,
     )
     display_name = fields.Char(
         help="""Use these keywords in the title to set new tasks:\n
@@ -95,7 +106,7 @@ class ProjectTask(models.Model):
         ! Set the task a medium priority
         !! Set the task a high priority
         !!! Set the task a urgent priority\n
-        Make sure to use the right format and order e.g. Improve the configuration screen 5h #feature #v16 @Mitchell !""",
+        Make sure to use the right format and order e.g. Improve the configuration screen 5h #feature #v16 @Mitchell !"""
     )
 
     @property
@@ -108,6 +119,9 @@ class ProjectTask(models.Model):
         if private_tasks and self.env["account.analytic.line"].sudo().search_count(
             [("task_id", "in", private_tasks.ids)], limit=1
         ):
+            _debug.logic(
+                "private_task_refused", reason="has_timesheets", tasks=private_tasks
+            )
             raise UserError(
                 _(
                     "This task cannot be private because there are some timesheets linked to it."
@@ -142,9 +156,11 @@ class ProjectTask(models.Model):
     @api.depends("timesheet_ids.unit_amount")
     def _compute_effective_hours(self):
         if not any(self._ids):
+            _debug.logic("effective_hours", by="in_memory", tasks=self)
             for task in self:
                 task.effective_hours = sum(task.timesheet_ids.mapped("unit_amount"))
             return
+        _debug.perf.count("effective_hours_grouped", tasks=self)
         timesheet_read_group = self.env["account.analytic.line"]._read_group(
             [("task_id", "in", self.ids)], ["task_id"], ["unit_amount:sum"]
         )
@@ -368,6 +384,11 @@ class ProjectTask(models.Model):
             .mapped("task_id.id")
         )
         if inaccessible_task_ids:
+            _debug.logic(
+                "task_unlink_refused",
+                reason="inaccessible_timesheets",
+                tasks=len(inaccessible_task_ids),
+            )
             raise UserError(
                 _(
                     "This task can’t be deleted because it’s linked to timesheets. Please contact someone with higher access to remove the timesheets first, "
@@ -382,6 +403,11 @@ class ProjectTask(models.Model):
             warning_msg = _(
                 "Some timesheet entries are weighing down these tasks! Remove them first, then you’ll be able to delete the tasks!"
             )
+        _debug.logic(
+            "task_unlink_refused",
+            reason="has_timesheets",
+            tasks=len(task_with_timesheets_ids),
+        )
         raise RedirectWarning(
             warning_msg,
             self.env.ref("hr_timesheet.timesheet_action_task").id,
@@ -394,7 +420,7 @@ class ProjectTask(models.Model):
         uom_hour = self.env.ref("uom.product_uom_hour")
         uom_day = self.env.ref("uom.product_uom_day")
         return round(
-            uom_hour._compute_quantity(time, uom_day, raise_if_failure=False), 2
+            uom_hour._get_quantity_in_unit(time, uom_day, raise_if_failure=False), 2
         )
 
     def _get_portal_total_hours_dict(self):

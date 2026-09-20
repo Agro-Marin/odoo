@@ -13,8 +13,7 @@ class MixinWebsiteCover_Properties(models.AbstractModel):
     _description = "Cover Properties Website Mixin"
 
     cover_properties = fields.Text(
-        "Cover Properties",
-        default=lambda s: json_safe.dumps(s._default_cover_properties()),
+        default=lambda s: json_safe.dumps(s._default_cover_properties())
     )
 
     def _default_cover_properties(self):
@@ -25,20 +24,30 @@ class MixinWebsiteCover_Properties(models.AbstractModel):
             "resize_class": "o_half_screen_height",
         }
 
+    def _load_cover_properties(self, raw):
+        try:
+            return json_safe.loads(raw)
+        except ValueError, TypeError:
+            logger.warning(
+                "unparseable cover_properties on %s, falling back to defaults",
+                self,
+            )
+            return self._default_cover_properties()
+
     def _get_background(self, height=None, width=None):
         self.check_singleton()
-        properties = json_safe.loads(self.cover_properties)
+        properties = self._load_cover_properties(self.cover_properties)
         img = properties.get("background-image", "none")
 
         if img.startswith("url(/web/image/"):
-            suffix = ""
+            params = []
             if height is not None:
-                suffix += "&height=%s" % height
+                params.append("height=%s" % height)
             if width is not None:
-                suffix += "&width=%s" % width
-            if suffix:
-                suffix = ("?" not in img and "?%s" % suffix) or suffix
-                img = img[:-1] + suffix + ")"
+                params.append("width=%s" % width)
+            if params:
+                separator = "&" if "?" in img else "?"
+                img = img[:-1] + separator + "&".join(params) + ")"
         return img
 
     def write(self, vals):
@@ -56,7 +65,7 @@ class MixinWebsiteCover_Properties(models.AbstractModel):
 
         copy_vals = dict(vals)
         for item in self:
-            old_cover_properties = json_safe.loads(item.cover_properties)
+            old_cover_properties = self._load_cover_properties(item.cover_properties)
             cover_properties["resize_class"] = old_cover_properties.get(
                 "resize_class", classes[0]
             )

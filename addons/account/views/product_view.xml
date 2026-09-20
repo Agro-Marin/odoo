@@ -76,8 +76,8 @@
             </xpath>
             <page name="inventory" position="after">
                 <page
-                    string="Accounting"
                     name="invoicing"
+                    string="Accounting"
                     groups="account.group_account_readonly">
                     <group name="properties" groups="account.group_account_readonly">
                         <group string="Cost and Revenue">
@@ -102,17 +102,17 @@
                     <field
                         name="taxes_id"
                         widget="many2many_tax_tags"
-                        class="oe_inline"
-                        context="{                                 'default_type_tax_use': 'sale',                                 'search_default_sale': 1,                                 'search_default_service': type == 'service',                                 'search_default_goods': type == 'consu',                                 'search_default_domestictax': 1,                                 'append_fields': ['company_ids'],                             }" />
+                        context="{                                 'default_type_tax_use': 'sale',                                 'search_default_sale': 1,                                 'search_default_service': type == 'service',                                 'search_default_goods': type == 'consu',                                 'search_default_domestictax': 1,                                 'append_fields': ['company_ids'],                             }"
+                        class="oe_inline" />
                     <field name="tax_string" class="oe_inline" />
                 </div>
             </div>
             <div name="standard_price_uom" position="after">
                 <field
                     name="supplier_taxes_id"
-                    invisible="not purchase_ok or type == 'combo'"
                     widget="many2many_tax_tags"
-                    context="{                             'default_type_tax_use':'purchase',                             'search_default_purchase': 1,                             'search_default_service': type == 'service',                             'search_default_goods': type == 'consu',                             'search_default_domestictax': 1,                             'append_fields': ['company_ids'],                         }" />
+                    context="{                             'default_type_tax_use':'purchase',                             'search_default_purchase': 1,                             'search_default_service': type == 'service',                             'search_default_goods': type == 'consu',                             'search_default_domestictax': 1,                             'append_fields': ['company_ids'],                         }"
+                    invisible="not purchase_ok or type == 'combo'" />
             </div>
         </field>
     </record>

@@ -263,11 +263,11 @@ class TestStepDetail(TestWorkflowCanvasState):
         }
 
     def test_a_wait_step_carries_its_duration(self):
-        self.first.write({"node_type": "wait", "wait_delay": 36, "wait_unit": "hours"})
+        self.first.write({"node_type": "wait", "wait_delay": 36, "wait_unit": "hour"})
 
         node = self._nodes()[self.first.id]
 
-        self.assertEqual((node["wait_delay"], node["wait_unit"]), (36, "hours"))
+        self.assertEqual((node["wait_delay"], node["wait_unit"]), (36, "hour"))
 
     def test_an_approval_step_carries_its_approvers(self):
         approver = new_test_user(self.env, login="canvas_approver")

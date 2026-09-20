@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class StockPickingBatch(models.Model):
     _name = "stock.picking.batch"
@@ -15,140 +17,134 @@ class StockPickingBatch(models.Model):
         string="Batch Transfer",
         default="New",
         copy=False,
-        required=True,
         readonly=True,
+        required=True,
     )
-    description = fields.Char("Description")
+    description = fields.Char()
     user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Responsible",
-        tracking=True,
         check_company=True,
+        tracking=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        required=True,
-        readonly=True,
-        index=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company,
+        index=True,
+        readonly=True,
+        required=True,
     )
     picking_ids = fields.One2many(
-        "stock.picking",
-        "batch_id",
+        comodel_name="stock.picking",
+        inverse_name="batch_id",
         string="Transfers",
         domain="[('id', 'in', allowed_picking_ids)]",
         check_company=True,
         help="List of transfers associated to this batch",
     )
-    show_check_availability = fields.Boolean(
-        string="Show Check Availability",
-        compute="_compute_show_check_availability",
-    )
+    show_check_availability = fields.Boolean(compute="_compute_show_check_availability")
     show_allocation = fields.Boolean(
         string="Show Allocation Button",
         compute="_compute_show_allocation",
     )
     allowed_picking_ids = fields.One2many(
-        "stock.picking",
+        comodel_name="stock.picking",
         compute="_compute_allowed_picking_ids",
     )
     move_ids = fields.One2many(
-        "stock.move",
+        comodel_name="stock.move",
         string="Stock moves",
         compute="_compute_move_ids",
     )
     move_line_ids = fields.One2many(
-        "stock.move.line",
+        comodel_name="stock.move.line",
         string="Stock move lines",
         compute="_compute_move_line_ids",
         inverse="_inverse_move_line_ids",
         search="_search_move_line_ids",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("draft", "Draft"),
             ("in_progress", "In progress"),
             ("done", "Done"),
             ("cancel", "Cancelled"),
         ],
+        compute="_compute_state",
         default="draft",
         store=True,
-        compute="_compute_state",
-        copy=False,
-        tracking=True,
-        required=True,
-        readonly=True,
         index=True,
+        copy=False,
+        readonly=True,
+        required=True,
+        tracking=True,
     )
     picking_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Operation Type",
-        check_company=True,
-        copy=False,
+        comodel_name="stock.picking.type",
+        string="Operation Type",
         index=True,
+        copy=False,
+        check_company=True,
     )
     warehouse_id = fields.Many2one(
-        "stock.warehouse", related="picking_type_id.warehouse_id"
+        comodel_name="stock.warehouse",
+        related="picking_type_id.warehouse_id",
     )
     picking_type_code = fields.Selection(related="picking_type_id.code")
     date_planned = fields.Datetime(
-        "Scheduled Date",
-        copy=False,
-        store=True,
-        readonly=False,
+        string="Scheduled Date",
         compute="_compute_date_planned",
+        store=True,
+        copy=False,
+        readonly=False,
         help="""Scheduled date for the transfers to be processed.
               - If manually set then scheduled date for all transfers in batch will automatically update to this date.
               - If not manually changed and transfers are added/removed/updated then this will be their earliest scheduled date
                 but this scheduled date will not be set for all transfers in batch.""",
     )
-    is_wave = fields.Boolean("This batch is a wave")
+    is_wave = fields.Boolean(string="This batch is a wave")
     wave_product_id = fields.Many2one(
-        "product.product",
-        "Wave Product",
+        comodel_name="product.product",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_category_id = fields.Many2one(
-        "product.category",
-        "Wave Product Category",
+        comodel_name="product.category",
+        string="Wave Product Category",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_partner_id = fields.Many2one(
-        "res.partner",
-        "Wave Contact",
+        comodel_name="res.partner",
+        string="Wave Contact",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_country_id = fields.Many2one(
-        "res.country",
-        "Wave Destination Country",
+        comodel_name="res.country",
+        string="Wave Destination Country",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_source_location_id = fields.Many2one(
-        "stock.location",
-        "Wave Source Location",
+        comodel_name="stock.location",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_dest_location_id = fields.Many2one(
-        "stock.location",
-        "Wave Destination Location",
+        comodel_name="stock.location",
+        string="Wave Destination Location",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
     )
     wave_location_id = fields.Many2one(
-        "stock.location",
-        "Wave Location",
+        comodel_name="stock.location",
         compute="_compute_wave_grouping",
         store=True,
         readonly=False,
@@ -159,17 +155,14 @@ class StockPickingBatch(models.Model):
     )
     show_lots_text = fields.Boolean(compute="_compute_show_lots_text")
     estimated_shipping_weight = fields.Float(
-        "Estimated Shipping Weight",
-        compute="_compute_estimated_shipping_capacity",
         digits="Product Unit",
+        compute="_compute_estimated_shipping_capacity",
     )
     estimated_shipping_volume = fields.Float(
-        "Estimated Shipping Volume",
-        compute="_compute_estimated_shipping_capacity",
         digits="Product Unit",
+        compute="_compute_estimated_shipping_capacity",
     )
     properties = fields.Properties(
-        "Properties",
         definition="picking_type_id.batch_properties_definition",
         copy=True,
     )
@@ -259,7 +252,9 @@ class StockPickingBatch(models.Model):
             )
         )
         for batches in grouped.values():
-            batches.allowed_picking_ids = self.env["stock.picking"].search(
+            batches.allowed_picking_ids = self.env[
+                "stock.picking"
+            ].search(  # noqa: E8507 - one query per distinct (company, type, draft); batches sharing one were merged above
                 batches[:1]._get_domain_allowed_picking()
             )
 
@@ -343,10 +338,14 @@ class StockPickingBatch(models.Model):
                     batch.state = "cancel"
                 continue
             if all(picking.state == "cancel" for picking in batch.picking_ids):
+                dbg.lifecycle.debug(
+                    "[batch:%s] all pickings cancelled -> cancel", batch.id
+                )
                 batch.state = "cancel"
             elif all(
                 picking.state in ["done", "cancel"] for picking in batch.picking_ids
             ):
+                dbg.lifecycle.debug("[batch:%s] all pickings closed -> done", batch.id)
                 batch.state = "done"
 
     @api.depends("picking_ids", "picking_ids.date_planned")
@@ -367,10 +366,22 @@ class StockPickingBatch(models.Model):
                 )
                 move_lines_to_unlink = old_move_lines - new_move_lines
                 if move_lines_to_unlink:
+                    dbg.logic.debug(
+                        "[batch:%s] _inverse_move_line_ids unlinks %s of picking %s",
+                        batch.id,
+                        dbg.rec(move_lines_to_unlink),
+                        picking.id,
+                    )
                     move_lines_to_unlink.unlink()
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.picking.batch.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if vals.get("name", "New") == "New":
                 company_id = vals.get("company_id", self.env.company.id)
@@ -386,7 +397,11 @@ class StockPickingBatch(models.Model):
                     )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.picking.batch.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         batches_to_rename = self.env["stock.picking.batch"]
         if vals.get("picking_type_id"):
             picking_type = self.env["stock.picking.type"].browse(
@@ -418,20 +433,30 @@ class StockPickingBatch(models.Model):
         if any(batch.state == "done" for batch in self):
             raise UserError(_("You cannot delete Done batch transfers."))
 
+    @dbg.timed
     def action_confirm(self):
         self.check_singleton()
         if not self.picking_ids:
             raise UserError(_("You have to set some pickings to batch."))
+        dbg.pipeline.debug(
+            "[batch:%s] action_confirm -> %s", self.id, dbg.rec(self.picking_ids)
+        )
         self.picking_ids.action_confirm()
         self._check_company()
         self.state = "in_progress"
         return True
 
     def action_cancel(self):
+        dbg.lifecycle.debug(
+            "action_cancel: %s -> cancel, detaching %s",
+            dbg.rec(self),
+            dbg.rec(self.picking_ids),
+        )
         self.state = "cancel"
         self.picking_ids = False
         return True
 
+    @dbg.timed
     def action_done(self):
         def has_no_quantity(picking):
             return all(
@@ -475,6 +500,12 @@ class StockPickingBatch(models.Model):
         if empty_pickings != pickings:
             pickings -= empty_pickings
             context["pickings_to_detach"] += empty_pickings.ids
+        dbg.pipeline.debug(
+            "[batch:%s] action_done: validate %s, detach %s",
+            self.id,
+            dbg.rec(pickings),
+            context["pickings_to_detach"],
+        )
 
         for picking in pickings:
             picking.message_post(
@@ -496,6 +527,9 @@ class StockPickingBatch(models.Model):
 
     def action_assign(self):
         self.check_singleton()
+        dbg.pipeline.debug(
+            "[batch:%s] action_assign -> %s", self.id, dbg.rec(self.picking_ids)
+        )
         self.picking_ids.action_assign()
 
     def action_put_in_pack(
@@ -611,6 +645,11 @@ class StockPickingBatch(models.Model):
         for batch in self.filtered(
             lambda batch: not batch.picking_type_id and batch.picking_ids
         ):
+            dbg.logic.debug(
+                "[batch:%s] picking type taken from first picking: %s",
+                batch.id,
+                batch.picking_ids[:1].picking_type_id.id,
+            )
             batch.picking_type_id = batch.picking_ids[:1].picking_type_id
 
     def _check_pickings_are_allowed(self):
@@ -637,14 +676,30 @@ class StockPickingBatch(models.Model):
             and picking_type.batch_max_lines
             and len(self.move_ids) + moves > picking_type.batch_max_lines
         ):
+            dbg.logic.debug(
+                "[batch:%s] not mergeable: %d + %d lines > %d",
+                self.id,
+                len(self.move_ids),
+                moves,
+                picking_type.batch_max_lines,
+            )
             return False
-        return not (
+        mergeable = not (
             pickings
             and picking_type.batch_max_pickings
             and len(self.picking_ids) + pickings > picking_type.batch_max_pickings
         )
+        if not mergeable:
+            dbg.logic.debug(
+                "[batch:%s] not mergeable: %d + %d pickings > %d",
+                self.id,
+                len(self.picking_ids),
+                pickings,
+                picking_type.batch_max_pickings,
+            )
+        return mergeable
 
-    def _get_merged_batch_vals(self):
+    def _prepare_merged_batch_vals(self):
         self.check_singleton()
         return {"user_id": self.user_id.id, "description": self.description}
 

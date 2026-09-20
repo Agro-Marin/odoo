@@ -30,7 +30,7 @@ test("Can create a new record as livechat operator with a custom livechat userna
         livechat_operator_id: serverState.partnerId,
     });
     await start();
-    await openDiscuss(channelId); // so that it loads custom livechat username
+    await openDiscuss(channelId);
     await openFormView("res.partner");
     await contains(".o-mail-Message", { text: "Creating a new record..." });
     await editInput(document.body, ".o_field_char input", "test");

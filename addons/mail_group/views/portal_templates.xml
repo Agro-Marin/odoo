@@ -36,7 +36,7 @@
                                 t-else=""
                                 class="o_image_64_cover o_mg_mail_group_default_image float-start me-3 d-lg-block d-md-none" />
                             <div class="d-flex flex-row">
-                                <strong><a t-attf-href="/groups/#{ slug(group) }" t-esc="group.name" /></strong>
+                                <strong><a t-attf-href="/groups/#{ slug(group) }" t-out="group.name" /></strong>
                                 <div
                                     t-if="group.alias_email and not group.is_closed"
                                     class="d-flex align-items-center ms-3">
@@ -59,7 +59,7 @@
                             <i class="fa-solid fa-user" role="img" aria-label="Recipients" title="Recipients" /> <span class="o_mg_members_count" t-out="group.member_count" /> members<br />
                             <t
                                 t-if="group.mail_group_message_last_month_count and not group.is_closed">
-                                <i class="fa-regular fa-envelope" role="img" aria-label="Traffic" title="Traffic" /> <t t-esc="group.mail_group_message_last_month_count" /> messages / month
+                                <i class="fa-regular fa-envelope" role="img" aria-label="Traffic" title="Traffic" /> <t t-out="group.mail_group_message_last_month_count" /> messages / month
                             </t>
                         </div>
                         <div class="col-lg-4">
@@ -133,7 +133,7 @@
 
     <template id="group_message">
         <t t-call="portal.portal_layout">
-        <t t-set="additional_title"><t t-esc="message.subject" /></t>
+        <t t-set="additional_title"><t t-out="message.subject" /></t>
             <section class="container">
                 <div class="row w-100 mt-4">
                     <div class="col-lg-3">
@@ -149,7 +149,7 @@
                                 t-attf-class="{{'col-lg-6' if next_message else ''}}">
                                 <a
                                     t-attf-href="/groups/#{slug(group)}/#{slug(prev_message)}?#{mode and 'mode=%s' % mode or ''}">
-                                    <i class="oi oi-arrow-left" role="img" aria-label="Previous message" title="Previous message" /> <t t-esc="prev_message.subject" />
+                                    <i class="oi oi-arrow-left" role="img" aria-label="Previous message" title="Previous message" /> <t t-out="prev_message.subject" />
                                 </a>
                             </h4>
                             <h4
@@ -157,7 +157,7 @@
                                 t-attf-class="{{'col-lg-6' if prev_message else ''}} text-end">
                                 <a
                                     t-attf-href="/groups/#{slug(group)}/#{slug(next_message)}?#{mode and 'mode=%s' % mode or ''}">
-                                    <t t-esc="next_message.subject" /> <i class="oi oi-arrow-right" role="img" aria-label="Next message" title="Next message" />
+                                    <t t-out="next_message.subject" /> <i class="oi oi-arrow-right" role="img" aria-label="Next message" title="Next message" />
                                 </a>
                             </h4>
                         </div>
@@ -171,7 +171,7 @@
                                                 t-if="message.author_id.active and message.author_id.image_128"
                                                 t-att-src="image_data_uri(message.author_id.image_128)"
                                                 class="rounded o_image_40_cover me-2" />
-                                            <span t-esc="message.subject" />
+                                            <span t-out="message.subject" />
                                         </h4>
                                         <div
                                             class="card-text overflow-hidden"
@@ -228,7 +228,7 @@
                                         class="rounded o_image_40_cover me-2" />
                                     <a
                                         t-attf-href="/groups/#{slug(group)}/#{slug(message)}?mode=#{mode}&amp;date_begin=#{date_begin}&amp;date_end=#{date_end}"
-                                        t-esc="message.subject" />
+                                        t-out="message.subject" />
                                 </h5>
                                 <div
                                     class="card-text overflow-hidden"
@@ -245,10 +245,10 @@
                             t-if="group_message_child_ids and (not mode or mode == 'thread')">
                             <p class="mt8">
                                 <a href="#" class="o_mg_link_hide">
-                                    <i class="oi oi-chevron-right" role="img" aria-label="Hide replies" title="Hide replies" /> <t t-esc="len(group_message_child_ids)" /> replies
+                                    <i class="oi oi-chevron-right" role="img" aria-label="Hide replies" title="Hide replies" /> <t t-out="len(group_message_child_ids)" /> replies
                                 </a>
                                 <a href="#" class="o_mg_link_show d-none">
-                                    <i class="oi oi-chevron-down" role="img" aria-label="Show replies" title="Show replies" /> <t t-esc="len(group_message_child_ids)" /> replies
+                                    <i class="oi oi-chevron-down" role="img" aria-label="Show replies" title="Show replies" /> <t t-out="len(group_message_child_ids)" /> replies
                                 </a>
                             </p>
                             <div class="o_mg_link_content o_mg_replies ms-5 d-none">
@@ -278,7 +278,7 @@
                     class="btn btn-link o_mg_read_more"
                     t-attf-data-href="/groups/#{slug(group)}/#{slug(parent_message)}/get_replies"
                     t-attf-data-last-displayed-id="#{messages[-1].id}">
-                    <t t-esc="msg_more_count" /> more replies
+                    <t t-out="msg_more_count" /> more replies
                 </button>
             </p>
         </div>
@@ -289,10 +289,10 @@
             <t t-set="attachments" t-value="message.attachment_ids" />
             <p t-if="attachments" class="mt8">
                 <a href="#" class="o_mg_link_hide">
-                    <i class="oi oi-chevron-right" role="img" aria-label="Hide attachments" title="Hide attachments" /> <t t-esc="len(attachments)" /> attachments
+                    <i class="oi oi-chevron-right" role="img" aria-label="Hide attachments" title="Hide attachments" /> <t t-out="len(attachments)" /> attachments
                 </a>
                 <a href="#" class="o_mg_link_show d-none">
-                    <i class="oi oi-chevron-down" role="img" aria-label="Show attachments" title="Show attachments" /> <t t-esc="len(attachments)" /> attachments
+                    <i class="oi oi-chevron-down" role="img" aria-label="Show attachments" title="Show attachments" /> <t t-out="len(attachments)" /> attachments
                 </a>
             </p>
             <div class="o_mg_link_content d-none row justify-content-center">
@@ -309,7 +309,7 @@
                                 t-att-title="attachment.name"
                                 t-att-data-mimetype="attachment.mimetype"
                                 t-attf-data-src="/web/image/#{attachment.id}/100x80?access_token=#{attachment.access_token}" />
-                            <div class="oe_attachment_name"><t t-esc="attachment.name" /></div>
+                            <div class="oe_attachment_name"><t t-out="attachment.name" /></div>
                         </a>
                     </t>
                     <t t-else="">
@@ -321,7 +321,7 @@
                                 t-att-title="attachment.name"
                                 t-att-data-mimetype="attachment.mimetype"
                                 t-attf-data-src="/web/image/#{attachment.id}/100x80" />
-                            <div class="oe_attachment_name"><t t-esc="attachment.name" /></div>
+                            <div class="oe_attachment_name"><t t-out="attachment.name" /></div>
                         </a>
                     </t>
                 </div>
@@ -334,8 +334,8 @@
         <small class="d-inline-block mt-1">
             <span>
                 by
-                <t t-if="message.author_id" t-esc="message.author_id.name" />
-                <t t-else="" t-esc="message.email_from" />
+                <t t-if="message.author_id" t-out="message.author_id.name" />
+                <t t-else="" t-out="message.email_from" />
             </span>
             <span class="mx-2">-</span>
             <span>
@@ -362,7 +362,7 @@
                     <span
                         class="float-end badge rounded-pill"
                         t-if="archives['threads_count']"
-                        t-esc="archives['threads_count']" />
+                        t-out="archives['threads_count']" />
                 </a>
             </li>
             <li class="nav-item">
@@ -374,10 +374,10 @@
                             t-ignore="True"
                             t-attf-href="/groups/#{ slug(group) }?mode=date&amp;date_begin=#{ month_archive['date_begin'] }&amp;date_end=#{month_archive['date_end']}"
                             t-attf-class="d-flex align-items-center justify-content-between nav-link#{month_archive['date_begin'] == date_begin and ' active' or ''}">
-                            <t t-esc="month_archive['date']" />
+                            <t t-out="month_archive['date']" />
                             <span
                                 class="float-end badge rounded-pill"
-                                t-esc="month_archive['messages_count']" />
+                                t-out="month_archive['messages_count']" />
                         </a>
                     </li>
                     </t>
@@ -388,7 +388,7 @@
 
     <template id="group_name">
         <div class="d-flex flex-row justify-content-center align-items-center">
-            <h1 t-esc="group.name" />
+            <h1 t-out="group.name" />
             <span t-if="group.is_closed" class="ms-2 badge bg-warning">Closed</span>
         </div>
         <h4
@@ -415,9 +415,9 @@
             <t t-if="page_name == 'groups'">
                 <li class="breadcrumb-item"><a href="/groups">Mailing Lists</a></li>
                 <li class="breadcrumb-item">
-                    <a t-attf-href="/groups/#{slug(group)}?#{mode and 'mode=%s' % mode or ''}#{date_begin and '&amp;date_begin=%s' % date_begin or ''}#{date_end and '&amp;date_end=%s' % date_end or ''}"><t t-esc="group.name" /></a>
+                    <a t-attf-href="/groups/#{slug(group)}?#{mode and 'mode=%s' % mode or ''}#{date_begin and '&amp;date_begin=%s' % date_begin or ''}#{date_end and '&amp;date_end=%s' % date_end or ''}"><t t-out="group.name" /></a>
                 </li>
-                <li t-if="message" class="breadcrumb-item active"><t t-esc="message.subject" /></li>
+                <li t-if="message" class="breadcrumb-item active"><t t-out="message.subject" /></li>
             </t>
         </xpath>
     </template>
@@ -426,10 +426,10 @@
         <div id="wrap" class="oe_structure oe_empty">
             <t t-call-assets="web.assets_frontend" t-js="false" />
             <div class="container alert alert-success mt-5">
-                The email <strong t-esc="email" /> has been
+                The email <strong t-out="email" /> has been
                 <t t-if="subscribing">subscribed to</t>
                 <t t-if="not subscribing">unsubscribed from</t>
-                the list <strong t-esc="group.name" />.
+                the list <strong t-out="group.name" />.
                 <t t-if="subscribing">
                     <br /> You'll be notified as soon as some new content is posted.
                 </t>

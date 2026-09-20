@@ -9,19 +9,19 @@
             <xpath
                 expr="//page[@name='variants']/field[@name='attribute_line_ids']"
                 position="attributes">
-                <attribute name="readonly" separator=" or " add="gelato_template_ref" />
+                <attribute name="readonly" add="gelato_template_ref" separator=" or " />
             </xpath>
             <group name="description" position="after">
                 <group string="Gelato" invisible="type not in ['product', 'consu']">
                     <field
-                        string="Template Reference"
                         name="gelato_template_ref"
+                        string="Template Reference"
                         readonly="gelato_product_uid" />
                     <field
-                        string="Product UID"
                         name="gelato_product_uid"
-                        invisible="product_variant_count &gt; 1"
-                        groups="base.group_no_one" />
+                        string="Product UID"
+                        groups="base.group_no_one"
+                        invisible="product_variant_count &gt; 1" />
                     <label
                         for="gelato_image_ids"
                         invisible="not gelato_image_ids"
@@ -30,12 +30,12 @@
                         invisible="not gelato_image_ids"
                         class="o_row align-items-center">
                         <field
-                            string="Print Images"
                             name="gelato_image_ids"
+                            string="Print Images"
                             widget="many2many_tags"
-                            options="{                                 'no_create': True,                                 'no_quick_create': True,                                 'no_open': True,                                 'edit_tags': True,                             }"
+                            force_save="True"
                             context="{'form_view_ref': 'sale_gelato.product_document_form'}"
-                            force_save="True" />
+                            options="{                                 'no_create': True,                                 'no_quick_create': True,                                 'no_open': True,                                 'edit_tags': True,                             }" />
                         <i
                             title="All print images are set"
                             invisible="gelato_missing_images"
@@ -46,11 +46,11 @@
                             class="fa-solid fa-question-circle text-danger fs-3 me-3" />
                     </div>
                     <button
-                        string="Synchronize"
-                        type="object"
                         name="action_sync_gelato_template_info"
-                        invisible="is_product_variant or not gelato_template_ref"
+                        type="object"
+                        string="Synchronize"
                         colspan="2"
+                        invisible="is_product_variant or not gelato_template_ref"
                         class="btn btn-primary" />
                 </group>
             </group>

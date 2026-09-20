@@ -14,6 +14,10 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "authorize_transaction_key": "authorize_transaction_key",
+        "authorize_signature_key": "authorize_signature_key",
+    }
 
     code = fields.Selection(
         selection_add=[("authorize", "Authorize.Net")],
@@ -21,26 +25,28 @@ class PaymentProvider(models.Model):
     )
     authorize_login = fields.Char(
         string="API Login ID",
-        help="The ID solely used to identify the account with Authorize.Net",
-        required_if_provider="authorize",
         copy=False,
+        required_if_provider="authorize",
+        help="The ID solely used to identify the account with Authorize.Net",
     )
     authorize_transaction_key = fields.Char(
         string="API Transaction Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="authorize",
-        copy=False,
         groups="base.group_system",
     )
     authorize_signature_key = fields.Char(
         string="API Signature Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="authorize",
-        copy=False,
         groups="base.group_system",
     )
     authorize_client_key = fields.Char(
         string="API Client Key",
-        help="The public client key. To generate directly from Odoo or from Authorize.Net backend.",
         copy=False,
+        help="The public client key. To generate directly from Odoo or from Authorize.Net backend.",
     )
 
     # === CONSTRAINT METHODS ===#

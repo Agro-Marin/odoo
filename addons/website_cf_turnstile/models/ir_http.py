@@ -5,8 +5,10 @@ import requests
 from odoo import _, api, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrHttp(models.AbstractModel):
@@ -14,7 +16,6 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def get_frontend_session_info(self):
-        """Add the Turnstile public key to the given session_info object"""
         session = super().get_frontend_session_info()
 
         site_key = (
@@ -27,10 +28,6 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def _check_request_recaptcha_token(self, action):
-        """Verify the recaptcha token for the current request.
-        If no recaptcha private key is set the recaptcha verification
-        is considered inactive and this method will return True.
-        """
         super()._check_request_recaptcha_token(action)
         ip_addr = request.httprequest.remote_addr
         token = request.params.pop("turnstile_captcha", False)
@@ -39,6 +36,7 @@ class IrHttp(models.AbstractModel):
         )
         if turnstile_result in ["is_human", "no_secret"]:
             return
+        _debug.logic("turnstile_refused", verdict=turnstile_result)
         if turnstile_result == "wrong_secret":
             raise ValidationError(_("The Cloudflare turnstile private key is invalid."))
         if turnstile_result == "wrong_token":
@@ -47,38 +45,21 @@ class IrHttp(models.AbstractModel):
             raise UserError(_("Your request has timed out, please retry."))
         if turnstile_result == "bad_request":
             raise UserError(_("The request is invalid or malformed."))
-        # wrong_action e.g.
         raise UserError(_("Suspicious activity detected by Turnstile CAPTCHA."))
 
     @api.model
     def _get_turnstile_verdict(self, ip_addr, token, action=False):
-        """
-        Verify a turnstile token and returns the result as a string.
-        Turnstile verify DOC: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
-
-        :return: The result of the call to the cloudflare API:
-                 is_human: The token is valid and the user trustworthy.
-                 is_bot: The user is not trustworthy and most likely a bot.
-                 no_secret: No private key in settings.
-                 wrong_action: the action performed to obtain the token does not match the one we are verifying.
-                 wrong_token: The token provided is invalid or empty.
-                 wrong_secret: The private key provided in settings is invalid.
-                 timeout: The request has timout or the token provided is too old.
-                 bad_request: The request is invalid or malformed.
-                 internal-error: The request failed.
-        :rtype: str
-        """
-        private_key = (
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_param("cf.turnstile_secret_key")
+        private_key = request.env["credential.credential"]._get_system_secret(
+            "cf.turnstile_secret_key"
         )
         if not private_key:
             return "no_secret"
         try:
-            r = requests.post(
+            r = self.env["ir.egress"].request(
+                "POST",
                 "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-                {
+                purpose="turnstile",
+                data={
                     "secret": private_key,
                     "response": token,
                     "remoteip": ip_addr,

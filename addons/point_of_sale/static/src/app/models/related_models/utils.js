@@ -1,10 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     deserializeDate,
     deserializeDateTime,
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+const log = makeLogger("pos.models.updates");
 export const RELATION_TYPES = new Set(["many2many", "many2one", "one2many"]);
 export const DATE_TIME_TYPE = new Set(["date", "datetime"]);
 export const X2MANY_TYPES = new Set(["many2many", "one2many"]);
@@ -128,6 +130,16 @@ export class AggregatedUpdates {
      */
     fireEventAndDirty(opts = {}) {
         const { silentModels = [] } = opts;
+        if (this.updates.size) {
+            log.pipeline("fireEventAndDirty", () => ({
+                records: [...this.updates].map(([record, fields]) => ({
+                    model: record.model.name,
+                    id: record.id,
+                    fields: [...fields],
+                    silent: silentModels.includes(record.model.name),
+                })),
+            }));
+        }
         for (const [record, fields] of this.updates) {
             if (!silentModels.includes(record.model.name)) {
                 record.model.triggerEvents("update", {

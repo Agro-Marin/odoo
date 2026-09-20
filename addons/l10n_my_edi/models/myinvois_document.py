@@ -42,52 +42,47 @@ class MyInvoisDocument(models.Model):
     name = fields.Char(
         compute="_compute_name",
         store=True,
-        copy=False,
         index="trigram",
+        copy=False,
     )
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-    )
+    active = fields.Boolean(default=True)
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.company,
+        readonly=True,
+        required=True,
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         required=True,
     )
     company_currency_id = fields.Many2one(
-        string="Company Currency",
         related="company_id.currency_id",
+        string="Company Currency",
     )
     myinvois_issuance_date = fields.Date(
         string="Issuance Date",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
     # File fields
     myinvois_file_id = fields.Many2one(
         comodel_name="ir.attachment",
+        export_string_translation=False,
         compute=lambda self: self._compute_linked_attachment_id(
             "myinvois_file_id", "myinvois_file"
         ),
         depends=["myinvois_file"],
         copy=False,
-        export_string_translation=False,
     )
     myinvois_file = fields.Binary(
         string="MyInvois XML File",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     # Odoo Implementation fields
     myinvois_state = fields.Selection(
-        string="MyInvois State",
-        help="State of this document on the MyInvois portal.\nA document awaiting validation will be automatically updated once the validation status is available.",
         selection=[
             ("in_progress", "Validation In Progress"),
             ("valid", "Valid"),
@@ -98,21 +93,23 @@ class MyInvoisDocument(models.Model):
             ("invalid", "Invalid"),
             ("cancelled", "Cancelled"),
         ],
+        string="MyInvois State",
         copy=False,
         readonly=True,
         tracking=True,
+        help="State of this document on the MyInvois portal.\nA document awaiting validation will be automatically updated once the validation status is available.",
     )
     myinvois_error_document_hash = fields.Char(
         string="Document Hash",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     myinvois_retry_at = fields.Char(
         string="Document Retry At",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     myinvois_exemption_reason = fields.Char(
         string="Tax Exemption Reason",
@@ -126,16 +123,16 @@ class MyInvoisDocument(models.Model):
     # API information fields
     myinvois_submission_uid = fields.Char(
         string="Submission UID",
-        help="Unique ID assigned to a batch of documents when sent to MyInvois.",
         copy=False,
         readonly=True,
+        help="Unique ID assigned to a batch of documents when sent to MyInvois.",
     )
     myinvois_external_uuid = fields.Char(
         string="MyInvois ID",
-        help="Unique ID assigned to a specific document when sent to MyInvois.",
-        copy=False,
         index=True,
+        copy=False,
         readonly=True,
+        help="Unique ID assigned to a specific document when sent to MyInvois.",
     )
     myinvois_validation_time = fields.Datetime(
         string="Validation Time",
@@ -149,12 +146,12 @@ class MyInvoisDocument(models.Model):
     )
     # Note: the field is present but unused for now.
     invoice_ids = fields.Many2many(
-        name="Invoices",
         comodel_name="account.move",
         relation="myinvois_document_invoice_rel",
         column1="document_id",
         column2="invoice_id",
         check_company=True,
+        name="Invoices",
     )
 
     # --------------------------------
@@ -213,63 +210,50 @@ class MyInvoisDocument(models.Model):
         return "MYINV/%04d/00000" % self.myinvois_issuance_date.year
 
     def _get_domain_last_sequence(self, relaxed=False):
-        """Returns the SQL WHERE statement to use when fetching the latest record with the same sequence, and its params."""
         self.check_singleton()
         if not self.myinvois_issuance_date:
-            return "WHERE FALSE", {}
-        where_string = "WHERE name != '/'"
-        param = {}
+            return Domain.FALSE
+        domain = Domain("name", "not in", ("/", "", False))
+        if relaxed:
+            return domain
 
-        if not relaxed:
-            domain = [
-                ("id", "!=", self.id or self._origin.id),
-                ("name", "not in", ("/", "", False)),
-            ]
+        reference_domain = [
+            ("id", "!=", self.id or self._origin.id),
+            ("name", "not in", ("/", "", False)),
+        ]
+        reference_name = (
+            self.sudo()
+            .search(
+                reference_domain
+                + [("myinvois_issuance_date", "<=", self.myinvois_issuance_date)],
+                limit=1,
+            )
+            .name
+        )
+        if not reference_name:
             reference_name = (
                 self.sudo()
-                .search(
-                    domain
-                    + [("myinvois_issuance_date", "<=", self.myinvois_issuance_date)],
-                    limit=1,
-                )
+                .search(reference_domain, order="myinvois_issuance_date asc", limit=1)
                 .name
             )
-            if not reference_name:
-                reference_name = (
-                    self.sudo()
-                    .search(domain, order="myinvois_issuance_date asc", limit=1)
-                    .name
-                )
-            sequence_number_reset = self._deduce_sequence_number_reset(reference_name)
-            date_start, date_end, *_ = self._get_sequence_date_range(
-                sequence_number_reset
+        sequence_number_reset = self._deduce_sequence_number_reset(reference_name)
+        date_start, date_end, *_ = self._get_sequence_date_range(sequence_number_reset)
+        domain &= Domain("myinvois_issuance_date", ">=", date_start) & Domain(
+            "myinvois_issuance_date", "<=", date_end
+        )
+        if sequence_number_reset in ("year", "year_range"):
+            anti_regex = self._sequence_monthly_regex
+        elif sequence_number_reset == "never":
+            anti_regex = self._sequence_yearly_regex
+        else:
+            anti_regex = None
+        if anti_regex:
+            domain &= Domain(
+                "sequence_prefix",
+                "not =~",
+                re.sub(r"\?P<\w+>", "?:", anti_regex.split("(?P<seq>")[0]) + "$",
             )
-            where_string += """ AND myinvois_issuance_date BETWEEN %(date_start)s AND %(date_end)s"""
-            param["date_start"] = date_start
-            param["date_end"] = date_end
-            if sequence_number_reset in ("year", "year_range"):
-                param["anti_regex"] = (
-                    re.sub(
-                        r"\?P<\w+>",
-                        "?:",
-                        self._sequence_monthly_regex.split("(?P<seq>")[0],
-                    )
-                    + "$"
-                )
-            elif sequence_number_reset == "never":
-                param["anti_regex"] = (
-                    re.sub(
-                        r"\?P<\w+>",
-                        "?:",
-                        self._sequence_yearly_regex.split("(?P<seq>")[0],
-                    )
-                    + "$"
-                )
-
-            if param.get("anti_regex"):
-                where_string += " AND sequence_prefix !~ %(anti_regex)s "
-
-        return where_string, param
+        return domain
 
     def _get_sequence_date_range(self, reset):
         """Make sure that the sequence date range follows the company's fiscal year"""

@@ -11,29 +11,29 @@
                         <field name="product_id" invisible="1" />
                         <field
                             name="event_id"
-                            options="{'no_open': True, 'no_create': True}"
-                            domain="[                                 ('event_booth_ids.product_id', '=', product_id),                                 ('is_finished', '=', False)                            ]" />
+                            domain="[                                 ('event_booth_ids.product_id', '=', product_id),                                 ('is_finished', '=', False)                            ]"
+                            options="{'no_open': True, 'no_create': True}" />
                         <field
                             name="event_booth_category_available_ids"
                             invisible="1" />
                         <field
                             name="event_booth_category_id"
+                            domain="[('id', 'in', event_booth_category_available_ids)]"
                             options="{'no_open': True, 'no_create': True}"
-                            invisible="not event_id"
-                            domain="[('id', 'in', event_booth_category_available_ids)]" />
+                            invisible="not event_id" />
                         <field
                             name="event_booth_ids"
-                            options="{'no_open': True, 'no_create': True}"
                             widget="many2many_checkboxes"
-                            invisible="not event_booth_category_id"
-                            domain="[                                 ('event_id', '=', event_id),                                 ('booth_category_id', '=', event_booth_category_id),                                 ('product_id', '=', product_id),                                 ('state', '=', 'available')                            ]" />
+                            domain="[                                 ('event_id', '=', event_id),                                 ('booth_category_id', '=', event_booth_category_id),                                 ('product_id', '=', product_id),                                 ('state', '=', 'available')                            ]"
+                            options="{'no_open': True, 'no_create': True}"
+                            invisible="not event_booth_category_id" />
                     </group>
                     <footer>
-                        <button string="Ok" class="btn-primary" special="save" />
+                        <button special="save" string="Ok" class="btn-primary" />
                         <button
+                            special="cancel"
                             string="Cancel"
-                            class="btn-secondary"
-                            special="cancel" />
+                            class="btn-secondary" />
                     </footer>
                 </form>
             </field>

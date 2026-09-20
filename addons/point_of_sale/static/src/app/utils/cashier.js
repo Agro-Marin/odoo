@@ -1,4 +1,6 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.store.cashier");
 
 export function getCashier(pos) {
     return pos.user;
@@ -9,7 +11,14 @@ export function getCashierUserId(pos) {
 }
 
 export function cashierHasPriceControlRights(pos) {
-    return !pos.config.restrict_price_control || pos.getCashier()?._role === "manager";
+    const allowed =
+        !pos.config.restrict_price_control || pos.getCashier()?._role === "manager";
+    log.logic("cashierHasPriceControlRights", () => ({
+        restrict: pos.config.restrict_price_control,
+        role: pos.getCashier()?._role,
+        allowed,
+    }));
+    return allowed;
 }
 
 export function setCashier(pos, user) {
@@ -22,6 +31,7 @@ export function setCashier(pos, user) {
 }
 
 export function resetCashier(pos) {
+    log.lifecycle("resetCashier", () => ({ previous: pos.cashier?.id }));
     pos.cashier = false;
     pos._resetConnectedCashier();
 }
@@ -30,7 +40,9 @@ export function getConnectedCashier(pos) {
     const cashier_id = Number(
         sessionStorage.getItem(`connected_cashier_${pos.config.id}`),
     );
-    if (cashier_id && pos.models["res.users"].get(cashier_id)) {
+    const loaded = Boolean(cashier_id && pos.models["res.users"].get(cashier_id));
+    log.logic("getConnectedCashier", () => ({ cashier_id, loaded }));
+    if (loaded) {
         return pos.models["res.users"].get(cashier_id);
     }
     return false;

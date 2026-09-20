@@ -22,12 +22,14 @@ class MailingSmsTest(models.TransientModel):
 
     numbers = fields.Text(
         string="Number(s)",
-        required=True,
         default=_default_numbers,
+        required=True,
         help="Carriage-return-separated list of phone numbers",
     )
     mailing_id = fields.Many2one(
-        "mailing.mailing", string="Mailing", required=True, ondelete="cascade"
+        comodel_name="mailing.mailing",
+        required=True,
+        ondelete="cascade",
     )
 
     def _prepare_test_trace_values(self, record, sms_number, sms_uuid, body):

@@ -15,14 +15,12 @@ class TestWebsiteSaleProductAttributeValueConfig(
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Use the testing environment.
         cls.env["website"].get_current_website().company_id = cls.env.company
         cls.computer.company_id = cls.env.company
         cls.computer = cls.computer.with_env(cls.env)
         cls.other_currency = cls.setup_other_currency("GBP")
 
     def test_get_combination_info(self):
-        # Setup website.
         website = self.env["website"].create(
             {
                 "name": "Test website",
@@ -31,7 +29,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             }
         )
 
-        # Setup pricelist: make sure the pricelist has a 10% discount
         self.env["product.pricelist"].search([]).action_archive()
         pricelist = self.env["product.pricelist"].create(
             {
@@ -50,7 +47,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             }
         )
 
-        # Setup product with 15% tax.
         product_template = self.computer.with_context(website_id=website.id)
         product_template.write(
             {
@@ -63,7 +59,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
         discount_rate = 0.9
         currency_ratio = 2
 
-        # CASE: B2B setting (default)
         with MockRequest(
             product_template.env, website=website, website_sale_current_pl=pricelist.id
         ):
@@ -74,7 +69,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             self.assertEqual(combination_info["list_price"], 2222 * currency_ratio)
             self.assertEqual(combination_info["has_discounted_price"], True)
 
-            # CASE: B2C setting
             website.show_line_subtotals_tax_selection = "tax_included"
 
             combination_info = product_template._get_combination_info()
@@ -88,7 +82,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             self.assertEqual(combination_info["has_discounted_price"], True)
 
     def test_get_combination_info_with_fpos(self):
-        # Setup product.
         product = self.env["product.template"].create(
             {
                 "name": "Test Product",
@@ -98,7 +91,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             }
         )
 
-        # Setup website.
         website = self.env["website"].create(
             {
                 "name": "Test website",
@@ -107,7 +99,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             }
         )
 
-        # Setup pricelist: make sure the pricelist has a 10% discount
         self.env["product.pricelist"].search([]).action_archive()
         self.env["product.pricelist"].create(
             {
@@ -130,7 +121,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
 
         product = product.with_context(website_id=website.id)
 
-        # Setup product attributes.
         computer_ssd_attribute_lines = self.env[
             "product.template.attribute.line"
         ].create(
@@ -142,7 +132,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
         )
         computer_ssd_attribute_lines.product_template_value_ids[0].price_extra = 200
 
-        # Enable tax included
         website.show_line_subtotals_tax_selection = "tax_included"
 
         with MockRequest(product.env, website=website):
@@ -150,7 +139,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
         self.assertEqual(combination_info["price"], 575, "500$ + 15% tax")
         self.assertEqual(combination_info["list_price"], 575, "500$ + 15% tax (2)")
 
-        # Setup fiscal position 15% => 0%.
         jp_country = self.env.ref("base.jp")
         fp = self.env["account.fiscal.position"].create(
             {
@@ -170,7 +158,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             }
         )
 
-        # Now with fiscal position, taxes should be mapped
         self.env.user.partner_id.country_id = jp_country
         with MockRequest(product.env, website=website):
             combination_info = product._get_combination_info()
@@ -183,17 +170,14 @@ class TestWebsiteSaleProductAttributeValueConfig(
             "500% + 0% tax (mapped from fp 15% -> 0%)",
         )
 
-        # Try same flow with tax included
         self.company_data["default_tax_sale"].price_include_override = "tax_included"
 
-        # Reset / Safety check
         self.env.user.partner_id.country_id = None
         with MockRequest(product.env, website=website):
             combination_info = product._get_combination_info()
         self.assertEqual(combination_info["price"], 500, "434.78$ + 15% tax")
         self.assertEqual(combination_info["list_price"], 500, "434.78$ + 15% tax (2)")
 
-        # Now with fiscal position, taxes should be mapped
         self.env.user.partner_id.country_id = jp_country.id
         with MockRequest(product.env, website=website):
             combination_info = product._get_combination_info()
@@ -208,7 +192,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
             "434.78$ + 0% tax (mapped from fp 15% -> 0%)",
         )
 
-        # Try same flow with tax included for apply tax
         tax0.write(
             {
                 "name": "Test tax 5",
@@ -230,7 +213,6 @@ class TestWebsiteSaleProductAttributeValueConfig(
         )
 
     def test_hide_attribute_value_without_matching_product_variant(self):
-        """Ensure attribute values are hidden if they don't have a matching product variant"""
         self.ssd_attribute.preview_variants = "visible"
 
         product_template = self.env["product.template"].create(

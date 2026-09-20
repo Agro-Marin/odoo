@@ -2,6 +2,8 @@ import logging
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -11,54 +13,57 @@ class ProjectBenefit(models.Model):
     _order = "sequence, id"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
-    name = fields.Char("Benefit", required=True, tracking=True)
+    name = fields.Char(
+        string="Benefit",
+        required=True,
+        tracking=True,
+    )
     sequence = fields.Integer(default=10)
     project_id = fields.Many2one(
-        "project.project",
+        comodel_name="project.project",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     description = fields.Html(
-        "How This Benefit Will Be Realized",
+        string="How This Benefit Will Be Realized",
         help="Describe the mechanism by which this benefit is expected to materialize.",
     )
     measurement_method = fields.Text(
-        "Measurement Method",
-        help="Specific, quantified method for measuring this benefit.",
+        help="Specific, quantified method for measuring this benefit."
     )
-    target_value = fields.Float("Target Value")
+    target_value = fields.Float()
     target_unit = fields.Char(
-        "Unit",
+        string="Unit",
         help="Unit of measurement (e.g. %, $, hours, NPS score).",
     )
-    actual_value = fields.Float("Actual Value")
+    actual_value = fields.Float()
     achievement_pct = fields.Float(
-        "Achievement %",
+        string="Achievement %",
+        export_string_translation=False,
         compute="_compute_achievement_pct",
         store=True,
         help="Actual / Target as a percentage.",
-        export_string_translation=False,
     )
     accountable_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Accountable Owner",
         tracking=True,
         help="Business owner responsible for realizing and measuring this benefit.",
     )
     date_review = fields.Date(
-        "Next Review Date",
+        string="Next Review Date",
         help="When this benefit should next be reviewed for progress.",
     )
     date_review_reminder = fields.Date(
-        "Reminder Scheduled For",
+        string="Reminder Scheduled For",
         copy=False,
         help="Internal: the date_review for which a reminder activity was last "
         "scheduled by the cron. Prevents re-nagging every day once a reminder "
         "has been raised; a new reminder is only scheduled when date_review moves.",
     )
     state = fields.Selection(
-        [
+        selection=[
             ("expected", "Expected"),
             ("tracking", "Tracking"),
             ("achieved", "Achieved"),
@@ -69,8 +74,9 @@ class ProjectBenefit(models.Model):
         required=True,
         tracking=True,
     )
-    notes = fields.Html("Review Notes")
+    notes = fields.Html(string="Review Notes")
 
+    @dbg.timed
     @api.model
     def _cron_check_review_dates(self) -> None:
         today = fields.Date.context_today(self)
@@ -81,7 +87,13 @@ class ProjectBenefit(models.Model):
                 ("accountable_id", "!=", False),
             ]
         )
+        due = len(benefits)
         benefits = benefits.filtered(lambda b: b.date_review_reminder != b.date_review)
+        dbg.lifecycle.debug(
+            "project.benefit._cron_check_review_dates: %d due, %d not yet reminded",
+            due,
+            len(benefits),
+        )
         if not benefits:
             return
 

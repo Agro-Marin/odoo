@@ -45,8 +45,8 @@
                     <field
                         name="allocated_hours"
                         widget="timesheet_uom_no_toggle"
-                        invisible="not allow_timesheets"
-                        groups="hr_timesheet.group_hr_timesheet_user" />
+                        groups="hr_timesheet.group_hr_timesheet_user"
+                        invisible="not allow_timesheets" />
                 </xpath>
                 <xpath
                     expr="//group[@name='group_time_managment']"
@@ -55,10 +55,10 @@
                 </xpath>
                 <xpath expr="//group[@name='group_time_managment']" position="inside">
                     <setting
-                        class="col-lg-12"
                         id="timesheet_settings"
                         string="Timesheets"
-                        help="Log time on tasks">
+                        help="Log time on tasks"
+                        class="col-lg-12">
                         <field name="allow_timesheets" />
                     </setting>
                 </xpath>
@@ -75,22 +75,22 @@
                         name="allocated_hours"
                         widget="timesheet_uom_no_toggle"
                         optional="hide"
-                        invisible="allocated_hours == 0 or not allow_timesheets"
-                        groups="hr_timesheet.group_hr_timesheet_user" />
+                        groups="hr_timesheet.group_hr_timesheet_user"
+                        invisible="allocated_hours == 0 or not allow_timesheets" />
                     <field
                         name="effective_hours"
                         widget="timesheet_uom_no_toggle"
                         optional="hide"
-                        invisible="effective_hours == 0 or not allow_timesheets"
-                        groups="hr_timesheet.group_hr_timesheet_user" />
+                        groups="hr_timesheet.group_hr_timesheet_user"
+                        invisible="effective_hours == 0 or not allow_timesheets" />
                     <field
                         name="remaining_hours"
                         widget="timesheet_uom_no_toggle"
-                        decoration-danger="remaining_hours &lt; 0"
-                        decoration-warning="allocated_hours &gt; 0 and (remaining_hours / allocated_hours) &lt; 0.2"
                         optional="hide"
+                        groups="hr_timesheet.group_hr_timesheet_user"
                         invisible="allocated_hours == 0 or not allow_timesheets"
-                        groups="hr_timesheet.group_hr_timesheet_user" />
+                        decoration-danger="remaining_hours &lt; 0"
+                        decoration-warning="allocated_hours &gt; 0 and (remaining_hours / allocated_hours) &lt; 0.2" />
                 </xpath>
             </field>
         </record>
@@ -144,8 +144,8 @@
             <field name="arch" type="xml">
                 <filter name="late_milestones" position="before">
                     <filter
-                        string="Timesheets &gt;100%"
                         name="projects_in_overtime"
+                        string="Timesheets &gt;100%"
                         domain="[('is_project_overtime', '=', True)]"
                         groups="project.group_project_manager" />
                 </filter>

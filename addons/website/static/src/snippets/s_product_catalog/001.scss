@@ -1,10 +1,8 @@
 .s_product_catalog[data-vcss="001"] {
     .s_product_catalog_dish {
-        // Title
         .s_product_catalog_dish_title {
             line-height: $headings-line-height;
         }
-        // Description
         .s_product_catalog_dish_description {
             margin-bottom: $spacer;
         }
@@ -13,7 +11,6 @@
                 margin-bottom: 0;
             }
         }
-        // Dot Leaders
         .s_product_catalog_dish_dot_leaders {
             display: flex;
             flex-grow: 1;

@@ -32,82 +32,82 @@ class PosConfig(models.Model):
         return self.env["res.users"]
 
     status = fields.Selection(
-        [("inactive", "Inactive"), ("active", "Active")],
-        string="Status",
+        selection=[("inactive", "Inactive"), ("active", "Active")],
         compute="_compute_status",
         store=False,
     )
     self_ordering_url = fields.Char(compute="_compute_self_ordering_url")
     self_ordering_mode = fields.Selection(
-        [
+        selection=[
             ("nothing", "Disable"),
             ("consultation", "QR menu"),
             ("mobile", "QR menu + Ordering"),
             ("kiosk", "Kiosk"),
         ],
-        string="Self Ordering Mode",
         default="nothing",
-        help="Choose the self ordering mode",
         required=True,
+        help="Choose the self ordering mode",
     )
     self_ordering_service_mode = fields.Selection(
-        [("counter", "Pickup zone"), ("table", "Table")],
-        string="Self Ordering Service Mode",
+        selection=[("counter", "Pickup zone"), ("table", "Table")],
         default="counter",
-        help="Choose the kiosk mode",
         required=True,
+        help="Choose the kiosk mode",
     )
     self_ordering_default_language_id = fields.Many2one(
-        "res.lang",
+        comodel_name="res.lang",
         string="Default Language",
-        help="Default language for the kiosk mode",
         default=lambda self: self.env["res.lang"].search(
             [("code", "=", self.env.lang)], limit=1
         ),
+        help="Default language for the kiosk mode",
     )
     self_ordering_available_language_ids = fields.Many2many(
-        "res.lang",
+        comodel_name="res.lang",
         string="Available Languages",
-        help="Languages available for the kiosk mode",
         default=_self_order_kiosk_default_languages,
+        help="Languages available for the kiosk mode",
     )
     self_ordering_image_home_ids = fields.Many2many(
-        "ir.attachment",
+        comodel_name="ir.attachment",
         string="Add images",
-        help="Image to display on the self order screen",
         bypass_search_access=True,
+        help="Image to display on the self order screen",
     )
     self_ordering_image_background_ids = fields.Many2many(
-        "ir.attachment",
-        string="Set background image",
-        help="Image to be displayed in the background",
+        comodel_name="ir.attachment",
         relation="pos_self_order_background_rels",
+        string="Set background image",
         bypass_search_access=True,
+        help="Image to be displayed in the background",
     )
     self_ordering_default_user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Default User",
-        help="Access rights of this user will be used when visiting self order website when no session is open.",
         default=_self_order_default_user,
+        help="Access rights of this user will be used when visiting self order website when no session is open.",
     )
     self_ordering_pay_after = fields.Selection(
         selection=lambda self: self._selection_pay_after(),
         string="Pay After:",
         default="meal",
-        help="Choose when the customer will pay",
         required=True,
+        help="Choose when the customer will pay",
     )
     self_ordering_image_brand = fields.Image(
         string="Self Order Kiosk Image Brand",
-        help="Image to display on the self order screen",
         max_width=1200,
         max_height=250,
+        help="Image to display on the self order screen",
     )
     self_ordering_image_brand_name = fields.Char(
         string="Self Order Kiosk Image Brand Name",
         help="Name of the image to display on the self order screen",
     )
-    has_paper = fields.Boolean("Has paper", default=True)
+    has_paper = fields.Boolean(
+        string="Has paper",
+        default=True,
+    )
 
     def _update_access_token(self):
         self.access_token = uuid.uuid4().hex[:16]
@@ -164,7 +164,7 @@ class PosConfig(models.Model):
 
     def _create_missing_self_order_custom_btn(self):
         for record in self:
-            exists = record.env["pos_self_order.custom_link"].search_count(
+            exists = record.env["pos_self_order.custom_link"].search_count(  # noqa: E8507 - one probe per config, on its own links
                 [
                     ("pos_config_ids", "in", record.id),
                     ("url", "=", f"/pos-self/{record.id}/products"),

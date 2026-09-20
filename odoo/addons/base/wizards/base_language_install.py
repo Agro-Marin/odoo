@@ -1,6 +1,9 @@
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BaseLanguageInstall(models.TransientModel):
@@ -17,22 +20,22 @@ class BaseLanguageInstall(models.TransientModel):
         return False
 
     lang_ids = fields.Many2many(
-        "res.lang",
-        "res_lang_install_rel",
-        "language_wizard_id",
-        "lang_id",
-        "Languages",
+        comodel_name="res.lang",
+        relation="res_lang_install_rel",
+        column1="language_wizard_id",
+        column2="lang_id",
+        string="Languages",
         default=_default_lang_ids,
-        context={"active_test": False},
         required=True,
+        context={"active_test": False},
     )
     overwrite = fields.Boolean(
-        "Overwrite Existing Terms",
+        string="Overwrite Existing Terms",
         default=True,
         help="If you check this box, your customized translations will be overwritten and replaced by the official ones.",
     )
     first_lang_id = fields.Many2one(
-        "res.lang",
+        comodel_name="res.lang",
         compute="_compute_first_lang_id",
         help="Used when the user only selects one language and is given the option to switch to it",
     )
@@ -46,8 +49,16 @@ class BaseLanguageInstall(models.TransientModel):
     def action_install_lang(self) -> dict[str, Any]:
         self.check_singleton()
         mods = self.env["ir.module.module"].search([("state", "=", "installed")])
+        _debug.lifecycle("langs_activated", langs=self.lang_ids.mapped("code"))
         self.lang_ids.active = True
-        mods._update_translations(self.lang_ids.mapped("code"), self.overwrite)
+        with _debug.perf(
+            "install_langs",
+            cr=self.env.cr,
+            langs=self.lang_ids.mapped("code"),
+            modules=len(mods),
+            overwrite=self.overwrite,
+        ):
+            mods._update_translations(self.lang_ids.mapped("code"), self.overwrite)
 
         if len(self.lang_ids) == 1:
             return {
@@ -87,6 +98,9 @@ class BaseLanguageInstall(models.TransientModel):
         }
 
     def action_switch_lang(self) -> dict[str, str]:
+        _debug.lifecycle(
+            "user_lang_switched", uid=self.env.uid, lang=self.first_lang_id.code
+        )
         self.env.user.lang = self.first_lang_id.code
         return {
             "type": "ir.actions.client",

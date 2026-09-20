@@ -38,13 +38,11 @@ class WebsiteSaleVariantController(Controller):
         ].decimal_places
 
         for key in (
-            # Only provided to ease server-side computations.
             "product_taxes",
             "taxes",
             "currency",
             "date",
             "combination",
-            # Only used in Google Merchant Center logic, not client-side.
             "discount_start_date",
             "discount_end_date",
         ):
@@ -92,7 +90,6 @@ class WebsiteSaleVariantController(Controller):
     def create_product_variant(
         self, product_template_id, product_template_attribute_value_ids, **kwargs
     ):
-        """Old product configurator logic, only used by frontend configurator, will be deprecated soon"""
         return (
             request.env["product.template"]
             .browse(int(product_template_id))

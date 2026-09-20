@@ -28,8 +28,8 @@
                                 class="oe_inline" />
                             <field
                                 name="activity_date_deadline_range_type"
-                                class="oe_inline"
-                                required="state == 'next_activity' and activity_date_deadline_range != 0" />
+                                required="state == 'next_activity' and activity_date_deadline_range != 0"
+                                class="oe_inline" />
                         </div>
                         <field
                             name="activity_user_type"
@@ -47,8 +47,8 @@
                             required="state == 'next_activity' and activity_user_type == 'specific'" />
                         <field
                             name="activity_note"
-                            class="oe-bordered-editor"
-                            placeholder="Add a description to your activity..." />
+                            placeholder="Add a description to your activity..."
+                            class="oe-bordered-editor" />
                     </group>
                 </group>
                 <group invisible="state not in ['followers', 'remove_followers']">
@@ -59,15 +59,15 @@
                         <field
                             name="partner_ids"
                             string="Followers to add"
-                            widget="many2many_tags"
                             placeholder="Choose a contact..."
+                            widget="many2many_tags"
                             invisible="state != 'followers' or followers_type != 'specific'"
                             required="state == 'followers' and followers_type == 'specific'" />
                         <field
                             name="partner_ids"
                             string="Followers to remove"
-                            widget="many2many_tags"
                             placeholder="Choose a contact..."
+                            widget="many2many_tags"
                             invisible="state != 'remove_followers' or followers_type != 'specific'"
                             required="state == 'remove_followers' and followers_type == 'specific'" />
                         <field
@@ -83,8 +83,8 @@
                         <field
                             name="template_id"
                             placeholder="Choose a template..."
-                            required="state == 'mail_post'"
-                            context="{'default_model': model_name,                                             'default_use_default_to': True}" />
+                            context="{'default_model': model_name,                                             'default_use_default_to': True}"
+                            required="state == 'mail_post'" />
                         <label for="mail_post_method" />
                         <div class="d-flex flex-column">
                             <field

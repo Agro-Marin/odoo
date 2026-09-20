@@ -33,7 +33,6 @@ const isSnippetHidden = () => [
             ":iframe .o_dynamic_snippet_empty:not(:visible), :iframe .o_dynamic_empty:not(:visible), :iframe .s_dynamic_empty:not(:visible)",
     },
     ...clickOnEditAndWaitEditMode(),
-    // A dynamic snippet is always visible in edit mode.
     ...isSnippetVisible(true),
 ];
 
@@ -51,7 +50,6 @@ registerWebsitePreviewTour(
             content: "Check that the blog filter is applied",
             trigger: `:iframe .s_dynamic_snippet_blog_posts:not([data-filter-by-blog-id="-1"])`,
         },
-        // A dynamic snippet is always visible in edit mode.
         ...isSnippetVisible(true),
         ...clickOnSave(),
         ...isSnippetVisible(),

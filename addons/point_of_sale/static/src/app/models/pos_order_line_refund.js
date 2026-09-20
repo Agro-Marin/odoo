@@ -1,4 +1,6 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.refund");
 export class PosOrderLineRefund {
     constructor() {
         this.setup(...arguments);
@@ -10,6 +12,11 @@ export class PosOrderLineRefund {
         this.qty = vals.qty || 0;
 
         this.models = models;
+        log.lifecycle("setup", () => ({
+            line: this.line_uuid,
+            destination: this.destination_order_uuid,
+            qty: this.qty,
+        }));
     }
 
     get line() {

@@ -9,15 +9,23 @@ import {
     prettifyMessageText,
 } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     createDocumentFragmentFromContent,
     isHtmlEmpty,
 } from "@web/core/utils/dom/html";
 import { nbsp } from "@web/core/utils/format/strings";
+
+const log = makeLogger("mail.composer");
 export class Composer extends Record {
     static id = OR("thread", "message");
 
     clear() {
+        log.logic("clear", () => ({
+            thread: this.thread?.localId,
+            message: this.message?.id,
+            attachments: this.attachments.length,
+        }));
         this.attachments.length = 0;
         this.replyToMessage = undefined;
         this.restoredFromFullComposer = false;
@@ -74,6 +82,10 @@ export class Composer extends Record {
                 thread: this.targetThread,
             });
             if (this.composerHtml.toString() !== prettifiedHtml.toString()) {
+                log.pipeline("sync text -> html", () => ({
+                    thread: this.thread?.localId,
+                    length: this.composerText.length,
+                }));
                 this.updateFrom = "text";
                 this.composerHtml = prettifiedHtml;
             }
@@ -100,6 +112,10 @@ export class Composer extends Record {
                 ? ""
                 : convertBrToLineBreak(this.composerHtml);
             if (this.composerText !== prettifiedText) {
+                log.pipeline("sync html -> text", () => ({
+                    thread: this.thread?.localId,
+                    length: prettifiedText.length,
+                }));
                 this.updateFrom = "html";
                 this.composerText = prettifiedText;
             }
@@ -149,8 +165,16 @@ export class Composer extends Record {
         // Notes mention partners; guests do not have partner mention identities.
         const author = message.author_id;
         if (!author) {
+            log.logic("insertReplyFromNote skipped: no partner author", () => ({
+                messageId: message.id,
+            }));
             return;
         }
+        log.logic("insertReplyFromNote", () => ({
+            messageId: message.id,
+            authorId: author.id,
+            html: this.store.env.services["mail.composer"].htmlEnabled,
+        }));
         this.mentionedPartners.add(author);
         if (!this.store.env.services["mail.composer"].htmlEnabled) {
             const mentionText = `@${message.authorName} `;

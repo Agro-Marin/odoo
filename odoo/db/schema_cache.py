@@ -3,6 +3,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from types import MappingProxyType
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 class TransactionSchemaCache:
     __slots__ = ("_column_types", "_id_sequences", "_locked_tables")
@@ -27,12 +31,22 @@ class TransactionSchemaCache:
         return table in self._locked_tables
 
     def mark_locked(self, table: str, depth: int) -> None:
+        if _debug.lifecycle.enabled and table not in self._locked_tables:
+            _debug.lifecycle(
+                "schema_cache.table_locked",
+                table=table,
+                depth=depth,
+                locked=len(self._locked_tables) + 1,
+            )
         self._locked_tables.setdefault(table, depth)
 
     def release_locks_since_depth(self, depth: int) -> None:
         released = [table for table, d in self._locked_tables.items() if d >= depth]
         if not released:
             return
+        _debug.lifecycle(
+            "schema_cache.locks_released", depth=depth, tables=len(released)
+        )
         for table in released:
             del self._locked_tables[table]
             self._id_sequences.pop(table, None)
@@ -63,9 +77,19 @@ class TransactionSchemaCache:
         self._column_types[table, tuple(columns)] = types
 
     def invalidate_catalog_facts(self) -> None:
+        if _debug.lifecycle.enabled and (self._id_sequences or self._column_types):
+            _debug.lifecycle(
+                "schema_cache.catalog_facts_invalidated",
+                sequences=len(self._id_sequences),
+                column_types=len(self._column_types),
+            )
         self._id_sequences.clear()
         self._column_types.clear()
 
     def clear(self) -> None:
         self.invalidate_catalog_facts()
+        if _debug.lifecycle.enabled and self._locked_tables:
+            _debug.lifecycle(
+                "schema_cache.locks_cleared", tables=len(self._locked_tables)
+            )
         self._locked_tables.clear()

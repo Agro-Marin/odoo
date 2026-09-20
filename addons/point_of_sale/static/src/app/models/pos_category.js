@@ -1,7 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
+const log = makeLogger("pos.category");
 export class PosCategory extends Base {
     static pythonModel = "pos.category";
 
@@ -32,12 +34,20 @@ export class PosCategory extends Base {
         return parents.reverse();
     }
     get associatedProducts() {
+        const endCollect = log.perf("associatedProducts");
         const allCategoryIds = this.getAllChildren().map((cat) => cat.id);
         const products = allCategoryIds.flatMap(
             (catId) =>
                 this.models["product.template"].getBy("pos_categ_ids", catId) || [],
         );
-        return Array.from(new Set(products));
+        const unique = Array.from(new Set(products));
+        endCollect({
+            category: this.id,
+            categories: allCategoryIds.length,
+            products: products.length,
+            unique: unique.length,
+        });
+        return unique;
     }
 
     get hasProductsToShow() {

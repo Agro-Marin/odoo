@@ -5,6 +5,7 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from . import approval_trace as trace
 from .approval_utils import boolean_search_domain, is_approval_manager
 
 _logger = logging.getLogger(__name__)
@@ -21,13 +22,13 @@ class ApprovalRequest(models.Model):
     company_id = fields.Many2one(
         comodel_name="res.company",
         default=lambda self: self.env.company,
-        required=True,
         index=True,
+        required=True,
     )
     category_id = fields.Many2one(
         comodel_name="approval.category",
-        required=True,
         index=True,
+        required=True,
         domain="""
             [
                 '|', '|', '&',
@@ -41,20 +42,19 @@ class ApprovalRequest(models.Model):
     category_image = fields.Binary(related="category_id.image")
     request_owner_id = fields.Many2one(
         comodel_name="res.users",
-        required=True,
         default=lambda self: self.env.user,
-        check_company=True,
-        domain="[('company_ids', 'in', company_id)]",
         index=True,
+        required=True,
+        domain="[('company_ids', 'in', company_id)]",
     )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
-        check_company=True,
         index="btree_not_null",
+        check_company=True,
     )
     name = fields.Char(
-        tracking=True,
         copy=False,
+        tracking=True,
         help="Empty until the request is confirmed, then set to the "
         "category's sequence consecutive (deferred so discarded drafts "
         "never burn sequence numbers). Draft requests display a "
@@ -71,9 +71,9 @@ class ApprovalRequest(models.Model):
             ("3", "Urgent"),
         ],
         default="1",
+        index=True,
         required=True,
         tracking=True,
-        index=True,
         help="Priority drives how quickly reminders and manager escalation "
         "fire for pending approvals (see the escalation schedule in the "
         "category/cron documentation; configurable via system parameters). "
@@ -81,27 +81,25 @@ class ApprovalRequest(models.Model):
         "requests by (state, priority) every 4 hours.",
     )
     last_reminder_date = fields.Datetime(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Timestamp of last escalation reminder sent to approvers",
     )
     reminder_count = fields.Integer(
         default=0,
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Number of escalation reminders sent for this request",
     )
     escalated_to_manager = fields.Boolean(
         default=False,
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Whether this request has been escalated to approver's manager",
     )
     date = fields.Datetime()
     date_start = fields.Datetime()
     date_end = fields.Datetime()
-    date_deadline = fields.Datetime()
-    date_planned = fields.Datetime()
     date_confirmed = fields.Datetime(
         index=True,
         copy=False,
@@ -113,29 +111,32 @@ class ApprovalRequest(models.Model):
     date_approval_granted = fields.Datetime(
         compute="_compute_date_approval_granted",
         store=True,
-        readonly=True,
-        copy=False,
         index=True,
+        copy=False,
+        readonly=True,
         help="Date and time when final approval was granted",
     )
     revoked_state = fields.Selection(
         selection=[("refused", "Refused"), ("cancelled", "Cancelled")],
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Set when an approved request was overturned from outside its decisions, "
         "e.g. a validated leave refused by an officer. The state reads it before the "
         "approver rows, whose decisions stay as they were given.",
     )
     revoked_by_user_id = fields.Many2one(
         comodel_name="res.users",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
-    date_revoked = fields.Datetime(readonly=True, copy=False)
+    date_revoked = fields.Datetime(
+        copy=False,
+        readonly=True,
+    )
     granted_by_user_id = fields.Many2one(
         comodel_name="res.users",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Set when a pending request was approved from outside its decisions, "
         "e.g. a leave the system validated. The state reads it before the approver "
         "rows, none of which is recorded as deciding.",
@@ -143,32 +144,32 @@ class ApprovalRequest(models.Model):
     date_refused = fields.Datetime(
         compute="_compute_date_refused",
         store=True,
-        readonly=True,
-        copy=False,
         index=True,
+        copy=False,
+        readonly=True,
         help="Date and time when request reached the terminal refused state "
         "(set on refuse).",
     )
     date_cancelled = fields.Datetime(
         compute="_compute_date_cancelled",
         store=True,
-        readonly=True,
-        copy=False,
         index=True,
+        copy=False,
+        readonly=True,
         help="Date and time when the request reached the terminal cancelled "
         "state (owner cancellation or auto-expiration).",
     )
     refusal_reason_id = fields.Many2one(
         comodel_name="approval.refusal.reason",
-        readonly=True,
         copy=False,
+        readonly=True,
         tracking=True,
         help="Canonical reason for the terminal refused transition. "
         "For refused requests it stores the deciding approver's choice.",
     )
     refusal_note = fields.Text(
-        readonly=True,
         copy=False,
+        readonly=True,
         tracking=True,
         help="Free-text note attached to the terminal refused transition.",
     )
@@ -178,15 +179,13 @@ class ApprovalRequest(models.Model):
             ("reason", "Description"),
         ],
         string="Requested Change",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Field the requester must update before approval can resume. "
         "Set by the approver via the decision wizard; cleared by the "
         "requester through the Re-submit button. The approver's note "
         "explaining the change lives in the chatter.",
     )
-    location = fields.Char()
-    reference = fields.Char()
     reason = fields.Html()
     quantity = fields.Float()
     currency_id = fields.Many2one(
@@ -224,12 +223,12 @@ class ApprovalRequest(models.Model):
             ("refused", "Refused"),
             ("cancelled", "Cancelled"),
         ],
-        default="new",
         compute="_compute_state",
+        default="new",
         store=True,
-        tracking=True,
-        group_expand=True,
         index=True,
+        group_expand=True,
+        tracking=True,
     )
     user_approver_state = fields.Selection(
         selection=[
@@ -251,44 +250,22 @@ class ApprovalRequest(models.Model):
         "amount of Python discipline keeps in step.",
     )
     can_change_request_owner = fields.Boolean(
-        compute="_compute_can_change_request_owner",
-    )
-    has_automation = fields.Selection(related="category_id.has_automation")
-    has_date = fields.Selection(related="category_id.has_date")
-    has_date_deadline = fields.Selection(related="category_id.has_date_deadline")
-    has_date_planned = fields.Selection(related="category_id.has_date_planned")
-    has_date_range = fields.Selection(related="category_id.has_date_range")
-    has_quantity = fields.Selection(related="category_id.has_quantity")
-    has_amount = fields.Selection(related="category_id.has_amount")
-    has_reference = fields.Selection(related="category_id.has_reference")
-    has_partner = fields.Selection(related="category_id.has_partner")
-    has_location = fields.Selection(related="category_id.has_location")
-    has_document = fields.Selection(related="category_id.has_document")
-    document_requirement_ids = fields.One2many(
-        related="category_id.document_requirement_ids",
-        string="Required Documents",
-        help="The category's document requirements, related onto the request "
-        "so the Documents page can offer exactly those in the 'Satisfies "
-        "Requirement' dropdown beside each attachment.",
+        compute="_compute_can_change_request_owner"
     )
     approval_minimum = fields.Integer(
         default=1,
-        readonly=True,
         copy=True,
+        readonly=True,
         help="Effective minimum approvals needed. Defaults from category, "
         "overridden by matching tier when applicable.",
     )
-    approve_sequentially = fields.Boolean(related="category_id.approve_sequentially")
-    group_approval = fields.Selection(related="category_id.group_approval")
-    approver_group_id = fields.Many2one(related="category_id.approver_group_id")
+    allow_self_approval = fields.Boolean(related="category_id.allow_self_approval")
     approval_type = fields.Selection(
         related="category_id.approval_type",
-        store=True,
         help="Category for filtering (e.g., purchase, expense)",
     )
     target_model = fields.Selection(
         related="category_id.target_model",
-        store=True,
         help="Model to create when approval is granted (if any)",
     )
     approval_progress = fields.Float(
@@ -349,28 +326,21 @@ class ApprovalRequest(models.Model):
         "inverted delegation — the delegate's inbox came up empty while "
         "the delegator, who can no longer act, still saw the request.",
     )
-    template_id = fields.Many2one(
-        comodel_name="approval.template",
-        readonly=True,
-        copy=False,
-        index="btree_not_null",
-        help="Template this request was created from (if any)",
-    )
     applied_rule_ids = fields.Many2many(
         comodel_name="approval.rule",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Conditional rules that added approvers to this request",
     )
     category_snapshot = fields.Json(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Snapshot of category configuration at confirmation time",
     )
     res_model = fields.Char(
-        readonly=True,
         index=True,
         copy=False,
+        readonly=True,
         help="Model name of the source document (e.g., 'purchase.order', "
         "'sale.order'). Never copied: a duplicated request is a fresh, "
         "unlinked draft — inheriting the source pointer would make the "
@@ -380,45 +350,65 @@ class ApprovalRequest(models.Model):
     )
     res_id = fields.Many2oneReference(
         model_field="res_model",
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Reference to the source document that requested this "
         "approval. Never copied (see res_model).",
     )
+    operation = fields.Char(
+        index="btree_not_null",
+        copy=False,
+        readonly=True,
+        help="The gated operation this request was raised for, when a document's own "
+        "gate raised it. A grant clears that operation and no other.",
+    )
+    operation_snapshot = fields.Json(
+        string="Approved Subject",
+        copy=False,
+        readonly=True,
+        help="What the document looked like when the request was raised, as its own "
+        "gate described it. The grant covers the document only while it still matches.",
+    )
+    date_operation_run = fields.Datetime(
+        string="Operation Run On",
+        copy=False,
+        readonly=True,
+        help="When the grant ran the gated operation, so it runs once.",
+    )
     binding_id = fields.Many2one(
         comodel_name="approval.binding",
-        readonly=True,
-        copy=False,
         index="btree_not_null",
+        copy=False,
+        readonly=True,
         ondelete="set null",
         help="The gated operation this request was raised for, when an "
         "approval.binding in Request mode raised it. Approving the request "
         "runs that operation once, as the requester.",
     )
     subject_key = fields.Char(
-        readonly=True,
-        copy=False,
         index="btree_not_null",
+        copy=False,
+        readonly=True,
         help="What this request asks about, when its source record holds one "
         "request per subject (mixin.approval.subjects): a partner asking to join "
         "a course, a stage an engineering change passes.",
     )
     binding_snapshot = fields.Json(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Values the binding's condition read from the source document "
         "when the request was raised. An approval covers the record as it was "
         "approved: once one of these values moves, it no longer does.",
     )
     date_binding_replayed = fields.Datetime(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="When the gated operation ran after approval. Set once, so a "
         "withdrawal followed by a second approval does not run it again.",
     )
     binding_replay_error = fields.Text(
-        readonly=True,
         copy=False,
+        readonly=True,
         help="Why the gated operation did not run after approval. The approval "
         "itself stands.",
     )
@@ -438,16 +428,7 @@ class ApprovalRequest(models.Model):
         inverse_name="res_id",
         domain=[("res_model", "=", "approval.request")],
     )
-    count_attachment = fields.Integer(
-        compute="_compute_count_attachment",
-    )
-    automation_id = fields.Many2one(
-        related="category_id.automation_id",
-    )
-    automation_runtime_id = fields.Many2one(
-        comodel_name="automation.runtime",
-        index="btree_not_null",
-    )
+    count_attachment = fields.Integer(compute="_compute_count_attachment")
 
     @api.model
     def _get_fields_approver_sync_trigger(self) -> frozenset[str]:
@@ -482,6 +463,20 @@ class ApprovalRequest(models.Model):
 
         created_requests = super().create(vals_list)
 
+        trace.CRUD.items(
+            "created",
+            lambda: [
+                {
+                    "request": request.id,
+                    "category": request.category_id.id,
+                    "owner": request.request_owner_id.id,
+                    "minimum": request.approval_minimum,
+                    "model": request.res_model or None,
+                    "res_id": request.res_id or None,
+                }
+                for request in created_requests
+            ],
+        )
         created_requests._subscribe_owners()
 
         created_requests._sync_approvers()
@@ -526,7 +521,15 @@ class ApprovalRequest(models.Model):
 
         res = super().write(vals)
 
-        if self._get_fields_approver_sync_trigger() & vals.keys():
+        resync = self._get_fields_approver_sync_trigger() & vals.keys()
+        if trace.CRUD.on():
+            trace.CRUD.event(
+                "write",
+                requests=self.ids,
+                fields=sorted(vals),
+                resync=sorted(resync),
+            )
+        if resync:
             self._sync_approvers()
             self._extend_approvers_live()
 
@@ -534,75 +537,6 @@ class ApprovalRequest(models.Model):
             self._subscribe_owners()
 
         return res
-
-    def _recent_approved_by_owner(self, limit: int = 10) -> Self:
-        self.check_singleton()
-        return self._recent_approved_by_category(
-            self.category_id,
-            self.request_owner_id,
-            limit=limit,
-        )[self.category_id.id]
-
-    def _recent_approved_by_category(self, categories, owner, limit: int = 10) -> dict:
-        by_category: dict[int, list[int]] = {
-            category_id: [] for category_id in categories.ids
-        }
-        if not categories or not owner:
-            return {category_id: self.browse() for category_id in by_category}
-        candidates = self.search(
-            [
-                ("request_owner_id", "=", owner.id),
-                ("category_id", "in", categories.ids),
-                ("state", "=", "approved"),
-            ],
-            order="date_confirmed desc",
-            limit=limit * len(categories),
-        )
-        for request in candidates:
-            bucket = by_category[request.category_id.id]
-            if len(bucket) < limit:
-                bucket.append(request.id)
-        return {
-            category_id: self.browse(ids) for category_id, ids in by_category.items()
-        }
-
-    def _smart_clone_defaults(self, recent=None) -> dict[str, Any]:
-        self.check_singleton()
-        category = self.category_id
-        smart: dict[str, Any] = {}
-        if recent is None:
-            recent = self._recent_approved_by_owner(limit=10)
-
-        if category.has_amount != "no":
-            amounts = [r.amount for r in recent if r.amount]
-            if amounts:
-                smart["amount"] = sum(amounts) / len(amounts)
-
-        if category.has_partner != "no" and recent:
-            partners = recent.mapped("partner_id").filtered(bool)
-            if partners:
-                smart["partner_id"] = Counter(partners).most_common(1)[0][0].id
-
-        return smart
-
-    def copy_data(self, default: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        explicit = dict(default or {})
-        vals_list = super().copy_data(default=explicit)
-        recent_by_owner = {
-            owner.id: self._recent_approved_by_category(
-                self.filtered(lambda r, o=owner: r.request_owner_id == o).category_id,
-                owner,
-            )
-            for owner in self.request_owner_id
-        }
-        for source, vals in zip(self, vals_list, strict=True):
-            recent = recent_by_owner.get(source.request_owner_id.id, {}).get(
-                source.category_id.id, self.browse()
-            )
-            for key, value in source._smart_clone_defaults(recent).items():
-                if key not in explicit:
-                    vals[key] = value
-        return vals_list
 
     def copy(self, default: dict[str, Any] | None = None) -> Self:
         new_records = super().copy(default=default)
@@ -615,6 +549,7 @@ class ApprovalRequest(models.Model):
     def unlink(self) -> bool:
         self._check_access_unlink()
         self._check_business_rules_unlink()
+        trace.CRUD.note("unlink", requests=self.ids, uid=self.env.uid)
         return super().unlink()
 
     @api.ondelete(at_uninstall=False)
@@ -624,6 +559,11 @@ class ApprovalRequest(models.Model):
                 ("res_model", "=", "approval.request"),
                 ("res_id", "in", self.ids),
             ],
+        )
+        trace.ATTACHMENT.note(
+            "unlink_with_requests",
+            requests=self.ids,
+            attachments=len(attachment_ids),
         )
         if attachment_ids:
             attachment_ids.unlink()
@@ -646,14 +586,17 @@ class ApprovalRequest(models.Model):
             ("res_model", "=", "approval.request"),
             ("res_id", "in", self.ids),
         ]
-        attachment_data = self.env["ir.attachment"]._read_group(
-            domain,
-            groupby=["res_id"],
-            aggregates=["__count"],
-        )
-        attachment_counts = dict(attachment_data)
-        for request in self:
-            request.count_attachment = attachment_counts.get(request.id, 0)
+        with trace.COMPUTE.span("count_attachment", n=len(self)) as span:
+            attachment_data = self.env["ir.attachment"]._read_group(
+                domain,
+                groupby=["res_id"],
+                aggregates=["__count"],
+            )
+            attachment_counts = dict(attachment_data)
+            for request in self:
+                request.count_attachment = attachment_counts.get(request.id, 0)
+            span["with_attachments"] = len(attachment_counts)
+            span["attachments"] = sum(attachment_counts.values())
 
     @api.depends("res_model")
     def _compute_res_model_id(self) -> None:
@@ -676,6 +619,7 @@ class ApprovalRequest(models.Model):
             try:
                 records = self.env[model].browse(ids).exists()
             except KeyError:
+                trace.DEGRADED.note("res_model_not_in_registry", model=model, ids=ids)
                 names_by_model[model] = None
                 continue
             existing_by_model[model] = set(records.ids)
@@ -684,26 +628,44 @@ class ApprovalRequest(models.Model):
                 record.id: record.display_name for record in accessible
             }
 
+        outcomes: Counter[str] = Counter()
         for request in self:
             if not (request.res_model and request.res_id):
                 request.res_name = False
+                outcomes["unset"] += 1
                 continue
             names = names_by_model.get(request.res_model)
             if names is None:
                 request.res_name = self.env._("Unknown Model")
+                outcomes["model_gone"] += 1
             elif request.res_id in names:
                 request.res_name = names[request.res_id]
+                outcomes["named"] += 1
             elif request.res_id in existing_by_model.get(request.res_model, ()):
                 request.res_name = self.env._("Access Denied")
+                outcomes["unreadable"] += 1
             else:
                 request.res_name = self.env._("Deleted Document")
+                outcomes["deleted"] += 1
+        if trace.COMPUTE.on():
+            trace.COMPUTE.event(
+                "res_name",
+                n=len(self),
+                models=len(ids_by_model),
+                **outcomes,
+            )
 
     def _get_snapshot_config(self, key: str) -> Any:
         self.check_singleton()
         snapshot = self.category_snapshot or {}
         value = snapshot.get(key)
+        source = "snapshot"
         if value is None:
             value = self.category_id[key]
+            source = "category" if snapshot else "no_snapshot"
+        trace.SNAPSHOT.event(
+            "config_read", request=self.id, key=key, source=source, value=value
+        )
         return value
 
     @api.depends_context("uid")
@@ -761,10 +723,18 @@ class ApprovalRequest(models.Model):
     )
     def _compute_user_approver_state(self) -> None:
         current_user = self.env.user
+        resolved = 0
         for approval in self:
             approval.user_approver_state = approval.approver_ids.filtered(
                 lambda approver: approver._get_effective_approver() == current_user,
             )[:1].state
+            resolved += bool(approval.user_approver_state)
+        trace.COMPUTE.event(
+            "user_approver_state",
+            n=len(self),
+            uid=current_user.id,
+            resolved=resolved,
+        )
 
     @api.depends("approver_ids.state")
     def _compute_approval_progress(self) -> None:
@@ -840,21 +810,60 @@ class ApprovalRequest(models.Model):
             else:
                 request.state = "pending"
 
+            if trace.COMPUTE.on():
+                trace.COMPUTE.event(
+                    "state",
+                    request=request.id,
+                    state=request.state,
+                    counts=dict(state_counts),
+                    minimum=approval_threshold,
+                    required_ok=required_approved,
+                    refusals=request._get_deciding_refusals().ids,
+                    unmet=request._get_unmet_steps().ids
+                    if request.approver_ids.step_ids
+                    else None,
+                )
+
     def _get_deciding_refusals(self):
         """Refused rows that refuse the request: all but those refused only for
         advisory steps."""
         self.check_singleton()
-        return self.approver_ids.filtered(
-            lambda approver: (
-                approver.state == "refused" and not approver._is_advisory_only()
-            )
+        refused = self.approver_ids.filtered(
+            lambda approver: approver.state == "refused"
         )
+        deciding = refused.filtered(lambda approver: not approver._is_advisory_only())
+        if refused and trace.DECISION.on():
+            trace.DECISION.event(
+                "deciding_refusals",
+                request=self.id,
+                refused=refused.ids,
+                deciding=deciding.ids,
+                advisory_only=(refused - deciding).ids,
+            )
+        return deciding
 
     def _is_quorum_met(self, state_counts, approval_threshold: int) -> bool:
         self.check_singleton()
         if self.approver_ids.step_ids:
-            return not self._get_blocking_unmet_steps()
-        return state_counts.get("approved", 0) >= approval_threshold
+            blocking = self._get_blocking_unmet_steps()
+            trace.DECISION.event(
+                "quorum",
+                request=self.id,
+                rule="steps",
+                blocking=blocking.ids,
+                met=not blocking,
+            )
+            return not blocking
+        approved = state_counts.get("approved", 0)
+        trace.DECISION.event(
+            "quorum",
+            request=self.id,
+            rule="minimum",
+            approved=approved,
+            minimum=approval_threshold,
+            met=approved >= approval_threshold,
+        )
+        return approved >= approval_threshold
 
     def _get_step_counts(self) -> dict[int, int]:
         self.check_singleton()
@@ -894,19 +903,105 @@ class ApprovalRequest(models.Model):
                 continue
             for step in own:
                 assigned[step.id] |= approver
+        if trace.STEPS.on():
+            trace.STEPS.event(
+                "assignment",
+                request=self.id,
+                steps={step_id: rows.ids for step_id, rows in assigned.items()},
+            )
         return assigned
 
     def _get_unmet_steps(self):
         self.check_singleton()
         counts = self._get_step_counts()
         return self.approver_ids.step_ids.filtered(
-            lambda step: counts[step.id] < step.minimum,
+            lambda step: (
+                counts[step.id] < step.minimum
+                or self._get_step_required_rows_pending(step)
+            ),
+        )
+
+    def _get_step_required_rows_pending(self, step):
+        """The rows of a step's required members that have not approved it yet."""
+        self.check_singleton()
+        required = set(step.member_ids.filtered("required").user_id.ids)
+        if step.subject_user_required:
+            named = step.sudo()._get_source_user_ids(self.get_source_document(), self)
+            trace.STEPS.event(
+                "named_users_required",
+                request=self.id,
+                step=step.id,
+                named=sorted(named),
+            )
+            required |= named
+        if not required:
+            return self.env["approval.approver"]
+        return self.approver_ids.filtered(
+            lambda row: (
+                row.user_id.id in required
+                and step in row.step_ids
+                and not (row.state == "approved" and step in row.decided_step_ids)
+            )
         )
 
     def _get_blocking_unmet_steps(self):
         """The unmet steps the request waits for: advisory steps never hold it."""
         self.check_singleton()
         return self._get_unmet_steps().filtered(lambda step: not step.advisory)
+
+    def _get_step_turn_row(self, step):
+        """On a step whose members decide in order, the row whose turn it is: the first
+        member, in the members' order, whose row has not approved the step yet."""
+        self.check_singleton()
+        named = step.sudo()._get_source_user_ids(self.get_source_document(), self)
+        member_sequence = dict.fromkeys(named, step.subject_user_sequence)
+        member_sequence.update(
+            {member.user_id.id: member.sequence for member in step.member_ids}
+        )
+        # A member takes its member sequence; an approver added to the request takes
+        # its own row sequence, which is how the approver list ordered them.
+        rows = self.approver_ids.filtered(lambda row: step in row.step_ids).sorted(
+            lambda row: (member_sequence.get(row.user_id.id, row.sequence), row.id)
+        )
+        turn = rows.filtered(
+            lambda row: not (row.state == "approved" and step in row.decided_step_ids)
+        )[:1]
+        trace.STEPS.event(
+            "turn", request=self.id, step=step.id, rows=rows.ids, turn=turn.ids
+        )
+        return turn
+
+    def _refresh_turn_states(self) -> None:
+        for request in self.filtered(lambda request: request.state == "pending"):
+            rows = request.approver_ids.filtered(
+                lambda row: row.state in ("pending", "waiting") and row.step_ids
+            )
+            waiting = rows.filtered(
+                lambda row, request=request: (
+                    all(
+                        step.in_order and not request._is_row_turn(row, step)
+                        for step in row.step_ids - row.decided_step_ids
+                    )
+                    and row.step_ids - row.decided_step_ids
+                )
+            )
+            to_wait = waiting.filtered(lambda row: row.state == "pending")
+            to_open = (rows - waiting).filtered(lambda row: row.state == "waiting")
+            trace.STEPS.event(
+                "turn_states",
+                request=request.id,
+                waiting=to_wait.ids,
+                opened=to_open.ids,
+            )
+            if to_wait:
+                to_wait.sudo().write({"flow_state": "waiting", "pending_since": False})
+            if to_open:
+                to_open.sudo().write({"flow_state": "pending"})
+                to_open._create_activity()
+
+    def _is_row_turn(self, row, step) -> bool:
+        self.check_singleton()
+        return not step.in_order or self._get_step_turn_row(step) == row
 
     def _get_open_steps(self):
         """The unmet steps an approver is asked for now: the lowest sequence among the
@@ -916,17 +1011,42 @@ class ApprovalRequest(models.Model):
         blocking = unmet.filtered(lambda step: not step.advisory)
         advisory = unmet - blocking
         if not blocking:
-            return advisory
-        lowest = min(blocking.mapped("sequence"))
-        return blocking.filtered(lambda step: step.sequence == lowest) | advisory
+            open_steps = advisory
+        else:
+            lowest = min(blocking.mapped("sequence"))
+            open_steps = (
+                blocking.filtered(lambda step: step.sequence == lowest) | advisory
+            )
+        trace.STEPS.event(
+            "open",
+            request=self.id,
+            unmet=unmet.ids,
+            blocking=blocking.ids,
+            advisory=advisory.ids,
+            open=open_steps.ids,
+        )
+        return open_steps
 
     def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
         now = fields.Datetime.now()
+        cleared = 0
+        stamped = 0
         for request in self:
             if request.state != target_state:
+                cleared += bool(request[field_name])
                 request[field_name] = False
             elif not request[field_name]:
                 request[field_name] = now
+                stamped += 1
+        if cleared or stamped:
+            trace.LIFECYCLE.event(
+                "terminal_date_stamp",
+                field=field_name,
+                state=target_state,
+                n=len(self),
+                cleared=cleared,
+                stamped=stamped,
+            )
 
     @api.depends("state", "revoked_state")
     def _compute_date_approval_granted(self) -> None:
@@ -967,31 +1087,13 @@ class ApprovalRequest(models.Model):
                 return self.env[self.res_model].browse(self.res_id)
             return self.env[self.res_model]
         except KeyError:
+            trace.SYNC.event("source_model_gone", request=self.id, model=self.res_model)
             _logger.warning(
                 "Source model %s not found for approval request %s",
                 self.res_model,
                 self.id,
             )
             return False
-
-    @api.onchange("category_id")
-    def _onchange_category_autofill(self) -> None:
-        if not self.category_id:
-            return
-
-        last_request = self._recent_approved_by_owner(limit=1)
-
-        if not last_request:
-            return
-
-        if self.category_id.has_location == "required" and not self.location:
-            self.location = last_request.location
-
-        if self.category_id.has_partner == "required" and not self.partner_id:
-            self.partner_id = last_request.partner_id
-
-        if self.category_id.has_reference == "required" and not self.reference:
-            self.reference = last_request.reference
 
     def action_view_attachment(self) -> dict[str, Any]:
         self.check_singleton()

@@ -17,6 +17,8 @@ import {
     getDefaultValue,
     getValueEditorInfo,
 } from "@web/components/tree_editor/tree_editor_value_editors";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseExpr } from "@web/core/py_js/py";
 import { cloneTree, connector, isTree, TRUE_TREE } from "@web/core/tree/condition_tree";
 import { getResModel } from "@web/core/tree/utils";
@@ -24,6 +26,8 @@ import { areEquivalentTrees } from "@web/core/tree/virtual_operators";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("web.components.tree_editor");
 
 /** @type {WeakMap<object, string>} */
 const NODE_KEYS = new WeakMap();
@@ -43,7 +47,6 @@ export class TreeEditor extends Component {
         getDefaultCondition: Function,
         getPathEditorInfo: Function,
         getOperatorEditorInfo: Function,
-        getDefaultOperator: Function,
         readonly: { type: Boolean, optional: true },
         slots: { type: Object, optional: true },
         isDebugMode: { type: Boolean, optional: true },
@@ -79,6 +82,7 @@ export class TreeEditor extends Component {
     defaultCondition;
 
     setup() {
+        useLifecycleLog(log);
         this.isTree = isTree;
         this.fieldService = useService("field");
         this.treeProcessor = useService("tree_processor");
@@ -112,6 +116,10 @@ export class TreeEditor extends Component {
      * @returns {Promise<boolean>}
      */
     async prepareInfo(props) {
+        const end = log.perf("prepareInfo", () => ({
+            resModel: props.resModel,
+            readonly: props.readonly,
+        }));
         let loaded;
         try {
             loaded = await this.keepLastInfo.add(
@@ -130,10 +138,12 @@ export class TreeEditor extends Component {
             );
         } catch (error) {
             if (error instanceof SupersededError) {
+                end({ superseded: true });
                 return false;
             }
             throw error;
         }
+        end();
         const [fieldDefs, { getFieldDef, getConditionDescription }] = loaded;
         this.getFieldDef = getFieldDef;
         this.defaultCondition = props.getDefaultCondition(fieldDefs);
@@ -352,7 +362,7 @@ export class TreeEditor extends Component {
             (await this.fieldService.loadFieldInfo(this.props.resModel, path));
         node.path = path;
         node.negate = false;
-        node.operator = this.props.getDefaultOperator(fieldDef);
+        node.operator = this.props.getOperatorEditorInfo(fieldDef).defaultValue();
         node.value = getDefaultValue(fieldDef, node.operator);
         node.isProperty = fieldDef?.is_property;
     }
@@ -414,6 +424,11 @@ export class TreeEditor extends Component {
         const previousNode = cloneTree(node);
         await operation();
         const parentWillNotRerenderUs = areEquivalentTrees(node, previousNode);
+        log.logic("updateNode", () => ({
+            type: node.type,
+            path: node.path,
+            unchanged: parentWillNotRerenderUs,
+        }));
         try {
             if (parentWillNotRerenderUs && (await this.prepareInfo(this.props))) {
                 this.render();

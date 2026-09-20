@@ -11,21 +11,21 @@
                 position="after">
                 <field name="show_enrich_button" invisible="1" />
                 <button
-                    string="Enrich"
                     name="iap_enrich"
                     type="object"
-                    class="btn btn-secondary"
-                    data-hotkey="g"
+                    string="Enrich"
                     title="Enrich lead with company data"
-                    invisible="not show_enrich_button or type == 'opportunity'" />
+                    invisible="not show_enrich_button or type == 'opportunity'"
+                    class="btn btn-secondary"
+                    data-hotkey="g" />
                 <button
-                    string="Enrich"
                     name="iap_enrich"
                     type="object"
-                    class="btn btn-secondary"
-                    data-hotkey="g"
+                    string="Enrich"
                     title="Enrich opportunity with company data"
-                    invisible="not show_enrich_button or type == 'lead'" />
+                    invisible="not show_enrich_button or type == 'lead'"
+                    class="btn btn-secondary"
+                    data-hotkey="g" />
             </xpath>
         </field>
     </record>

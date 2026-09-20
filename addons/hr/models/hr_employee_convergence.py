@@ -1,9 +1,12 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
+    @dbg.timed
     @api.model
     def report_party_convergence(self):
         report = {
@@ -61,6 +64,19 @@ class HrEmployee(models.Model):
                 report["conflicting"].append(entry)
             else:
                 report["safe_to_merge"].append(entry)
+        dbg.logic.debug(
+            "report_party_convergence: total=%d converged=%d no_user=%d "
+            "no_work_contact=%d divergent=%d (mergeable=%d, conflicting=%d) "
+            "misparented_home=%d",
+            report["total"],
+            report["already_converged"],
+            report["no_user"],
+            report["no_work_contact"],
+            report["divergent"],
+            len(report["safe_to_merge"]),
+            len(report["conflicting"]),
+            len(report["misparented_home"]),
+        )
         return report
 
     @api.model
@@ -87,11 +103,20 @@ class HrEmployee(models.Model):
                 lines.append("      %-8s %r vs %r" % (name, left, right))
         return "\n".join(lines)
 
+    @dbg.timed
     @api.model
     def converge_party_rows(self, limit=None):
         report = self.report_party_convergence()
         self.browse(report["misparented_home"])._reparent_private_address()
         entries = report["safe_to_merge"][: limit or None]
+        dbg.pipeline.debug(
+            "converge_party_rows: %d home(s) reparented, merging %d of %d mergeable "
+            "(limit=%s)",
+            len(report["misparented_home"]),
+            len(entries),
+            len(report["safe_to_merge"]),
+            limit,
+        )
         Merge = self.env["base.partner.merge.automatic.wizard"].sudo()
 
         merged = []
@@ -100,7 +125,17 @@ class HrEmployee(models.Model):
             work_contact = employee.sudo().partner_id
             user_partner = employee.sudo().user_id.partner_id
             if not work_contact or not user_partner or work_contact == user_partner:
+                dbg.logic.debug(
+                    "[employee:%s] skipped: already converged since the report",
+                    employee.id,
+                )
                 continue
+            dbg.pipeline.debug(
+                "[employee:%s] merging work contact %s into user partner %s",
+                employee.id,
+                work_contact.id,
+                user_partner.id,
+            )
             Merge._merge([work_contact.id, user_partner.id], dst_partner=user_partner)
             merged.append(entry["employee_id"])
 

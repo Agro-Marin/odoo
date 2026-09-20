@@ -13,6 +13,5 @@
     "countries": [
         "sg",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

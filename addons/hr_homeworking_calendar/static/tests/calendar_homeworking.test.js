@@ -1,4 +1,5 @@
 import { luxon } from "@web/core/l10n/luxon";
+import { defineAppointmentMockServer } from "@calendar/../tests/booking/appointment_mock_server";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
@@ -6,6 +7,7 @@ import {
     queryAllProperties,
     queryAllTexts,
     queryFirst,
+    waitFor,
 } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import { toggleFilter } from "@web/../tests/views/calendar/calendar_test_helpers";
@@ -136,6 +138,7 @@ defineModels([
     Users,
 ]);
 defineMailModels();
+defineAppointmentMockServer();
 
 onRpc("/calendar/check_credentials", async () => ({}));
 onRpc("check_synchronization_status", async () => ({}));
@@ -403,4 +406,76 @@ test(`test exceptions are correctly rendered in multicalendar`, async () => {
     expect.verifySteps([
         ["hr_homeworking_calendar.set_location_wizard_action", "2020-12-11"],
     ]);
+});
+
+test("every partner is asked for once, and as a number", async () => {
+    // `Object.keys(partnerColorMap)` yields STRINGS, so the guard against adding
+    // the current user twice compares a string array to a numeric partner id and
+    // never matches: the id goes out twice, and the payload mixes strings with
+    // numbers for a domain that is compared against integer columns.
+    let sent;
+    onRpc("get_worklocation", ({ args }) => {
+        sent = args[0];
+        return EMPLOYEE_WORK_LOCATIONS;
+    });
+    await mountHomeWorkingView();
+    expect(sent).toBeInstanceOf(Array);
+    expect(sent.filter((id) => typeof id !== "number")).toEqual([], {
+        message: "every partner id is a number",
+    });
+    expect(sent.length).toBe(new Set(sent).size, {
+        message: "no partner is asked for twice",
+    });
+    expect(sent).toInclude(serverState.partnerId);
+});
+
+test("a user with two employees keeps both work locations", async () => {
+    // `multiCalendar` asks whether any location belongs to somebody else. A user
+    // with an employee in each of two companies answers "no" to that, and the
+    // single-calendar branch keeps one event per day — so the second employee
+    // overwrites the first and one of the two silently disappears.
+    onRpc("get_worklocation", () => ({
+        1: {
+            ...EMPLOYEE_WORK_LOCATIONS[1],
+            monday_location_id: WORK_LOCATION_OFFICE,
+        },
+        2: {
+            ...EMPLOYEE_WORK_LOCATIONS[2],
+            user_id: serverState.userId,
+            partner_id: serverState.partnerId,
+            monday_location_id: WORK_LOCATION_HOME,
+        },
+    }));
+    await mountHomeWorkingView();
+    const monday = queryAllTexts(
+        `.fc-col-header-cell[data-date="2020-12-07"] .o_worklocation_btn`,
+    ).join(" ");
+    expect(monday).toInclude("Office");
+    expect(monday).toInclude("Home");
+});
+
+test("a work location that is not yours offers no edit or delete", async () => {
+    // `hasFooter` gates the footer on `record.userId === user.userId`, so the
+    // calendar is self-service: an HR user looking at somebody else's week can
+    // see it and cannot act on it. Nothing covered that, and it is the guard that
+    // makes the weekly-delete path unreachable for an employee with no user at
+    // all -- `user_id` is false there, and false never equals a user id.
+    onRpc("get_worklocation", () => EMPLOYEE_WORK_LOCATIONS);
+    await mountHomeWorkingView();
+    await contains(
+        `.fc-col-header-cell[data-date="2020-12-07"] .o_homeworking_content[data-employee="2"]`,
+    ).click();
+    await waitFor(`.o_cw_popover`);
+    expect(`.o_cw_popover .o_cw_popover_delete`).toHaveCount(0);
+    expect(`.o_cw_popover .o_cw_popover_edit`).toHaveCount(0);
+});
+
+test("your own work location does offer them", async () => {
+    onRpc("get_worklocation", () => EMPLOYEE_WORK_LOCATIONS);
+    await mountHomeWorkingView();
+    await contains(
+        `.fc-col-header-cell[data-date="2020-12-07"] .o_homeworking_content[data-employee="1"]`,
+    ).click();
+    await waitFor(`.o_cw_popover`);
+    expect(`.o_cw_popover .o_cw_popover_delete`).toHaveCount(1);
 });

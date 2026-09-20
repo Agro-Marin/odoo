@@ -22,7 +22,6 @@ test("onAppearance animation starts once visible", async () => {
         </div>
     `);
     expect(core.interactions).toHaveLength(1);
-    // Scroll top must be obtained on wrapwrap in test.
     core.interactions[0].interaction.scrollingElement = queryOne("#wrapwrap");
     const animEl = queryOne(".o_animate");
     expect(animEl).toHaveStyle({ visibility: "visible" });
@@ -50,7 +49,6 @@ test("on scroll animation changes based on scroll", async () => {
     `);
     expect(core.interactions).toHaveLength(1);
     const wrapEl = queryOne("#wrapwrap");
-    // Scroll top must be obtained on wrapwrap in test.
     core.interactions[0].interaction.scrollingElement = wrapEl;
     const animEl = queryOne(".o_animate");
     expect(animEl).toHaveStyle({ visibility: "visible" });

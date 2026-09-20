@@ -3,8 +3,11 @@
 import { Thread } from "@mail/core/common/thread";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import { toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.thread.ui");
 /** @type {Partial<Thread> & ThisType<Thread>} */
 const threadPatch = {
     /** @param {import("models").Thread} thread */
@@ -38,6 +41,10 @@ const threadPatch = {
     },
     fetchMessages() {
         if (this.props.thread.self_member_id && this.props.thread.scrollUnread) {
+            log.logic("fetchMessages around new message separator", () => ({
+                thread: this.props.thread.localId,
+                separator: this.props.thread.self_member_id.new_message_separator,
+            }));
             toRaw(this.props.thread).loadAround(
                 this.props.thread.self_member_id.new_message_separator,
             );
@@ -55,6 +62,10 @@ const threadPatch = {
         return _t("1 new message");
     },
     async onClickUnreadMessagesBanner() {
+        log.logic("onClickUnreadMessagesBanner", () => ({
+            thread: this.props.thread.localId,
+            separator: this.props.thread.self_member_id.new_message_separator_ui,
+        }));
         await this.props.thread.loadAround(
             this.props.thread.self_member_id.new_message_separator_ui,
         );

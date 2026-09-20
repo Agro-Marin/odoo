@@ -7,6 +7,7 @@ import requests
 
 from odoo import fields
 from odoo.http import Controller, NotFound, request, route
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.utils import to_record_id
 
@@ -14,6 +15,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.mail_message import MailMessage
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 TRANSLATION_DAILY_LIMIT_PARAM = "mail.translation.daily_limit"
 TRANSLATION_DAILY_LIMIT_DEFAULT = 1000
@@ -53,8 +55,17 @@ class GoogleTranslateController(Controller):
             ("target_lang", "=", target_lang),
         ]
         translation = request.env["mail.message.translation"].sudo().search(domain)
+        _debug.logic(
+            "translate",
+            message=message.id,
+            target_lang=target_lang,
+            by="cache" if translation else "service",
+        )
         if not translation:
             if self._translation_rate_limited():
+                _debug.logic(
+                    "translate_refused", message=message.id, reason="rate_limit"
+                )
                 return {
                     "error": request.env._(
                         "Translation rate limit reached, please retry later."
@@ -74,8 +85,12 @@ class GoogleTranslateController(Controller):
                     request.env["mail.message.translation"].sudo().create(vals)
                 )
             except requests.exceptions.RequestException as err:
+                _debug.logic(
+                    "translate_failed", message=message.id, error=type(err).__name__
+                )
                 return {"error": self._translation_error_message(err)}
             except ValueError, KeyError, IndexError, TypeError:
+                _debug.logic("translate_failed", message=message.id, error="payload")
                 _logger.warning(
                     "Unexpected payload from the translation service", exc_info=True
                 )
@@ -122,12 +137,16 @@ class GoogleTranslateController(Controller):
         return response.json()["data"]["translations"][0]["translatedText"]
 
     def _post(self, endpoint: str = "", data: dict | None = None) -> requests.Response:
-        api_key = (
-            request.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mail.google_translate_api_key")
+        api_key = request.env["credential.credential"]._get_system_secret(
+            "mail.google_translate_api_key"
         )
         url = f"https://translation.googleapis.com/language/translate/v2/{endpoint}?key={api_key}"
-        response = requests.post(url, data=data, timeout=3)
+        with _debug.perf(
+            "translation_api_posted", endpoint=endpoint or "translate"
+        ) as span:
+            response = request.env["ir.egress"].request(
+                "POST", url, purpose="google_translate", data=data, timeout=3
+            )
+            span.set(status=getattr(response, "status_code", None))
         response.raise_for_status()
         return response

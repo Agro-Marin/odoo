@@ -1,22 +1,15 @@
 /** @odoo-module native */
-const SUPPORTED_DOMAINS = [
-    "youtu.be",
-    "youtube.com",
-    "youtube-nocookie.com",
-    "instagram.com",
-    "player.vimeo.com",
-    "vimeo.com",
-    "dailymotion.com",
-];
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { isSupportedVideoUrl, parseVideoUrl } from "@website/utils/video_urls";
+
+const log = makeLogger("website.content.generate_video_iframe");
+
+/** @param {HTMLElement} el */
+export function isVideoInClosedPopup(el) {
+    return !!el.closest(".s_popup .modal:not(.show)");
+}
 
 /**
- * This is a non-lazy version of the `manageIframeSrc` function already
- * available in the `"website_cookies"` service. It was added here to
- * adapt video iframe `src` as soon as the HTML document is loaded,
- * (before interactions start), so that the iframes can be properly
- * displayed. Remark: the lazy-loaded code should use the function
- * from the `website_cookies` service.
- *
  * @param {HTMLIFrameElement} iframeEl
  * @param {string} src
  */
@@ -24,6 +17,7 @@ function manageIframeSrcOnLoad(iframeEl, src) {
     if (!iframeEl.closest("[data-need-cookies-approval]")) {
         iframeEl.setAttribute("src", src);
     } else {
+        log.logic("iframe src held until cookies approval", () => ({ src }));
         iframeEl.dataset.nocookieSrc = src;
         iframeEl.setAttribute("src", "about:blank");
         iframeEl.dataset.needCookiesApproval = "true";
@@ -31,54 +25,50 @@ function manageIframeSrcOnLoad(iframeEl, src) {
 }
 
 /**
- * Builds a video iframe for a saved `src` and appends it to the DOM.
- *
- * @param {HTMLElement} parentEl The iframe container.
- * @param {function} manageIframeSrcFct The iframe `src` handler.
+ * @param {HTMLElement} parentEl
+ * @param {function} [manageIframeSrcFct]
  * @returns {HTMLIframeElement}
  */
 export function generateVideoIframe(parentEl, manageIframeSrcFct) {
-    // Bug fix / compatibility: empty the <div/> element as all information
-    // to rebuild the iframe should have been saved on the <div/> element
+    const src = parentEl.dataset.oeExpression || parentEl.dataset.src;
+    const url = parseVideoUrl(src);
+    if (!isSupportedVideoUrl(url)) {
+        log.logic("skip: unsupported or incomplete video URL", () => ({ src }));
+        return;
+    }
     parentEl.replaceChildren();
-
-    // Add extra content for size / edition
     const extraEditionEl = document.createElement("div");
     extraEditionEl.className = "css_editable_mode_display";
     const extraSizeEl = document.createElement("div");
     extraSizeEl.className = "media_iframe_video_size";
     parentEl.append(extraEditionEl, extraSizeEl);
 
-    // Rebuild the iframe. Depending on version / compatibility / instance, the
-    // src is saved in the 'data-src' attribute or the 'data-oe-expression' one.
-    const src = parentEl.dataset.oeExpression || parentEl.dataset.src;
-    // Validate the src to only accept supported domains we can trust
-    const m = src.match(/^(?:https?:)?\/\/([^/?#]+)/);
-    if (!m) {
-        // Unsupported protocol or wrong URL format, don't inject iframe
-        return;
-    }
-    const domain = m[1].replace(/^www\./, "");
-    if (!SUPPORTED_DOMAINS.includes(domain)) {
-        // Unsupported domain, don't inject iframe
-        return;
-    }
     const iframeEl = document.createElement("iframe");
     iframeEl.setAttribute("frameborder", "0");
     iframeEl.setAttribute("allowfullscreen", "allowfullscreen");
     iframeEl.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
     parentEl.appendChild(iframeEl);
-    manageIframeSrcFct
-        ? manageIframeSrcFct(iframeEl, src)
-        : manageIframeSrcOnLoad(iframeEl, src);
+    log.pipeline("video iframe created", () => ({
+        domain: url.hostname,
+        customSrcManager: !!manageIframeSrcFct,
+    }));
+    if (isVideoInClosedPopup(parentEl)) {
+        // A consent event must not load a popup that has never been opened.
+        iframeEl.setAttribute("src", "about:blank");
+        log.lifecycle("video source deferred until popup opening");
+    } else {
+        manageIframeSrcFct
+            ? manageIframeSrcFct(iframeEl, src)
+            : manageIframeSrcOnLoad(iframeEl, src);
+    }
 
     return iframeEl;
 }
 
-/**
- * Auto generate video iframes.
- */
 document.addEventListener("DOMContentLoaded", () => {
+    log.pipeline("DOMContentLoaded video placeholders", () => ({
+        placeholders: document.querySelectorAll(".media_iframe_video").length,
+    }));
     for (const videoIframeEl of document.querySelectorAll(".media_iframe_video")) {
         if (!videoIframeEl.querySelector(":scope > iframe")) {
             generateVideoIframe(videoIframeEl);

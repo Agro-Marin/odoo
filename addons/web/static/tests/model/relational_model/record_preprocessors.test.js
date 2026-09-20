@@ -1,9 +1,13 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
 import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
+import { makeTestRelationalModel } from "@web/../tests/model/relational_model/model_test_helpers";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network/commands";
+import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import {
     completeMany2OneValue,
     preprocessHtmlChanges,
@@ -336,3 +340,246 @@ describe("preprocessHtmlChanges", () => {
         expect(changes.description).toBe(false);
     });
 });
+
+test("updating two properties together preserves both values without mutating saved data", () => {
+    const properties = [
+        { name: "color", value: "red" },
+        { name: "size", value: "small" },
+    ];
+    const rec = makeRecord({
+        fields: Object.fromEntries(
+            ["color", "size"].map((name) => [
+                `my_props.${name}`,
+                { name: `my_props.${name}`, type: "char", relatedPropertyField: true },
+            ]),
+        ),
+        data: { my_props: properties },
+    });
+    const changes = { "my_props.color": "blue", "my_props.size": "large" };
+    preprocessPropertiesChanges(rec, changes);
+    expect(changes.my_props).toEqual([
+        { name: "color", value: "blue" },
+        { name: "size", value: "large" },
+    ]);
+    expect(properties).toEqual([
+        { name: "color", value: "red" },
+        { name: "size", value: "small" },
+    ]);
+});
+
+for (const reverse of [false, true]) {
+    test(`explicit property edits override an aggregate update, reverse=${reverse}`, () => {
+        const fields = {
+            props: {
+                name: "props",
+                type: "properties",
+                definition_record: "parent_id",
+            },
+            "props.color": {
+                name: "props.color",
+                type: "char",
+                relatedPropertyField: true,
+            },
+        };
+        const rec = makeRecord({
+            fields,
+            processProperties: (props) => ({ "props.color": props[0].value }),
+        });
+        const entries = [
+            ["props.color", "blue"],
+            ["props", [{ name: "color", value: "red" }]],
+        ];
+        const changes = Object.fromEntries(reverse ? entries.reverse() : entries);
+        preprocessPropertiesChanges(rec, changes);
+        makeLogger("web.model.audit").logic(
+            "aggregate and dotted property precedence",
+            { reverse, changes },
+        );
+        expect(changes["props.color"]).toBe("blue");
+        expect(changes.props).toEqual([{ name: "color", value: "blue" }]);
+    });
+    test(`property siblings serialize completed relations, reverse=${reverse}`, async () => {
+        const model = await makeTestRelationalModel({
+            loadRecords: async () => [
+                {
+                    id: 1,
+                    props: [
+                        {
+                            name: "owner",
+                            string: "Owner",
+                            type: "many2one",
+                            comodel: "res.partner",
+                            value: [2, "Old"],
+                        },
+                        { name: "color", string: "Color", type: "char", value: "red" },
+                        {
+                            name: "watchers",
+                            string: "Watchers",
+                            type: "many2many",
+                            comodel: "res.partner",
+                            value: [
+                                [2, "Old"],
+                                [3, "Removed"],
+                                [4, "Hidden"],
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+        model.patchConfig(model.config, {
+            isMonoRecord: true,
+            resId: 1,
+            resIds: [1],
+            mode: "edit",
+            fields: {
+                props: {
+                    name: "props",
+                    type: "properties",
+                    definition_record: "parent_id",
+                },
+            },
+            activeFields: { props: makeActiveField() },
+        });
+        await model.load();
+        await model.root.data["props.watchers"].load({ limit: 1 });
+        model.orm = {
+            ...model.orm,
+            call: async (_model, method) => {
+                expect(method).toBe("name_create");
+                return [42, "New"];
+            },
+        };
+        const entries = [
+            ["props.owner", { display_name: "New" }],
+            ["props.color", "blue"],
+            [
+                "props.watchers",
+                [
+                    x2ManyCommands.unlink(3),
+                    [x2ManyCommands.LINK, 5, { id: 5, display_name: "Added" }],
+                ],
+            ],
+        ];
+        await model.root.update(
+            Object.fromEntries(reverse ? entries.reverse() : entries),
+            { withoutOnchange: true },
+        );
+        const serialized = model.root.getChangesLocked();
+        makeLogger("web.model.audit").logic("property sibling serialization", {
+            reverse,
+            serialized,
+        });
+        expect(model.root.data["props.owner"]).toEqual({ id: 42, display_name: "New" });
+        expect(serialized.props.map((p) => [p.name, p.value])).toEqual([
+            ["owner", [42, "New"]],
+            ["color", "blue"],
+            [
+                "watchers",
+                [
+                    [2, "Old"],
+                    [4, "Hidden"],
+                    [5, "Added"],
+                ],
+            ],
+        ]);
+        expect(model.root.data["props.watchers"].records.length).toBe(1);
+        await model.root.discard();
+        expect(model.root.data["props.owner"]).toEqual({ id: 2, display_name: "Old" });
+        expect(model.root.data["props.color"]).toBe("red");
+        expect(model.root.data["props.watchers"].resIds).toEqual([2, 3, 4]);
+        model.orm = {
+            ...model.orm,
+            call: async () => {
+                throw new Error("creation rejected");
+            },
+        };
+        let failure;
+        try {
+            await model.root.update(
+                { "props.owner": { display_name: "Rejected" }, "props.color": "green" },
+                { withoutOnchange: true },
+            );
+        } catch (error) {
+            failure = error;
+        }
+        makeLogger("web.model.audit").logic("property completion rejection", {
+            message: failure?.message,
+            changes: model.root.getChangesLocked(),
+        });
+        expect(failure?.message).toBe("creation rejected");
+        expect(model.root.getChangesLocked()).toEqual({});
+        expect(model.root.data["props.color"]).toBe("red");
+
+        const originalProcessProperties = model.root.processProperties;
+        const originalOnUpdate = model.root._onUpdate;
+        for (const failurePoint of ["relation", "properties", "parent"]) {
+            const synchronous = failurePoint === "properties";
+            model.root._onUpdate =
+                failurePoint === "parent"
+                    ? async () => {
+                          throw new Error("parent rejected");
+                      }
+                    : originalOnUpdate;
+            const pending = new Deferred();
+            let loadStarted = false;
+            model.loadRecords = async () => {
+                loadStarted = true;
+                return pending;
+            };
+            model.root.processProperties = synchronous
+                ? () => {
+                      throw new Error("properties rejected");
+                  }
+                : originalProcessProperties;
+            let settled = false;
+            const delayedId = failurePoint === "parent" ? 8 : synchronous ? 7 : 6;
+            const update = {
+                "props.watchers": [x2ManyCommands.set([2, delayedId])],
+                ...(synchronous
+                    ? { props: [] }
+                    : failurePoint === "relation"
+                      ? { "props.owner": { display_name: "Rejected" } }
+                      : {}),
+            };
+            const updating = model.root.update(update, { withoutOnchange: true }).then(
+                () => {
+                    settled = true;
+                },
+                (error) => {
+                    settled = true;
+                    failure = error;
+                },
+            );
+            await animationFrame();
+            expect(loadStarted).toBe(true);
+            makeLogger("web.model.audit").logic(
+                "property preprocessing before delayed completion",
+                { failurePoint, settled },
+            );
+            expect(settled).toBe(false);
+            pending.resolve([{ id: delayedId, display_name: "Delayed" }]);
+            await updating;
+            await animationFrame();
+            model.root.processProperties = originalProcessProperties;
+            model.root._onUpdate = originalOnUpdate;
+            makeLogger("web.model.audit").logic(
+                "property preprocessing after rejection",
+                {
+                    failurePoint,
+                    ids: [...model.root.data["props.watchers"].currentIds],
+                    changes: model.root.getChangesLocked(),
+                },
+            );
+            expect(failure?.message).toBe(
+                failurePoint === "parent"
+                    ? "parent rejected"
+                    : synchronous
+                      ? "properties rejected"
+                      : "creation rejected",
+            );
+            expect(model.root.data["props.watchers"].currentIds).toEqual([2, 3, 4]);
+            expect(model.root.getChangesLocked()).toEqual({});
+        }
+    });
+}

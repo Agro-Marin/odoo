@@ -6,18 +6,28 @@ from typing import Any, Self
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
-from odoo.exceptions import ValidationError
+from odoo.db import schema as sql
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare
 from odoo.tools import SQL, _, frozendict
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
 
 _BINDING_ACCESS_MODEL = "__opens_model"
+
+WINDOW_TARGETS = [
+    ("current", "Current Window"),
+    ("new", "New Window"),
+    ("fullscreen", "Full Screen"),
+    ("main", "Main action of Current Window"),
+]
 
 
 def _eval_with_missing_names_false(expr: str, eval_ctx: dict[str, Any]) -> Any:
@@ -33,88 +43,204 @@ def _eval_with_missing_names_false(expr: str, eval_ctx: dict[str, Any]) -> Any:
             eval_ctx[name] = False
 
 
-def _eval_dict_or_default(
-    expr: str | None, eval_ctx: dict[str, Any], default: Any
+def _eval_or_default(
+    expr: str | None, eval_ctx: dict[str, Any], default: Any, expected: type
 ) -> Any:
+    kind = expected.__name__
     try:
-        result = _eval_with_missing_names_false(expr or "{}", eval_ctx)
+        result = _eval_with_missing_names_false(expr or repr(expected()), eval_ctx)
     except Exception as exc:
         if not isinstance(exc.__cause__, NameError):
             _logger.warning("Malformed action expression %r: %s", expr, exc)
+        _debug.logic("expression_defaulted", kind=kind, error=type(exc).__name__)
         return default
-    if isinstance(result, dict):
+    if isinstance(result, expected):
         return result
+    _debug.logic("expression_defaulted", kind=kind, got=type(result).__name__)
     _logger.warning(
-        "Action expression %r evaluates to %s, not a dict", expr, type(result).__name__
+        "Action expression %r evaluates to %s, not a %s",
+        expr,
+        type(result).__name__,
+        kind,
     )
     return default
+
+
+def _eval_dict_or_default(
+    expr: str | None, eval_ctx: dict[str, Any], default: Any
+) -> Any:
+    return _eval_or_default(expr, eval_ctx, default, dict)
 
 
 def _eval_list_or_default(
     expr: str | None, eval_ctx: dict[str, Any], default: Any
 ) -> Any:
-    try:
-        result = safe_eval(expr or "[]", eval_ctx)
-    except Exception:
-        return default
-    return result if isinstance(result, list) else default
+    return _eval_or_default(expr, eval_ctx, default, list)
 
 
 class IrActionsActions(models.Model):
     _name = "ir.actions.actions"
     _description = "Actions"
+    _inherit = ["mixin.table.inheritance.root"]
     _table = "ir_actions"
     _table_inheritance_root = "ir_actions"
+    _dispatch_write_to_concrete = True
     _order = "name, id"
     _allow_sudo_commands = False
 
-    name = fields.Char(string="Action Name", required=True, translate=True)
-    type = fields.Char(string="Action Type", required=True)
-    xml_id = fields.Char(compute="_compute_xml_id", string="External ID")
-    path = fields.Char(string="Path to show in the URL", copy=False)
+    name = fields.Char(
+        string="Action Name",
+        translate=True,
+        required=True,
+    )
+    type = fields.Char(
+        string="Action Type",
+        default=lambda self: self._name,
+        required=True,
+    )
+    path = fields.Char(
+        string="Path to show in the URL",
+        copy=False,
+    )
+    xml_id = fields.Char(
+        string="External ID",
+        compute="_compute_xml_id",
+    )
+    binding_model_id = fields.Many2one(
+        comodel_name="ir.model",
+        ondelete="cascade",
+        help="Setting a value makes this action available in the sidebar for the given model.",
+    )
+    binding_type = fields.Selection(
+        selection=[("action", "Action"), ("report", "Report")],
+        default=lambda self: self._BINDING_TYPE,
+        required=True,
+    )
+    binding_view_types = fields.Char(default="list,form")
+    binding_sequence = fields.Integer(
+        default=10,
+        help="Order of this action among the contextual actions of its model.",
+    )
+    binding_icon = fields.Char(
+        help="Icon classes shown next to this action in the contextual menu, "
+        "e.g. 'fa-solid fa-envelope'.",
+    )
     help = fields.Html(
         string="Action Description",
         translate=True,
         help="Optional help text for the users with a description of the target view, such as its usage and purpose.",
     )
-    binding_model_id = fields.Many2one(
-        "ir.model",
-        ondelete="cascade",
-        help="Setting a value makes this action available in the sidebar for the given model.",
-    )
-    binding_type = fields.Selection(
-        [("action", "Action"), ("report", "Report")],
-        required=True,
-        default="action",
-    )
-    binding_view_types = fields.Char(default="list,form")
 
     _RESERVED_PATH_PREFIXES = ("m-", "action-")
     _RESERVED_PATHS = ("new",)
 
-    _BINDING_SQL_SELECTED = ("type", "binding_type")
-    _BINDING_SQL_JOINED = "binding_model_id"
-    _BINDING_READ_FIELDS = ("name", "binding_view_types")
-    _BINDING_OPTIONAL_FIELDS = ("group_ids", "res_model", "sequence", "domain")
+    _BINDING_TYPE = "action"
+    _BINDING_TYPE_FIELDS = ("type", "binding_type")
+    _BINDING_MODEL_FIELD = "binding_model_id"
+    _BINDING_READ_FIELDS = (
+        "name",
+        "binding_view_types",
+        "binding_sequence",
+        "binding_icon",
+    )
+    _BINDING_VIEW_TYPE_ORDER = (
+        "list",
+        "kanban",
+        "form",
+        "calendar",
+        "pivot",
+        "graph",
+        "hierarchy",
+        "activity",
+    )
+
+    _ROOT_ROWS_CONSTRAINT = "ir_actions_root_holds_no_rows"
+
+    @api.private
+    def init(self) -> None:
+        super().init()
+        if self._name == self._get_root_model_name():
+            self.pool.post_init(self._seal_root_table)
+
+    def _seal_root_table(self) -> None:
+        cr = self.env.cr
+        if sql.get_constraint_definition(cr, self._table, self._ROOT_ROWS_CONSTRAINT):
+            return
+        moved = self._move_rows_out_of_root_table()
+        cr.execute(SQL("SELECT count(*) FROM ONLY %s", SQL.identifier(self._table)))
+        if stray := cr.fetchone()[0]:
+            _logger.error(
+                "%d row(s) sit in %s itself with a type that names no subtype table; "
+                "they are unreachable through any concrete action model and block "
+                "the constraint that keeps the root empty.",
+                stray,
+                self._table,
+            )
+            return
+        sql.add_constraint(
+            cr, self._table, self._ROOT_ROWS_CONSTRAINT, "CHECK (false) NO INHERIT"
+        )
+        _debug.lifecycle("root_table_sealed", table=self._table, moved=moved)
+
+    def _move_rows_out_of_root_table(self) -> int:
+        cr = self.env.cr
+        moved = 0
+        columns = SQL(", ").join(
+            SQL.identifier(name) for name in sql.get_table_columns(cr, self._table)
+        )
+        for model_name in self._get_model_names_in_tree():
+            table = self.env[model_name]._table
+            if table == self._table or not sql.table_exists(cr, table):
+                continue
+            cr.execute(
+                SQL(
+                    "WITH moved AS ("
+                    " DELETE FROM ONLY %(root)s WHERE type = %(type)s RETURNING *)"
+                    " INSERT INTO %(table)s (%(columns)s)"
+                    " SELECT %(columns)s FROM moved",
+                    root=SQL.identifier(self._table),
+                    table=SQL.identifier(table),
+                    type=model_name,
+                    columns=columns,
+                )
+            )
+            if cr.rowcount:
+                moved += cr.rowcount
+                _logger.info(
+                    "%d %s row(s) moved from %s into %s.",
+                    cr.rowcount,
+                    model_name,
+                    self._table,
+                    table,
+                )
+        return moved
 
     @api.constrains("type")
     def _check_type(self) -> None:
         for action in self:
             if action.type != action._name:
-                raise ValidationError(
-                    _(
-                        "Action type “%(type)s” does not match the model this action "
-                        "is stored in (“%(model)s”).",
-                        type=action.type,
-                        model=action._name,
-                    )
+                _debug.logic(
+                    "type_mismatch",
+                    action=action.id,
+                    type=action.type,
+                    model=action._name,
                 )
+                raise ValidationError(self._get_type_mismatch_message(action.type))
+
+    def _get_type_mismatch_message(self, action_type: str) -> str:
+        return _(
+            "Action type “%(type)s” does not match the model this action "
+            "is stored in (“%(model)s”).",
+            type=action_type,
+            model=self._name,
+        )
 
     @api.constrains("binding_model_id")
     def _check_binding_model(self) -> None:
         for action in self:
             model = action.binding_model_id.model
             if model and model not in self.env:
+                _debug.logic("binding_model_unknown", action=action.id, model=model)
                 raise ValidationError(
                     _("Invalid model name “%s” in action definition.", model)
                 )
@@ -125,6 +251,9 @@ class IrActionsActions(models.Model):
             if not action.path:
                 continue
             if not _RX_ACTION_PATH.fullmatch(action.path):
+                _debug.logic(
+                    "path_rejected", action=action.id, path=action.path, reason="syntax"
+                )
                 raise ValidationError(
                     _(
                         "The path should contain only lowercase alphanumeric characters, underscore, and dash, and it should start with a letter."
@@ -132,8 +261,20 @@ class IrActionsActions(models.Model):
                 )
             for prefix in self._RESERVED_PATH_PREFIXES:
                 if action.path.startswith(prefix):
+                    _debug.logic(
+                        "path_rejected",
+                        action=action.id,
+                        path=action.path,
+                        reason="reserved_prefix",
+                    )
                     raise ValidationError(_("'%s' is a reserved prefix.", prefix))
             if action.path in self._RESERVED_PATHS:
+                _debug.logic(
+                    "path_rejected",
+                    action=action.id,
+                    path=action.path,
+                    reason="reserved",
+                )
                 raise ValidationError(
                     _("'%s' is reserved, and can not be used as path.", action.path)
                 )
@@ -144,150 +285,100 @@ class IrActionsActions(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        for vals in vals_list:
+            # the table refuses the row before _check_type can name the reason
+            if vals.get("type", self._name) != self._name:
+                raise ValidationError(self._get_type_mismatch_message(vals["type"]))
+        vals_list = [
+            {
+                **vals,
+                "binding_view_types": self._normalize_binding_view_types(
+                    vals["binding_view_types"]
+                ),
+            }
+            if "binding_view_types" in vals
+            else vals
+            for vals in vals_list
+        ]
         res = super().create(vals_list)
         if any(action.path for action in res):
+            _debug.pipeline("paths_reserved_on_create", actions=len(res))
             res._sync_path_reservations()
-        if groups := res._get_cache_groups_holding():
+        groups = res._get_cache_groups_holding()
+        _debug.lifecycle(
+            "create", model=self._name, count=len(res), caches_cleared=sorted(groups)
+        )
+        if groups:
             self.env.registry.clear_cache(*groups)
         return res
 
-    def write(self, vals: dict[str, Any]) -> bool:
+    def _write_concrete(self, vals: dict[str, Any]) -> bool:
+        if "binding_view_types" in vals:
+            vals = {
+                **vals,
+                "binding_view_types": self._normalize_binding_view_types(
+                    vals["binding_view_types"]
+                ),
+            }
         groups = self._get_cache_groups_invalidated_by(vals) if self else ()
-        res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            model=self._name,
+            count=len(self),
+            fields=list(vals),
+            caches_cleared=sorted(groups),
+        )
+        res = super()._write_concrete(vals)
         if "path" in vals:
             self._sync_path_reservations()
         if groups:
             self.env.registry.clear_cache(*groups)
         return res
 
-    def unlink(self) -> bool:
-        if self._name == "ir.actions.actions":
-            return self._unlink_as_concrete_types()
-        groups = self._get_cache_groups_holding() | {"actions"}
-        with self.env.cr.savepoint():
-            self._apply_ondelete_unenforced()
-            res = super().unlink()
-        self.env.registry.clear_cache(*groups)
-        return res
-
-    def _unlink_as_concrete_types(self) -> bool:
-        groups = self._get_cache_groups_holding() | {"actions"}
-        by_model = defaultdict(list)
-        for action_id, model_name in self._get_model_names_concrete().items():
-            by_model[model_name].append(action_id)
-        result = True
-        with self.env.cr.savepoint():
-            for model_name, ids in by_model.items():
-                if model_name != self._name:
-                    result = self.env[model_name].browse(ids).unlink() and result
-                    continue
-                records = self.browse(ids)
-                records._apply_ondelete_unenforced()
-                result = super(IrActionsActions, records).unlink() and result
-        self.env.registry.clear_cache(*groups)
-        return result
-
     def _compute_xml_id(self) -> None:
         res = self.get_external_id()
         for record in self:
             record.xml_id = res.get(record.id)
 
-    def _apply_ondelete_unenforced(self) -> None:
-        if not self:
-            return
-        found = defaultdict(list)
-        for model_name, field_name, ondelete in self._get_fields_ondelete_unenforced():
-            references = (
-                self.env[model_name]
-                .sudo()
-                .with_context(active_test=False)
-                .search([(field_name, "in", self.ids)])  # noqa: E8507  model varies
-            )
-            if references:
-                found[ondelete].append((model_name, field_name, references))
+    @api.model
+    def _eval_action_domain(self, domain: str | None, **names: Any) -> list:
+        return _eval_list_or_default(domain, self._prepare_expression_names(names), [])
 
-        if restricted := found.get("restrict"):
-            raise ValidationError(
-                _(
-                    "Cannot delete this action: %s",
-                    ", ".join(
-                        _(
-                            "%(count)s %(model)s record(s) still reference it",
-                            count=len(references),
-                            model=self.env[model_name]._description,
-                        )
-                        for model_name, __, references in restricted
-                    ),
-                )
-            )
-        for __, __, references in found["cascade"]:
-            references.unlink()
-        for __, field_name, references in found["set null"]:
-            references.write({field_name: False})
-
-        values = [
-            f"{model_name},{action_id}"
-            for model_name in {self._name, "ir.actions.actions"}
-            for action_id in self.ids
-        ]
-        for model_name, field_name in self._get_selections_ondelete_unenforced():
-            referring = (
-                self.env[model_name]
-                .sudo()
-                .with_context(active_test=False)
-                .search([(field_name, "in", values)])  # noqa: E8507  model varies
-            )
-            if referring:
-                referring.write({field_name: False})
-
-        for (
-            model_name,
-            field_name,
-            relation,
-            column,
-        ) in self._get_relations_ondelete_unenforced():
-            self.env.cr.execute(
-                SQL(
-                    "DELETE FROM %s WHERE %s IN %s",
-                    SQL.identifier(relation),
-                    SQL.identifier(column),
-                    tuple(self.ids),
-                )
-            )
-            self.env[model_name].invalidate_model([field_name])
+    @api.model
+    def _eval_action_context(self, context: str | None, **names: Any) -> dict:
+        return _eval_dict_or_default(context, self._prepare_expression_names(names), {})
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _get_model_names_in_tree(self) -> frozenset[str]:
-        root_table = self.env.registry["ir.actions.actions"]._table
-        return frozenset(
-            name
-            for name, model in self.env.registry.items()
-            if not model._abstract and model._table_inheritance_root == root_table
-        )
-
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_fields_invalidating_when_cached(self) -> frozenset[str]:
+    def _get_fields_read_by_bindings(self) -> frozenset[str]:
         return frozenset(
             (
-                *self._BINDING_SQL_SELECTED,
-                self._BINDING_SQL_JOINED,
+                *self._BINDING_TYPE_FIELDS,
+                self._BINDING_MODEL_FIELD,
                 *self._BINDING_READ_FIELDS,
-                *self._BINDING_OPTIONAL_FIELDS,
-                "path",
+                *self._get_fields_naming_target_model(),
+                *(
+                    name
+                    for model_name in self._get_model_names_in_tree()
+                    for name in self.env[model_name]._get_fields_binding_extra()
+                ),
             )
         )
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _get_fields_invalidating_always(self) -> frozenset[str]:
-        target = self._get_field_target_model()
-        return frozenset(("binding_model_id", "path", *filter(None, [target])))
+    def _get_fields_read_by_menus(self) -> frozenset[str]:
+        return frozenset(("path", *self._get_fields_naming_target_model()))
 
     @api.model
-    def _get_fields_invalidating_menus(self) -> frozenset[str]:
-        return self._get_fields_invalidating_always() - {"binding_model_id"}
+    def _get_fields_naming_target_model(self) -> frozenset[str]:
+        name = self._get_field_target_model()
+        if not name:
+            return frozenset()
+        related = self._fields[name].related
+        return (
+            frozenset((name, related.split(".")[0])) if related else frozenset((name,))
+        )
 
     @api.model
     @tools.ormcache(cache="stable")
@@ -299,114 +390,20 @@ class IrActionsActions(models.Model):
         )
         return frozenset(view_modes)
 
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_model_names_in_root_table(self) -> frozenset[str]:
-        root = self.env.registry["ir.actions.actions"]
-        return frozenset(
-            name
-            for name, model in self.env.registry.items()
-            if model._table == root._table
-        )
-
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_fields_ondelete_unenforced(self) -> tuple[tuple[str, str, str], ...]:
-        root_models = self._get_model_names_in_root_table()
-        return tuple(
-            sorted(
-                (model_name, field.name, field.ondelete)
-                for model_name, model in self.env.registry.items()
-                if not model._abstract
-                for field in model._fields.values()
-                if field.type == "many2one"
-                and field.store
-                and not field.related
-                and field.comodel_name in root_models
-            )
-        )
-
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_relations_ondelete_unenforced(
-        self,
-    ) -> tuple[tuple[str, str, str, str], ...]:
-        root_models = self._get_model_names_in_root_table()
-        return tuple(
-            sorted(
-                {
-                    (model_name, field.name, field.relation, column)
-                    for model_name, model in self.env.registry.items()
-                    if not model._abstract
-                    for field in model._fields.values()
-                    if field.type == "many2many" and field.store
-                    for column, end in (
-                        (field.column2, field.comodel_name),
-                        (field.column1, model_name),
-                    )
-                    if end in root_models
-                }
-            )
-        )
-
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_selections_ondelete_unenforced(self) -> tuple[tuple[str, str], ...]:
-        tree_models = self._get_model_names_in_tree()
-        return tuple(
-            sorted(
-                (model_name, field.name)
-                for model_name, model in self.env.registry.items()
-                if not model._abstract
-                for field in model._fields.values()
-                if field.type == "reference"
-                and field.store
-                and (
-                    not isinstance(field.selection, list)
-                    or any(value in tree_models for value, __ in field.selection)
-                )
-            )
-        )
-
-    @api.model
-    @tools.ormcache(cache="stable")
-    def _get_model_names_by_table(self) -> frozendict:
-        by_table = defaultdict(list)
-        for model_name in self._get_model_names_in_tree():
-            by_table[self.env[model_name]._table].append(model_name)
-        return frozendict({table: tuple(sorted(n)) for table, n in by_table.items()})
-
     def _get_field_target_model(self) -> str:
+        """The field naming the model this kind of action opens, for the kinds
+        that open one. Empty where the action opens nothing."""
         return ""
 
-    def _get_model_names_concrete(self) -> dict[int, str]:
-        if not self:
-            return {}
-        root = self.env.registry["ir.actions.actions"]
-        by_table = self._get_model_names_by_table()
-        for model_name in self._get_model_names_in_tree():
-            self.env[model_name].flush_model()
-        self.env.cr.execute(
-            SQL(
-                "SELECT a.id, c.relname, a.type FROM %s a"
-                " JOIN pg_class c ON c.oid = a.tableoid WHERE a.id IN %s",
-                SQL.identifier(root._table),
-                tuple(self.ids),
-            )
-        )
-        found = {}
-        for action_id, table, action_type in self.env.cr.fetchall():
-            candidates = by_table.get(table) or (root._name,)
-            if action_type in candidates:
-                found[action_id] = action_type
-            else:
-                found[action_id] = candidates[0] if len(candidates) == 1 else root._name
-        return {action_id: found.get(action_id, root._name) for action_id in self.ids}
+    def _get_field_groups(self) -> str:
+        """The field holding the groups this kind of action is restricted to.
+        Empty where the kind admits every user."""
+        return ""
 
-    def _get_action_concrete(self) -> Self:
-        self.check_singleton()
-        [model_name] = self._get_model_names_concrete().values()
-        return self.env[model_name].browse(self.id)
+    def _get_fields_binding_extra(self) -> tuple[str, ...]:
+        """What a binding of this kind of action ships to the client beyond
+        `_BINDING_READ_FIELDS`."""
+        return ()
 
     @api.model
     def _get_action_by_path(self, path: str) -> Self:
@@ -416,40 +413,8 @@ class IrActionsActions(models.Model):
             .search([("path", "=", path)], limit=1)
             .action_id
         )
-        return action._get_action_concrete() if action else action
-
-    @api.model
-    def _eval_action_domain(self, domain: str | None, **names: Any) -> list:
-        eval_context = {
-            **self._prepare_eval_context(self),
-            **self.env.context,
-            **names,
-        }
-        return _eval_list_or_default(domain, eval_context, [])
-
-    @api.model
-    def _eval_action_context(self, context: str | None, **names: Any) -> dict:
-        eval_context = {
-            **self._prepare_eval_context(self),
-            **self.env.context,
-            **names,
-        }
-        return _eval_dict_or_default(context, eval_context, {})
-
-    @api.model
-    def _prepare_eval_context(self, action: Any) -> dict[str, Any]:
-        return {
-            "uid": self.env.uid,
-            "user": self.env.user,
-            "time": tools.safe_eval.time,
-            "datetime": tools.safe_eval.datetime,
-            "dateutil": tools.safe_eval.dateutil,
-            "timezone": timezone,
-            "float_compare": float_compare,
-            "b64encode": base64.b64encode,
-            "b64decode": base64.b64decode,
-            "Command": Command,
-        }
+        _debug.logic("action_by_path", path=path, action=action.id)
+        return action._get_concrete() if action else action
 
     @api.model
     def get_bindings(self, model_name: str) -> dict[str, list[dict[str, Any]]]:
@@ -457,6 +422,12 @@ class IrActionsActions(models.Model):
         if model_name not in self.env or not Access.check(
             model_name, mode="read", raise_exception=False
         ):
+            _debug.logic(
+                "bindings_refused",
+                model=model_name,
+                uid=self.env.uid,
+                reason="unknown_model" if model_name not in self.env else "no_read",
+            )
             return {}
 
         result = {}
@@ -465,42 +436,39 @@ class IrActionsActions(models.Model):
             for action in all_actions:
                 action_data = dict(action)
                 groups = action_data.pop("group_ids", None)
-                if groups and not self.env.user.has_any_group_id(groups):
-                    continue
                 opens = action_data.pop(_BINDING_ACCESS_MODEL, None)
-                if opens and (
-                    opens not in self.env
-                    or not Access.check(opens, mode="read", raise_exception=False)
-                ):
+                if self._get_load_refusal(groups, opens):
                     continue
                 actions.append(action_data)
             if actions:
                 result[binding_type] = actions
+        _debug.logic(
+            "bindings_filtered",
+            model=model_name,
+            uid=self.env.uid,
+            visible={key: len(val) for key, val in result.items()},
+        )
         return result
 
     @tools.ormcache("model_name", "self.env.lang", cache="actions")
     def _get_bindings(self, model_name: str) -> frozendict:
-        cr = self.env.cr
         result = defaultdict(list)
 
-        for name in self._get_model_names_in_tree():
-            self.env[name].flush_model()
-        self.env["ir.model"].flush_model()
-        cr.execute(
-            SQL(
-                "SELECT a.id, %s FROM %s a JOIN %s m ON a.%s = m.id"
-                " WHERE m.model = %s ORDER BY a.id",
-                SQL(", ").join(
-                    SQL("a.%s", SQL.identifier(name))
-                    for name in self._BINDING_SQL_SELECTED
-                ),
-                SQL.identifier(self.env.registry["ir.actions.actions"]._table),
-                SQL.identifier(self.env["ir.model"]._table),
-                SQL.identifier(self._BINDING_SQL_JOINED),
-                model_name,
+        bound = (
+            self.env["ir.actions.actions"]
+            .sudo()
+            .with_context(active_test=False)
+            .search_fetch(
+                [(f"{self._BINDING_MODEL_FIELD}.model", "=", model_name)],
+                list(self._BINDING_TYPE_FIELDS),
+                order="id",
             )
         )
-        rows = cr.fetchall()
+        rows = [
+            (action.id, *(action[name] for name in self._BINDING_TYPE_FIELDS))
+            for action in bound
+        ]
+        _debug.perf.count("bindings_computed", model=model_name, rows=len(rows))
         if not rows:
             return frozendict(result)
 
@@ -510,24 +478,32 @@ class IrActionsActions(models.Model):
 
         for action_model, entries in by_model.items():
             if action_model not in self.env.registry:
+                _debug.logic(
+                    "binding_type_skipped", type=action_model, reason="not_in_registry"
+                )
                 continue
             binding_map = dict(entries)
 
             actions = self.env[action_model].sudo().browse(binding_map.keys()).exists()
             if not actions:
+                _debug.logic(
+                    "binding_type_skipped", type=action_model, reason="missing"
+                )
                 continue
             opens_field = actions._get_field_target_model()
+            groups_field = actions._get_field_groups()
             read_fields = [
                 *self._BINDING_READ_FIELDS,
-                *(f for f in self._BINDING_OPTIONAL_FIELDS if f in actions._fields),
+                *actions._get_fields_binding_extra(),
             ]
-            if opens_field and opens_field not in read_fields:
-                read_fields.append(opens_field)
+            for name in (opens_field, groups_field):
+                if name and name not in read_fields:
+                    read_fields.append(name)
             for action_data in actions.read(read_fields):
                 if "domain" in action_data and not action_data.get("domain"):
                     action_data.pop("domain")
-                if "group_ids" in action_data:
-                    action_data["group_ids"] = tuple(action_data["group_ids"])
+                if groups_field:
+                    action_data["group_ids"] = tuple(action_data.pop(groups_field))
                 if opens_field:
                     action_data[_BINDING_ACCESS_MODEL] = action_data.pop(opens_field)
                 result[binding_map[action_data["id"]]].append(frozendict(action_data))
@@ -535,23 +511,100 @@ class IrActionsActions(models.Model):
         return frozendict(
             {
                 key: tuple(
-                    sorted(val, key=lambda vals: (vals.get("sequence", 0), vals["id"]))
+                    sorted(val, key=lambda vals: (vals["binding_sequence"], vals["id"]))
                 )
                 for key, val in result.items()
             }
         )
+
+    def _get_cache_groups_holding(self) -> set[str]:
+        groups = set()
+        for action in self:
+            if action.binding_model_id:
+                groups.add("actions")
+            if action.path:
+                groups.add("default")
+        return groups
+
+    def _get_cache_groups_invalidated_by(self, vals: dict[str, Any]) -> set[str]:
+        groups = set()
+        if "binding_model_id" in vals or (
+            not self._get_fields_read_by_bindings().isdisjoint(vals)
+            and any(action.binding_model_id for action in self)
+        ):
+            groups.add("actions")
+        if not self._get_fields_read_by_menus().isdisjoint(vals):
+            groups.add("default")
+        _debug.logic(
+            "cache_groups_invalidated",
+            actions=len(self),
+            fields=sorted(vals),
+            groups=sorted(groups),
+        )
+        return groups
+
+    @api.model
+    def _get_load_refusal(self, group_ids: Any, opens_model: str | None) -> str:
+        if group_ids and not self.env.user.has_any_group_id(tuple(group_ids)):
+            return "groups"
+        if opens_model and (
+            opens_model not in self.env
+            or not self.env["ir.model.access"].check(
+                opens_model, mode="read", raise_exception=False
+            )
+        ):
+            return "model"
+        return ""
+
+    def _get_load_refusal_of_record(self) -> str:
+        self.check_singleton()
+        config = self.sudo()
+        groups_field = self._get_field_groups()
+        group_ids = config[groups_field].ids if groups_field else ()
+        target = self._get_field_target_model()
+        return self._get_load_refusal(group_ids, config[target] if target else None)
+
+    def _check_access_to_load(self) -> None:
+        reason = self._get_load_refusal_of_record()
+        if not reason:
+            return
+        _debug.logic(
+            "load_refused",
+            action=self.id,
+            type=self._name,
+            uid=self.env.uid,
+            reason=reason,
+        )
+        _logger.info(
+            "Action load refused: %s %r (id %s, xml_id %s) to user %s by %s",
+            self._name,
+            self.sudo().name,
+            self.id,
+            self.sudo().xml_id or "-",
+            self.env.uid,
+            reason,
+        )
+        raise AccessError(_("You don't have enough access rights to open this action."))
 
     @api.model
     def _get_action_dict_by_xml_id(self, full_xml_id: str) -> dict[str, Any]:
         record = self.env.ref(full_xml_id)
         if not isinstance(self.env[record._name], self.env.registry[self._name]):
             msg = f"{full_xml_id} is a {record._name}, not a {self._name}"
+            _debug.logic(
+                "action_xmlid_wrong_type", xmlid=full_xml_id, model=record._name
+            )
             raise ValueError(msg)
+        record._check_access_to_load()
         return record._get_action_dict()
 
     def _get_action_dict(self) -> dict[str, Any]:
         self.check_singleton()
-        return self.sudo().read(sorted(self._get_fields_readable()))[0]
+        readable = sorted(self._get_fields_readable())
+        _debug.perf.count(
+            "action_dict", action=self.id, type=self._name, fields=len(readable)
+        )
+        return {**self.sudo().read(readable)[0], "type": self._name}
 
     def _get_fields_readable(self) -> frozenset[str]:
         return frozenset(
@@ -572,6 +625,76 @@ class IrActionsActions(models.Model):
     def _get_keys_client_only(self) -> frozenset[str]:
         return frozenset()
 
+    @api.model
+    def _normalize_binding_view_types(self, view_types: str | bool) -> str | bool:
+        if not view_types:
+            return view_types
+        order = {
+            mode: index for index, mode in enumerate(self._BINDING_VIEW_TYPE_ORDER)
+        }
+        modes = dict.fromkeys(
+            mode.strip() for mode in view_types.split(",") if mode.strip()
+        )
+        normalized = ",".join(
+            sorted(modes, key=lambda mode: order.get(mode, len(order)))
+        )
+        if _debug.logic.enabled and normalized != view_types:
+            _debug.logic("view_types_normalized", given=view_types, result=normalized)
+        return normalized
+
+    @api.model
+    def _prepare_expression_names(self, names: dict[str, Any]) -> dict[str, Any]:
+        root = self.env["ir.actions.actions"]
+        return {**root._prepare_eval_context(root), **self.env.context, **names}
+
+    @api.model
+    def _prepare_eval_context(self, action: Any) -> dict[str, Any]:
+        return {
+            "uid": self.env.uid,
+            "user": self.env.user,
+            "allowed_company_ids": self.env.companies.ids,
+            "time": tools.safe_eval.time,
+            "datetime": tools.safe_eval.datetime,
+            "dateutil": tools.safe_eval.dateutil,
+            "timezone": timezone,
+            "float_compare": float_compare,
+            "b64encode": base64.b64encode,
+            "b64decode": base64.b64decode,
+            "Command": Command,
+        }
+
+    def create_action(self) -> bool:
+        self.check_access("write")
+        target_field = self._get_field_target_model()
+        if not target_field:
+            raise UserError(_("%s cannot be bound to a model.", self._description))
+        _debug.lifecycle("bindings_created", model=self._name, actions=self.ids)
+        IrModel = self.env["ir.model"]
+        for model_name, actions in self.grouped(target_field).items():
+            if not model_name:
+                raise UserError(
+                    _(
+                        "Choose the model to bind %s to.",
+                        ", ".join(actions.mapped("name")),
+                    )
+                )
+            actions.write(
+                {
+                    "binding_model_id": IrModel._get(model_name).id,
+                    "binding_type": self._BINDING_TYPE,
+                }
+            )
+        return True
+
+    def unlink_action(self) -> bool:
+        self.check_access("write")
+        bound = self.filtered("binding_model_id")
+        _debug.lifecycle(
+            "bindings_removed", model=self._name, actions=self.ids, bound=len(bound)
+        )
+        bound.write({"binding_model_id": False})
+        return True
+
     def _sync_path_reservations(self) -> None:
         Reservation = self.env["ir.actions.path"].sudo()
         reserved = {
@@ -579,15 +702,25 @@ class IrActionsActions(models.Model):
             for reservation in Reservation.search([("action_id", "in", self.ids)])
         }
         to_create = []
+        released = renamed = 0  # debuglog
         for action in self:
             reservation = reserved.get(action.id)
             if not action.path:
                 if reservation:
                     reservation.unlink()
+                    released += 1  # debuglog
             elif not reservation:
                 to_create.append({"path": action.path, "action_id": action.id})
             elif reservation.path != action.path:
                 reservation.path = action.path
+                renamed += 1  # debuglog
+        _debug.lifecycle(
+            "path_reservations_synced",
+            actions=len(self),
+            created=len(to_create),
+            renamed=renamed,
+            released=released,
+        )
         if to_create:
             Reservation.create(to_create)
 
@@ -600,6 +733,12 @@ class IrActionsActions(models.Model):
                 if mode and mode not in allowed
             ]
             if unknown:
+                _debug.logic(
+                    "view_type_unknown",
+                    action=action.id,
+                    field=field_name,
+                    unknown=unknown,
+                )
                 raise ValidationError(
                     _(
                         "Unknown view type(s) %(unknown)s in %(field)s. Allowed: %(allowed)s",
@@ -608,27 +747,3 @@ class IrActionsActions(models.Model):
                         allowed=", ".join(sorted(allowed)),
                     )
                 )
-
-    def _is_cached_registry_wide(self) -> bool:
-        self.check_singleton()
-        return bool(self._get_cache_groups_holding())
-
-    def _get_cache_groups_holding(self) -> set[str]:
-        groups = set()
-        for action in self.exists():
-            if action.binding_model_id:
-                groups.add("actions")
-            if action.path:
-                groups.add("default")
-        return groups
-
-    def _get_cache_groups_invalidated_by(self, vals: dict[str, Any]) -> set[str]:
-        groups = set()
-        if "binding_model_id" in vals or (
-            not self._get_fields_invalidating_when_cached().isdisjoint(vals)
-            and any(action.binding_model_id for action in self)
-        ):
-            groups.add("actions")
-        if not self._get_fields_invalidating_menus().isdisjoint(vals):
-            groups.add("default")
-        return groups

@@ -22,6 +22,11 @@
                 "new_base": "addons/account_debit_note/i18n/account_debit_note.pot"
             },
             {
+                "name": "account_depreciation",
+                "filemask": "addons/account_depreciation/i18n/*.po",
+                "new_base": "addons/account_depreciation/i18n/account_depreciation.pot"
+            },
+            {
                 "name": "account_edi",
                 "filemask": "addons/account_edi/i18n/*.po",
                 "new_base": "addons/account_edi/i18n/account_edi.pot"
@@ -190,11 +195,6 @@
                 "name": "base_install_request",
                 "filemask": "addons/base_install_request/i18n/*.po",
                 "new_base": "addons/base_install_request/i18n/base_install_request.pot"
-            },
-            {
-                "name": "base_sparse_field",
-                "filemask": "addons/base_sparse_field/i18n/*.po",
-                "new_base": "addons/base_sparse_field/i18n/base_sparse_field.pot"
             },
             {
                 "name": "board",
@@ -1267,11 +1267,6 @@
                 "new_base": "addons/sale_loyalty_delivery/i18n/sale_loyalty_delivery.pot"
             },
             {
-                "name": "sale_management",
-                "filemask": "addons/sale_management/i18n/*.po",
-                "new_base": "addons/sale_management/i18n/sale_management.pot"
-            },
-            {
                 "name": "sale_margin",
                 "filemask": "addons/sale_margin/i18n/*.po",
                 "new_base": "addons/sale_margin/i18n/sale_margin.pot"
@@ -1342,6 +1337,11 @@
                 "new_base": "addons/sale_stock_product_expiry/i18n/sale_stock_product_expiry.pot"
             },
             {
+                "name": "sale_team",
+                "filemask": "addons/sale_team/i18n/*.po",
+                "new_base": "addons/sale_team/i18n/sale_team.pot"
+            },
+            {
                 "name": "sale_timesheet",
                 "filemask": "addons/sale_timesheet/i18n/*.po",
                 "new_base": "addons/sale_timesheet/i18n/sale_timesheet.pot"
@@ -1350,11 +1350,6 @@
                 "name": "sale_timesheet_margin",
                 "filemask": "addons/sale_timesheet_margin/i18n/*.po",
                 "new_base": "addons/sale_timesheet_margin/i18n/sale_timesheet_margin.pot"
-            },
-            {
-                "name": "sales_team",
-                "filemask": "addons/sales_team/i18n/*.po",
-                "new_base": "addons/sales_team/i18n/sales_team.pot"
             },
             {
                 "name": "sms",
@@ -1485,11 +1480,6 @@
                 "name": "stock_landed_costs",
                 "filemask": "addons/stock_landed_costs/i18n/*.po",
                 "new_base": "addons/stock_landed_costs/i18n/stock_landed_costs.pot"
-            },
-            {
-                "name": "stock_maintenance",
-                "filemask": "addons/stock_maintenance/i18n/*.po",
-                "new_base": "addons/stock_maintenance/i18n/stock_maintenance.pot"
             },
             {
                 "name": "stock_picking_batch",

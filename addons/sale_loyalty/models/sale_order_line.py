@@ -1,18 +1,26 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     is_reward_line = fields.Boolean(
-        string="Is a program reward line", compute="_compute_is_reward_line"
+        string="Is a program reward line",
+        compute="_compute_is_reward_line",
     )
     reward_id = fields.Many2one(
-        comodel_name="loyalty.reward", ondelete="restrict", readonly=True
+        comodel_name="loyalty.reward",
+        readonly=True,
+        ondelete="restrict",
     )
     coupon_id = fields.Many2one(
-        comodel_name="loyalty.card", ondelete="restrict", readonly=True
+        comodel_name="loyalty.card",
+        readonly=True,
+        ondelete="restrict",
     )
     reward_identifier_code = fields.Char(
         help="Technical field used to link multiple reward lines from the same reward together."
@@ -54,9 +62,13 @@ class SaleOrderLine(models.Model):
                 self.env["account.tax"]._check_company_domain(line.company_id)
             )
             line.tax_ids = fpos.map_tax(taxes)
+            _debug.logic(
+                "reward_line_taxes", line=line, fiscal_position=fpos, taxes=line.tax_ids
+            )
 
     def _get_price_display(self, pricelist_price=None, base_price=None):
         if self.is_reward_line and self.reward_id.reward_type != "product":
+            _debug.logic("price_display", line=self, by="reward_line")
             return self.price_unit
         return super()._get_price_display(
             pricelist_price=pricelist_price, base_price=base_price
@@ -81,6 +93,7 @@ class SaleOrderLine(models.Model):
                     "reward_id": False,
                 }
             )
+        _debug.lifecycle("loyalty_reset", lines=self, complete=complete)
         self.write(vals)
         return self
 
@@ -89,6 +102,12 @@ class SaleOrderLine(models.Model):
         res = super().create(vals_list)
         for line in res:
             if line.coupon_id and line.points_cost and line.state == "done":
+                _debug.lifecycle(
+                    "points_spent_on_create",
+                    line=line,
+                    coupon=line.coupon_id,
+                    cost=line.points_cost,
+                )
                 line.coupon_id.points -= line.points_cost
                 line.order_id._update_loyalty_history(line.coupon_id, line.points_cost)
         return res
@@ -106,6 +125,14 @@ class SaleOrderLine(models.Model):
                     line.points_cost != previous_cost
                     or line.coupon_id != previous_coupon
                 ):
+                    _debug.lifecycle(
+                        "points_moved_on_write",
+                        line=line,
+                        from_coupon=previous_coupon,
+                        to_coupon=line.coupon_id,
+                        previous_cost=previous_cost,
+                        cost=line.points_cost,
+                    )
                     previous_coupon.points += previous_cost
                     line.coupon_id.points -= line.points_cost
         return res
@@ -144,7 +171,19 @@ class SaleOrderLine(models.Model):
                     )
         for line in related_lines:
             if line.state == "done":
+                _debug.lifecycle(
+                    "points_refunded_on_unlink",
+                    line=line,
+                    coupon=line.coupon_id,
+                    cost=line.points_cost,
+                )
                 line.coupon_id.points += line.points_cost
+        _debug.lifecycle(
+            "reward_lines_unlinked",
+            lines=self,
+            related=related_lines,
+            coupons_unlinked=coupons_to_unlink,
+        )
         res = super(SaleOrderLine, self | related_lines).unlink()
         coupons_to_unlink.sudo().unlink()
         return res

@@ -36,7 +36,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // 1. Test links in page content (web_editor)
         ...insertSnippet({
             id: "s_text_image",
             name: "Text - Image",
@@ -45,7 +44,7 @@ registerWebsitePreviewTour(
         {
             content: "Click on a paragraph",
             trigger: FIRST_PARAGRAPH,
-            run: "editor Paragraph", // Make sure the selection is set in the paragraph
+            run: "editor Paragraph",
         },
         ...clickToolbarButton(
             "Paragraph",
@@ -87,9 +86,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Ensure popover is closed",
-            trigger: ".o-overlay-container:not(:visible:has(.o-we-linkpopover))", // popover should be closed
+            trigger: ".o-overlay-container:not(:visible:has(.o-we-linkpopover))",
         },
-        // 2. Test links in navbar (website)
         {
             content: "Click navbar menu Home",
             trigger: ':iframe .top_menu a:contains("Home")',
@@ -144,7 +142,6 @@ registerWebsitePreviewTour(
             content: "Check that the modal is closed",
             trigger: ":iframe html:not(.modal-body)",
         },
-        // 3. Test other links (CTA in navbar & links in footer)
         ...openLinkPopup(
             ":iframe #o_main_nav a.btn-primary[href='/contactus']",
             "CTA",
@@ -160,7 +157,6 @@ registerWebsitePreviewTour(
             content: "Popover should be shown (4)",
             trigger: ".o-we-linkpopover .o_we_url_link:contains('Home')",
         },
-        // 4. Popover should close when clicking non-link element
         {
             content: "Click outside the link popover",
             trigger: ":iframe body",
@@ -168,14 +164,12 @@ registerWebsitePreviewTour(
         },
         {
             content: "Ensure popover is closed",
-            trigger: ".o-overlay-container:not(:visible:has(.o-we-linkpopover))", // popover should be closed
+            trigger: ".o-overlay-container:not(:visible:has(.o-we-linkpopover))",
         },
-        // 5. Double click should not open popover but should open toolbar link
         {
             content: "Double click on link",
             trigger: ':iframe footer a[href="/"]',
             async run(actions) {
-                // Create range to simulate real double click, see pull request
                 const el = this.anchor;
                 const sel = el.ownerDocument.getSelection();
                 sel.collapse(el.childNodes[1], 1);
@@ -192,14 +186,12 @@ registerWebsitePreviewTour(
             trigger: ".o-we-toolbar",
             run: "click",
         },
-        // 6. Test link popover link opens a new window in edit mode
         ...openLinkPopup(":iframe footer a[href='/']", "Footer Home", 1, true),
         {
             content:
                 "Ensure that a click on the link popover link opens a new window in edit mode",
             trigger: ".o-we-linkpopover a.o_we_url_link[target='_blank']",
             run(actions) {
-                // We do not want to open a link in a tour
                 patch(
                     browser,
                     {

@@ -2,8 +2,13 @@
 /** @odoo-module native */
 import { observeKey } from "@mail/model/store";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
+import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { Deferred } from "@web/core/utils/concurrency";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
+
+const log = makeLogger("mail.utils");
 /**
  * @template {Object} T
  * @param {T} obj
@@ -86,11 +91,6 @@ export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
     };
     return findNext(0, list.length - 1, null);
 }
-
-/** @type {{ isInTest: boolean }} */
-export const mailGlobal = {
-    isInTest: false,
-};
 
 /**
  * @param {DataTransfer} dataTransfer
@@ -342,6 +342,7 @@ export function effectWithDebouncedCleanup({
  * @param {string} bundleName
  */
 export async function loadCssFromBundle(targetNode, bundleName) {
+    const endLoad = log.perf("loadCssFromBundle");
     try {
         const res = await getBundle(bundleName);
         for (const url of res.cssLibs) {
@@ -354,8 +355,13 @@ export async function loadCssFromBundle(targetNode, bundleName) {
                 link.addEventListener("error", rej);
             });
         }
+        endLoad({ bundleName, cssLibs: res.cssLibs.length });
     } catch (e) {
+        endLoad({ bundleName, failed: true });
         if (e instanceof AssetsLoadingError && e.cause instanceof TypeError) {
+            log.logic("loadCssFromBundle stalls on a network TypeError", () => ({
+                bundleName,
+            }));
             return new Promise(() => {});
         } else {
             throw e;
@@ -405,4 +411,75 @@ export function makeSequential() {
         }
         return prom;
     };
+}
+
+export const SCROLL_END_TIMEOUT = 3000;
+export const SCROLL_END_FALLBACK_DELAY = 250;
+
+/**
+ * Settles once a smooth scroll ends: on the target's `scrollend` where the browser
+ * fires it (with a timeout in case it never does), after a fixed delay elsewhere.
+ * `settle()` ends the wait early and releases the listener and the timer.
+ *
+ * @param {Object} [options]
+ * @param {EventTarget} [options.target] only a `scrollend` from this element counts
+ * @param {() => void} [options.onSettle] runs synchronously when the wait ends, once
+ * @returns {Deferred<void> & { settle: () => void }}
+ */
+export function awaitScrollEnd({ target, onSettle } = {}) {
+    const deferred = /** @type {Deferred<void> & { settle: () => void }} */ (
+        new Deferred()
+    );
+    /** @type {ReturnType<typeof browser.setTimeout>} */
+    let timeout;
+    let settled = false;
+    const settle = () => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        browser.clearTimeout(timeout);
+        document.removeEventListener("scrollend", onScrollEnd, { capture: true });
+        onSettle?.();
+        deferred.resolve();
+    };
+    /** @param {Event} ev */
+    const onScrollEnd = (ev) => {
+        if (!target || ev.target === target) {
+            settle();
+        }
+    };
+    if ("onscrollend" in window) {
+        document.addEventListener("scrollend", onScrollEnd, { capture: true });
+        timeout = browser.setTimeout(settle, SCROLL_END_TIMEOUT);
+    } else {
+        timeout = browser.setTimeout(settle, SCROLL_END_FALLBACK_DELAY);
+    }
+    deferred.settle = settle;
+    return deferred;
+}
+
+/**
+ * @param {"first"|"last"|"previous"|"next"} direction
+ * @param {number|null} activeIndex
+ * @param {number} length
+ * @returns {number|undefined} the index to activate, wrapping at both ends
+ */
+export function navigateIndex(direction, activeIndex, length) {
+    if (length === 0) {
+        return undefined;
+    }
+    const current = activeIndex ?? 0;
+    switch (direction) {
+        case "first":
+            return 0;
+        case "last":
+            return length - 1;
+        case "previous":
+            return current - 1 < 0 ? length - 1 : current - 1;
+        case "next":
+            return current + 1 > length - 1 ? 0 : current + 1;
+        default:
+            return undefined;
+    }
 }

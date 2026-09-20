@@ -608,6 +608,29 @@ class TestPartnerStoredNameLanguage(TransactionCase):
 
 @tagged("res_partner")
 class TestPartnerWriteContract(TransactionCase):
+    def test_create_computes_the_language_before_the_insert(self):
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Lang Source", "is_company": True})
+        writes = []
+        original = type(Partner).write
+
+        def recording_write(records, vals):
+            writes.append(dict(vals))
+            return original(records, vals)
+
+        self.patch(type(Partner), "write", recording_write)
+        children = Partner.create(
+            [
+                {"name": f"Lang Child {index}", "parent_id": parent.id}
+                for index in range(5)
+            ]
+        )
+        self.assertEqual(set(children.mapped("lang")), {parent.lang})
+        self.assertFalse(
+            [vals for vals in writes if "lang" in vals],
+            "a created partner takes its language in the create, not by a write",
+        )
+
     def test_write_does_not_mutate_the_values_it_is_given(self):
         Partner = self.env["res.partner"]
         manager = new_test_user(
@@ -818,7 +841,12 @@ class TestPartnerCompanyDependentSync(TransactionCase):
             patch.object(Partner.__class__, "_check_fields"),
         ):
             self.assertEqual(
-                Partner._company_dependent_commercial_fields(), ["barcode"]
+                Partner._company_dependent_commercial_fields(),
+                [
+                    fname
+                    for fname in commercial_fields + ["barcode"]
+                    if Partner._fields[fname].company_dependent
+                ],
             )
             costs = []
             for extra in (3, 12):
@@ -1149,6 +1177,21 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
 
         self.assertIn(twin, offered)
         self.assertNotIn(hidden, offered)
+
+    def test_the_recall_leaves_the_trigram_threshold_as_it_found_it(self):
+        setting = "SELECT current_setting('pg_trgm.similarity_threshold', true)"
+        self.cr.execute(setting)
+        before = self.cr.fetchone()[0] or "0.3"
+        partner = self.Partner.create({"name": "Threshold Bakeries Limited"})
+        partner.invalidate_recordset(["duplicate_ids"])
+        partner.mapped("duplicate_ids")
+        self.cr.execute(setting)
+        self.assertEqual(
+            self.cr.fetchone()[0],
+            before,
+            "the recall bar is transaction-scoped and must not leak to the next"
+            " `%` query of the same transaction",
+        )
 
     def test_the_recall_does_not_grow_with_the_batch(self):
         def queries_for(size):
@@ -2216,6 +2259,30 @@ class TestPartnerAddressCompany(TransactionCase):
         ):
             test_partner_company.write({"company_id": company_2.id})
 
+    def test_a_many2one_in_the_format_prints_its_name(self):
+        country = self.env["res.country"].create(
+            {
+                "name": "Formatland",
+                "code": "FL",
+                "address_format": "%(street)s, %(state_id)s, %(country_id)s",
+            }
+        )
+        state = self.env["res.country.state"].create(
+            {"name": "North", "code": "NO", "country_id": country.id}
+        )
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Formatted",
+                "street": "1 Main",
+                "state_id": state.id,
+                "country_id": country.id,
+            }
+        )
+        self.assertEqual(
+            partner._display_address(without_company=True),
+            "1 Main, North (FL), Formatland",
+        )
+
     def test_display_address_missing_key(self):
         country = self.env["res.country"].create(
             {
@@ -2341,6 +2408,50 @@ class TestPartnerAddressCompany(TransactionCase):
             self.env["res.partner"].with_user(user).search([("id", "=", partner.id)])
         )
         self.assertEqual(record.id, partner.id)
+
+    def test_archived_descendants_follow_the_commercial_and_address_sync(self):
+        Partner = self.env["res.partner"]
+        company = Partner.create({"name": "Archive Co", "is_company": True})
+        active = Partner.create({"name": "Kept", "parent_id": company.id})
+        archived = Partner.create({"name": "Gone", "parent_id": company.id})
+        grandchild = Partner.create({"name": "Gone Jr", "parent_id": archived.id})
+        (archived | grandchild).action_archive()
+
+        company.write({"vat": "BEARCHIVE", "street": "Sync Street"})
+
+        for partner in (active, archived, grandchild):
+            self.assertEqual(partner.vat, "BEARCHIVE", partner.name)
+        self.assertEqual(archived.street, "Sync Street")
+
+    def test_a_batch_commercial_write_syncs_the_children_in_one_pass(self):
+        Partner = self.env["res.partner"]
+
+        def queries_for(size):
+            companies = Partner.create(
+                [
+                    {"name": f"Batch Co {index}", "is_company": True}
+                    for index in range(size)
+                ]
+            )
+            Partner.create(
+                [
+                    {"name": f"Batch Kid {index}", "parent_id": company.id}
+                    for index, company in enumerate(companies)
+                ]
+            )
+            self.env.flush_all()
+            self.env.invalidate_all()
+            before = self.cr.sql_statement_count
+            companies.write({"vat": f"BEBATCH{size}"})
+            self.env.flush_all()
+            return self.cr.sql_statement_count - before
+
+        queries_for(2)
+        self.assertEqual(
+            queries_for(2),
+            queries_for(12),
+            "the descendants of a batch written the same values sync in one write",
+        )
 
     def test_children_sync_skips_walk_without_commercial_fields(self):
         company = self.env["res.partner"].create(
@@ -2751,3 +2862,176 @@ class TestPartnerDisplayNameColumn(TransactionCase):
             Company._search_display_name("ilike", "Co"),
             Company.with_context(other_key=1)._search_display_name("ilike", "Co"),
         )
+
+
+@tagged("res_partner")
+class TestPartnerImportBatch(TransactionCase):
+    def _queries_for_import_of(self, count):
+        Partner = self.env["res.partner"]
+        parents = Partner.create(
+            [{"name": f"IMPB parent {count}-{i}"} for i in range(count)]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        before = self.cr.sql_statement_count
+        result = Partner.load(
+            ["name", "parent_id"],
+            [
+                [f"IMPB child {count}-{i}", parent.name]
+                for i, parent in enumerate(parents)
+            ],
+        )
+        self.env.flush_all()
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"]), count)
+        return self.cr.sql_statement_count - before
+
+    def test_import_query_count_does_not_grow_with_the_number_of_parents(self):
+        small = self._queries_for_import_of(10)
+        large = self._queries_for_import_of(40)
+        self.assertLessEqual(
+            large,
+            small + 10,
+            f"an import of 40 children of 40 parents cost {large} queries against "
+            f"{small} for 10: the parents must be fetched once, not once per row",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestPartnerSmallContracts(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"]
+        cls.be = cls.env.ref("base.be")
+        cls.gr = cls.env.ref("base.gr")
+        cls.us = cls.env.ref("base.us")
+
+    def test_vat_lookup_variants_follow_the_eu_prefix_rule(self):
+        cases = [
+            (
+                {"vat": "BE0477472701", "country_id": self.be.id},
+                ["BE0477472701", "0477472701"],
+            ),
+            (
+                {"vat": "0477472701", "country_id": self.be.id},
+                ["0477472701", "BE0477472701"],
+            ),
+            (
+                {"vat": "123456", "country_id": self.gr.id},
+                ["123456", "GR123456", "EL123456"],
+            ),
+            ({"vat": "12-3456789", "country_id": self.us.id}, ["12-3456789"]),
+            ({"vat": "/", "country_id": self.be.id}, []),
+            ({"vat": False, "country_id": self.be.id}, []),
+        ]
+        for values, expected in cases:
+            with self.subTest(values=values):
+                partner = self.Partner.new({"name": "Vat", **values})
+                self.assertEqual(partner._get_vat_lookup_variants(), expected)
+
+    def test_a_website_without_a_scheme_gets_http(self):
+        partner = self.Partner.create({"name": "Web", "website": "example.com/shop"})
+        self.assertEqual(partner.website, "http://example.com/shop")
+        partner.write({"website": "https://secure.example.com"})
+        self.assertEqual(partner.website, "https://secure.example.com")
+
+    def test_a_copy_is_named_as_a_copy_unless_told_otherwise(self):
+        partner = self.Partner.create({"name": "Original"})
+        self.assertEqual(partner.copy().name, "Original (copy)")
+        self.assertEqual(partner.copy({"name": "Renamed"}).name, "Renamed")
+
+    def test_an_import_realigns_a_state_to_the_row_country(self):
+        State = self.env["res.country.state"]
+        be_state = State.create(
+            {"name": "Namur", "code": "ZZ9", "country_id": self.be.id}
+        )
+        gr_state = State.create(
+            {"name": "Namur GR", "code": "ZZ9", "country_id": self.gr.id}
+        )
+        lonely = State.create(
+            {"name": "Nowhere", "code": "NWH", "country_id": self.be.id}
+        )
+        realigned, dropped = self.Partner.with_context(import_file=True).create(
+            [
+                {
+                    "name": "Realigned",
+                    "state_id": be_state.id,
+                    "country_id": self.gr.id,
+                },
+                {"name": "Dropped", "state_id": lonely.id, "country_id": self.gr.id},
+            ]
+        )
+        self.assertEqual(realigned.state_id, gr_state)
+        self.assertFalse(dropped.state_id)
+
+    def test_address_get_multi_answers_like_address_get_per_partner(self):
+        company = self.Partner.create({"name": "Multi Co", "is_company": True})
+        delivery = self.Partner.create(
+            {"name": "Dock", "parent_id": company.id, "type": "delivery"}
+        )
+        contact = self.Partner.create({"name": "Person", "parent_id": company.id})
+        loner = self.Partner.create({"name": "Loner"})
+        batch = company | contact | loner
+        multi = batch._address_get_multi(["delivery", "invoice"])
+        for partner in batch:
+            self.assertEqual(
+                multi[partner.id], partner.address_get(["delivery", "invoice"])
+            )
+        self.assertEqual(multi[contact.id]["delivery"], delivery.id)
+        self.assertEqual(multi[loner.id]["delivery"], loner.id)
+
+    def test_email_formatted_quotes_and_joins(self):
+        cases = [
+            ("John Doe", "j@example.com", '"John Doe" <j@example.com>'),
+            ("Doe, John", "j@example.com", '"Doe, John" <j@example.com>'),
+            (
+                "Two",
+                "a@example.com, b@example.com",
+                '"Two" <a@example.com,b@example.com>',
+            ),
+            ("Broken", "not-an-email", False),
+            ("Raw", "raw@localhost", '"Raw" <raw@localhost>'),
+        ]
+        for name, email, expected in cases:
+            with self.subTest(name=name):
+                partner = self.Partner.create({"name": name, "email": email})
+                self.assertEqual(partner.email_formatted, expected)
+
+    def test_tz_offset_reads_the_zone(self):
+        utc = self.Partner.create({"name": "UTC", "tz": "UTC"})
+        self.assertEqual(utc.tz_offset, "+0000")
+        unset = self.Partner.create({"name": "No zone", "tz": False})
+        self.assertEqual(unset.tz_offset, "+0000")
+
+    def test_primary_industry_returns_to_the_first_when_dropped(self):
+        Industry = self.env["res.partner.industry"]
+        farming, packing = Industry.create([{"name": "Farming"}, {"name": "Packing"}])
+        partner = self.Partner.create(
+            {"name": "Grower", "industry_ids": [Command.set([farming.id, packing.id])]}
+        )
+        self.assertEqual(partner.primary_industry_id, farming)
+        partner.primary_industry_id = packing
+        partner.industry_ids = [Command.unlink(packing.id)]
+        self.assertEqual(partner.primary_industry_id, farming)
+        partner.industry_ids = [Command.clear()]
+        self.assertFalse(partner.primary_industry_id)
+
+    def test_a_parent_created_from_a_name_takes_the_contact_address_and_vat(self):
+        contact = self.Partner.create(
+            {
+                "name": "Ann",
+                "vat": "BE0477472701",
+                "street": "Rue 1",
+                "country_id": self.be.id,
+            }
+        )
+        child = self.Partner.create({"name": "Ann Jr", "parent_id": contact.id})
+        parent = contact._create_parent_from_name("Ann Co", {"website": "ann.example"})
+        self.assertTrue(parent.is_company)
+        self.assertEqual(parent.vat, "BE0477472701")
+        self.assertEqual(parent.street, "Rue 1")
+        self.assertEqual(parent.website, "http://ann.example")
+        self.assertEqual(contact.parent_id, parent)
+        self.assertEqual(child.parent_id, parent)
+        self.assertFalse(contact._create_parent_from_name(""))

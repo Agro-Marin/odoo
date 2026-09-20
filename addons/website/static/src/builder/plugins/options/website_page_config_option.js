@@ -1,5 +1,9 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.website_page_config_option");
 
 export class TopMenuVisibilityOption extends BaseOptionComponent {
     static template = "website.TopMenuVisibilityOption";
@@ -11,6 +15,7 @@ export class TopMenuVisibilityOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.doesPageOptionExist =
             this.dependencies.websitePageConfigOptionPlugin.doesPageOptionExist;
     }

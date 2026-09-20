@@ -1,4 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockPackage(models.Model):
@@ -6,6 +9,7 @@ class StockPackage(models.Model):
 
     @api.depends("contained_quant_ids", "package_type_id")
     def _compute_weight(self):
+        _debug.perf.count("package_weight_compute", packages=self)
         packages_weight = self.sudo()._get_weight(self.env.context.get("picking_id"))
         for package in self:
             package.weight = packages_weight[package]
@@ -31,22 +35,22 @@ class StockPackage(models.Model):
         self.weight_uom_rounding = uom_id.rounding
 
     weight = fields.Float(
-        compute="_compute_weight",
         digits="Stock Weight",
+        compute="_compute_weight",
         help="Total weight of all the products contained in the package.",
     )
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
         compute="_compute_weight_uom_name",
-        readonly=True,
         default=_default_weight_uom_name,
+        readonly=True,
     )
     weight_is_kg = fields.Boolean(
-        "Technical field indicating whether weight uom is kg or not (i.e. lb)",
+        string="Technical field indicating whether weight uom is kg or not (i.e. lb)",
         compute="_compute_weight_uom_info",
     )
     weight_uom_rounding = fields.Float(
-        "Technical field indicating weight's number of decimal places",
+        string="Technical field indicating weight's number of decimal places",
         compute="_compute_weight_uom_info",
     )
     package_carrier_type = fields.Selection(
@@ -60,6 +64,7 @@ class StockPackage(models.Model):
         package_name=False,
         from_package_wizard=False,
     ):
+        _debug.pipeline("package_put_in_pack_pre", packages=self)
         res = super()._pre_put_in_pack_hook(
             package_id, package_type_id, package_name, from_package_wizard
         )
@@ -78,6 +83,7 @@ class StockPackage(models.Model):
         return res
 
     def _post_put_in_pack_hook(self):
+        _debug.pipeline("package_put_in_pack_post", packages=self)
         res = super()._post_put_in_pack_hook()
         weight = self.env.context.get("weight")
         if weight:

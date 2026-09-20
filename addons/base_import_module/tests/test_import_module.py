@@ -798,6 +798,19 @@ class TestImportModule(odoo.tests.TransactionCase):
 
 
 class TestImportModuleHttp(TestImportModule, odoo.tests.HttpCase):
+    def test_login_upload_answers_403_on_bad_credentials(self):
+        response = self.url_open(
+            "/base_import_module/login_upload",
+            data={
+                "login": "admin",
+                "password": "not-the-password",
+                "db": self.env.cr.dbname,
+            },
+            files={"mod_file": ("mod.zip", b"not a zip")},
+        )
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertIn("Access Denied", response.text)
+
     def test_import_module_icon(self):
         """Assert import a module with an icon result in the module displaying the icon in the apps menu,
         and with the base module icon if module without icon"""

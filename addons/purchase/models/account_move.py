@@ -31,13 +31,8 @@ class AccountMove(models.Model):
         readonly=False,
         help="Auto-complete from a past purchase order.",
     )
-    purchase_order_count = fields.Integer(
-        string="Purchase Order Count",
-        compute="_compute_purchase_order_count",
-    )
-    purchase_order_name = fields.Char(
-        compute="_compute_purchase_order_name",
-    )
+    purchase_order_count = fields.Integer(compute="_compute_purchase_order_count")
+    purchase_order_name = fields.Char(compute="_compute_purchase_order_name")
     is_purchase_matched = fields.Boolean(
         compute="_compute_is_purchase_matched",
         help="0: PO not required or partially linked. 1: All lines linked",
@@ -385,7 +380,7 @@ class AccountMove(models.Model):
                     Command.update(
                         po_line.id,
                         {
-                            "quantity": inv_line.product_uom_id._compute_quantity(
+                            "quantity": inv_line.product_uom_id._get_quantity_in_unit(
                                 inv_line.quantity, po_line.product_uom_id
                             ),
                             "tax_ids": inv_line.tax_ids,

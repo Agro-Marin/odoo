@@ -27,9 +27,9 @@
                         <button
                             name="action_view_document"
                             type="object"
-                            class="oe_link"
                             icon="fa-regular fa-file-lines"
-                            invisible="not model or res_id == 0">
+                            invisible="not model or res_id == 0"
+                            class="oe_link">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Open Document</span>
                             </div>
@@ -53,10 +53,10 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Body" name="body">
+                        <page name="body" string="Body">
                             <field name="body" widget="html_mail" />
                         </page>
-                        <page string="Gateway" name="gateway">
+                        <page name="gateway" string="Gateway">
                             <group>
                                 <group>
                                     <field name="reply_to" />
@@ -68,7 +68,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Recipients" name="recipients">
+                        <page name="recipients" string="Recipients">
                             <group>
                                 <group>
                                     <field name="partner_ids" widget="many2many_tags" />
@@ -95,7 +95,7 @@
                                 </field>
                             </group>
                         </page>
-                        <page string="Tracking" name="page_tracking">
+                        <page name="page_tracking" string="Tracking">
                             <field name="tracking_value_ids" />
                         </page>
                     </notebook>
@@ -122,13 +122,13 @@
                 <field name="res_id" />
                 <field name="parent_id" />
                 <filter
-                    string="Has Mentions"
                     name="filter_has_mentions"
+                    string="Has Mentions"
                     domain="[('partner_ids.user_ids', 'in', [uid])]" />
                 <separator />
                 <filter
-                    string="Need Action"
                     name="message_needaction"
+                    string="Need Action"
                     help="Unread messages"
                     domain="[('needaction', '=', True)]" />
                 <separator />

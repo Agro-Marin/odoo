@@ -14,8 +14,8 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 export class DropdownPopover extends Component {
     static components = { DropdownItem };
     static template = xml`
-        <t t-if="this.props.items">
-            <t t-foreach="this.props.items" t-as="item" t-key="this.getKey(item, item_index)">
+        <t t-if="props.refresher.items">
+            <t t-foreach="props.refresher.items" t-as="item" t-key="this.getKey(item, item_index)">
                 <DropdownItem class="item.class" onSelected="() => item.onSelected()" t-out="item.label"/>
             </t>
         </t>
@@ -28,9 +28,11 @@ export class DropdownPopover extends Component {
         onOpened: { type: Function, optional: true },
         onClosed: { type: Function, optional: true },
 
-        refresher: Object,
+        refresher: {
+            type: Object,
+            shape: { token: Number, items: { type: Array, optional: true } },
+        },
         slots: Object,
-        items: { type: Array, optional: true },
     };
 
     setup() {

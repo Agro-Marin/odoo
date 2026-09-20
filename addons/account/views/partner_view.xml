@@ -13,7 +13,7 @@
                     invisible="not foreign_vat_header_mode">
                     <div
                         invisible="foreign_vat_header_mode not in ('templates_found', 'no_template')">
-                        Click <button string="here" type="object" name="action_create_foreign_taxes" class="oe_link p-0 align-baseline" /> to create the taxes for this country. </div>
+                        Click <button name="action_create_foreign_taxes" type="object" string="here" class="oe_link p-0 align-baseline" /> to create the taxes for this country. </div>
                 </div>
 
                 <sheet>
@@ -33,8 +33,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field name="active" invisible="1" />
@@ -56,8 +56,8 @@
                             <field name="country_group_id" invisible="not auto_apply" />
                             <field
                                 name="country_id"
-                                required="foreign_vat"
-                                options="{'no_open': True, 'no_create': True}" />
+                                options="{'no_open': True, 'no_create': True}"
+                                required="foreign_vat" />
                             <field
                                 name="state_ids"
                                 widget="many2many_tags"
@@ -81,7 +81,7 @@
                             name="account_mapping"
                             string="Account Mapping"
                             groups="account.group_account_readonly">
-                            <field name="account_ids" widget="one2many" nolabel="1">
+                            <field name="account_ids" widget="one2many">
                                 <list string="Account Mapping" editable="bottom">
                                     <field
                                         name="account_src_id"
@@ -103,8 +103,8 @@
                     </notebook>
                     <field
                         name="note"
-                        class="oe-bordered-editor"
-                        placeholder="Legal Notes..." />
+                        placeholder="Legal Notes..."
+                        class="oe-bordered-editor" />
                 </sheet>
             </form>
         </field>
@@ -137,8 +137,8 @@
                 <field name="name" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -172,12 +172,12 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='anchor_buttons_invoicing']" position="before">
                 <button
-                    type="object"
-                    class="oe_stat_button"
-                    icon="fa-regular fa-pen-to-square"
                     name="action_view_partner_invoices"
+                    type="object"
+                    icon="fa-regular fa-pen-to-square"
+                    context="{'default_partner_id': id}"
                     groups="account.group_account_invoice,account.group_account_readonly"
-                    context="{'default_partner_id': id}">
+                    class="oe_stat_button">
                     <div class="o_form_field o_stat_info">
                         <span class="o_stat_value">
                             <field name="currency_id" invisible="1" />
@@ -190,16 +190,16 @@
                     </div>
                 </button>
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_partner_bills"
-                    groups="account.group_account_invoice"
-                    icon="fa-regular fa-pen-to-square"
+                    type="object"
                     help="Vendor Bills"
-                    invisible="supplier_invoice_count == 0">
+                    icon="fa-regular fa-pen-to-square"
+                    groups="account.group_account_invoice"
+                    invisible="supplier_invoice_count == 0"
+                    class="oe_stat_button">
                     <field
-                        string="Vendor Bills"
                         name="supplier_invoice_count"
+                        string="Vendor Bills"
                         widget="statinfo" />
                 </button>
             </xpath>
@@ -245,36 +245,36 @@
                     <span>One or more Bank Accounts set on this partner are also used by others:</span>
                     <field
                         name="duplicate_bank_partner_ids"
-                        widget="x2many_buttons"
-                        string="Partners with same bank" />
+                        string="Partners with same bank"
+                        widget="x2many_buttons" />
                 </div>
             </xpath>
             <xpath expr="//page[@name='anchor_financial']" position="before">
                 <page
-                    string="Invoicing"
                     name="accounting"
-                    invisible="not is_company and parent_id"
-                    groups="account.group_account_invoice,account.group_account_readonly">
+                    string="Invoicing"
+                    groups="account.group_account_invoice,account.group_account_readonly"
+                    invisible="not is_company and parent_id">
                     <group name="accounting_columns">
                         <group
-                            string="General"
                             name="general"
+                            string="General"
                             groups="account.group_account_invoice,account.group_account_readonly">
                             <field
                                 name="bank_ids"
                                 string="Bank accounts"
-                                context="{'default_partner_id': id}"
-                                domain="[('partner_id','=', id)]"
                                 widget="many2many_tags_banks"
+                                domain="[('partner_id','=', id)]"
+                                context="{'default_partner_id': id}"
                                 options="{'color_field': 'color', 'allow_out_payment_field': 'allow_out_payment', 'edit_tags': True}" />
                             <field
                                 name="property_account_receivable_id"
-                                required="True"
-                                groups="account.group_account_user" />
+                                groups="account.group_account_user"
+                                required="True" />
                             <field
                                 name="property_account_payable_id"
-                                required="True"
-                                groups="account.group_account_user" />
+                                groups="account.group_account_user"
+                                required="True" />
                             <field
                                 name="autopost_bills"
                                 groups="account.group_account_user" />
@@ -286,22 +286,22 @@
                                 groups="base.group_no_one" />
                         </group>
                         <group
-                            string="Fiscal Information"
                             name="fiscal_information"
+                            string="Fiscal Information"
                             groups="account.group_account_invoice,account.group_account_readonly">
                             <field
                                 name="property_account_position_id"
                                 options="{'no_create': True, 'no_open': True}" />
                         </group>
                         <group
-                            id="invoice_send_settings"
                             name="invoice_send_settings"
+                            id="invoice_send_settings"
                             string="Customer Invoices"
                             groups="account.group_account_invoice,account.group_account_readonly">
                             <field
                                 name="invoice_sending_method"
-                                groups="base.group_no_one"
-                                placeholder="e-Invoicing &amp; Email" />
+                                placeholder="e-Invoicing &amp; Email"
+                                groups="base.group_no_one" />
                             <field
                                 name="invoice_edi_format"
                                 placeholder="XML format"
@@ -309,12 +309,12 @@
                                 invisible="not display_invoice_edi_format" />
                             <field
                                 name="invoice_template_pdf_report_id"
-                                invisible="not display_invoice_template_pdf_report_id"
-                                options="{'no_create': True, 'no_edit': True}" />
+                                options="{'no_create': True, 'no_edit': True}"
+                                invisible="not display_invoice_template_pdf_report_id" />
                         </group>
                         <group
-                            string="Credit Limits"
                             name="credit_limits"
+                            string="Credit Limits"
                             groups="account.group_account_invoice,account.group_account_readonly"
                             invisible="not show_credit_limit">
                             <field name="credit" />
@@ -324,19 +324,19 @@
                                 <field name="use_partner_credit_limit" />
                                 <field
                                     name="credit_limit"
-                                    class="oe_inline"
                                     widget="monetary"
                                     options="{'currency_field': 'currency_id'}"
-                                    invisible="not use_partner_credit_limit" />
+                                    invisible="not use_partner_credit_limit"
+                                    class="oe_inline" />
                             </div>
                         </group>
                     </group>
                 </page>
                 <page
-                    string="Invoicing"
                     name="accounting_disabled"
-                    invisible="is_company or not parent_id"
-                    groups="account.group_account_invoice,account.group_account_readonly">
+                    string="Invoicing"
+                    groups="account.group_account_invoice,account.group_account_readonly"
+                    invisible="is_company or not parent_id">
                     <div>
                         <p>Accounting-related settings are managed on <button name="open_commercial_entity" type="object" string="the parent company" class="oe_link" /></p>
                     </div>
@@ -344,25 +344,25 @@
             </xpath>
             <group name="sale" position="inside">
                 <field
-                    string="Payment Terms"
                     name="property_payment_term_id"
+                    string="Payment Terms"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
                 <field
-                    string="Payment Method"
                     name="property_inbound_payment_channel_id"
+                    string="Payment Method"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
             </group>
             <group name="purchase" position="inside">
                 <field
-                    string="Payment Terms"
                     name="property_supplier_payment_term_id"
+                    string="Payment Terms"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
                 <field
-                    string="Payment Method"
                     name="property_outbound_payment_channel_id"
+                    string="Payment Method"
                     options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_invoice,account.group_account_readonly" />
             </group>
@@ -397,12 +397,12 @@
             <xpath expr="//filter[@name='inactive']" position="before">
                 <field name="fiscal_country_codes" invisible="1" />
                 <filter
-                    string="Customer Invoices"
                     name="customer"
+                    string="Customer Invoices"
                     domain="[('customer_rank','&gt;', 0)]" />
                 <filter
-                    string="Vendor Bills"
                     name="supplier"
+                    string="Vendor Bills"
                     domain="[('supplier_rank','&gt;', 0)]" />
                 <separator />
             </xpath>

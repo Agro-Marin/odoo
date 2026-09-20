@@ -5,15 +5,15 @@ class StockPutInPack(models.TransientModel):
     _inherit = "stock.put.in.pack"
 
     shipping_weight = fields.Float(
-        "Shipping Weight",
         compute="_compute_shipping_weight",
         store=True,
         readonly=False,
     )
     weight_uom_name = fields.Char(
-        string="Weight unit of measure label", compute="_compute_weight_uom_name"
+        string="Weight unit of measure label",
+        compute="_compute_weight_uom_name",
     )
-    package_carrier_type = fields.Char("Carrier Type")
+    package_carrier_type = fields.Char(string="Carrier Type")
 
     def _compute_weight_uom_name(self):
         self.weight_uom_name = (
@@ -35,7 +35,7 @@ class StockPutInPack(models.TransientModel):
                 total_weight += wizard.result_package_id.shipping_weight
 
             for ml in wizard.move_line_ids:
-                qty = ml.product_uom_id._compute_quantity(
+                qty = ml.product_uom_id._get_quantity_in_unit(
                     ml.quantity, ml.product_id.uom_id
                 )
                 total_weight += qty * ml.product_id.weight
@@ -72,8 +72,8 @@ class StockPutInPack(models.TransientModel):
             }
         return None
 
-    def _get_put_in_pack_context(self):
-        context = super()._get_put_in_pack_context()
+    def _prepare_put_in_pack_context(self):
+        context = super()._prepare_put_in_pack_context()
         return (
             {
                 **context,

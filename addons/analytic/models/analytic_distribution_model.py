@@ -1,6 +1,14 @@
+from itertools import starmap
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import SQL
+from odoo.fields import Domain
+from odoo.tools import SQL, TransactionMemo
+
+CANDIDATE_MODELS = TransactionMemo(
+    "analytic.distribution.model.candidates",
+    invalidated_by=("account.analytic.distribution.model",),
+)
 
 
 class AccountAnalyticDistributionModel(models.Model):
@@ -14,20 +22,17 @@ class AccountAnalyticDistributionModel(models.Model):
 
     sequence = fields.Integer(default=10)
     partner_id = fields.Many2one(
-        "res.partner",
-        string="Partner",
+        comodel_name="res.partner",
         ondelete="cascade",
         help="Select a partner for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this partner, it will automatically take this as an analytic account)",
     )
     partner_tag_id = fields.Many2one(
-        "res.partner.tag",
-        string="Partner Tag",
+        comodel_name="res.partner.tag",
         ondelete="cascade",
         help="Select a partner tag for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this partner, it will automatically take this as an analytic account)",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
         ondelete="cascade",
         help="Select a company for which the analytic distribution will be used (e.g. create new customer invoice or Sales order if we select this company, it will automatically take this as an analytic account)",
@@ -78,7 +83,7 @@ class AccountAnalyticDistributionModel(models.Model):
         return res
 
     @api.model
-    def _get_default_search_domain_vals(self):
+    def _prepare_default_search_params(self):
         return {
             "company_id": False,
             "partner_id": False,
@@ -87,11 +92,20 @@ class AccountAnalyticDistributionModel(models.Model):
 
     @api.model
     def _get_applicable_models(self, vals):
-        vals = self._get_default_search_domain_vals() | vals
-        domain = []
-        for fname, value in vals.items():
-            domain += self._create_domain(fname, value)
-        return self.search(domain)
+        vals = self._prepare_default_search_params() | vals
+        domain = Domain.AND(starmap(self._create_domain, vals.items()))
+        return self._get_candidate_models().filtered_domain(domain)
+
+    @api.model
+    def _get_candidate_models(self):
+        # a lookup runs once per distinct argument set -- one per invoice line
+        # of a batch, typically -- and the models are few: every model the
+        # user may read is fetched once per transaction and matched in Python
+        per_env = CANDIDATE_MODELS(self.env)
+        key = (self.env.uid, self.env.su, tuple(self.env.companies.ids))
+        if key not in per_env:
+            per_env[key] = self.search([]).ids
+        return self.browse(per_env[key])
 
     def _create_domain(self, fname, value):
         if fname == "partner_tag_id":

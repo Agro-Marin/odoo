@@ -1,3 +1,5 @@
+from typing import Any
+
 from odoo import fields, models
 from odoo.orm.fields.relational._commands import CommandDelta
 from odoo.orm.model_test_env import model_test_env
@@ -98,6 +100,15 @@ class Node(models.Model):
     name = fields.Char()
     tag_ids = fields.Many2many("cd.tag")
     line_ids = fields.One2many("cd.line", "node_id")
+
+
+def test_a_falsy_set_payload_clears_instead_of_raising():
+    # an RPC client can send [[6, 0, false]] or [[6, 0, null]]
+    payloads: tuple[Any, ...] = (False, None, [])
+    for payload in payloads:
+        delta = CommandDelta.fold([(Command.SET, 0, payload)])
+        assert delta.replaced
+        assert delta.set_ids == ()
 
 
 def test_a_clear_after_a_link_leaves_the_field_empty_on_both_kinds():

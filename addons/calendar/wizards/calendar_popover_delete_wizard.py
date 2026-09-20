@@ -6,9 +6,9 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
     _inherit = ["mixin.mail.composer"]
     _description = "Calendar Popover Delete Wizard"
 
-    calendar_event_id = fields.Many2one("calendar.event", "Calendar Event")
+    calendar_event_id = fields.Many2one(comodel_name="calendar.event")
     delete = fields.Selection(
-        [
+        selection=[
             ("one", "Delete this event"),
             ("next", "Delete this and following events"),
             ("all", "Delete all the events"),
@@ -16,7 +16,7 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         default="one",
     )
     recipient_ids = fields.Many2many(
-        "res.partner",
+        comodel_name="res.partner",
         string="Recipients",
         compute="_compute_recipient_ids",
         readonly=False,
@@ -88,7 +88,7 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         self.check_singleton()
         # The policy reaches this wizard in either vocabulary -- its own
         # 'one'/'next'/'all' from the popover view, or `recurrence_update`'s
-        # 'self_only'/'future_events'/'all_events' from the calendar form
+        # 'this'/'subsequent'/'all' from the calendar form
         # through action_unlink_event. `_unlink_by_recurrence_policy` accepts
         # both; before it existed, only 'next'/'all' triggered a mass deletion,
         # so "this and following" and "all events" from the form deleted nothing.

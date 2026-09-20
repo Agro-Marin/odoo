@@ -279,6 +279,35 @@ describe("Add & Delete buttons", () => {
         expect(".options-container table tbody tr:first td").toHaveCount(2);
         expect(data.datasets[0].label).toBe("Two");
     });
+    test("Deleting the first column of a chart without dataset keys deletes that column", async () => {
+        const type = "bar";
+        const data = getData(type);
+        data.datasets.forEach((dataset) => delete dataset.key);
+        await setupWebsiteBuilder(chartTemplate(type, data));
+        await contains(":iframe .s_chart").click();
+        await contains(
+            ".options-container table [data-action-id=removeColumn]:first",
+        ).click();
+        const newData = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
+        expect(newData.datasets).toHaveLength(1);
+        expect(newData.datasets[0].label).toBe("Two");
+    });
+    test("Editing a value of a chart without dataset keys updates that value", async () => {
+        const type = "bar";
+        const data = getData(type);
+        data.datasets.forEach((dataset) => delete dataset.key);
+        await setupWebsiteBuilder(chartTemplate(type, data));
+        await contains(":iframe .s_chart").click();
+        expect(
+            ".options-container table [data-action-id=updateDatasetValue]:first input",
+        ).toHaveValue("25");
+        await contains(
+            ".options-container table [data-action-id=updateDatasetValue]:first input",
+        ).edit("42");
+        const newData = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
+        expect(newData.datasets[0].data[0]).toBe("42");
+        expect(newData.datasets[1].data[0]).toBe("10");
+    });
     test("Cannot delete column if there is only 1 dataset", async () => {
         await setupWebsiteBuilder(
             chartTemplate("bar", {
@@ -346,8 +375,8 @@ describe("Add & Delete buttons", () => {
         expect(data.datasets).toHaveLength(2);
         expect(data.datasets[0].label).toBe("One");
         await contains(".options-container table tbody tr:eq(2) input:last").focus();
-        await press("Tab"); // remove row button
-        await press("Tab"); // add row button
+        await press("Tab");
+        await press("Tab");
         await press("Tab");
         await press("Enter");
         data = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
@@ -377,7 +406,7 @@ test("Focusing input displays related data color/data border colorpickers", asyn
 test("CSS colors and CSS custom variables are correctly computed", async () => {
     const type = "bar";
     await setupWebsiteBuilder(chartTemplate(type, getData(type)), {
-        styleContent: /*css*/ `
+        styleContent: `
             html {
                 --o-color-1: rgb(255, 0, 0);
                 --o-color-2: rgb(0, 0, 255);
@@ -472,8 +501,6 @@ test("Removing a row with the current cell resets the current cell", async () =>
     await contains(
         ".options-container table tbody tr:last-child td:nth-child(3) button.o_builder_matrix_remove_col",
     ).click();
-    // After removal, the current cell should reset to default (first dataset, first data point)
-    // The color picker should now reflect the default cell's color
     expect(
         ".options-container [data-label='Data Color'] .o_we_color_preview",
     ).toHaveStyle({

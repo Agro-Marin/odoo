@@ -86,16 +86,16 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Members" name="members">
+                        <page name="members" string="Members">
                             <field
                                 name="member_ids"
                                 widget="many2many_tags"
                                 options="{'color_field': 'color'}" />
                         </page>
-                        <page string="Challenges" name="challenges">
+                        <page name="challenges" string="Challenges">
                             <field name="challenge_ids" readonly="1" />
                         </page>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="description"
                                 placeholder="Team description, mission, or motto..." />

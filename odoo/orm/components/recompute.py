@@ -4,12 +4,16 @@ import typing
 from collections import defaultdict
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
 if typing.TYPE_CHECKING:
     from collections.abc import Container, Mapping
     from collections.abc import Set as AbstractSet
 
     from ._protocols import SchedulableField
     from .compute import ComputeEngine
+
+_debug = DebugLog(__name__)
 
 
 class RecomputeScheduler:
@@ -45,7 +49,15 @@ class RecomputeScheduler:
     ) -> frozenset:
         protected = self._engine.get_protected_ids(field)
         if protected:
+            requested = len(ids)  # debuglog
             ids = ids - protected  # noqa: PLR6104  `ids` is caller-owned: -= would mutate it in place
+            if _debug.logic.enabled and len(ids) < requested:
+                _debug.logic(
+                    "recompute_scheduler.protected_trimmed",
+                    field=getattr(field, "name", field),
+                    requested=requested,
+                    kept=len(ids),
+                )
         if not ids:
             return frozenset()
 
@@ -65,6 +77,11 @@ class RecomputeScheduler:
                 if cached_ids is not None and ids:
                     ids = frozenset(id_ for id_ in ids if id_ in cached_ids)
             if not ids:
+                _debug.logic(
+                    "recompute_scheduler.recursive_exhausted",
+                    field=getattr(field, "name", field),
+                    stored=field.is_stored_computed,
+                )
                 return frozenset()
             if not field.is_stored_computed:
                 self._seen_recursive[field].update(ids)

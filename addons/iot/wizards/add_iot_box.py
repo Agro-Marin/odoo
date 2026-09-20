@@ -13,26 +13,28 @@ class AddIotBox(models.TransientModel):
 
     # Depending on the stage different window actions are available
     stage = fields.Selection(
-        [
+        selection=[
             ("start", "Start"),
             ("connect", "Connect"),
             ("manual", "Manual"),
             ("pair_offline", "Offline Pairing"),
         ],
-        string="Stage",
         default="start",
     )
 
-    discovered_box_ids = fields.One2many("iot.discovered.box", "add_iot_box_wizard_id")
-    iot_box_to_connect = fields.Many2one("iot.discovered.box")
-    serial_number = fields.Char(string="Serial Number")
-    pairing_code = fields.Char(string="Pairing Code")
+    discovered_box_ids = fields.One2many(
+        comodel_name="iot.discovered.box",
+        inverse_name="add_iot_box_wizard_id",
+    )
+    iot_box_to_connect = fields.Many2one(comodel_name="iot.discovered.box")
+    serial_number = fields.Char()
+    pairing_code = fields.Char()
 
     offline_pairing_token = fields.Char(
-        "Token",
+        string="Token",
         default=lambda self: self._default_offline_pairing_token(),
-        readonly=True,
         store=False,
+        readonly=True,
     )
 
     # ------------------------- IOT-PROXY CALLING METHODS -------------------------
@@ -48,8 +50,10 @@ class AddIotBox(models.TransientModel):
             self.serial_number = self.iot_box_to_connect.serial_number
         try:
             icp_sudo = self.env["ir.config_parameter"].sudo()
-            response = requests.post(
+            response = self.env["ir.egress"].request(
+                "POST",
                 "https://iot-proxy.odoo.com/odoo-enterprise/iot/connect-db",
+                purpose="iot_pairing",
                 json={
                     "params": {
                         "pairing_code": self.pairing_code,

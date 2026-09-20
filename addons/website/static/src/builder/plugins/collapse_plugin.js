@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.collapse");
 
 export class CollapsePlugin extends Plugin {
     static id = "collapse";
@@ -23,6 +26,7 @@ export class CollapsePlugin extends Plugin {
     };
 
     setup() {
+        log.lifecycle("setup");
         this.time = new Date().getTime();
         this.body = this.document.body;
     }
@@ -31,6 +35,10 @@ export class CollapsePlugin extends Plugin {
         const accordionItemsEls = snippetEl.querySelectorAll(
             ".accordion > .accordion-item",
         );
+        log.pipeline("onSnippetDropped create accordion ids", () => ({
+            snippet: snippetEl.dataset.snippet,
+            count: accordionItemsEls.length,
+        }));
         accordionItemsEls.forEach((accordionItemEl) => {
             this.createIDs(accordionItemEl);
         });
@@ -41,6 +49,9 @@ export class CollapsePlugin extends Plugin {
             ? [cloneEl]
             : [...cloneEl.querySelectorAll(".accordion > .accordion-item")];
 
+        log.pipeline("onCloned create accordion ids", () => ({
+            count: arrayOfAccordionItemEls.length,
+        }));
         for (const accordionItemEl of arrayOfAccordionItemEls) {
             this.createIDs(accordionItemEl);
         }
@@ -54,6 +65,7 @@ export class CollapsePlugin extends Plugin {
         const setUniqueId = (el, label) => {
             let elemId = el.id;
             if (!elemId || this.body.querySelectorAll(`#${elemId}`).length > 1) {
+                log.logic("createIDs regenerate id", { label, elemId });
                 do {
                     this.time++;
                     elemId = `${label}${this.time}`;

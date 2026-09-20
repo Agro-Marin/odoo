@@ -26,29 +26,23 @@ export class AddToCartNotification extends Component {
     };
 
     /**
-     * Return the lines which aren't linked to other lines.
-     *
-     * @return {Object[]} The lines which aren't linked to other lines.
+     * @return {Object[]}
      */
     get mainLines() {
         return this.props.lines.filter((line) => !line.linked_line_id);
     }
 
     /**
-     * Return the lines linked to the provided line id.
-     *
-     * @param {Number} lineId The id of the line whose linked lines to return.
-     * @return {Object[]} The lines linked to the provided line id.
+     * @param {Number} lineId
+     * @return {Object[]}
      */
     getLinkedLines(lineId) {
         return this.props.lines.filter((line) => line.linked_line_id === lineId);
     }
 
     /**
-     * Return the price, in the format of the sale order currency.
-     *
-     * @param {Object} line - The line element for which to return the formatted price.
-     * @return {String} - The price, in the format of the sale order currency.
+     * @param {Object} line
+     * @return {String}
      */
     getFormattedPrice(line) {
         const linkedLines = this.getLinkedLines(line.id);

@@ -29,7 +29,9 @@
             <field name="name">Jessica Johnson</field>
             <field name="parent_id" ref="hr.employee_al" />
             <field name="job_id" ref="sale_timesheet.job_engineer" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
@@ -57,7 +59,9 @@
             <field name="name">Amy Watson</field>
             <field name="parent_id" ref="sale_timesheet.employee_jjo" />
             <field name="job_id" ref="sale_timesheet.job_interior_designer" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field name="work_location_id" ref="hr.work_location_1" />
             <field
                 name="phone_ids"
@@ -82,7 +86,9 @@
             <field name="name">Justin Smith</field>
             <field name="parent_id" ref="sale_timesheet.employee_jjo" />
             <field name="job_id" ref="sale_timesheet.job_labour" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field name="work_location_id" ref="hr.work_location_1" />
             <field
                 name="phone_ids"
@@ -99,7 +105,7 @@
             <field name="order_id" ref="sale.sale_order_3" />
             <field name="product_id" ref="sale.advance_product_0" />
             <field name="price_unit">150.0</field>
-            <field name="product_uom_qty">5.0</field>
+            <field name="product_qty">5.0</field>
         </record>
         <record
             id="account_analytic_account_project_support"
@@ -114,7 +120,7 @@
             <field name="name">After-Sales Services</field>
             <field
                 name="description">Services provided to customers who have purchased products.</field>
-            <field name="user_id" eval="" />
+            <field name="user_id" />
             <field name="account_id" ref="account_analytic_account_project_support" />
             <field name="allow_billable" eval="True" />
             <field
@@ -252,60 +258,60 @@
             <field name="user_id" ref="base.user_admin" />
             <field
                 name="tag_ids"
-                eval="[Command.link(ref('sales_team.categ_oppor6'))]" />
+                eval="[Command.link(ref('sale_team.categ_oppor6'))]" />
         </record>
         <record id="sale_line_11" model="sale.order.line">
             <field name="order_id" ref="sale_order_1" />
             <field name="sequence" eval="1" />
             <field name="product_id" ref="product_service_order_timesheet" />
-            <field name="product_uom_qty">20</field>
+            <field name="product_qty">20</field>
         </record>
         <record id="sale_line_13" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_1" />
             <field name="product_id" ref="product_service_deliver_timesheet_1" />
             <field name="sequence" eval="2" />
             <field name="discount">10</field>
-            <field name="product_uom_qty">25</field>
+            <field name="product_qty">25</field>
         </record>
         <record id="sale_line_12" model="sale.order.line">
             <field name="order_id" ref="sale_order_1" />
             <field name="sequence" eval="3" />
             <field name="product_id" ref="product_service_deliver_milestones" />
-            <field name="product_uom_qty">4</field>
+            <field name="product_qty">4</field>
         </record>
         <record id="sale_line_14" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_1" />
             <field name="product_id" ref="product_service_deliver_timesheet_1" />
             <field name="sequence" eval="2" />
             <field name="price_unit">220</field>
-            <field name="product_uom_qty">15</field>
+            <field name="product_qty">15</field>
         </record>
         <record id="sale_line_15" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_1" />
             <field name="product_id" ref="product_service_deliver_timesheet_1" />
             <field name="sequence" eval="2" />
             <field name="price_unit">230</field>
-            <field name="product_uom_qty">20</field>
+            <field name="product_qty">20</field>
         </record>
         <record id="sale_line_16" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_1" />
             <field name="product_id" ref="product_service_deliver_timesheet_2" />
             <field name="sequence" eval="2" />
             <field name="price_unit">120</field>
-            <field name="product_uom_qty">10</field>
+            <field name="product_qty">10</field>
         </record>
         <record id="sale_line_17" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_1" />
             <field name="product_id" ref="product_service_deliver_timesheet_2" />
             <field name="sequence" eval="2" />
             <field name="price_unit">110</field>
-            <field name="product_uom_qty">10</field>
+            <field name="product_qty">10</field>
         </record>
         <record id="sale_line_18" model="sale.order.line">
             <field name="order_id" ref="sale_order_1" />
             <field name="sequence" eval="3" />
             <field name="product_id" ref="product_service_deliver_manual" />
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
         </record>
         <record id="sale_order_2" model="sale.order">
             <field name="partner_id" ref="base.res_partner_4" />
@@ -313,31 +319,31 @@
             <field name="user_id" ref="base.user_admin" />
             <field
                 name="tag_ids"
-                eval="[Command.link(ref('sales_team.categ_oppor3')), Command.link(ref('sales_team.categ_oppor5'))]" />
+                eval="[Command.link(ref('sale_team.categ_oppor3')), Command.link(ref('sale_team.categ_oppor5'))]" />
         </record>
         <record id="sale_line_21" model="sale.order.line">
             <field name="order_id" ref="sale_order_2" />
             <field name="sequence" eval="1" />
             <field name="product_id" ref="product_service_order_timesheet" />
-            <field name="product_uom_qty">150</field>
+            <field name="product_qty">150</field>
         </record>
         <record id="sale_line_22" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_2" />
             <field name="sequence" eval="2" />
             <field name="product_id" ref="product_service_deliver_timesheet_2" />
-            <field name="product_uom_qty">20</field>
+            <field name="product_qty">20</field>
         </record>
         <record id="sale_line_23" model="sale.order.line">
             <field name="order_id" ref="sale_order_2" />
             <field name="sequence" eval="3" />
             <field name="product_id" ref="product_service_deliver_manual" />
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
         </record>
         <record id="sale_line_24" model="sale.order.line">
             <field name="order_id" ref="sale_order_2" />
             <field name="sequence" eval="4" />
             <field name="product_id" ref="product_service_deliver_milestones" />
-            <field name="product_uom_qty">4</field>
+            <field name="product_qty">4</field>
         </record>
         <record id="sale_order_3" model="sale.order">
             <field name="partner_id" ref="base.res_partner_2" />
@@ -345,64 +351,64 @@
             <field name="user_id" ref="base.user_admin" />
             <field
                 name="tag_ids"
-                eval="[Command.link(ref('sales_team.categ_oppor7'))]" />
+                eval="[Command.link(ref('sale_team.categ_oppor7'))]" />
         </record>
         <record id="sale_line_31" model="sale.order.line">
             <field name="order_id" ref="sale_order_3" />
             <field name="sequence" eval="1" />
             <field name="product_id" ref="product_service_order_timesheet" />
-            <field name="product_uom_qty">5</field>
+            <field name="product_qty">5</field>
         </record>
         <record id="sale_line_32" model="sale.order.line">
             <field name="order_id" ref="sale_timesheet.sale_order_3" />
             <field name="sequence" eval="2" />
             <field name="product_id" ref="product_service_deliver_timesheet_1" />
-            <field name="product_uom_qty">15</field>
+            <field name="product_qty">15</field>
         </record>
         <record id="sale_line_33" model="sale.order.line">
             <field name="order_id" ref="sale_order_3" />
             <field name="sequence" eval="3" />
             <field name="product_id" ref="product_service_deliver_manual" />
-            <field name="product_uom_qty">10</field>
+            <field name="product_qty">10</field>
         </record>
         <record id="sale_line_34" model="sale.order.line">
             <field name="order_id" ref="sale_order_2" />
             <field name="sequence" eval="4" />
             <field name="product_id" ref="product_service_deliver_milestones" />
-            <field name="product_uom_qty">14</field>
+            <field name="product_qty">14</field>
         </record>
         <record id="sale_order_4_construction" model="sale.order">
             <field name="partner_id" ref="base.res_partner_2" />
             <field name="user_id" ref="base.user_admin" />
             <field
                 name="tag_ids"
-                eval="[Command.link(ref('sales_team.categ_oppor6'))]" />
+                eval="[Command.link(ref('sale_team.categ_oppor6'))]" />
         </record>
         <record id="sale_line_construction_41" model="sale.order.line">
             <field name="order_id" ref="sale_order_4_construction" />
             <field name="sequence" eval="1" />
             <field name="product_id" ref="product_product_elevator_installation" />
-            <field name="product_uom_qty">20</field>
+            <field name="product_qty">20</field>
         </record>
         <record id="sale_line_construction_42" model="sale.order.line">
             <field name="order_id" ref="sale_order_4_construction" />
             <field name="product_id" ref="product_product_solar_installation" />
             <field name="sequence" eval="2" />
             <field name="discount">18</field>
-            <field name="product_uom_qty">10</field>
+            <field name="product_qty">10</field>
         </record>
         <record id="sale_line_construction_43" model="sale.order.line">
             <field name="order_id" ref="sale_order_4_construction" />
             <field name="sequence" eval="1" />
             <field name="product_id" ref="product_product_interior_designing" />
-            <field name="product_uom_qty">15</field>
+            <field name="product_qty">15</field>
         </record>
         <record id="sale_line_construction_44" model="sale.order.line">
             <field name="order_id" ref="sale_order_4_construction" />
             <field name="product_id" ref="product_product_roofing" />
             <field name="sequence" eval="2" />
             <field name="discount">10</field>
-            <field name="product_uom_qty">20</field>
+            <field name="product_qty">20</field>
         </record>
         <record id="sale_timesheet_activity_1" model="mail.activity">
             <field name="res_id" ref="sale_timesheet.sale_order_2" />
@@ -436,7 +442,7 @@
                 model="project.task"
                 search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_41'))]" />
             <value
-                eval="{                 'milestone_id': ref('project.project_home_construction_milestone_3'),                 'step_id': ref('project.project_stage_1'),                 'user_ids':[Command.link(ref('base.user_admin'))],                 'state': '03_approved',             }" />
+                eval="{                 'milestone_id': ref('project.project_home_construction_milestone_3'),                 'step_id': ref('project.project_stage_1'),                 'user_ids':[Command.link(ref('base.user_admin'))],                 'state': 'approved',             }" />
         </function>
         <function model="project.task" name="write">
             <value
@@ -450,14 +456,14 @@
                 model="project.task"
                 search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_43'))]" />
             <value
-                eval="{                 'milestone_id': ref('project.project_home_construction_milestone_2'),                 'step_id': ref('project.project_stage_1'),                 'user_ids':[Command.link(ref('base.user_admin'))],                 'state': '03_approved',             }" />
+                eval="{                 'milestone_id': ref('project.project_home_construction_milestone_2'),                 'step_id': ref('project.project_stage_1'),                 'user_ids':[Command.link(ref('base.user_admin'))],                 'state': 'approved',             }" />
         </function>
         <function model="project.task" name="write">
             <value
                 model="project.task"
                 search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_44'))]" />
             <value
-                eval="{                 'step_id': ref('project.project_stage_1'),                 'user_ids': [Command.link(ref('base.user_demo'))],                 'state': '03_approved',             }" />
+                eval="{                 'step_id': ref('project.project_stage_1'),                 'user_ids': [Command.link(ref('base.user_demo'))],                 'state': 'approved',             }" />
         </function>
         <record id="sale_order_1" model="sale.order">
             <field
@@ -480,7 +486,7 @@
                 name="project_id"
                 search="[('sale_line_id', '=', ref('sale_line_13'))]" />
             <field
-                name="deadline"
+                name="date_deadline"
                 eval="(datetime.now() + relativedelta(weekday=0, weeks=-1)).strftime('%Y-%m-%d')" />
         </record>
         <record id="agr_milestone_1" model="project.milestone">
@@ -514,6 +520,7 @@
                 name="project_id"
                 search="[('sale_line_id', '=', ref('sale_line_13'))]" />
             <field name="partner_id" ref="base.partner_demo_portal" />
+            <field name="access_mode">advanced_edit</field>
         </record>
         <record id="agr_task_1" model="project.task">
             <field name="name">Kitchen Assembly</field>
@@ -624,16 +631,16 @@
                 search="[('sale_line_id', '=', ref('sale_line_22'))]" />
             <value eval="{'step_id': ref('project.project_stage_1')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id.sale_line_id', '=', ref('sale_line_13')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_2')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id.sale_line_id', '=', ref('sale_line_22')), ('user_id', '=', ref('base.user_admin'))]" />
             <value eval="{'triage_id': ref('project.project_personal_stage_demo_1')}" />
         </function>
@@ -1691,7 +1698,7 @@
                 name="project_id"
                 search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]" />
             <field name="step_id" ref="project.project_stage_0" />
-            <field name="state">02_changes_requested</field>
+            <field name="state">changes_requested</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(days=4)" />
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22" />
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2" />
@@ -1787,7 +1794,7 @@
                 name="project_id"
                 search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]" />
             <field name="step_id" ref="project.project_stage_0" />
-            <field name="state">02_changes_requested</field>
+            <field name="state">changes_requested</field>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22" />
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2" />
             <field name="partner_id" ref="base.res_partner_4" />
@@ -1799,7 +1806,7 @@
                 name="project_id"
                 search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]" />
             <field name="step_id" ref="project.project_stage_0" />
-            <field name="state">02_changes_requested</field>
+            <field name="state">changes_requested</field>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22" />
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2" />
             <field name="partner_id" ref="base.res_partner_4" />
@@ -1821,76 +1828,76 @@
             <field name="res_id" ref="project_dpc_task_6" />
             <field name="partner_id" ref="base.partner_demo_portal" />
         </record>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_agr_task_3')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_1')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_agr_task_4')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_2')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_1')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_3')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_4')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_3')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_agr_task_1')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_5')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_agr_task_2')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_5')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_2')), ('user_id', '=', ref('base.user_admin'))]" />
             <value
                 eval="{'triage_id': ref('project.project_personal_stage_admin_5')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_6')), ('user_id', '=', ref('base.user_demo'))]" />
             <value eval="{'triage_id': ref('project.project_personal_stage_demo_2')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_3')), ('user_id', '=', ref('base.user_demo'))]" />
             <value eval="{'triage_id': ref('project.project_personal_stage_demo_3')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_2')), ('user_id', '=', ref('base.user_demo'))]" />
             <value eval="{'triage_id': ref('project.project_personal_stage_demo_5')}" />
         </function>
-        <function model="project.task.stage.personal" name="write">
+        <function model="project.task.triage" name="write">
             <value
-                model="project.task.stage.personal"
+                model="project.task.triage"
                 search="[('task_id', '=', ref('project_dpc_task_5')), ('user_id', '=', ref('base.user_demo'))]" />
             <value eval="{'triage_id': ref('project.project_personal_stage_demo_5')}" />
         </function>

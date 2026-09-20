@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_is_zero, formatLang
 
+from ..tools import debug_log as dbg
+
 
 class PosPayment(models.Model):
     _name = "pos.payment"
@@ -11,48 +13,61 @@ class PosPayment(models.Model):
     _order = "id desc"
     _inherit = ["mixin.pos.load"]
 
-    name = fields.Char(string="Label", readonly=True)
+    name = fields.Char(
+        string="Label",
+        readonly=True,
+    )
     pos_order_id = fields.Many2one(
-        "pos.order", string="Order", required=True, index=True, ondelete="cascade"
+        comodel_name="pos.order",
+        string="Order",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     amount = fields.Monetary(
-        string="Amount",
-        required=True,
         currency_field="currency_id",
+        required=True,
         help="Total amount of the payment.",
     )
     payment_method_id = fields.Many2one(
-        "pos.payment.method", string="Payment Method", required=True
+        comodel_name="pos.payment.method",
+        required=True,
     )
     payment_date = fields.Datetime(
         string="Date",
-        required=True,
-        readonly=True,
         default=lambda self: fields.Datetime.now(),
+        readonly=True,
+        required=True,
     )
     currency_id = fields.Many2one(
-        "res.currency", string="Currency", related="pos_order_id.currency_id"
+        comodel_name="res.currency",
+        related="pos_order_id.currency_id",
+        string="Currency",
     )
     currency_rate = fields.Float(
-        string="Conversion Rate",
         related="pos_order_id.currency_rate",
+        string="Conversion Rate",
         help="Conversion rate from company currency to order currency.",
     )
     partner_id = fields.Many2one(
-        "res.partner", string="Customer", related="pos_order_id.partner_id"
+        comodel_name="res.partner",
+        related="pos_order_id.partner_id",
+        string="Customer",
     )
     session_id = fields.Many2one(
-        "pos.session",
-        string="Session",
+        comodel_name="pos.session",
         related="pos_order_id.session_id",
-        store=True,
-        index=True,
+        string="Session",
     )
     user_id = fields.Many2one(
-        "res.users", string="Employee", related="session_id.user_id"
+        comodel_name="res.users",
+        related="session_id.user_id",
+        string="Employee",
     )
     company_id = fields.Many2one(
-        "res.company", string="Company", related="pos_order_id.company_id", store=True
+        comodel_name="res.company",
+        related="pos_order_id.company_id",
+        string="Company",
     )
     card_type = fields.Char(
         string="Type of card used",
@@ -72,12 +87,20 @@ class PosPayment(models.Model):
     payment_method_issuer_bank = fields.Char(string="Payment Issuer Bank")
     payment_method_payment_mode = fields.Char(string="Payment Mode")
     transaction_id = fields.Char(string="Payment Transaction ID")
-    payment_status = fields.Char(string="Payment Status")
+    payment_status = fields.Char()
     ticket = fields.Char(string="Payment Receipt Info")
-    is_change = fields.Boolean(string="Is this payment change?", default=False)
-    account_move_id = fields.Many2one("account.move", index="btree_not_null")
+    is_change = fields.Boolean(
+        string="Is this payment change?",
+        default=False,
+    )
+    account_move_id = fields.Many2one(
+        comodel_name="account.move",
+        index="btree_not_null",
+    )
     uuid = fields.Char(
-        string="Uuid", readonly=True, default=lambda self: str(uuid4()), copy=False
+        default=lambda self: str(uuid4()),
+        copy=False,
+        readonly=True,
     )
 
     _unique_uuid = models.Constraint(
@@ -132,6 +155,9 @@ class PosPayment(models.Model):
                 )
 
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "pos.payment.write: %s keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if {
             "amount",
             "pos_order_id",
@@ -145,6 +171,7 @@ class PosPayment(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_posted_order(self):
+        dbg.lifecycle.debug("pos.payment.unlink: %s", dbg.rec(self))
         self._check_order_is_editable()
 
     @api.constrains("payment_method_id", "pos_order_id")
@@ -160,6 +187,7 @@ class PosPayment(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _create_payment_moves(self, is_reverse=False):
         result = self.env["account.move"]
         change_payment = self.filtered(
@@ -171,15 +199,34 @@ class PosPayment(models.Model):
         payments = self
         if change_payment and payment_to_change:
             payments = self - change_payment
+        dbg.pipeline.debug(
+            "[payments] %s: reverse=%s change=%s folded into %s",
+            dbg.rec(self),
+            is_reverse,
+            dbg.rec(change_payment),
+            dbg.rec(payment_to_change),
+        )
 
         for payment in payments:
             if payment.account_move_id:
+                dbg.logic.debug(
+                    "[payments] %s already has move %s",
+                    payment.id,
+                    dbg.rec(payment.account_move_id),
+                )
                 continue
             order = payment.pos_order_id
             payment_method = payment.payment_method_id
             if payment_method.type == "pay_later" or float_is_zero(
                 payment.amount, precision_rounding=order.currency_id.rounding
             ):
+                dbg.logic.debug(
+                    "[order:%s] payment %s skipped: type=%s amount=%s",
+                    order.uuid,
+                    payment.id,
+                    payment_method.type,
+                    payment.amount,
+                )
                 continue
             accounting_partner = payment.partner_id.commercial_partner_id
             pos_session = order.session_id
@@ -254,6 +301,14 @@ class PosPayment(models.Model):
             )
             self.env["account.move.line"].create([credit_line_vals, debit_line_vals])
             payment_move._post()
+            dbg.pipeline.debug(
+                "[order:%s] payment move %s: amount=%s receivable=%s split=%s",
+                order.uuid,
+                dbg.rec(payment_move),
+                payment_amount,
+                reversed_move_receivable_account_id,
+                is_split_transaction,
+            )
         return result
 
     def _get_receivable_lines_for_invoice_reconciliation(self, receivable_account):
@@ -280,4 +335,10 @@ class PosPayment(models.Model):
                 elif currency.compare_amounts(line.balance, 0) > 0:
                     result |= line
 
+        dbg.logic.debug(
+            "[payments] %s receivable lines for reconciliation on %s: %s",
+            dbg.rec(self),
+            receivable_account.code,
+            dbg.rec(result),
+        )
         return result

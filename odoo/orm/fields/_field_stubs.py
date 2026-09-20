@@ -1,7 +1,7 @@
 import typing
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, MutableMapping
+    from collections.abc import Callable, Collection, Iterable, MutableMapping
 
     from odoo.tools import Query
 
@@ -42,6 +42,7 @@ class _FieldStubs:
         search: typing.Any
         falsy_value_label: str | None
         description_attrs: tuple[tuple[str, str], ...]
+        description_props: dict[str, str]
         related_attrs: tuple[tuple[str, str], ...]
         _explicit: bool
 
@@ -67,12 +68,18 @@ class _FieldStubs:
         definition_record_field: str | None
 
         def __get__(
-            self, records: typing.Any, owner: typing.Any = None
+            self, record: typing.Any, owner: typing.Any = None
         ) -> typing.Any: ...
 
         def _update_inverse(self, records: BaseModel, value: BaseModel) -> None: ...
 
-        def _update_inverses(self, records: BaseModel, value: typing.Any) -> None: ...
+        def _evict_user_scopes_reading_through(
+            self, env: Environment, fnames: Collection[str]
+        ) -> None: ...
+
+        def _update_inverses(
+            self, updates: Iterable[tuple[BaseModel, typing.Any]]
+        ) -> None: ...
 
         model_field: str | None
 

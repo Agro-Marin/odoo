@@ -4,6 +4,7 @@ import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 import { cleanTerm } from "@mail/utils/common/format";
 import { toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
 
@@ -29,6 +30,8 @@ function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
 }
 
 /** @typedef {import("@web/components/emoji_picker/emoji_picker").Emoji} Emoji */
+const log = makeLogger("mail.suggestion");
+
 /** @typedef {import("@mail/core/common/suggestion_hook").Suggestion} Suggestion */
 export class SuggestionService {
     /**
@@ -62,6 +65,11 @@ export class SuggestionService {
      */
     async fetchSuggestions({ delimiter, term }, { thread, abortSignal } = {}) {
         const cleanedSearchTerm = cleanTerm(term);
+        log.pipeline("fetchSuggestions", () => ({
+            delimiter,
+            term: cleanedSearchTerm,
+            thread: thread?.localId,
+        }));
         switch (delimiter) {
             case "@":
                 await this.fetchPartnersRoles(cleanedSearchTerm, thread, {
@@ -92,21 +100,17 @@ export class SuggestionService {
      * @returns {Promise<any>}
      */
     makeOrmCall(model, method, args, kwargs, { abortSignal } = {}) {
-        return new Promise((res, rej) => {
-            /** @type {Promise<any> & {abort?: () => void}} */
-            const req = this.orm.silent.call(model, method, args, kwargs);
-            const onAbort = () => {
-                try {
-                    req.abort();
-                } catch (e) {
-                    rej(e);
-                }
-            };
-            abortSignal?.addEventListener("abort", onAbort);
-            req.then(res)
-                .catch(rej)
-                .finally(() => abortSignal?.removeEventListener("abort", onAbort));
-        });
+        /** @type {Promise<any> & {abort?: () => void}} */
+        const req = this.orm.silent.call(model, method, args, kwargs);
+        if (!abortSignal) {
+            return req;
+        }
+        const onAbort = () => {
+            log.logic("makeOrmCall aborted", () => ({ model, method }));
+            req.abort?.();
+        };
+        abortSignal.addEventListener("abort", onAbort, { once: true });
+        return req.finally(() => abortSignal.removeEventListener("abort", onAbort));
     }
     /**
      * @param {string} term
@@ -120,6 +124,7 @@ export class SuggestionService {
         if (thread?.isChannelKind) {
             kwargs.channel_id = Number(thread.id);
         }
+        const endFetch = log.perf("fetchPartnersRoles");
         const data = await this.makeOrmCall(
             "res.partner",
             thread?.isChannelKind
@@ -129,6 +134,7 @@ export class SuggestionService {
             kwargs,
             { abortSignal },
         );
+        endFetch({ term, models: Object.keys(data || {}) });
         this.store.insert(data);
     }
 
@@ -138,6 +144,7 @@ export class SuggestionService {
      * @param {AbortSignal} [options.abortSignal]
      */
     async fetchThreads(term, { abortSignal } = {}) {
+        const endFetch = log.perf("fetchThreads");
         const data = await this.makeOrmCall(
             "discuss.channel",
             "get_mention_suggestions",
@@ -145,6 +152,7 @@ export class SuggestionService {
             { search: term },
             { abortSignal },
         );
+        endFetch({ term, models: Object.keys(data || {}) });
         this.store.insert(data);
     }
 
@@ -202,6 +210,11 @@ export class SuggestionService {
     searchSuggestions({ delimiter, term }, { thread } = {}) {
         thread = toRaw(thread);
         const cleanedSearchTerm = cleanTerm(term);
+        log.logic("searchSuggestions", () => ({
+            delimiter,
+            term: cleanedSearchTerm,
+            thread: thread?.localId,
+        }));
         switch (delimiter) {
             case "@": {
                 const partners = this.searchPartnerSuggestions(
@@ -253,8 +266,7 @@ export class SuggestionService {
      */
     isSuggestionValid(partner, thread) {
         return (
-            (this.store.self_partner?.main_user_id?.share === false ||
-                partner.mention_token) &&
+            (this.store.selfIsInternalUser || partner.mention_token) &&
             partner.notEq(this.store.odoobot)
         );
     }

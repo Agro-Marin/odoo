@@ -5,6 +5,7 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.account.models.account_report import (
     ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
@@ -21,6 +22,8 @@ from odoo.addons.account.models.account_report import (
     SUM_CHILDREN_FORMULA,
 )
 
+_debug = DebugLog(__name__)
+
 
 class AccountReportExpression(models.Model):
     _name = "account.report.expression"
@@ -28,18 +31,20 @@ class AccountReportExpression(models.Model):
     _rec_name = "report_line_name"
 
     report_line_id = fields.Many2one(
-        string="Report Line",
         comodel_name="account.report.line",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     report_line_name = fields.Char(
-        string="Report Line Name", related="report_line_id.name"
+        related="report_line_id.name",
+        string="Report Line Name",
     )
-    label = fields.Char(string="Label", required=True, copy=True)
+    label = fields.Char(
+        copy=True,
+        required=True,
+    )
     engine = fields.Selection(
-        string="Computation Engine",
         selection=[
             ("domain", "Odoo Domain"),
             ("tax_tags", "Tax Tags"),
@@ -48,12 +53,12 @@ class AccountReportExpression(models.Model):
             ("external", "External Value"),
             ("custom", "Custom Python Function"),
         ],
+        string="Computation Engine",
         required=True,
     )
-    formula = fields.Char(string="Formula", required=True)
-    subformula = fields.Char(string="Subformula")
+    formula = fields.Char(required=True)
+    subformula = fields.Char()
     date_scope = fields.Selection(
-        string="Date Scope",
         selection=[
             ("from_beginning", "From the very start"),
             ("from_fiscalyear", "From the start of the fiscal year"),
@@ -62,21 +67,22 @@ class AccountReportExpression(models.Model):
             ("strict_range", "Strictly on the given dates"),
             ("previous_return_period", "From previous return period"),
         ],
-        required=True,
         default="strict_range",
+        required=True,
     )
-    figure_type = fields.Selection(
-        string="Figure Type", selection=FIGURE_TYPE_SELECTION_VALUES
-    )
+    figure_type = fields.Selection(selection=FIGURE_TYPE_SELECTION_VALUES)
     green_on_positive = fields.Boolean(
-        string="Is Growth Good when Positive", default=True
+        string="Is Growth Good when Positive",
+        default=True,
     )
     blank_if_zero = fields.Boolean(
         string="Blank if Zero",
         help="When checked, 0 values will not show when displaying this expression's value.",
     )
     auditable = fields.Boolean(
-        string="Auditable", store=True, readonly=False, compute="_compute_auditable"
+        compute="_compute_auditable",
+        store=True,
+        readonly=False,
     )
 
     carryover_target = fields.Char(
@@ -95,6 +101,7 @@ class AccountReportExpression(models.Model):
     )
 
     @api.constrains("label")
+    @_debug.perf.timed
     def _check_label(self):
         for expression in self:
             if REFERENCE_UNSAFE_CHARS_REGEX.search(expression.label or ""):
@@ -109,11 +116,18 @@ class AccountReportExpression(models.Model):
                 )
 
     @api.constrains("carryover_target", "label")
+    @_debug.perf.timed
     def _check_carryover_target(self):
         for expression in self:
             if not expression.carryover_target:
                 continue
             if not expression.label.startswith("_carryover_"):
+                _debug.logic(
+                    "carryover_target_rejected",
+                    expression=expression,
+                    label=expression.label,
+                    reason="label_prefix",
+                )
                 raise ValidationError(
                     _(
                         "You cannot use the field carryover_target in an expression that does not have the label starting with _carryover_"
@@ -121,6 +135,11 @@ class AccountReportExpression(models.Model):
                 )
             _line_code, target_label = expression._parse_carryover_target()
             if not target_label.startswith("_applied_carryover_"):
+                _debug.logic(
+                    "carryover_target_label_rejected",
+                    expression=expression,
+                    target_label=target_label,
+                )
                 raise ValidationError(
                     _(
                         "When targeting an expression for carryover, the label of that expression must start with _applied_carryover_"
@@ -142,6 +161,7 @@ class AccountReportExpression(models.Model):
         return parts[0], parts[1]
 
     @api.constrains("formula")
+    @_debug.perf.timed
     def _check_formula(self):
         def raise_formula_error(expression, cause=None):
             raise ValidationError(
@@ -154,6 +174,15 @@ class AccountReportExpression(models.Model):
             ) from cause
 
         expressions_by_engine = self.grouped("engine")
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "formulas_checked",
+                records=self,
+                per_engine={
+                    engine: len(exprs)
+                    for engine, exprs in expressions_by_engine.items()
+                },
+            )
         for expression in expressions_by_engine.get("domain", []):
             try:
                 domain = ast.literal_eval(expression.formula)
@@ -182,6 +211,7 @@ class AccountReportExpression(models.Model):
             expression.auditable = expression.engine in auditable_engines
 
     @api.constrains("engine", "report_line_id")
+    @_debug.perf.timed
     def _check_engine(self):
         for expression in self:
             if expression.engine in ("aggregation", "external") and (
@@ -219,6 +249,7 @@ class AccountReportExpression(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _search_tax_tags(self, tag_keys):
         tag_model = self.env["account.account.tag"]
         if not tag_keys:
@@ -230,6 +261,7 @@ class AccountReportExpression(models.Model):
             )
         )
 
+    @_debug.perf.timed
     def _create_missing_tax_tags(self, formula_override=None):
         wanted_keys = set()
         for expression in self:
@@ -245,13 +277,29 @@ class AccountReportExpression(models.Model):
             for tag_name, country_id in sorted(
                 wanted_keys - existing_keys, key=lambda key: (key[0], key[1] or 0)
             )
-            for tag_vals in self._get_tags_create_vals(tag_name, country_id)
+            for tag_vals in self._prepare_tag_vals(tag_name, country_id)
         ]
+        _debug.pipeline(
+            "missing_tax_tags_resolved",
+            expressions=self,
+            wanted=len(wanted_keys),
+            existing=len(existing_keys),
+            to_create=len(tags_create_vals),
+            formula_override=bool(formula_override),
+        )
         if tags_create_vals:
             self.env["account.account.tag"].create(tags_create_vals)
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         for vals in vals_list:
             self._strip_formula_vals(vals)
 
@@ -259,10 +307,19 @@ class AccountReportExpression(models.Model):
         result.filtered(lambda x: x.engine == "tax_tags")._create_missing_tax_tags()
         return result
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         self._strip_formula_vals(vals)
 
         tax_tags_expressions = self.filtered(lambda x: x.engine == "tax_tags")
+        _debug.logic(
+            "tax_tags_engine_change",
+            records=self,
+            tax_tags_expressions=tax_tags_expressions,
+            new_engine=vals.get("engine"),
+            formula_changed="formula" in vals,
+        )
 
         if vals.get("engine") == "tax_tags":
             (self - tax_tags_expressions)._create_missing_tax_tags(
@@ -275,6 +332,9 @@ class AccountReportExpression(models.Model):
         if "formula" not in vals or (
             vals.get("engine") and vals["engine"] != "tax_tags"
         ):
+            _debug.logic(
+                "tag_rename_skipped", records=self, reason="no_tax_tags_formula"
+            )
             return super().write(vals)
 
         former_formulas_by_country = defaultdict(list)
@@ -288,6 +348,13 @@ class AccountReportExpression(models.Model):
         tag_model = self.env["account.account.tag"]
         for country, former_formulas_list in former_formulas_by_country.items():
             new_tag_exists = bool(tag_model._get_tax_tags(new_formula, country.id))
+            _debug.logic(
+                "tag_rename_country",
+                records=self,
+                country=country,
+                new_tag_exists=new_tag_exists,
+                former_formulas=len(former_formulas_list),
+            )
             for former_formula in former_formulas_list:
                 if new_tag_exists:
                     break
@@ -299,21 +366,32 @@ class AccountReportExpression(models.Model):
                     former_tax_tags._update_field_translations(
                         "name", {"en_US": new_formula.lstrip("-")}
                     )
-                else:
-                    tag_model.create(
-                        self._get_tags_create_vals(new_formula, country.id)
+                    _debug.logic(
+                        "former_tag_renamed", records=self, tags=former_tax_tags
                     )
+                else:
+                    _debug.logic(
+                        "new_tag_created",
+                        records=self,
+                        country=country,
+                        shared_former_tags=former_tax_tags,
+                    )
+                    tag_model.create(self._prepare_tag_vals(new_formula, country.id))
                 new_tag_exists = True
 
         return result
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_archive_used_tags(self):
+        _debug.lifecycle("_unlink_archive_used_tags", records=self)
         self._release_tax_tags()
 
+    @_debug.perf.timed
     def _release_tax_tags(self):
         expressions_tags = self._get_matching_tags().with_context(lang="en_US")
         if not expressions_tags:
+            _debug.logic("tag_release_skipped", records=self, reason="no_matching_tags")
             return
 
         still_referenced_keys = {
@@ -325,6 +403,12 @@ class AccountReportExpression(models.Model):
             lambda tag: (tag.name, tag.country_id.id) not in still_referenced_keys
         )
         if not orphan_tags:
+            _debug.logic(
+                "tag_release_skipped",
+                records=self,
+                reason="all_tags_still_referenced",
+                tags=expressions_tags,
+            )
             return
 
         tags_used_by_aml_ids = {
@@ -348,6 +432,14 @@ class AccountReportExpression(models.Model):
         rep_lines_with_tag.write(
             {"tag_ids": [Command.unlink(tag.id) for tag in orphan_tags]}
         )
+        _debug.pipeline(
+            "tags_released",
+            records=self,
+            orphan_tags=orphan_tags,
+            archived=tags_to_archive,
+            unlinked=tags_to_unlink,
+            repartition_lines=rep_lines_with_tag,
+        )
         tags_to_archive.active = False
         tags_to_unlink.unlink()
 
@@ -356,6 +448,7 @@ class AccountReportExpression(models.Model):
         for expr in self:
             expr.display_name = f"{expr.report_line_name} [{expr.label}]"
 
+    @_debug.perf.timed
     def _expand_aggregations(self):
         result = self
 
@@ -377,6 +470,11 @@ class AccountReportExpression(models.Model):
                         and candidate_expr.subformula.startswith("cross_report")
                     ):
                         report_id = candidate_expr._get_cross_report_id()
+                        _debug.logic(
+                            "cross_report_dependency",
+                            expression=candidate_expr,
+                            report_id=report_id,
+                        )
                     else:
                         report_id = candidate_expr.report_line_id.report_id.id
                     cross_report_domain = [("report_line_id.report_id", "=", report_id)]
@@ -400,9 +498,18 @@ class AccountReportExpression(models.Model):
                 )
             )
             result |= sub_expressions
+            _debug.pipeline(
+                "aggregation_pass",
+                records=self,
+                domains=len(domains),
+                sub_expressions=len(sub_expressions),
+                to_expand=len(to_expand),
+            )
 
+        _debug.pipeline("aggregations_expanded", records=self, result=len(result))
         return result
 
+    @_debug.perf.timed
     def _get_cross_report_id(self):
         self.check_singleton()
         error_context = {
@@ -432,6 +539,13 @@ class AccountReportExpression(models.Model):
             if target_report and target_report._name != "account.report":
                 target_report = None
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "cross_report_resolved",
+                expression=self,
+                by_id=cross_report_value.isdigit(),
+                target_report=target_report,
+            )
         if not target_report:
             raise UserError(
                 _(
@@ -458,6 +572,11 @@ class AccountReportExpression(models.Model):
         totals_by_code = defaultdict(set)
         for expression in self:
             if expression.engine != "aggregation":
+                _debug.logic(
+                    "aggregation_details_rejected",
+                    expression=expression,
+                    engine=expression.engine,
+                )
                 raise UserError(
                     _(
                         "Cannot get aggregation details from a line not using 'aggregation' engine"
@@ -480,6 +599,9 @@ class AccountReportExpression(models.Model):
                         if_other_expr_match["expr_label"]
                     )
 
+        _debug.pipeline(
+            "aggregation_terms_collected", expressions=self, codes=len(totals_by_code)
+        )
         return totals_by_code
 
     def _get_matching_tags(self):
@@ -492,7 +614,7 @@ class AccountReportExpression(models.Model):
         )
 
     @api.model
-    def _get_tags_create_vals(self, tag_name, country_id):
+    def _prepare_tag_vals(self, tag_name, country_id):
         return [
             {
                 "name": tag_name.lstrip("-"),
@@ -506,6 +628,12 @@ class AccountReportExpression(models.Model):
 
         if self.carryover_target:
             line_code, expr_label = self._parse_carryover_target()
+            _debug.logic(
+                "carryover_target_explicit",
+                expression=self,
+                line_code=line_code,
+                expr_label=expr_label,
+            )
             return self.env["account.report.expression"].search(
                 [
                     ("report_line_id.code", "=", line_code),
@@ -522,6 +650,9 @@ class AccountReportExpression(models.Model):
         )
 
         if not auto_chosen_target:
+            _debug.logic(
+                "carryover_target_not_found", expression=self, target_label=target_label
+            )
             raise UserError(
                 _(
                     "Could not determine carryover target automatically for expression %s.",
@@ -529,4 +660,7 @@ class AccountReportExpression(models.Model):
                 )
             )
 
+        _debug.logic(
+            "carryover_target_auto", expression=self, target=auto_chosen_target
+        )
         return auto_chosen_target

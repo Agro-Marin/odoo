@@ -10,6 +10,7 @@ from odoo.libs.barcode import is_barcode_encoding_valid
 from odoo.tools.mail import html2plaintext, is_html_empty
 from odoo.tools.translate import LazyTranslate
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import TEMPLATE_STOCK_FLAGS
 
 _logger = logging.getLogger(__name__)
@@ -53,9 +54,9 @@ class ProductProduct(models.Model):
         string="Quantity On Hand",
         min_display_digits="Product Unit",
         compute="_compute_quantities",
-        compute_sudo=False,
         inverse="_inverse_qty_available",
         search="_search_qty_available",
+        compute_sudo=False,
         help="Current quantity of products.\n"
         "In a context with a single Stock Location, this includes "
         "goods stored at this Location, or any of its children.\n"
@@ -69,8 +70,8 @@ class ProductProduct(models.Model):
         string="Forecasted Quantity",
         min_display_digits="Product Unit",
         compute="_compute_quantities",
-        compute_sudo=False,
         search="_search_qty_available_virtual",
+        compute_sudo=False,
         help="Forecast quantity (computed as Quantity On Hand "
         "- Outgoing + Incoming)\n"
         "In a context with a single Stock Location, this includes "
@@ -85,8 +86,8 @@ class ProductProduct(models.Model):
         string="Free To Use Quantity",
         min_display_digits="Product Unit",
         compute="_compute_quantities",
-        compute_sudo=False,
         search="_search_qty_free",
+        compute_sudo=False,
         help="Available quantity (computed as Quantity On Hand "
         "- reserved quantity)\n"
         "In a context with a single Stock Location, this includes "
@@ -101,8 +102,8 @@ class ProductProduct(models.Model):
         string="Incoming",
         min_display_digits="Product Unit",
         compute="_compute_quantities",
-        compute_sudo=False,
         search="_search_qty_incoming",
+        compute_sudo=False,
         help="Quantity of planned incoming products.\n"
         "In a context with a single Stock Location, this includes "
         "goods arriving to this Location, or any of its children.\n"
@@ -116,8 +117,8 @@ class ProductProduct(models.Model):
         string="Outgoing",
         min_display_digits="Product Unit",
         compute="_compute_quantities",
-        compute_sudo=False,
         search="_search_qty_outgoing",
+        compute_sudo=False,
         help="Quantity of planned outgoing products.\n"
         "In a context with a single Stock Location, this includes "
         "goods leaving this Location, or any of its children.\n"
@@ -164,41 +165,52 @@ class ProductProduct(models.Model):
     storage_category_capacity_ids = fields.One2many(
         comodel_name="stock.storage.category.capacity",
         inverse_name="product_id",
-        string="Storage Category Capacity",
     )
     show_on_hand_qty_status_button = fields.Boolean(
-        related="product_tmpl_id.show_on_hand_qty_status_button",
+        related="product_tmpl_id.show_on_hand_qty_status_button"
     )
     show_forecasted_qty_status_button = fields.Boolean(
-        related="product_tmpl_id.show_forecasted_qty_status_button",
+        related="product_tmpl_id.show_forecasted_qty_status_button"
     )
-    show_qty_update_button = fields.Boolean(
-        compute="_compute_show_qty_update_button",
-    )
+    show_qty_update_button = fields.Boolean(compute="_compute_show_qty_update_button")
     valid_ean = fields.Boolean(
         string="Barcode is valid EAN",
         compute="_compute_valid_ean",
     )
-    lot_properties_definition = fields.PropertiesDefinition("Lot Properties")
+    lot_properties_definition = fields.PropertiesDefinition(string="Lot Properties")
     lot_ids = fields.One2many(
         comodel_name="stock.lot",
         inverse_name="product_id",
         string="Lot/Serial Numbers",
     )
     count_lot_ids = fields.Integer(
-        compute="_compute_count_lot_ids",
         string="Lots Count",
+        compute="_compute_count_lot_ids",
     )
 
+    @dbg.timed
     def write(self, vals):
         flags = {name: vals[name] for name in TEMPLATE_STOCK_FLAGS if name in vals}
+        if flags:
+            dbg.lifecycle.debug(
+                "product.write on %s: stock flags %s", dbg.rec(self), dbg.keys(flags)
+            )
         if len(flags) > 1:
             vals = {name: value for name, value in vals.items() if name not in flags}
             self.product_tmpl_id.write(flags)
         if "active" in vals:
-            self.filtered(lambda p: p.active != vals["active"]).with_context(
-                active_test=False
-            ).orderpoint_ids.write({"active": vals["active"]})
+            orderpoints = (
+                self.filtered(lambda p: p.active != vals["active"])
+                .with_context(active_test=False)
+                .orderpoint_ids
+            )
+            if orderpoints:
+                dbg.lifecycle.debug(
+                    "product.write: active=%s cascades to orderpoints %s",
+                    vals["active"],
+                    dbg.rec(orderpoints),
+                )
+            orderpoints.write({"active": vals["active"]})
         return super().write(vals)
 
     @api.model
@@ -498,13 +510,33 @@ class ProductProduct(models.Model):
                 ),
             )
         if not rule:
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: chain ends, %s",
+                self.id,
+                location.id,
+                dbg.rec(seen_rules),
+            )
             return seen_rules
         if rule.procure_method == "make_to_stock" or rule.action not in (
             "pull_push",
             "pull",
         ):
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: rule %s (%s) terminates chain",
+                self.id,
+                location.id,
+                rule.id,
+                rule.procure_method,
+            )
             return seen_rules | rule
         else:
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: rule %s -> follow to %s",
+                self.id,
+                location.id,
+                rule.id,
+                rule.location_src_id.id,
+            )
             return self._get_rules_from_location(
                 rule.location_src_id,
                 route_ids=route_ids,
@@ -527,6 +559,7 @@ class ProductProduct(models.Model):
         return 0.0
 
     def _update_uom(self, to_uom_id):
+        dbg.lifecycle.debug("_update_uom on %s -> uom %s", dbg.rec(self), to_uom_id)
         self._restamp_uom("stock.move", to_uom_id)
         self._restamp_uom("stock.move.line", to_uom_id)
         return super()._update_uom(to_uom_id)
@@ -541,6 +574,11 @@ class ProductProduct(models.Model):
             self.env["stock.move"]._read_group(domain, ["product_id"]),
         )
         linked_product_ids = {product.id for groups in grouped for [product] in groups}
+        if linked_product_ids:
+            dbg.logic.debug(
+                "_filtered_to_unlink: products %s have stock data, kept",
+                sorted(linked_product_ids),
+            )
         return super(
             ProductProduct, self - self.browse(linked_product_ids)
         )._filtered_to_unlink()

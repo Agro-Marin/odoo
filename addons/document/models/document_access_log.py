@@ -1,5 +1,8 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class DocumentsAccessLog(models.Model):
@@ -9,25 +12,28 @@ class DocumentsAccessLog(models.Model):
     _log_access = False
 
     document_id = fields.Many2one(
-        "document.document",
-        required=True,
+        comodel_name="document.document",
         index=True,
-        ondelete="cascade",
         readonly=True,
+        required=True,
+        ondelete="cascade",
     )
     partner_id = fields.Many2one(
-        "res.partner",
-        required=True,
+        comodel_name="res.partner",
         index=True,
-        ondelete="cascade",
         readonly=True,
+        required=True,
+        ondelete="cascade",
     )
     action = fields.Selection(
-        [("view", "Viewed"), ("download", "Downloaded")],
-        required=True,
+        selection=[("view", "Viewed"), ("download", "Downloaded")],
         readonly=True,
+        required=True,
     )
-    access_date = fields.Datetime(required=True, readonly=True)
+    access_date = fields.Datetime(
+        readonly=True,
+        required=True,
+    )
 
     _document_date_idx = models.Index("(document_id, access_date DESC)")
 
@@ -68,6 +74,13 @@ class DocumentsAccessLog(models.Model):
                 cutoff=fields.Datetime.subtract(now, seconds=window),
             )
         )
+        _debug.perf.count(
+            "access_logged",
+            action=action,
+            documents=documents,
+            rows=self.env.cr.rowcount,
+            window=window,
+        )
 
     @api.model
     def _retention_days(self) -> int:
@@ -96,5 +109,8 @@ class DocumentsAccessLog(models.Model):
             limit=limit,
         )
         removed = len(expired)
+        _debug.lifecycle(
+            "access_log_gc", removed=removed, retention_days=retention_days
+        )
         expired.unlink()
         return removed, removed == limit

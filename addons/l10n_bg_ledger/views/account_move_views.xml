@@ -8,12 +8,12 @@
         <field name="arch" type="xml">
             <xpath expr="//group[@name='sale_info_group']" position="after">
                 <group
-                    string="Bulgaria VAT Document"
                     name="l10n_bg_documents"
+                    string="Bulgaria VAT Document"
                     invisible="country_code != 'BG'">
-                    <field string="Document Type" name="l10n_bg_document_type" />
-                    <field string="Document Number" name="l10n_bg_document_number" />
-                    <field string="Exemption reason" name="l10n_bg_exemption_reason" />
+                    <field name="l10n_bg_document_type" string="Document Type" />
+                    <field name="l10n_bg_document_number" string="Document Number" />
+                    <field name="l10n_bg_exemption_reason" string="Exemption reason" />
                 </group>
             </xpath>
         </field>
@@ -26,12 +26,12 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='name']" position="after">
                 <field
-                    string="Document Number"
                     name="l10n_bg_document_number"
+                    string="Document Number"
                     optional="show" />
                 <field
-                    string="Document Type"
                     name="l10n_bg_document_type"
+                    string="Document Type"
                     optional="show" />
             </xpath>
         </field>
@@ -44,8 +44,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='group_by_company']" position="after">
                 <filter
-                    string="Document Type"
                     name="l10n_bg_document_type_groupby"
+                    string="Document Type"
                     context="{'group_by': 'l10n_bg_document_type'}" />
             </xpath>
         </field>

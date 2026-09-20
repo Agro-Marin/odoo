@@ -6,10 +6,12 @@ from odoo.service import _threaded
 from odoo.service import settings as server_settings
 from odoo.service._cron import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
+from .conftest import threaded_server
+
 
 @pytest.fixture
 def server():
-    obj = object.__new__(_threaded.ThreadedServer)
+    obj = threaded_server()
     obj.logger = MagicMock()
     return obj
 
@@ -61,23 +63,34 @@ class TestEachListenerIsWiredToItsOwnQueue:
         assert cron["process_jobs"] != job["process_jobs"]
         assert cron["label"] != job["label"]
 
-    def test_the_label_is_what_selects_the_recycle_age(self, server):
-        """`_run_listener_thread` branches on `label == "job"` and nothing else.
+    def test_each_spawner_hands_over_its_own_recycle_age(self, server):
+        """The recycle age is an argument, so the label is cosmetic.
 
-        So the label is not cosmetic: it decides whether the thread recycles on
-        `get_job_max_age()` or on `limit_time_worker_cron`.
+        A cron thread recycles on `limit_time_worker_cron`; a job thread on
+        `job_max_age`, which inherits the cron value only while its own is
+        unset.
         """
-        import inspect
+        with server_settings.override(
+            limit_time_worker_cron=300, limit_time_worker_job=45
+        ):
+            _, cron = self._call(server, "run_cron_thread")
+            _, job = self._call(server, "run_job_thread")
+        assert cron["max_age"] == 300
+        assert job["max_age"] == 45
 
-        source = inspect.getsource(_threaded.ThreadedServer._run_listener_thread)
-        assert 'label == "job"' in source
+        with server_settings.override(
+            limit_time_worker_cron=300,
+            limit_time_worker_job=server_settings.INHERIT_FROM_CRON,
+        ):
+            _, job = self._call(server, "run_job_thread")
+        assert job["max_age"] == 300
 
 
 class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
     """`check_limits` reads `thread.type` to choose the real-time budget.
 
-    A thread typed "cron" is measured against `get_cron_real_time_budget()`, "job"
-    against `get_job_real_time_budget()`, anything else against `limit_time_real`.
+    A thread typed "cron" is measured against `settings.cron_real_time_budget`, "job"
+    against `settings.job_real_time_budget`, anything else against `limit_time_real`.
     Mistype a thread and it is recycled on the wrong deadline -- and the deadline
     is the thing that restarts the whole server.
     """
@@ -132,16 +145,24 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
         assert self._spawn(server, "spawn_cron_threads", cfg) == []
         assert self._spawn(server, "spawn_job_threads", cfg) == []
 
-    def test_the_types_are_the_ones_check_limits_actually_branches_on(self):
+    def test_the_types_are_the_ones_the_settings_budget_answers_for(self):
         """A typo in either string is silent: the thread falls to the default.
 
-        `check_limits` matches these against `_TIME_LIMITED_THREAD_TYPES` and then
-        against the literals "job" and "cron"; an unrecognised type is simply
-        measured against `limit_time_real` instead.
+        `check_limits` matches these against `_TIME_LIMITED_THREAD_TYPES` and
+        asks `ServerSettings.get_real_time_budget` for the budget; an
+        unrecognised type is simply measured against `limit_time_real`.
         """
         assert set(_threaded._TIME_LIMITED_THREAD_TYPES) >= {"cron", "job"}
-        import inspect
-
-        source = inspect.getsource(_threaded.ThreadedServer.check_limits)
-        assert 'thread_type == "job"' in source
-        assert 'thread_type == "cron"' in source
+        settings = server_settings.ServerSettings(
+            limit_time_real=120, limit_time_real_cron=300, limit_time_real_job=45
+        )
+        assert settings.get_real_time_budget("http") == 120
+        assert settings.get_real_time_budget("cron") == 300
+        assert settings.get_real_time_budget("job") == 45
+        assert settings.get_real_time_budget("websocket") == 120
+        assert (
+            server_settings.ServerSettings(limit_time_real=-1).get_real_time_budget(
+                "http"
+            )
+            == 0
+        )

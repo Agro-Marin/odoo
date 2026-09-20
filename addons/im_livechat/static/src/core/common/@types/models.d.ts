@@ -69,6 +69,7 @@ declare module "models" {
         chatbot: Chatbot;
         composerDisabled: Readonly<boolean>;
         composerDisabledText: Readonly<string>;
+        isLivechat: Readonly<boolean>;
         livechat_conversation_tag_ids: LivechatConversationTag[];
         livechat_end_dt: import("luxon").DateTime;
         livechat_operator_id: ResPartner;

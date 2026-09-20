@@ -6,6 +6,7 @@ from typing import Any, Literal, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import MissingError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _tracking_sort_key(
@@ -39,36 +41,42 @@ class MailTrackingValue(models.Model):
     _order = "id DESC"
 
     field_id: IrModelFields = fields.Many2one(
-        "ir.model.fields",
-        required=False,
-        readonly=True,
+        comodel_name="ir.model.fields",
         index=True,
+        readonly=True,
+        required=False,
         ondelete="set null",
     )
-    field_info = fields.Json("Removed field information")
+    field_info = fields.Json(string="Removed field information")
 
-    old_value_integer = fields.Integer("Old Value Integer", readonly=True)
-    old_value_float = fields.Float("Old Value Float", readonly=True)
-    old_value_char = fields.Char("Old Value Char", readonly=True)
-    old_value_text = fields.Text("Old Value Text", readonly=True)
-    old_value_datetime = fields.Datetime("Old Value DateTime", readonly=True)
+    old_value_integer = fields.Integer(readonly=True)
+    old_value_float = fields.Float(readonly=True)
+    old_value_char = fields.Char(readonly=True)
+    old_value_text = fields.Text(readonly=True)
+    old_value_datetime = fields.Datetime(
+        string="Old Value DateTime",
+        readonly=True,
+    )
 
-    new_value_integer = fields.Integer("New Value Integer", readonly=True)
-    new_value_float = fields.Float("New Value Float", readonly=True)
-    new_value_char = fields.Char("New Value Char", readonly=True)
-    new_value_text = fields.Text("New Value Text", readonly=True)
-    new_value_datetime = fields.Datetime("New Value Datetime", readonly=True)
+    new_value_integer = fields.Integer(readonly=True)
+    new_value_float = fields.Float(readonly=True)
+    new_value_char = fields.Char(readonly=True)
+    new_value_text = fields.Text(readonly=True)
+    new_value_datetime = fields.Datetime(readonly=True)
 
     currency_id: ResCurrency = fields.Many2one(
-        "res.currency",
-        "Currency",
+        comodel_name="res.currency",
         readonly=True,
         ondelete="set null",
         help="Used to display the currency when tracking monetary values",
     )
 
     mail_message_id: MailMessage = fields.Many2one(
-        "mail.message", "Message ID", required=True, index=True, ondelete="cascade"
+        comodel_name="mail.message",
+        string="Message ID",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
 
     def _filtered_has_field_access(self, env: Environment) -> Self:
@@ -81,7 +89,15 @@ class MailTrackingValue(models.Model):
                 model._has_field_access(model_field, "read") if model_field else False
             )
 
-        return self.filtered(has_field_access)
+        accessible = self.filtered(has_field_access)
+        if _debug.logic.enabled and len(accessible) != len(self):
+            _debug.logic(
+                "tracking_values_hidden",
+                asked=len(self),
+                hidden=len(self) - len(accessible),
+                uid=env.uid,
+            )
+        return accessible
 
     def _filtered_free_field_access(self) -> Self:
         def has_free_access(tracking: MailTrackingValue) -> bool:
@@ -105,6 +121,7 @@ class MailTrackingValue(models.Model):
     ) -> dict:
         field = self.env["ir.model.fields"]._get(record._name, col_name)
         if not field:
+            _debug.logic("tracking_field_unknown", model=record._name, field=col_name)
             raise ValueError(f"Unknown field {col_name} on model {record._name}")
 
         col_type = col_info["type"]
@@ -261,6 +278,9 @@ class MailTrackingValue(models.Model):
         formatted = []
         for model, ids in model_ids.items():
             formatted += self.browse(ids)._tracking_value_format_model(model)
+        _debug.perf.count(
+            "tracking_values_formatted", values=len(self), models=len(model_ids)
+        )
         return formatted
 
     def _tracking_value_format_model(self, model: str | Literal[False]) -> list:

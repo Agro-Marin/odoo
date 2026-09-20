@@ -4,8 +4,11 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 
 EXPIRING_SOON_DAYS = 30
+
+_debug = DebugLog(__name__)
 
 
 class DocumentDocument(models.Model):
@@ -17,22 +20,16 @@ class DocumentDocument(models.Model):
         help="What kind of document this is. The type decides which attributes "
         "apply, starting with whether the document expires",
     )
-    has_expiration = fields.Boolean(
-        related="document_type_id.has_expiration",
-    )
+    has_expiration = fields.Boolean(related="document_type_id.has_expiration")
     legal_number = fields.Char(
-        help="Official registration, license, or identification number for this document",
+        help="Official registration, license, or identification number for this document"
     )
     issuer_id = fields.Many2one(
         comodel_name="res.partner",
         help="The organization or government authority that issued this document",
     )
-    date_issued = fields.Date(
-        help="The date when this document was officially issued",
-    )
-    date_expiration = fields.Date(
-        help="The date when this document expires",
-    )
+    date_issued = fields.Date(help="The date when this document was officially issued")
+    date_expiration = fields.Date(help="The date when this document expires")
     days_left = fields.Integer(
         compute="_compute_days_left",
         help="Number of days remaining until document expires (0 for non-expiring documents)",
@@ -52,9 +49,7 @@ class DocumentDocument(models.Model):
         "not expire",
     )
 
-    is_renewable = fields.Boolean(
-        related="document_type_id.is_renewable",
-    )
+    is_renewable = fields.Boolean(related="document_type_id.is_renewable")
     renewal_document_id = fields.Many2one(
         comodel_name="document.document",
         help="The previous document this one renews",
@@ -122,6 +117,7 @@ class DocumentDocument(models.Model):
         for record in self:
             type_company = record.document_type_id.company_id
             if type_company and record.company_id and type_company != record.company_id:
+                _debug.logic("document_type_refused", reason="company_mismatch")
                 raise ValidationError(
                     self.env._(
                         "Document '%(doc)s' belongs to %(doc_company)s but its type "
@@ -140,6 +136,7 @@ class DocumentDocument(models.Model):
             current = record.renewal_document_id
             while current:
                 if current.id in seen:
+                    _debug.logic("renewal_refused", reason="cycle", document=record)
                     raise ValidationError(
                         self.env._(
                             "Circular reference detected in renewal chain. "
@@ -221,9 +218,11 @@ class DocumentDocument(models.Model):
         self.check_singleton()
 
         if not self.is_renewable:
+            _debug.logic("renewal_refused", reason="type_not_renewable", document=self)
             raise UserError(self.env._("This document type is not renewable."))
 
         if self.renewed_by_document_id:
+            _debug.logic("renewal_refused", reason="already_renewed", document=self)
             raise UserError(
                 self.env._(
                     "Document '%(doc)s' has already been renewed by '%(renewal)s'. "
@@ -248,6 +247,9 @@ class DocumentDocument(models.Model):
             }
         )
 
+        _debug.lifecycle(
+            "renewed", source=self, renewal=new_doc, validity_days=validity
+        )
         return {
             "type": "ir.actions.act_window",
             "res_model": "document.document",
@@ -262,11 +264,12 @@ class DocumentDocument(models.Model):
             Domain(company_domain) & self._get_domain_stale_expiration(today)
             for today, company_domain in self._iter_expiration_windows()
         )
-        stale = self.search(
+        stale = self.sudo().search(
             Domain("document_type_id.has_expiration", "=", True)
             & Domain("date_expiration", "!=", False)
             & windows
         )
+        _debug.pipeline("expiration_refresh", stale=stale)
         if stale:
             stale._recompute_expiration_state()
         return True
@@ -286,6 +289,7 @@ class DocumentDocument(models.Model):
         )
 
     def _recompute_expiration_state(self) -> None:
+        _debug.pipeline("expiration_recomputed", documents=self)
         for field_name in ("expiration_state", "renewal_state"):
             self.env.add_to_compute(self._fields[field_name], self)
             self.flush_recordset([field_name])

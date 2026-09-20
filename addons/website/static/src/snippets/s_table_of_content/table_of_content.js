@@ -1,10 +1,13 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { closestScrollableY, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { patch } from "@web/core/utils/patch";
 import { Interaction } from "@web/public/interaction";
 import { AnchorSlide } from "@website/interactions/anchor_slide";
+
+const log = makeLogger("website.snippet.s_table_of_content");
 
 const getSelector = (element) => {
     const hrefAttr = element.getAttribute("href");
@@ -74,6 +77,12 @@ export class TableOfContent extends Interaction {
             : this.scrollElement.ownerDocument.defaultView;
         this.tocElement = this.el.querySelector(".s_table_of_content_navbar");
         this.previousPosition = -1;
+        log.lifecycle("setup", () => ({
+            isHorizontal: this.isHorizontal,
+            scrollTargetIsWindow:
+                this.scrollTarget === this.scrollElement.ownerDocument.defaultView,
+            links: this.el.querySelectorAll("a.table_of_content_link").length,
+        }));
     }
 
     start() {
@@ -85,15 +94,11 @@ export class TableOfContent extends Interaction {
         );
 
         this.addListener(this.scrollTarget, "scroll", this.scrollBound);
+        log.lifecycle("start: scrollspy listener and menu callback attached");
     }
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
 
     updateTableOfContentNavbarPosition() {
         if (!this.el.querySelector("a.table_of_content_link")) {
-            // Do not start the scrollspy if the TOC is empty.
             return;
         }
 
@@ -108,6 +113,13 @@ export class TableOfContent extends Interaction {
         position += this.isHorizontal ? this.el.offsetHeight : 0;
 
         if (this.previousPosition !== position) {
+            log.logic(
+                "updateTableOfContentNavbarPosition: position changed, refreshing",
+                () => ({
+                    previous: this.previousPosition,
+                    position,
+                }),
+            );
             this.offset = position + 100;
             this.refresh();
             this.process();
@@ -124,6 +136,7 @@ export class TableOfContent extends Interaction {
     }
 
     refresh() {
+        const endRefresh = log.perf("refresh scan targets");
         this.offsets = [];
         this.targets = [];
         this.scrollHeight = this.getScrollHeight();
@@ -157,6 +170,7 @@ export class TableOfContent extends Interaction {
         for (let i = 0; i < this.offsets.length; i++) {
             this.offsets[i] += baseScrollTop;
         }
+        endRefresh(() => ({ links: targets.length, targets: this.targets.length }));
     }
 
     /**
@@ -167,6 +181,7 @@ export class TableOfContent extends Interaction {
         if (!element || !isVisible(element)) {
             return;
         }
+        log.logic("activate", () => ({ previous: this.activeTarget, target }));
         this.activeTarget = target;
         this.clear();
         const queries = ".nav-link, .list-group-item, .dropdown-item"
@@ -181,13 +196,10 @@ export class TableOfContent extends Interaction {
         } else {
             const listGroupEls = parents(link, ".nav, .list-group");
             for (const listGroupEl of listGroupEls) {
-                // Set triggered links parents as active
-                // With both <ul> and <nav> markup a parent is the previous sibling of any nav ancestor
                 const itemEls = prev(listGroupEl, ".nav-link, .list-group-item");
                 for (const itemEl of itemEls) {
                     itemEl.classList.add("active");
                 }
-                // Handle special case when .nav-link is inside .nav-item
                 const navItemEls = prev(listGroupEl, ".nav-item");
                 for (const navItemEl of navItemEls) {
                     for (const childEl of navItemEl.children) {
@@ -250,9 +262,6 @@ export class TableOfContent extends Interaction {
 
 patch(AnchorSlide.prototype, {
     /**
-     * Overridden to add the height of the horizontal sticky navbar at the scroll value
-     * when the link is from the table of content navbar
-     *
      * @override
      */
     computeExtraOffset() {
@@ -262,6 +271,9 @@ patch(AnchorSlide.prototype, {
                 ".s_table_of_content_navbar_sticky.s_table_of_content_horizontal_navbar",
             );
             if (tableOfContentNavbarEl) {
+                log.logic(
+                    "AnchorSlide computeExtraOffset: adding horizontal navbar height",
+                );
                 extraOffset += tableOfContentNavbarEl.getBoundingClientRect().height;
             }
         }

@@ -1,4 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountPaymentChannel(models.Model):
@@ -7,25 +10,28 @@ class AccountPaymentChannel(models.Model):
     _order = "sequence, id"
     _check_company_domain = models.check_company_domain_parent_of
 
-    name = fields.Char(compute="_compute_name", readonly=False, store=True)
+    name = fields.Char(
+        compute="_compute_name",
+        store=True,
+        readonly=False,
+    )
     sequence = fields.Integer(default=10)
     payment_method_id = fields.Many2one(
-        string="Payment Method",
         comodel_name="account.payment.method",
-        domain="[('payment_type', '=?', payment_type), ('id', 'in', available_payment_method_ids)]",
         required=True,
+        domain="[('payment_type', '=?', payment_type), ('id', 'in', available_payment_method_ids)]",
     )
     payment_account_id = fields.Many2one(
         comodel_name="account.account",
-        check_company=True,
         copy=False,
-        ondelete="restrict",
         domain="['|', ('account_type', 'in', ('asset_current', 'liability_current')), ('id', '=', default_account_id)]",
+        ondelete="restrict",
+        check_company=True,
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        check_company=True,
         index="btree_not_null",
+        check_company=True,
     )
     default_account_id = fields.Many2one(related="journal_id.default_account_id")
 
@@ -52,10 +58,13 @@ class AccountPaymentChannel(models.Model):
                 method.name = method.payment_method_id.name
 
     @api.constrains("name")
+    @_debug.perf.timed
     def _check_unique_name_for_journal(self):
         self.journal_id._check_payment_channel_ids_multiplicity()
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         used_channels = self.browse(
             channel.id
             for [channel] in self.env["account.payment"]

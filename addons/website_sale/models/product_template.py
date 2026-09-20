@@ -3,9 +3,11 @@ from collections import defaultdict
 from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
+from odoo.db import FunctionStatus
 from odoo.db.schema import column_exists, create_column
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 from odoo.tools import float_is_zero, is_html_empty
 from odoo.tools.translate import html_translate
@@ -14,16 +16,16 @@ from odoo.addons.website.models import ir_http
 from odoo.addons.website.tools import text_from_html
 from odoo.addons.website_sale.const import SHOP_PATH
 
-# A delimiter that users aren't likely to search for in product codes.
 RARE_DELIMITER = "\u241e"
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_translated_field_gist_index(registry, column_name):
     if not registry.has_trigram:
         return ""
-    if registry.has_unaccent:
+    if registry.has_unaccent == FunctionStatus.INDEXABLE:
         return f"USING GIST(unaccent((JSONB_PATH_QUERY_ARRAY({column_name}, '$.*'::jsonpath))::text) gist_trgm_ops)"
     return f"USING GIST((JSONB_PATH_QUERY_ARRAY({column_name}, '$.*'::jsonpath)::text) gist_trgm_ops)"
 
@@ -40,23 +42,13 @@ class ProductTemplate(models.Model):
     _mail_post_access = "read"
     _check_company_auto = True
 
-    # === DEFAULT METHODS ===#
-
     @api.model
     def _default_website_sequence(self):
-        """We want new product to be the last (highest seq).
-        Every product should ideally have an unique sequence.
-        Default sequence (10000) should only be used for DB first product.
-        As we don't resequence the whole tree (as `sequence` does), this field
-        might have negative value.
-        """
         self.env.cr.execute("SELECT MAX(website_sequence) FROM %s" % self._table)
         max_sequence = self.env.cr.fetchone()[0]
         if max_sequence is None:
             return 10000
         return max_sequence + 5
-
-    # === FIELDS ===#
 
     website_description = fields.Html(
         string="Description for the website",
@@ -75,90 +67,84 @@ class ProductTemplate(models.Model):
     )
 
     alternative_product_ids = fields.Many2many(
-        string="Alternative Products",
         comodel_name="product.template",
         relation="product_alternative_rel",
         column1="src_id",
         column2="dest_id",
+        string="Alternative Products",
         check_company=True,
         help="Suggest alternatives to your customer (upsell strategy)."
         " Those products show up on the product page.",
     )
     accessory_product_ids = fields.Many2many(
-        string="Accessory Products",
         comodel_name="product.product",
         relation="product_accessory_rel",
         column1="src_id",
         column2="dest_id",
+        string="Accessory Products",
         check_company=True,
         help="Accessories show up when the customer reviews the cart before payment"
         " (cross-sell strategy).",
     )
 
-    website_size_x = fields.Integer(string="Size X", default=1)
-    website_size_y = fields.Integer(string="Size Y", default=1)
-    website_ribbon_id = fields.Many2one(string="Ribbon", comodel_name="product.ribbon")
+    website_size_x = fields.Integer(
+        string="Size X",
+        default=1,
+    )
+    website_size_y = fields.Integer(
+        string="Size Y",
+        default=1,
+    )
+    website_ribbon_id = fields.Many2one(
+        comodel_name="product.ribbon",
+        string="Ribbon",
+    )
     website_sequence = fields.Integer(
-        string="Website Sequence",
-        help="Determine the display order in the Website E-commerce",
         default=_default_website_sequence,
-        copy=False,
         index=True,
+        copy=False,
+        help="Determine the display order in the Website E-commerce",
     )
     public_categ_ids = fields.Many2many(
+        comodel_name="product.public.category",
+        relation="product_public_category_product_template_rel",
         string="Website Product Category",
         help="The product will be available in each mentioned eCommerce category. Go to Shop > Edit"
         " Click on the page and enable 'Categories' to view all eCommerce categories.",
-        comodel_name="product.public.category",
-        relation="product_public_category_product_template_rel",
     )
 
     publish_date = fields.Datetime(
-        string="Publish Date",
         compute="_compute_publish_date",
-        store=True,
-        # `precompute` so the value is part of the INSERT rather than a later
-        # UPDATE; `_compute_publish_date` assigns every record, so a template
-        # always carries a date in practice.
-        #
-        # Deliberately NOT `required=True`. This module bolts the column onto
-        # `product_template`, a table owned by `product`, and a NOT NULL there
-        # is only honourable once `website_sale` is in the registry. Any module
-        # that loads earlier and creates a template -- every at_install suite
-        # built on `ProductCommon`, for instance -- goes through a registry
-        # without this field, so the column is absent from its INSERT and the
-        # constraint fires on data the module cannot even know about. The
-        # invariant belongs to the compute, not to a constraint another
-        # module's load order can violate.
         precompute=True,
+        store=True,
     )
 
     product_template_image_ids = fields.One2many(
-        string="Extra Product Media",
         comodel_name="product.image",
         inverse_name="product_tmpl_id",
+        string="Extra Product Media",
         copy=True,
     )
 
     base_unit_count = fields.Float(
-        string="Base Unit Count",
-        help="Display base unit price on your eCommerce pages. Set to 0 to hide it for this product.",
         compute="_compute_base_unit_count",
         inverse="_inverse_base_unit_count",
+        default=0,
         store=True,
         required=True,
-        default=0,
+        help="Display base unit price on your eCommerce pages. Set to 0 to hide it for this product.",
     )
     base_unit_id = fields.Many2one(
-        string="Custom Unit of Measure",
-        help="Define a custom unit to display in the price per unit of measure field.",
         comodel_name="website.base.unit",
+        string="Custom Unit of Measure",
         compute="_compute_base_unit_id",
         inverse="_inverse_base_unit_id",
         store=True,
+        help="Define a custom unit to display in the price per unit of measure field.",
     )
     base_unit_price = fields.Monetary(
-        string="Price Per Unit", compute="_compute_base_unit_price"
+        string="Price Per Unit",
+        compute="_compute_base_unit_price",
     )
     base_unit_name = fields.Char(
         compute="_compute_base_unit_name",
@@ -181,9 +167,6 @@ class ProductTemplate(models.Model):
     description = fields.Html(index="trigram")
     description_sale = fields.Text(index="trigram")
 
-    # === INDEXES === #
-
-    # We need gist indexes for similarity check in ecommerce fuzzy search.
     _name_gist_idx = models.Index(
         lambda registry: get_translated_field_gist_index(registry, "name")
     )
@@ -196,7 +179,8 @@ class ProductTemplate(models.Model):
     _default_code_gist_idx = models.Index(
         lambda registry: (
             "USING GIST(unaccent(default_code) gist_trgm_ops)"
-            if registry.has_trigram and registry.has_unaccent
+            if registry.has_trigram
+            and registry.has_unaccent == FunctionStatus.INDEXABLE
             else (
                 "USING GIST(default_code gist_trgm_ops)" if registry.has_trigram else ""
             )
@@ -204,7 +188,6 @@ class ProductTemplate(models.Model):
     )
 
     def _auto_init(self):
-        """Override _auto_init to prevent MemoryError on ecommerce installation in dbs with lots of products"""
         if not column_exists(self.env.cr, "product_template", "variants_default_code"):
             create_column(
                 self.env.cr, "product_template", "variants_default_code", "varchar"
@@ -229,21 +212,10 @@ class ProductTemplate(models.Model):
             )
         return super()._auto_init()
 
-    # === COMPUTE METHODS ===#
-
     @api.depends("is_published")
     def _compute_publish_date(self):
-        """Set `publish_date` to the moment of (re-)publishing."""
-        # Every record must be assigned: the field is stored AND `required=True`,
-        # and a stored compute takes precedence over the field default, so the
-        # `default=fields.Datetime.now` above never applies. Leaving unpublished
-        # records untouched left the column NULL and any `product.template`
-        # created unpublished died on the not-null constraint -- which is every
-        # `ProductCommon`-based test once `website_sale` is installed.
         now = fields.Datetime.now()
         for template in self:
-            # Unpublishing must not erase when it was last published, so only
-            # (re-)publishing moves the date; an unset one still needs a value.
             if template.is_published or not template.publish_date:
                 template.publish_date = now
 
@@ -304,23 +276,17 @@ class ProductTemplate(models.Model):
                 )
             )
 
-    # === CRUD METHODS ===#
-
     def write(self, vals):
-        # Clear empty ecommerce description content to avoid side-effects on product pages
-        # when there is no content to display anyway.
         if (
             (description_ecommerce := vals.get("description_ecommerce"))
             and is_html_empty(description_ecommerce)
             and not (
                 "media_iframe_video" in description_ecommerce
                 or "data-embedded" in description_ecommerce
-            )  # don't remove "empty" video div
+            )
         ):
             vals["description_ecommerce"] = ""
         return super().write(vals)
-
-    # === BUSINESS METHODS ===#
 
     def _prepare_variant_values(self, combination):
         variant_dict = super()._prepare_variant_values(combination)
@@ -338,12 +304,6 @@ class ProductTemplate(models.Model):
         return self.alternative_product_ids.filtered_domain(domain)
 
     def _has_no_variant_attributes(self):
-        """Return whether this `product.template` has at least one no_variant
-        attribute.
-
-        :return: True if at least one no_variant attribute, False otherwise
-        :rtype: bool
-        """
         self.check_singleton()
         return any(
             a.create_variant == "no_variant"
@@ -351,51 +311,23 @@ class ProductTemplate(models.Model):
         )
 
     def _has_is_custom_values(self):
-        """Return whether this `product.template` has at least one is_custom
-        attribute value.
-
-        :return: True if at least one is_custom attribute value, False otherwise
-        :rtype: bool
-        """
         self.check_singleton()
         return any(
             v.is_custom
-            for v in self.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
+            for v in self.valid_product_template_attribute_line_ids.product_template_value_ids._filtered_active()
         )
 
     def _get_possible_variants_sorted(self, parent_combination=None):
-        """Return the sorted recordset of variants that are possible.
-
-        The order is based on the order of the attributes and their values.
-
-        See `_get_possible_variants` for the limitations of this method with
-        dynamic or no_variant attributes, and also for a warning about
-        performances.
-
-        :param parent_combination: combination from which `self` is an
-            optional or accessory product
-        :type parent_combination: recordset `product.template.attribute.value`
-
-        :return: the sorted variants that are possible
-        :rtype: recordset of `product.product`
-        """
         self.check_singleton()
 
         def _sort_key_attribute_value(value):
-            # if you change this order, keep it in sync with _order from `product.attribute`
             return (value.attribute_id.sequence, value.attribute_id.id)
 
         def _sort_key_variant(variant):
-            """
-            We assume all variants will have the same attributes, with only one value for each.
-                - first level sort: same as "product.attribute"._order
-                - second level sort: same as "product.attribute.value"._order
-            """
             keys = []
             for attribute in variant.product_template_attribute_value_ids.sorted(
                 _sort_key_attribute_value
             ):
-                # if you change this order, keep it in sync with _order from `product.attribute.value`
                 keys.append(attribute.product_attribute_value_id.sequence)
                 keys.append(attribute.id)
             return keys
@@ -403,11 +335,6 @@ class ProductTemplate(models.Model):
         return self._get_possible_variants(parent_combination).sorted(_sort_key_variant)
 
     def _get_previewed_attribute_values(self, category=None, product_query_params=None):
-        """Compute previewed product attribute values for each product in the recordset.
-
-        :return: the previewed attribute values per product
-        :rtype: dict
-        """
         res = defaultdict(dict)
         show_count = 20
         for template in self:
@@ -463,7 +390,7 @@ class ProductTemplate(models.Model):
         fiscal_position_sudo = request.fiscal_position
         date = fields.Date.context_today(self)
 
-        pricelist_prices = pricelist._compute_price_rule(self, 1.0)
+        pricelist_prices = pricelist._get_price_rule(self, 1.0)
         comparison_prices_enabled = self.env["res.groups"]._is_feature_enabled(
             "website_sale.group_product_price_comparison"
         )
@@ -492,7 +419,7 @@ class ProductTemplate(models.Model):
                 pricelist_rule_id
             )
             if pricelist_item._show_discount_on_shop():
-                pricelist_base_price = pricelist_item._compute_price_before_discount(
+                pricelist_base_price = pricelist_item._get_price_before_discount(
                     product=template,
                     quantity=1.0,
                     date=date,
@@ -500,6 +427,12 @@ class ProductTemplate(models.Model):
                     currency=currency,
                 )
                 if currency.compare_amounts(pricelist_base_price, pricelist_price) == 1:
+                    _debug.logic(
+                        "shop_base_price",
+                        by="pricelist_discount",
+                        template=template.id,
+                        rule=pricelist_rule_id,
+                    )
                     base_price = pricelist_base_price
                     template_price_vals["base_price"] = self._apply_taxes_to_price(
                         base_price,
@@ -515,6 +448,9 @@ class ProductTemplate(models.Model):
                 and comparison_prices_enabled
                 and template.compare_list_price
             ):
+                _debug.logic(
+                    "shop_base_price", by="compare_list_price", template=template.id
+                )
                 template_price_vals["base_price"] = template.currency_id._convert(
                     template.compare_list_price,
                     currency,
@@ -525,30 +461,24 @@ class ProductTemplate(models.Model):
 
             res[template.id] = template_price_vals
 
+        _debug.perf.count(
+            "shop_prices_computed",
+            templates=len(self),
+            pricelist=pricelist.id,
+            comparison=comparison_prices_enabled,
+        )
         return res
 
     def _can_be_added_to_cart(self):
-        """
-        Pre-check to `_is_add_to_cart_possible` to know if product can be sold.
-        """
         self.check_singleton()
         return bool(self.filtered_domain(self.env["website"]._product_domain()))
 
     def _is_add_to_cart_possible(self, parent_combination=None):
-        """
-        It's possible to add to cart (potentially after configuration) if
-        there is at least one possible combination.
-
-        :param parent_combination: the combination from which `self` is an
-            optional or accessory product.
-        :type parent_combination: recordset `product.template.attribute.value`
-
-        :return: True if it's possible to add to cart, else False
-        :rtype: bool
-        """
         self.check_singleton()
         if not self.active or not self._can_be_added_to_cart():
-            # for performance: avoid calling `_get_possible_combinations`
+            _debug.logic(
+                "add_to_cart_impossible", reason="not_sellable", template=self.id
+            )
             return False
         return (
             next(self._get_possible_combinations(parent_combination), False)
@@ -563,49 +493,6 @@ class ProductTemplate(models.Model):
         uom_id=False,
         only_template=False,
     ):
-        """Return info about a given combination.
-
-        Note: this method does not take into account whether the combination is
-        actually possible.
-
-        :param combination: recordset of `product.template.attribute.value`
-
-        :param int product_id: `product.product` id. If no `combination`
-            is set, the method will try to load the variant `product_id` if
-            it exists instead of finding a variant based on the combination.
-
-            If there is no combination, that means we definitely want a
-            variant and not something that will have no_variant set.
-
-        :param float add_qty: the quantity for which to get the info,
-            indeed some pricelist rules might depend on it.
-        :param int|None uom_id: the uom for which to get the info, as an `uom.uom` id.
-
-        :param only_template: boolean, if set to True, get the info for the
-            template only: ignore combination and don't try to find variant
-
-        :return: dict with product/combination info:
-
-            - product_id: the variant id matching the combination (if it exists)
-
-            - product_template_id: the current template id
-
-            - display_name: the name of the combination
-
-            - price: the computed price of the combination, take the catalog
-                price if no pricelist is given
-
-            - price_extra: the computed extra price of the combination
-
-            - list_price: the catalog price of the combination, but this is
-                not the "real" list_price, it has price_extra included (so
-                it's actually more closely related to `lst_price`), and it
-                is converted to the pricelist currency (if given)
-
-            - has_discounted_price: True if the pricelist discount policy says
-                the price does not include the discount and there is actually a
-                discount applied (price < list_price), else False
-        """
         self.check_singleton()
 
         combination = combination or self.env["product.template.attribute.value"]
@@ -620,8 +507,6 @@ class ProductTemplate(models.Model):
         elif product_id:
             product = self.env["product.product"].browse(product_id)
             if combination - product.product_template_attribute_value_ids:
-                # If the combination is not fully represented in the given product
-                #   make sure to fetch the right product for the given combination
                 product = self._get_variant_for_combination(combination)
         else:
             product = self._get_variant_for_combination(combination)
@@ -637,7 +522,7 @@ class ProductTemplate(models.Model):
             if combination_name:
                 display_name = f"{display_name} ({combination_name})"
 
-        price_context = product_or_template._get_product_price_context(combination)
+        price_context = product_or_template._prepare_product_price_context(combination)
         product_or_template = product_or_template.with_context(**price_context)
 
         combination_info = {
@@ -677,64 +562,17 @@ class ProductTemplate(models.Model):
 
         return combination_info
 
-    def _get_additionnal_combination_info(
-        self, product_or_template, quantity, uom, date, website
+    def _add_compare_list_price(
+        self, combination_info, product_or_template, currency, date, has_discount
     ):
-        """Compute additional combination info, based on given parameters.
-
-        :param product_or_template: `product.product` or `product.template` record
-            as variant values must take precedence over template values (when we have a variant)
-        :param float quantity: requested quantity
-        :param uom: `uom.uom` record
-        :param date date: today's date, avoids useless calls to today/context_today and harmonize
-            behavior
-        :param website: `website` record holding the current website of the request (if any),
-            or the contextual website (tests, ...)
-        :returns: additional product/template information
-        :rtype: dict
-        """
-        pricelist = request.pricelist.with_context(self.env.context)
-        currency = website.currency_id.with_context(self.env.context)
-
-        # Pricelist price doesn't have to be converted
-        pricelist_price, pricelist_rule_id = pricelist._get_product_price_rule(
-            product=product_or_template,
-            quantity=quantity,
-            uom=uom,
-            currency=currency,
-        )
-
-        price_before_discount = pricelist_price
-        pricelist_item = self.env["product.pricelist.item"].browse(pricelist_rule_id)
-        if pricelist_item._show_discount_on_shop():
-            price_before_discount = pricelist_item._compute_price_before_discount(
-                product=product_or_template,
-                quantity=quantity or 1.0,
-                date=date,
-                uom=uom,
-                currency=currency,
-            )
-
-        has_discounted_price = (
-            currency.compare_amounts(price_before_discount, pricelist_price) == 1
-        )
-        combination_info = {
-            "list_price": max(pricelist_price, price_before_discount),
-            "price": pricelist_price,
-            "has_discounted_price": has_discounted_price,
-            "discount_start_date": pricelist_item.date_start,
-            "discount_end_date": pricelist_item.date_end,
-        }
-
         if (
-            not has_discounted_price
+            not has_discount
             and product_or_template.compare_list_price
             and self.env["res.groups"]._is_feature_enabled(
                 "website_sale.group_product_price_comparison"
             )
         ):
-            # TODO VCR comparison price only depends on the product template, but is shown/hidden
-            # depending on product price, should be removed from combination info in the future
+            _debug.logic("combination_compare_price", product=product_or_template.id)
             combination_info["compare_list_price"] = (
                 product_or_template.currency_id._convert(
                     from_amount=product_or_template.compare_list_price,
@@ -745,15 +583,54 @@ class ProductTemplate(models.Model):
                 )
             )
 
-        # Apply taxes
+    def _get_additionnal_combination_info(
+        self, product_or_template, quantity, uom, date, website
+    ):
+        pricelist = request.pricelist.with_context(self.env.context)
+        currency = website.currency_id.with_context(self.env.context)
+
+        pricelist_price, pricelist_rule_id = pricelist._get_product_price_rule(
+            product=product_or_template,
+            quantity=quantity,
+            uom=uom,
+            currency=currency,
+        )
+
+        price_before_discount = pricelist_price
+        pricelist_item = self.env["product.pricelist.item"].browse(pricelist_rule_id)
+        if pricelist_item._show_discount_on_shop():
+            price_before_discount = pricelist_item._get_price_before_discount(
+                product=product_or_template,
+                quantity=quantity or 1.0,
+                date=date,
+                uom=uom,
+                currency=currency,
+            )
+
+        has_discounted_price = (
+            currency.compare_amounts(price_before_discount, pricelist_price) == 1
+        )
+        _debug.logic(
+            "combination_price", rule=pricelist_rule_id, discounted=has_discounted_price
+        )
+        combination_info = {
+            "list_price": max(pricelist_price, price_before_discount),
+            "price": pricelist_price,
+            "has_discounted_price": has_discounted_price,
+            "discount_start_date": pricelist_item.date_start,
+            "discount_end_date": pricelist_item.date_end,
+        }
+
+        self._add_compare_list_price(
+            combination_info, product_or_template, currency, date, has_discounted_price
+        )
+
         product_taxes = product_or_template.sudo().taxes_id._filter_taxes_by_company(
             self.env.company
         )
         taxes = self.env["account.tax"]
         if product_taxes:
             taxes = request.fiscal_position.map_tax(product_taxes)
-            # We do not apply taxes on the compare_list_price value because it's meant to be
-            # a strict value displayed as is.
             for price_key in ("price", "list_price"):
                 combination_info[price_key] = self._apply_taxes_to_price(
                     combination_info[price_key],
@@ -771,18 +648,17 @@ class ProductTemplate(models.Model):
                     combination_info["price"],
                     precision_rounding=currency.rounding,
                 ),
-                # additional info to simplify overrides
-                "currency": currency,  # displayed currency
+                "currency": currency,
                 "date": date,
-                "product_taxes": product_taxes,  # taxes before fpos mapping
-                "taxes": taxes,  # taxes after fpos mapping
+                "product_taxes": product_taxes,
+                "taxes": taxes,
             }
         )
 
         if self.env["res.groups"]._is_feature_enabled(
             "website_sale.group_show_uom_price"
         ):
-            price_per_product_uom = uom._compute_price(
+            price_per_product_uom = uom._get_price_in_unit(
                 price=combination_info["price"], to_unit=self.uom_id
             )
             combination_info.update(
@@ -795,8 +671,6 @@ class ProductTemplate(models.Model):
             )
 
         if combination_info["prevent_zero_price_sale"]:
-            # If price is zero and prevent_zero_price_sale is enabled we don't want to send any
-            # price information regarding the product
             combination_info["compare_list_price"] = 0
 
         return combination_info
@@ -822,43 +696,11 @@ class ProductTemplate(models.Model):
             "total_excluded" if show_tax == "tax_excluded" else "total_included"
         )
 
-        # The list_price is always the price of one.
         return taxes.compute_all(
             price, currency, 1, product_or_template, self.env.user.partner_id
         )[tax_display]
 
     def create_product_variant(self, product_template_attribute_value_ids):
-        """Create if necessary and possible and return the id of the product
-        variant matching the given combination for this template.
-
-        Note AWA: Known "exploit" issues with this method:
-
-        - This method could be used by an unauthenticated user to generate a
-          lot of useless variants. Unfortunately, after discussing the
-          matter with ODO, there's no easy and user-friendly way to block
-          that behavior.
-          We would have to use captcha/server actions to clean/... that
-          are all not user-friendly/overkill mechanisms.
-
-        - This method could be used to try to guess what product variant ids
-          are created in the system and what product template ids are
-          configured as "dynamic", but that does not seem like a big deal.
-
-        The error messages are identical on purpose to avoid giving too much
-        information to a potential attacker:
-
-        - returning 0 when failing
-        - returning the variant id whether it already existed or not
-
-        :param product_template_attribute_value_ids: the combination for which
-            to get or create variant
-
-        :type product_template_attribute_value_ids: list of id
-            of `product.template.attribute.value`
-
-        :return: id of the product variant matching the combination or 0
-        :rtype: int
-        """
         combination = self.env["product.template.attribute.value"].browse(
             product_template_attribute_value_ids
         )
@@ -866,20 +708,12 @@ class ProductTemplate(models.Model):
         return self._create_product_variant(combination, log_warning=True).id or 0
 
     def _get_image_holder(self):
-        """Returns the holder of the image to use as default representation.
-        If the product template has an image it is the product template,
-        otherwise if the product has variants it is the first variant
-
-        :return: this product template or the first product variant
-        :rtype: recordset of 'product.template' or recordset of 'product.product'
-        """
         self.check_singleton()
         if self.image_128:
             return self
         variant = self.env["product.product"].browse(
             self._get_first_possible_variant_id()
         )
-        # if the variant has no image anyway, spare some queries by using template
         return variant if variant.image_variant_128 else self
 
     def _get_suitable_image_size(self, columns, x_size, y_size):
@@ -888,8 +722,6 @@ class ProductTemplate(models.Model):
         return "image_1024"
 
     def _init_column(self, column_name, *, new_column=False):
-        # to avoid generating a single default website_sequence when installing the module,
-        # we need to set the default row by row for this column
         if column_name == "website_sequence":
             _logger.debug(
                 "Table '%s': setting default value of new column %s to unique values for each row",
@@ -958,8 +790,8 @@ class ProductTemplate(models.Model):
             return self.set_sequence_bottom()
         return None
 
-    def _default_website_meta(self):
-        res = super()._default_website_meta()
+    def _get_default_website_meta(self):
+        res = super()._get_default_website_meta()
         res["default_opengraph"]["og:description"] = res["default_twitter"][
             "twitter:description"
         ] = self.description_sale
@@ -980,32 +812,14 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _get_product_types_allow_zero_price(self):
-        """
-        Returns a list of service_tracking (`product.template.service_tracking`) that can ignore the
-        `prevent_zero_price_sale` rule when buying products on a website.
-        """
         return []
 
-    # ---------------------------------------------------------
-    # Rating Mixin API
-    # ---------------------------------------------------------
-
     def _get_domain_rating(self, record_ids=None):
-        """Only take the published rating into account to compute avg and count"""
         return super()._get_domain_rating(record_ids=record_ids) & Domain(
             "is_internal", "=", False
         )
 
     def _get_images(self):
-        """Return a list of records implementing `mixin.image` to
-        display on the carousel on the website for this template.
-
-        This returns a list and not a recordset because the records might be
-        from different models (template and image).
-
-        It contains in this order: the main image of the template and the
-        Template Extra Images.
-        """
         self.check_singleton()
         return [self] + list(self.product_template_image_ids)
 
@@ -1040,7 +854,7 @@ class ProductTemplate(models.Model):
         if tags:
             if isinstance(tags, str):
                 tags = tags.split(",")
-            tags = list(map(int, tags))  # Convert list of strings to list of integers
+            tags = list(map(int, tags))
             domains.append(
                 Domain.OR(
                     [
@@ -1072,7 +886,6 @@ class ProductTemplate(models.Model):
         if with_image:
             mapping["image_url"] = {"name": "image_url", "type": "html"}
         if with_description:
-            # Internal note is not part of the rendering.
             search_fields.append("description")
             fetch_fields.append("description")
             search_fields.append("description_sale")
@@ -1174,7 +987,6 @@ class ProductTemplate(models.Model):
         }
 
     def _get_contextual_pricelist(self):
-        """Override to fallback on website current pricelist"""
         pricelist = super()._get_contextual_pricelist()
         if request and request.is_frontend and not pricelist:
             return request.pricelist
@@ -1192,18 +1004,6 @@ class ProductTemplate(models.Model):
     def _get_configurator_display_price(
         self, product_or_template, quantity, date, currency, pricelist, **kwargs
     ):
-        """Override of `sale` to apply taxes.
-
-        :param product.product|product.template product_or_template: The product for which to get
-            the price.
-        :param int quantity: The quantity of the product.
-        :param datetime date: The date to use to compute the price.
-        :param res.currency currency: The currency to use to compute the price.
-        :param product.pricelist pricelist: The pricelist to use to compute the price.
-        :param dict kwargs: Locally unused data passed to `super`.
-        :rtype: tuple(float, int or False)
-        :return: The specified product's display price (and the applied pricelist rule)
-        """
         price, pricelist_rule_id = super()._get_configurator_display_price(
             product_or_template, quantity, date, currency, pricelist, **kwargs
         )
@@ -1227,22 +1027,11 @@ class ProductTemplate(models.Model):
         return price, pricelist_rule_id
 
     def _to_markup_data(self, website):
-        """Generate JSON-LD markup data for the current product template.
-
-        If the template has multiple variants, the https://schema.org/ProductGroup schema is used.
-        Otherwise, the markup data generation is delegated to the variant to use the
-        https://schema.org/Product schema.
-
-        :param website website: The current website.
-        :return: The JSON-LD markup data.
-        :rtype: dict
-        """
         self.check_singleton()
 
         if self.product_variant_count == 1:
             return self.product_variant_id._to_markup_data(website)
 
-        # perf: temporal solution to avoid slowness when product have many variants and pricelist rules
         limit = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1269,27 +1058,10 @@ class ProductTemplate(models.Model):
         return markup_data
 
     def _get_ribbon(self, price_vals=None, auto_assign_ribbons=None, variant=None):
-        """Return the ribbon to display for the current template.
-
-        It'll be either the ribbon set on the first variant, or the template, or the first
-        applicable ribbon in the automatically assigned ribbons.
-
-        :param dict price_vals: price values for the current product
-        :param auto_assign_ribbons: automatically assigned recordsets, as a `product.ribbon`
-            recordset
-        :param product.product variant: if any, the displayed variant whose ribbon we're looking
-            for.
-
-        :returns: the ribbon to display, if there is one.
-        :rtype: `product.ribbon` recordset
-        """
         variant = variant or self.product_variant_id
         ribbon = variant.sudo().variant_ribbon_id or self.sudo().website_ribbon_id
         if not ribbon:
-            # The None check ensures that we do not recompute the ribbons when no ribbons were
-            # previously found.
             if auto_assign_ribbons is None:
-                # On product page, the auto_assign_ribbons are not provided.
                 auto_assign_ribbons = self.env["product.ribbon"].search_fetch(
                     [
                         ("assign", "!=", "manual"),
@@ -1302,7 +1074,6 @@ class ProductTemplate(models.Model):
         return ribbon
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to website if it is published."""
         self.check_singleton()
         if force_website or (self.website_published and self.env.user.share):
             return {

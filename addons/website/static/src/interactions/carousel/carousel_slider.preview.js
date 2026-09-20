@@ -13,9 +13,6 @@ const CarouselSliderPreview = (I) =>
         };
         dynamicContent = {
             ...this.dynamicContent,
-            // Bind events to the entire preview wrap. This ensures events
-            // trigger when hovering anywhere on the snippet, even though the
-            // preview containers are `inert`.
             _snippetPreviewWrapEl: {
                 "t-on-mouseenter": this.mouseEnter,
                 "t-on-mouseleave": this.mouseLeave,
@@ -24,18 +21,11 @@ const CarouselSliderPreview = (I) =>
             },
         };
 
-        /**
-         * Starts the carousel autoplay when the mouse enters the element.
-         */
         mouseEnter() {
             const carousel = Carousel.getOrCreateInstance(this.el);
             carousel.cycle();
         }
 
-        /**
-         * Pauses the carousel and resets it to the first slide when the mouse
-         * leaves the element.
-         */
         mouseLeave() {
             const carousel = Carousel.getOrCreateInstance(this.el);
             carousel.pause();

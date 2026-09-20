@@ -9,19 +9,24 @@ class SaleOrder(models.Model):
 
     pickup_location_data = fields.Json()
     carrier_id = fields.Many2one(
-        "delivery.carrier",
+        comodel_name="delivery.carrier",
         string="Delivery Method",
         check_company=True,
         help="Fill this field if you plan to invoice the shipping based on picking.",
     )
-    delivery_message = fields.Char(readonly=True, copy=False)
+    delivery_message = fields.Char(
+        copy=False,
+        readonly=True,
+    )
     delivery_set = fields.Boolean(compute="_compute_delivery_set")
-    recompute_delivery_price = fields.Boolean("Delivery cost should be recomputed")
+    recompute_delivery_price = fields.Boolean(
+        string="Delivery cost should be recomputed"
+    )
     is_all_service = fields.Boolean(
-        "Service Product", compute="_compute_is_all_service"
+        string="Service Product",
+        compute="_compute_is_all_service",
     )
     shipping_weight = fields.Float(
-        "Shipping Weight",
         compute="_compute_shipping_weight",
         store=True,
         readonly=False,
@@ -42,7 +47,7 @@ class SaleOrder(models.Model):
                 for line in so.line_ids.filtered(lambda x: not x.display_type)
             )
 
-    def _compute_amount_total_without_delivery(self):
+    def _get_amount_total_without_delivery(self):
         self.check_singleton()
         delivery_cost = sum(l.price_total for l in self.line_ids if l.is_delivery)
         return self.amount_total - delivery_cost
@@ -126,14 +131,22 @@ class SaleOrder(models.Model):
         """Ensure a pickup location payload carries the fields `_action_confirm` relies on.
 
         :param dict pickup_location: The decoded pickup location address.
-        :raise UserError: If a required field is missing.
+        :raise UserError: If the payload is not an object or required fields are invalid.
         :return: None
         """
-        missing_fnames = [
-            fname
-            for fname in ("street", "city", "zip_code", "country_code")
-            if not pickup_location.get(fname)
-        ]
+        if not isinstance(pickup_location, dict):
+            raise UserError(_("The pickup location must contain address information."))
+        missing_fnames = []
+        for fname in ("street", "city", "zip_code", "country_code"):
+            value = pickup_location.get(fname)
+            if fname == "zip_code" and type(value) is int:
+                value = str(value)
+            if not isinstance(value, str) or not value.strip():
+                missing_fnames.append(fname)
+        for fname in ("name", "state"):
+            value = pickup_location.get(fname)
+            if value is not None and value is not False and not isinstance(value, str):
+                missing_fnames.append(fname)
         if missing_fnames:
             raise UserError(
                 _(
@@ -195,7 +208,7 @@ class SaleOrder(models.Model):
                     "active"
                 )
             )
-            carrier = carrier_property.available_carriers(
+            carrier = carrier_property._filtered_available_carriers(
                 self.partner_shipping_id, self
             )
         return {
@@ -213,65 +226,60 @@ class SaleOrder(models.Model):
             },
         }
 
-    def _action_confirm(self):
-        for order in self:
-            order_location = order.pickup_location_data
-
-            if not order_location:
-                continue
-
-            order._check_pickup_location_data(order_location)
-            # Retrieve all the data : name, street, city, state, zip, country.
-            name = order_location.get("name") or order.partner_shipping_id.name
-            street = order_location["street"]
-            city = order_location["city"]
-            zip_code = order_location["zip_code"]
-            country_code = order_location["country_code"]
-            country = order.env["res.country"].search([("code", "=", country_code)]).id
-            state = (
-                order.env["res.country.state"]
-                .search(
-                    [
-                        ("code", "=", order_location["state"]),
-                        ("country_id", "=", country),
-                    ]
-                )
-                .id
-                if (order_location.get("state") and country)
-                else None
-            )
-            parent_id = order.partner_shipping_id.id
-            email = order.partner_shipping_id.email
-            phone = order.partner_shipping_id.phone_ids._primary()
-
-            # Check if the current partner has a partner of type 'delivery' with the same address.
-            existing_partner = order.env["res.partner"].search(
+    def _get_pickup_address_values(self, location):
+        self.check_singleton()
+        self._check_pickup_location_data(location)
+        recipient = self.partner_shipping_id
+        while recipient.is_pickup_location and recipient.parent_id:
+            recipient = recipient.parent_id
+        country = self.env["res.country"].search(
+            [("code", "=", location["country_code"].strip().upper())],
+            limit=1,
+        )
+        if not country:
+            raise UserError(_("The pickup location country is invalid."))
+        state = self.env["res.country.state"]
+        if location.get("state"):
+            state = state.search(
                 [
-                    ("street", "=", street),
-                    ("city", "=", city),
-                    ("state_id", "=", state),
-                    ("country_id", "=", country),
-                    ("parent_id", "=", parent_id),
-                    ("type", "=", "delivery"),
+                    ("code", "=", location["state"]),
+                    ("country_id", "=", country.id),
                 ],
                 limit=1,
             )
+        return {
+            "parent_id": recipient.id,
+            "type": "delivery",
+            "name": location.get("name") or recipient.name,
+            "street": location["street"],
+            "city": location["city"],
+            "state_id": state.id,
+            "zip": str(location["zip_code"]),
+            "country_id": country.id,
+            "is_pickup_location": True,
+        }
 
-            shipping_partner = existing_partner or order.env["res.partner"].create(
+    def _action_confirm(self):
+        for order in self:
+            if not order.pickup_location_data:
+                continue
+            address_values = order._get_pickup_address_values(
+                order.pickup_location_data
+            )
+            recipient = order.env["res.partner"].browse(address_values["parent_id"])
+            phone = recipient._phone_get_number()
+            shipping_partner = order.env["res.partner"].search(  # noqa: E8507 - resolve each order's recipient-owned pickup address
+                [(field, "=", value) for field, value in address_values.items()],
+                limit=1,
+            ) or order.env["res.partner"].create(
                 {
-                    "parent_id": parent_id,
-                    "type": "delivery",
-                    "name": name,
-                    "street": street,
-                    "city": city,
-                    "state_id": state,
-                    "zip": zip_code,
-                    "country_id": country,
-                    "email": email,
+                    **address_values,
+                    "email": recipient.email,
                     "phone_ids": [Command.link(phone.id)] if phone else [],
-                    "is_pickup_location": True,
                 }
             )
+            if phone_values := shipping_partner._prepare_phone_replacement_vals(phone):
+                shipping_partner.write(phone_values)
             order.with_context(update_delivery_shipping_partner=True).write(
                 {"partner_shipping_id": shipping_partner}
             )

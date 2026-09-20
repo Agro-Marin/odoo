@@ -9,18 +9,15 @@ class IrModuleModule(models.Model):
 
     @api.model
     def _load_module_terms(self, modules, langs, overwrite=False):
-        # Add missing website_sale-specific translations
 
         super()._load_module_terms(modules, langs, overwrite=overwrite)
 
         to_langs = [lang for lang in langs if lang != "en_US"]
         if not (to_langs and modules):
-            return  # nothing to translate
+            return
 
         def set_field(fname):
             lang_items = (
-                # lang must be a SQL literal (not a bound parameter) because
-                # psycopg3 can't infer the type for jsonb->>$N operators.
                 SQL(
                     "%(lang)s, o_step.%(fname)s->>%(lang)s",
                     lang=SQL("'%s'" % lang),  # noqa: E8501  SQL literal, not a value
@@ -28,7 +25,6 @@ class IrModuleModule(models.Model):
                 )
                 for lang in to_langs
             )
-            # PSQL functions take 100 args max, and we're generating 2 per lang
             batched_lang_items = batched(lang_items, 50, strict=False)
             update_jsonb = SQL(" || ").join(
                 SQL("jsonb_build_object(%s)", SQL(", ").join(batch))
@@ -38,12 +34,8 @@ class IrModuleModule(models.Model):
             src = SQL(" || ").join(
                 ordered(
                     [
-                        SQL(
-                            "jsonb_strip_nulls(%s)", update_jsonb
-                        ),  # gets updated translation
-                        SQL(
-                            "jsonb_strip_nulls(step.%s)", fname
-                        ),  # keeps current translation
+                        SQL("jsonb_strip_nulls(%s)", update_jsonb),
+                        SQL("jsonb_strip_nulls(step.%s)", fname),
                     ]
                 )
             )
@@ -53,8 +45,7 @@ class IrModuleModule(models.Model):
         to_translate = [
             SQL.identifier(field.name)
             for field in WebsiteCheckoutStep._fields.values()
-            if field.translate
-            is True  # more correct in case of `callable(field.translate)`
+            if field.translate is True
         ]
         set_fields = SQL(", ").join(set_field(fname) for fname in to_translate)
 

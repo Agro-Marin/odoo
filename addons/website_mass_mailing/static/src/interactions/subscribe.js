@@ -44,27 +44,20 @@ export class Subscribe extends Interaction {
     }
 
     /**
-     * Modify the elements to have the view of a subscriber/non-subscriber.
-     *
-     * @todo should probably be merged with _updateSubscribeControlsStatus
      * @param {Object} data
      */
     _updateView(data) {
         this._updateSubscribeControlsStatus(!!data.is_subscriber);
 
-        // js_subscribe_email is kept for compatibility (old name of js_subscribe_value)
         const valueInputEl = this.el.querySelector(
             "input.js_subscribe_value, input.js_subscribe_email",
         );
         valueInputEl.value = data.value || "";
 
-        // Compat: remove d-none for DBs that have the button saved with it.
         this.el.classList.remove("d-none");
     }
 
     /**
-     * Update the visibility of the subscribe and subscribed buttons.
-     *
      * @param {boolean} isSubscriber
      */
     _updateSubscribeControlsStatus(isSubscriber) {
@@ -76,14 +69,11 @@ export class Subscribe extends Interaction {
         subscribeWrapEl.classList.toggle("d-none", isSubscriber);
         thanksWrapEl.classList.toggle("d-none", !isSubscriber);
 
-        // js_subscribe_email is kept for compatibility (old name of js_subscribe_value)
         const valueInputEl = this.el.querySelector(
             "input.js_subscribe_value, input.js_subscribe_email",
         );
         valueInputEl.disabled = isSubscriber;
 
-        // When the website is in edit mode, window.top != window. We don't want turnstile to render during edit mode
-        // and mess up the DOM and saving it.
         if (!isSubscriber && this._turnstile && window.top === window) {
             const turnstileEl = this._turnstile.turnstileEl;
             this._turnstile.constructor.disableSubmit(subscribeBtnEl);
@@ -95,12 +85,6 @@ export class Subscribe extends Interaction {
     }
 
     _getListId() {
-        // TODO this should be improved: we currently have snippets (e.g. the
-        // s_newsletter_block one) who relies on the fact the list-id is saved
-        // on the snippet's main section, and ignores the one saved on the inner
-        // form snippet. Some other (e.g. the s_newsletter_popup one) relies on
-        // the ID of the inner form snippet. We should make it more consistent:
-        // probably always relying on the inner form list-id? (upgrade...)
         return (
             this.el.closest("section[data-list-id]")?.dataset.listId ||
             this.el.dataset.listId
@@ -109,7 +93,6 @@ export class Subscribe extends Interaction {
 
     async onSubscribeClick() {
         const inputName = this.el.querySelector("input").name;
-        // js_subscribe_email is kept for compatibility (old name of js_subscribe_value)
         const input = this.el.querySelector(".js_subscribe_value, .js_subscribe_email");
         if (inputName === "email" && isVisible(input) && !input.value.match(/.+@.+/)) {
             this.el.classList.add("o_has_error");

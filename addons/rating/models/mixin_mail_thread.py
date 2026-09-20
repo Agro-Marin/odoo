@@ -9,12 +9,12 @@ class MixinMailThread(models.AbstractModel):
     _inherit = "mixin.mail.thread"
 
     rating_ids = fields.One2many(
-        "rating.rating",
-        "res_id",
+        comodel_name="rating.rating",
+        inverse_name="res_id",
         string="Ratings",
-        groups="base.group_user",
         domain=lambda self: [("res_model", "=", self._name)],
         bypass_search_access=True,
+        groups="base.group_user",
     )
 
     # MAIL OVERRIDES
@@ -145,10 +145,7 @@ class MixinMailThread(models.AbstractModel):
         """
         if rate < 0 or rate > 5:
             raise ValueError(
-                _(
-                    "Wrong rating value. A rate should be between 0 and 5 (received %d).",
-                    rate,
-                )
+                f"Wrong rating value. A rate should be between 0 and 5 (received {rate})."
             )
         if token:
             rating = (
@@ -157,7 +154,7 @@ class MixinMailThread(models.AbstractModel):
                 .search([("access_token", "=", token)], limit=1)
             )
         if not rating:
-            raise ValueError(_("Invalid token or rating."))
+            raise ValueError("Invalid token or rating.")
 
         rating.write({"rating": rate, "feedback": feedback, "consumed": True})
         if isinstance(self, self.env.registry["mixin.mail.thread"]):

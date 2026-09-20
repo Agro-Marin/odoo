@@ -10,8 +10,8 @@
                     <field
                         name="mailing_list_ids"
                         string="Import contacts in"
-                        widget="many2many_tags"
                         placeholder="Select mailing lists"
+                        widget="many2many_tags"
                         options="{'no_create': True}" />
                 </group>
                 <p>
@@ -21,29 +21,28 @@
                 <label for="contact_list" class="mb-2">Contact List</label>
                 <field
                     name="contact_list"
-                    nolabel="1"
-                    default_focus="1"
-                    placeholder="&quot;Damien Roberts&quot; &lt;d.roberts@example.com&gt;&#10;&quot;Rick Sanchez&quot; &lt;rick_sanchez@example.com&gt;&#10;victor_hugo@example.com" />
+                    placeholder="&quot;Damien Roberts&quot; &lt;d.roberts@example.com&gt;&#10;&quot;Rick Sanchez&quot; &lt;rick_sanchez@example.com&gt;&#10;victor_hugo@example.com"
+                    default_focus="1" />
                 <p class="text-muted mb-0">
                     Want to import country, company name and more?
                     <button
-                        type="object"
                         name="action_view_base_import"
+                        type="object"
                         class="fw-normal px-0 btn btn-link">
                         Upload a file
                     </button>
                 </p>
                 <footer>
                     <button
-                        string="Import"
-                        type="object"
                         name="action_import"
+                        type="object"
+                        string="Import"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

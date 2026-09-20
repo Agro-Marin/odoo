@@ -11,9 +11,9 @@ class ResPartnerAttributeValue(models.Model):
 
     attribute_id = fields.Many2one(
         comodel_name="res.partner.attribute",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     score_value = fields.Float(
         string="Score Points",

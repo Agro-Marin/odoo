@@ -18,8 +18,6 @@ def _create_image(color="black", dims=(1920, 1080), format="JPEG"):
 
 @tagged("post_install", "-at_install")
 class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
-    # registry_test_mode = False  # uncomment to save the product to test in browser
-
     def test_01_admin_shop_zoom_tour(self):
         color_red = "#CD5C5C"
         name_red = "Indian Red"
@@ -32,7 +30,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
 
         self.env["product.pricelist"].sudo().search([]).action_archive()
 
-        # create the color attribute
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "Beautiful Color",
@@ -63,28 +60,20 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             }
         )
 
-        # first image (blue) for the template
         blue_image = _create_image(color=color_blue)
 
-        # second image (red) for the variant 1, small image (no zoom)
         red_image = _create_image(color=color_red, dims=(800, 500))
 
-        # second image (green) for the variant 2, big image (zoom)
         green_image = _create_image(color=color_green)
 
-        # Template Extra Image 1
         image_gif = _create_image(dims=(124, 147), format="GIF")
 
-        # Template Extra Image 2
         image_svg = base64.b64encode(b"<svg></svg>")
 
-        # Red Variant Extra Image 1
         image_bmp = _create_image(dims=(767, 247), format="BMP")
 
-        # Green Variant Extra Image 1
         image_png = _create_image(dims=(2147, 3251), format="PNG")
 
-        # create the template, without creating the variants
         template = self.env["product.template"].create(
             {
                 "name": "A Colorful Image",
@@ -107,7 +96,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
         value_red = line.product_template_value_ids[0]
         value_green = line.product_template_value_ids[1]
 
-        # set a different price on the variants to differentiate them
         product_template_attribute_values = self.env[
             "product.template.attribute.value"
         ].search([("product_tmpl_id", "=", template.id)])
@@ -118,8 +106,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             else:
                 val.price_extra = 20
 
-        # Get RED variant, and set image to blue (will be set on the template
-        # because the template image is empty and there is only one variant)
         product_red = template._get_variant_for_combination(value_red)
         product_red.write(
             {
@@ -132,7 +118,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
 
         self.assertEqual(template.image_1920, blue_image)
 
-        # Get the green variant
         product_green = template._get_variant_for_combination(value_green)
         product_green.write(
             {
@@ -143,11 +128,8 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             }
         )
 
-        # now set the red image on the first variant, that works because
-        # template image is not empty anymore and we have a second variant
         product_red.image_1920 = red_image
 
-        # Verify image_1920 size > 1024 can be zoomed
         self.assertTrue(template.can_image_1024_be_zoomed)
         self.assertFalse(
             template.product_template_image_ids[0].can_image_1024_be_zoomed
@@ -164,12 +146,10 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             product_green.product_variant_image_ids[0].can_image_1024_be_zoomed
         )
 
-        # jpeg encoding is changing the color a bit
         jpeg_blue = (65, 105, 227)
         jpeg_red = (205, 93, 92)
         jpeg_green = (34, 139, 34)
 
-        # Verify original size: keep original
         image = Image.open(io.BytesIO(base64.b64decode(template.image_1920)))
         self.assertEqual(image.size, (1920, 1080))
         self.assertEqual(
@@ -186,7 +166,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             image.getpixel((image.size[0] / 2, image.size[1] / 2)), jpeg_green, "green"
         )
 
-        # Verify 1024 size: keep aspect ratio
         image = Image.open(io.BytesIO(base64.b64decode(template.image_1024)))
         self.assertEqual(image.size, (1024, 576))
         self.assertEqual(
@@ -203,7 +182,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             image.getpixel((image.size[0] / 2, image.size[1] / 2)), jpeg_green, "green"
         )
 
-        # Verify 512 size: keep aspect ratio
         image = Image.open(io.BytesIO(base64.b64decode(template.image_512)))
         self.assertEqual(image.size, (512, 288))
         self.assertEqual(
@@ -220,7 +198,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             image.getpixel((image.size[0] / 2, image.size[1] / 2)), jpeg_green, "green"
         )
 
-        # Verify 256 size: keep aspect ratio
         image = Image.open(io.BytesIO(base64.b64decode(template.image_256)))
         self.assertEqual(image.size, (256, 144))
         self.assertEqual(
@@ -237,7 +214,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             image.getpixel((image.size[0] / 2, image.size[1] / 2)), jpeg_green, "green"
         )
 
-        # Verify 128 size: keep aspect ratio
         image = Image.open(io.BytesIO(base64.b64decode(template.image_128)))
         self.assertEqual(image.size, (128, 72))
         self.assertEqual(
@@ -254,25 +230,18 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             image.getpixel((image.size[0] / 2, image.size[1] / 2)), jpeg_green, "green"
         )
 
-        # self.env.cr.commit()  # uncomment to save the product to test in browser
-
-        # Make sure we have zoom on click
         self.env["ir.ui.view"].with_context(active_test=False).search(
             [("key", "=", "website_sale.product_picture_magnify_click")]
         ).write({"active": True})
 
-        # Ensure that no pricelist is available during the test.
-        # This ensures that tours with triggers on the amounts will run properly.
         self.env["product.pricelist"].search([]).action_archive()
 
         self.start_tour("/", "shop_zoom", login="website_user")
 
-        # CASE: unlink move image to fallback if fallback image empty
         template.image_1920 = False
         product_red.unlink()
         self.assertEqual(template.image_1920, red_image)
 
-        # CASE: unlink does nothing special if fallback image already set
         self.env["product.product"].create(
             {
                 "product_tmpl_id": template.id,
@@ -281,23 +250,15 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
         ).unlink()
         self.assertEqual(template.image_1920, red_image)
 
-        # CASE: display variant image first if set
         self.assertEqual(product_green._get_images()[0].image_1920, green_image)
 
-        # CASE: display variant fallback after variant o2m, correct fallback
-        # write on the variant field, otherwise it will write on the fallback
         product_green.image_variant_1920 = False
         images = product_green._get_images()
-        # images on fields are resized to max 1920
         image_png = Image.open(io.BytesIO(base64.b64decode(images[1].image_1920)))
         self.assertEqual(images[0].image_1920, red_image)
         self.assertEqual(image_png.size, (1268, 1920))
         self.assertEqual(images[2].image_1920, image_gif)
         self.assertEqual(images[3].image_1920, image_svg)
-
-        # CASE: When uploading a product variant image
-        # we don't want the default_product_tmpl_id from the context to be applied if we have a product_variant_id set
-        # we want the default_product_tmpl_id from the context to be applied if we don't have a product_variant_id set
 
         additionnal_context = {"default_product_tmpl_id": template.id}
 
@@ -336,7 +297,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
     def test_02_image_holder(self):
         image = _create_image(color="#FF0000", dims=(800, 500))
 
-        # create the color attribute
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "Beautiful Color",
@@ -364,7 +324,6 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             }
         )
 
-        # create the template, without creating the variants
         template = (
             self.env["product.template"]
             .with_context(create_product_product=False)
@@ -375,10 +334,8 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
             )
         )
 
-        # when there are no variants, the image must be obtained from the template
         self.assertEqual(template, template._get_image_holder())
 
-        # set the color attribute and values on the template
         line = self.env["product.template.attribute.line"].create(
             [
                 {
@@ -396,17 +353,14 @@ class TestWebsiteSaleImage(HttpCaseWithWebsiteUser):
         product_green = template._get_variant_for_combination(value_green)
         product_green.image_variant_1920 = image
 
-        # when there are no template image but there are variants, the image must be obtained from the first variant
         self.assertEqual(product_red, template._get_image_holder())
 
         product_red.action_archive()
 
-        # but when some variants are not available, the image must be obtained from the first available variant
         self.assertEqual(product_green, template._get_image_holder())
 
         template.image_1920 = image
 
-        # when there is a template image, the image must be obtained from the template
         self.assertEqual(template, template._get_image_holder())
 
 
@@ -415,16 +369,12 @@ class TestWebsiteSaleRemoveImage(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # First image (blue) for the template.
         color_blue = "#4169E1"
         name_blue = "Royal Blue"
-        # Red for the variant.
         color_red = "#CD5C5C"
         name_red = "Indian Red"
-        # Green for the replacement
         color_green = "#228B22"
 
-        # Attachment needed for the replacement of images
         cls.env["ir.attachment"].create(
             {
                 "public": True,
@@ -434,7 +384,6 @@ class TestWebsiteSaleRemoveImage(HttpCase):
             }
         )
 
-        # Create the color attribute.
         cls.product_attribute = cls.env["product.attribute"].create(
             {
                 "name": "Beautiful Color",
@@ -442,7 +391,6 @@ class TestWebsiteSaleRemoveImage(HttpCase):
             }
         )
 
-        # create the color attribute values
         cls.attr_values = cls.env["product.attribute.value"].create(
             [
                 {
@@ -487,7 +435,6 @@ class TestWebsiteSaleRemoveImage(HttpCase):
         self.assertFalse(self.product.image_1920)
 
     def test_website_sale_remove_main_product_image_with_variant(self):
-        # Set the color attribute and values on the template.
         self.env["product.template.attribute.line"].create(
             [
                 {

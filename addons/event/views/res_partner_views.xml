@@ -10,13 +10,13 @@
             <field name="arch" type="xml">
                 <xpath expr="//div[@name='anchor_buttons_events']" position="before">
                     <button
-                        class="oe_stat_button"
-                        groups="event.group_event_user"
+                        name="action_event_view"
                         type="object"
                         icon="fa-ticket"
-                        name="action_event_view"
-                        invisible="event_count == 0">
-                        <field string="Events" name="event_count" widget="statinfo" />
+                        groups="event.group_event_user"
+                        invisible="event_count == 0"
+                        class="oe_stat_button">
+                        <field name="event_count" string="Events" widget="statinfo" />
                     </button>
                 </xpath>
             </field>

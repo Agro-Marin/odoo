@@ -13,11 +13,10 @@ class ProductPricelistItem(models.Model):
 
     pricelist_id = fields.Many2one(
         comodel_name="product.pricelist",
-        string="Pricelist",
-        required=False,
         default=lambda self: self._default_pricelist_id(),
-        ondelete="cascade",
         index=True,
+        required=False,
+        ondelete="cascade",
     )
     is_pricelist_required = fields.Boolean(compute="_compute_is_pricelist_required")
     company_id = fields.Many2one(
@@ -57,8 +56,8 @@ class ProductPricelistItem(models.Model):
             ("0_product_variant", "Product Variant"),
         ],
         string="Apply On",
-        required=True,
         default="3_global",
+        required=True,
         help="Pricelist Item applicable on selected option",
     )
 
@@ -67,8 +66,8 @@ class ProductPricelistItem(models.Model):
             ("1_product", "Product"),
             ("2_product_category", "Category"),
         ],
-        required=True,
         default="1_product",
+        required=True,
         help="Pricelist Item applicable on selected option",
     )
 
@@ -82,24 +81,22 @@ class ProductPricelistItem(models.Model):
     product_tmpl_id = fields.Many2one(
         comodel_name="product.template",
         string="Product",
-        check_company=True,
-        ondelete="cascade",
         index="btree_not_null",
+        ondelete="cascade",
+        check_company=True,
         help="Specify a template if this rule only applies to one product template. Keep empty otherwise.",
     )
-    product_uom_name = fields.Char(
-        related="product_tmpl_id.uom_name",
-    )
+    product_uom_name = fields.Char(related="product_tmpl_id.uom_name")
     product_variant_count = fields.Integer(
-        related="product_tmpl_id.product_variant_count",
+        related="product_tmpl_id.product_variant_count"
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
         string="Variant",
-        check_company=True,
+        index="btree_not_null",
         domain="[('product_tmpl_id', '=', product_tmpl_id)]",
         ondelete="cascade",
-        index="btree_not_null",
+        check_company=True,
         help="Specify a product if this rule only applies to one product. Keep empty otherwise.",
     )
 
@@ -110,8 +107,8 @@ class ProductPricelistItem(models.Model):
             ("pricelist", "Other Pricelist"),
         ],
         string="Based on",
-        required=True,
         default="list_price",
+        required=True,
         help="Base price for computation.\n"
         "Sales Price: The base price will be the Sales Price.\n"
         "Cost Price: The base price will be the cost price.\n"
@@ -129,23 +126,19 @@ class ProductPricelistItem(models.Model):
             ("formula", "Formula"),
             ("fixed", "Fixed Price"),
         ],
-        required=True,
         default="fixed",
         index=True,
+        required=True,
         help="Use the discount rules and activate the discount settings in order to show discount to customer.",
     )
 
-    fixed_price = fields.Float(
-        string="Fixed Price",
-        min_display_digits="Product Price",
-    )
+    fixed_price = fields.Float(min_display_digits="Product Price")
     percent_price = fields.Float(
         string="Percentage Price",
         help="You can apply a mark-up by setting a negative discount.",
     )
 
     price_discount = fields.Float(
-        string="Price Discount",
         digits=(16, 2),
         default=0,
         help="You can apply a mark-up by setting a negative discount.",
@@ -183,18 +176,14 @@ class ProductPricelistItem(models.Model):
     )
 
     name = fields.Char(
-        string="Name",
         compute="_compute_name",
         help="Explicit rule name for this pricelist line.",
     )
     price = fields.Char(
-        string="Price",
         compute="_compute_price",
         help="Human-readable summary of the price this rule computes.",
     )
-    rule_tip = fields.Char(
-        compute="_compute_rule_tip",
-    )
+    rule_tip = fields.Char(compute="_compute_rule_tip")
 
     @api.constrains("base_pricelist_id", "pricelist_id", "base")
     def _check_pricelist_recursion(self):
@@ -343,14 +332,14 @@ class ProductPricelistItem(models.Model):
                     **{field: values.get(field) for field in self._TARGETING_FIELDS}
                 )
 
-            self._sanitize_applied_on_vals(values)
+            self._update_applied_on_vals(values)
             new_vals_list.append(values)
         return super().create(new_vals_list)
 
     def write(self, vals):
         if vals.get("applied_on"):
             vals = dict(vals)
-            self._sanitize_applied_on_vals(vals)
+            self._update_applied_on_vals(vals)
             return super().write(vals)
 
         if not any(field in vals for field in self._TARGETING_FIELDS):
@@ -371,7 +360,7 @@ class ProductPricelistItem(models.Model):
             item_vals = {**vals, "applied_on": applied_on}
             if override is not None:
                 item_vals["product_tmpl_id"] = override
-            self._sanitize_applied_on_vals(item_vals)
+            self._update_applied_on_vals(item_vals)
             result = (
                 super(ProductPricelistItem, self.browse(item_ids)).write(item_vals)
                 and result
@@ -412,7 +401,7 @@ class ProductPricelistItem(models.Model):
         return "3_global"
 
     @api.model
-    def _sanitize_applied_on_vals(self, vals):
+    def _update_applied_on_vals(self, vals):
         applied_on = vals.get("applied_on")
         if applied_on == "3_global":
             vals.update({"product_id": None, "product_tmpl_id": None, "categ_id": None})
@@ -756,7 +745,7 @@ class ProductPricelistItem(models.Model):
             return convert(self.fixed_price)
 
         if base_price is None:
-            base_price = self._compute_base_price(
+            base_price = self._get_base_price(
                 product, quantity, uom, date, currency, **kwargs
             )
 
@@ -779,7 +768,7 @@ class ProductPricelistItem(models.Model):
 
         return base_price
 
-    def _compute_base_price(self, product, quantity, uom, date, currency, **kwargs):
+    def _get_base_price(self, product, quantity, uom, date, currency, **kwargs):
         currency.check_singleton()
 
         rule_base = self.base or "list_price"
@@ -795,7 +784,7 @@ class ProductPricelistItem(models.Model):
             src_currency = self.base_pricelist_id.currency_id
         elif rule_base == "standard_price":
             src_currency = product.cost_currency_id
-            price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
+            price = product._get_prices(rule_base, uom=uom, date=date)[product.id]
         else:
             if rule_base != "list_price":
                 raise ValidationError(
@@ -807,7 +796,7 @@ class ProductPricelistItem(models.Model):
                     ),
                 )
             src_currency = product.currency_id
-            price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
+            price = product._get_prices(rule_base, uom=uom, date=date)[product.id]
 
         if src_currency != currency:
             price = src_currency._convert(
@@ -816,7 +805,7 @@ class ProductPricelistItem(models.Model):
 
         return price
 
-    def _compute_price_before_discount(
+    def _get_price_before_discount(
         self, product, quantity, uom, date, currency=None, **kwargs
     ):
         pricelist_item = self
@@ -833,6 +822,6 @@ class ProductPricelistItem(models.Model):
             else:
                 break
 
-        return pricelist_item._compute_base_price(
+        return pricelist_item._get_base_price(
             product, quantity, uom, date, currency, **kwargs
         )

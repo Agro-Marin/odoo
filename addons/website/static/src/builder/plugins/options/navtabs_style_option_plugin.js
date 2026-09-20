@@ -4,9 +4,12 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.nav_tabs_option_style");
 
 /**
  * @typedef { Object } NavTabsStyleOptionShared
@@ -51,6 +54,10 @@ class NavTabsStyleOptionPlugin extends Plugin {
     setup() {
         this.isEditableRTL = this.config.isEditableRTL;
         this.isBackendRTL = localization.direction === "rtl";
+        log.lifecycle("NavTabsStyleOptionPlugin setup", () => ({
+            isEditableRTL: this.isEditableRTL,
+            isBackendRTL: this.isBackendRTL,
+        }));
     }
 
     isNavItem(el) {
@@ -107,6 +114,11 @@ class NavTabsStyleOptionPlugin extends Plugin {
     moveNavItem(direction) {
         const tabHash = this.overlayTarget.querySelector(".nav-link").hash;
         const tabPaneEl = this.overlayTarget.closest("section").querySelector(tabHash);
+        log.pipeline("NavTabsStyleOptionPlugin moveNavItem", () => ({
+            direction,
+            tabHash,
+            hasPane: !!tabPaneEl,
+        }));
 
         if (direction === "prev") {
             const previousNavItemEl = this.overlayTarget.previousElementSibling;
@@ -165,13 +177,16 @@ export class BaseNavtabsStyleOption extends BuilderAction {
     }
 
     applyDirection(editingElement, direction) {
-        // s_tabs_images use flex-md classes, while s_tabs use flex-sm classes
         const isTabsImages = editingElement
             .closest(".s_tabs_common")
             .classList.contains("s_tabs_images");
 
         const isVertical = direction === "vertical";
         const navEl = this.getNavEl(editingElement);
+        log.pipeline("BaseNavtabsStyleOption applyDirection", () => ({
+            direction,
+            isTabsImages,
+        }));
 
         editingElement.classList.toggle("row", isVertical);
         editingElement.classList.toggle("s_col_no_resize", isVertical);
@@ -190,8 +205,6 @@ export class BaseNavtabsStyleOption extends BuilderAction {
             .querySelector(".s_tabs_content")
             .classList.toggle(isTabsImages ? "col-md-9" : "col-sm-9", isVertical);
 
-        // Clean incompatible leftover classes in vertical mode.
-        // See "Fill and Justify" and "Alignment" options.
         if (isVertical) {
             navEl.classList.remove(
                 "nav-fill",
@@ -209,7 +222,6 @@ class SetStyleAction extends BaseNavtabsStyleOption {
     static id = "setStyle";
     isApplied({ editingElement, value }) {
         const navEl = this.getNavEl(editingElement);
-        // 'nav-buttons' also applies 'nav-pills'
         if (navEl.classList.contains("nav-buttons")) {
             return value === "nav-buttons";
         }
@@ -220,6 +232,7 @@ class SetStyleAction extends BaseNavtabsStyleOption {
         const isBtns = value === "nav-buttons";
         const tabsEl = getTabsEl(editingElement);
         const navEl = this.getNavEl(editingElement);
+        log.pipeline("SetStyleAction apply", () => ({ value }));
 
         if (isTabs || isBtns) {
             this.applyDirection(editingElement, "horizontal");
@@ -245,6 +258,7 @@ class SetStyleAction extends BaseNavtabsStyleOption {
         const isBtns = value === "nav-buttons";
         const tabsEl = getTabsEl(editingElement);
         const navEl = this.getNavEl(editingElement);
+        log.pipeline("SetStyleAction clean", () => ({ value }));
 
         if (isTabs) {
             tabsEl.classList.remove(...this.tabsTabsClasses);

@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { buttonsType, Numpad } from "@point_of_sale/app/components/numpad/numpad";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.number");
 export class NumberPopup extends Component {
     static template = "point_of_sale.NumberPopup";
     static components = { Numpad, Dialog };
@@ -30,6 +33,7 @@ export class NumberPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.numberBuffer = useService("number_buffer");
         this.numberBuffer.use({
             triggerAtInput: ({ buffer }) => (this.state.buffer = buffer),
@@ -48,7 +52,13 @@ export class NumberPopup extends Component {
 
     confirm() {
         this.numberBuffer.capture();
-        if (!this.props.isValid(this.state.buffer)) {
+        const valid = this.props.isValid(this.state.buffer);
+        log.logic("confirm", () => ({
+            title: this.props.title,
+            buffer: this.state.buffer,
+            valid,
+        }));
+        if (!valid) {
             return;
         }
         this.props.getPayload(this.state.buffer);

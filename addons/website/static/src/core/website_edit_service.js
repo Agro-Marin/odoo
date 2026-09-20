@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
@@ -6,39 +7,17 @@ import * as bootstrap from "@web/libs/bootstrap";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 
-// Runtime channel for public frontend code that produces layout-only DOM
-// mutations and must keep them out of the edit history (currently
-// `auto_hide_menu.js`, whose "more" dropdown is layout, not content).
-//
-// Deliberately a `window` property and not an exported/imported symbol: the
-// consumer ships in `web.assets_frontend_minimal` while this file ships in
-// `website.assets_inside_builder_iframe`, and esbuild tree-shakes any export
-// only another bundle consumes. The import map cannot patch over it either --
-// by the time the builder bundle is lazily loaded the specifier is already
-// resolved, so the conflicting later rule is dropped. See the matching
-// comment in auto_hide_menu.js.
+const log = makeLogger("website.edit");
+
 const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
 
-// Runtime channel publishing this document's Bootstrap components to the
-// builder, which runs in the *parent* window.
-//
-// Bootstrap components act on the ambient `document` of the realm their class
-// was defined in -- `Modal._showElement` even relocates its element with
-// `document.body.append(...)`. A builder plugin that drives an iframe element
-// with the backend realm's class therefore rips the popup out of the editable
-// and into the backend body. The class has to be this realm's.
-//
-// It used to be reachable as `iframeWindow.Modal`, because Bootstrap was a set
-// of globals. It is now an ES module bundle that exposes nothing on `window`,
-// and this document has no `odoo.loader.modules` registry to look it up in
-// either, so those reads silently became `undefined` and their callers threw
-// "Cannot read properties of undefined". Publish the namespace explicitly, on
-// the same window-property channel and for the same cross-bundle reason as
-// EDIT_HOOKS_KEY above.
 const EDIT_BOOTSTRAP_KEY = "__odooWebsiteEditBootstrap";
 window[EDIT_BOOTSTRAP_KEY] = bootstrap;
 
 export function buildEditableInteractions(builders) {
+    const endBuild = log.perf("buildEditableInteractions", () => ({
+        builders: builders.length,
+    }));
     const result = [];
 
     const mixinPerInteraction = new Map();
@@ -53,35 +32,31 @@ export function buildEditableInteractions(builders) {
             continue;
         }
         let I = makeEditable.Interaction;
-        // Collect mixins to up to Interaction class in reverse order.
-        // Compare by identity, not by `I.name`: a class that does not descend
-        // from `Interaction` (or a minified build) never matches the name, and
-        // the walk then runs off the end of the prototype chain and throws on
-        // `null.name`. The `I &&` guard stops at the chain's end instead.
         const mixins = [];
         while (I && I !== Interaction) {
             const mixin = mixinPerInteraction.get(I);
             if (mixin) {
                 mixins.push(mixin);
             } else {
+                log.logic("buildEditableInteractions: missing mixin", () => ({
+                    interaction: I.name,
+                    for: makeEditable.Interaction.name,
+                }));
                 console.warn(`No mixin defined for: ${I.name}`);
             }
             I = I.__proto__;
         }
-        // Apply mixins from top-most class.
         let EI = makeEditable.Interaction;
         while (mixins.length) {
             EI = mixins.pop()(EI);
         }
         if (!EI.name) {
-            // if we get here, this is most likely because we have an anonymous
-            // class. To make it easier to work with, we can add the name property
-            // by doing a little hack
             const name = makeEditable.Interaction.name + "__mixin";
             EI = { [name]: class extends EI {} }[name];
         }
         result.push(EI);
     }
+    endBuild(() => ({ built: result.length }));
     return result;
 }
 
@@ -93,17 +68,23 @@ export const websiteEditService = {
         const patches = [];
         const historyCallbacks = {};
         const shared = {};
+        log.lifecycle("start");
 
         const update = (target, mode) => {
-            // editMode = true;
-            // const currentEditMode = this.website_edit.mode === "edit";
-
-            // interactions are already started. we only restart them if the
-            // public root is not just starting.
+            log.pipeline("update", () => ({
+                mode,
+                target: target?.tagName,
+                refreshing: publicInteractions.isRefreshing,
+            }));
+            const endUpdate = log.perf("update", () => ({
+                mode,
+                target: target?.tagName,
+            }));
             stopDisconnectedInteractions();
             publicInteractions.stopInteractions(target);
             if (mode === "edit") {
                 if (!editableInteractions) {
+                    log.logic("update: building editable interactions (first edit)");
                     const builders = registry
                         .category("public.interactions.edit")
                         .getAll();
@@ -113,6 +94,7 @@ export const websiteEditService = {
                 publicInteractions.activate(editableInteractions);
             } else if (mode === "preview") {
                 if (!previewInteractions) {
+                    log.logic("update: building preview interactions (first preview)");
                     const builders = registry
                         .category("public.interactions.preview")
                         .getAll();
@@ -122,9 +104,11 @@ export const websiteEditService = {
             } else {
                 publicInteractions.startInteractions(target);
             }
+            endUpdate();
         };
 
         const refresh = (target) => {
+            log.pipeline("refresh", () => ({ target: target?.tagName }));
             publicInteractions.isRefreshing = true;
             try {
                 update(target, "edit");
@@ -134,10 +118,12 @@ export const websiteEditService = {
         };
 
         const stop = (target) => {
+            log.lifecycle("stop", () => ({ target: target?.tagName }));
             publicInteractions.stopInteractions(target);
         };
 
         const stopInteraction = (name) => {
+            log.lifecycle("stopInteraction", () => ({ name }));
             publicInteractions.stopInteractionsByName(name);
         };
 
@@ -150,31 +136,17 @@ export const websiteEditService = {
 
         const installPatches = () => {
             if (patches.length) {
+                log.logic("installPatches: already installed", () => ({
+                    patches: patches.length,
+                }));
                 return;
             }
 
-            // Colibri's own DOM effects — setup, start, teardown, dynamic
-            // attributes, `t-out`, deferred callbacks and listener bodies —
-            // are the framework restoring a page, not the user editing it, so
-            // they must not land in the undo history. One scope replaces the
-            // five near-identical overrides this patch used to carry.
-            //
-            // `historyCallbacks.ignoreDOMMutations` is read per call, not
-            // captured: it is assigned by `handlePluginLoaded` immediately
-            // AFTER the synchronous `transfer_website_edit_service` dispatch
-            // that brought us here, so it is still unset at this line. It is
-            // set before anything can run an interaction, and deliberately not
-            // guarded — an unscoped effect would silently corrupt the history,
-            // which is far worse than throwing.
             publicInteractions.domEffectScope = (fn) =>
                 historyCallbacks.ignoreDOMMutations(fn);
             patches.push(() => {
-                // Unshadow rather than reassign, so the service goes back to
-                // the prototype's identity scope instead of carrying a copy.
                 delete publicInteractions.domEffectScope;
             });
-
-            // Patch Colibri.
 
             patches.push(
                 patch(Colibri.prototype, {
@@ -184,9 +156,6 @@ export const websiteEditService = {
                     },
                     addListener(target, event, fn, options, sel) {
                         if (event.startsWith("slide.bs.carousel")) {
-                            // Never allow cancelling this event in edit mode.
-                            // Declared with `function` so that Colibri still
-                            // calls it with the interaction as `this`.
                             const inner = fn;
                             fn = /** @type {any} */ (
                                 function (/** @type {any[]} */ ...args) {
@@ -202,15 +171,9 @@ export const websiteEditService = {
                 }),
                 patch(Interaction.prototype, {
                     setupConfigurationSnapshot() {
-                        // Track configuration values.
                         this.configurationSnapshot = this.getConfigurationSnapshot();
                     },
                     getConfigurationSnapshot() {
-                        // Naive generalise implementation of a snapshot that
-                        // would impact the behavior of an interaction.
-                        // To be overloaded by edit-mode interactions that need
-                        // something more specific.
-                        // TODO Sort keys to improve comparison.
                         const dataset = omit(this.el.dataset, "visibility");
                         const style = {};
                         for (const property of this.el.style) {
@@ -221,26 +184,15 @@ export const websiteEditService = {
                                 style[property] = this.el.style[property];
                             }
                         }
-                        // `style` is a plain object built by assignment, so
-                        // `style.length` was always `undefined` and this guard
-                        // silently reduced to the dataset half: an element
-                        // configured purely through inline animation styles
-                        // would fall through to the always-restart sentinel.
                         if (Object.keys(dataset).length || Object.keys(style).length) {
                             return JSON.stringify({ dataset, style });
                         }
-                        // Nothing to track: NaN is never equal to itself, so
-                        // `shouldStop` always sees a change. Subclasses that
-                        // extend a snapshot MUST forward this value untouched
-                        // (see `isTrackedSnapshot`) — coercing it to an object
-                        // turns "always restart" into "never restart".
                         return NaN;
                     },
                     shouldStop() {
                         if (!this.el.isConnected) {
                             return true;
                         }
-                        // Selector does not match anymore ?
                         const I = this.constructor;
                         let isMatch = this.el.matches(I.selector);
                         if (I.selectorHas) {
@@ -250,13 +202,26 @@ export const websiteEditService = {
                             isMatch &&= !this.el.querySelector(I.selectorNotHas);
                         }
                         if (!isMatch) {
+                            log.logic(
+                                "Interaction shouldStop: selector no longer matches",
+                                () => ({
+                                    interaction: I.name,
+                                }),
+                            );
                             return true;
                         }
-                        // Configuration changed ?
                         const snapshot = this.getConfigurationSnapshot();
                         if (snapshot === this.configurationSnapshot) {
                             return false;
                         }
+                        log.logic(
+                            "Interaction shouldStop: configuration changed",
+                            () => ({
+                                interaction: I.name,
+                                from: this.configurationSnapshot,
+                                to: snapshot,
+                            }),
+                        );
                         this.configurationSnapshot = snapshot;
                         return true;
                     },
@@ -283,23 +248,29 @@ export const websiteEditService = {
                     },
                 }),
             );
+            log.lifecycle("patches installed", () => ({ patches: patches.length }));
         };
         const uninstallPatches = () => {
+            log.lifecycle("patches uninstalled", () => ({ patches: patches.length }));
             for (const removePatch of patches) {
                 removePatch();
             }
             patches.length = 0;
-            // Withdraw the guard: with the editor gone, public code must go back
-            // to calling its adapt function directly.
             delete window[EDIT_HOOKS_KEY];
         };
         const applyAction = (actionId, spec) => {
+            log.logic("applyAction", () => ({ actionId, spec }));
             shared.builderActions.applyAction(actionId, spec);
         };
         const callShared = (pluginName, methodName, args = []) => {
             if (!Array.isArray(args)) {
                 args = [args];
             }
+            log.logic("callShared", () => ({
+                pluginName,
+                methodName,
+                known: Boolean(shared[pluginName]?.[methodName]),
+            }));
             if (shared[pluginName]) {
                 if (shared[pluginName][methodName]) {
                     return shared[pluginName][methodName](...args);
@@ -326,10 +297,10 @@ export const websiteEditService = {
         };
 
         const handleEditPage = (ev) => {
+            log.lifecycle("edit_page received");
             stop(ev.detail.iframeDocument);
         };
 
-        // Transfer the iframe website_edit service to the EditInteractionPlugin
         const handlePluginLoaded = (ev) => {
             ev.currentTarget.dispatchEvent(
                 new CustomEvent("transfer_website_edit_service", {
@@ -339,6 +310,9 @@ export const websiteEditService = {
                 }),
             );
             Object.assign(shared, ev.shared);
+            log.lifecycle("edit interaction plugin loaded", () => ({
+                sharedPlugins: Object.keys(shared).length,
+            }));
             historyCallbacks.ignoreDOMMutations = shared.history.ignoreDOMMutations;
             window[EDIT_HOOKS_KEY] = {
                 ...window[EDIT_HOOKS_KEY],
@@ -351,10 +325,13 @@ export const websiteEditService = {
             "edit_interaction_plugin_loaded",
             handlePluginLoaded,
         );
+        window.parent.document.dispatchEvent(
+            new CustomEvent("website_edit_service_ready"),
+        );
+        log.lifecycle("parent listeners attached, service ready dispatched");
 
-        // Clean up parent document listeners when iframe unloads to prevent
-        // stale handlers from serving an outdated service to new plugins.
         window.addEventListener("beforeunload", () => {
+            log.lifecycle("beforeunload: parent listeners removed");
             window.parent.document.removeEventListener("edit_page", handleEditPage);
             window.parent.document.removeEventListener(
                 "edit_interaction_plugin_loaded",
@@ -368,14 +345,6 @@ export const websiteEditService = {
 registry.category("services").add("website_edit", websiteEditService);
 
 /**
- * Whether a `getConfigurationSnapshot()` result carries real tracked
- * configuration, as opposed to the "nothing to track" sentinel.
- *
- * The sentinel is deliberately never equal to itself, which makes
- * `shouldStop()` always report a change. A subclass extending a snapshot must
- * check this before parsing: `JSON.parse(snapshot || "{}")` folds the sentinel
- * into a stable object and silently turns always-restart into never-restart.
- *
  * @param {string | number} snapshot
  * @returns {boolean}
  */

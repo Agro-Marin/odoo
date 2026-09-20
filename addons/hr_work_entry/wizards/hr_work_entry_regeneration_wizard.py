@@ -6,6 +6,9 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrWorkEntryRegenerationWizard(models.TransientModel):
@@ -13,34 +16,44 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     _description = "Regenerate Employee Work Entries"
 
     earliest_available_date = fields.Date(
-        "Earliest date", compute="_compute_available_dates"
+        string="Earliest date",
+        compute="_compute_available_dates",
     )
     earliest_available_date_message = fields.Char(
-        readonly=True, store=False, default=""
+        default="",
+        store=False,
+        readonly=True,
     )
     latest_available_date = fields.Date(
-        "Latest date", compute="_compute_available_dates"
+        string="Latest date",
+        compute="_compute_available_dates",
     )
-    latest_available_date_message = fields.Char(readonly=True, store=False, default="")
+    latest_available_date_message = fields.Char(
+        default="",
+        store=False,
+        readonly=True,
+    )
     date_from = fields.Date(
-        "From", required=True, default=lambda self: self.env.context.get("date_start")
+        string="From",
+        default=lambda self: self.env.context.get("date_start"),
+        required=True,
     )
     date_to = fields.Date(
-        "To",
-        required=True,
+        string="To",
         compute="_compute_date_to",
+        default=lambda self: self.env.context.get("date_end"),
         store=True,
         readonly=False,
-        default=lambda self: self.env.context.get("date_end"),
-    )
-    employee_ids = fields.Many2many(
-        "hr.employee",
-        string="Employees",
-        domain=lambda self: [("company_id", "in", self.env.companies.ids)],
         required=True,
     )
+    employee_ids = fields.Many2many(
+        comodel_name="hr.employee",
+        string="Employees",
+        required=True,
+        domain=lambda self: [("company_id", "in", self.env.companies.ids)],
+    )
     validated_work_entry_employee_ids = fields.Many2many(
-        "hr.employee",
+        comodel_name="hr.employee",
         export_string_translation=False,
         compute="_compute_validated_work_entry_employee_ids",
     )
@@ -70,7 +83,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
         for wizard in self:
             employees = self.env["hr.employee"]
             if wizard.search_criteria_completed:
-                for [employee] in self.env["hr.work.entry"]._read_group(
+                for [employee] in self.env["hr.work.entry"]._read_group(  # noqa: E8507 - a transient wizard: one record
                     [
                         ("employee_id", "in", wizard.employee_ids.ids),
                         ("date", ">=", wizard.date_from),
@@ -144,6 +157,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     def _check_regeneration_range(self):
         self.check_singleton()
         if not self.search_criteria_completed:
+            _debug.logic("regeneration_refused", reason="incomplete_criteria")
             raise ValidationError(
                 self.env._(
                     "In order to regenerate the work entries, you need to provide the wizard with an employee_id, a date_from and a date_to."
@@ -153,6 +167,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             self.date_from < self.earliest_available_date
             or self.date_to > self.latest_available_date
         ):
+            _debug.logic("regeneration_refused", reason="out_of_generated_range")
             raise ValidationError(
                 self.env._(
                     "The from date must be >= '%(earliest_available_date)s' and the to date must be <= '%(latest_available_date)s', which correspond to the generated work entries time interval.",
@@ -165,6 +180,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
                 )
             )
         if not self.valid:
+            _debug.logic("regeneration_refused", reason="nothing_regenerable")
             raise ValidationError(
                 self.env._(
                     "No work entry can be regenerated in this range of dates and these employees."
@@ -177,9 +193,20 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             self._check_regeneration_range()
         employees = self.employee_ids - self.validated_work_entry_employee_ids
         if not employees:
+            _debug.logic(
+                "regeneration_empty",
+                reason="all_validated",
+                employees=self.employee_ids,
+            )
             return self.env["hr.work.entry"]
         date_from = max(filter(None, [self.date_from, self.earliest_available_date]))
         date_to = min(filter(None, [self.date_to, self.latest_available_date]))
+        _debug.pipeline(
+            "regeneration_wizard_range",
+            employees=employees,
+            date_from=str(date_from),
+            date_to=str(date_to),
+        )
         return employees.generate_work_entries(date_from, date_to, True)
 
     @api.model
@@ -228,6 +255,7 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     def _regenerate_slots(self, slots):
         work_entries = self.env["hr.work.entry"]
         slots = self._filter_out_validated_slots(slots)
+        _debug.pipeline("regeneration_slots", slots=len(slots))
         for (date_from, date_to), employee_ids in self._group_slots_into_ranges(
             slots
         ).items():

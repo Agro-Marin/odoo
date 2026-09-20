@@ -69,7 +69,6 @@ registerWebsitePreviewTour(
             content: "drop a snippet group",
             trigger:
                 ".o-website-builder_sidebar .o_snippet[name=Intro].o_draggable .o_snippet_thumbnail",
-            // id starting by 'oe_structure..' will actually create an inherited view
             run: "drag_and_drop :iframe #oe_structure_test_ui",
         },
         {
@@ -78,7 +77,6 @@ registerWebsitePreviewTour(
             run: "click",
         },
         ...clickOnSave(),
-        // 2. Edit generic view
         {
             content: "open site menu",
             trigger: 'button[data-menu-xmlid="website.menu_site"]',
@@ -98,7 +96,6 @@ registerWebsitePreviewTour(
                     .insert({ row: 3, column: 1 }, "<p>somenewcontent</p>\n");
             },
         },
-        // 3. Edit oe_structure specific view
         {
             content: "select oe_structure specific view",
             trigger: 'div.ace_line .ace_xml:contains("somenewcontent")',
@@ -151,9 +148,8 @@ registerWebsitePreviewTour(
         url: "/contactus",
     },
     () => [
-        // 1. Open Html Editor and select a scss file
         {
-            trigger: ":iframe #wrap:visible", // ensure state for later
+            trigger: ":iframe #wrap:visible",
         },
         {
             trigger: ":iframe h1:contains(contact us)",
@@ -187,7 +183,6 @@ registerWebsitePreviewTour(
             trigger:
                 '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
         },
-        // 2. Edit that file and ensure it was saved then reset it
         {
             content: "add some scss content in the file",
             trigger: 'div.ace_line .ace_comment:contains("footer {")',
@@ -208,7 +203,7 @@ registerWebsitePreviewTour(
         {
             content: "check that the scss modification got applied",
             trigger: ":iframe body:has(#wrap:hidden)",
-            timeout: 30000, // SCSS compilation might take some time
+            timeout: 30000,
         },
         {
             content:
@@ -225,10 +220,8 @@ registerWebsitePreviewTour(
             content:
                 "check that the scss file was reset correctly, wrap content should now be visible again",
             trigger: ":iframe #wrap:visible",
-            timeout: 30000, // SCSS compilation might take some time
+            timeout: 30000,
         },
-        // 3. Customize again that file (will be used in second part of the test
-        //    to ensure restricted user can still use the HTML Editor)
         {
             content: "add some scss content in the file",
             trigger: 'div.ace_line .ace_comment:contains("footer {")',
@@ -262,10 +255,6 @@ registerWebsitePreviewTour(
         url: "/",
     },
     () => [
-        // This part of the test ensures that a restricted user can still use
-        // the HTML Editor if someone else made a customization previously.
-
-        // 4. Open Html Editor and select a scss file
         {
             trigger: ":iframe [is-ready=true] #wrapwrap",
         },
@@ -295,11 +284,9 @@ registerWebsitePreviewTour(
             trigger:
                 '.o_resource_editor .o_select_menu_toggler:contains("user_custom_rules")',
         },
-        // 5. Edit that file and ensure it was saved then reset it
         {
             content: "add some scss content in the file",
             trigger: `div.ace_line:contains("${adminCssModif}")`,
-            // ensure the admin modification is here
             run() {
                 ace.edit(document.querySelector("#resource-editor div"))
                     .getSession()
@@ -318,7 +305,7 @@ registerWebsitePreviewTour(
             content:
                 "reset view (after reload, html editor should have been reopened where it was)",
             trigger: "#resource-editor-id button:contains(Reset)",
-            timeout: 30000, // SCSS compilation might take some time
+            timeout: 30000,
             run: "click",
         },
         {
@@ -332,7 +319,7 @@ registerWebsitePreviewTour(
         {
             content: "check that the scss file was reset correctly",
             trigger: `body:not(:has(div.ace_line:contains("${demoCssModif}")))`,
-            timeout: 30000, // SCSS compilation might take some time
+            timeout: 30000,
         },
     ],
 );
@@ -340,7 +327,6 @@ registerWebsitePreviewTour(
 registerWebsitePreviewTour(
     "website_code_editor_usable",
     {
-        // TODO: enable debug mode when failing tests have been fixed (props validation)
         url: "/",
     },
     () => [
@@ -363,7 +349,6 @@ registerWebsitePreviewTour(
             trigger: ".o_resource_editor_wrapper div:nth-child(2) > button",
             run: "click",
         },
-        // Test all 3 file type options
         ...[
             {
                 menuItemIndex: 1,

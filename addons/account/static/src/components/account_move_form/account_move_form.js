@@ -1,12 +1,15 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { append, createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { deleteConfirmationMessage } from "@web/ui/dialog";
 import { FormCompiler, FormController, FormRenderer, formView } from "@web/views/form";
+
+const log = makeLogger("account.move.form");
 
 export class AccountMoveFormController extends FormController {
     setup() {
@@ -30,6 +33,10 @@ export class AccountMoveFormController extends FormController {
     }
 
     async deleteRecord() {
+        log.logic("deleteRecord", () => ({
+            resId: this.model.root.resId,
+            moveType: this.model.root.data.move_type,
+        }));
         const deleteConfirmationDialogProps = this.deleteConfirmationDialogProps;
         deleteConfirmationDialogProps.body =
             await this.account_move_service.getDeletionDialogBody(
@@ -49,11 +56,11 @@ export class AccountMoveFormNotebook extends Notebook {
         onBeforeTabSwitch: { type: Function, optional: true },
     };
 
-    async changeTabTo(page_id) {
-        if (this.props.onBeforeTabSwitch) {
-            await this.props.onBeforeTabSwitch(page_id);
+    async beforePageActivation(pageId) {
+        if ((await super.beforePageActivation(pageId)) === false) {
+            return false;
         }
-        this.state.currentPage = page_id;
+        return this.props.onBeforeTabSwitch?.(pageId);
     }
 }
 
@@ -74,10 +81,11 @@ export class AccountMoveFormRenderer extends FormRenderer {
         }
         const contentEl = this.rootRef.el?.closest(".o_content");
         const scrollPos = contentEl?.scrollTop;
-        await this.props.record.save();
+        const saved = await this.props.record.save();
         if (scrollPos) {
             contentEl.scrollTop = scrollPos;
         }
+        return saved;
     }
 }
 

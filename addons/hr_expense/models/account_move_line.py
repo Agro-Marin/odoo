@@ -1,16 +1,26 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     expense_id = fields.Many2one(
-        "hr.expense", string="Expense", copy=True, index="btree_not_null"
+        comodel_name="hr.expense",
+        index="btree_not_null",
+        copy=True,
     )
 
     def _compute_partner_id(self):
         expense_lines = self.filtered("move_id.expense_ids")
+        _debug.logic(
+            "partner_from_expense_move",
+            expense_lines=expense_lines,
+            others=self - expense_lines,
+        )
         super(AccountMoveLine, self - expense_lines)._compute_partner_id()
         for line in expense_lines:
             line.partner_id = line.move_id.partner_id

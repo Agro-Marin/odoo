@@ -5,6 +5,8 @@ from odoo import api, models
 from odoo.api import ValuesType
 from odoo.libs.intervals import Intervals
 
+from ..tools import debug_log as dbg
+
 
 class ResUsers(models.Model):
     _inherit = "res.users"
@@ -15,6 +17,7 @@ class ResUsers(models.Model):
         self._onboard_users_into_project(res)
         return res
 
+    @dbg.timed
     def _onboard_users_into_project(self, users: Self) -> Self | None:
         if internal_users := users.filtered(lambda u: not u.share):
             TriageSudo = self.env["project.triage"].sudo()
@@ -27,12 +30,22 @@ class ResUsers(models.Model):
                 )
                 create_vals.extend(vals)
 
+            dbg.lifecycle.debug(
+                "res.users._onboard_users_into_project: %s -> %d triage buckets",
+                dbg.rec(internal_users),
+                len(create_vals),
+            )
             if create_vals:
                 TriageSudo.with_context(default_project_id=False).create(create_vals)
 
             return internal_users
+        dbg.logic.debug(
+            "res.users._onboard_users_into_project: %s are all share users, skipped",
+            dbg.rec(users),
+        )
         return None
 
+    @dbg.timed
     def _get_calendars_validity_within_period(self, start, end):
         assert start.tzinfo and end.tzinfo
         user_resources = {user: user._get_project_task_resource() for user in self}
@@ -62,6 +75,7 @@ class ResUsers(models.Model):
                 )
         return user_calendars_within_period
 
+    @dbg.timed
     def _get_valid_work_intervals(self, start, end, calendars=None):
         assert start.tzinfo and end.tzinfo
         user_calendar_validity_intervals = {}
@@ -78,12 +92,25 @@ class ResUsers(models.Model):
                 calendar_users[calendar] |= user
         for calendar in calendars or []:
             calendar_users[calendar] |= self.env["res.users"]
+        dbg.logic.debug(
+            "res.users._get_valid_work_intervals %s %s..%s: %d calendars",
+            dbg.rec(self),
+            start,
+            end,
+            len(calendar_users),
+        )
         for calendar, users in calendar_users.items():
             if not calendar:
                 continue
-            work_intervals_batch = calendar._work_intervals_batch(
-                start, end, resources=users._get_project_task_resource()
-            )
+            with dbg.timer(
+                self.env,
+                "_get_valid_work_intervals: calendar %s for %d users",
+                calendar.id,
+                len(users),
+            ):
+                work_intervals_batch = calendar._work_intervals_batch(
+                    start, end, resources=users._get_project_task_resource()
+                )
             for user in users:
                 user_work_intervals[user.id] |= (
                     work_intervals_batch[user_resources[user].id]

@@ -15,16 +15,15 @@ class SlideChannel(models.Model):
         ondelete={"payment": lambda recs: recs.write({"enroll": "invite"})},
     )
     product_id = fields.Many2one(
-        "product.product",
-        "Product",
-        domain=[("service_tracking", "=", "course")],
-        index="btree_not_null",
+        comodel_name="product.product",
         default=_default_product_id,
+        index="btree_not_null",
+        domain=[("service_tracking", "=", "course")],
     )
     product_sale_revenues = fields.Monetary(
         string="Total revenues",
         compute="_compute_product_sale_revenues",
-        groups="sales_team.group_sale_salesman",
+        groups="sale.group_sale_salesman",
     )
     currency_id = fields.Many2one(related="product_id.currency_id")
 
@@ -65,10 +64,6 @@ class SlideChannel(models.Model):
         return res
 
     def _sync_product_publish(self):
-        """
-        Ensure that when publishing a course that its linked product is also published
-        If all courses linked to a product are unpublished, we also unpublished the product
-        """
         if not self:
             return
         self.filtered(

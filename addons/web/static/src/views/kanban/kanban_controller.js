@@ -4,12 +4,14 @@
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
+import { MultiRecordCogMenu } from "@web/views/multi_record_cog_menu";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
@@ -17,7 +19,6 @@ import { SelectionBox } from "@web/views/view_components/selection_box";
 import { ViewLayout } from "@web/views/view_components/view_layout";
 import { exportableFields, getMultiRecordModelParams } from "@web/views/view_utils";
 
-import { KanbanCogMenu } from "./kanban_cog_menu.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
 import { useProgressBar } from "./progress_bar_hook.js";
 
@@ -61,6 +62,8 @@ const QUICK_CREATE_FIELD_TYPES = [
     "many2many",
 ];
 
+const log = makeLogger("web.view.kanban");
+
 export class KanbanController extends MultiRecordController {
     static template = `web.KanbanView`;
     static components = {
@@ -69,7 +72,7 @@ export class KanbanController extends MultiRecordController {
         ViewLayout,
         KanbanRenderer,
         MultiRecordViewButton,
-        CogMenu: KanbanCogMenu,
+        CogMenu: MultiRecordCogMenu,
         SelectionBox,
     };
     static props = {
@@ -112,13 +115,24 @@ export class KanbanController extends MultiRecordController {
                 activeBars,
             );
         }
-        this.headerButtons = this.archInfo.headerButtons;
-
         const self = this;
         this.quickCreateState = reactive(
             /** @type {any} */ ({
                 get groupId() {
-                    return this._groupId || false;
+                    if (!this._groupId) {
+                        return false;
+                    }
+                    const groups = self.model.root.groups || [];
+                    if (groups.some((group) => group.id === this._groupId)) {
+                        return this._groupId;
+                    }
+                    const groupBy = self.model.root.groupBy;
+                    const regrouped = groups.find(
+                        (group) =>
+                            JSON.stringify([groupBy, group.serverValue]) ===
+                            this._groupKey,
+                    );
+                    return regrouped ? regrouped.id : false;
                 },
                 // eslint-disable-next-line no-restricted-syntax -- must clear sample data synchronously with this mutation; see STATE_MANAGEMENT.md "Pattern 4"
                 set groupId(groupId) {
@@ -127,6 +141,12 @@ export class KanbanController extends MultiRecordController {
                         self.model.useSampleModel = false;
                     }
                     this._groupId = groupId;
+                    const group = (self.model.root.groups || []).find(
+                        (candidate) => candidate.id === groupId,
+                    );
+                    this._groupKey = group
+                        ? JSON.stringify([self.model.root.groupBy, group.serverValue])
+                        : undefined;
                 },
                 view: this.archInfo.quickCreateView,
             }),
@@ -346,6 +366,11 @@ export class KanbanController extends MultiRecordController {
     }
 
     async openRecord(record, /** @type {any} */ { newWindow } = {}) {
+        log.logic("openRecord", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            newWindow,
+        }));
         const activeIds = this.model.root.records.map((datapoint) => datapoint.resId);
         this.props.selectRecord(record.resId, { activeIds, newWindow });
     }
@@ -353,6 +378,11 @@ export class KanbanController extends MultiRecordController {
     async createRecord() {
         const { onCreate } = this.props.archInfo;
         const { root } = this.model;
+        log.logic("createRecord", () => ({
+            onCreate,
+            quickCreate: this.canQuickCreate,
+            grouped: root.isGrouped,
+        }));
         if (this.canQuickCreate && onCreate === "quick_create") {
             const firstGroup =
                 root.groups.find((group) => !group.isFolded) || root.groups[0];
@@ -379,6 +409,11 @@ export class KanbanController extends MultiRecordController {
 
     /** @param {Object} record */
     onRecordSaved(record) {
+        log.lifecycle("onRecordSaved", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            grouped: this.model.root.isGrouped,
+        }));
         if (this.model.root.isGrouped) {
             const group = this.model.root.groups.find((l) =>
                 l.records.find((r) => r.id === record.id),

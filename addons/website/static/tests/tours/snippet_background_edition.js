@@ -129,7 +129,6 @@ registerWebsitePreviewTour(
         ...insertSnippet(snippets[0]),
         ...clickOnSnippet(snippets[0]),
 
-        // Set background image and save.
         changeOption("Text - Image", "button[data-action-id='toggleBgImage']"),
         {
             content: "Click on image",
@@ -143,17 +142,14 @@ registerWebsitePreviewTour(
         },
         ...clickOnEditAndWaitEditMode(),
         ...clickOnSnippet(snippets[0]),
-        // Remove background image.
         changeOption("Text - Image", "button[data-action-id='toggleBgImage']"),
 
-        // Add a color combination
         ...checkAndUpdateBackgroundColor({
             changeType: "cc",
             change: "o_cc3",
             finalSelector: `:iframe .${snippets[0].id}.o_cc3:not([class*=bg-]):not([style*="background"])`,
         }),
 
-        // Change the color combination + Check the previous one was marked as selected
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc3",
             changeType: "cc",
@@ -161,7 +157,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc2:not(.o_cc3):not([class*=bg-])`,
         }),
 
-        // Check the color combination was marked as selected + Edit the bg color
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc2",
             checkNoCC: "o_cc3",
@@ -170,7 +165,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc2.bg-${backgroundColors[0].code}`,
         }),
 
-        // Check the current color palette selection + Change the bg color
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc2",
             checkBg: backgroundColors[0].code,
@@ -179,8 +173,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc2.bg-${backgroundColors[1].code}:not(.bg-${backgroundColors[0].code})`,
         }),
 
-        // Check the current color palette selection + Change the color combination
-        // again. It should keep the bg color class.
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc2",
             checkNoBg: backgroundColors[0].code,
@@ -189,7 +181,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc4:not(.o_cc2):not(.bg-${backgroundColors[1].code})`,
         }),
 
-        // Check the current color palette status + Replace the bg color by a gradient
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc4",
             checkNoCC: "o_cc2",
@@ -199,7 +190,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc4:not(.bg-${backgroundColors[1].code})[style*="background-image: ${gradients[0]}"]`,
         }),
 
-        // Check the current color palette status + Replace the gradient
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc4",
             checkNoBg: backgroundColors[1].code,
@@ -209,8 +199,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc4[style*="background-image: ${gradients[1]}"]:not([style*="background-image: ${gradients[0]}"])`,
         }),
 
-        // Check the current color palette selection + Change the color combination
-        // again. Gradients should switch.
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc4",
             checkGradient: gradients[1],
@@ -220,7 +208,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc1:not(.o_cc4):not([style*="background-image: ${gradients[1]}"])`,
         }),
 
-        // Final check of the color status in the color palette + re-add a gradient
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc1",
             checkNoCC: "o_cc4",
@@ -230,7 +217,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc1:not(.o_cc4)[style*="background-image: ${gradients[1]}"]`,
         }),
 
-        // Now, add an image on top of that color combination + gradient
         changeOption("Text - Image", "button[data-action-id='toggleBgImage']"),
         {
             trigger: ".o_existing_attachment_cell .o_button_area",
@@ -254,7 +240,6 @@ registerWebsitePreviewTour(
             },
         },
 
-        // Replace the gradient while there is a background-image
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc1",
             checkGradient: gradients[1],
@@ -276,7 +261,6 @@ registerWebsitePreviewTour(
             },
         }),
 
-        // Customize gradient
         changeBackgroundColor(),
         switchTo("gradient"),
         {
@@ -284,8 +268,6 @@ registerWebsitePreviewTour(
             trigger: ".o_popover .o_custom_gradient_button",
             run: "click",
         },
-        // Avoid navigating across tabs to maintain current editor state
-        // Step colors
         ...updateAndCheckCustomGradient({
             updateStep: {
                 trigger: ".o_popover .gradient-preview",
@@ -322,7 +304,6 @@ registerWebsitePreviewTour(
             checkGradient:
                 "linear-gradient(135deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
         }),
-        // Linear
         ...updateAndCheckCustomGradient({
             updateStep: {
                 trigger: ".o_popover input[name='angle']",
@@ -332,7 +313,6 @@ registerWebsitePreviewTour(
             checkGradient:
                 "linear-gradient(50deg, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
         }),
-        // Radial
         ...updateAndCheckCustomGradient({
             updateStep: {
                 trigger: ".o_popover button:contains('Radial')",
@@ -369,14 +349,12 @@ registerWebsitePreviewTour(
             checkGradient:
                 "radial-gradient(circle farthest-side at 33% 75%, rgb(203, 94, 238) 0%, rgb(75, 225, 236) 100%)",
         }),
-        // Revert to predefined gradient
         {
             trigger: `.o_colorpicker_sections button[data-color="${gradients[0]}"]`,
             content: `Revert to predefiend gradient ${gradients[0]}`,
             run: "click",
         },
 
-        // Replace the gradient by a bg color
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc1",
             checkGradient: gradients[0],
@@ -386,7 +364,6 @@ registerWebsitePreviewTour(
             finalSelector: `:iframe .${snippets[0].id}.o_cc1.bg-${backgroundColors[1].code}[style^="background-image: url("]:not([style*="${gradients[0]}"])`,
         }),
 
-        // Re-add a gradient
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc1",
             checkBg: backgroundColors[1].code,
@@ -409,13 +386,11 @@ registerWebsitePreviewTour(
             },
         }),
 
-        // Final check of color selection and removing the image
         ...checkAndUpdateBackgroundColor({
             checkCC: "o_cc1",
             checkNoBg: backgroundColors[1].code,
             checkGradient: gradients[1],
         }),
-        // Now removing all colors via the 'None' button (note: colorpicker still opened)
         {
             trigger: ".o_popover button[title='Reset']",
             content: "Click on the None button of the color palette",

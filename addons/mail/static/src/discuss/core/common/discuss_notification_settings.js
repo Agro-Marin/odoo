@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { MESSAGE_SOUND } from "@mail/core/common/settings_model";
+import {
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { Component, useState } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
 export class DiscussNotificationSettings extends Component {
     static props = {};
@@ -24,12 +27,10 @@ export class DiscussNotificationSettings extends Component {
     }
 
     enableMessageSound() {
-        browser.localStorage.removeItem(MESSAGE_SOUND);
-        this.store.settings._recomputeMessageSound++;
+        removeLocalStorageItem(this.store, MESSAGE_SOUND);
     }
 
     disableMessageSound() {
-        browser.localStorage.setItem(MESSAGE_SOUND, String(false));
-        this.store.settings._recomputeMessageSound++;
+        setLocalStorageItem(this.store, MESSAGE_SOUND, String(false));
     }
 }

@@ -5,45 +5,13 @@ from odoo import tools
 from odoo.libs.lint import scan_regex_patterns
 from odoo.tests import tagged
 
-from .lint_case import LintCase, _module_roots
+from .lint_case import LintCase, _module_roots, is_core_path
 
 PRIVATE_CALL = re.compile(r"`(_[a-z][a-z0-9_]*)\(\)`")
 
 DEF_PATTERN = r"\bdef [A-Za-z_]\w*"
 
-KNOWN_STALE = frozenset(
-    {
-        "_build_category_snapshot",
-        "_get_approval_protected_fields",
-        "_get_approval_required_fields",
-        "_get_approver_sync_trigger_fields",
-        "_get_group_by_fields",
-        "_get_locked_fields",
-        "_get_request_trigger_fields",
-        "_get_select_fields",
-        "_avatar_generate_svg",
-        "_backend_for_key",
-        "_filestore",
-        "_notify_trigger_channel",
-        "_notifydb",
-        "_storage",
-        "_storage_backend",
-        "_compute_enrollment_count",
-        "_compute_step_count",
-        "_get_badge_user_stats",
-        "_get_owners_info",
-        "_get_user_badge_level",
-        "_recompute_rank_bulk",
-        "_validate_coordinate_fields_exist",
-        "_validate_coordinate_mode",
-        "_validate_info_box_template",
-        "_validate_layer_configurations",
-        "_validate_trail_configuration",
-        "_validate_webgl_trail_configuration",
-        "_validate_levels_sum",
-        "_t",
-    }
-)
+KNOWN_STALE = frozenset({"_t"})
 
 
 @tagged("post_install", "-at_install")
@@ -52,7 +20,7 @@ class MachineDocIdentifierLinter(LintCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.references = []
-        roots = [Path(r) for r in _module_roots()]
+        roots = [Path(r) for r in _module_roots() if is_core_path(r)]
         framework_root = Path(tools.config.root_path)
         hits = scan_regex_patterns(
             [str(framework_root)], [".py"], [DEF_PATTERN], ["addons", "__pycache__"]

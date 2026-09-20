@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { EventBus, reactive, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("account.bank_rec");
 
 export class BankReconciliationService {
     constructor(env, services) {
@@ -55,6 +58,9 @@ export class BankReconciliationService {
     }
 
     selectStatementLine(statementLine) {
+        log.logic("selectStatementLine", () => ({
+            id: statementLine?.resId ?? statementLine?.id,
+        }));
         this.chatterState.statementLine = statementLine;
     }
 
@@ -67,6 +73,10 @@ export class BankReconciliationService {
 
     async computeAvailableReconcileLines(records) {
         const unassigned = records.filter((record) => !record.data.partner_id?.id);
+        log.pipeline("computeAvailableReconcileLines", () => ({
+            records: records.length,
+            unassigned: unassigned.length,
+        }));
         if (!unassigned.length) {
             this.availableReconcileLines = [];
             return;
@@ -134,6 +144,9 @@ export class BankReconciliationService {
     }
 
     async computeAvailableReconcileModels(records) {
+        log.pipeline("computeAvailableReconcileModels", () => ({
+            records: Object.keys(records).length,
+        }));
         this.reconcileModelPerStatementLineId =
             Object.keys(records).length === 0
                 ? {}
@@ -209,7 +222,9 @@ export class BankReconciliationService {
     }
 
     async reloadRecords(records) {
+        const endReload = log.perf("reloadRecords");
         await Promise.all([...records.map((record) => record.load())]);
+        endReload({ records: records.length });
     }
 
     get statementLineMove() {

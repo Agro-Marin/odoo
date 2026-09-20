@@ -5,6 +5,8 @@ from unittest.mock import patch
 from requests import Response
 
 import odoo
+from odoo.libs.guarded_http import GuardedSession
+from odoo.libs.hashing import content_hash
 from odoo.tools.misc import file_open
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
@@ -33,10 +35,7 @@ class TestCloudStorageAttachmentController(
                 response._content = self.DUMMY_USER_DELEGATION_KEY_XML
             return response
 
-        with patch(
-            "odoo.addons.cloud_storage_azure.utils.cloud_storage_azure_utils.requests.post",
-            post,
-        ):
+        with patch.object(GuardedSession, "post", staticmethod(post)):
             with file_open("addons/web/__init__.py") as file:
                 res = self.url_open(
                     url="/mail/attachment/upload",
@@ -55,8 +54,8 @@ class TestCloudStorageAttachmentController(
                 )
                 # ignore signature in url
                 content = re.sub(
-                    r'"url": "https://accountname\.blob\.core\.windows\.net/.*?"',
-                    '"url": "[url]"',
+                    r'"url":\s*"https://accountname\.blob\.core\.windows\.net/[^"]*"',
+                    '"url":"[url]"',
                     res.content.decode("utf-8"),
                 )
                 self.assertEqual(
@@ -67,7 +66,7 @@ class TestCloudStorageAttachmentController(
                             "store_data": {
                                 "ir.attachment": [
                                     {
-                                        "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                                        "checksum": content_hash(b""),
                                         "create_date": odoo.fields.Datetime.to_string(
                                             attachment.create_date
                                         ),
@@ -78,6 +77,7 @@ class TestCloudStorageAttachmentController(
                                         "name": "__init__.py",
                                         "ownership_token": attachment._get_ownership_token(),
                                         "raw_access_token": attachment._get_raw_access_token(),
+                                        "res_model": "mail.compose.message",
                                         "res_name": False,
                                         "thread": False,
                                         "thumbnail_access_token": attachment._get_thumbnail_token(),

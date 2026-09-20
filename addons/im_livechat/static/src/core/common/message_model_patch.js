@@ -12,15 +12,15 @@ const messagePatch = {
     canReplyTo(thread) {
         return (
             super.canReplyTo(thread) &&
-            (thread?.channel_type !== "livechat" || !thread.composerDisabled)
+            (!thread?.isLivechat || !thread.composerDisabled)
         );
     },
     isTranslatable(thread) {
         return (
             super.isTranslatable(thread) ||
             (this.store.hasMessageTranslationFeature &&
-                thread?.channel_type === "livechat" &&
-                this.store.self_partner?.main_user_id?.share === false)
+                thread?.isLivechat &&
+                this.store.selfIsInternalUser)
         );
     },
 };

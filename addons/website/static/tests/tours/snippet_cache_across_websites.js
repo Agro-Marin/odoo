@@ -33,8 +33,6 @@ registerWebsitePreviewTour(
             trigger: ".o_add_snippet_dialog .modal-header .btn-close",
             run: "click",
         },
-        // There's no need to save, but canceling might or might not show a
-        // popup...
         ...clickOnSave(),
         ...testSwitchWebsite("Test Website"),
         ...clickOnEditAndWaitEditMode(),

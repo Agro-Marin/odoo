@@ -10,11 +10,11 @@
                 <field name="members_count" invisible="1" />
                 <button
                     name="action_mass_mailing_attendees"
-                    string="Contact Attendees"
                     type="object"
-                    class="oe_highlight"
+                    string="Contact Attendees"
+                    groups="mass_mailing.group_mass_mailing_user"
                     invisible="members_count == 0"
-                    groups="mass_mailing.group_mass_mailing_user" />
+                    class="oe_highlight" />
             </button>
         </field>
     </record>

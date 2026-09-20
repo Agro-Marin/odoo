@@ -1,8 +1,14 @@
 // @ts-check
 
-import { after } from "@odoo/hoot";
+/** @type {(callback: () => void | Promise<void>) => void} */
+let cleanupHook = () => {};
+
+/** @param {(callback: () => void | Promise<void>) => void} hook */
+export function bindCleanupHook(hook) {
+    cleanupHook = hook;
+}
 
 /** @param {() => void | Promise<void>} callback */
 export function registerCleanup(callback) {
-    after(callback);
+    cleanupHook(callback);
 }

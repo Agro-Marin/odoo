@@ -1,13 +1,16 @@
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class PosOrder(models.Model):
     _inherit = "pos.order"
 
     employee_id = fields.Many2one(
-        "hr.employee",
+        comodel_name="hr.employee",
         string="Cashier",
         help="The employee who uses the cash register.",
     )
@@ -20,6 +23,13 @@ class PosOrder(models.Model):
     @api.depends("employee_id", "user_id")
     def _compute_cashier(self):
         for order in self:
+            _debug.logic(
+                "pos_order_cashier",
+                order=order,
+                by="employee" if order.employee_id else "user",
+                employee=order.employee_id,
+                user=order.user_id,
+            )
             if order.employee_id:
                 order.cashier = order.employee_id.name
             else:

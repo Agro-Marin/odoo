@@ -8,15 +8,15 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='invoicing_settings']" position="after">
                 <block
+                    name="l10n_hu_edi_settings"
                     title="Hungarian Electronic Invoicing"
-                    invisible="country_code != 'HU'"
                     groups="account.group_account_manager"
-                    name="l10n_hu_edi_settings">
+                    invisible="country_code != 'HU'">
                     <setting
-                        company_dependent="1"
+                        name="l10n_hu_edi_nav_credentials"
                         string="NAV Credentials"
                         help="Enter your e-invoicing credentials given by the Hungarian Authority."
-                        name="l10n_hu_edi_nav_credentials">
+                        company_dependent="1">
                         <div class="row">
                             <field name="l10n_hu_edi_is_active" invisible="1" />
                             <div
@@ -28,44 +28,44 @@
                         </div>
                         <div class="row">
                             <label
-                                string="Mode"
                                 for="l10n_hu_edi_server_mode"
+                                string="Mode"
                                 class="col-lg-3 o_light_label" />
                             <field name="l10n_hu_edi_server_mode" />
                         </div>
                         <div class="row">
                             <label
-                                string="Username"
                                 for="l10n_hu_edi_username"
+                                string="Username"
                                 class="col-lg-3 o_light_label" />
                             <field name="l10n_hu_edi_username" />
                         </div>
                         <div class="row">
                             <label
-                                string="Password"
                                 for="l10n_hu_edi_password"
+                                string="Password"
                                 class="col-lg-3 o_light_label" />
                             <field name="l10n_hu_edi_password" />
                         </div>
                         <div class="row">
                             <label
-                                string="Signature Key"
                                 for="l10n_hu_edi_signature_key"
+                                string="Signature Key"
                                 class="col-lg-3 o_light_label" />
                             <field name="l10n_hu_edi_signature_key" />
                         </div>
                         <div class="row">
                             <label
-                                string="Replacement Key"
                                 for="l10n_hu_edi_replacement_key"
+                                string="Replacement Key"
                                 class="col-lg-3 o_light_label" />
                             <field name="l10n_hu_edi_replacement_key" />
                         </div>
                     </setting>
                     <setting
-                        company_dependent="1"
+                        name="l10n_hu_edi_specials"
                         help="Your company's specific tax arrangements, if any of these apply to your company."
-                        name="l10n_hu_edi_specials">
+                        company_dependent="1">
                         <field name="l10n_hu_tax_regime" />
                     </setting>
                 </block>

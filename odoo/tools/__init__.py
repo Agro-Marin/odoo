@@ -18,7 +18,7 @@ from odoo.libs.numbers import (
 from odoo.libs.parse_version import parse_version
 from odoo.libs.set_expression import SetDefinitions, SetExpressionError
 
-from .cache import ormcache, ormcache_context
+from .cache import TransactionMemo, ormcache, ormcache_context
 from .config import config
 from .convert import (
     convert_csv_import,
@@ -95,6 +95,7 @@ from .misc import (
     unique,
     resolve_hash_signed,
 )
+from .domain_predicates import DOMAIN_PREDICATES, SET_DOMAIN_OPERATORS
 from .query import Query
 
 from odoo.libs.sql import (
@@ -118,8 +119,10 @@ __all__ = [
     "DEFAULT_SERVER_DATETIME_FORMAT",
     "DEFAULT_SERVER_DATE_FORMAT",
     "DEFAULT_SERVER_TIME_FORMAT",
+    "DOMAIN_PREDICATES",
     "NEGATIVE_SIGN_JOINER",
     "NON_BREAKING_SPACE",
+    "SET_DOMAIN_OPERATORS",
     "SKIPPED_ELEMENT_TYPES",
     "SQL",
     "DotDict",
@@ -129,6 +132,7 @@ __all__ = [
     "Query",
     "SetDefinitions",
     "SetExpressionError",
+    "TransactionMemo",
     "_",
     "babel_locale_parse",
     "check_xml_from_attachment",

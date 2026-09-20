@@ -4,19 +4,21 @@ from odoo import _, api, fields, models
 class EventEvent(models.Model):
     _inherit = "event.event"
 
-    # sponsors
-    sponsor_ids = fields.One2many("event.sponsor", "event_id", "Sponsors")
-    sponsor_count = fields.Integer("Sponsor Count", compute="_compute_sponsor_count")
-    # frontend menu management
+    sponsor_ids = fields.One2many(
+        comodel_name="event.sponsor",
+        inverse_name="event_id",
+        string="Sponsors",
+    )
+    sponsor_count = fields.Integer(compute="_compute_sponsor_count")
     exhibitor_menu = fields.Boolean(
         string="Showcase Exhibitors",
         compute="_compute_exhibitor_menu",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     exhibitor_menu_ids = fields.One2many(
-        "website.event.menu",
-        "event_id",
+        comodel_name="website.event.menu",
+        inverse_name="event_id",
         string="Exhibitors Menus",
         domain=[("menu_type", "=", "exhibitor")],
     )
@@ -44,10 +46,6 @@ class EventEvent(models.Model):
                 event.exhibitor_menu = True
             elif not event.website_menu:
                 event.exhibitor_menu = False
-
-    # ------------------------------------------------------------
-    # WEBSITE MENU MANAGEMENT
-    # ------------------------------------------------------------
 
     def toggle_exhibitor_menu(self, val):
         self.exhibitor_menu = val

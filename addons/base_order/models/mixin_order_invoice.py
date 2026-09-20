@@ -3,6 +3,7 @@ from itertools import groupby
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 
 INVOICE_STATE = [
     ("no", "Nothing to invoice"),
@@ -11,6 +12,8 @@ INVOICE_STATE = [
     ("done", "Fully invoiced"),
     ("over done", "Over-invoiced"),
 ]
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderInvoice(models.AbstractModel):
@@ -24,15 +27,12 @@ class MixinOrderInvoice(models.AbstractModel):
         compute="_compute_invoices",
         search="_search_invoice_ids",
     )
-    invoice_count = fields.Integer(
-        string="Invoice Count",
-        compute="_compute_invoices",
-    )
+    invoice_count = fields.Integer(compute="_compute_invoices")
     invoice_state = fields.Selection(
         selection=INVOICE_STATE,
         string="Invoice Status",
-        default="no",
         compute="_compute_invoice_state",
+        default="no",
         store=True,
         copy=False,
     )
@@ -79,6 +79,14 @@ class MixinOrderInvoice(models.AbstractModel):
                         pending.append(orphan_id)
             order.invoice_ids = AccountMove.browse(sorted(invoice_ids))
             order.invoice_count = len(invoice_ids)
+            if _debug.logic.enabled and len(invoice_ids) != len(
+                order_invoices.get(order.id, ())
+            ):
+                _debug.logic(
+                    "orphan_refunds_attached",
+                    order=order,
+                    invoices=len(invoice_ids),
+                )
 
     def _get_orphan_refunds_by_reversed_id(self, invoice_ids, refund_type):
         """Map every invoice/refund id reachable from `invoice_ids` through a
@@ -106,6 +114,11 @@ class MixinOrderInvoice(models.AbstractModel):
                 ).append(refund.id)
                 known_ids.add(refund.id)
                 frontier.add(refund.id)
+        _debug.perf.count(
+            "orphan_refund_chain",
+            seeds=len(invoice_ids),
+            reversed_entries=len(orphan_refunds_by_reversed_id),
+        )
         return orphan_refunds_by_reversed_id
 
     def _search_invoice_ids(self, operator, value):
@@ -138,6 +151,12 @@ class MixinOrderInvoice(models.AbstractModel):
         forced_orders.invoice_state = "done"
         confirmed_orders = (self - forced_orders).filtered(lambda o: o.state == "done")
         (self - forced_orders - confirmed_orders).invoice_state = "no"
+        _debug.perf.count(
+            "invoice_state_rollup",
+            orders=len(self),
+            forced=len(forced_orders),
+            confirmed=len(confirmed_orders),
+        )
         if not confirmed_orders:
             return
 
@@ -153,6 +172,12 @@ class MixinOrderInvoice(models.AbstractModel):
             order.invoice_state = order._resolve_invoice_state(
                 states,
                 order._origin.id in pending_no_ids,
+            )
+            _debug.logic(
+                "invoice_state",
+                order=order,
+                state=order.invoice_state,
+                line_states=",".join(sorted(states)),
             )
 
     def _resolve_invoice_state(self, states, nothing_is_pending):
@@ -176,9 +201,11 @@ class MixinOrderInvoice(models.AbstractModel):
         return "to do"
 
     def action_force_invoice_state(self):
+        _debug.lifecycle("invoice_state_forced", orders=self, forced=True)
         self.force_fully_invoiced = True
 
     def action_unforce_invoice_state(self):
+        _debug.lifecycle("invoice_state_forced", orders=self, forced=False)
         self.force_fully_invoiced = False
 
     @api.readonly
@@ -207,11 +234,11 @@ class MixinOrderInvoice(models.AbstractModel):
 
         context = {"default_move_type": f"{direction}_invoice"}
         if len(self) == 1:
-            context.update(self._get_invoice_action_context())
+            context.update(self._prepare_invoice_action_context())
         action["context"] = context
         return action
 
-    def _get_invoice_action_context(self):
+    def _prepare_invoice_action_context(self):
         self.check_singleton()
         pt_field = self._get_partner_payment_term_field()
         return {
@@ -263,6 +290,7 @@ class MixinOrderInvoice(models.AbstractModel):
             try:
                 self.check_access("write")
             except AccessError:
+                _debug.logic("create_invoices_denied", orders=self, reason="no_access")
                 return self.env["account.move"]
 
         invoice_vals_list = []
@@ -275,24 +303,40 @@ class MixinOrderInvoice(models.AbstractModel):
                 sequence,
             )
             if not line_commands:
+                _debug.logic("order_not_invoiceable", order=order, reason="no_lines")
                 continue
             invoice_vals["invoice_line_ids"] += line_commands
             invoice_vals_list.append(invoice_vals)
 
         if not invoice_vals_list:
             if self.env.context.get("raise_if_nothing_to_invoice", True):
+                _debug.logic("nothing_to_invoice", orders=self, raising=True)
                 raise UserError(self._get_nothing_to_invoice_error_message())
+            _debug.logic("nothing_to_invoice", orders=self, raising=False)
             return self.env["account.move"]
 
         if not grouped:
             invoice_vals_list = self._group_invoice_vals(invoice_vals_list)
         invoice_vals_list = self._post_group_invoice_vals(invoice_vals_list)
 
-        moves = self._create_invoice_moves(invoice_vals_list)
+        with _debug.perf(
+            "create_invoices",
+            cr=self.env.cr,
+            orders=self,
+            invoices=len(invoice_vals_list),
+        ):
+            moves = self._create_invoice_moves(invoice_vals_list)
 
-        self._switch_negative_moves(moves, final)
+            self._switch_negative_moves(moves, final)
 
-        self._post_create_invoices(moves)
+            self._post_create_invoices(moves)
+        _debug.lifecycle(
+            "invoices_created",
+            orders=self,
+            invoices=moves,
+            final=final,
+            grouped=grouped,
+        )
         return moves
 
     def _get_invoicing_order(self):
@@ -328,6 +372,9 @@ class MixinOrderInvoice(models.AbstractModel):
             lambda m: m.currency_id.round(m.amount_total) < 0,
         )
         if moves_to_switch:
+            _debug.lifecycle(
+                "negative_moves_switched", orders=self, moves=moves_to_switch
+            )
             moves_to_switch.action_switch_move_type()
 
     def _get_invoiceable_lines(self, final=False):
@@ -378,6 +425,7 @@ class MixinOrderInvoice(models.AbstractModel):
         self.with_context(bypass_locked_check=True).line_ids = [
             Command.link(line_id) for line_id in lines.ids
         ]
+        _debug.lifecycle("order_lines_created", order=self, lines=lines)
         return lines
 
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
@@ -408,6 +456,12 @@ class MixinOrderInvoice(models.AbstractModel):
                 origins.add(vals.get("invoice_origin"))
             ref_vals["invoice_origin"] = ", ".join(sorted(o for o in origins if o))
             grouped.append(ref_vals)
+        _debug.pipeline(
+            "invoice_vals_grouped",
+            orders=self,
+            before=len(invoice_vals_list),
+            after=len(grouped),
+        )
         return grouped
 
     def _post_create_invoices(self, moves):

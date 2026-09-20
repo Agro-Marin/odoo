@@ -108,8 +108,14 @@ class ResPartner(models.Model):
     # Field representing whether vies_valid is relevant for selecting a fiscal position on this partner
     perform_vies_validation = fields.Boolean(compute="_compute_perform_vies_validation")
     # We put on inverse because a compute with a dependency to itself is not well managed in the ORM (it should be triggered first)
-    country_id = fields.Many2one(inverse="_inverse_vat", store=True)
-    vat = fields.Char(inverse="_inverse_vat", store=True)
+    country_id = fields.Many2one(
+        inverse="_inverse_vat",
+        store=True,
+    )
+    vat = fields.Char(
+        inverse="_inverse_vat",
+        store=True,
+    )
 
     @api.model
     def _run_vat_checks(self, country, vat, partner_name="", validation="error"):

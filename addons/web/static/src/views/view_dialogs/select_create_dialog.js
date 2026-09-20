@@ -47,14 +47,11 @@ export class SelectCreateDialog extends Component {
     };
 
     /** @type {any} */
-    viewService;
-    /** @type {any} */
     dialogService;
     /** @type {{ resIds: any[] }} */
     state;
 
     setup() {
-        this.viewService = useService("view");
         this.dialogService = useService("dialog");
         this.state = useState({ resIds: [] });
         const noContentHelp = this.props.noContentHelp || getDefaultNoContentHelp();
@@ -111,13 +108,13 @@ export class SelectCreateDialog extends Component {
     /** @param {number[]} resIds */
     async select(resIds) {
         if (this.props.onSelected) {
-            this.executeOnceAndClose(() => this.props.onSelected(resIds));
+            await this.executeOnceAndClose(() => this.props.onSelected(resIds));
         }
     }
 
     async unselect() {
         if (this.props.onUnselect) {
-            this.executeOnceAndClose(() => this.props.onUnselect());
+            await this.executeOnceAndClose(() => this.props.onUnselect());
         }
     }
 
@@ -127,16 +124,15 @@ export class SelectCreateDialog extends Component {
 
     async createEditRecord() {
         if (this.props.onCreateEdit) {
-            await this.props.onCreateEdit();
-            this.props.close();
+            await this.executeOnceAndClose(() => this.props.onCreateEdit());
         } else {
             this.dialogService.add(FormViewDialog, {
                 context: this.props.context,
                 resModel: this.props.resModel,
-                onRecordSaved: (record) => {
-                    this.props.onSelected?.([record.resId]);
-                    this.props.close();
-                },
+                onRecordSaved: (record) =>
+                    this.executeOnceAndClose(() =>
+                        this.props.onSelected?.([record.resId]),
+                    ),
             });
         }
     }

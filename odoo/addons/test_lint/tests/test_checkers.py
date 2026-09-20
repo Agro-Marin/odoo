@@ -8,11 +8,15 @@ from odoo.tests.common import BaseCase, no_retry
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_credential_storage,
+    _checker_egress,
+    _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
+    _checker_receiver,
     _checker_shadowed_def,
     _checker_sql,
     _checker_tax_company,
@@ -64,6 +68,14 @@ class TestSuppression(BaseCase):
                         "n-plus-one-query",
                     )
                 )
+
+    def test_no_two_rules_share_a_code(self):
+        by_code = {}
+        for rule in _rules.RULES:
+            if rule.code:
+                by_code.setdefault(rule.code, []).append(rule.name)
+        shared = {code: names for code, names in by_code.items() if len(names) > 1}
+        self.assertFalse(shared, "a noqa naming the code would silence both rules")
 
     def test_a_rule_named_in_full_scopes_the_suppression_too(self):
         line = "x  # noqa: sql-injection  the table name comes from _table"
@@ -748,13 +760,48 @@ class TestSqlLint(BaseCase):
 
     def test_a_self_referential_accumulation_terminates(self):
         violations = self._check("""
-        def _build(self, parts, pids):
-            where_clause = " OR ".join(parts)
+        def _build(self, where_sql, pids):
+            where_clause = where_sql
             if pids:
                 where_clause = "(%s) AND (%s)" % (where_clause, "fol.partner_id = ANY(%s)")
             self.env.cr.execute("SELECT id FROM t WHERE " + where_clause)
         """)
-        self.assertTrue(violations, "an accumulated value is not a constant")
+        self.assertTrue(
+            violations, "an accumulation seeded by a parameter is not a constant"
+        )
+
+    def test_an_accumulation_of_constants_stays_constant(self):
+        violations = self._check("""
+        def _get_seen_list(self):
+            target = self.env[self.mailing_model_real]
+            query = "SELECT s.email FROM mailing_trace s JOIN %(target)s t ON (s.res_id = t.id)"
+            if self.ab_testing_enabled:
+                query += " AND s.campaign_id = %%(mailing_campaign_id)s"
+            else:
+                query += " AND s.mass_mailing_id = %%(mailing_id)s"
+            query = query % {"target": target._table}
+            self.env.cr.execute(query, {"mailing_id": self.id})
+        """)
+        self.assertFalse(violations, "every binding of query is a constant or _table")
+
+    def test_a_parameter_appended_to_a_constant_is_not_a_constant(self):
+        violations = self._check("""
+        def _read(self, table):
+            query = "SELECT id FROM "
+            query += table
+            self.env.cr.execute(query)
+        """)
+        self.assertTrue(
+            violations,
+            "resolving the name to its first assignment hid every later binding",
+        )
+
+    def test_the_query_passed_by_keyword_is_still_the_query(self):
+        violations = self._check("""
+        def _read(self, table):
+            self.env.cr.execute(query=f"SELECT id FROM {table}")
+        """)
+        self.assertTrue(violations)
 
     def test_dict_format_const(self):
         violations = self._check("""
@@ -1057,6 +1104,14 @@ class TestGetTextLint(BaseCase):
         """)
         missing = [v for v in violations if v.rule == "missing-gettext"]
         self.assertEqual(len(missing), 0)
+
+    def test_a_redirect_warning_is_user_facing_too(self):
+        violations = list(
+            _checker_gettext.check(
+                ast.parse('raise RedirectWarning("Configure it", action.id, "Go")')
+            )
+        )
+        self.assertEqual([v.rule for v in violations], ["missing-gettext"])
 
     def test_missing_gettext_catching_errors(self):
         violations = self._check("""
@@ -1627,6 +1682,20 @@ class TestShadowedDefinitionLint(BaseCase):
         """)
         )
 
+    def test_a_setter_of_another_property_is_still_a_redefinition(self):
+        violations = self._check("""
+        class C:
+            @property
+            def f(self):
+                return 1
+
+            @g.setter
+            def f(self, value):
+                pass
+        """)
+        self.assertEqual(len(violations), 1)
+        self.assertIn("C.f", violations[0])
+
     def test_a_property_group_is_not_a_finding(self):
         self.assertFalse(
             self._check("""
@@ -1758,3 +1827,530 @@ class TestHttpJsonLint(BaseCase):
                 return inner()
         """)
         self.assertFalse(violations)
+
+
+@no_retry
+class TestRawEgressLint(BaseCase):
+    def _targets(self, snippet):
+        tree = ast.parse(dedent(snippet).strip())
+        return [
+            v.message.split("()")[0] for v in _checker_egress.check_raw_egress(tree)
+        ]
+
+    def test_requests_calls_and_sessions_are_egress(self):
+        self.assertEqual(
+            self._targets("""
+            import requests
+            requests.post(url, json={})
+            session = requests.Session()
+            """),
+            ["requests.post", "requests.Session"],
+        )
+
+    def test_the_lowercase_session_factory_is_egress(self):
+        self.assertEqual(
+            self._targets("""
+            import requests
+            from requests.sessions import session
+            requests.session()
+            session()
+            """),
+            ["requests.session", "requests.sessions.session"],
+        )
+
+    def test_aliases_and_from_imports_are_followed(self):
+        self.assertEqual(
+            self._targets("""
+            import requests as r
+            from requests import get
+            from urllib.request import urlopen
+            import boto3
+            from zeep import Transport
+            r.get(url)
+            get(url)
+            urlopen(url)
+            boto3.client("s3")
+            Transport(timeout=5)
+            """),
+            [
+                "requests.get",
+                "requests.get",
+                "urllib.request.urlopen",
+                "boto3.client",
+                "zeep.Transport",
+            ],
+        )
+
+    def test_a_session_method_on_a_local_name_is_not_guessed_at(self):
+        self.assertEqual(
+            self._targets("""
+            client = get_api_client(env, "x")
+            client.post("/y")
+            requests_count = 3
+            """),
+            [],
+        )
+
+    def test_the_transport_module_has_no_exemption(self):
+        unit = _rules.Unit(
+            "/w/odoo/addons/integration/tools/api_client.py",
+            "",
+            ast.parse(""),
+            [],
+            True,
+        )
+        applies = next(c for c in _rules.CHECKERS if "raw-egress" in c.rules).applies_to
+        self.assertTrue(applies(unit))
+
+
+@no_retry
+class TestSecretInEnvironLint(BaseCase):
+    def _count(self, snippet):
+        tree = ast.parse(dedent(snippet).strip())
+        return len(list(_checker_egress.check_secret_in_environ(tree)))
+
+    def test_a_secret_written_into_the_worker_environment_is_flagged(self):
+        self.assertEqual(
+            self._count("""
+            import os
+            os.environ["ANTHROPIC_API_KEY"] = key
+            os.environ.setdefault("GH_TOKEN", token)
+            os.environ.update({"DB_PASSWORD": pw})
+            os.putenv("AWS_SECRET_ACCESS_KEY", secret)
+            """),
+            4,
+        )
+
+    def test_non_secret_variables_and_child_env_mappings_are_fine(self):
+        self.assertEqual(
+            self._count("""
+            import os
+            os.environ["TZ"] = "UTC"
+            env = {**os.environ, "ANTHROPIC_API_KEY": key}
+            subprocess.run(cmd, env=env)
+            """),
+            0,
+        )
+
+
+@no_retry
+class TestCredentialStorageLint(BaseCase):
+    def _fields(self, snippet, path="/w/odoo/addons/payment_x/models/provider.py"):
+        tree = ast.parse(dedent(snippet).strip())
+        return [
+            v.message.split(" ")[0]
+            for v in _checker_credential_storage.check(tree, path)
+        ]
+
+    def test_a_stored_secret_column_is_flagged(self):
+        self.assertEqual(
+            self._fields("""
+            class Provider(models.Model):
+                x_secret_key = fields.Char(groups="base.group_system")
+                x_webhook_token = fields.Text()
+            """),
+            ["payment_x.x_secret_key", "payment_x.x_webhook_token"],
+        )
+
+    def test_computed_share_public_derived_and_hashed_fields_are_not_secrets(self):
+        self.assertEqual(
+            self._fields("""
+            class Provider(models.Model):
+                x_api_key = fields.Char(compute="_compute_x_api_key")
+                share_token = fields.Char()
+                x_publishable_key = fields.Char()
+                x_token_hash = fields.Char()
+                x_password = fields.Char()
+
+                def _set(self, value):
+                    self.x_password = crypt_context.hash(value)
+            """),
+            [],
+        )
+
+    def test_the_names_of_a_scheme_an_endpoint_and_a_booking_path_are_not_secrets(self):
+        self.assertEqual(
+            self._fields("""
+            class Service(models.Model):
+                api_key_scheme = fields.Char()
+                oauth_token_endpoint = fields.Char()
+                booking_key = fields.Char()
+            """),
+            [],
+        )
+
+    def test_a_settings_secret_kept_in_config_parameters_is_flagged(self):
+        self.assertEqual(
+            self._fields("""
+            class Settings(models.TransientModel):
+                x_client_secret = fields.Char(config_parameter="x.client_secret")
+                x_wizard_password = fields.Char()
+            """),
+            ["payment_x.x_client_secret"],
+        )
+
+    def test_a_secret_parameter_read_or_written_by_key_is_flagged(self):
+        self.assertEqual(
+            self._fields("""
+            class Settings(models.TransientModel):
+                def _inverse_x_client_secret(self):
+                    ICP = self.env["ir.config_parameter"].sudo()
+                    ICP.set_param("x.client_secret", self.x_client_secret)
+
+                def _read(self):
+                    ICP = self.env["ir.config_parameter"].sudo()
+                    return ICP.get_param("x.private_key"), ICP.get_param("x.client_id")
+            """),
+            ["x.client_secret", "x.private_key"],
+        )
+
+    def test_a_judged_or_public_parameter_is_not_a_secret(self):
+        self.assertEqual(
+            self._fields("""
+            def _read(env):
+                ICP = env["ir.config_parameter"].sudo()
+                ICP.get_param("database.secret")
+                ICP.get_param("mail.web_push_vapid_public_key")
+                ICP.get_param("x.token_endpoint")
+            """),
+            [],
+        )
+
+    def test_the_vault_itself_is_out_of_scope(self):
+        self.assertEqual(
+            self._fields(
+                """
+                class Credential(models.Model):
+                    api_secret = fields.Char()
+                """,
+                path="/w/odoo/addons/credential/models/credential_credential.py",
+            ),
+            [],
+        )
+
+
+@no_retry
+class TestFieldDeclarationLint(BaseCase):
+    def _check(self, source, rule=None):
+        tree = ast.parse(dedent(source))
+        return [
+            (v.rule, v.lineno)
+            for v in _checker_field_declaration.check(
+                tree, _rules.walk_with_parents(tree)
+            )
+            if rule is None or v.rule == rule
+        ]
+
+    def test_a_field_declared_twice_is_flagged_at_the_second(self):
+        found = self._check("""
+        class Partner(models.Model):
+            show_credit_limit = fields.Boolean(groups="a")
+            use_credit_limit = fields.Boolean()
+
+            show_credit_limit = fields.Boolean(groups="b")
+        """)
+        self.assertEqual(found, [("field-redeclared", 6)])
+
+    def test_a_field_overwriting_a_plain_attribute_is_flagged_too(self):
+        found = self._check("""
+        class Partner(models.Model):
+            _order = "name"
+            _order = fields.Char()
+        """)
+        self.assertEqual(found, [("field-redeclared", 4)])
+
+    def test_two_plain_attributes_and_two_classes_are_not_a_redeclaration(self):
+        self.assertEqual(
+            self._check("""
+        class A(models.Model):
+            _order = "name"
+            _order = "id"
+            name = fields.Char()
+
+        class B(models.Model):
+            name = fields.Char()
+        """),
+            [],
+        )
+
+    def test_a_default_that_ran_at_import_is_flagged(self):
+        for default in (
+            "fields.Date.today()",
+            "fields.Datetime.now()",
+            "datetime.now()",
+            "uuid.uuid4()",
+            "secrets.token_hex(16)",
+            '_("New")',
+        ):
+            with self.subTest(default=default):
+                found = self._check(f"""
+                class Wizard(models.TransientModel):
+                    date = fields.Date(default={default})
+                """)
+                self.assertEqual(found, [("default-evaluated-at-import", 3)])
+
+    def test_a_callable_or_constant_default_is_fine(self):
+        self.assertEqual(
+            self._check("""
+        class Wizard(models.TransientModel):
+            date = fields.Date(default=fields.Date.today)
+            when = fields.Datetime(default=lambda self: fields.Datetime.now())
+            code = fields.Char(default=",".join(CODES))
+            since = fields.Datetime(default=datetime(2018, 1, 1))
+            label = fields.Char(default=_lt("New"))
+        """),
+            [],
+        )
+
+    def test_a_repeated_selection_key_is_flagged(self):
+        found = self._check(
+            """
+        class Move(models.Model):
+            kind = fields.Selection(
+                [("23", "Credit note"), ("30", "Debit note"), ("23", "Inactive")],
+            )
+            other = fields.Selection(selection=[("a", "A"), ("a", "B")])
+            clean = fields.Selection([("a", "A"), ("b", "B")])
+            dynamic = fields.Selection(selection="_selection_dynamic")
+        """,
+            rule="selection-duplicate-key",
+        )
+        self.assertEqual(
+            found,
+            [("selection-duplicate-key", 4), ("selection-duplicate-key", 6)],
+        )
+
+    def test_a_hook_outside_its_family_is_flagged(self):
+        found = self._check(
+            """
+        class Users(models.Model):
+            totp_enabled = fields.Boolean(compute="_compute_totp_enabled", search="_totp_enable_search")
+            cert = fields.Binary(compute="_compute_cert", inverse="_set_cert")
+            kind = fields.Selection(selection="_get_kinds")
+            fine = fields.Char(compute="_compute_fine", inverse="_inverse_fine", search="_search_fine")
+            shared = fields.Float(compute="_compute_amounts")
+        """,
+            rule="field-hook-prefix",
+        )
+        self.assertEqual(
+            found,
+            [
+                ("field-hook-prefix", 3),
+                ("field-hook-prefix", 4),
+                ("field-hook-prefix", 5),
+            ],
+        )
+
+    def test_a_positional_argument_is_named_after_its_parameter(self):
+        found = [
+            (v.rule, v.message)
+            for v in _checker_field_declaration.check(
+                ast.parse(
+                    dedent("""
+                    class M(models.Model):
+                        line_ids = fields.One2many("m.line", "m_id", "Lines")
+                        tag_ids = fields.Many2many("m.tag", "rel", "a", "b")
+                    """)
+                )
+            )
+            if v.rule == "field-positional-argument"
+        ]
+        self.assertEqual(len(found), 2)
+        self.assertIn("comodel_name=, inverse_name=, string=", found[0][1])
+        self.assertIn("comodel_name=, relation=, column1=, column2=", found[1][1])
+
+    def test_keywords_out_of_order_or_sharing_a_line_are_flagged(self):
+        found = self._check(
+            """
+        class M(models.Model):
+            a = fields.Char(required=True, string="A")
+            b = fields.Char(string="B", required=True)
+            c = fields.Char(
+                string="C",
+                required=True,
+            )
+            d = fields.Char(string="D")
+            e = fields.Char(string="E",
+                            required=True)
+        """,
+            rule="field-attribute-order",
+        )
+        self.assertEqual(
+            found,
+            [
+                ("field-attribute-order", 3),
+                ("field-attribute-order", 4),
+                ("field-attribute-order", 10),
+            ],
+        )
+
+    def test_the_canonical_order_reads_what_it_is_before_how_it_is_stored(self):
+        self.assertEqual(
+            _checker_field_declaration.canonical_order(
+                [
+                    "help",
+                    "store",
+                    "groups",
+                    "string",
+                    "compute",
+                    "comodel_name",
+                    "zzz_custom",
+                ]
+            ),
+            [
+                "comodel_name",
+                "string",
+                "compute",
+                "store",
+                "zzz_custom",
+                "groups",
+                "help",
+            ],
+        )
+
+    def test_an_attribute_setup_ignores_is_flagged(self):
+        found = self._check(
+            """
+        class M(models.Model):
+            tag_ids = fields.Many2many(
+                comodel_name="m.tag",
+                index=True,
+            )
+            total = fields.Float(
+                compute="_compute_total",
+                index=True,
+            )
+            kind = fields.Selection(
+                selection=[("a", "A")],
+                compute="_compute_kind",
+                precompute=True,
+            )
+            partner_name = fields.Char(
+                related="partner_id.name",
+                compute="_compute_partner_name",
+            )
+            stored = fields.Float(
+                compute="_compute_stored",
+                precompute=True,
+                store=True,
+                index=True,
+            )
+            unrelated = fields.Char(
+                related=False,
+                compute="_compute_unrelated",
+            )
+            extended = fields.Selection(
+                required=True,
+                precompute=True,
+            )
+        """,
+            rule="dead-field-attribute",
+        )
+        self.assertEqual(
+            found,
+            [
+                ("dead-field-attribute", 3),
+                ("dead-field-attribute", 7),
+                ("dead-field-attribute", 11),
+                ("dead-field-attribute", 16),
+            ],
+        )
+
+    def test_a_stored_copy_of_a_related_value_is_flagged(self):
+        found = self._check(
+            """
+        class M(models.Model):
+            company_id = fields.Many2one(
+                related="order_id.company_id",
+                store=True,
+            )
+            currency_id = fields.Many2one(
+                related="order_id.currency_id",
+            )
+            image_128 = fields.Image(
+                related="image_1920",
+                max_width=128,
+                store=True,
+            )
+            state = fields.Selection(
+                related="order_id.state",
+                store=False,
+            )
+        """,
+            rule="stored-related",
+        )
+        self.assertEqual(found, [("stored-related", 3)])
+
+    def test_the_label_position_of_each_relational_class_is_known(self):
+        call = (
+            ast.parse('fields.Many2many("a", "rel", "c1", "c2", "Label")').body[0].value
+        )
+        self.assertEqual(
+            _checker_field_declaration.string_argument(call).value, "Label"
+        )
+        call = ast.parse('fields.One2many("a", "b_id", "Lines")').body[0].value
+        self.assertEqual(
+            _checker_field_declaration.string_argument(call).value, "Lines"
+        )
+        call = ast.parse('fields.Many2one("a", "Partner")').body[0].value
+        self.assertEqual(
+            _checker_field_declaration.string_argument(call).value, "Partner"
+        )
+        call = ast.parse('fields.Selection([("a", "A")], "Kind")').body[0].value
+        self.assertEqual(_checker_field_declaration.string_argument(call).value, "Kind")
+        call = ast.parse('fields.Char("Name")').body[0].value
+        self.assertEqual(_checker_field_declaration.string_argument(call).value, "Name")
+        call = ast.parse('fields.Many2one("a")').body[0].value
+        self.assertIsNone(_checker_field_declaration.string_argument(call))
+
+
+class TestReceiverFailOpenLint(BaseCase):
+    def _routes(self, snippet):
+        tree = ast.parse(dedent(snippet).strip())
+        return [v.message.split(":")[0] for v in _checker_receiver.check(tree)]
+
+    def test_an_open_route_that_reaches_no_gate_is_flagged(self):
+        self.assertEqual(
+            self._routes("""
+            class Hooks(http.Controller):
+                @http.route("/hook", type="http", auth="public", csrf=False)
+                def hook(self, **kw):
+                    return self._handle(request.get_json_data())
+
+                def _handle(self, data):
+                    return data
+            """),
+            ["hook"],
+        )
+
+    def test_a_route_that_resolves_its_caller_through_a_helper_is_not(self):
+        self.assertEqual(
+            self._routes("""
+            class Hooks(http.Controller):
+                @route("/hook/<id>", type="http", auth="none", csrf=False)
+                def hook(self, id, **kw):
+                    device = self._resolve(id)
+                    return device
+
+                def _resolve(self, id):
+                    device = request.env["x"].search([("id", "=", id)])
+                    device.check_inbound_auth(dict(request.httprequest.headers), "1")
+                    return device
+            """),
+            [],
+        )
+
+    def test_a_route_with_a_session_or_csrf_is_out_of_scope(self):
+        self.assertEqual(
+            self._routes("""
+            class Pages(http.Controller):
+                @http.route("/page", type="http", auth="user", csrf=False)
+                def page(self):
+                    return ""
+
+                @http.route("/form", type="http", auth="public")
+                def form(self):
+                    return ""
+            """),
+            [],
+        )

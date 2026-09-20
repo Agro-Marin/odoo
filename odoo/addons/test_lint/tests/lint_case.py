@@ -3,9 +3,10 @@ import contextlib
 import fnmatch
 import functools
 import inspect
+import json
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from odoo import SUPERUSER_ID, api, tools
@@ -100,29 +101,90 @@ def core_module_roots() -> list[str]:
     return [path for path in _module_roots() if is_core_path(path)]
 
 
-@functools.cache
-def _ratchet():
-    import importlib.util
-    import sys
+def _class_attribute(node: ast.ClassDef, name: str) -> ast.expr | None:
+    for statement in node.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        for target in statement.targets:
+            if isinstance(target, ast.Name) and target.id == name:
+                return statement.value
+    return None
 
-    name = "_test_lint_ratchet"
-    path = Path(core_root()) / "tooling" / "ratchet" / "ratchet.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:  # pragma: no cover - unreachable in-tree
-        raise RuntimeError(f"cannot load the ratchet from {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    try:
-        spec.loader.exec_module(module)
-    except BaseException:
-        del sys.modules[name]
-        raise
-    return module
+
+def _string(node: ast.expr | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def declared_model_names(source: str) -> Iterator[str]:
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ClassDef):
+            if (name := _string(_class_attribute(node, "_name"))) is not None:
+                yield name
+
+
+def declared_model_inherits(source: str) -> Iterator[tuple[str, str]]:
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        parents = _class_attribute(node, "_inherits")
+        if not isinstance(parents, ast.Dict):
+            continue
+        model = _string(_class_attribute(node, "_name")) or _string(
+            _class_attribute(node, "_inherit")
+        )
+        if model is None:
+            continue
+        for key in parents.keys:
+            if (parent := _string(key)) is not None:
+                yield model, parent
+
+
+def _module_python_sources() -> Iterator[str]:
+    for path in module_file_paths():
+        if not path.endswith(".py") or "/static/" in path:
+            continue
+        try:
+            yield Path(path).read_text(encoding="utf-8")
+        except OSError, UnicodeDecodeError:
+            continue
+
+
+@functools.cache
+def declared_models() -> frozenset[str]:
+    names: set[str] = set()
+    for source in _module_python_sources():
+        try:
+            names.update(declared_model_names(source))
+        except SyntaxError:
+            continue
+    return frozenset(names)
+
+
+@functools.cache
+def declared_inherits() -> dict[str, frozenset[str]]:
+    parents: dict[str, set[str]] = {}
+    for source in _module_python_sources():
+        try:
+            for model, parent in declared_model_inherits(source):
+                parents.setdefault(model, set()).add(parent)
+        except SyntaxError:
+            continue
+    return {model: frozenset(found) for model, found in parents.items()}
+
+
+_FLOORS_PATH = Path(__file__).with_name("floors.json")
+
+
+@functools.cache
+def _floors() -> dict[str, int]:
+    with _FLOORS_PATH.open(encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def baseline_floor(gate: str) -> int:
-    baseline = _ratchet().Baseline.load(gate)
-    return baseline.count if baseline else 0
+    return _floors().get(gate, 0)
 
 
 @no_retry
@@ -135,9 +197,8 @@ class LintCase(BaseCase):
     ) -> None:
         if not isinstance(gate, str):
             raise TypeError(
-                f"assert_ratchet takes a ratchet gate name, not {gate!r}. A floor "
-                f"belongs in tooling/ratchet/baselines/, where `ratchet.py --list` "
-                f"can see it and `--update --note` can move it."
+                f"assert_ratchet takes a gate name, not {gate!r}. A floor belongs "
+                f"in {_FLOORS_PATH.name}, beside this file."
             )
         floor = baseline_floor(gate)
         found = list(findings)
@@ -150,9 +211,8 @@ class LintCase(BaseCase):
         if exact and len(found) < floor:
             self.fail(
                 f"{len(found)} {what} but the committed floor is {floor}. The debt "
-                f"went down -- bank it in this same change:\n"
-                f"    python tooling/ratchet/ratchet.py {gate} --count {len(found)} "
-                f"--update --note '<what moved and why>'"
+                f"went down -- lower {gate} to {len(found)} in {_FLOORS_PATH.name} "
+                f"in this same change."
             )
 
     @staticmethod

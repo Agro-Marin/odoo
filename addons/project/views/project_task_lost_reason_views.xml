@@ -8,8 +8,8 @@
             <search string="Lost Reasons">
                 <field name="name" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -21,9 +21,9 @@
         <field name="arch" type="xml">
             <list
                 string="Lost Reasons"
+                default_order="name"
                 editable="bottom"
-                sample="1"
-                default_order="name">
+                sample="1">
                 <field name="name" placeholder="e.g. Budget withdrawn" />
                 <field name="task_count" optional="show" />
             </list>
@@ -40,8 +40,8 @@
                         <button
                             name="action_tasks_lost"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-tasks">
+                            icon="fa-tasks"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="task_count" class="o_stat_value" />
                                 <span class="o_stat_text">Tasks</span>
@@ -51,8 +51,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" />
                         <h1>

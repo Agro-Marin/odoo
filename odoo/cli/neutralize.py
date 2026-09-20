@@ -3,10 +3,12 @@ import sys
 
 import odoo.db
 import odoo.modules.neutralize
+from odoo.libs.debug_log import DebugLog
 
 from . import DatabaseCommand
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Neutralize(DatabaseCommand):
@@ -27,26 +29,53 @@ class Neutralize(DatabaseCommand):
         dbname = self.bootstrap_config(parsed_args, extra_args=unknown)
 
         _logger.info("Starting %s database neutralization", dbname)
+        _debug.lifecycle("cli.neutralize", db=dbname, to_stdout=parsed_args.to_stdout)
+        if parsed_args.to_stdout:
+            self._print_neutralization_queries(dbname)
+        else:
+            neutralize_database_or_exit(dbname)
+        _debug.lifecycle(
+            "cli.neutralize.done",
+            db=dbname,
+            mode="printed" if parsed_args.to_stdout else "applied",
+        )
 
-        try:
-            with odoo.db.db_connect(dbname).cursor() as cursor:
-                if parsed_args.to_stdout:
-                    installed_modules = (
-                        odoo.modules.neutralize.get_installed_module_names(cursor)
-                    )
-                    queries = odoo.modules.neutralize.get_neutralization_queries(
-                        installed_modules
-                    )
-                    print("BEGIN;")
-                    for query in queries:
-                        print(query.rstrip(";") + ";")
-                    print("COMMIT;")
-                else:
-                    odoo.modules.neutralize.neutralize_database(cursor)
-
-        except Exception:
-            _logger.critical(
-                "An error occurred during the neutralization. THE DATABASE IS NOT NEUTRALIZED!",
-                exc_info=True,
+    @staticmethod
+    def _print_neutralization_queries(dbname: str) -> None:
+        with odoo.db.db_connect(dbname).cursor() as cursor:
+            with _debug.perf(
+                "cli.neutralize.installed_modules", cr=cursor, db=dbname
+            ) as span:
+                installed_modules = odoo.modules.neutralize.get_installed_module_names(
+                    cursor
+                )
+                span.set(modules=len(installed_modules))
+            queries = odoo.modules.neutralize.get_neutralization_queries(
+                installed_modules
             )
-            sys.exit(1)
+        printed = 0  # debuglog
+        print("BEGIN;")
+        for query in queries:
+            print(query.rstrip(";") + ";")
+            printed += 1  # debuglog
+        print("COMMIT;")
+        _debug.logic(
+            "cli.neutralize.printed",
+            db=dbname,
+            modules=len(installed_modules),
+            queries=printed,
+        )
+
+
+def neutralize_database_or_exit(dbname: str) -> None:
+    try:
+        with odoo.db.db_connect(dbname).cursor() as cursor:
+            with _debug.perf("cli.neutralize.apply", cr=cursor, db=dbname):
+                odoo.modules.neutralize.neutralize_database(cursor)
+    except Exception as e:
+        _debug.logic("cli.neutralize.failed", db=dbname, error=type(e).__name__)
+        _logger.critical(
+            "An error occurred during the neutralization. THE DATABASE IS NOT NEUTRALIZED!",
+            exc_info=True,
+        )
+        sys.exit(1)

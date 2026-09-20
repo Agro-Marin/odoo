@@ -3,8 +3,11 @@
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.message.search");
 /**
  * @typedef {Object} SearchFilter
  * @property {string} label
@@ -43,6 +46,11 @@ export class SearchMessageInput extends Component {
     }
 
     search() {
+        log.logic("search", () => ({
+            thread: this.props.thread?.localId,
+            term: this.state.searchTerm,
+            is_notification: this.props.messageSearch.is_notification,
+        }));
         this.props.messageSearch.searchTerm = this.state.searchTerm;
         this.props.messageSearch.search();
         this.state.searchedTerm = this.state.searchTerm;
@@ -70,6 +78,9 @@ export class SearchMessageInput extends Component {
     /** @param {SearchFilter} searchFilter */
     onChangeSearchFilter(searchFilter) {
         if (searchFilter.is_notification !== this.props.messageSearch.is_notification) {
+            log.logic("onChangeSearchFilter", () => ({
+                is_notification: searchFilter.is_notification,
+            }));
             this.props.messageSearch.is_notification = searchFilter.is_notification;
             this.search();
         }

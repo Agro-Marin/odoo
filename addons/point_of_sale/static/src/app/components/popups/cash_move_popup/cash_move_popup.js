@@ -7,18 +7,22 @@ import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/n
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { luxon } from "@web/core/l10n/luxon";
 import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
+const log = makeLogger("pos.popup.cash_move");
 
 export class CashMovePopup extends Component {
     static template = "point_of_sale.CashMovePopup";
     static components = { Input, Dialog };
     static props = ["confirmKey?", "close", "getPayload?"];
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.notification = useService("notification");
         this.pos = usePos();
@@ -42,10 +46,18 @@ export class CashMovePopup extends Component {
     async confirm() {
         const amount = parseFloat(this.state.amount);
         const formattedAmount = this.env.utils.formatCurrency(amount);
+        log.pipeline("[session:cash_move] confirm", () => ({
+            session: this.pos.session.id,
+            type: this.state.type,
+            amount,
+            reason: this.state.reason.trim(),
+            ignored: !amount,
+        }));
         if (!amount) {
             this.notification.add(_t("Cash in/out of %s is ignored.", formattedAmount));
             return this.props.close();
         }
+        const endMove = log.perf("[session:cash_move] try_cash_in_out");
 
         const type = this.state.type;
         const translatedType = _t(type);
@@ -65,6 +77,7 @@ export class CashMovePopup extends Component {
             {},
             true,
         );
+        endMove({ session: this.pos.session.id, type, amount });
         await this.pos.logEmployeeMessage(
             `${_t("Cash")} ${translatedType} - ${_t("Amount")}: ${formattedAmount}`,
             "CASH_DRAWER_ACTION",
@@ -79,6 +92,10 @@ export class CashMovePopup extends Component {
             sequence_number: 0,
             pos_reference: "",
         });
+        log.lifecycle("[session:cash_move] receipt order", () => ({
+            order: order.uuid,
+            transient: true,
+        }));
         try {
             await this.printer.print(CashMoveReceipt, {
                 reason,
@@ -117,11 +134,13 @@ export class CashMovePopup extends Component {
         );
     }
     async openDetails() {
+        const endList = log.perf("[session:cash_move] get_cash_in_out_list");
         const cashMoves = await this.pos.data.call(
             "pos.session",
             "get_cash_in_out_list",
             [this.pos.session.id],
         );
+        endList({ session: this.pos.session.id, moves: cashMoves.length });
         this.dialog.add(CashMoveListPopup, {
             cashMoves: cashMoves.map((m) => ({
                 ...m,

@@ -1,10 +1,10 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
-from .common import ApprovalCommon, isolate_group_approval_manager
+from .common import ApprovalCommon, add_rule_step, isolate_group_approval_manager
 
 
 @tagged("post_install", "-at_install")
@@ -47,16 +47,6 @@ class TestDecisionFunnelScoping(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestDecisionAttribution(ApprovalCommon):
-    def _delegate_row(self, row, delegate):
-        today = date.today()
-        row.sudo().write(
-            {
-                "delegate_id": delegate.id,
-                "delegate_start_date": today - timedelta(days=1),
-                "delegate_end_date": today + timedelta(days=1),
-            },
-        )
-
     def test_decided_by_records_the_delegate_not_the_principal(self):
         category = self._make_category(
             "Attribution",
@@ -90,37 +80,6 @@ class TestDecisionAttribution(ApprovalCommon):
         request.with_user(self.approver_1).action_approve()
         row = request.approver_ids[0]
         self.assertEqual(row.decided_by_user_id, self.approver_1)
-
-    def test_performance_view_credits_the_delegate(self):
-        category = self._make_category(
-            "Attribution Perf",
-            approvers=[(self.approver_1, True, 10)],
-        )
-        request = self._prepare_request(category)
-        row = request.approver_ids[0]
-        self._delegate_row(row, self.approver_2)
-        request.with_user(self.approver_2).action_approve()
-        self.env.flush_all()
-
-        rows = (
-            self.env["approver.performance"]
-            .sudo()
-            .search_read(
-                [("user_id", "in", (self.approver_1 | self.approver_2).ids)],
-                ["user_id", "total_approvals"],
-            )
-        )
-        credited = {r["user_id"][0]: r["total_approvals"] for r in rows}
-        self.assertEqual(
-            credited.get(self.approver_2.id),
-            1,
-            "the delegate who decided must be credited",
-        )
-        self.assertNotIn(
-            self.approver_1.id,
-            credited,
-            "the principal, who did nothing, must not be credited",
-        )
 
     def test_withdraw_clears_the_attribution(self):
         category = self._make_category(
@@ -290,24 +249,19 @@ class TestEscalationManagerLookup(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestManualApproverPreservation(ApprovalCommon):
-    def test_manual_approver_in_a_non_matching_tier_survives(self):
+    def test_manual_approver_in_a_step_that_does_not_apply_survives(self):
         category = self._make_category(
             "Manual Preservation",
             approvers=[(self.approver_1, True, 10)],
-            has_amount="optional",
         )
-        self.env["approval.rule"].create(
-            {
-                "action_type": "set_approvers",
-                "operator": "between",
-                "name": "Audit3 High Tier",
-                "category_id": category.id,
-                "condition_field": "amount",
-                "threshold": 100000,
-                "threshold_max": 0,
-                "approver_ids": [(6, 0, [self.approver_2.id])],
-                "approval_minimum": 1,
-            },
+        add_rule_step(
+            category,
+            self.approver_2,
+            name="Audit3 High Tier",
+            condition_field="amount",
+            operator="between",
+            threshold=100000,
+            threshold_max=0,
         )
         request = self._prepare_request(category, confirm=False, amount=10)
         self.env["approval.approver"].create(
@@ -331,24 +285,19 @@ class TestManualApproverPreservation(ApprovalCommon):
             "non-matching tier happens to list them",
         )
 
-    def test_orphaned_tier_injection_is_still_removed(self):
+    def test_a_row_whose_step_stopped_applying_is_removed(self):
         category = self._make_category(
             "Orphan Removal",
             approvers=[(self.approver_1, True, 10)],
-            has_amount="optional",
         )
-        self.env["approval.rule"].create(
-            {
-                "action_type": "set_approvers",
-                "operator": "between",
-                "name": "Audit3 Matching Tier",
-                "category_id": category.id,
-                "condition_field": "amount",
-                "threshold": 0,
-                "threshold_max": 1000,
-                "approver_ids": [(6, 0, [self.approver_2.id])],
-                "approval_minimum": 1,
-            },
+        add_rule_step(
+            category,
+            self.approver_2,
+            name="Audit3 Matching Tier",
+            condition_field="amount",
+            operator="between",
+            threshold=0,
+            threshold_max=1000,
         )
         request = self._prepare_request(category, confirm=False, amount=100)
         request.invalidate_recordset(["approver_ids"])
@@ -365,74 +314,6 @@ class TestManualApproverPreservation(ApprovalCommon):
             request.approver_ids.user_id,
             "the injection's source stopped producing it — it must be removed",
         )
-
-
-@tagged("post_install", "-at_install")
-class TestDocumentRequirementLanguage(ApprovalCommon):
-    def _install_spanish(self):
-        lang = (
-            self.env["res.lang"]
-            .with_context(active_test=False)
-            .search([("code", "=", "es_MX")], limit=1)
-        )
-        if not lang:
-            self.skipTest("es_MX language not available in this database")
-        lang.active = True
-
-    def test_a_spanish_deployment_never_has_to_rename_a_file(self):
-        self._install_spanish()
-        category = self._make_category(
-            "Doc Language",
-            approvers=[(self.approver_1, True, 10)],
-            has_document="required",
-        )
-        requirement = self.env["approval.document.requirement"].create(
-            {"category_id": category.id, "name": "Invoice", "required": True},
-        )
-        requirement.with_context(lang="es_MX").name = "Factura"
-
-        request = self._prepare_request(category, confirm=False)
-        self.env["ir.attachment"].create(
-            {
-                "name": "escaneo-0001.pdf",
-                "res_model": "approval.request",
-                "res_id": request.id,
-                "raw": b"real document",
-                "approval_requirement_id": requirement.id,
-            },
-        )
-        request.action_confirm()
-        self.assertEqual(request.state, "pending")
-
-    def test_two_requirements_may_now_share_a_translation(self):
-        self._install_spanish()
-        category = self._make_category(
-            "Doc Collision",
-            approvers=[(self.approver_1, True, 10)],
-            has_document="required",
-        )
-        first = self.env["approval.document.requirement"].create(
-            {"category_id": category.id, "name": "Invoice", "required": True},
-        )
-        second = self.env["approval.document.requirement"].create(
-            {"category_id": category.id, "name": "Receipt", "required": True},
-        )
-        first.with_context(lang="es_MX").name = "Factura"
-        second.with_context(lang="es_MX").name = "Factura"
-
-        request = self._prepare_request(category, confirm=False)
-        for requirement in (first, second):
-            self.env["ir.attachment"].create(
-                {
-                    "name": "doc-%d.pdf" % requirement.id,
-                    "res_model": "approval.request",
-                    "res_id": request.id,
-                    "raw": b"real document",
-                    "approval_requirement_id": requirement.id,
-                },
-            )
-        request.action_confirm()
-        self.assertEqual(request.state, "pending")
 
 
 @tagged("post_install", "-at_install")
@@ -484,7 +365,7 @@ class TestConfirmActivityBatching(ApprovalCommon):
                 (self.approver_2, False, 20),
             ],
             approval_minimum=1,
-            approve_sequentially=True,
+            in_order=True,
         )
         requests = self.env["approval.request"].create(
             [
@@ -522,7 +403,7 @@ class TestConfirmActivityBatching(ApprovalCommon):
                 (self.approver_2, False, 20),
             ],
             approval_minimum=1,
-            approve_sequentially=True,
+            in_order=True,
         )
         parallel = self._make_category(
             "Batch Mixed Par",

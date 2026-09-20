@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 
 import idna
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = [
     "address_pattern",
     "email_addr_escapes_re",
@@ -32,6 +34,8 @@ __all__ = [
     "unfold_references",
     "url_domain_extract",
 ]
+
+_debug = DebugLog(__name__)
 
 
 def getaddresses(fieldvalues: list[str]) -> list[tuple[str, str]]:
@@ -86,6 +90,12 @@ def email_split_tuples(text: str) -> list[tuple[str, str]]:
             name, email = (
                 (" ".join(name_parts), found_email) if found_email else (name, email)
             )
+            _debug.logic(
+                "email.split.space_separated",
+                inner=len(inside_pairs),
+                name_parts=len(name_parts),
+                recovered=bool(found_email),
+            )
         return (name, email)
 
     if not text:
@@ -103,6 +113,11 @@ def email_split_tuples(text: str) -> list[tuple[str, str]]:
             for found_email in email_re.findall(text)
             if found_email and not found_email.startswith("@")
         ]
+        _debug.logic(
+            "email.split.regex_fallback",
+            pairs=len(valid_pairs),
+            recovered=len(filtered),
+        )
         if filtered:
             valid_pairs = [("", found_email) for found_email in filtered]
 
@@ -133,6 +148,7 @@ def email_split_and_format_normalize(text: str) -> list[str]:
 def email_normalize(text: str, strict: bool = True) -> str | Literal[False]:
     emails = email_split(text)
     if not emails or (strict and len(emails) != 1):
+        _debug.logic("email.normalize.rejected", found=len(emails), strict=strict)
         return False
     return _normalize_email(emails[0])
 
@@ -241,6 +257,12 @@ def parse_contact_from_email(text: str) -> tuple[str, str]:
         email_normalized = email_normalize(email, strict=False) or email
     else:
         name, email_normalized = text, ""
+    _debug.logic(
+        "email.contact_parsed",
+        candidates=len(split_results),
+        has_email=bool(email),
+        has_name=bool(name),
+    )
 
     return name, email_normalized
 

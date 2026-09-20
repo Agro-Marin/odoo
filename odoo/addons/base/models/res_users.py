@@ -1,7 +1,6 @@
 import collections
 import contextlib
 import datetime
-import hmac
 import ipaddress
 import logging
 import time
@@ -25,8 +24,9 @@ from odoo.exceptions import (
 from odoo.fields import Command, Domain
 from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime import all_timezones
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps as json_dumps
-from odoo.libs.password import _MAX_ROUNDS, CryptContext
+from odoo.libs.password import CryptContext
 from odoo.tools import (
     SQL,
     email_domain_extract,
@@ -37,10 +37,12 @@ from odoo.tools import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
+from .res_users_auth import PasswordStore, session_token
+from .res_users_login_cooldown import LoginCooldown
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
-MIN_ROUNDS = 600_000
 
 _DUMMY_PASSWORD_HASH = (
     "$pbkdf2-sha512$600000$7w4wftbyNcmfyucdH94fxA$"
@@ -82,7 +84,9 @@ def check_identity(
             raise UserError(_("This method can only be accessed over HTTP"))
 
         if request.session.get("identity-check-last", 0) > time.time() - 10 * 60:
+            _debug.logic("identity_check_recent", uid=self.env.uid, method=fn.__name__)
             return fn(self, *args, **kwargs)
+        _debug.pipeline("identity_check_required", uid=self.env.uid, method=fn.__name__)
 
         w = (
             self.sudo()
@@ -208,6 +212,7 @@ class ResUsers(models.Model):
         try:
             context = user.read(["lang", "tz"], load=False)[0]
         except IndexError:
+            _debug.logic("context_user_missing", uid=self.env.uid)
             return frozendict(), False
         context.pop("id")
 
@@ -228,12 +233,22 @@ class ResUsers(models.Model):
 
         context["uid"] = self.env.uid
 
+        _debug.perf.count(
+            "context_computed",
+            uid=self.env.uid,
+            lang=context["lang"],
+            user_lang_valid=user_lang_valid,
+        )
         return frozendict(context), user_lang_valid
 
     @tools.ormcache("self.id")
     def _get_company_ids(self) -> tuple[int, ...]:
-        domain = [("active", "=", True), ("user_ids", "in", self.id)]
-        return self.env["res.company"].search(domain)._ids
+        domain = [("active", "=", True), ("user_ids", "in", [self.id])]
+        company_ids = self.env["res.company"].search(domain)._ids
+        _debug.perf.count(
+            "company_ids_computed", uid=self.id, companies=len(company_ids)
+        )
+        return company_ids
 
     @api.model
     @tools.ormcache("uid", "passwd_hash")
@@ -242,6 +257,7 @@ class ResUsers(models.Model):
     ) -> datetime.datetime | None:
         user = self.with_user(uid).env.user
         if not user.active:
+            _debug.logic("uid_passwd_refused", uid=uid, reason="inactive")
             raise AccessDenied
         credential = {
             "login": user.login,
@@ -249,6 +265,9 @@ class ResUsers(models.Model):
             "type": "password",
         }
         result = user._check_credentials(credential, {"interactive": False})
+        _debug.perf.count(
+            "uid_passwd_cached", uid=uid, method=result.get("auth_method")
+        )
         if result.get("auth_method") == "apikey":
             return self.env["res.users.apikeys"]._get_key_expiration(
                 scope="rpc", key=passwd
@@ -258,34 +277,28 @@ class ResUsers(models.Model):
     @tools.ormcache("self.id", "sid")
     def _get_session_token(self, sid: str) -> str | bool:
         field_values = self._get_session_token_values()
+        _debug.perf.count(
+            "session_token_computed", uid=self.id, has_values=bool(field_values)
+        )
         return self._hash_session_token(sid, field_values)
 
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
-        return self.with_context({}).all_group_ids._ids
+        group_ids = self.with_context({}).all_group_ids._ids
+        _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
+        return group_ids
 
     def _get_effective_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
         return self._get_group_ids() if self.id else self.all_group_ids._origin._ids
 
+    def _password_store(self) -> PasswordStore:
+        return PasswordStore(self.env)
+
     @tools.ormcache(cache="stable")
     def _get_crypt_context(self) -> CryptContext:
-        cfg = self.env["ir.config_parameter"].sudo()
-        try:
-            configured = int(cfg.get_param("password.hashing.rounds", 0))
-        except TypeError, ValueError:
-            _logger.warning(
-                "Ignoring non-numeric password.hashing.rounds %r; using %d",
-                cfg.get_param("password.hashing.rounds", 0),
-                MIN_ROUNDS,
-            )
-            configured = 0
-        return CryptContext(
-            ["pbkdf2_sha512", "plaintext"],
-            deprecated=["auto"],
-            pbkdf2_sha512__rounds=min(_MAX_ROUNDS, max(MIN_ROUNDS, configured)),
-        )
+        return self._password_store().crypt_context()
 
     def _check_company_domain(self, companies: Self | str | None) -> Domain:
         if not companies:
@@ -302,24 +315,27 @@ class ResUsers(models.Model):
         )
         if default_group:
             groups += default_group.implied_ids
+        _debug.logic(
+            "default_groups", default_group=bool(default_group), groups=len(groups)
+        )
         return groups
 
     def _default_view_group_hierarchy(self) -> dict[str, Any]:
         return self.env["res.groups"]._get_view_group_hierarchy()
 
     partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Related Partner",
+        index=True,
         required=True,
         ondelete="restrict",
         bypass_search_access=True,
-        index=True,
         help="Partner-related data of the user",
     )
     active_partner = fields.Boolean(
         related="partner_id.active",
-        readonly=True,
         string="Partner is Active",
+        readonly=True,
     )
     name = fields.Char(
         related="partner_id.name",
@@ -336,9 +352,7 @@ class ResUsers(models.Model):
         inherited=True,
         readonly=False,
     )
-    email_domain_placeholder = fields.Char(
-        compute="_compute_email_domain_placeholder",
-    )
+    email_domain_placeholder = fields.Char(compute="_compute_email_domain_placeholder")
 
     active = fields.Boolean(default=True)
 
@@ -361,26 +375,26 @@ class ResUsers(models.Model):
         "a change of password, the user has to login again.",
     )
     api_key_ids = fields.One2many(
-        "res.users.apikeys",
-        "user_id",
+        comodel_name="res.users.apikeys",
+        inverse_name="user_id",
         string="API Keys",
     )
     signature = fields.Html(
         string="Email Signature",
         compute="_compute_signature",
-        readonly=False,
         store=True,
+        readonly=False,
     )
 
     action_id = fields.Many2one(
-        "ir.actions.actions",
+        comodel_name="ir.actions.actions",
         string="Home Action",
         help="If specified, this action will be opened at log on for this user, in addition to the standard menu.",
     )
 
     log_ids = fields.One2many(
-        "res.users.log",
-        "create_uid",
+        comodel_name="res.users.log",
+        inverse_name="create_uid",
         string="User log entries",
     )
     login_date = fields.Datetime(
@@ -389,82 +403,81 @@ class ResUsers(models.Model):
     )
 
     device_ids = fields.One2many(
-        "res.device",
-        "user_id",
+        comodel_name="res.device",
+        inverse_name="user_id",
         string="User devices",
     )
 
     res_users_settings_ids = fields.One2many(
-        "res.users.settings",
-        "user_id",
+        comodel_name="res.users.settings",
+        inverse_name="user_id",
     )
     res_users_settings_id = fields.Many2one(
-        "res.users.settings",
+        comodel_name="res.users.settings",
         string="Settings",
         compute="_compute_res_users_settings_id",
         search="_search_res_users_settings_id",
     )
 
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        required=True,
+        comodel_name="res.company",
         default=lambda self: self.env.company.id,
-        help="The default company for this user.",
+        required=True,
         context={"user_preference": True},
+        help="The default company for this user.",
     )
     company_ids = fields.Many2many(
-        "res.company",
-        "res_company_users_rel",
-        "user_id",
-        "cid",
+        comodel_name="res.company",
+        relation="res_company_users_rel",
+        column1="user_id",
+        column2="cid",
         string="Companies",
         default=lambda self: self.env.company.ids,
     )
     companies_count = fields.Integer(
-        compute="_compute_companies_count",
         string="Number of Companies",
+        compute="_compute_companies_count",
     )
 
     group_ids = fields.Many2many(
-        "res.groups",
-        "res_groups_users_rel",
-        "uid",
-        "gid",
+        comodel_name="res.groups",
+        relation="res_groups_users_rel",
+        column1="uid",
+        column2="gid",
         string="Groups",
         default=lambda s: s._default_group_ids(),
         help="Groups explicitly assigned to the user",
     )
     all_group_ids = fields.Many2many(
-        "res.groups",
+        comodel_name="res.groups",
         string="Groups and implied groups",
         compute="_compute_all_group_ids",
-        compute_sudo=True,
         search="_search_all_group_ids",
+        compute_sudo=True,
     )
     share = fields.Boolean(
-        compute="_compute_share",
-        compute_sudo=True,
         string="Share User",
-        store=True,
+        compute="_compute_share",
         precompute=True,
+        compute_sudo=True,
+        store=True,
         help="External user with limited access, created only for the purpose of sharing data.",
     )
 
     accesses_count = fields.Integer(
-        "# Access Rights",
+        string="# Access Rights",
         compute="_compute_access_counts",
         compute_sudo=True,
         help="Number of access rights that apply to the current user",
     )
     rules_count = fields.Integer(
-        "# Record Rules",
+        string="# Record Rules",
         compute="_compute_access_counts",
         compute_sudo=True,
         help="Number of record rules that apply to the current user",
     )
     groups_count = fields.Integer(
-        "# Groups",
+        string="# Groups",
         compute="_compute_access_counts",
         compute_sudo=True,
         help="Number of groups that apply to the current user",
@@ -472,16 +485,15 @@ class ResUsers(models.Model):
 
     view_group_hierarchy = fields.Json(
         string="Technical field for user group setting",
+        default=_default_view_group_hierarchy,
         store=False,
         copy=False,
-        default=_default_view_group_hierarchy,
     )
     role = fields.Selection(
-        [("group_user", "User"), ("group_system", "Administrator")],
+        selection=[("group_user", "User"), ("group_system", "Administrator")],
         compute="_compute_role",
         inverse="_inverse_role",
         readonly=False,
-        string="Role",
     )
 
     def init(self) -> None:
@@ -498,6 +510,7 @@ class ResUsers(models.Model):
             """
         )
         rows = cr.fetchall()
+        _debug.lifecycle("init_plaintext_passwords_hashed", count=len(rows))
         if rows:
             ctx = self._get_crypt_context()
             hashed = [(ctx.hash(pw), uid) for uid, pw in rows]
@@ -514,6 +527,9 @@ class ResUsers(models.Model):
     def _check_user_company(self) -> None:
         for user in self.filtered(lambda u: u.active):
             if user.company_id not in user.company_ids:
+                _debug.logic(
+                    "company_not_allowed", user=user.id, company=user.company_id.id
+                )
                 raise ValidationError(
                     _(
                         "Company %(company_name)s is not in the allowed companies for user %(user_name)s (%(company_allowed)s).",
@@ -531,6 +547,7 @@ class ResUsers(models.Model):
         if action_view_website and any(
             user.action_id.id == action_view_website.id for user in self
         ):
+            _debug.logic("home_action_refused", users=self.ids, reason="app_launcher")
             raise ValidationError(
                 _('The "App Launcher" action cannot be selected as home action.')
             )
@@ -546,6 +563,9 @@ class ResUsers(models.Model):
         if client_ids:
             for action in self.env["ir.actions.client"].sudo().browse(client_ids):
                 if action.tag == "reload":
+                    _debug.logic(
+                        "home_action_refused", action=action.id, reason="reload_tag"
+                    )
                     raise ValidationError(
                         _(
                             'The "%s" action cannot be selected as home action.',
@@ -555,6 +575,11 @@ class ResUsers(models.Model):
         if window_ids:
             for action in self.env["ir.actions.act_window"].sudo().browse(window_ids):
                 if action.context and "active_id" in action.context:
+                    _debug.logic(
+                        "home_action_refused",
+                        action=action.id,
+                        reason="needs_active_id",
+                    )
                     raise ValidationError(
                         _(
                             'The action "%s" cannot be set as the home action because it requires a record to be selected beforehand.',
@@ -568,6 +593,9 @@ class ResUsers(models.Model):
         for user in self:
             disjoint_groups = user.all_group_ids & user_type_groups
             if len(disjoint_groups) > 1:
+                _debug.logic(
+                    "disjoint_groups_violated", user=user.id, groups=disjoint_groups.ids
+                )
                 raise ValidationError(
                     _(
                         "User %(user)s cannot be at the same time in exclusive groups %(groups)s.",
@@ -579,6 +607,7 @@ class ResUsers(models.Model):
     @api.constrains("group_ids", "active")
     def _check_at_least_one_administrator(self) -> None:
         if not self.env.registry.loaded_modules:
+            _debug.logic("administrator_check_skipped", reason="registry_loading")
             return
         has_admin = (
             self.env["res.users"]
@@ -592,11 +621,16 @@ class ResUsers(models.Model):
             )
         )
         if not has_admin:
+            _debug.logic("last_administrator_refused", users=self.ids)
             raise ValidationError(_("You must have at least an administrator user."))
 
     def _inverse_password(self) -> None:
         ctx = self._get_crypt_context()
-        hashed = [(user.id, ctx.hash(user.password)) for user in self if user.password]
+        with _debug.perf("passwords_hashed", users=len(self)) as span:
+            hashed = [
+                (user.id, ctx.hash(user.password)) for user in self if user.password
+            ]
+            span.set(hashed=len(hashed))
         self.filtered(lambda user: not user.password)._clear_password()
         self._update_encrypted_passwords(hashed)
 
@@ -604,9 +638,8 @@ class ResUsers(models.Model):
         if not self:
             return
         self.flush_recordset(["password"])
-        self.env.cr.execute(
-            "UPDATE res_users SET password=NULL WHERE id = ANY(%s)", (self.ids,)
-        )
+        _debug.lifecycle("passwords_cleared", users=self.ids)
+        self._password_store().clear(self)
         self.invalidate_recordset(["password"])
         self._invalidate_session_tokens()
 
@@ -616,19 +649,13 @@ class ResUsers(models.Model):
     def _update_encrypted_passwords(self, hashed: list[tuple[int, str]]) -> None:
         if not hashed:
             return
-        ctx = self._get_crypt_context()
-        if any(ctx.identify(pw) == "plaintext" for _uid, pw in hashed):
-            msg = "Refusing to store a plaintext password — encrypt first."
-            raise ValueError(msg)
-
-        self.env.cr.executemany(
-            "UPDATE res_users SET password=%s WHERE id=%s",
-            [(pw, uid) for uid, pw in hashed],
-        )
+        _debug.lifecycle("passwords_stored", users=[uid for uid, _pw in hashed])
+        self._password_store().store(self, hashed)
         self.browse([uid for uid, _pw in hashed]).invalidate_recordset(["password"])
         self._invalidate_session_tokens()
 
     def _invalidate_session_tokens(self) -> None:
+        _debug.lifecycle("session_tokens_invalidated", users=self.ids)
         self.env.registry.clear_cache()
 
     def _is_rpc_api_key_only(self) -> bool:
@@ -639,6 +666,12 @@ class ResUsers(models.Model):
     ) -> dict[str, Any]:
         self.check_singleton()
         if not (credential["type"] == "password" and credential.get("password")):
+            _debug.logic(
+                "credentials_refused",
+                uid=self.id,
+                reason="no_password",
+                type=credential.get("type"),
+            )
             raise AccessDenied
 
         interactive = env.get("interactive", True)
@@ -651,20 +684,23 @@ class ResUsers(models.Model):
                     all _check_credentials environments"
                 )
 
-            self.env.cr.execute(
-                "SELECT COALESCE(password, '') FROM res_users WHERE id=%s",
-                [self.id],
-            )
-            row = self.env.cr.fetchone()
-            if row is None:
+            if self._password_store().stored_hash(self, self.id) is None:
+                _debug.logic("credentials_refused", uid=self.id, reason="no_hash")
                 raise AccessDenied
-            [hashed] = row
-            valid, replacement = self._get_crypt_context().match_and_update(
-                credential["password"], hashed
+            valid, replacement = self._password_store().match_and_update(
+                self, self.id, credential["password"]
+            )
+            _debug.logic(
+                "password_checked",
+                uid=self.id,
+                valid=valid,
+                rehashed=replacement is not None,
+                interactive=interactive,
             )
             if replacement is not None:
                 self._update_encrypted_password(self.id, replacement)
                 if request and self == self.env.user:
+                    _debug.pipeline("session_token_rotated", uid=self.id)
                     self.env.flush_all()
                     self.env.registry.clear_cache()
                     new_token = self._get_session_token(request.session.sid)
@@ -684,6 +720,7 @@ class ResUsers(models.Model):
                 )
                 == self.id
             ):
+                _debug.logic("apikey_checked", uid=self.id, valid=True)
                 return {
                     "uid": self.id,
                     "auth_method": "apikey",
@@ -696,6 +733,12 @@ class ResUsers(models.Model):
                     "context that requires API key authentication only."
                 )
 
+        _debug.logic(
+            "credentials_refused",
+            uid=self.id,
+            reason="no_method_matched",
+            interactive=interactive,
+        )
         raise AccessDenied
 
     @api.depends_context("uid")
@@ -717,11 +760,13 @@ class ResUsers(models.Model):
             if not user.new_password:
                 continue
             if user == self.env.user:
+                _debug.logic("new_password_refused", uid=user.id, reason="own_user")
                 raise UserError(
                     _(
                         "Please use the change password wizard (in User Preferences or User menu) to change your own password."
                     )
                 )
+            _debug.lifecycle("new_password_applied", uid=user.id, by=self.env.uid)
             user.password = user.new_password
 
     @api.depends("group_ids")
@@ -736,6 +781,7 @@ class ResUsers(models.Model):
                 user.role = "group_user"
             else:
                 user.role = False
+        _debug.perf.count("role_computed", users=len(self))
 
     def _inverse_role(self) -> None:
         admin_id = self._group_id("base.group_system")
@@ -745,6 +791,7 @@ class ResUsers(models.Model):
                 continue
             keep = user.group_ids.ids
             wanted = admin_id if user.role == "group_system" else user_id
+            _debug.lifecycle("role_applied", user=user.id, role=user.role, group=wanted)
             user.group_ids = [
                 Command.set(
                     [gid for gid in keep if gid not in (admin_id, user_id)] + [wanted]
@@ -760,6 +807,7 @@ class ResUsers(models.Model):
         for user in self:
             if user.role and user.has_group("base.group_user"):
                 groups = user.group_ids - (group_admin + group_user)
+                _debug.logic("onchange_role", user=user.id, role=user.role)
                 user.group_ids = groups + (
                     group_admin if user.role == "group_system" else group_user
                 )
@@ -784,6 +832,11 @@ class ResUsers(models.Model):
         user_group_id = self._group_id("base.group_user")
         for user in self:
             user.share = user_group_id not in user.all_group_ids.ids
+        _debug.perf.count(
+            "share_computed",
+            users=len(self),
+            shared=sum(1 for user in self if user.share),
+        )
 
     def _compute_companies_count(self) -> None:
         self.companies_count = self.env["res.company"].sudo().search_count([])
@@ -805,6 +858,13 @@ class ResUsers(models.Model):
                     if group_id in rules_per_group:
                         rules_per_group[group_id].add(rule.id)
 
+        _debug.perf.count(
+            "access_counts_computed",
+            users=len(self),
+            groups=len(all_groups),
+            accesses=sum(accesses_per_group.values()),
+            rules=len(set().union(*rules_per_group.values())),
+        )
         for user in self:
             group_ids = user.all_group_ids.ids
             user.accesses_count = sum(accesses_per_group[gid] for gid in group_ids)
@@ -861,6 +921,7 @@ class ResUsers(models.Model):
         if self == self.env.user:
             user_sudo = self.sudo()
             fields_ = self._fields
+            _debug.logic("onchange_self_prefetched", uid=self.env.uid)
             for field_name in self._get_self_accessible_fields()[0]:
                 field = fields_[field_name]
                 if field.type in ("binary", "one2many", "many2many"):
@@ -879,6 +940,7 @@ class ResUsers(models.Model):
             and self == self.env.user
             and all(key in readable or key.startswith("context_") for key in fields)
         ):
+            _debug.logic("self_read_elevated", uid=self.env.uid, fields=list(fields))
             self = self.sudo()
         return super().read(fields=fields, load=load)
 
@@ -892,6 +954,7 @@ class ResUsers(models.Model):
     def _add_missing_settings_records(self) -> None:
         missing = self.sudo().filtered(lambda user: not user.res_users_settings_ids)
         if missing:
+            _debug.lifecycle("settings_records_added", users=missing.ids)
             self.env["res.users.settings"].sudo().create(
                 [{"user_id": user.id} for user in missing]
             )
@@ -902,6 +965,9 @@ class ResUsers(models.Model):
             partner = user.partner_id
             if partner.company_id and partner.company_id != user.company_id:
                 by_company[user.company_id.id] |= partner
+        _debug.pipeline(
+            "partner_company_synced", users=len(self), companies=len(by_company)
+        )
         for company_id, partners in by_company.items():
             partners.write({"company_id": company_id})
 
@@ -917,12 +983,26 @@ class ResUsers(models.Model):
             for vals in vals_list
         ]
         if any(k in backed for vals in vals_list for k in vals):
+            _debug.logic(
+                "create_settings_fields_deferred",
+                count=len(vals_list),
+                fields=sorted({k for vals in vals_list for k in vals if k in backed}),
+            )
             vals_list = [
                 {k: v for k, v in vals.items() if k not in backed} for vals in vals_list
             ]
         users = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(users),
+            logins=users.mapped("login"),
+            deferred_settings=sum(1 for settings in deferred if settings),
+        )
         users._sync_partner_company()
         inactive = users.filtered(lambda u: not u.active)
+        _debug.pipeline(
+            "create_partners_activated", users=len(users), inactive=len(inactive)
+        )
         (users - inactive).partner_id.active = True
         inactive.partner_id.active = False
         users._update_missing_avatars()
@@ -933,10 +1013,13 @@ class ResUsers(models.Model):
         return users
 
     def _update_missing_avatars(self) -> None:
+        generated = 0
         for user in self:
             if user.image_1920 or user.share or not (user.name or "").strip():
                 continue
+            generated += 1
             user.image_1920 = user.partner_id._prepare_avatar_svg()
+        _debug.perf.count("avatars_generated", users=len(self), generated=generated)
 
     def _is_escaping_own_record(self, vals: dict[str, Any]) -> bool:
         for fname, value in vals.items():
@@ -944,28 +1027,37 @@ class ResUsers(models.Model):
             if field is None or field.type not in ("one2many", "many2many"):
                 continue
             if field.type == "one2many":
+                _debug.logic("own_record_escape", field=fname, reason="one2many")
                 return True
             if isinstance(value, models.BaseModel) or not value:
                 continue
             if not isinstance(value, (list, tuple)):
+                _debug.logic("own_record_escape", field=fname, reason="not_commands")
                 return True
             for command in value:
                 if isinstance(command, (list, tuple)):
                     if not command or command[0] not in _RELATION_ONLY_COMMANDS:
+                        _debug.logic(
+                            "own_record_escape", field=fname, reason="write_command"
+                        )
                         return True
                 elif not isinstance(command, int):
+                    _debug.logic("own_record_escape", field=fname, reason="not_an_id")
                     return True
         return False
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("active") and SUPERUSER_ID in self._ids:
+            _debug.logic("write_refused", users=self.ids, reason="activate_superuser")
             raise UserError(_("You cannot activate the superuser."))
         if vals.get("active") is False and self.env.uid in self._ids:
+            _debug.logic("write_refused", users=self.ids, reason="deactivate_self")
             raise UserError(
                 _("You cannot deactivate the user you're currently logged in as.")
             )
 
         if vals.get("active"):
+            _debug.lifecycle("partners_unarchived", users=self.ids)
             self.partner_id.action_unarchive()
 
         if not self._get_settings_backed_fields().isdisjoint(vals):
@@ -976,8 +1068,10 @@ class ResUsers(models.Model):
             if all(
                 key in writeable for key in vals
             ) and not self._is_escaping_own_record(vals):
+                _debug.logic("self_write_elevated", uid=self.env.uid, fields=list(vals))
                 self = self.sudo()
 
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
 
         if "company_id" in vals:
@@ -986,11 +1080,14 @@ class ResUsers(models.Model):
         if "company_id" in vals or "company_ids" in vals:
             for env in list(self.env.transaction.envs):
                 if env.user in self:
+                    _debug.lifecycle("env_properties_reset", uid=env.uid)
                     reset_cached_properties(env)
 
         if "group_ids" in vals and self.ids:
+            _debug.logic("write_cache_cleared", reason="group_ids")
             self.env["ir.model.access"].call_cache_clearing_methods()
         elif self._get_fields_invalidation() & vals.keys():
+            _debug.logic("write_cache_cleared", reason="invalidating_fields")
             self.env.registry.clear_cache()
 
         return res
@@ -1000,6 +1097,7 @@ class ResUsers(models.Model):
         portal_user_template = self.env.ref("base.template_portal_user_id", False)
         public_user = self.env.ref("base.public_user", False)
         if SUPERUSER_ID in self.ids:
+            _debug.logic("unlink_refused", users=self.ids, reason="superuser")
             raise UserError(
                 _(
                     "You can not remove the admin user as it is used internally for resources created by Odoo (updates, module installation, ...)"
@@ -1007,19 +1105,23 @@ class ResUsers(models.Model):
             )
         user_admin = self.env.ref("base.user_admin", raise_if_not_found=False)
         if user_admin and user_admin in self:
+            _debug.logic("unlink_refused", users=self.ids, reason="admin")
             raise UserError(
                 _(
                     "You cannot delete the admin user because it is utilized in various places (such as security configurations,...). Instead, archive it."
                 )
             )
+        _debug.lifecycle("cache_cleared_before_unlink", users=self.ids)
         self.env.registry.clear_cache()
         if portal_user_template and portal_user_template in self:
+            _debug.logic("unlink_refused", users=self.ids, reason="portal_template")
             raise UserError(
                 _(
                     "Deleting the template users is not allowed. Deleting this profile will compromise critical functionalities."
                 )
             )
         if public_user and public_user in self:
+            _debug.logic("unlink_refused", users=self.ids, reason="public_user")
             raise UserError(
                 _(
                     "Deleting the public user is not allowed. Deleting this profile will compromise critical functionalities."
@@ -1044,6 +1146,7 @@ class ResUsers(models.Model):
                 )
             )
         ):
+            _debug.logic("name_search_by_login", found=len(user))
             return [(u.id, u.display_name) for u in user]
         return super().name_search(name, domain, operator, limit)
 
@@ -1055,6 +1158,7 @@ class ResUsers(models.Model):
                 ("login", "in", [value] if isinstance(value, str) else value)
             ]
             if users := self.search(name_domain):
+                _debug.logic("display_name_search_by_login", found=len(users))
                 domain = [("id", "in", users.ids)]
         return domain
 
@@ -1113,21 +1217,28 @@ class ResUsers(models.Model):
                     limit=1,
                 )
                 if not user:
+                    _debug.logic("login_unknown", ip=ip)
                     self._get_crypt_context().match_and_update(
                         credential.get("password") or "", _DUMMY_PASSWORD_HASH
                     )
                     raise AccessDenied
                 user = user.with_user(user).sudo()
+                _debug.pipeline("login_credentials_check", uid=user.id, ip=ip)
                 auth_info = user._check_credentials(credential, user_agent_env)
                 tz = request.cookies.get("tz") if request else None
                 if tz in all_timezones() and (not user.tz or not user.login_date):
+                    _debug.logic("login_tz_adopted", uid=user.id, tz=tz)
                     user.tz = tz
                 user._update_last_login()
         except AccessDenied:
             _logger.info("Login failed for login:%s from %s", login, ip)
+            _debug.lifecycle("login_failed", login=login, ip=ip)
             raise
 
         _logger.info("Login successful for login:%s from %s", login, ip)
+        _debug.lifecycle(
+            "login", uid=auth_info["uid"], method=auth_info.get("auth_method"), ip=ip
+        )
 
         return auth_info
 
@@ -1141,7 +1252,11 @@ class ResUsers(models.Model):
                 try:
                     base = user_agent_env["base_location"]
                     ICP = env["ir.config_parameter"]
-                    if not ICP.get_param("web.base.url.freeze"):
+                    frozen = bool(ICP.get_param("web.base.url.freeze"))
+                    _debug.logic(
+                        "base_url_from_login", uid=auth_info["uid"], frozen=frozen
+                    )
+                    if not frozen:
                         ICP.set_param("web.base.url", base)
                 except Exception:
                     _logger.exception(
@@ -1152,11 +1267,13 @@ class ResUsers(models.Model):
     @api.model
     def _check_uid_passwd(self, uid: int, passwd: str) -> None:
         if not passwd:
+            _debug.logic("uid_passwd_refused", uid=uid, reason="empty")
             raise AccessDenied
         with self._assert_can_auth(user=uid):
             passwd_hash = sha256(passwd.encode()).hexdigest()
             key_expiration = self._check_uid_passwd_cached(uid, passwd, passwd_hash)
             if key_expiration is not None and key_expiration <= fields.Datetime.now():
+                _debug.logic("uid_passwd_refused", uid=uid, reason="apikey_expired")
                 raise AccessDenied
 
     def _get_fields_session_token(self) -> set[str]:
@@ -1164,7 +1281,8 @@ class ResUsers(models.Model):
 
     def _prepare_session_token_query_params(self) -> dict[str, SQL]:
         database_secret = SQL(
-            "SELECT value FROM ir_config_parameter WHERE key='database.secret'"
+            "%s::text",
+            self.env["ir.config_parameter"].sudo().get_param("database.secret"),
         )
         fields = SQL(", ").join(
             SQL.identifier(self._table, fname)
@@ -1187,6 +1305,9 @@ class ResUsers(models.Model):
             )
         )
         if self.env.cr.rowcount != 1:
+            _debug.logic(
+                "session_token_values_missing", uid=self.id, rows=self.env.cr.rowcount
+            )
             return False
         data_fields = self.env.cr.fetchone()
         cr_description = self.env.cr.description
@@ -1198,17 +1319,12 @@ class ResUsers(models.Model):
     def _hash_session_token(
         self, sid: str, field_values: tuple[tuple[str, Any], ...] | bool
     ) -> str | bool:
-        if not field_values:
-            return False
-        key_tuple = tuple((k, v) for k, v in field_values if v is not None)
-        key = str(key_tuple).encode()
-        data = sid.encode()
-        h = hmac.new(key, data, sha256)
-        return h.hexdigest()
+        return session_token(sid, field_values)
 
     @api.model
     def change_password(self, old_passwd: str, new_passwd: str) -> bool:
         if not old_passwd:
+            _debug.logic("change_password_refused", uid=self.env.uid, reason="no_old")
             raise AccessDenied
 
         user = self.env.user
@@ -1224,8 +1340,8 @@ class ResUsers(models.Model):
         return True
 
     def _change_password(self, new_passwd: str) -> None:
-        new_passwd = new_passwd.strip()
-        if not new_passwd:
+        if not new_passwd.strip():
+            _debug.logic("change_password_refused", uid=self.id, reason="empty")
             raise UserError(
                 _("Setting empty passwords is not allowed for security reasons!")
             )
@@ -1239,12 +1355,14 @@ class ResUsers(models.Model):
             self.env.user.id,
             ip,
         )
+        _debug.lifecycle("password_changed", uid=self.id, by=self.env.uid)
 
         self.password = new_passwd
 
     def _deactivate_portal_user(self, **post: Any) -> None:
         non_portal_users = self.filtered(lambda user: not user.share)
         if non_portal_users:
+            _debug.logic("portal_deactivation_refused", users=non_portal_users.ids)
             raise AccessDenied(
                 _(
                     "Only the portal users can delete their accounts. The user(s) %s can not be deleted.",
@@ -1270,6 +1388,9 @@ class ResUsers(models.Model):
                     "password": "",
                 }
             )
+            _debug.lifecycle(
+                "portal_user_scrubbed", uid=user.id, apikeys=len(user.api_key_ids)
+            )
             user.api_key_ids._remove()
 
             res_users_deletion_values.append(
@@ -1283,6 +1404,11 @@ class ResUsers(models.Model):
             self.with_user(SUPERUSER_ID).action_archive()
         with contextlib.suppress(UserError, AccessError, ValidationError):
             self.partner_id.action_archive()
+        _debug.lifecycle(
+            "portal_users_deactivated",
+            users=self.ids,
+            archived=not any(self.mapped("active")),
+        )
         self.env["res.users.deletion"].create(res_users_deletion_values)
 
     def action_save_preferences(self) -> dict[str, Any]:
@@ -1326,7 +1452,9 @@ class ResUsers(models.Model):
 
     def _action_revoke_all_devices(self) -> dict[str, Any]:
         self.check_singleton()
-        self.device_ids.filtered(lambda d: not d.is_current)._revoke()
+        others = self.device_ids.filtered(lambda d: not d.is_current)
+        _debug.lifecycle("all_devices_revoked", user=self.id, devices=len(others))
+        others._revoke()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def _assert_group_query_allowed(self) -> None:
@@ -1335,6 +1463,7 @@ class ResUsers(models.Model):
             or self == self.env.user
             or self.env.user._has_group("base.group_user")
         ):
+            _debug.logic("group_query_refused", uid=self.env.uid, target=self.id)
             raise AccessError(
                 _(
                     "Reading another user's groups requires an internal user; %(login)s is not one.",
@@ -1346,6 +1475,7 @@ class ResUsers(models.Model):
     def _group_id(self, group_ext_id: str) -> int | None:
         group_id = self.env["res.groups"]._get_group_definitions().get_id(group_ext_id)
         if group_id is None:
+            _debug.logic("group_id_missing", group=group_ext_id)
             self._warn_unresolved_group(group_ext_id)
         return group_id
 
@@ -1357,6 +1487,7 @@ class ResUsers(models.Model):
         if group_ext_id in _UNRESOLVED_GROUPS_WARNED:
             return
         _UNRESOLVED_GROUPS_WARNED.add(group_ext_id)
+        _debug.logic("group_unresolved", group=group_ext_id, module=module)
         _logger.warning(
             "Group %r does not exist though %r is loaded; the check answers "
             "'not a member', and a negated check answers 'everyone'.",
@@ -1368,6 +1499,7 @@ class ResUsers(models.Model):
         result = self._has_group(group_ext_id)
         if group_ext_id == DEBUG_GROUP:
             result = result and bool(request and request.session.debug)
+            _debug.logic("debug_group_effective", uid=self.id, result=result)
         return result
 
     @api.readonly
@@ -1388,9 +1520,11 @@ class ResUsers(models.Model):
             target.append(token.removeprefix("!"))
 
         if not (positives or negatives):
+            _debug.logic("has_groups_empty_spec", uid=self.id)
             return False
 
         if any(self._has_group_effective(ext_id) for ext_id in negatives):
+            _debug.logic("has_groups_denied", uid=self.id, negatives=negatives)
             return False
         if any(self._has_group_effective(ext_id) for ext_id in positives):
             return True
@@ -1413,7 +1547,9 @@ class ResUsers(models.Model):
         group_ids = set(group_ids)
         if not (request and request.session.debug):
             group_ids.discard(self._group_id(DEBUG_GROUP))
-        return not group_ids.isdisjoint(self._get_effective_group_ids())
+        result = not group_ids.isdisjoint(self._get_effective_group_ids())
+        _debug.logic("has_any_group", uid=self.id, groups=len(group_ids), result=result)
+        return result
 
     def _action_show(self) -> dict[str, Any]:
         view_id = self.env.ref("base.view_users_form").id
@@ -1501,64 +1637,34 @@ class ResUsers(models.Model):
         self.check_singleton()
         return self.id == SUPERUSER_ID
 
-    @api.model
-    def get_company_currency_id(self) -> int:
-        return self.env.company.currency_id.id
+    def _login_cooldown(self) -> LoginCooldown:
+        return LoginCooldown(self.pool)
 
     def _get_login_failure_state(self, source: str) -> tuple[int, datetime.datetime]:
-        with self.pool.cursor() as cr:
-            cr.execute(
-                "SELECT failures, last_failure FROM res_users_login_cooldown "
-                "WHERE source = %s",
-                [source],
-            )
-            row = cr.fetchone()
-        if not row:
-            return 0, datetime.datetime.min.replace(tzinfo=datetime.UTC)
-        failures, last_failure = row
-        return failures, last_failure.replace(tzinfo=datetime.UTC)
+        failures, last_failure = self._login_cooldown().state(source)
+        _debug.logic("login_failure_state", source=source, failures=failures)
+        return failures, last_failure
 
     def _record_login_failure(self, source: str) -> None:
-        now = datetime.datetime.now(datetime.UTC)
-        delay = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("base.login_cooldown_duration", 60)
-        )
-        cutoff = now - datetime.timedelta(seconds=delay)
-        now_naive = now.replace(tzinfo=None)
-        cutoff_naive = cutoff.replace(tzinfo=None)
-        with self.pool.cursor() as cr:
-            cr.execute(
-                """
-                INSERT INTO res_users_login_cooldown (source, failures, last_failure)
-                VALUES (%s, 1, %s)
-                ON CONFLICT (source) DO UPDATE
-                SET failures = res_users_login_cooldown.failures + 1,
-                    last_failure = EXCLUDED.last_failure
-                """,
-                [source, now_naive],
-            )
-            cr.execute(
-                "DELETE FROM res_users_login_cooldown WHERE last_failure < %s",
-                [cutoff_naive],
-            )
+        delay = self._get_login_cooldown_duration()
+        _debug.lifecycle("login_failure_recorded", source=source, delay_s=delay)
+        self._login_cooldown().record_failure(source, datetime.timedelta(seconds=delay))
 
     def _clear_login_failures(self, source: str) -> None:
-        with self.pool.cursor() as cr:
-            cr.execute(
-                "DELETE FROM res_users_login_cooldown WHERE source = %s", [source]
-            )
+        _debug.lifecycle("login_failures_cleared", source=source)
+        self._login_cooldown().clear(source)
 
     @contextlib.contextmanager
     def _assert_can_auth(self, user: int | str | None = None) -> Generator[None]:
         if not request:
+            _debug.logic("auth_cooldown_skipped", reason="no_request")
             yield
             return
 
-        source = request.httprequest.remote_addr
+        source = request.httprequest.remote_addr or "n/a"
         failures, previous = self._get_login_failure_state(source)
         if self._is_login_on_cooldown(failures, previous):
+            _debug.logic("login_cooldown", source=source, failures=failures)
             _logger.warning(
                 "Login attempt ignored for %s (user %r) on %s: "
                 "%d failures since last success, last failure at %s. "
@@ -1593,16 +1699,35 @@ class ResUsers(models.Model):
         else:
             self._clear_login_failures(source)
 
+    def _get_login_cooldown_duration(self) -> int:
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("base.login_cooldown_duration", 60)
+        )
+
     def _is_login_on_cooldown(self, failures: int, previous: datetime.datetime) -> bool:
-        cfg = self.env["ir.config_parameter"].sudo()
-        min_failures = int(cfg.get_param("base.login_cooldown_after", 5))
-        if min_failures == 0:
+        min_failures = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("base.login_cooldown_after", 10)
+        )
+        if min_failures <= 0:
+            _debug.logic("login_cooldown_disabled")
             return False
 
-        delay = int(cfg.get_param("base.login_cooldown_duration", 60))
-        return failures >= min_failures and (
+        delay = self._get_login_cooldown_duration()
+        on_cooldown = failures >= min_failures and (
             datetime.datetime.now(datetime.UTC) - previous
         ) < datetime.timedelta(seconds=delay)
+        _debug.logic(
+            "login_cooldown_evaluated",
+            failures=failures,
+            min_failures=min_failures,
+            delay_s=delay,
+            on_cooldown=on_cooldown,
+        )
+        return on_cooldown
 
     def _get_mfa_type(self) -> str | None:
         return
@@ -1623,6 +1748,7 @@ class ResUsers(models.Model):
         if allfields:
             missing = missing.intersection(allfields)
         if missing:
+            _debug.logic("fields_get_self_fields_added", fields=sorted(missing))
             self = self.sudo()
             res.update(
                 {
@@ -1645,9 +1771,12 @@ class ResUsers(models.Model):
         if view == self.env.ref("base.view_users_form_simple_modif"):
             tree = etree.fromstring(arch)
             readable = self._get_self_accessible_fields()[0]
+            ungrouped = 0
             for node_field in tree.xpath("//field[@__groups_key__]"):
                 if node_field.get("name") in readable:
+                    ungrouped += 1
                     node_field.attrib.pop("__groups_key__")
+            _debug.pipeline("preferences_view_postprocessed", ungrouped=ungrouped)
             arch = etree.tostring(tree)
         return arch, models
 
@@ -1668,6 +1797,7 @@ class UsersMultiCompany(models.Model):
     def _sync_multi_company_group(self) -> None:
         group_id = self._group_id("base.group_multi_company")
         if not group_id:
+            _debug.logic("multi_company_sync_skipped", reason="no_group")
             return
         to_add = to_remove = self.browse()
         for user in self:
@@ -1676,6 +1806,12 @@ class UsersMultiCompany(models.Model):
                 to_add |= user
             elif wanted is False:
                 to_remove |= user
+        _debug.lifecycle(
+            "multi_company_group_synced",
+            users=len(self),
+            added=to_add.ids,
+            removed=to_remove.ids,
+        )
         if to_remove:
             to_remove.write({"group_ids": [Command.unlink(group_id)]})
         if to_add:
@@ -1707,6 +1843,7 @@ class UsersMultiCompany(models.Model):
         if group_id:
             wanted = user._resolve_multi_company_group_membership(group_id)
             if wanted is not None:
+                _debug.logic("multi_company_group_on_new", wanted=wanted)
                 command = Command.link(group_id) if wanted else Command.unlink(group_id)
                 user.update({"group_ids": [command]})
         return user

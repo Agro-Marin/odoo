@@ -9,6 +9,7 @@ import {
     Component,
     markRaw,
     onMounted,
+    onPatched,
     onWillUnmount,
     onWillUpdateProps,
     reactive,
@@ -19,13 +20,18 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Transition } from "@web/core/transition";
+import { measure, mutate } from "@web/core/utils/dom/layout_batch";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 import { NotificationMessage } from "./notification_message.js";
 
 export const PRESENT_VIEWPORT_THRESHOLD = 1;
+const log = makeLogger("mail.thread.ui");
+
 /**
  * @typedef {Object} Props
  * @property {number} [autofocus]
@@ -34,8 +40,11 @@ export const PRESENT_VIEWPORT_THRESHOLD = 1;
  * @property {number} [jumpToNewMessage=0]
  * @property {"asc"|"desc"} [order="asc"]
  * @property {import("models").Thread} thread
- * @property {string} [searchTerm]
  * @property {import("@web/core/utils/hooks").Ref} [scrollRef]
+ * @property {boolean} [showDates=true]
+ * @property {boolean} [showEmptyMessage=true]
+ * @property {boolean} [showJumpPresent=true]
+ * @property {boolean} [messageActions=true]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Thread extends Component {
@@ -82,6 +91,12 @@ export class Thread extends Component {
             ? useState(this.env.messageHighlight)
             : null;
         this.scrollingToHighlight = false;
+        /** @type {HTMLElement|null|undefined} */
+        this._viewportEl = undefined;
+        // a patch of this component can grow the scrollable past the window and Owl
+        // may render again in the same flush, before the ResizeObserver below can
+        // see the growth: the cache does not survive a patch
+        onPatched(() => this.computeJumpPresentPosition());
         this.refByMessageId = reactive(new Map(), () => {
             this.scrollToHighlighted();
         });
@@ -92,6 +107,7 @@ export class Thread extends Component {
             () => [this.messageHighlight?.highlightedMessageId],
         );
         this.jumpPresentRef = useRef("jump-present");
+        this.presentThresholdRef = useRef("present-treshold");
         this.root = useRef("messages");
         this.visibleState = useVisible("messages", () => {
             this.updateShowJumpPresent();
@@ -148,7 +164,7 @@ export class Thread extends Component {
             () => {
                 this.computeJumpPresentPosition();
             },
-            () => [this.jumpPresentRef.el, this.viewportEl],
+            () => [this.jumpPresentRef.el, this.state.showJumpPresent],
         );
         useEffect(
             () => this.updateShowJumpPresent(),
@@ -165,6 +181,10 @@ export class Thread extends Component {
         useEffect(
             () => {
                 if (this.props.thread.highlightMessage && this.state.mountedAndLoaded) {
+                    log.logic("highlightMessage from thread", () => ({
+                        thread: this.props.thread.localId,
+                        messageId: this.props.thread.highlightMessage.id,
+                    }));
                     this.messageHighlight?.highlightMessage(
                         this.props.thread.highlightMessage,
                         this.props.thread,
@@ -184,10 +204,11 @@ export class Thread extends Component {
             () => [this.state.mountedAndLoaded],
         );
         onMounted(() => {
-            if (!this.env.chatter || this.env.chatter?.fetchMessages) {
-                if (this.env.chatter) {
-                    this.env.chatter.fetchMessages = false;
-                }
+            if (this.consumeChatterFetchRequest()) {
+                log.lifecycle("mounted fetch", () => ({
+                    thread: this.props.thread.localId,
+                    inChatter: Boolean(this.env.chatter),
+                }));
                 this.fetchMessages();
             }
         });
@@ -217,7 +238,7 @@ export class Thread extends Component {
                 let jumpMessage;
                 for (const message of this.props.thread.messages) {
                     if (
-                        Number.isInteger(message.id) &&
+                        message.persistent &&
                         Number(message.id) < separatorId &&
                         (!jumpMessage || message.id > jumpMessage.id)
                     ) {
@@ -227,6 +248,12 @@ export class Thread extends Component {
                 const el = jumpMessage
                     ? this.refByMessageId.get(jumpMessage.id)?.el
                     : undefined;
+                log.logic("jumpToNewMessage", () => ({
+                    thread: this.props.thread.localId,
+                    separatorId,
+                    jumpMessageId: jumpMessage?.id,
+                    found: Boolean(el),
+                }));
                 if (el) {
                     el.querySelector(".o-mail-Message-jumpTarget").scrollIntoView({
                         behavior: "instant",
@@ -245,6 +272,9 @@ export class Thread extends Component {
             ({ detail }) => {
                 const { model, id } = this.props.thread;
                 if (detail.model === model && detail.id === id) {
+                    log.pipeline("MAIL:RELOAD-THREAD", () => ({
+                        thread: this.props.thread.localId,
+                    }));
                     toRaw(this.props.thread).fetchNewMessages();
                 }
             },
@@ -253,18 +283,20 @@ export class Thread extends Component {
             /** @param {{thread: import("models").Thread, jumpPresent: number}} nextProps */
             (nextProps) => {
                 if (nextProps.thread.notEq(this.props.thread)) {
+                    log.lifecycle("thread swapped", () => ({
+                        from: this.props.thread.localId,
+                        to: nextProps.thread.localId,
+                    }));
                     this.lastJumpPresent = nextProps.jumpPresent;
                 }
-                if (!this.env.chatter || this.env.chatter?.fetchMessages) {
-                    if (this.env.chatter) {
-                        this.env.chatter.fetchMessages = false;
-                    }
+                if (this.consumeChatterFetchRequest()) {
                     toRaw(nextProps.thread).fetchNewMessages();
                 }
             },
         );
     }
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this._setupServicesAndRefs();
         this._setupScrollTracking();
@@ -274,23 +306,41 @@ export class Thread extends Component {
     }
 
     computeJumpPresentPosition() {
-        if (!this.viewportEl || !this.jumpPresentRef.el) {
-            return;
-        }
-        const width = this.viewportEl.clientWidth;
-        const height = this.viewportEl.clientHeight;
-        const computedStyle = window.getComputedStyle(this.viewportEl);
-        const ps = parseInt(computedStyle.getPropertyValue("padding-left"));
-        const pe = parseInt(computedStyle.getPropertyValue("padding-right"));
-        const pt = parseInt(computedStyle.getPropertyValue("padding-top"));
-        const pb = parseInt(computedStyle.getPropertyValue("padding-bottom"));
-        this.jumpPresentRef.el.style.transform = `translate(${
-            this.env.inChatter ? 22 : width - ps - pe - 22
-        }px, ${
-            this.env.inChatter && !this.env.inChatter.aside
-                ? -22
-                : height - pt - pb - (this.env.inChatter?.aside ? 75 : 0)
-        }px)`;
+        measure(() => {
+            this._viewportEl = undefined;
+            const viewportEl = this.viewportEl;
+            const thresholdEl = this.presentThresholdRef.el;
+            const jumpPresentEl = this.jumpPresentRef.el;
+            if (!thresholdEl && !jumpPresentEl) {
+                return;
+            }
+            const threshold = this.PRESENT_THRESHOLD;
+            let transform;
+            if (viewportEl && jumpPresentEl) {
+                const width = viewportEl.clientWidth;
+                const height = viewportEl.clientHeight;
+                const computedStyle = window.getComputedStyle(viewportEl);
+                const ps = parseInt(computedStyle.getPropertyValue("padding-left"));
+                const pe = parseInt(computedStyle.getPropertyValue("padding-right"));
+                const pt = parseInt(computedStyle.getPropertyValue("padding-top"));
+                const pb = parseInt(computedStyle.getPropertyValue("padding-bottom"));
+                transform = `translate(${
+                    this.env.inChatter ? 22 : width - ps - pe - 22
+                }px, ${
+                    this.env.inChatter && !this.env.inChatter.aside
+                        ? -22
+                        : height - pt - pb - (this.env.inChatter?.aside ? 75 : 0)
+                }px)`;
+            }
+            mutate(() => {
+                if (thresholdEl?.isConnected) {
+                    thresholdEl.style.height = `Min(${threshold}px, 100%)`;
+                }
+                if (transform && jumpPresentEl?.isConnected) {
+                    jumpPresentEl.style.transform = transform;
+                }
+            });
+        });
     }
 
     /** @param {import("models").Thread} thread */
@@ -312,13 +362,36 @@ export class Thread extends Component {
         toRaw(this.props.thread).fetchNewMessages();
     }
 
-    get viewportEl() {
-        let viewportEl = this.scrollableRef.el;
-        if (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
-            while (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
-                viewportEl = viewportEl.parentElement;
-            }
+    /** @returns {boolean} whether the messages of the thread should be fetched now */
+    consumeChatterFetchRequest() {
+        const chatter = this.env.chatter;
+        if (!chatter) {
+            return true;
         }
+        if (!chatter.fetchMessages) {
+            return false;
+        }
+        chatter.fetchMessages = false;
+        return true;
+    }
+
+    /**
+     * The scrollable element, or its first ancestor that fits the window. Walking up
+     * reads `clientHeight` on every step, each a forced layout right after a patch, and
+     * the template asks on every render; the answer is cached until this component
+     * patches, and measured again for free by the ResizeObserver of
+     * `useThreadScroll` (observing from mount, after layout) whenever the
+     * scrollable resizes.
+     */
+    get viewportEl() {
+        if (this._viewportEl?.isConnected) {
+            return this._viewportEl;
+        }
+        let viewportEl = this.scrollableRef.el;
+        while (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
+            viewportEl = viewportEl.parentElement;
+        }
+        this._viewportEl = viewportEl;
         return viewportEl;
     }
 
@@ -336,6 +409,7 @@ export class Thread extends Component {
     }
 
     onClickLoadOlder() {
+        log.logic("onClickLoadOlder", () => ({ thread: this.props.thread.localId }));
         this.props.thread.fetchMoreMessages();
     }
 
@@ -357,6 +431,11 @@ export class Thread extends Component {
         if (!targetThread) {
             return;
         }
+        log.logic("onParentMessageClick", () => ({
+            messageId: parentMessage.id,
+            sameThread: targetThread.eq(this.props.thread),
+            targetThread: targetThread.localId,
+        }));
         if (targetThread.eq(this.props.thread)) {
             this.env.messageHighlight?.highlightMessage(parentMessage, targetThread);
         } else {
@@ -381,6 +460,11 @@ export class Thread extends Component {
      * @param {boolean} [options.immediate=false]
      */
     async jumpToPresent({ immediate = false } = {}) {
+        log.logic("jumpToPresent", () => ({
+            thread: this.props.thread.localId,
+            immediate,
+            loadNewer: this.props.thread.loadNewer,
+        }));
         this.messageHighlight?.clear();
         if (!immediate || this.props.thread.loadNewer) {
             await this.props.thread.loadAround();
@@ -448,7 +532,10 @@ export class Thread extends Component {
         )?.el;
         if (el) {
             this.scrollingToHighlight = true;
-
+            log.logic("scrollToHighlighted", () => ({
+                thread: this.props.thread.localId,
+                messageId: this.messageHighlight.highlightedMessageId,
+            }));
             await this.messageHighlight.startupDeferred;
             this.messageHighlight
                 .scrollTo(el.querySelector(".o-mail-Message-jumpTarget"))

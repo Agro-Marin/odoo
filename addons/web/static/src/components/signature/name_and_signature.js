@@ -1,16 +1,27 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillDestroy,
+    onWillStart,
+    useEffect,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network/rpc";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
+
+const log = makeLogger("web.components.signature");
 
 /** @type {Map<string, Promise<string[]>>} */
 const fontsCache = new Map();
@@ -64,6 +75,8 @@ export class NameAndSignature extends Component {
     defaultName = "";
     currentFont = 0;
     hasPaintedImage = false;
+    /** @type {string | Promise<string> | null} */
+    paintedImageSrc = null;
     /** @type {KeepLast<any>} */
     printImageKeepLast;
     /** @type {{ signMode: string, showSignatureArea: boolean, loadIsInvalid: boolean|undefined }} */
@@ -83,10 +96,12 @@ export class NameAndSignature extends Component {
     previewActive = false;
 
     setup() {
+        useLifecycleLog(log);
         this.htmlId = uniqueId();
         this.props.signature.name ??= "";
         this.defaultName = this.props.signature.name;
         this.printImageKeepLast = new KeepLast({ rejectSuperseded: true });
+        onWillDestroy(() => this.printImageKeepLast.cancel());
 
         this.state = useState({
             signMode:
@@ -149,7 +164,10 @@ export class NameAndSignature extends Component {
                     this.clear();
                     this.fromDataURL(this.props.signature.signatureImage);
                 }
+                const resizeObserver = new ResizeObserver(() => this.fitSignature());
+                resizeObserver.observe(el);
                 return () => {
+                    resizeObserver.disconnect();
                     this.signaturePad.off();
                     Object.assign(signature, callerAccessors);
                 };
@@ -177,15 +195,16 @@ export class NameAndSignature extends Component {
     }
 
     clear() {
+        this.printImageKeepLast.cancel();
         this.signaturePad.clear();
         this.hasPaintedImage = false;
+        this.paintedImageSrc = null;
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
     }
 
-    async fromDataURL(...args) {
-        await this.signaturePad.fromDataURL(...args);
-        this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
-        this.props.onSignatureChange(this.state.signMode);
+    /** @param {string} imgSrc */
+    fromDataURL(imgSrc) {
+        return this.printImage(imgSrc);
     }
 
     /** @returns {string} */
@@ -250,8 +269,7 @@ export class NameAndSignature extends Component {
         }
         this.state.loadIsInvalid = false;
 
-        const result = await getDataURLFromFile(file);
-        await this.printImage(result);
+        await this.printImage(getDataURLFromFile(file));
     }
 
     onClickSignDrawClear() {
@@ -283,16 +301,20 @@ export class NameAndSignature extends Component {
         this.drawCurrentName();
     }
 
-    /** @param {string} imgSrc */
+    /** @param {string | Promise<string>} imgSrc */
     async printImage(imgSrc) {
         this.clear();
         const c = this.signaturePad.canvas;
         const img = new Image();
-        img.src = imgSrc;
+        const decode = async () => {
+            img.src = await imgSrc;
+            await img.decode();
+        };
         try {
-            await this.printImageKeepLast.add(img.decode());
+            await this.printImageKeepLast.add(decode());
         } catch (error) {
             if (error instanceof SupersededError) {
+                log.logic("image load discarded");
                 return;
             }
             if (this.state.signMode === "load") {
@@ -315,6 +337,7 @@ export class NameAndSignature extends Component {
             img.height * ratio,
         );
         this.hasPaintedImage = true;
+        this.paintedImageSrc = imgSrc;
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
         this.props.onSignatureChange(this.state.signMode);
     }
@@ -329,11 +352,31 @@ export class NameAndSignature extends Component {
     resizeSignature() {
         const canvas = this.signatureRef.el;
         if (!canvas) {
-            return;
+            return false;
         }
         const width = canvas.clientWidth;
         const height = Math.trunc(width / this.props.displaySignatureRatio);
+        if (canvas.width === width && canvas.height === height) {
+            return false;
+        }
         Object.assign(canvas, { width, height });
+        return true;
+    }
+
+    fitSignature() {
+        const imgSrc = this.paintedImageSrc;
+        if (!this.resizeSignature()) {
+            return;
+        }
+        if (this.state.signMode === "auto") {
+            this.drawCurrentName();
+        } else if (imgSrc) {
+            this.printImage(imgSrc);
+        } else {
+            this.signaturePad.redraw();
+            this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
+            this.props.onSignatureChange(this.state.signMode);
+        }
     }
 
     /**
@@ -344,6 +387,7 @@ export class NameAndSignature extends Component {
         if (reset !== true && mode === this.state.signMode) {
             return;
         }
+        log.logic("setMode", () => ({ mode, reset }));
 
         this.state.signMode = mode;
         this.signaturePad[this.state.signMode === "draw" ? "on" : "off"]();
@@ -357,7 +401,12 @@ export class NameAndSignature extends Component {
 
     /** @returns {boolean} */
     get isSignatureEmpty() {
-        return !this.hasPaintedImage && this.signaturePad.isEmpty();
+        const canvas = this.signaturePad.canvas;
+        return (
+            !canvas.width ||
+            !canvas.height ||
+            (!this.hasPaintedImage && this.signaturePad.isEmpty())
+        );
     }
 
     get loadIsInvalid() {

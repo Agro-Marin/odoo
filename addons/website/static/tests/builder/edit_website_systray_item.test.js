@@ -8,7 +8,6 @@ import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 defineWebsiteModels();
 
 test("Clicking on 'Edit' hides the notification", async () => {
-    // simulate delay translation
     onRpc(
         "/test-path",
         () =>
@@ -34,12 +33,10 @@ test("Clicking on 'Edit' hides the notification", async () => {
         },
     );
     expect(".o_notification_bar").toHaveCount(0);
-    // dispatch content-updated event so we will get the notification
     registry
         .category("website_systray")
         .dispatchEvent(new CustomEvent("CONTENT-UPDATED"));
     await waitFor(".o_notification_bar");
-    // clicking on edit dropdown should hide the notification
     await contains(".o-website-btn-custo-primary:contains('Edit')").click();
     await animationFrame();
     expect(".o_notification_bar").toHaveCount(0);

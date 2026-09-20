@@ -20,9 +20,6 @@ export class SlideArchive extends Interaction {
             body: _t("Are you sure you want to archive this content?"),
             confirmLabel: _t("Archive"),
             confirm: async () => {
-                /**
-                 * Calls 'archive' on slide controller and then visually removes the slide dom element
-                 */
                 const isArchived = await this.waitFor(
                     rpc("/slides/slide/archive", { slide_id: slideId }),
                 );

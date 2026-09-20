@@ -425,7 +425,7 @@ class TestDataRecycle(TransactionCase):
     def test_a_silent_run_does_not_consume_the_notification_period(self):
         self.env.ref("base.user_admin").email = "mitchell.admin@example.com"
         self.recycle_model.notify_user_ids = self.env.ref("base.user_admin")
-        self.recycle_model.notify_frequency_period = "weeks"
+        self.recycle_model.notify_unit = "week"
 
         self.recycle_model._notify_pending_records()
         self.assertFalse(

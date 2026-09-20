@@ -1,11 +1,14 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     hr_expense_alias_prefix = fields.Char(
-        "Default Alias Name for Expenses",
+        string="Default Alias Name for Expenses",
         compute="_compute_hr_expense_alias_prefix",
         store=True,
         readonly=False,
@@ -26,17 +29,17 @@ class ResConfigSettings(models.TransientModel):
         string="Link your stripe issuing account to manage company credit cards for your employees through Odoo"
     )
     expense_journal_id = fields.Many2one(
-        "account.journal",
+        comodel_name="account.journal",
         related="company_id.expense_journal_id",
         readonly=False,
-        check_company=True,
         domain="[('type', '=', 'purchase')]",
+        check_company=True,
     )
     company_expense_allowed_payment_channel_ids = fields.Many2many(
         comodel_name="account.payment.channel",
-        check_company=True,
         related="company_id.company_expense_allowed_payment_channel_ids",
         readonly=False,
+        check_company=True,
     )
 
     @api.model
@@ -73,6 +76,7 @@ class ResConfigSettings(models.TransientModel):
                     }
                 )
             )
+            _debug.lifecycle("expense_alias_created", alias=alias, settings=self)
             self.env["ir.model.data"].sudo().create(
                 {
                     "name": "mail_alias_expense",
@@ -83,6 +87,12 @@ class ResConfigSettings(models.TransientModel):
                 }
             )
         elif expense_alias and expense_alias.alias_name != self.hr_expense_alias_prefix:
+            _debug.lifecycle(
+                "expense_alias_renamed",
+                alias=expense_alias,
+                was=expense_alias.alias_name or "none",
+                now=self.hr_expense_alias_prefix or "none",
+            )
             expense_alias.alias_name = self.hr_expense_alias_prefix
 
     @api.depends("hr_expense_use_mailgateway")
@@ -106,4 +116,9 @@ class ResConfigSettings(models.TransientModel):
                 expense_alias
                 and expense_alias.alias_domain_id != record.hr_expense_alias_domain_id
             ):
+                _debug.lifecycle(
+                    "expense_alias_domain_changed",
+                    alias=expense_alias,
+                    domain=record.hr_expense_alias_domain_id,
+                )
                 expense_alias.alias_domain_id = record.hr_expense_alias_domain_id

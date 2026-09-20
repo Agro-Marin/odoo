@@ -9,7 +9,7 @@
                 <meta
                     name="viewport"
                     content="width=device-width, initial-scale=1, user-scalable=no" />
-                <title t-esc="title or 'Odoo'" />
+                <title t-out="title or 'Odoo'" />
                 <link
                     type="image/x-icon"
                     rel="shortcut icon"

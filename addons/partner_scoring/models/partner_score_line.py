@@ -10,9 +10,9 @@ class PartnerScoreLine(models.Model):
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     dimension = fields.Selection(
         selection=[
@@ -22,8 +22,8 @@ class PartnerScoreLine(models.Model):
         help="Scoring dimension this row belongs to.",
     )
     source_key = fields.Char(
-        required=True,
         index=True,
+        required=True,
         help="Stable identity of the row's source, as record ids -- e.g. "
         "'crop:12' or 'partner_attr:5:19'. This is what the refresh matches on, "
         "so a row survives a rename, a translation and a rescore from a session "
@@ -35,22 +35,18 @@ class PartnerScoreLine(models.Model):
         "the reader's language: the crop, bucket or attribute value that "
         "produced them.",
     )
-    points = fields.Float(
-        help="Points contributed by this source.",
-    )
+    points = fields.Float(help="Points contributed by this source.")
     max_points = fields.Float(
         help="Ceiling of the dimension/attribute group this row belongs to "
         "(context for the reader). The normalization denominator comes from "
-        "the catalog -- see res.partner._get_score_max_possible.",
+        "the catalog -- see res.partner._get_score_max_possible."
     )
     applied = fields.Boolean(
         default=True,
         help="Unchecked when the aggregation mode discarded this "
         "contribution (e.g. not the highest value under 'max').",
     )
-    note = fields.Char(
-        compute="_compute_note",
-    )
+    note = fields.Char(compute="_compute_note")
 
     @api.depends("dimension", "source_key")
     @api.depends_context("lang")

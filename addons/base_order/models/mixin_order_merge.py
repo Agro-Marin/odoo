@@ -3,10 +3,13 @@ from collections import defaultdict
 
 from odoo import _, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
 
 DATE_MATCH_THRESHOLD_SECONDS = 86400
+
+_debug = DebugLog(__name__)
 
 
 class MixinOrderMerge(models.AbstractModel):
@@ -14,7 +17,7 @@ class MixinOrderMerge(models.AbstractModel):
     _description = "Order Merge System"
 
     def action_merge(self):
-        orders_to_merge = self._merge_get_eligible_orders()
+        orders_to_merge = self._filtered_merge_eligible_orders()
         excluded = self - orders_to_merge
         if excluded:
             _logger.info(
@@ -33,19 +36,28 @@ class MixinOrderMerge(models.AbstractModel):
                 merged_id = self._merge_order_group(orders)
                 merged_ids.append(merged_id)
 
-        return self._merge_build_result_action(merged_ids)
+        _debug.pipeline(
+            "orders_merged",
+            selected=self,
+            eligible=orders_to_merge,
+            groups=len(groups),
+            merged=len(merged_ids),
+        )
+        return self._prepare_merge_result_action(merged_ids)
 
-    def _merge_get_eligible_orders(self):
+    def _filtered_merge_eligible_orders(self):
         return self.filtered(lambda r: r.state == "draft")
 
     def _merge_check_selection(self, orders):
         if len(orders) < 2:
+            _debug.logic("merge_refused", orders=orders, reason="fewer_than_two")
             raise UserError(
                 _("Please select at least two orders to merge."),
             )
 
     def _merge_check_groups(self, groups):
         if not groups:
+            _debug.logic("merge_refused", orders=self, reason="no_compatible_group")
             raise UserError(
                 _(
                     "No compatible orders to merge. Orders must have the same:\n%s",
@@ -75,8 +87,9 @@ class MixinOrderMerge(models.AbstractModel):
     def _merge_order_group(self, orders):
         target = self._merge_get_target(orders)
         sources = orders - target
+        _debug.lifecycle("merge_group", target=target, sources=sources)
 
-        line_index = self._merge_build_line_index(target)
+        line_index = self._prepare_merge_line_index(target)
         self._merge_lines(target, sources, line_index)
         self._merge_metadata(target, sources)
         self._merge_post_messages(target, sources)
@@ -84,7 +97,7 @@ class MixinOrderMerge(models.AbstractModel):
 
         return target.id
 
-    def _merge_build_line_index(self, target):
+    def _prepare_merge_line_index(self, target):
         index = defaultdict(list)
         for line in target.line_ids:
             if line.display_type:
@@ -122,6 +135,9 @@ class MixinOrderMerge(models.AbstractModel):
                 )
 
                 if match:
+                    _debug.logic(
+                        "merge_line", source=source_line, into=match, by="matched_key"
+                    )
                     match._merge_order_line(source_line)
                 else:
                     source_line.write({"order_id": target.id, "sequence": sequence})
@@ -156,6 +172,7 @@ class MixinOrderMerge(models.AbstractModel):
         if len(mutual) <= 1:
             return matches[:1]
         keeper, folded = mutual[0], mutual[1:]
+        _debug.logic("merge_candidates_collapsed", keeper=keeper, folded=folded)
         for line in folded:
             keeper._merge_order_line(line)
         for line in folded:
@@ -196,9 +213,10 @@ class MixinOrderMerge(models.AbstractModel):
             )
 
     def _merge_finalize(self, target, sources):
+        _debug.lifecycle("merge_sources_cancelled", target=target, sources=sources)
         sources.filtered(lambda r: r.state != "cancel").action_cancel()
 
-    def _merge_build_result_action(self, merged_ids):
+    def _prepare_merge_result_action(self, merged_ids):
         action = {
             "type": "ir.actions.act_window",
             "res_model": self._name,

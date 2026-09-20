@@ -14076,7 +14076,7 @@ msgstr ""
 "利用电子商务销售您的活动展位。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_sales_team
+#: model:ir.module.module,description:base.module_sale_team
 msgid ""
 "\n"
 "Using this application you can manage Sales Teams with CRM and/or Sales\n"
@@ -21790,11 +21790,15 @@ msgid "Change My Preferences"
 msgstr "更改我的首选项"
 
 #. module: base
-#: model:ir.actions.act_window,name:base.change_password_wizard_action
 #: model_terms:ir.ui.view,arch_db:base.change_password_own_form
 #: model_terms:ir.ui.view,arch_db:base.change_password_wizard_view
 msgid "Change Password"
 msgstr "修改密码"
+
+#. module: base
+#: model:ir.actions.act_window,name:base.change_password_wizard_action
+msgid "Change Password…"
+msgstr "修改密码…"
 
 #. module: base
 #: model:ir.model,name:base.model_change_password_wizard
@@ -22571,8 +22575,8 @@ msgstr "比较工时表和计划"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.reset_view_arch_wizard_action
-msgid "Compare/Reset"
-msgstr "比较/重置"
+msgid "Compare/Reset…"
+msgstr "比较/重置…"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_partner__contact_address
@@ -33260,8 +33264,8 @@ msgstr "菜单"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_partner_merge
-msgid "Merge"
-msgstr "合并"
+msgid "Merge…"
+msgstr "合并…"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.base_partner_merge_automatic_wizard_form
@@ -34530,11 +34534,6 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:base.open_module_tree
 msgid "No module found!"
 msgstr "未找到模块！"
-
-#. module: base
-#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
-msgid "No of Views"
-msgstr "可用视图"
 
 #. module: base
 #. odoo-python
@@ -41614,8 +41613,8 @@ msgid "Sales PDF Quotation Builder"
 msgstr "销售 PDF 报价生成器"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_sales_team
-#: model:ir.module.module,summary:base.module_sales_team
+#: model:ir.module.module,shortdesc:base.module_sale_team
+#: model:ir.module.module,summary:base.module_sale_team
 msgid "Sales Teams"
 msgstr "销售团队"
 
@@ -44247,7 +44246,7 @@ msgstr "用户组设置技术字段"
 
 #. module: base
 #: model:ir.actions.report,name:base.ir_module_reference_print
-msgid "Technical guide"
+msgid "Technical Guide"
 msgstr "技术指南"
 
 #. module: base
@@ -47888,6 +47887,7 @@ msgid "View livechat sessions for leads"
 msgstr "查看线索的即时聊天会话"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_actions_act_window__view_ids
 #: model:ir.actions.act_window,name:base.action_ui_view
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__views
 #: model:ir.model.fields,field_description:base.field_ir_model__view_ids

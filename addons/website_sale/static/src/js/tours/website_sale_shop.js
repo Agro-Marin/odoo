@@ -82,8 +82,6 @@ registerWebsitePreviewTour(
             groupName: "Content",
         }),
         {
-            // Wait until the drag and drop is resolved (causing a history step)
-            // before clicking save.
             trigger: ".o-snippets-top-actions button.fa-undo:not([disabled])",
         },
         {
@@ -116,7 +114,6 @@ registerWebsitePreviewTour(
                 "Let's now take a look at your eCommerce dashboard to get your eCommerce website ready in no time.",
             ),
             tooltipPosition: "bottom",
-            // Just check during test mode. Otherwise, clicking it will result to random error on loading the Chart.js script.
         },
     ],
 );

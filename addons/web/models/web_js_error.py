@@ -12,23 +12,21 @@ class WebJsError(models.Model):
     _log_access = False
 
     recorded_at = fields.Datetime(
-        string="Recorded At",
-        required=True,
         default=fields.Datetime.now,
         index=True,
         readonly=True,
+        required=True,
     )
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
+        comodel_name="res.users",
         index="btree_not_null",
-        ondelete="set null",
         readonly=True,
+        ondelete="set null",
         help="User whose session emitted the beacon; null for anonymous "
         "frontend traffic.",
     )
     phase = fields.Selection(
-        [
+        selection=[
             ("pre_boot", "Pre-boot"),
             ("post_boot", "Post-boot"),
             ("unknown", "Unknown"),
@@ -40,22 +38,20 @@ class WebJsError(models.Model):
         "the client is trustworthy at that point.",
     )
     kind = fields.Selection(
-        [
+        selection=[
             ("error", "Uncaught Error"),
             ("unhandledrejection", "Unhandled Rejection"),
             ("service_start", "Service Failed to Start"),
             ("asset_load_error", "Bundle Asset Failed to Load"),
             ("module_rebind", "Module Rebind"),
         ],
-        string="Kind",
-        readonly=True,
         index="btree",
+        readonly=True,
     )
     message = fields.Char(
-        string="Message",
-        required=True,
         size=4096,
         readonly=True,
+        required=True,
         help="Capped at 4096 chars at the DB level so a writer bypassing the "
         "controller cannot bloat the row.",
     )
@@ -67,14 +63,28 @@ class WebJsError(models.Model):
         "message says to read `cause`, and without it the report names a "
         "failure without saying why it happened.",
     )
-    stack = fields.Text(string="Stack", readonly=True)
-    filename = fields.Char(string="File", size=500, readonly=True)
-    line = fields.Integer(string="Line", readonly=True)
-    col = fields.Integer(string="Column", readonly=True)
-    url = fields.Char(string="URL", size=500, readonly=True)
-    user_agent = fields.Char(string="User Agent", size=500, readonly=True)
+    stack = fields.Text(readonly=True)
+    filename = fields.Char(
+        string="File",
+        size=500,
+        readonly=True,
+    )
+    line = fields.Integer(readonly=True)
+    col = fields.Integer(
+        string="Column",
+        readonly=True,
+    )
+    url = fields.Char(
+        string="URL",
+        size=500,
+        readonly=True,
+    )
+    user_agent = fields.Char(
+        size=500,
+        readonly=True,
+    )
     reloaded = fields.Selection(
-        [("reloaded", "Reloaded"), ("suppressed", "Suppressed")],
+        selection=[("reloaded", "Reloaded"), ("suppressed", "Suppressed")],
         string="Self-heal",
         readonly=True,
         help="Only set for asset_load_error: whether the loader's one-per-minute "

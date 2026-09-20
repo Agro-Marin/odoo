@@ -8,10 +8,10 @@ from odoo.addons.uom.tests.common import UomCommon
 
 class TestUom(UomCommon):
     def test_10_conversion(self):
-        qty = self.uom_gram._compute_quantity(1020000, self.uom_ton)
+        qty = self.uom_gram._get_quantity_in_unit(1020000, self.uom_ton)
         self.assertEqual(qty, 1.02, "Converted quantity does not correspond.")
 
-        price = self.uom_gram._compute_price(2, self.uom_ton)
+        price = self.uom_gram._get_price_in_unit(2, self.uom_ton)
         self.assertEqual(price, 2000000.0, "Converted price does not correspond.")
 
         # If the conversion factor for Dozens (1/12) is not stored with sufficient precision,
@@ -19,12 +19,12 @@ class TestUom(UomCommon):
         # and the Unit rounding will round that up to 13.
         # This is a partial regression test for rev. 311c77bb, which is further improved
         # by rev. fa2f7b86.
-        qty = self.uom_dozen._compute_quantity(1, self.uom_unit)
+        qty = self.uom_dozen._get_quantity_in_unit(1, self.uom_unit)
         self.assertEqual(qty, 12.0, "Converted quantity does not correspond.")
 
         # Regression test for side-effect of commit 311c77bb - converting 1234 Grams
         # into Kilograms should work even if grams are rounded to 1.
-        qty = self.uom_gram._compute_quantity(1234, self.uom_kgm)
+        qty = self.uom_gram._get_quantity_in_unit(1234, self.uom_kgm)
         self.assertEqual(qty, 1.24, "Converted quantity does not correspond.")
 
     def test_20_rounding(self):
@@ -37,7 +37,7 @@ class TestUom(UomCommon):
         )
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
 
-        qty = self.uom_unit._compute_quantity(2, product_uom_id)
+        qty = self.uom_unit._get_quantity_in_unit(2, product_uom_id)
         self.assertEqual(qty, 1, "Converted quantity should be rounded up.")
 
     def test_30_quantity(self):
@@ -87,8 +87,8 @@ class TestUom(UomCommon):
         """The Minutes factor must be exactly 1/60: with the historical
         0.0166667, 60 minutes converted (rounding UP) to 1.01 hours."""
         uom_minute = self.quick_ref("uom.product_uom_minute")
-        self.assertEqual(uom_minute._compute_quantity(60, self.uom_hour), 1.0)
-        self.assertEqual(self.uom_hour._compute_quantity(1, uom_minute), 60.0)
+        self.assertEqual(uom_minute._get_quantity_in_unit(60, self.uom_hour), 1.0)
+        self.assertEqual(self.uom_hour._get_quantity_in_unit(1, uom_minute), 60.0)
 
     def test_cross_reference_conversion(self):
         """Converting between units without a common reference unit raises,
@@ -98,9 +98,9 @@ class TestUom(UomCommon):
         self.assertTrue(self.uom_gram._has_common_reference(self.uom_gram))
 
         with self.assertRaises(UserError):
-            self.uom_gram._compute_quantity(1000, self.uom_hour)
+            self.uom_gram._get_quantity_in_unit(1000, self.uom_hour)
         self.assertEqual(
-            self.uom_gram._compute_quantity(
+            self.uom_gram._get_quantity_in_unit(
                 1000, self.uom_hour, raise_if_failure=False
             ),
             1000,
@@ -113,9 +113,9 @@ class TestUom(UomCommon):
         cannot be overridden by a caller passing raise_if_failure=True."""
         self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
         for wrapper in (
-            self.uom_gram._compute_quantity_report,
-            self.uom_gram._compute_quantity_estimate,
-            self.uom_gram._compute_quantity_reconcile,
+            self.uom_gram._get_quantity_report,
+            self.uom_gram._get_quantity_estimate,
+            self.uom_gram._get_quantity_reconcile,
         ):
             with self.subTest(wrapper=wrapper.__name__):
                 self.assertEqual(
@@ -131,7 +131,7 @@ class TestUom(UomCommon):
 
     def test_compute_quantity_wrappers_forward_kwargs(self):
         """The wrappers forward round/rounding_method through to the base
-        _compute_quantity. Uses the same controlled setup as test_20_rounding
+        _get_quantity_in_unit. Uses the same controlled setup as test_20_rounding
         (Product Unit precision 0 + a Score unit worth 20 units) so the
         assertions do not depend on the reference UoMs' stored rounding."""
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
@@ -143,16 +143,16 @@ class TestUom(UomCommon):
             }
         )
         for wrapper_name in (
-            "_compute_quantity_report",
-            "_compute_quantity_estimate",
-            "_compute_quantity_reconcile",
+            "_get_quantity_report",
+            "_get_quantity_estimate",
+            "_get_quantity_reconcile",
         ):
             with self.subTest(wrapper=wrapper_name):
                 wrapper = getattr(self.uom_unit, wrapper_name)
                 # 2 units = 0.1 score: round=False keeps 0.1, default rounds up to 1
                 self.assertEqual(
                     wrapper(2, score, round=False),
-                    self.uom_unit._compute_quantity(2, score, round=False),
+                    self.uom_unit._get_quantity_in_unit(2, score, round=False),
                 )
                 self.assertNotEqual(
                     wrapper(2, score, round=False),
@@ -162,52 +162,54 @@ class TestUom(UomCommon):
                 # rounding_method forwarded: DOWN rounds 0.1 score to 0, matching base
                 self.assertEqual(
                     wrapper(2, score, rounding_method="DOWN"),
-                    self.uom_unit._compute_quantity(2, score, rounding_method="DOWN"),
+                    self.uom_unit._get_quantity_in_unit(
+                        2, score, rounding_method="DOWN"
+                    ),
                 )
 
     def test_compute_quantity_wrappers_match_base_for_compatible(self):
         """For compatible UoMs the wrappers are byte-identical to the base
-        _compute_quantity — they only differ when conversion is impossible."""
+        _get_quantity_in_unit — they only differ when conversion is impossible."""
         cases = [
             (self.uom_gram, 1020000, self.uom_ton),
             (self.uom_dozen, 1, self.uom_unit),
         ]
         for wrapper_name in (
-            "_compute_quantity_report",
-            "_compute_quantity_estimate",
-            "_compute_quantity_reconcile",
+            "_get_quantity_report",
+            "_get_quantity_estimate",
+            "_get_quantity_reconcile",
         ):
             for src, qty, dst in cases:
                 with self.subTest(wrapper=wrapper_name, src=src.name, dst=dst.name):
                     self.assertEqual(
                         getattr(src, wrapper_name)(qty, dst),
-                        src._compute_quantity(qty, dst),
+                        src._get_quantity_in_unit(qty, dst),
                     )
 
-    def test_compute_quantity_reconcile_strict_posting_context(self):
-        """`_compute_quantity_reconcile` degrades while an order is browsed but
+    def test_get_quantity_reconcile_strict_posting_context(self):
+        """`_get_quantity_reconcile` degrades while an order is browsed but
         escalates to a raising conversion under the `uom_reconcile_strict`
         context, so a delivered/received quantity is never posted unconverted.
         Only the reconcile wrapper escalates — report/estimate stay lenient."""
         self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
         # Default (browse): degrades to the unconverted quantity.
         self.assertEqual(
-            self.uom_gram._compute_quantity_reconcile(1000, self.uom_hour),
+            self.uom_gram._get_quantity_reconcile(1000, self.uom_hour),
             1000,
         )
         # Posting boundary: escalates to strict and raises.
         with self.assertRaises(UserError):
             self.uom_gram.with_context(
                 uom_reconcile_strict=True
-            )._compute_quantity_reconcile(1000, self.uom_hour)
+            )._get_quantity_reconcile(1000, self.uom_hour)
         # A caller-passed raise_if_failure=False cannot re-open the escape hatch
         # once the posting context asked for strictness.
         with self.assertRaises(UserError):
             self.uom_gram.with_context(
                 uom_reconcile_strict=True
-            )._compute_quantity_reconcile(1000, self.uom_hour, raise_if_failure=False)
+            )._get_quantity_reconcile(1000, self.uom_hour, raise_if_failure=False)
         # The escalation is reconcile-only: report/estimate still degrade.
-        for wrapper in ("_compute_quantity_report", "_compute_quantity_estimate"):
+        for wrapper in ("_get_quantity_report", "_get_quantity_estimate"):
             with self.subTest(wrapper=wrapper):
                 self.assertEqual(
                     getattr(
@@ -219,15 +221,17 @@ class TestUom(UomCommon):
 
     def test_conversion_degenerate_recordsets(self):
         empty_uom = self.env["uom.uom"]
-        self.assertEqual(empty_uom._compute_quantity(5.0, self.uom_gram), 5.0)
-        self.assertEqual(self.uom_gram._compute_quantity(5.0, empty_uom), 5.0)
-        self.assertEqual(self.uom_gram._compute_quantity(0.0, self.uom_ton), 0.0)
+        self.assertEqual(empty_uom._get_quantity_in_unit(5.0, self.uom_gram), 5.0)
+        self.assertEqual(self.uom_gram._get_quantity_in_unit(5.0, empty_uom), 5.0)
+        self.assertEqual(self.uom_gram._get_quantity_in_unit(0.0, self.uom_ton), 0.0)
 
     def test_compute_price(self):
-        self.assertEqual(self.uom_gram._compute_price(5.0, self.uom_gram), 5.0)
-        self.assertEqual(self.uom_gram._compute_price(0.0, self.uom_ton), 0.0)
-        self.assertEqual(self.uom_ton._compute_price(2000000.0, self.uom_gram), 2.0)
-        self.assertEqual(self.uom_gram._compute_price(5.0, self.env["uom.uom"]), 5.0)
+        self.assertEqual(self.uom_gram._get_price_in_unit(5.0, self.uom_gram), 5.0)
+        self.assertEqual(self.uom_gram._get_price_in_unit(0.0, self.uom_ton), 0.0)
+        self.assertEqual(self.uom_ton._get_price_in_unit(2000000.0, self.uom_gram), 2.0)
+        self.assertEqual(
+            self.uom_gram._get_price_in_unit(5.0, self.env["uom.uom"]), 5.0
+        )
 
     def test_factor_must_be_strictly_positive(self):
         for factor in (0, -5):
@@ -399,7 +403,7 @@ class TestUom(UomCommon):
         """`rounding` is a compute with no `@api.depends` (it reads a
         `decimal.precision` row, not a field), so nothing invalidated it when
         the precision changed. A cached `rounding` then disagreed with
-        `get_precision` for the rest of the transaction: `_compute_quantity`
+        `get_precision` for the rest of the transaction: `_get_quantity_in_unit`
         (reads `rounding`) and `round` (reads the precision) returned different
         numbers for the same input, and which one you got depended on whether
         the unit was already in cache.
@@ -417,7 +421,7 @@ class TestUom(UomCommon):
         self.assertEqual(self.uom_unit.round(1.234567), 1.2346)
         # The two paths agree: both round at 4 digits now.
         self.assertEqual(
-            self.uom_gram._compute_quantity(1234.5678, self.uom_kgm), 1.2346
+            self.uom_gram._get_quantity_in_unit(1234.5678, self.uom_kgm), 1.2346
         )
 
     def test_has_common_reference_accepts_an_unset_unit(self):
@@ -438,14 +442,14 @@ class TestUom(UomCommon):
 
     def test_compute_price_accepts_an_unset_unit(self):
         """`_compute_price` `check_singleton()`d before its degenerate-input guard,
-        so an unset source unit raised where `_compute_quantity` returned
+        so an unset source unit raised where `_get_quantity_in_unit` returned
         quietly. The two are now symmetric."""
         no_uom = self.env["uom.uom"]
-        self.assertEqual(no_uom._compute_price(5.0, self.uom_gram), 5.0)
-        self.assertEqual(self.uom_gram._compute_price(5.0, no_uom), 5.0)
+        self.assertEqual(no_uom._get_price_in_unit(5.0, self.uom_gram), 5.0)
+        self.assertEqual(self.uom_gram._get_price_in_unit(5.0, no_uom), 5.0)
         self.assertEqual(
-            no_uom._compute_price(5.0, self.uom_gram),
-            no_uom._compute_quantity(5.0, self.uom_gram),
+            no_uom._get_price_in_unit(5.0, self.uom_gram),
+            no_uom._get_quantity_in_unit(5.0, self.uom_gram),
         )
 
     def test_get_reference_uom_reads_the_stored_dimension(self):
@@ -535,16 +539,16 @@ class TestUomConversionScale(UomCommon):
         """A quantity below one quantum of the destination unit cannot be
         represented, and the default `rounding_method="UP"` (taken by 295 of
         the 308 call sites) turns that floor into inflation, not loss."""
-        self.assertEqual(self.uom_kgm._compute_quantity(1, self.uom_ton), 0.01)
+        self.assertEqual(self.uom_kgm._get_quantity_in_unit(1, self.uom_ton), 0.01)
         self.assertEqual(
-            self.uom_kgm._compute_quantity(1, self.uom_ton, round=False), 0.001
+            self.uom_kgm._get_quantity_in_unit(1, self.uom_ton, round=False), 0.001
         )
         # The floor is flat: every order of magnitude under it collapses onto
         # the same value, so a comparison against it cannot separate them.
         for qty in (0.5, 1, 5, 9.9):
             with self.subTest(qty=qty):
                 self.assertEqual(
-                    self.uom_kgm._compute_quantity(qty, self.uom_ton), 0.01
+                    self.uom_kgm._get_quantity_in_unit(qty, self.uom_ton), 0.01
                 )
 
     def test_conversion_is_not_round_trip_stable(self):
@@ -553,37 +557,40 @@ class TestUomConversionScale(UomCommon):
         depends on it: a 150 g delivery of an oz-measured product reserves
         149.97 g."""
         oz = self.quick_ref("uom.product_uom_oz")
-        in_oz = self.uom_gram._compute_quantity(150, oz, rounding_method="HALF-UP")
+        in_oz = self.uom_gram._get_quantity_in_unit(150, oz, rounding_method="HALF-UP")
         self.assertEqual(in_oz, 5.29)
         self.assertEqual(
-            oz._compute_quantity(in_oz, self.uom_gram, rounding_method="HALF-UP"),
+            oz._get_quantity_in_unit(in_oz, self.uom_gram, rounding_method="HALF-UP"),
             149.97,
         )
         # The wider the ratio, the wider the drift.
-        self.assertEqual(self.uom_gram._compute_quantity(4999, self.uom_ton), 0.01)
-        self.assertEqual(self.uom_ton._compute_quantity(0.01, self.uom_gram), 10000.0)
+        self.assertEqual(self.uom_gram._get_quantity_in_unit(4999, self.uom_ton), 0.01)
+        self.assertEqual(
+            self.uom_ton._get_quantity_in_unit(0.01, self.uom_gram), 10000.0
+        )
 
     def test_conversion_down_annihilates_below_the_floor(self):
         """DOWN loses the quantity outright instead of inflating it."""
         self.assertEqual(
-            self.uom_gram._compute_quantity(
+            self.uom_gram._get_quantity_in_unit(
                 0.966, self.uom_kgm, rounding_method="DOWN"
             ),
             0.0,
         )
         self.assertEqual(
-            self.uom_gram._compute_quantity(0.966, self.uom_kgm, round=False), 0.000966
+            self.uom_gram._get_quantity_in_unit(0.966, self.uom_kgm, round=False),
+            0.000966,
         )
 
     def test_round_false_is_the_escape_hatch(self):
         """A conversion whose result feeds a comparison rather than a stored
         quantity has to opt out of rounding, or the floor decides the
-        comparison for it. `product.pricelist._compute_price_rule` did not, and
+        comparison for it. `product.pricelist._get_price_rule` did not, and
         priced a 0.5 kg order at a 10 kg bulk tier."""
         for qty, expected in ((0.5, 0.0005), (1, 0.001), (9.9, 0.0099)):
             with self.subTest(qty=qty):
                 self.assertEqual(
-                    self.uom_kgm._compute_quantity(qty, self.uom_ton, round=False),
+                    self.uom_kgm._get_quantity_in_unit(qty, self.uom_ton, round=False),
                     expected,
                 )
 
@@ -593,12 +600,14 @@ class TestUomConversionScale(UomCommon):
         for qty in (0, 0.0, False, None):
             with self.subTest(qty=qty):
                 self.assertEqual(
-                    self.uom_gram._compute_quantity(qty, self.uom_kgm), 0.0
+                    self.uom_gram._get_quantity_in_unit(qty, self.uom_kgm), 0.0
                 )
                 self.assertIsInstance(
-                    self.uom_gram._compute_quantity(qty, self.uom_kgm), float
+                    self.uom_gram._get_quantity_in_unit(qty, self.uom_kgm), float
                 )
-        self.assertEqual(self.env["uom.uom"]._compute_quantity(5.0, self.uom_gram), 5.0)
+        self.assertEqual(
+            self.env["uom.uom"]._get_quantity_in_unit(5.0, self.uom_gram), 5.0
+        )
 
 
 class TestUomPriceDegradeWrappers(UomCommon):
@@ -608,8 +617,8 @@ class TestUomPriceDegradeWrappers(UomCommon):
     def test_price_wrappers_degrade_on_incompatible_units(self):
         self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
         for wrapper in (
-            self.uom_gram._compute_price_report,
-            self.uom_gram._compute_price_estimate,
+            self.uom_gram._get_price_report,
+            self.uom_gram._get_price_estimate,
         ):
             with self.subTest(wrapper=wrapper.__name__):
                 self.assertEqual(wrapper(100.0, self.uom_hour), 100.0)
@@ -624,12 +633,12 @@ class TestUomPriceDegradeWrappers(UomCommon):
             (self.uom_gram, 2.0, self.uom_ton),
             (self.uom_ton, 2000000.0, self.uom_gram),
         ]
-        for wrapper_name in ("_compute_price_report", "_compute_price_estimate"):
+        for wrapper_name in ("_get_price_report", "_get_price_estimate"):
             for src, price, dst in cases:
                 with self.subTest(wrapper=wrapper_name, src=src.name, dst=dst.name):
                     self.assertEqual(
                         getattr(src, wrapper_name)(price, dst),
-                        src._compute_price(price, dst),
+                        src._get_price_in_unit(price, dst),
                     )
 
     def test_price_wrappers_do_not_escalate_under_the_posting_context(self):
@@ -637,7 +646,7 @@ class TestUomPriceDegradeWrappers(UomCommon):
         `uom_reconcile_strict`. There is no price equivalent, and the price
         wrappers must not acquire one by accident."""
         strict = self.uom_gram.with_context(uom_reconcile_strict=True)
-        for wrapper_name in ("_compute_price_report", "_compute_price_estimate"):
+        for wrapper_name in ("_get_price_report", "_get_price_estimate"):
             with self.subTest(wrapper=wrapper_name):
                 self.assertEqual(
                     getattr(strict, wrapper_name)(100.0, self.uom_hour), 100.0

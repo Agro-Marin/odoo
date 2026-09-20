@@ -11,14 +11,8 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
     # Fields declaration
     # ------------------
 
-    date_from = fields.Date(
-        string="Date From",
-        required=True,
-    )
-    date_to = fields.Date(
-        string="Date To",
-        required=True,
-    )
+    date_from = fields.Date(required=True)
+    date_to = fields.Date(required=True)
     consolidation_type = fields.Selection(
         selection=[
             ("invoice", "Invoice"),
@@ -38,7 +32,7 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
         Note that doing so lock the cancelled invoice into its cancelled state.
         """
         self.check_singleton()
-        myinvois_document_vals = self._get_myinvois_document_vals()
+        myinvois_document_vals = self._prepare_myinvois_document_vals()
         if myinvois_document_vals:
             myinvois_documents = self.env["myinvois.document"].create(
                 myinvois_document_vals
@@ -50,7 +44,7 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
     # Business methods
     # ----------------
 
-    def _get_myinvois_document_vals(self):
+    def _prepare_myinvois_document_vals(self):
         """
         Prepare and return a list of dicts containing the values needed to create the consolidated invoices for the
         records inbetween the provided dates.

@@ -9,26 +9,26 @@
             <header position="inside">
                 <field name="capture_manually" invisible="1" />
                 <button
+                    name="action_demo_set_done"
+                    type="object"
                     string="Authorize"
-                    type="object"
-                    name="action_demo_set_done"
-                    class="oe_highlight"
-                    invisible="provider_code != 'demo' or not capture_manually or state != 'pending'" />
+                    invisible="provider_code != 'demo' or not capture_manually or state != 'pending'"
+                    class="oe_highlight" />
                 <button
+                    name="action_demo_set_done"
+                    type="object"
                     string="Confirm"
-                    type="object"
-                    name="action_demo_set_done"
-                    class="oe_highlight"
-                    invisible="provider_code != 'demo' or capture_manually or state != 'pending'" />
+                    invisible="provider_code != 'demo' or capture_manually or state != 'pending'"
+                    class="oe_highlight" />
                 <button
-                    string="Cancel"
-                    type="object"
                     name="action_demo_set_canceled"
+                    type="object"
+                    string="Cancel"
                     invisible="provider_code != 'demo' or state != 'pending'" />
                 <button
-                    string="Set to Error"
-                    type="object"
                     name="action_demo_set_error"
+                    type="object"
+                    string="Set to Error"
                     invisible="provider_code != 'demo' or state != 'pending'" />
             </header>
         </field>

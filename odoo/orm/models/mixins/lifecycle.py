@@ -1,14 +1,11 @@
 import typing
-from collections import defaultdict
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
 
 from ... import decorators as api
-from ..._typing import (
-    DomainType,
-    IdType,
-)
+from ..._typing import IdType
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -16,23 +13,24 @@ if typing.TYPE_CHECKING:
 
     from ...fields.base import Field
 
+_debug = DebugLog(__name__)
+
 
 class LifecycleMixin(_ModelStubs):
     __slots__ = ()
 
     def _get_external_ids(self) -> dict[IdType, list[str]]:
-        result = defaultdict(list)
-        domain: DomainType = [
-            ("model", "=", self._name),
-            ("res_id", "in", self.ids),
-        ]
-        for data in (
-            self.env["ir.model.data"]
-            .sudo()
-            .search_read(domain, ["module", "name", "res_id"], order="id")
-        ):
-            result[data["res_id"]].append(f"{data['module']}.{data['name']}")
-        return {record.id: result[record._origin.id] for record in self}
+        result = {
+            res_id: [xmlid for xmlid, _noupdate in xmlids]
+            for res_id, xmlids in self.env.registry.xmlids.of_records(self).items()
+        }
+        _debug.perf.count(
+            "lifecycle.external_ids",
+            model=self._name,
+            records=len(self),
+            with_xmlid=len(result),
+        )
+        return {record.id: result.get(record._origin.id, []) for record in self}
 
     def get_external_id(self) -> dict[IdType, str]:
         results = self._get_external_ids()
@@ -47,6 +45,12 @@ class LifecycleMixin(_ModelStubs):
         if not self._active_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(self._active_name)
+        _debug.logic(
+            "lifecycle.toggle_active",
+            model=self._name,
+            records=len(self),
+            active=len(active_recs),
+        )
         active_recs.action_archive()
         (self - active_recs).action_unarchive()
 
@@ -55,6 +59,12 @@ class LifecycleMixin(_ModelStubs):
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(lambda record: record[field_name])
+        _debug.logic(
+            "lifecycle.archive",
+            model=self._name,
+            records=len(self),
+            archived=len(active_recs),
+        )
         active_recs[field_name] = False
 
     def action_unarchive(self) -> None:
@@ -62,6 +72,12 @@ class LifecycleMixin(_ModelStubs):
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         inactive_recs = self.filtered(lambda record: not record[field_name])
+        _debug.logic(
+            "lifecycle.unarchive",
+            model=self._name,
+            records=len(self),
+            unarchived=len(inactive_recs),
+        )
         inactive_recs[field_name] = True
 
     def _register_hook(self) -> None:
@@ -92,12 +108,29 @@ class LifecycleMixin(_ModelStubs):
     def _apply_onchange_methods(
         self, field_name: str, result: dict, excluded_methods=()
     ) -> None:
-        for method in self._onchange_methods.get(field_name, ()):
+        methods = self._onchange_methods.get(field_name, ())
+        if _debug.pipeline.enabled and methods:
+            _debug.pipeline(
+                "lifecycle.onchange.apply",
+                model=self._name,
+                field=field_name,
+                methods=len(methods),
+                excluded=len(excluded_methods),
+            )
+        for method in methods:
             if method in excluded_methods:
                 continue
             res = method(self)
             if not res:
                 continue
+            _debug.logic(
+                "lifecycle.onchange.result",
+                model=self._name,
+                field=field_name,
+                method=getattr(method, "__name__", "?"),
+                values=len(res.get("value") or ()),
+                warning=bool(res.get("warning")),
+            )
             if res.get("value"):
                 for key, val in res["value"].items():
                     if key in self._fields and key != "id":

@@ -4,8 +4,10 @@ import warnings
 from datetime import UTC, date, datetime, time, timedelta
 from typing import override
 
+from odoo.libs.collections import FrozenOrderedSet
 from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, utc
 from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DATE_FORMAT
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT as DATETIME_FORMAT
 from odoo.tools import SQL, OrderedSet, date_utils
@@ -23,31 +25,27 @@ from ..parsing import parse_field_expr
 from ..primitives import COLLECTION_TYPES
 from .base import Field, _logger, _prepare_fast_get
 
+_debug = DebugLog(__name__)
+
 
 @functools.cache
 def _get_all_timezones_set() -> frozenset[str]:
     return frozenset(all_timezones())
 
 
-_sql_timezones_set: dict[str, frozenset[str]] = {}
-
-
-def _get_sql_timezones_set(env) -> frozenset[str]:
-    names = _sql_timezones_set.get(env.cr.dbname)
-    if names is None:
-        env.cr.execute("SELECT name FROM pg_timezone_names")
-        names = frozenset(name for [name] in env.cr.fetchall())
-        _sql_timezones_set[env.cr.dbname] = names
-    return names
-
-
 def _resolve_sql_timezone_name(env, tz_name: str) -> str | None:
-    sql_names = _get_sql_timezones_set(env)
+    sql_names = env.backend.timezone_names(env)
     if tz_name in sql_names:
         return tz_name
     canonical = TIMEZONE_ALIASES.get(tz_name)
     if canonical is not None and canonical in sql_names:
+        _debug.logic(
+            "field.temporal.timezone_aliased",
+            tz=tz_name,
+            canonical=canonical,
+        )
         return canonical
+    _debug.logic("field.temporal.timezone_unknown_to_sql", tz=tz_name)
     return None
 
 
@@ -162,9 +160,10 @@ def _is_relative_temporal_value(condition: DomainCondition) -> bool:
     return (
         condition.operator in _TEMPORAL_COMPARISON_OPERATORS
         and "." not in condition.field_expr
-        and isinstance(value, (str, OrderedSet))
+        and isinstance(value, (str, FrozenOrderedSet))
         and (
-            not isinstance(value, OrderedSet) or any(isinstance(v, str) for v in value)
+            not isinstance(value, FrozenOrderedSet)
+            or any(isinstance(v, str) for v in value)
         )
     )
 
@@ -244,6 +243,14 @@ class BaseDate[T: date](Field[T | typing.Literal[False]]):
                 _logger.warning(
                     "Grouping in UTC: the database does not know timezone %r", tz_name
                 )
+        _debug.logic(
+            "field.temporal.property_to_sql",
+            model=model._name,
+            field=self.name,
+            property=property_name,
+            tz=model.env.context.get("tz") if self.is_datetime else None,
+            tz_applied=sql_expr is not field_sql,
+        )
         if property_name == "tz":
             return sql_expr
         if property_name not in READ_GROUP_NUMBER_GRANULARITY:
@@ -293,12 +300,25 @@ class Date(BaseDate[date]):
                 return condition
             value = _value_to_date(condition.value, model.env, iso_only=True)
             if value is False and operator[0] in ("<", ">"):
+                _debug.logic(
+                    "field.date.false_comparison_collapsed",
+                    model=model._name,
+                    field=condition.field_expr,
+                    operator=operator,
+                )
                 return _FALSE_DOMAIN
             return DomainCondition(condition.field_expr, operator, value)
         if level == OptimizationLevel.DYNAMIC_VALUES and _is_relative_temporal_value(
             condition
         ):
             value = _value_to_date(condition.value, model.env)
+            _debug.logic(
+                "field.date.relative_resolved",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                value=value,
+            )
             return DomainCondition(condition.field_expr, operator, value)
         return condition
 
@@ -390,8 +410,14 @@ class Datetime(BaseDate[datetime]):
             value = condition.value
             resolved = (
                 OrderedSet(parse(v) for v in value)
-                if isinstance(value, OrderedSet)
+                if isinstance(value, FrozenOrderedSet)
                 else parse(value)
+            )
+            _debug.logic(
+                "field.datetime.relative_resolved",
+                model=model._name,
+                field=condition.field_expr,
+                operator=condition.operator,
             )
             return DomainCondition(condition.field_expr, condition.operator, resolved)
         return condition
@@ -408,7 +434,7 @@ class Datetime(BaseDate[datetime]):
         dates: set = set()
         if isinstance(value, COLLECTION_TYPES):
             pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
-            value = OrderedSet(v for v, _is_date in pairs)
+            value = FrozenOrderedSet(v for v, _is_date in pairs)
             dates = {v for v, is_date in pairs if is_date and isinstance(v, datetime)}
             is_date = False
         else:
@@ -451,6 +477,14 @@ class Datetime(BaseDate[datetime]):
                     domain |= DomainCondition(field_expr, "in", exact)
                 if operator == "not in":
                     domain = ~domain
+                _debug.logic(
+                    "field.datetime.whole_day_expanded",
+                    model=model._name,
+                    field=field_expr,
+                    operator=operator,
+                    days=len(day_values),
+                    exact=len(value) - len(day_values),
+                )
                 return domain
 
         if operator == condition.operator and (

@@ -20,15 +20,15 @@
                     <div class="w-md-50 w-lg-75 d-flex flex-column my-auto">
                         <field
                             name="auth_passkey_key_ids"
-                            invisible="not auth_passkey_key_ids"
                             mode="kanban"
+                            invisible="not auth_passkey_key_ids"
                             class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_auth_passkey_kanban_view" />
                         <div>
                             <button
-                                type="object"
                                 name="action_create_passkey"
-                                class="btn btn-secondary h-100"
-                                string="Add Passkey" />
+                                type="object"
+                                string="Add Passkey"
+                                class="btn btn-secondary h-100" />
                         </div>
                     </div>
                 </div>
@@ -55,15 +55,15 @@
                     <div class="w-lg-75 d-flex flex-column my-auto">
                         <field
                             name="auth_passkey_key_ids"
-                            invisible="not auth_passkey_key_ids"
                             mode="kanban"
+                            invisible="not auth_passkey_key_ids"
                             class="w-lg-75 o_auth_passkey_kanban_view" />
                         <div>
                             <button
-                                type="object"
                                 name="action_create_passkey"
-                                class="btn btn-secondary h-100"
-                                string="Add Passkey" />
+                                type="object"
+                                string="Add Passkey"
+                                class="btn btn-secondary h-100" />
                         </div>
                     </div>
                 </div>

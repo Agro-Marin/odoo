@@ -1,13 +1,77 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
+
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
+
+@dataclass(slots=True)
+class NamedSequence:
+    increment: int
+    last_value: int
+    is_called: bool = False
+
+    def next_values(self, count: int) -> list[int]:
+        values = []
+        for _ in range(count):
+            if self.is_called:
+                self.last_value += self.increment
+            self.is_called = True
+            values.append(self.last_value)
+        return values
+
+    def peek(self) -> int:
+        return self.last_value + self.increment if self.is_called else self.last_value
 
 
 class DictBackend:
-    __slots__ = ("_sequences", "_tables")
+    __slots__ = ("_named_sequences", "_sequences", "_tables")
 
     def __init__(self) -> None:
         self._tables: dict[str, dict[int, dict[str, Any]]] = {}
         self._sequences: dict[str, int] = defaultdict(int)
+        self._named_sequences: dict[str, NamedSequence] = {}
+
+    def snapshot(self) -> tuple:
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "storage.snapshot",
+                tables=len(self._tables),
+                rows=sum(len(rows) for rows in self._tables.values()),
+                sequences=len(self._named_sequences),
+            )
+        return (
+            {
+                table: {id_: dict(row) for id_, row in rows.items()}
+                for table, rows in self._tables.items()
+            },
+            dict(self._sequences),
+            {
+                name: NamedSequence(seq.increment, seq.last_value, seq.is_called)
+                for name, seq in self._named_sequences.items()
+            },
+        )
+
+    def restore(self, snapshot: tuple) -> None:
+        tables, sequences, named = snapshot
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "storage.restore",
+                tables=len(tables),
+                rows=sum(len(rows) for rows in tables.values()),
+                sequences=len(named),
+            )
+        self._tables = {
+            table: {id_: dict(row) for id_, row in rows.items()}
+            for table, rows in tables.items()
+        }
+        self._sequences = defaultdict(int, sequences)
+        self._named_sequences = {
+            name: NamedSequence(seq.increment, seq.last_value, seq.is_called)
+            for name, seq in named.items()
+        }
 
     def get_row_tuples(
         self, table: str, ids: list[int], columns: list[str]

@@ -13,10 +13,10 @@
                 <button
                     name="action_view_pos_order"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-shopping-cart"
-                    invisible="not pos_order_id">
-                    <field name="pos_order_id" widget="statinfo" string="POS Order" />
+                    invisible="not pos_order_id"
+                    class="oe_stat_button">
+                    <field name="pos_order_id" string="POS Order" widget="statinfo" />
                 </button>
             </xpath>
         </field>

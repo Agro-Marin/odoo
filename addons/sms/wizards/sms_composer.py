@@ -34,88 +34,103 @@ class SmsComposer(models.TransientModel):
 
     # documents
     composition_mode = fields.Selection(
-        [
+        selection=[
             ("numbers", "Send to numbers"),
             ("comment", "Post on a document"),
             ("mass", "Send SMS in batch"),
         ],
-        string="Composition Mode",
         compute="_compute_composition_mode",
         precompute=True,
+        store=True,
         readonly=False,
         required=True,
-        store=True,
     )
-    res_model = fields.Char("Document Model Name")
+    res_model = fields.Char(string="Document Model Name")
     res_model_description = fields.Char(
-        "Document Model Description", compute="_compute_res_model_description"
+        string="Document Model Description",
+        compute="_compute_res_model_description",
     )
-    res_id = fields.Integer("Document ID")
-    res_ids = fields.Char("Document IDs")
+    res_id = fields.Integer(string="Document ID")
+    res_ids = fields.Char(string="Document IDs")
     res_ids_count = fields.Integer(
-        "Visible records count",
+        string="Visible records count",
         compute="_compute_res_ids_count",
         compute_sudo=False,
         help="Number of recipients that will receive the SMS if sent in mass mode, without applying the Active Domain value",
     )
     comment_single_recipient = fields.Boolean(
-        "Single Mode",
+        string="Single Mode",
         compute="_compute_comment_single_recipient",
         compute_sudo=False,
         help="Indicates if the SMS composer targets a single specific recipient",
     )
     # options for comment and mass mode
-    mass_keep_log = fields.Boolean("Keep a note on document", default=True)
-    mass_force_send = fields.Boolean("Send directly", default=False)
+    mass_keep_log = fields.Boolean(
+        string="Keep a note on document",
+        default=True,
+    )
+    mass_force_send = fields.Boolean(
+        string="Send directly",
+        default=False,
+    )
     use_exclusion_list = fields.Boolean(
-        "Use Exclusion List",
         default=True,
         copy=False,
         help="Prevent sending messages to blacklisted contacts. Disable only when absolutely necessary.",
     )
     # recipients
     recipient_valid_count = fields.Integer(
-        "# Valid recipients", compute="_compute_recipients", compute_sudo=False
+        string="# Valid recipients",
+        compute="_compute_recipients",
+        compute_sudo=False,
     )
     recipient_invalid_count = fields.Integer(
-        "# Invalid recipients", compute="_compute_recipients", compute_sudo=False
+        string="# Invalid recipients",
+        compute="_compute_recipients",
+        compute_sudo=False,
     )
     recipient_single_description = fields.Text(
-        "Recipients (Partners)",
+        string="Recipients (Partners)",
         compute="_compute_recipient_single_non_stored",
         compute_sudo=False,
     )
     recipient_single_number = fields.Char(
-        "Stored Recipient Number",
+        string="Stored Recipient Number",
         compute="_compute_recipient_single_non_stored",
         compute_sudo=False,
     )
     recipient_single_number_itf = fields.Char(
-        "Recipient Number",
+        string="Recipient Number",
         compute="_compute_recipient_single_stored",
-        readonly=False,
         compute_sudo=False,
         store=True,
+        readonly=False,
         help="Phone number of the recipient. If changed, it will be recorded on recipient's profile.",
     )
     recipient_single_valid = fields.Boolean(
-        "Is valid", compute="_compute_recipient_single_valid", compute_sudo=False
+        string="Is valid",
+        compute="_compute_recipient_single_valid",
+        compute_sudo=False,
     )
-    number_field_name = fields.Char("Number Field")
-    numbers = fields.Char("Recipients (Numbers)")
+    number_field_name = fields.Char(string="Number Field")
+    numbers = fields.Char(string="Recipients (Numbers)")
     sanitized_numbers = fields.Char(
-        "Sanitized Number", compute="_compute_sanitized_numbers", compute_sudo=False
+        string="Sanitized Number",
+        compute="_compute_sanitized_numbers",
+        compute_sudo=False,
     )
     # content
     template_id = fields.Many2one(
-        "sms.template", string="Use Template", domain="[('model', '=', res_model)]"
+        comodel_name="sms.template",
+        string="Use Template",
+        domain="[('model', '=', res_model)]",
     )
     body = fields.Text(
-        "Message",
+        string="Message",
         compute="_compute_body",
         precompute=True,
-        readonly=False,
         store=True,
+        readonly=False,
         required=True,
     )
 
@@ -415,7 +430,7 @@ class SmsComposer(models.TransientModel):
                 sms_record_values_filtered[record.id]["mail_message_id"] = (
                     mail_messages[idx].id
                 )
-        sms_all = self._prepare_mass_sms(records_filtered, sms_record_values_filtered)
+        sms_all = self._create_mass_sms(records_filtered, sms_record_values_filtered)
 
         if sms_all and self.mass_force_send:
             sms_all.filtered(lambda sms: sms.state == "outgoing").send(
@@ -522,7 +537,7 @@ class SmsComposer(models.TransientModel):
             }
         return result
 
-    def _prepare_mass_sms(self, records, sms_record_values):
+    def _create_mass_sms(self, records, sms_record_values):
         sms_create_vals = [sms_record_values[record.id] for record in records]
         return self.env["sms.sms"].sudo().create(sms_create_vals)
 

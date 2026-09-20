@@ -348,12 +348,10 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
 
 1. **JavaScript parse**: `node --check <file>` checks executable syntax, not
    JSDoc: Node ignores comment contents. It cannot validate a type annotation.
-2. **JSDoc parse and caller contracts**:
-   `node --test tooling/typecheck/web_jsdoc.test.mjs tooling/typecheck/web_types.test.mjs`.
-   The parser checks owned JavaScript comments; the type tests use the full
-   project file list and ambient environment. Caller fixtures exercise both valid
-   calls and expected errors, so an annotation that silently widens to `any`
-   cannot pass merely because the implementation compiles.
+2. **JSDoc parse and caller contracts**: the node test pair that parsed owned
+   comments and ran caller fixtures lived in the tooling tree and was deleted in
+   `7b0f58cb517f`. Nothing now catches an annotation that silently widens to `any` while
+   the implementation still compiles; review has to.
 3. **esbuild graph**: `esbuild --bundle <entry>` — catches import drift
    from typedef-only changes (importing a value instead of a type).
 4. **TypeScript compile**: `tsc --noEmit` — check caller fallout across the
@@ -372,34 +370,20 @@ behavior; tightening them must not change that behavior to satisfy the compiler.
   package hardcoding `.js` extension in URL stripping and forced-suffix logic.
   Would need 6+ pipeline patches across the `assetsbundle/` package and
   `ir_qweb_assets.py` plus a `--loader=ts:` esbuild flag.
-- **CI gating** — `.github/workflows/typecheck.yml` runs three blocking gates
-  (no `continue-on-error`) on every PR touching JS/TS and on every push to
-  `19.0-marin` / `19.0`:
-
-  1. **Project-wide count ratchet** — `tsc -p tsconfig.json --noEmit`, floor in
-     `tooling/ratchet/baselines/tsc.json`. Read the value there, not from this
-     page. The floor is not guaranteed monotonic downward: it may be corrected
-     **upward** to absorb accumulated debt. It
-     fails on *improvement* too — a count below the floor exits 1 to force a
-     lock-in, so a fix wave that is not committed back leaves mainline red. To
-     move it: `python tooling/ratchet/ratchet.py tsc --count "$N" --update`.
-     See `tooling/ratchet/README.md`.
-  2. **`strictNullChecks` per-file lock** over `addons/web/static/{src,tests}`.
-  3. **`noImplicitAny` per-file lock** over the same scope — this is what makes
-     (2) mean anything, since `any` is null-safe by fiat.
-
-  Gates 2 and 3 are **default-deny**: a file must be clean unless it is named in
-  `tooling/typecheck/exceptions/<gate>.txt`, so a file you clean must be dropped
-  from that list in the same commit, and a NEW file is gated from its first
-  commit. Cleaning a file therefore has a mechanical finish line. To find the
-  cheapest next target:
+- **Gating** — there is none. The repository has no CI workflow, and the `tsc`
+  count ratchet and the per-file `strictNullChecks` and `noImplicitAny` locks
+  went with the tooling tree in `7b0f58cb517f`. The two configurations remain and run by
+  hand, read per file:
 
   ```bash
-  npx tsc -p tsconfig.strict.json --noEmit > /tmp/strict.log 2>&1 || true
-  python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log --report
+  npx tsc -p tsconfig.json --noEmit
+  npx tsc -p tsconfig.strict.json --noEmit
+  npx tsc -p tsconfig.noimplicitany.json --noEmit
   ```
 
-  See `tooling/typecheck/README.md`.
+  Fix a file under both strict configurations together: `noImplicitAny` is what
+  makes a `strictNullChecks` result mean anything, since `any` is null-safe by
+  fiat.
 - **Narrowing the `@types/registries` / `@types/models` interfaces** — they
   declare framework-wide shapes (`Services`, the registry categories) that a
   file inherits wholesale. Cutting a file's dependency on the loose members is

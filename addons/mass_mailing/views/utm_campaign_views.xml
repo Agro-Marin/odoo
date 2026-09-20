@@ -11,31 +11,31 @@
                 <button
                     name="%(action_create_mass_mailings_from_campaign)d"
                     type="action"
-                    class="oe_highlight"
-                    invisible="not is_mailing_campaign_activated"
+                    string="Send Mailing"
                     groups="mass_mailing.group_mass_mailing_user"
-                    string="Send Mailing" />
+                    invisible="not is_mailing_campaign_activated"
+                    class="oe_highlight" />
             </xpath>
             <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
                 <button
                     name="%(action_view_mass_mailings_from_campaign)d"
                     type="action"
-                    class="oe_stat_button order-9"
                     icon="fa-regular fa-envelope"
+                    groups="mass_mailing.group_mass_mailing_user"
                     invisible="mailing_mail_count == 0 or not is_mailing_campaign_activated"
-                    groups="mass_mailing.group_mass_mailing_user">
+                    class="oe_stat_button order-9">
                     <field
                         name="mailing_mail_count"
-                        widget="statinfo"
-                        string="Mailings" />
+                        string="Mailings"
+                        widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page
-                    string="Mailings"
                     name="mailings"
-                    invisible="mailing_mail_count == 0 or not is_mailing_campaign_activated"
-                    groups="mass_mailing.group_mass_mailing_user">
+                    string="Mailings"
+                    groups="mass_mailing.group_mass_mailing_user"
+                    invisible="mailing_mail_count == 0 or not is_mailing_campaign_activated">
                     <field name="mailing_mail_ids" nolabel="1">
                         <list>
                             <field name="calendar_date" string="Date" />
@@ -55,8 +55,8 @@
                             <field
                                 name="campaign_id"
                                 string="Campaign"
-                                groups="mass_mailing.group_mass_mailing_campaign"
-                                optional="hide" />
+                                optional="hide"
+                                groups="mass_mailing.group_mass_mailing_campaign" />
                             <field
                                 name="received_ratio"
                                 string="Delivered (%)"
@@ -80,9 +80,9 @@
                                 avg="Average of Replied" />
                             <field
                                 name="state"
+                                widget="badge"
                                 decoration-info="state in ('draft', 'in_queue')"
-                                decoration-success="state in ('sending', 'done')"
-                                widget="badge" />
+                                decoration-success="state in ('sending', 'done')" />
                             <button
                                 name="action_duplicate"
                                 type="object"

@@ -10,8 +10,8 @@
                 <p invisible="country_code != 'HK'">
                     <widget
                         name="documentation_link"
-                        path="/applications/finance/fiscal_localizations/hong_kong.html"
-                        label="Documentation" />
+                        label="Documentation"
+                        path="/applications/finance/fiscal_localizations/hong_kong.html" />
                 </p>
             </field>
         </field>

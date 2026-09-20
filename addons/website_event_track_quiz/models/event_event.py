@@ -6,7 +6,6 @@ class EventEvent(models.Model):
 
     @api.depends("event_type_id", "website_menu", "community_menu")
     def _compute_community_menu(self):
-        """At type onchange: synchronize. At website_menu update: synchronize."""
         for event in self:
             if (
                 event.event_type_id

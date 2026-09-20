@@ -1,6 +1,9 @@
 import json
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
@@ -16,16 +19,16 @@ class SaleOrder(models.Model):
         )
 
     available_quotation_document_ids = fields.Many2many(
-        string="Available Quotation Documents",
         comodel_name="quotation.document",
+        string="Available Quotation Documents",
         compute="_compute_available_quotation_document_ids",
     )
     is_pdf_quote_builder_available = fields.Boolean(
-        compute="_compute_is_pdf_quote_builder_available",
+        compute="_compute_is_pdf_quote_builder_available"
     )
     quotation_document_ids = fields.Many2many(
-        string="Headers/Footers",
         comodel_name="quotation.document",
+        string="Headers/Footers",
         default=_default_quotation_document_ids,
         readonly=False,
         check_company=True,
@@ -39,7 +42,7 @@ class SaleOrder(models.Model):
     def _compute_available_quotation_document_ids(self):
         for order in self:
             order.available_quotation_document_ids = (
-                self.env["quotation.document"]
+                self.env["quotation.document"]  # noqa: E8507 - one query per order, on its own template
                 .search(
                     self.env["quotation.document"]._check_company_domain(
                         order.company_id
@@ -73,7 +76,17 @@ class SaleOrder(models.Model):
         self.quotation_document_ids &= self.available_quotation_document_ids
 
         if not self.sale_order_template_id.quotation_document_ids:
+            _debug.logic(
+                "quotation_documents_kept",
+                order=self._origin,
+                reason="template_declares_none",
+            )
             return
+        _debug.pipeline(
+            "quotation_documents_from_template",
+            order=self._origin,
+            template=self.sale_order_template_id,
+        )
         self.quotation_document_ids |= (
             self.sale_order_template_id.quotation_document_ids.filtered(
                 lambda doc: (

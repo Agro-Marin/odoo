@@ -1,9 +1,12 @@
 from copy import deepcopy
 
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
 from odoo.addons.hr_expense.models.hr_expense import EXPENSE_REVIEW_STATE
+
+_debug = DebugLog(__name__)
 
 
 class HrExpenseSplit(models.TransientModel):
@@ -30,35 +33,40 @@ class HrExpenseSplit(models.TransientModel):
             result["review_state"] = expense.review_state
             result["approval_date"] = expense.approval_date
             result["manager_id"] = expense.manager_id
+            _debug.lifecycle("split_default_get", expense=expense)
         return result
 
-    name = fields.Char(string="Description", required=True)
+    name = fields.Char(
+        string="Description",
+        required=True,
+    )
     wizard_id = fields.Many2one(comodel_name="hr.expense.split.wizard")
-    expense_id = fields.Many2one(comodel_name="hr.expense", string="Expense")
+    expense_id = fields.Many2one(comodel_name="hr.expense")
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
-        check_company=True,
         domain=[("can_be_expensed", "=", True)],
+        check_company=True,
     )
     tax_ids = fields.Many2many(
         comodel_name="account.tax",
-        check_company=True,
         domain="[('type_tax_use', '=', 'purchase')]",
+        check_company=True,
     )
     total_amount_currency = fields.Monetary(
         string="Total In Currency",
-        required=True,
         compute="_compute_from_product_id",
         store=True,
         readonly=False,
+        required=True,
     )
     tax_amount_currency = fields.Monetary(
-        string="Tax amount in Currency", compute="_compute_tax_amount_currency"
+        string="Tax amount in Currency",
+        compute="_compute_tax_amount_currency",
     )
     employee_id = fields.Many2one(
-        comodel_name="hr.employee", string="Employee", required=True
+        comodel_name="hr.employee",
+        required=True,
     )
     company_id = fields.Many2one(comodel_name="res.company")
     currency_id = fields.Many2one(comodel_name="res.currency")
@@ -77,10 +85,9 @@ class HrExpenseSplit(models.TransientModel):
         copy=False,
         readonly=True,
     )
-    approval_date = fields.Datetime(string="Approval Date", readonly=True)
+    approval_date = fields.Datetime(readonly=True)
     manager_id = fields.Many2one(
         comodel_name="res.users",
-        string="Manager",
         readonly=True,
         domain=lambda self: [
             (
@@ -112,7 +119,7 @@ class HrExpenseSplit(models.TransientModel):
                 != 0
             )
             if split.product_has_cost:
-                split.total_amount_currency = split.product_id._compute_price(
+                split.total_amount_currency = split.product_id._get_prices(
                     "standard_price", currency=split.currency_id
                 )[split.product_id.id]
 
@@ -135,7 +142,7 @@ class HrExpenseSplit(models.TransientModel):
                 )
             )
 
-    def _get_values(self):
+    def _prepare_expense_vals(self):
         self.check_singleton()
         vals = {
             "name": self.name,
@@ -156,4 +163,11 @@ class HrExpenseSplit(models.TransientModel):
         account = self.product_id.product_tmpl_id._get_product_accounts()["expense"]
         if account:
             vals["account_id"] = account.id
+        _debug.pipeline(
+            "split_line_values",
+            split=self,
+            expense=self.expense_id,
+            amount=self.total_amount_currency,
+            account=account,
+        )
         return vals

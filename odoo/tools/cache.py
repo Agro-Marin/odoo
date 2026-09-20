@@ -12,6 +12,8 @@ from collections.abc import Callable, Collection, Mapping
 from inspect import Parameter, signature
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
 from .constants import REGISTRY_CACHES
 
 C = typing.TypeVar("C", bound=Callable)
@@ -23,11 +25,77 @@ if typing.TYPE_CHECKING:
 unsafe_eval = eval  # noqa: S307  ormcache key expressions built from code, not user input
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _RESERVED = "__ormcache_"
 _METHOD_NAME = f"{_RESERVED}method"
 _logger_lock = threading.RLock()
 _logger_state: typing.Literal["wait", "abort", "run"] = "wait"
+
+
+class TransactionMemo:
+    __slots__ = ("factory", "invalidated_by", "key")
+
+    _by_model: typing.ClassVar[
+        defaultdict[str, list[tuple[TransactionMemo, frozenset[str] | None]]]
+    ] = defaultdict(list)
+
+    def __init__(
+        self,
+        key: str,
+        *,
+        invalidated_by: Collection[str] | Mapping[str, Collection[str]] = (),
+        factory: Callable[[], Any] = dict,
+    ) -> None:
+        self.key = key
+        self.factory = factory
+        if isinstance(invalidated_by, Mapping):
+            self.invalidated_by: dict[str, frozenset[str] | None] = {
+                model_name: frozenset(field_names) if field_names else None
+                for model_name, field_names in invalidated_by.items()
+            }
+        else:
+            self.invalidated_by = dict.fromkeys(invalidated_by)
+        for model_name, field_names in self.invalidated_by.items():
+            self._by_model[model_name].append((self, field_names))
+
+    def __call__(self, env: Any) -> Any:
+        cr_cache = env.cr.cache
+        try:
+            return cr_cache[self.key]
+        except KeyError:
+            value = cr_cache[self.key] = self.factory()
+            _debug.lifecycle("memo.created", key=self.key)
+            return value
+
+    def peek(self, env: Any) -> Any:
+        return env.cr.cache.get(self.key)
+
+    def discard(self, env: Any) -> None:
+        env.cr.cache.pop(self.key, None)
+
+    @classmethod
+    def discard_for_model(
+        cls, env: Any, model_name: str, written: Collection[str] | None = None
+    ) -> None:
+        memos = cls._by_model.get(model_name)
+        if memos:
+            cr_cache = env.cr.cache
+            for memo, field_names in memos:
+                if (
+                    written is None
+                    or field_names is None
+                    or not field_names.isdisjoint(written)
+                ):
+                    if cr_cache.pop(memo.key, None) is not None:
+                        _debug.lifecycle(
+                            "memo.discarded",
+                            key=memo.key,
+                            model=model_name,
+                            operation="write"
+                            if written is not None
+                            else "create_or_unlink",
+                        )
 
 
 class ormcache_counter:
@@ -71,8 +139,11 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 
 
 def remove_counters(db_name: str) -> None:
+    removed = 0  # debuglog
     for cache_key in [k for k in _COUNTERS if k[0] == db_name]:
         del _COUNTERS[cache_key]
+        removed += 1  # debuglog
+    _debug.lifecycle("cache.counters_removed", db=db_name, counters=removed)
 
 
 _TX_STATS_ENABLED: bool = os.environ.get(
@@ -150,9 +221,16 @@ class ormcache:
         _counters = _COUNTERS
         _monotonic = time.monotonic
         _warn = _logger.warning
+        _debug.lifecycle(
+            "cache.bound",
+            method=method.__qualname__,
+            cache=self.cache_name,
+            key_args=self.args,
+            skiparg=self.skiparg,
+        )
 
         @functools.wraps(method)
-        def lookup(*args, **kwargs):
+        def get_cached_result(*args, **kwargs):
             model = args[0]
             pool = model.pool
             d = pool.ormcache_lrus[_cache_name]
@@ -170,6 +248,11 @@ class ormcache:
                 except TypeError:
                     _warn("cache lookup error on %r", key, exc_info=True)
                     counter.err += 1
+                    _debug.logic(
+                        "cache.unhashable_key",
+                        method=_method.__qualname__,
+                        cache=_cache_name,
+                    )
                     return _method(*args, **kwargs)
             else:
                 cr_cache = model.env.cr.cache
@@ -195,17 +278,33 @@ class ormcache:
                     _warn("cache lookup error on %r", key, exc_info=True)
                     counter.err += 1
                     counter.tx_err += 1
+                    _debug.logic(
+                        "cache.unhashable_key",
+                        method=_method.__qualname__,
+                        cache=_cache_name,
+                    )
                     return _method(*args, **kwargs)
 
             generation = d.generation
             start = _monotonic()
             value = _method(*args, **kwargs)
-            counter.gen_time += _monotonic() - start
+            elapsed = _monotonic() - start
+            counter.gen_time += elapsed
             d.set_if_generation(key, value, generation)
+            if _debug.perf.enabled:
+                _debug.perf.count(
+                    "cache.miss",
+                    method=_method.__qualname__,
+                    cache=_cache_name,
+                    model=model._name,
+                    ms=elapsed * 1000.0,
+                    stale=d.generation != generation,
+                    misses=counter.miss,
+                )
             return value
 
-        lookup.__cache__ = self  # type: ignore[attr-defined]
-        return typing.cast("C", lookup)
+        get_cached_result.__cache__ = self  # type: ignore[attr-defined]
+        return typing.cast("C", get_cached_result)
 
     def add_value(
         self,
@@ -221,6 +320,13 @@ class ormcache:
             d[key] = cache_value
         else:
             d.set_if_generation(key, cache_value, generation)
+        _debug.lifecycle(
+            "cache.value_added",
+            method=self.method.__qualname__,
+            cache=self.cache_name,
+            pinned_generation=generation is not None,
+            stale=generation is not None and d.generation != generation,
+        )
 
     def get_cache_generation(self, model: BaseModel) -> int:
         return model.pool.ormcache_lrus[self.cache_name].generation
@@ -444,6 +550,7 @@ def _log_ormcache_stats(show_size: bool) -> None:
         if log_msgs is None:
             return
         _logger.info("\n".join(log_msgs))
+        _debug.lifecycle("cache.stats_logged", lines=len(log_msgs), show_size=show_size)
     except Exception:
         _logger.exception("error while logging ormcache statistics")
     finally:
@@ -463,8 +570,10 @@ def log_ormcache_stats(
     with _logger_lock:
         if _logger_state != "wait":
             _logger_state = "abort"
+            _debug.logic("cache.stats_aborted", state=_logger_state, signal=sig)
             return
         _logger_state = "run"
+    _debug.lifecycle("cache.stats_requested", signal=sig, show_size=show_size)
 
     threading.Thread(
         target=_log_ormcache_stats,
@@ -501,6 +610,11 @@ def get_cache_size(
 
         if cache_info and isinstance(cur_obj, (BaseModel, Environment)):
             _logger.error("%s is cached by %s", cur_obj, cache_info)
+            _debug.logic(
+                "cache.env_bound_value_cached",
+                cache=cache_info,
+                type=type(cur_obj).__name__,
+            )
             continue
 
         seen_ids.add(id(cur_obj))

@@ -9,9 +9,9 @@
         <field name="arch" type="xml">
             <xpath expr="//button[hasclass('btn-default')]" position="replace">
                 <button
+                    special="cancel"
                     string="Discard"
                     class="btn-default"
-                    special="cancel"
                     data-hotkey="x" />
             </xpath>
             <xpath expr="//button[hasclass('btn-primary')]" position="attributes">

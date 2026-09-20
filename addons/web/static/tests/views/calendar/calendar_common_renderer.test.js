@@ -267,31 +267,30 @@ test(`o_past_event: an all-day event on its last day today is not styled past`, 
 
 test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowed`, async () => {
     const renderer = await start();
-    const atLocal = (year, monthIndex, day, hour) => {
-        const d = new Date();
-        d.setFullYear(year, monthIndex, day);
-        d.setHours(hour, 0, 0, 0);
-        return d;
-    };
+    // the instants must be built in luxon's default zone, the one fromFcDate
+    // reads them in: a native Date built with setHours() lives in the browser's
+    // real zone, and the assertion then depends on where the test runs
+    const atLocal = (year, month, day, hour) =>
+        luxon.DateTime.fromObject({ year, month, day, hour }).toJSDate();
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
-            start: atLocal(2021, 6, 16, 23),
-            end: atLocal(2021, 6, 17, 0),
+            start: atLocal(2021, 7, 16, 23),
+            end: atLocal(2021, 7, 17, 0),
         }),
     ).toBe(true);
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
-            start: atLocal(2021, 6, 16, 8),
-            end: atLocal(2021, 6, 16, 9),
+            start: atLocal(2021, 7, 16, 8),
+            end: atLocal(2021, 7, 16, 9),
         }),
     ).toBe(true);
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
-            start: atLocal(2021, 6, 16, 22),
-            end: atLocal(2021, 6, 17, 1),
+            start: atLocal(2021, 7, 16, 22),
+            end: atLocal(2021, 7, 17, 1),
         }),
     ).toBe(false);
 });

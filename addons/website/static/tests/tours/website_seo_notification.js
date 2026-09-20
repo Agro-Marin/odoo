@@ -12,7 +12,6 @@ registerWebsitePreviewTour(
         url: "/",
     },
     () => [
-        // Part one checks that the SEO notification is displayed when the page title is not set.
         {
             content: "Open new page menu",
             trigger: ".o_menu_systray .o_new_content_container > button",
@@ -63,7 +62,6 @@ registerWebsitePreviewTour(
             trigger: "body:not(:has(.o_notification_manager .o_notification))",
         },
 
-        // Part 2 checks that the SEO notification is not displayed when we are in any page like /my or /shop etc.
         {
             content: "Open the dropdown menu",
             trigger:

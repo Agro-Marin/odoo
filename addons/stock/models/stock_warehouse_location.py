@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 from odoo.tools import ormcache
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .stock_warehouse import PARTNER_LOCATION_MISSING, PARTNER_LOCATION_XML_IDS
 
 _logger = logging.getLogger(__name__)
@@ -129,6 +130,11 @@ class StockWarehouseLocation(models.Model):
             }
             if not missing:
                 continue
+            dbg.lifecycle.debug(
+                "[warehouse:%s] _create_missing_locations: %s",
+                warehouse.id,
+                list(missing),
+            )
             for values in missing.values():
                 values["location_id"] = vals.get(
                     "view_location_id", warehouse.view_location_id.id
@@ -138,7 +144,23 @@ class StockWarehouseLocation(models.Model):
                 "stock.location", list(missing.values()), company_id
             )
             locations = self.env["stock.location"].create(list(missing.values()))
-            warehouse.write(dict(zip(missing, locations.ids, strict=True)))
+            # The outer write has not assigned its own picking types yet: the refresh
+            # this nested write triggers must not create a second one for them.
+            pending = [
+                fname
+                for fname in vals
+                if fname in warehouse._fields
+                and warehouse._fields[fname].type == "many2one"
+                and warehouse._fields[fname].comodel_name == "stock.picking.type"
+            ]
+            dbg.logic.debug(
+                "[warehouse:%s] _create_missing_locations: picking types pending in the outer write: %s",
+                warehouse.id,
+                pending,
+            )
+            warehouse.with_context(stock_pending_picking_type_fields=pending).write(
+                dict(zip(missing, locations.ids, strict=True))
+            )
 
     def _update_location_barcodes(self, new_code):
         for warehouse in self:
@@ -159,10 +181,19 @@ class StockWarehouseLocation(models.Model):
                 warehouse.company_id.id,
                 ignore_ids=locations.ids,
             )
+            dbg.lifecycle.debug(
+                "[warehouse:%s] _update_location_barcodes(%s) on %s",
+                warehouse.id,
+                new_code,
+                dbg.rec(locations),
+            )
             for location, location_values in wanted:
                 location.barcode = location_values["barcode"]
 
     def _update_location_reception(self, new_reception_step):
+        dbg.lifecycle.debug(
+            "_update_location_reception on %s -> %s", dbg.rec(self), new_reception_step
+        )
         self.mapped("wh_qc_stock_loc_id").write(
             {"active": new_reception_step == "three_steps"}
         )
@@ -171,6 +202,9 @@ class StockWarehouseLocation(models.Model):
         )
 
     def _update_location_delivery(self, new_delivery_step):
+        dbg.lifecycle.debug(
+            "_update_location_delivery on %s -> %s", dbg.rec(self), new_delivery_step
+        )
         self.mapped("wh_pack_stock_loc_id").write(
             {"active": new_delivery_step == "pick_pack_ship"}
         )
@@ -247,6 +281,12 @@ class StockWarehouseLocation(models.Model):
         transit_location = company.internal_transit_location_id
         if not transit_location:
             return
+        dbg.logic.debug(
+            "_update_partner_transit_locations: partner %s company %s -> transit %s",
+            partner_id,
+            company.id,
+            transit_location.id,
+        )
         self.env["res.partner"].browse(partner_id).with_company(
             company
         )._update_stock_property_locations(transit_location)

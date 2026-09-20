@@ -8,7 +8,6 @@ class TestCourseCertificationStats(TestSurveyCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create certifications
         cls.certifications = cls.env["survey.survey"].create(
             [
                 {
@@ -20,7 +19,6 @@ class TestCourseCertificationStats(TestSurveyCommon):
             ]
         )
 
-        # Create courses and link them to certifications
         [cls.course_1, cls.course_2, cls.course_3] = cls.env["slide.channel"].create(
             [
                 {
@@ -42,14 +40,12 @@ class TestCourseCertificationStats(TestSurveyCommon):
             ]
         )
 
-        # Create course participants
         cls.participants = cls.survey_user + cls.user_emp + cls.user_portal
         cls.courses = cls.course_1 + cls.course_2 + cls.course_3
         cls.partner_memberships = cls.courses._action_add_members(
             cls.participants.partner_id
         )
 
-        # Set certified/not certified participants
         cls.slide_partners = cls.env["slide.slide.partner"].create(
             [
                 {
@@ -62,13 +58,9 @@ class TestCourseCertificationStats(TestSurveyCommon):
             ]
         )
 
-        cls.slide_partners[
-            0
-        ].survey_scoring_success = True  # survey_user certified for course_1
-        cls.slide_partners[
-            -1
-        ].survey_scoring_success = True  # user_portal certified for course_3
-        cls.slide_partners._recompute_completion()  # update slide_channel_partner.survey_certification_success
+        cls.slide_partners[0].survey_scoring_success = True
+        cls.slide_partners[-1].survey_scoring_success = True
+        cls.slide_partners._recompute_completion()
 
     def test_membership_certification_fields(self):
         self.assertEqual(self.course_1.members_certified_count, 1)

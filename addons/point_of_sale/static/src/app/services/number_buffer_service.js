@@ -1,16 +1,18 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { EventBus, onWillDestroy, useComponent } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { parseFloat as oParseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
+const log = makeLogger("pos.number_buffer");
 
 const INPUT_KEYS = new Set(
     ["Delete", "Backspace", "+1", "+2", "+5", "+10", "+20", "+50"].concat(
         "0123456789+-.,".split(""),
     ),
 );
-const CONTROL_KEYS = new Set(["Enter", "Esc"]);
+const CONTROL_KEYS = new Set(["Enter", "Escape", "Esc"]);
 const ALLOWED_KEYS = new Set([...INPUT_KEYS, ...CONTROL_KEYS]);
 const getDefaultConfig = () => ({
     decimalPoint: false,
@@ -47,6 +49,11 @@ class NumberBuffer extends EventBus {
     set(val) {
         this.state.lastSet = val;
         this.state.buffer = !isNaN(parseFloat(val)) ? val : "";
+        log.logic("set", () => ({
+            val,
+            buffer: this.state.buffer,
+            holder: this.component?.constructor?.name,
+        }));
         this.trigger("buffer-update", this.state.buffer);
     }
     reset() {
@@ -56,9 +63,14 @@ class NumberBuffer extends EventBus {
     }
     capture() {
         if (this.handler) {
+            log.logic("capture: flushing pending keys", () => ({
+                pending: this.eventsBuffer?.length,
+                holder: this.component?.constructor?.name,
+            }));
             clearTimeout(this._timeout);
-            this.handler(true);
+            const handler = this.handler;
             delete this.handler;
+            handler(true);
         }
     }
     /**
@@ -76,9 +88,10 @@ class NumberBuffer extends EventBus {
      * @param {Boolean} config.useWithBarcode
      */
     use(config) {
-        this.eventsBuffer = [];
         const currentComponent = useComponent();
         config = Object.assign(getDefaultConfig(), config);
+        // keys still batched for the holder about to be covered were typed for it
+        this.capture();
 
         const holder = {
             component: currentComponent,
@@ -86,12 +99,26 @@ class NumberBuffer extends EventBus {
             config,
         };
         this.bufferHolderStack.push(holder);
+        log.lifecycle("use", () => ({
+            component: currentComponent.constructor.name,
+            depth: this.bufferHolderStack.length,
+            useWithBarcode: config.useWithBarcode,
+            triggers: {
+                enter: Boolean(config.triggerAtEnter),
+                esc: Boolean(config.triggerAtEsc),
+                input: Boolean(config.triggerAtInput),
+            },
+        }));
         this._setUp();
         onWillDestroy(() => {
             const indexComponent = this.bufferHolderStack.indexOf(holder);
             if (indexComponent !== -1) {
                 this.bufferHolderStack.splice(indexComponent, 1);
             }
+            log.lifecycle("release", () => ({
+                component: currentComponent.constructor.name,
+                depth: this.bufferHolderStack.length,
+            }));
             this._setUp();
         });
     }
@@ -99,7 +126,24 @@ class NumberBuffer extends EventBus {
         return this.bufferHolderStack[this.bufferHolderStack.length - 1];
     }
     _setUp() {
+        if (this.activeHolder === this._currentBufferHolder) {
+            return;
+        }
+        log.lifecycle("active holder changed: cancel pending keys", () => ({
+            pending: this.eventsBuffer?.length || 0,
+        }));
+        clearTimeout(this._timeout);
+        delete this.handler;
+        this.eventsBuffer = [];
+        if (this.activeHolder) {
+            this.activeHolder.isReset = this.isReset;
+        }
+        this.activeHolder = this._currentBufferHolder;
+        this.isReset = this.activeHolder?.isReset || false;
         if (!this._currentBufferHolder) {
+            this.component = null;
+            this.state = {};
+            this.config = null;
             return;
         }
         const { component, state, config } = this._currentBufferHolder;
@@ -114,6 +158,10 @@ class NumberBuffer extends EventBus {
     _onKeyboardInput(event) {
         const overlays = Object.values(this.overlay.overlays);
         if (overlays.length && !this._currentBufferHolder?.config?.captureWithOverlay) {
+            log.logic("keyboard input ignored: overlay open", () => ({
+                key: event.key,
+                overlays: overlays.length,
+            }));
             return;
         }
         return (
@@ -122,14 +170,13 @@ class NumberBuffer extends EventBus {
         );
     }
     sendKey(key) {
-        const event = new CustomEvent("", {
-            detail: {
-                key: key,
-            },
-        });
+        if (!this._currentBufferHolder) {
+            return;
+        }
+        const event = new KeyboardEvent("keyup", { key });
         Object.defineProperty(event, "target", { value: {} });
 
-        return this._bufferEvents(this._onInput((event) => event.detail.key))(event);
+        return this._bufferEvents(this._onInput((event) => event.key))(event);
     }
     _bufferEvents(handler) {
         return (event) => {
@@ -150,33 +197,57 @@ class NumberBuffer extends EventBus {
     }
     _onInput(keyAccessor) {
         return (manualCapture = false) => {
-            if (
+            const events = this.eventsBuffer;
+            const holder = this._currentBufferHolder;
+            this.eventsBuffer = [];
+            delete this.handler;
+            const process =
                 manualCapture ||
                 session.test_mode ||
-                (!manualCapture && this.eventsBuffer.length <= 2)
-            ) {
-                for (const event of this.eventsBuffer) {
+                (!manualCapture && events.length <= 2);
+            log.logic("onInput", () => ({
+                keys: events.map(keyAccessor),
+                manualCapture,
+                process,
+                treatedAsBarcode: !process,
+                holder: this.component?.constructor?.name,
+            }));
+            if (process) {
+                for (const event of events) {
                     if (!ALLOWED_KEYS.has(keyAccessor(event))) {
-                        this.eventsBuffer = [];
                         return;
                     }
                 }
-                for (const event of this.eventsBuffer) {
+                for (const event of events) {
+                    if (holder !== this._currentBufferHolder) {
+                        break;
+                    }
                     this._handleInput(keyAccessor(event));
                     event.preventDefault();
                     event.stopPropagation();
                 }
             }
-            this.eventsBuffer = [];
         };
     }
     _handleInput(key) {
+        const holder = this._currentBufferHolder;
+        log.logic("handleInput", () => ({
+            key,
+            buffer: this.state.buffer,
+            holder: this.component?.constructor?.name,
+        }));
         if (key === "Enter" && this.config.triggerAtEnter) {
             this.config.triggerAtEnter(this.state);
-        } else if (key === "Esc" && this.config.triggerAtEsc) {
+        } else if ((key === "Escape" || key === "Esc") && this.config.triggerAtEsc) {
             this.config.triggerAtEsc(this.state);
         } else if (INPUT_KEYS.has(key)) {
             this._updateBuffer(key);
+            if (holder !== this._currentBufferHolder) {
+                log.logic(
+                    "input callback canceled: holder changed during buffer-update",
+                );
+                return;
+            }
             if (this.config.triggerAtInput) {
                 this.config.triggerAtInput({
                     buffer: this.state.buffer,
@@ -228,7 +299,7 @@ class NumberBuffer extends EventBus {
                 this.state.buffer = buffer.substring(0, buffer.length - 1);
             }
         } else if (input === "+") {
-            if (this.state.buffer[0] === "-") {
+            if (!isFirstInput && this.state.buffer[0] === "-") {
                 this.state.buffer = this.state.buffer.substring(
                     1,
                     this.state.buffer.length,

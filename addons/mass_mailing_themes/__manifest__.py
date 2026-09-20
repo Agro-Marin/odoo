@@ -17,6 +17,5 @@ Design gorgeous mails
         "data/ir_attachment_data.xml",
         "views/mass_mailing_themes_templates.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

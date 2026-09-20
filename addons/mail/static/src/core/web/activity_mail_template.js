@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.activity");
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity
@@ -29,6 +32,10 @@ export class ActivityMailTemplate extends Component {
     onClickPreview(ev, mailTemplate) {
         ev.stopPropagation();
         ev.preventDefault();
+        log.logic("onClickPreview", () => ({
+            activityId: this.props.activity.id,
+            templateId: mailTemplate.id,
+        }));
         this.props.onClickButtons();
         const action = {
             name: _t("Compose Email"),
@@ -60,6 +67,10 @@ export class ActivityMailTemplate extends Component {
     async onClickSend(ev, mailTemplate) {
         ev.stopPropagation();
         ev.preventDefault();
+        log.logic("onClickSend", () => ({
+            activityId: this.props.activity.id,
+            templateId: mailTemplate.id,
+        }));
         this.props.onClickButtons();
         const thread = this.store.Thread.insert({
             model: this.props.activity.res_model,

@@ -13,40 +13,46 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "paymob_secret_key": "paymob_secret_key",
+        "paymob_hmac_key": "paymob_hmac_key",
+        "paymob_api_key": "paymob_api_key",
+    }
 
     code = fields.Selection(
-        selection_add=[("paymob", "Paymob")], ondelete={"paymob": "set default"}
+        selection_add=[("paymob", "Paymob")],
+        ondelete={"paymob": "set default"},
     )
     paymob_account_country_id = fields.Many2one(
-        string="Paymob Account Country",
-        help="The country of the Paymob account. The currency will be updated to match the country"
-        " of the Paymob account.",
         comodel_name="res.country",
         inverse="_inverse_paymob_account_country_id",
+        copy=False,
         domain=f'[("code", "in", {list(const.API_MAPPING.keys())})]',
         required_if_provider="paymob",
-        copy=False,
+        help="The country of the Paymob account. The currency will be updated to match the country"
+        " of the Paymob account.",
     )
     paymob_public_key = fields.Char(
-        string="Paymob Public Key",
-        required_if_provider="paymob",
         copy=False,
+        required_if_provider="paymob",
     )
     paymob_secret_key = fields.Char(
-        string="Paymob Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="paymob",
-        copy=False,
         groups="base.group_system",
     )
     paymob_hmac_key = fields.Char(
         string="Paymob HMAC Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="paymob",
-        copy=False,
     )
     paymob_api_key = fields.Char(
         string="Paymob API Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="paymob",
-        copy=False,
     )
 
     # === CONSTRAINT METHODS === #
@@ -76,7 +82,7 @@ class PaymentProvider(models.Model):
                     self.paymob_account_country_id.code
                 )
                 currency = (
-                    self.env["res.currency"]
+                    self.env["res.currency"]  # noqa: E8507 - one lookup per provider, on its own account country
                     .with_context(
                         active_test=False,
                     )
@@ -208,7 +214,7 @@ class PaymentProvider(models.Model):
                 gateway_data["gateway_type"]
             ]
             if payment_method_code == "card" and gateway_data.get("installments"):
-                installment_payment_method = self.env["payment.method"].search(
+                installment_payment_method = self.env["payment.method"].search(  # noqa: E8507 - one lookup per gateway of the response
                     [("code", "=", "installments_eg")], limit=1
                 )
                 if not installment_payment_method:
@@ -253,10 +259,10 @@ class PaymentProvider(models.Model):
         if not is_refresh_token_request and is_client_request:
             auth = self.paymob_secret_key
         elif not is_refresh_token_request:
-            auth = self._paymob_fetch_access_token()
+            auth = self._paymob_get_access_token()
         return {"Authorization": f"Bearer {auth}"}
 
-    def _paymob_fetch_access_token(self):
+    def _paymob_get_access_token(self):
         """Generate a new access token if it's expired, otherwise return the existing access token.
 
         Paymob's access tokens expire every hour.

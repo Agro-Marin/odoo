@@ -20,11 +20,6 @@ export class WebsiteEventPWA extends Interaction {
     }
 
     /**
-     * Returns the PWA's scope
-     *
-     * Note: this method performs a matching to handle URLs with the language prefix.
-     *       Typically this prefix is in the form of "en" or "en_US" but it can also be
-     *       any string using the customization options in the Website's settings.
      * @returns {String}
      */
     getScope() {
@@ -47,10 +42,6 @@ export class WebsiteEventPWA extends Interaction {
         }
     }
 
-    /**
-     * Parse the current page for first-level children pages and ask the ServiceWorker
-     * to already fetch them to populate the cache.
-     */
     prefetch() {
         if (!("serviceWorker" in navigator)) {
             return;
@@ -107,7 +98,6 @@ export class WebsiteEventPWA extends Interaction {
         this.beforeInstallEvent = ev;
         this.installBanner = this.renderAt("website_event_track.pwa_install_banner");
 
-        // If Livechat available, It should be placed above the PWA banner.
         const height = document.querySelector(".o_pwa_install_banner").offsetHeight;
         const shadowHostEl = document.querySelector(".o-livechat-root");
         const livechatButtonEl = shadowHostEl?.shadowRoot.querySelector(

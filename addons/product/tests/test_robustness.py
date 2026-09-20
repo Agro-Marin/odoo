@@ -275,7 +275,7 @@ class TestCodeQualityFixes(ProductCommon):
 
     def test_q11_simplified_pricelist_vals(self):
         company = self.env.company
-        vals = company._get_default_pricelist_vals()
+        vals = company._prepare_default_pricelist_vals()
         self.assertIn("name", vals)
         self.assertIn("currency_id", vals)
         self.assertIn("company_id", vals)
@@ -457,7 +457,7 @@ class TestSupplierInfoCompute(ProductCommon):
             msg="10% discount on 100 should be 90",
         )
 
-    def test_sanitize_vals_sets_template(self):
+    def test_normalize_vals_sets_template(self):
         partner = self.env["res.partner"].create({"name": "Vendor"})
         supplier = self.env["product.supplierinfo"].create(
             {

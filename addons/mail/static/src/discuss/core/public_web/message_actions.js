@@ -9,7 +9,7 @@ registerMessageAction("create-or-view-thread", {
     condition: ({ message, store, thread }) =>
         message.thread?.eq(thread) &&
         message.thread.hasSubChannelFeature &&
-        store.self_partner?.main_user_id?.share === false,
+        store.selfIsInternalUser,
     icon: "fa-regular fa-comments",
     /** @param {ActionParams} params */
     onSelected: ({ message }) => {

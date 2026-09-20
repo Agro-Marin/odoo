@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { getAttributeString, getFullProductName } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { localization as l10n } from "@web/core/l10n/localization";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
@@ -10,12 +11,19 @@ import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.j
 import { PRODUCT_PRICE, PRODUCT_UNIT } from "./decimal_precision.js";
 import { parseNoteEntries } from "./utils/note_entries.js";
 
+const log = makeLogger("pos.orderline");
+
 export class PosOrderline extends PosOrderlineAccounting {
     static pythonModel = "pos.order.line";
 
     setup(vals) {
         super.setup(vals);
         if (!this.product_id) {
+            log.lifecycle("setup: no product, deleting", () => ({
+                line: this.uuid,
+                id: this.id,
+                order: this.order_id?.uuid,
+            }));
             this.delete();
             return;
         }
@@ -46,6 +54,12 @@ export class PosOrderline extends PosOrderlineAccounting {
             const product_packaging_by_barcode =
                 this.models["product.uom"].getAllBy("barcode");
             const uom_by_id = this.models["uom.uom"].getAllBy("id");
+            log.logic("setOptions: barcode", () => ({
+                line: this.uuid,
+                type: code.type,
+                value: code.value,
+                packaging: Boolean(product_packaging_by_barcode[code.code]),
+            }));
 
             if (blockMerge.includes(code.type)) {
                 this.setQuantity(code.value);
@@ -201,6 +215,13 @@ export class PosOrderline extends PosOrderlineAccounting {
 
     setPackLotLines({ modifiedPackLotLines, newPackLotLines, setQuantity = true }) {
         const lotLinesToRemove = [];
+        log.lifecycle("setPackLotLines", () => ({
+            line: this.uuid,
+            existing: this.pack_lot_ids.length,
+            modified: Object.keys(modifiedPackLotLines || {}).length,
+            new: newPackLotLines?.length,
+            setQuantity,
+        }));
 
         for (const lotLine of this.pack_lot_ids) {
             const modifiedLotName = modifiedPackLotLines[lotLine.id];
@@ -228,6 +249,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setDiscount(discount) {
+        log.logic("setDiscount", () => ({ line: this.uuid, discount }));
         let parsed_discount;
         if (typeof discount === "number") {
             parsed_discount = discount;
@@ -243,6 +265,12 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setQuantity(quantity, keep_price) {
+        log.logic("setQuantity", () => ({
+            line: this.uuid,
+            from: this.qty,
+            to: quantity,
+            keep_price,
+        }));
         this.uiState.oldQty = this.qty;
         if (this.order_id.preset_id?.is_return) {
             quantity = -Math.abs(quantity);
@@ -258,6 +286,12 @@ export class PosOrderline extends PosOrderlineAccounting {
         if (refundDetails) {
             const maxQtyToRefund =
                 refundDetails.line.qty - refundDetails.line.refundedQty - this.qty;
+            log.logic("setQuantity: refund guard", () => ({
+                line: this.uuid,
+                requested: quant,
+                maxQtyToRefund,
+                rejected: quant > 0 || -quant > maxQtyToRefund,
+            }));
             if (quant > 0) {
                 return {
                     title: _t("Positive quantity not allowed"),
@@ -285,6 +319,13 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         this.qty = rounder.round(quant);
 
+        log.logic("setQuantity: reprice", () => ({
+            line: this.uuid,
+            qty: this.qty,
+            reprice: !keep_price && this.price_type === "original",
+            priceType: this.price_type,
+            comboChildren: this.combo_line_ids.length,
+        }));
         if (!keep_price && this.price_type === "original") {
             const productTemplate = this.product_id.product_tmpl_id;
             if (this.isLotTracked()) {
@@ -332,23 +373,36 @@ export class PosOrderline extends PosOrderlineAccounting {
         const valid_product_lot = this.getValidLots();
         const lotsRequired =
             this.product_id.tracking === "serial" ? Math.abs(this.qty) : 1;
+        log.logic("hasValidProductLot", () => ({
+            line: this.uuid,
+            tracking: this.product_id.tracking,
+            required: lotsRequired,
+            valid: valid_product_lot.length,
+        }));
         return lotsRequired === valid_product_lot.length;
     }
 
     canBeMergedWith(orderline) {
         const product = orderline.getProduct();
-        if (
-            this.getProduct().id !== product.id ||
-            this.full_product_name !== orderline.full_product_name ||
-            this.price_type !== orderline.price_type ||
-            this.getDiscount() !== orderline.getDiscount() ||
-            this.getNote() !== orderline.getNote() ||
-            this.getCustomerNote() !== orderline.getCustomerNote() ||
-            this.refunded_orderline_id ||
-            orderline.isPartOfCombo() ||
-            !this.isPosGroupable() ||
-            this.isLotTracked()
-        ) {
+        const blocker =
+            (this.getProduct().id !== product.id && "product") ||
+            (this.full_product_name !== orderline.full_product_name && "name") ||
+            (this.price_type !== orderline.price_type && "price_type") ||
+            (this.getDiscount() !== orderline.getDiscount() && "discount") ||
+            (this.getNote() !== orderline.getNote() && "note") ||
+            (this.getCustomerNote() !== orderline.getCustomerNote() &&
+                "customer_note") ||
+            (this.refunded_orderline_id && "refund") ||
+            (orderline.isPartOfCombo() && "combo") ||
+            (!this.isPosGroupable() && "not_groupable") ||
+            (this.isLotTracked() && "lot_tracked") ||
+            null;
+        log.logic("canBeMergedWith", () => ({
+            line: this.uuid,
+            candidate: orderline.uuid,
+            blocker,
+        }));
+        if (blocker) {
             return false;
         }
 
@@ -364,11 +418,20 @@ export class PosOrderline extends PosOrderlineAccounting {
             false,
             product,
         );
-        return this.currency.isZero(
+        const samePrice = this.currency.isZero(
             this.currency.round(price) -
                 this.currency.round(order_line_price) -
                 orderline.getPriceExtra(),
         );
+        log.logic("canBeMergedWith: price", () => ({
+            line: this.uuid,
+            candidate: orderline.uuid,
+            price,
+            candidatePrice: order_line_price,
+            priceExtra: orderline.getPriceExtra(),
+            samePrice,
+        }));
+        return samePrice;
     }
 
     isLotTracked() {
@@ -386,6 +449,11 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     merge(orderline) {
+        log.logic("merge", () => ({
+            line: this.uuid,
+            with: orderline.uuid,
+            qty: orderline.getQuantity(),
+        }));
         this.order_id.assertEditable();
         this.setQuantity(this.getQuantity() + orderline.getQuantity());
         this.update({
@@ -394,6 +462,11 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setUnitPrice(price) {
+        log.logic("setUnitPrice", () => ({
+            line: this.uuid,
+            from: this.price_unit,
+            to: price,
+        }));
         const ProductPrice = this.models["decimal.precision"].getBy(
             "name",
             PRODUCT_PRICE,
@@ -412,15 +485,18 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     displayDiscountPolicy() {
-        if (
+        const withoutDiscount = Boolean(
             this.order_id.pricelist_id &&
             this.order_id.pricelist_id.item_ids
                 .map((rule) => rule.compute_price)
-                .includes("percentage")
-        ) {
-            return "without_discount";
-        }
-        return "with_discount";
+                .includes("percentage"),
+        );
+        log.logic("displayDiscountPolicy", () => ({
+            line: this.uuid,
+            pricelist: this.order_id.pricelist_id?.id,
+            policy: withoutDiscount ? "without_discount" : "with_discount",
+        }));
+        return withoutDiscount ? "without_discount" : "with_discount";
     }
 
     setCustomerNote(note) {

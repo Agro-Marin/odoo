@@ -24,22 +24,22 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <group>
                     <filter
-                        string="Difficulty"
                         name="group_difficulty"
+                        string="Difficulty"
                         context="{'group_by': 'difficulty'}" />
                     <filter
-                        string="Mode"
                         name="group_mode"
+                        string="Mode"
                         context="{'group_by': 'quest_mode'}" />
                 </group>
             </search>
@@ -82,10 +82,10 @@
                 <field
                     name="difficulty"
                     widget="badge"
-                    decoration-success="difficulty == 'beginner'"
+                    decoration-danger="difficulty == 'expert'"
                     decoration-info="difficulty == 'intermediate'"
-                    decoration-warning="difficulty == 'advanced'"
-                    decoration-danger="difficulty == 'expert'" />
+                    decoration-success="difficulty == 'beginner'"
+                    decoration-warning="difficulty == 'advanced'" />
                 <field name="quest_mode" />
                 <field name="step_count" />
                 <field name="enrollment_count" />
@@ -102,17 +102,17 @@
             <form string="Quest">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" icon="fa-users">
+                        <button icon="fa-users" class="oe_stat_button">
                             <field
                                 name="enrollment_count"
-                                widget="statinfo"
-                                string="Enrollments" />
+                                string="Enrollments"
+                                widget="statinfo" />
                         </button>
-                        <button class="oe_stat_button" icon="fa-check-circle">
+                        <button icon="fa-check-circle" class="oe_stat_button">
                             <field
                                 name="completion_count"
-                                widget="statinfo"
-                                string="Completed" />
+                                string="Completed"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <field name="icon" widget="image" class="oe_avatar" />
@@ -131,12 +131,12 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Story" name="story">
+                        <page name="story" string="Story">
                             <field
                                 name="description"
                                 placeholder="The narrative framing for this quest..." />
                         </page>
-                        <page string="Steps" name="steps">
+                        <page name="steps" string="Steps">
                             <field name="step_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
@@ -152,7 +152,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Enrollments" name="enrollments">
+                        <page name="enrollments" string="Enrollments">
                             <field name="enrollment_ids" readonly="1">
                                 <list>
                                     <field
@@ -161,9 +161,9 @@
                                     <field
                                         name="state"
                                         widget="badge"
-                                        decoration-success="state == 'completed'"
                                         decoration-info="state == 'in_progress'"
-                                        decoration-muted="state == 'abandoned'" />
+                                        decoration-muted="state == 'abandoned'"
+                                        decoration-success="state == 'completed'" />
                                     <field
                                         name="progress_percent"
                                         widget="progressbar" />

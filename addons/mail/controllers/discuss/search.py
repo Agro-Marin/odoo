@@ -1,9 +1,12 @@
 from odoo import http
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.utils import clamp_limit
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+_debug = DebugLog(__name__)
 
 
 class SearchController(http.Controller):
@@ -42,6 +45,12 @@ class SearchController(http.Controller):
                 Domain("id", "not in", channels.ids) & domain, limit=remaining_limit
             )
             channels |= channels.browse(query)
+        _debug.logic(
+            "channel_search",
+            limit=limit,
+            channels=len(channels),
+            public=request.env.user._is_public(),
+        )
         store.add(channels)
         if not request.env.user._is_public():
             request.env["res.partner"]._search_for_channel_invite(

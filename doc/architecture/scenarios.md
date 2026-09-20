@@ -33,14 +33,13 @@ on `_ModuleLoader` and run in this order:
 | 13 | `reinit_models_to_check()` | runtime |
 
 Thirteen of `load_modules`' 23 calls, in call order. The numbering is this
-table's, not the loader's; what is pinned is the *order*, by
-`test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`. The ten left
-out split two ways, and the second group is not bookkeeping:
+table's, not the loader's; the order is pinned against a real load by
+`tests/loading/test_load_modules_phases.py`. The ten left out split two ways:
 
 | Left out | Why |
 |---|---|
 | `log_modules_that_never_loaded`, `log_pending_module_states`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
-| `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks`, `run_deferred_at_install_tests` | real work, selected out of *this* thread rather than out of the loader. Three of the five appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose; the fifth runs the `at_install` suites the loader held back until their installed dependents had loaded |
+| `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks`, `run_deferred_at_install_tests` | real work, selected out of *this* thread rather than out of the loader. Three of the five appear in [`runtime.md`](runtime.md#registry-build)'s sketch; the fifth runs the `at_install` suites the loader held back until their installed dependents had loaded |
 
 Three things this ordering encodes that no other view states:
 
@@ -57,9 +56,10 @@ to DDL.
 
 **Uninstalling can force a second full registry build.** Phase 12 may raise
 `_UninstallRequiresReload`, caught and answered with a fresh `Registry.new(…)` —
-logged as *"Reloading registry once more after uninstalling modules."*
-Uninstall is therefore the one operation that can pay the cold registry cost
-**twice** in a single command; at the 35.85 s measured in
+logged as *"Reloading registry once more after uninstalling modules"*
+(`tests/loading/test_load_modules_uninstall.py`). Uninstall is therefore the one
+operation that can pay the cold registry cost **twice** in a single command; at
+the cold figures in
 [`qualities.md`](qualities.md#scenario-2--registry-build-and-boot), the
 difference between a minute and two.
 
@@ -81,29 +81,28 @@ migration hooks. `modules/migration.py::migrate_module` runs at three stages:
 
 Scripts are discovered by filename prefix (`pre-`, `post-`, `end-`) under a
 version directory, so a migration is selected by *the version being crossed*,
-not by the module's current state.
+not by the module's current state. `_get_migration_files` selects on
+`name.startswith(f"{stage}-")`, case-sensitively; a script under a version
+directory that matches no stage is reported by `_warn_unstaged_scripts` as a
+warning, not an error, because an addon may keep a helper module beside its
+scripts. (415 scripts under `migrations/` and 8 under `upgrades/` across this
+repository's two addon trees, 0 unstaged, 2026-09-11.)
 
 The architectural consequence: **`pre` is the only stage that can see the old
 shape.** Once the graph converges the columns have already changed, so a
 migration needing the previous representation and written as `post` has nothing
-to read. Not recoverable at run time, and caught by no gate in
-[`gates.md`](gates.md) — every one is structural and DB-free.
-[`risks.md`](risks.md) R3.
-
-That ordering is no longer only asserted here.
-`tests/loading/test_migration_schema_visibility.py` upgrades a probe module
-across a real schema change and asks each stage what the table looked like: the
-`pre` script sees no new column, the `post` script sees it. It is a DB-backed
-suite because it has to be — the registry's field list is what a module
-declares, not what its table has, so only `information_schema` on a database
-that really gained the column can answer. What stays untested is the half R3
-keeps: that a script *wanting* the old shape was filed at the right stage.
+to read. `tests/loading/test_migration_schema_visibility.py` upgrades a probe
+module across a real schema change and asks each stage, through
+`information_schema`, what the table looked like: the `pre` script sees no new
+column, the `post` script sees it. Whether a script *wanting* the old shape was
+filed at the right stage is a property of each migration an author writes and
+is caught by nothing — [`risks.md`](risks.md) R2.
 
 Two asymmetries against Scenario A:
 
-- **Cost is not comparable.** Scenario A's measured 35.85 s installs 105 modules
-  into an *empty* database. An upgrade additionally rewrites existing rows, and
-  nothing in this document set measures that — listed as a gap in
+- **Cost is not comparable.** Scenario A's cold figures install into an *empty*
+  database. An upgrade additionally rewrites existing rows, and nothing in this
+  document set measures that — listed as a gap in
   [`qualities.md`](qualities.md#what-this-page-does-not-measure).
 - **Failure is not symmetric.** A failed install leaves a database nobody was
   using; a failed upgrade leaves one somebody was. The filestore is not

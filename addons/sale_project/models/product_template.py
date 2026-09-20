@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
@@ -33,35 +36,32 @@ class ProductTemplate(models.Model):
         },
     )
     project_id = fields.Many2one(
-        "project.project",
-        "Project",
-        company_dependent=True,
+        comodel_name="project.project",
         copy=True,
+        company_dependent=True,
         domain='[("is_template", "=", False)]',
     )
     project_template_id = fields.Many2one(
-        "project.project",
-        "Project Template",
-        company_dependent=True,
+        comodel_name="project.project",
         copy=True,
+        company_dependent=True,
         domain='[("is_template", "=", True)]',
     )
     task_template_id = fields.Many2one(
-        "project.task",
-        "Task Template",
-        domain="[('is_template', '=', True), ('project_id', '=', project_id)]",
-        company_dependent=True,
-        copy=True,
+        comodel_name="project.task",
         compute="_compute_task_template_id",
         store=True,
+        copy=True,
         readonly=False,
+        company_dependent=True,
+        domain="[('is_template', '=', True), ('project_id', '=', project_id)]",
     )
     service_policy = fields.Selection(
-        "_selection_service_policy",
+        selection="_selection_service_policy",
         string="Service Invoicing Policy",
-        compute_sudo=True,
         compute="_compute_service_policy",
         inverse="_inverse_service_policy",
+        compute_sudo=True,
         tracking=True,
     )
     service_type = fields.Selection(
@@ -137,6 +137,12 @@ class ProductTemplate(models.Model):
                 product.invoice_policy, product.service_type = (
                     self._get_service_to_general(product.service_policy)
                 )
+                _debug.logic(
+                    "service_policy_mapped",
+                    product=product,
+                    policy=product.service_policy,
+                    invoice_policy=product.invoice_policy,
+                )
 
     @api.constrains("project_id", "project_template_id")
     def _check_project_and_template(self):
@@ -144,6 +150,9 @@ class ProductTemplate(models.Model):
             if product.service_tracking == "no" and (
                 product.project_id or product.project_template_id
             ):
+                _debug.logic(
+                    "service_tracking_rejected", product=product, reason="tracking_no"
+                )
                 raise ValidationError(
                     _(
                         "The product %s should not have a project nor a project template since it will not generate project.",
@@ -154,6 +163,11 @@ class ProductTemplate(models.Model):
                 product.service_tracking == "task_global_project"
                 and product.project_template_id
             ):
+                _debug.logic(
+                    "service_tracking_rejected",
+                    product=product,
+                    reason="global_project_with_template",
+                )
                 raise ValidationError(
                     _(
                         "The product %s should not have a project template since it will generate a task in a global project.",
@@ -164,6 +178,11 @@ class ProductTemplate(models.Model):
                 product.service_tracking in ["task_in_project", "project_only"]
                 and product.project_id
             ):
+                _debug.logic(
+                    "service_tracking_rejected",
+                    product=product,
+                    reason="new_project_with_global_project",
+                )
                 raise ValidationError(
                     _(
                         "The product %s should not have a global project since it will generate a project.",
@@ -183,6 +202,9 @@ class ProductTemplate(models.Model):
 
     def write(self, vals):
         if "type" in vals and vals["type"] != "service":
+            _debug.lifecycle(
+                "service_tracking_reset", products=self, reason="type_not_service"
+            )
             vals.update({"service_tracking": "no", "project_id": False})
         return super().write(vals)
 

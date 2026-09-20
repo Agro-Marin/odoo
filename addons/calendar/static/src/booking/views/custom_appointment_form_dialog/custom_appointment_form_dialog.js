@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
 import { FormController, formView } from "@web/views/form";
 import { FormViewDialog } from "@web/views/view_dialogs";
-import { registry } from "@web/core/registry";
 
 /**
  * This custom Form Dialog (Controller) is used to customize 'custom'

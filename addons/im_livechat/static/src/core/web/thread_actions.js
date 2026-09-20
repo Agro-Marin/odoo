@@ -2,25 +2,27 @@
 import { LIVECHAT_INFO_DEFAULT_OPEN_LS } from "@im_livechat/core/public_web/discuss_app_model_patch";
 import { LivechatChannelInfoList } from "@im_livechat/core/web/livechat_channel_info_list";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
+import {
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { _t } from "@web/core/translation";
 
 registerThreadAction("livechat-info", {
     actionPanelComponent: LivechatChannelInfoList,
     condition: ({ owner, store, thread }) =>
-        thread?.channel_type === "livechat" &&
-        store.self_partner?.main_user_id?.share === false &&
+        thread?.isLivechat &&
+        store.selfIsInternalUser &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
     icon: "fa-solid fa-info",
     name: _t("Information"),
     open: ({ store }) => {
-        store.discuss.isLivechatInfoPanelOpenByDefault = true;
-        localStorage.removeItem(LIVECHAT_INFO_DEFAULT_OPEN_LS);
+        removeLocalStorageItem(store, LIVECHAT_INFO_DEFAULT_OPEN_LS);
     },
     close: ({ action, store }) => {
         if (action.condition) {
-            store.discuss.isLivechatInfoPanelOpenByDefault = false;
-            localStorage.setItem(LIVECHAT_INFO_DEFAULT_OPEN_LS, "false");
+            setLocalStorageItem(store, LIVECHAT_INFO_DEFAULT_OPEN_LS, "false");
         }
     },
     sequence: 10,
@@ -30,7 +32,7 @@ registerThreadAction("livechat-info", {
 registerThreadAction("livechat-status", {
     actionPanelComponent: LivechatChannelInfoList,
     condition: ({ owner, store, thread }) =>
-        thread?.channel_type === "livechat" &&
+        thread?.isLivechat &&
         store.has_access_livechat &&
         !thread.livechat_end_dt &&
         !owner.isDiscussContent,

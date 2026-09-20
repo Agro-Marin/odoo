@@ -2,10 +2,13 @@
 /** @odoo-module native */
 
 import { Component, useEffect, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { PagerEvent } from "@web/core/events";
-import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
+
+const log = makeLogger("web.components.pager");
 
 export class Pager extends Component {
     static template = "web.Pager";
@@ -29,15 +32,12 @@ export class Pager extends Component {
     inputRef;
 
     setup() {
+        useLifecycleLog(log);
         this.state = useState({
             isEditing: false,
             isDisabled: false,
         });
         this.inputRef = useAutofocus();
-        useClickAway(() => this.stopEditing(), {
-            getAnchor: () => this.inputRef.el,
-            getContentEl: () => this.inputRef.el,
-        });
         let firstMount = true;
         useEffect(
             () => {
@@ -98,7 +98,7 @@ export class Pager extends Component {
         } else if (minimum < 0 && this.props.limit > 1) {
             minimum = total - (total % this.props.limit || this.props.limit);
         }
-        this.update(minimum, this.props.limit, true);
+        return this.update(minimum, this.props.limit, true);
     }
     /**
      * @param {string} value
@@ -138,6 +138,12 @@ export class Pager extends Component {
      * @param {boolean} [hasNavigated]
      */
     async update(offset, limit, hasNavigated) {
+        log.logic("update", () => ({
+            offset,
+            limit,
+            hasNavigated,
+            total: this.props.total,
+        }));
         await this.whileDisabled(async () => {
             try {
                 await this.props.onUpdate({ offset, limit }, hasNavigated);

@@ -150,3 +150,29 @@ test("template dropdown should not appear when not in the context of a specific 
             "The “New” button should not be a dropdown since there is no project in the context",
     });
 });
+
+test("a user outside the project manager group gets the templates without edit and delete buttons", async () => {
+    addTemplateTasks();
+    onRpc("has_group", ({ args }) => {
+        if (args[1] === "project.group_project_manager") {
+            expect.step("has_group:project.group_project_manager");
+            return false;
+        }
+        return true;
+    });
+    await mountView({
+        resModel: "project.task",
+        type: "list",
+        context: { default_project_id: 1 },
+    });
+    await contains(".o_list_button_add").click();
+    expect("button.dropdown-item:contains('Template Task 1')").toHaveCount(1);
+    expect("button.dropdown-item:contains('Template Task 2')").toHaveCount(1);
+    expect(".o_template_icon_group").toHaveCount(0, {
+        message: "no edit/delete buttons, and no empty component in their place",
+    });
+    expect(".o-task-template").not.toHaveClass("pe-0");
+    expect.verifySteps(["has_group:project.group_project_manager"], {
+        message: "the group is asked once per dropdown, not once per template",
+    });
+});

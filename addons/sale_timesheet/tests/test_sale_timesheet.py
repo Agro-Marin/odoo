@@ -122,7 +122,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so',
         )
         self.assertEqual(
@@ -151,7 +151,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so',
         )
         self.assertEqual(
@@ -198,7 +198,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so',
         )
         self.assertFalse(
@@ -216,8 +216,8 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
-            'Sale Timesheet: Adding a new service line (so line) should put the SO in "to invocie" state.',
+            "partial",
+            'Sale Timesheet: Adding a new service line (so line) should put the SO in "partial" state.',
         )
         self.assertEqual(
             sale_order.tasks_count,
@@ -444,7 +444,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             so_line_deliver_global_project.invoice_state,
-            "to do",
+            "partial",
             'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged',
         )
         self.assertEqual(
@@ -454,7 +454,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "partial",
             'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so',
         )
         self.assertEqual(
@@ -475,13 +475,14 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             so_line_deliver_global_project.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged',
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
-            'Sale Timesheet: "invoice on delivery" timesheets should be invoiced completely by now',
+            "partial",
+            'Sale Timesheet: "invoice on delivery" timesheets are invoiced, and the line '
+            "without any is still pending, so the order stays partial",
         )
         self.assertEqual(
             timesheet2.timesheet_invoice_id,
@@ -520,7 +521,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "partial",
             'Sale Timesheet: "invoice on delivery" timesheets should have quantity to invoice',
         )
         self.assertEqual(
@@ -888,7 +889,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
         self.assertTrue(
             all(
-                line.invoice_state == "to do"
+                line.invoice_state in ("to do", "partial")
                 for line in sale_order.line_ids
                 if line.qty_transferred != line.qty_invoiced
             ),
@@ -1213,7 +1214,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so',
         )
         message_sent = self.env["mail.message"].search(
@@ -1307,7 +1308,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so',
         )
         message_sent = self.env["mail.message"].search(
@@ -1384,7 +1385,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(
             sale_order.invoice_state,
-            "to do",
+            "done",
             'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so',
         )
         message_sent = self.env["mail.message"].search(

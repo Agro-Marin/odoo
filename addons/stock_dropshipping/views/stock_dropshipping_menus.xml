@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="dropship_picking"
+        name="Dropships"
+        parent="stock.menu_stock_transfers"
+        action="action_picking_tree_dropship"
+        sequence="30"
+        groups="stock.group_stock_manager,stock.group_stock_user" />
+
+</odoo>

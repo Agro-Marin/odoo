@@ -2,7 +2,10 @@ import re
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import parse_amount
+
+_debug = DebugLog(__name__)
 
 
 class AccountReconcileModelLine(models.Model):
@@ -13,21 +16,26 @@ class AccountReconcileModelLine(models.Model):
     _check_company_auto = True
 
     model_id = fields.Many2one(
-        "account.reconcile.model",
-        required=True,
-        readonly=True,
+        comodel_name="account.reconcile.model",
         index="btree_not_null",
+        readonly=True,
+        required=True,
         ondelete="cascade",
     )
-    company_id = fields.Many2one(related="model_id.company_id", store=True)
-    sequence = fields.Integer(required=True, default=10)
+    company_id = fields.Many2one(
+        related="model_id.company_id",
+    )
+    sequence = fields.Integer(
+        default=10,
+        required=True,
+    )
     account_id = fields.Many2one(
-        "account.account",
-        ondelete="cascade",
+        comodel_name="account.account",
         domain="[('account_type', '!=', 'off_balance')]",
+        ondelete="cascade",
         check_company=True,
     )
-    partner_id = fields.Many2one("res.partner")
+    partner_id = fields.Many2one(comodel_name="res.partner")
     label = fields.Char(translate=True)
     amount_type = fields.Selection(
         selection=[
@@ -36,10 +44,13 @@ class AccountReconcileModelLine(models.Model):
             ("percentage_st_line", "Percentage of statement line"),
             ("regex", "From label"),
         ],
-        required=True,
         default="percentage",
+        required=True,
     )
-    amount = fields.Float(string="Float Amount", compute="_compute_amount")
+    amount = fields.Float(
+        string="Float Amount",
+        compute="_compute_amount",
+    )
     amount_string = fields.Char(
         string="Amount",
         default="100",
@@ -81,12 +92,18 @@ class AccountReconcileModelLine(models.Model):
             )
 
     @api.constrains("amount_string", "amount_type")
+    @_debug.perf.timed
     def _check_amount(self):
         for record in self:
             if record.amount_type == "regex":
                 try:
                     re.compile(record.amount_string)
                 except re.error as err:
+                    _debug.logic(
+                        "reco_model_line_rejected",
+                        reco_model_line=record,
+                        reason="bad_regex",
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(model)s: the amount regex is not valid.",
@@ -96,6 +113,11 @@ class AccountReconcileModelLine(models.Model):
                 continue
 
             if parse_amount(record.amount_string) is None:
+                _debug.logic(
+                    "reco_model_line_rejected",
+                    reco_model_line=record,
+                    reason="unparsable_amount",
+                )
                 raise ValidationError(
                     self.env._(
                         "%(model)s: %(value)s is not a valid amount. Write a finite "
@@ -105,6 +127,11 @@ class AccountReconcileModelLine(models.Model):
                     )
                 )
             if not record.amount:
+                _debug.logic(
+                    "reco_model_line_rejected",
+                    reco_model_line=record,
+                    reason="zero_amount",
+                )
                 raise ValidationError(
                     self.env._(
                         "%(model)s: the amount of a %(kind)s line cannot be zero.",
@@ -127,26 +154,36 @@ class AccountReconcileModel(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    active = fields.Boolean(default=True, tracking=True)
-    name = fields.Char(required=True, translate=True, tracking=True)
-    sequence = fields.Integer(required=True, default=10)
+    active = fields.Boolean(
+        default=True,
+        tracking=True,
+    )
+    name = fields.Char(
+        translate=True,
+        required=True,
+        tracking=True,
+    )
+    sequence = fields.Integer(
+        default=10,
+        required=True,
+    )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.company,
+        readonly=True,
+        required=True,
     )
 
     trigger = fields.Selection(
-        [("manual", "Manual"), ("auto_reconcile", "Automated")],
+        selection=[("manual", "Manual"), ("auto_reconcile", "Automated")],
         default="manual",
         required=True,
         tracking=True,
         help="Validate the statement line automatically (reconciliation based on your rule).",
     )
     next_activity_type_id = fields.Many2one(
-        comodel_name="mail.activity.type", string="Next Activity"
+        comodel_name="mail.activity.type",
+        string="Next Activity",
     )
 
     can_be_proposed = fields.Boolean(
@@ -161,7 +198,7 @@ class AccountReconcileModel(models.Model):
         copy=False,
     )
     match_journal_ids = fields.Many2many(
-        "account.journal",
+        comodel_name="account.journal",
         string="Journals",
         domain="[('type', 'in', ('bank', 'cash', 'credit'))]",
         check_company=True,
@@ -178,8 +215,14 @@ class AccountReconcileModel(models.Model):
         tracking=True,
         help="The reconciliation model will only be applied when the amount being lower than, greater than or between specified amount(s).",
     )
-    match_amount_min = fields.Float(string="Amount Min Parameter", tracking=True)
-    match_amount_max = fields.Float(string="Amount Max Parameter", tracking=True)
+    match_amount_min = fields.Float(
+        string="Amount Min Parameter",
+        tracking=True,
+    )
+    match_amount_max = fields.Float(
+        string="Amount Max Parameter",
+        tracking=True,
+    )
     match_label = fields.Selection(
         selection=[
             ("contains", "Contains"),
@@ -193,24 +236,34 @@ class AccountReconcileModel(models.Model):
         * Not Contains: Negation of "Contains".
         * Match Regex: Define your own regular expression.""",
     )
-    match_label_param = fields.Char(string="Label Parameter", tracking=True)
+    match_label_param = fields.Char(
+        string="Label Parameter",
+        tracking=True,
+    )
     match_partner_ids = fields.Many2many(
-        "res.partner",
+        comodel_name="res.partner",
         string="Partners",
         tracking=True,
         help="The reconciliation model will only be applied to the selected customers/vendors.",
     )
 
     line_ids = fields.One2many(
-        "account.reconcile.model.line", "model_id", copy=True, tracking=True
+        comodel_name="account.reconcile.model.line",
+        inverse_name="model_id",
+        copy=True,
+        tracking=True,
     )
 
     @api.constrains("match_label", "match_label_param")
+    @_debug.perf.timed
     def _check_match_label_param(self):
         for record in self:
             if not record.match_label:
                 continue
             if not record.match_label_param:
+                _debug.logic(
+                    "reco_model_rejected", reco_model=record, reason="empty_label_param"
+                )
                 raise ValidationError(
                     self.env._(
                         "%(model)s: the label filter is set to %(mode)s but no text "
@@ -227,6 +280,11 @@ class AccountReconcileModel(models.Model):
                 try:
                     re.compile(record.match_label_param)
                 except re.error as err:
+                    _debug.logic(
+                        "reco_model_rejected",
+                        reco_model=record,
+                        reason="bad_label_regex",
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(model)s: the label regex is not valid.",
@@ -265,13 +323,19 @@ class AccountReconcileModel(models.Model):
                 is_partner_mapping and model.line_ids[0].partner_id.id
             )
 
+    @_debug.perf.timed
     def action_set_manual(self):
+        _debug.lifecycle("action_set_manual", records=self)
         self.trigger = "manual"
 
+    @_debug.perf.timed
     def action_set_auto_reconcile(self):
+        _debug.lifecycle("action_set_auto_reconcile", records=self)
         self.trigger = "auto_reconcile"
 
+    @_debug.perf.timed
     def action_reconcile_stat(self):
+        _debug.lifecycle("action_reconcile_stat", records=self)
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
@@ -302,7 +366,9 @@ class AccountReconcileModel(models.Model):
             name, rounds = longer, rounds + 1
         return rounds
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         default = dict(default or {})
         vals_list = super().copy_data(default)
         if default.get("name"):

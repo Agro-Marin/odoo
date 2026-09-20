@@ -1,23 +1,25 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
     _description = "Analytic Account"
 
     project_ids = fields.One2many(
-        "project.project",
-        "account_id",
+        comodel_name="project.project",
+        inverse_name="account_id",
         string="Projects",
         export_string_translation=False,
     )
     project_count = fields.Integer(
-        "Project Count",
-        compute="_compute_project_count",
         export_string_translation=False,
+        compute="_compute_project_count",
     )
 
+    @dbg.timed
     @api.depends("project_ids")
     def _compute_project_count(self) -> None:
         project_data = self.env["project.project"]._read_group(
@@ -34,6 +36,11 @@ class AccountAnalyticAccount(models.Model):
         has_tasks = self.env["project.task"].search_count(
             [("project_id.account_id", "in", self.ids)],
             limit=1,
+        )
+        dbg.logic.debug(
+            "account.analytic.account._unlink_except_existing_tasks %s: has_tasks=%s",
+            dbg.rec(self),
+            bool(has_tasks),
         )
         if has_tasks:
             raise UserError(

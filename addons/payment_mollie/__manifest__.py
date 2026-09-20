@@ -1,10 +1,9 @@
 {
     "name": "Payment Provider: Mollie",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A Dutch payment provider covering several European countries.",
-    "description": " ",
     "author": "Odoo S.A., Applix BV, Droggol Infotech Pvt. Ltd.",
     "website": "https://www.mollie.com",
     "license": "LGPL-3",

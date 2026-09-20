@@ -33,7 +33,7 @@ test("add parallax removes classes on the original editing element", async () =>
     expect(":iframe section .s_parallax_bg").toHaveClass("o_modified_image_to_save");
 });
 test("remove parallax changes editing element", async () => {
-    const backgroundImageUrl = "url('/web/image/123/transparent.png')";
+    const backgroundImageUrl = "url('/web/static/img/transparent.png')";
     await setupWebsiteBuilder(`
         <section>
             <span class='s_parallax_bg oe_img_bg o_bg_img_center' style="background-image: ${backgroundImageUrl} !important;">aaa</span>
@@ -47,7 +47,7 @@ test("remove parallax changes editing element", async () => {
 });
 
 test("remove parallax from block containing an inner block with parallax", async () => {
-    const backgroundImageUrl = "url('/web/image/123/transparent.png')";
+    const backgroundImageUrl = "url('/web/static/img/transparent.png')";
     await setupWebsiteBuilder(`
         <section id="section_a" style="background-image: ${backgroundImageUrl} !important;">
             <section id="section_b">
@@ -66,7 +66,7 @@ test("remove parallax from block containing an inner block with parallax", async
 });
 
 test("remove parallax from inner block", async () => {
-    const backgroundImageUrl = "url('/web/image/123/transparent.png')";
+    const backgroundImageUrl = "url('/web/static/img/transparent.png')";
     await setupWebsiteBuilder(`
             <section
                 class="s_parallax_no_overflow_hidden"
@@ -93,7 +93,7 @@ test("remove parallax from inner block", async () => {
 });
 
 test("parallax scroll effect 'none' doesn't remove the color filter", async () => {
-    const backgroundImageUrl = "url('/web/image/123/transparent.png')";
+    const backgroundImageUrl = "url('/web/static/img/transparent.png')";
     await setupWebsiteBuilder(`
         <section>
             <span class='s_parallax_bg oe_img_bg o_bg_img_center' style="background-image: ${backgroundImageUrl} !important;">aaa</span>
@@ -110,7 +110,7 @@ async function setupWebsiteAndOpenParallaxOptions(
     { editingElClasses = "" } = {},
     builderOptions = {},
 ) {
-    const backgroundImageUrl = "url('/web/image/123/transparent.png')";
+    const backgroundImageUrl = "url('/web/static/img/transparent.png')";
     const editingElClass = editingElClasses ? `class=${editingElClasses}` : "";
     const websiteBuilder = await setupWebsiteBuilder(
         `

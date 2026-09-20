@@ -16,8 +16,8 @@
                         Scoring is managed on the commercial entity:
                         <field
                             name="commercial_partner_id"
-                            readonly="1"
                             nolabel="1"
+                            readonly="1"
                             class="oe_inline" />
                     </div>
                     <div invisible="commercial_partner_id != id">
@@ -38,10 +38,10 @@
                                     <button
                                         name="%(partner_scoring.action_partner_score_line_from_partner)d"
                                         type="action"
-                                        icon="fa-bar-chart"
-                                        class="btn btn-link p-0"
                                         string="View breakdown"
-                                        invisible="not score_line_count" />
+                                        icon="fa-bar-chart"
+                                        invisible="not score_line_count"
+                                        class="btn btn-link p-0" />
                                 </div>
                             </group>
                         </group>
@@ -61,8 +61,8 @@
                                 <button
                                     name="action_partner_score_recompute"
                                     type="object"
-                                    icon="fa-refresh"
                                     string="Recompute now"
+                                    icon="fa-refresh"
                                     class="btn btn-link p-0" />
                             </div>
                             <div

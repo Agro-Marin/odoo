@@ -16,5 +16,4 @@ File with embedded xml data will allow seller to retrieve Order data from Files.
         "sale",
         "account_edi_ubl_cii",
     ],
-    "installable": True,
 }

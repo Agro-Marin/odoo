@@ -4,9 +4,12 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
 import { DEVICE_VISIBILITY } from "@website/builder/option_sequence";
+
+const log = makeLogger("website.builder.plugin.floating_blocks_option_plugin");
 
 export class FloatingBlocksOption extends BaseOptionComponent {
     static template = "website.FloatingBlocksOption";
@@ -36,6 +39,7 @@ export class FloatingBlocksRoundnessAction extends BuilderAction {
         return 0;
     }
     apply({ editingElement, value }) {
+        log.pipeline("FloatingBlocksRoundnessAction apply", { value });
         for (let x = 0; x <= 5; x++) {
             editingElement.classList.remove(`rounded-${x}`);
         }
@@ -46,9 +50,11 @@ export class AddFloatingBlockCardAction extends BuilderAction {
     static id = "addFloatingBlockCard";
     static dependencies = ["builderOptions"];
     apply({ editingElement: el }) {
+        const endRender = log.perf("AddFloatingBlockCardAction render card");
         const newCardEl = renderToElement("website.s_floating_blocks.new_card");
         const wrapperEl = el.querySelector(".s_floating_blocks_wrapper");
         wrapperEl.appendChild(newCardEl);
+        endRender(() => ({ cards: wrapperEl.children.length }));
         newCardEl.scrollIntoView({ behavior: "smooth", block: "center" });
         this.dependencies.builderOptions.setNextTarget(newCardEl);
     }

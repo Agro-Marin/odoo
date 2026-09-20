@@ -3,10 +3,13 @@
 
 import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { sharedComponents } from "@web/core/shared_components";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+
+const log = makeLogger("web.view.button");
 
 /**
  * @param {HTMLElement | null} el
@@ -118,11 +121,23 @@ async function executeViewButton(
         },
     };
     let error;
+    const endButton = log.perf(
+        `doActionButton ${clickParams.name || clickParams.special || ""}`,
+    );
+    log.logic("click", () => ({
+        name: clickParams.name,
+        type: clickParams.type,
+        special: clickParams.special,
+        resModel: params.resModel,
+        resId: params.resId,
+        closeDialog: Boolean(closeDialog),
+    }));
     try {
         await action.doActionButton(doActionParams, { newWindow });
     } catch (_e) {
         error = _e;
     }
+    endButton({ failed: Boolean(error) });
     await options.afterExecuteAction?.(clickParams);
     if (closeDialog) {
         closeDialog();

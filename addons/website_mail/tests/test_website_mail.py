@@ -10,16 +10,11 @@ from odoo.addons.website_mail.controllers.main import WebsiteMail
 @tagged("post_install", "-at_install")
 class TestWebsiteMail(TransactionCase):
     def test_warranty_message_flags_website(self):
-        """The publisher warranty message advertises the website presence."""
         base_message = self.env["publisher_warranty.contract"]._get_message()
         self.assertTrue(base_message["website"])
-        # the flag is added on top of the inherited payload, not replacing it
         self.assertGreater(len(base_message), 1)
 
     def test_follow_with_no_matching_partner_does_not_crash(self):
-        """A public visitor whose recaptcha check fails and whose email
-        matches no existing partner must get a graceful `False`, not an
-        unhandled IndexError on the empty partner list."""
         website = self.env["website"].search([], limit=1)
         partner = self.env["res.partner"].create(
             {"name": "Follow Target", "email": "follow-target@example.com"}

@@ -16,6 +16,7 @@ from odoo import SUPERUSER_ID, Command, _, fields, http
 from odoo.exceptions import MissingError
 from odoo.fields import Domain
 from odoo.http import prepare_content_disposition_header, request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, consteq, replace_exceptions, str2bool
 from odoo.tools.image import base64_to_image
 from odoo.tools.urls import keep_query
@@ -27,6 +28,7 @@ from odoo.addons.document.tools import (
 from odoo.addons.mail.controllers.attachment import AttachmentController
 
 logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _SAFE_REDIRECT_SCHEMES = frozenset({"http", "https", "ftp", "ftps", "mailto"})
 
@@ -80,7 +82,7 @@ def _read_stream_blocks(stream: Any, reader: Any = None) -> Any:
             yield content[offset : offset + _ZIP_READ_BLOCK]
 
 
-def _sanitize_zip_name(name: str) -> str:
+def _normalize_zip_name(name: str) -> str:
     name = (name or "").replace("/", "_").replace("\\", "_")
     if name in (".", ".."):
         name = "_" * len(name)
@@ -197,12 +199,15 @@ class ShareRoute(http.Controller):
 
         document_token, document_id = cls._split_access_token(access_token)
         if not document_id:
+            _debug.logic("token_refused", reason="malformed")
             return Doc
         document_sudo = Doc.browse(document_id).sudo()
         try:
             if not document_sudo.document_token:
+                _debug.logic("token_refused", reason="no_token", document=document_id)
                 return Doc
         except MissingError:
+            _debug.logic("token_refused", reason="missing", document=document_id)
             return Doc
 
         if not (
@@ -213,8 +218,10 @@ class ShareRoute(http.Controller):
                 or document_sudo.access_via_link != "none"
             )
         ):
+            _debug.logic("token_refused", reason="mismatch", document=document_id)
             return Doc
         if not request.env.user._is_internal() and not document_sudo.active:
+            _debug.logic("token_refused", reason="archived", document=document_id)
             return Doc
 
         skip_log = skip_log or request.env.user._is_public()
@@ -224,6 +231,7 @@ class ShareRoute(http.Controller):
             ):
                 new_access = cls._upsert_last_access_date(request.env, doc_sudo)
                 if new_access and doc_sudo._get_permission_without_token() == "none":
+                    _debug.lifecycle("newly_accessible_via_link", document=doc_sudo)
                     document_sudo = document_sudo.with_context(
                         document_newly_accessible=True
                     )
@@ -234,8 +242,12 @@ class ShareRoute(http.Controller):
                     target_sudo.access_via_link != "none"
                     and not target_sudo.is_access_via_link_hidden
                 ):
+                    _debug.pipeline(
+                        "shortcut_followed", shortcut=document_sudo, target=target_sudo
+                    )
                     document_sudo = target_sudo
                 else:
+                    _debug.logic("token_refused", reason="shortcut_target_hidden")
                     document_sudo = Doc
 
         if (
@@ -244,8 +256,15 @@ class ShareRoute(http.Controller):
             and not document_sudo.attachment_id
             and document_sudo.access_via_link != "edit"
         ):
+            _debug.logic("token_refused", reason="public_empty_binary")
             return Doc
 
+        _debug.logic(
+            "token_resolved",
+            document=document_sudo,
+            permission=document_sudo.user_permission,
+            via_link=document_sudo.access_via_link,
+        )
         return document_sudo
 
     @classmethod
@@ -265,13 +284,16 @@ class ShareRoute(http.Controller):
             )
         )
         created = env.cr.fetchone()[0]
+        _debug.perf.count("last_access_upserted", document=document, created=created)
         env["document.access"].invalidate_model(["last_access_date"])
         document.invalidate_recordset(["access_ids"])
         env["document.access.log"]._log(document, env.user.partner_id, "view")
         return created
 
     def _get_zip_response(self, name: str, documents: Any) -> Any:
-        entries = self._plan_zip_entries(name, documents)
+        with _debug.perf("zip_plan", cr=request.env.cr, documents=documents) as span:
+            entries = self._plan_zip_entries(name, documents)
+            span.set(entries=len(entries))
         self._log_download(
             request.env["document.document"]
             .sudo()
@@ -297,29 +319,23 @@ class ShareRoute(http.Controller):
         )
         counters = {"files": 0, "total": 0}
 
-        def account(size: int) -> None:
-            # Enforced against the RUNNING totals, while planning -- before the
-            # response has begun and while a 413 is still expressible. They no
-            # longer bound memory (the archive is streamed); they bound how much
-            # work one request, including an unauthenticated public folder
-            # share, can ask of a worker.
-            #
-            # Every planned entry counts, directories included. Counting only
-            # the files left the cap blind to the half of the walk that costs
-            # the most: a folder contributes no bytes but one
-            # `_get_folder_children` search, so a tree of empty subfolders --
-            # which any documents user can create and then share by link --
-            # asked a worker for one search per folder and was refused at no
-            # depth. Measured: 25 files against a cap of 3 was a 413, 25 empty
-            # subfolders against the same cap was a 200.
+        def account(size: int, path: str) -> None:
             counters["files"] += 1
-            counters["total"] += size
+            counters["total"] += size + 2 * len(path.encode())
             if counters["files"] > max_files or counters["total"] > max_total:
                 logger.warning(
                     "Refusing to build an oversized zip (%s files, %s bytes) for %r",
                     counters["files"],
                     counters["total"],
                     name,
+                )
+                _debug.logic(
+                    "zip_refused",
+                    reason="oversized",
+                    files=counters["files"],
+                    total=counters["total"],
+                    max_files=max_files,
+                    max_total=max_total,
                 )
                 raise RequestEntityTooLarge
 
@@ -335,37 +351,39 @@ class ShareRoute(http.Controller):
             if document.type == "url":
                 raise ValueError("cannot create a zip item out of an url")
             if not self._is_shortcut_target_reachable(document):
+                _debug.logic("zip_item_skipped", reason="unreachable_target")
                 return None
             if not document._is_download_allowed():
+                _debug.logic("zip_item_skipped", reason="download_denied")
                 return None
             if document.type == "folder":
-                document_name = _sanitize_zip_name(document.name)
-                # A directory weighs nothing, so it is accounted at size 0 --
-                # it is the entry count, not the byte count, that it moves.
-                account(0)
+                document_name = _normalize_zip_name(document.name)
                 # it is the ending slash that makes it appears as a
                 # folder inside the zip file.
-                return ZipEntry(
-                    unique(f"{folder.path}{document_name}") + "/", None, document
-                )
+                path = unique(f"{folder.path}{document_name}") + "/"
+                # A directory holds no content, so its size is 0 -- but its
+                # name is not free, and in a deep tree it is the whole cost.
+                account(0, path)
+                return ZipEntry(path, None, document)
             try:
                 stream = self._documents_content_stream(
                     document.shortcut_document_id or document
                 )
-                download_name = _sanitize_zip_name(stream.download_name)
+                download_name = _normalize_zip_name(stream.download_name)
             except ValueError, MissingError:
+                _debug.logic("zip_item_skipped", reason="no_stream")
                 return None
             if stream.type == "url":
                 source = (document.shortcut_document_id or document).attachment_id
                 reader = source.sudo()._get_zip_detached_reader()
                 if reader is None:
                     return None
-                account(source.file_size or 0)
-                return ZipEntry(
-                    unique(f"{folder.path}{download_name}"), stream, document, reader
-                )
-            account(stream.size or 0)
-            return ZipEntry(unique(f"{folder.path}{download_name}"), stream, document)
+                path = unique(f"{folder.path}{download_name}")
+                account(source.file_size or 0, path)
+                return ZipEntry(path, stream, document, reader)
+            path = unique(f"{folder.path}{download_name}")
+            account(stream.size or 0, path)
+            return ZipEntry(path, stream, document)
 
         def generate_zip_items(documents_sudo: Any, folder: Any) -> Any:
             documents_sudo = documents_sudo.sorted(lambda d: d.id)
@@ -396,6 +414,7 @@ class ShareRoute(http.Controller):
 
     def _stream_zip(self, name: str, entries: list) -> Any:
         sink = _ZipSink()
+        _debug.pipeline("zip_stream_start", name=name, entries=len(entries))
         try:
             with zipfile.ZipFile(
                 sink, "w", compression=zipfile.ZIP_DEFLATED
@@ -476,6 +495,7 @@ class ShareRoute(http.Controller):
             for document in documents
         ]
         if any(pdf_raw is None for pdf_raw in pdf_raws):
+            _debug.logic("pdf_split_refused", reason="not_a_pdf", documents=documents)
             raise BadRequest("cannot split a document that does not hold a PDF")
 
         with ExitStack() as stack:
@@ -498,10 +518,14 @@ class ShareRoute(http.Controller):
                             page["old_file_index"]
                         ]
 
-            with replace_exceptions(ValueError, by=BadRequest):
-                new_documents = documents._pdf_split(
-                    new_files=new_files, open_files=open_files, vals=vals
-                )
+            with _debug.perf(
+                "pdf_split_request", cr=request.env.cr, sources=documents
+            ) as span:
+                with replace_exceptions(ValueError, by=BadRequest):
+                    new_documents = documents._pdf_split(
+                        new_files=new_files, open_files=open_files, vals=vals
+                    )
+                span.set(created=len(new_documents))
 
         if str2bool(archive, default=False):
             documents.write({"active": False})
@@ -523,6 +547,7 @@ class ShareRoute(http.Controller):
             member_id = int(member_id or "0")
 
         if request.env.user._is_public():
+            _debug.pipeline("home", audience="public", document=document_sudo)
             if not document_sudo:
                 redirect_url = (
                     f"/documents/{quote(access_token, safe='')}?{keep_query('*')}"
@@ -533,8 +558,10 @@ class ShareRoute(http.Controller):
                     return request.redirect(signup_url)
             return self._documents_render_public_view(document_sudo)
         elif request.env.user._is_portal():
+            _debug.pipeline("home", audience="portal", document=document_sudo)
             return self._documents_render_portal_view(document_sudo)
         else:
+            _debug.pipeline("home", audience="internal", document=document_sudo)
             return request.redirect(
                 f"/odoo/documents/{quote(access_token, safe='')}?{keep_query('*')}",
                 HTTPStatus.TEMPORARY_REDIRECT,
@@ -668,6 +695,7 @@ class ShareRoute(http.Controller):
             target_sudo = document_sudo.shortcut_document_id or document_sudo
             return target_sudo.type != "folder"
         except Exception:
+            _debug.logic("readonly_classification_failed", token=bool(args))
             logger.warning(
                 "Could not classify %r for read-only serving; using a read/write "
                 "cursor",
@@ -685,16 +713,21 @@ class ShareRoute(http.Controller):
     def documents_content(self, access_token: str, download: Any = True) -> Any:
         document_sudo = self._from_access_token(access_token, skip_log=True)
         if not document_sudo:
+            _debug.logic("content_refused", reason="no_document")
             raise request.prepare_not_found_error()
         if document_sudo.type == "url":
             if not _is_safe_redirect_url(document_sudo.url):
+                _debug.logic("content_refused", reason="unsafe_redirect_scheme")
                 raise request.prepare_not_found_error()
+            _debug.pipeline("content_served", by="url_redirect", document=document_sudo)
             return request.redirect(
                 document_sudo.url, code=HTTPStatus.TEMPORARY_REDIRECT, local=False
             )
         if document_sudo.type == "folder":
             if not document_sudo._is_download_allowed():
+                _debug.logic("content_refused", reason="folder_download_denied")
                 raise Forbidden("downloading this folder is not allowed")
+            _debug.pipeline("content_served", by="folder_zip", document=document_sudo)
             self._log_download(document_sudo)
             return self._get_zip_response(
                 f"{document_sudo.name}.zip",
@@ -702,13 +735,26 @@ class ShareRoute(http.Controller):
             )
         if document_sudo.type == "binary":
             if not document_sudo.attachment_id:
+                _debug.logic("content_refused", reason="no_attachment")
                 raise request.prepare_not_found_error()
             with replace_exceptions(ValueError, by=BadRequest):
                 download = str2bool(download)
             if download:
                 if not document_sudo._is_download_allowed():
+                    _debug.logic("content_refused", reason="download_denied")
                     raise Forbidden("downloading this document is not allowed")
                 self._log_download(document_sudo)
+            elif not document_sudo._is_inline_content_allowed():
+                _debug.logic("content_refused", reason="inline_download_denied")
+                raise Forbidden("downloading this document is not allowed")
+            else:
+                self._log_view(document_sudo)
+            _debug.pipeline(
+                "content_served",
+                by="binary",
+                document=document_sudo,
+                download=download,
+            )
             with replace_exceptions(
                 ValueError, MissingError, by=request.prepare_not_found_error()
             ):
@@ -721,8 +767,15 @@ class ShareRoute(http.Controller):
         return request.env["ir.binary"]._get_stream_from_record(document_sudo)
 
     def _log_download(self, document_sudo: Any) -> None:
+        _debug.lifecycle("download_logged", documents=document_sudo)
         request.env["document.access.log"].sudo()._log(
             document_sudo, request.env.user.partner_id, "download"
+        )
+
+    def _log_view(self, document_sudo: Any) -> None:
+        _debug.lifecycle("view_logged", documents=document_sudo)
+        request.env["document.access.log"].sudo()._log(
+            document_sudo, request.env.user.partner_id, "view"
         )
 
     @http.route(
@@ -783,17 +836,35 @@ class ShareRoute(http.Controller):
         if not document_sudo:
             raise request.prepare_not_found_error()
         if document_sudo.type != "binary":
+            _debug.logic(
+                "thumbnail_textual_refused", reason="not_binary", document=document_sudo
+            )
             e = f"bad document type: expected a file (binary) document, found a {document_sudo.type} document"
             raise BadRequest(e)
         attachment_sudo = document_sudo.attachment_id.sudo()
         if not attachment_sudo:
             raise request.prepare_not_found_error()
         if not is_mimetype_textual(document_sudo.mimetype):
+            _debug.logic(
+                "thumbnail_textual_refused",
+                reason="not_textual",
+                mimetype=document_sudo.mimetype,
+            )
             e = f"bad document mimetype: expect text/* or a recognized application/, got {document_sudo.mimetype}"
             raise BadRequest(e)
         if document_sudo.mimetype == "text/html" or not (
             head := attachment_sudo._get_content_prefix(self.TEXTUAL_THUMBNAIL_SIZE)
         ):
+            # These two branches serve the WHOLE file, not a 4 KB head, so they
+            # answer the same question `/documents/content` does and take the
+            # same gate rather than a different one.
+            if not document_sudo._is_inline_content_allowed():
+                _debug.logic(
+                    "thumbnail_textual_refused",
+                    reason="inline_download_denied",
+                    document=document_sudo,
+                )
+                raise Forbidden("downloading this document is not allowed")
             with replace_exceptions(
                 ValueError, MissingError, by=request.prepare_not_found_error()
             ):
@@ -813,7 +884,14 @@ class ShareRoute(http.Controller):
     )
     def documents_update_thumbnail(self, document_id: int, thumbnail: Any) -> None:
         document = request.env["document.document"].browse(document_id)
-        document.check_access("read")
+        # A read check guarding a `sudo().write`: any reader could set the
+        # stored thumbnail that every other user then sees, and because the
+        # write flips `thumbnail_status` away from "client_generated" nobody
+        # could correct it afterwards. The thumbnail is a property of the
+        # document, so writing it takes write access like every other one; the
+        # client only reaches this route for documents it can already edit, and
+        # a viewer simply leaves the thumbnail to somebody who can.
+        document.check_access("write")
         if document.thumbnail_status != "client_generated":
             return
         validated = False
@@ -871,6 +949,7 @@ class ShareRoute(http.Controller):
             not access_token
             and (upload_root is None or not upload_root.is_writable_root)
         ):
+            _debug.logic("upload_refused", reason="token_and_root_conflict")
             raise BadRequest("Incorrect token/user_folder_id values")
         is_internal_user = request.env.user._is_internal()
         if is_internal_user and not access_token:
@@ -885,12 +964,15 @@ class ShareRoute(http.Controller):
                 )
                 or document_sudo.type not in ("binary", "folder")
             ):
+                _debug.logic("upload_refused", reason="target_not_writable")
                 raise request.prepare_not_found_error()
 
         files = request.httprequest.files.getlist("ufile")
         if not files:
+            _debug.logic("upload_refused", reason="no_files")
             raise BadRequest("missing files")
         if len(files) > 1 and document_sudo.type not in (False, "folder"):
+            _debug.logic("upload_refused", reason="many_files_one_document")
             raise BadRequest("cannot save multiple files inside a single document")
         if cloud_storage:
             self._check_direct_upload(files)
@@ -913,12 +995,15 @@ class ShareRoute(http.Controller):
                 and owner_id != request.env.user.id
                 and not request.env.user.has_group("document.group_documents_manager")
             ):
+                _debug.logic("upload_refused", reason="owner_not_self")
                 raise Forbidden("cannot upload on behalf of another user")
             if values_are_used and res_model and res_id:
                 if res_model not in request.env:
+                    _debug.logic("upload_refused", reason="unknown_res_model")
                     raise BadRequest("unknown res_model")
                 request.env[res_model].browse(res_id).check_access("write")
         elif owner_id or partner_id or res_id or res_model:
+            _debug.logic("upload_refused", reason="values_need_internal_user")
             raise Forbidden("only internal users can provide field values")
         else:
             owner_id = (
@@ -931,15 +1016,19 @@ class ShareRoute(http.Controller):
             res_id = False
 
         previous_attachment_id = document_sudo.attachment_id
-        document_ids = self._documents_upload(
-            document_sudo,
-            files,
-            owner_id,
-            user_folder_id,
-            partner_id,
-            res_id,
-            res_model,
-        )
+        with _debug.perf(
+            "upload", cr=request.env.cr, files=len(files), target=document_sudo
+        ) as span:
+            document_ids = self._documents_upload(
+                document_sudo,
+                files,
+                owner_id,
+                user_folder_id,
+                partner_id,
+                res_id,
+                res_model,
+            )
+            span.set(created=len(document_ids))
         if document_sudo.type != "folder" and len(document_ids) == 1:
             document_sudo = document_sudo.browse(document_ids)
 
@@ -954,12 +1043,14 @@ class ShareRoute(http.Controller):
 
     def _check_direct_upload(self, files: list) -> None:
         if len(files) > 1:
+            _debug.logic("direct_upload_refused", reason="many_files")
             raise BadRequest("a direct cloud upload carries one file")
         if (
             not request.env["ir.config_parameter"]
             .sudo()
             .get_param("cloud_storage_provider")
         ):
+            _debug.logic("direct_upload_refused", reason="no_provider")
             raise BadRequest(
                 "Cloud storage configuration has been changed. Please refresh the page."
             )
@@ -972,6 +1063,7 @@ class ShareRoute(http.Controller):
         attachment_sudo = document_sudo.attachment_id
         attachment_sudo._post_add_create(cloud_storage=True)
         if attachment_sudo.type != "cloud_storage":
+            _debug.logic("direct_upload_refused", reason="not_cloud_storage")
             raise BadRequest(
                 "Cloud storage configuration has been changed. Please refresh the page."
             )
@@ -1005,25 +1097,26 @@ class ShareRoute(http.Controller):
         )
 
         if document_sudo.type == "binary":
+            _debug.pipeline("upload_plan", by="replace_binary", document=document_sudo)
             attachment_sudo = AttachmentSudo._create_from_request_file(
                 files[0], mimetype="TRUST" if is_internal_user else "GUESS"
             )
+            res_model, res_id = document_sudo._owning_record_link()
             attachment_sudo.with_context(no_document=True).write(
-                {
-                    "res_model": document_sudo.res_model or "document.document",
-                    "res_id": document_sudo.res_id
-                    if document_sudo.res_model
-                    else document_sudo.id,
-                }
+                {"res_model": res_model, "res_id": res_id}
             )
             values = {"attachment_id": attachment_sudo.id}
             if not document_sudo.attachment_id:
                 if document_sudo.access_via_link == "edit":
+                    _debug.logic("upload_request_fulfilled", document=document_sudo)
                     values["access_via_link"] = "view"
             self._documents_upload_create_write(document_sudo, values)
             created_sudo = document_sudo
         else:
             folder_sudo = document_sudo
+            _debug.pipeline(
+                "upload_plan", by="into_folder", folder=folder_sudo, files=len(files)
+            )
             location = (
                 {"user_folder_id": user_folder_id}
                 if user_folder_id
@@ -1041,9 +1134,16 @@ class ShareRoute(http.Controller):
                 if UserFolder.parse(user_folder_id) == UserFolder(UserFolder.COMPANY)
                 else []
             )
+            # The attachments are created one per file because
+            # `_create_from_request_file` is per-file by construction -- it may
+            # stream a large upload straight to the filestore. The DOCUMENTS are
+            # not: they are prepared per file and created in ONE call, so a
+            # thirty-file drop pays one document INSERT, one `parent_path`
+            # maintenance pass and one recompute flush instead of thirty of
+            # each.
+            pending_vals = []
             for file in files:
-                created_sudo |= self._documents_upload_create_write(
-                    folder_sudo,
+                vals = (
                     {
                         "attachment_id": AttachmentSudo._create_from_request_file(
                             file, mimetype="TRUST" if is_internal_user else "GUESS"
@@ -1058,22 +1158,64 @@ class ShareRoute(http.Controller):
                         "res_id": res_id,
                     }
                     | ({"partner_id": partner_id} if partner_id is not None else {})
-                    | ({"access_ids": uploader_access} if uploader_access else {}),
+                    | ({"access_ids": uploader_access} if uploader_access else {})
                 )
+                prepared = self._documents_upload_prepare(folder_sudo, vals)
+                if prepared is None:
+                    continue
+                if isinstance(prepared, dict):
+                    prepared.setdefault("folder_id", folder_sudo.id)
+                    pending_vals.append(prepared)
+                else:
+                    created_sudo |= prepared
+            if pending_vals:
+                new_documents_sudo = folder_sudo.create(pending_vals)
+                for new_document_sudo, new_vals in zip(
+                    new_documents_sudo, pending_vals, strict=True
+                ):
+                    self._documents_upload_post(new_document_sudo, new_vals)
+                created_sudo |= new_documents_sudo
 
         return created_sudo.ids
 
-    def _documents_upload_create_write(self, document_sudo: Any, vals: dict) -> Any:
-        if document_sudo.type == "binary":
-            document_sudo.write(vals)
-        else:
-            vals.setdefault("folder_id", document_sudo.id)
-            document_sudo = document_sudo.create(vals)
+    def _documents_upload_prepare(self, document_sudo: Any, vals: dict) -> Any:
+        """Decide what one uploaded file becomes, before anything is created.
+
+        Return the values to create (or write), `None` to drop the file, or an
+        existing `document.document` to report instead of creating one. This
+        runs per file; creation is batched behind it, so an override that needs
+        to inspect or refuse an upload belongs here rather than around the
+        create itself.
+        """
+        return vals
+
+    def _documents_upload_post(self, document_sudo: Any, vals: dict) -> None:
+        """React to one document that an upload just created or replaced."""
+        _debug.lifecycle("uploaded", document=document_sudo, fields=sorted(vals))
         if any(field_name in vals for field_name in ["raw", "datas", "attachment_id"]):
             document_sudo.message_post(
                 body=_("Document uploaded by %(user)s", user=request.env.user.name)
             )
 
+    def _documents_upload_create_write(self, document_sudo: Any, vals: dict) -> Any:
+        """Single-document upload: replacing a binary, or one file into a folder.
+
+        The multi-file folder path does not come through here -- it batches the
+        create and calls `_documents_upload_prepare` / `_documents_upload_post`
+        directly, which is why those two, not this one, are the extension
+        points.
+        """
+        prepared = self._documents_upload_prepare(document_sudo, vals)
+        if prepared is None:
+            return request.env["document.document"].sudo()
+        if not isinstance(prepared, dict):
+            return prepared
+        if document_sudo.type == "binary":
+            document_sudo.write(prepared)
+        else:
+            prepared.setdefault("folder_id", document_sudo.id)
+            document_sudo = document_sudo.create(prepared)
+        self._documents_upload_post(document_sudo, prepared)
         return document_sudo
 
     @http.route("/documents/upload/success", type="http", auth="public")

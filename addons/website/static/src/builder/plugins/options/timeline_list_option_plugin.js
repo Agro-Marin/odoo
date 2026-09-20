@@ -25,7 +25,6 @@ class TimelineListOptionPlugin extends Plugin {
     /** @type {import("plugins").WebsiteResources} */
     resources = {
         builder_options: [
-            // TODO AGAU: alignment option sequence doesn't match master, must split template
             withSequence(BEGIN, TimelineListOption),
             withSequence(SNIPPET_SPECIFIC_END, DotLinesColorOption),
             withSequence(BEGIN, DotColorOption),

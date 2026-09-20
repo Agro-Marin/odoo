@@ -595,3 +595,78 @@ test("editing survives a pointerdown inside the input, and only that", async () 
         message: "clicking outside still leaves edit mode",
     });
 });
+
+test.tags("desktop");
+test("a pager listens to no pointerdown on the window; leaving the input ends the edit", async () => {
+    const registered = [];
+    const { addEventListener } = window;
+    patchWithCleanup(window, {
+        /** @type {typeof addEventListener} */
+        addEventListener(type, listener, options) {
+            registered.push(type);
+            return addEventListener.call(this, type, listener, options);
+        },
+    });
+    await mountWithCleanup(PagerController, {
+        props: { offset: 0, limit: 4, total: 10, onUpdate() {} },
+    });
+    await animationFrame();
+    expect(registered.filter((type) => type === "pointerdown")).toEqual([]);
+
+    await contains(".o_pager_value").click();
+    expect("input.o_pager_value").toHaveCount(1);
+    queryOne("input.o_pager_value").blur();
+    await animationFrame();
+    expect("input.o_pager_value").toHaveCount(0);
+});
+
+for (const direction of /** @type {const} */ ([-1, 1])) {
+    for (const reject of [false, true]) {
+        test(`navigation ${direction} waits for a ${reject ? "rejected" : "successful"} update`, async () => {
+            const load = new Deferred();
+            const pager = await mountWithCleanup(Pager, {
+                props: {
+                    offset: 0,
+                    limit: 5,
+                    total: 10,
+                    updateTotal: direction === -1 ? async () => 23 : undefined,
+                    onUpdate: (range) => {
+                        expect.step(`load ${range.offset}`);
+                        return load;
+                    },
+                },
+            });
+            // Observe the original promise without allowing a detached rejection
+            // to end the test before its navigation contract can be checked.
+            patchWithCleanup(pager, {
+                update(...args) {
+                    const update = super.update(...args);
+                    update.catch(() => {});
+                    return update;
+                },
+            });
+            let outcome = "pending";
+            const navigation = pager.navigate(direction).then(
+                () => {
+                    outcome = "resolved";
+                },
+                () => {
+                    outcome = "rejected";
+                },
+            );
+            await animationFrame();
+            expect.verifySteps([`load ${direction === -1 ? 20 : 5}`]);
+            expect(outcome).toBe("pending");
+            expect(pager.state.isDisabled).toBe(true);
+            if (reject) {
+                load.reject(new Error("page load failed"));
+            } else {
+                load.resolve();
+            }
+            await navigation;
+            await animationFrame();
+            expect(outcome).toBe(reject ? "rejected" : "resolved");
+            expect(pager.state.isDisabled).toBe(false);
+        });
+    }
+}

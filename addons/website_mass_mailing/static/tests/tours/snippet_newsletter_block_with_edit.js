@@ -12,7 +12,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Put a Newsletter block.
         ...insertSnippet({
             id: "s_newsletter_block",
             name: "Newsletter Block",
@@ -35,7 +34,6 @@ registerWebsitePreviewTour(
                 "div[data-container-title='Button'] .options-container-header:not(:has(.oe_snippet_remove, .oe_snippet_clone, .oe_snippet_save))",
         },
         ...clickOnSave(),
-        // Subscribe to the newsletter.
         {
             trigger:
                 ':iframe .s_newsletter_block input:value("admin@yourcompany.example.com")',
@@ -45,7 +43,6 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_newsletter_block .js_subscribe_btn",
             run: "click",
         },
-        // Change the link style.
         ...clickOnEditAndWaitEditMode(),
         {
             content: "Click on the Subscribe form",

@@ -1,11 +1,26 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
+import {
+    deserializeDateTime,
+    serializeDate,
+    serializeDateTime,
+} from "@web/core/l10n/dates";
 import { CalendarModel } from "@web/views/calendar";
 
 export class CalendarWithRecurrenceModel extends CalendarModel {
     async loadRecords(data) {
         const rawRecords = await this.fetchRecords(data);
+        const planned = rawRecords.filter(
+            (rawRecord) =>
+                rawRecord.plan_id &&
+                ["draft", "confirmed", "in_progress"].includes(rawRecord.state),
+        );
+        const occurrencesByOrder = planned.length
+            ? await this.orm.call(this.meta.resModel, "get_plan_occurrences", [
+                  planned.map((rawRecord) => rawRecord.id),
+                  serializeDateTime(data.range.start),
+                  serializeDateTime(data.range.end),
+              ])
+            : {};
         const records = {};
         let recordsCounter = 1;
         for (const rawRecord of rawRecords) {
@@ -14,59 +29,49 @@ export class CalendarWithRecurrenceModel extends CalendarModel {
                 id: recordsCounter,
             };
             recordsCounter++;
-            if (
-                rawRecord.recurring_maintenance &&
-                !rawRecord.done &&
-                !rawRecord.archive
-            ) {
-                let { start, end } = data.range;
-                if (rawRecord.repeat_type == "until") {
-                    end = luxon.DateTime.min(
-                        end,
-                        deserializeDateTime(rawRecord.repeat_until),
-                    ).endOf("day");
-                }
-                const duration = rawRecord.duration || 1;
-                const [unit, interval] = [
-                    rawRecord.repeat_unit + "s",
-                    rawRecord.repeat_interval,
-                ];
-                let date = deserializeDateTime(rawRecord.schedule_date);
-                date = this._getNextDate(date, unit, interval);
-                let counter = 1;
-                while (date <= end) {
-                    if (date > start) {
-                        const endDate = date.plus({ hours: duration });
-                        const rawRecordCopy = { ...rawRecord };
-                        rawRecordCopy.display_name =
-                            rawRecord.display_name + " (+" + counter + ")";
-                        rawRecordCopy.schedule_date = serializeDateTime(date);
-                        rawRecordCopy.schedule_end = serializeDateTime(endDate);
-                        records[recordsCounter] = {
-                            ...this.normalizeRecord(rawRecordCopy),
-                            id: recordsCounter,
-                            isRecurrent: true,
-                        };
-                        recordsCounter++;
-                    }
-                    date = this._getNextDate(date, unit, interval);
-                    counter++;
-                }
+            const duration = rawRecord.duration || 1;
+            const occurrences = occurrencesByOrder[rawRecord.id] || [];
+            for (const [index, occurrence] of occurrences.entries()) {
+                const date = deserializeDateTime(occurrence);
+                records[recordsCounter] = {
+                    ...this.normalizeRecord({
+                        ...rawRecord,
+                        display_name: `${rawRecord.display_name} (+${index + 1})`,
+                        date_scheduled_start: occurrence,
+                        date_scheduled_end: serializeDateTime(
+                            date.plus({ hours: duration }),
+                        ),
+                    }),
+                    id: recordsCounter,
+                    isRecurrent: true,
+                };
+                recordsCounter++;
             }
         }
         return records;
     }
-    _getNextDate(date, unit, interval) {
-        return date.plus({ [unit]: interval });
-    }
     computeRangeDomain(data) {
-        // Override to fix recurrence: show records even if end is before next range start.
-        const formattedEnd = serializeDateTime(data.range.end);
-        const domain = [[this.meta.fieldMapping.date_start, "<=", formattedEnd]];
-        return domain;
+        // An order of a plan shows the plan's occurrences long after its own end, so
+        // it stays in range while the plan can still repeat into it.
+        const { date_start, date_stop } = this.meta.fieldMapping;
+        const { start, end } = data.range;
+        return [
+            [date_start, "<=", serializeDateTime(end)],
+            "|",
+            "|",
+            [date_stop, ">=", serializeDateTime(start)],
+            [date_stop, "=", false],
+            "&",
+            "&",
+            ["state", "in", ["draft", "confirmed", "in_progress"]],
+            ["plan_id.active", "=", true],
+            "|",
+            ["plan_id.repeat_type", "!=", "until"],
+            ["plan_id.repeat_until", ">=", serializeDate(start)],
+        ];
     }
     normalizeRecord(rawRecord) {
-        // Override to set end = start + 1h if schedule_end is False.
+        // Override to set end = start + 1h if date_scheduled_end is False.
         const record = super.normalizeRecord(rawRecord);
         const { duration, start, end } = record;
         if (!end.isValid && duration) {

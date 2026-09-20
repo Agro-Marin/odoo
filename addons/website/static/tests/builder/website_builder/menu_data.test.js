@@ -50,16 +50,13 @@ describe("NavbarLinkPopover", () => {
             },
         );
         await expectElementCount(".o-we-linkpopover", 0);
-        // selection inside a top menu link
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 0,
         });
         await waitFor(".o-we-linkpopover");
-        // remove link button replaced with sitemap button
         expect(".o-we-linkpopover:has(i.fa-chain-broken)").toHaveCount(0);
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
-        // selection outside a top menu link
         setSelection({ anchorNode: el.querySelector("p"), anchorOffset: 0 });
         await expectElementCount(".o-we-linkpopover", 0);
     });
@@ -78,14 +75,12 @@ describe("NavbarLinkPopover", () => {
             },
         );
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
-        // open navbar link popover
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 0,
         });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
-        // selection in the same link
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 1,
@@ -118,7 +113,6 @@ describe("NavbarLinkPopover", () => {
             },
         );
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
-        // selection in dropdown menu
         setSelection({
             anchorNode: el.querySelector(".dropdown-item > span"),
             anchorOffset: 0,
@@ -137,7 +131,6 @@ describe("NavbarLinkPopover", () => {
         onRpc("/html_editor/link_preview_internal", () => ({}));
         onRpc("/contactus", () => ({}));
 
-        // website pages should be prefixed with /@
         const { el } = await setupEditor(
             `<ul class="top_menu">
                 <li>
@@ -152,7 +145,6 @@ describe("NavbarLinkPopover", () => {
         );
 
         await expectElementCount(".o-we-linkpopover", 0);
-        // selection inside a top menu link
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 0,
@@ -188,16 +180,13 @@ describe("MenuDialog", () => {
             others: [],
         }));
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
-        // open navbar link popover
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 0,
         });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
-        // click the link edit button
         await click(".o_we_edit_link");
-        // check that MenuDialog is open and that name and url have been passed correctly
         await waitFor(".o_website_dialog");
         expect("input.form-control:not(#url_input)").toHaveValue("Top Menu Item");
         expect("#url_input").toHaveValue("exists");
@@ -277,16 +266,13 @@ describe("EditMenuDialog", () => {
         }));
 
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(0);
-        // open navbar link popover
         setSelection({
             anchorNode: el.querySelector(".nav-link > span"),
             anchorOffset: 0,
         });
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover:has(button.js_edit_menu)").toHaveCount(1);
-        // click on edit menu button
         await click(".js_edit_menu");
-        // check that EditMenuDialog is open with correct values
         await waitFor(".o_website_dialog");
         expect(".oe_menu_editor").toHaveCount(1);
         expect(".js_menu_label").toHaveText("Top Menu Item");
@@ -329,8 +315,6 @@ describe("EditMenuDialog", () => {
 
     test("clicking save in the EditMenuDialog should not clear the editor changes", async () => {
         const { getEditor } = await setupWebsiteBuilder(
-            // Using tel: as link to avoid having to mock fetching metadata for link preview
-            // This does not influence the test in any way
             `<ul class="top_menu">
                 <li>
                     <a class="nav-link" href="tel: 123" contenteditable="true">
@@ -361,19 +345,16 @@ describe("EditMenuDialog", () => {
 
         const editor = getEditor();
 
-        // add some text
         const p = queryOne(":iframe section > p");
         setSelection({ anchorNode: p, anchorOffset: 0 });
         await insertText(editor, "EDITED ");
         expect(p).toHaveInnerHTML("EDITED TEXT");
 
-        // open navbar link popover
         setSelection({
             anchorNode: queryOne(":iframe .nav-link > span"),
             anchorOffset: 0,
         });
 
-        // open menu editor and save
         await waitFor(".o-we-linkpopover");
         await click(queryOne("button.js_edit_menu"));
         await waitFor("footer.modal-footer");
@@ -383,10 +364,6 @@ describe("EditMenuDialog", () => {
     });
 
     describe("should suggest to create the page if it does not exists", () => {
-        // NOTE: we use `window.location.origin` as this is what is used by
-        // `isAbsoluteURLInCurrentDomain` to tell it is the same domain. If we
-        // simply use a relative url, the logic in `urlToCheck` incorrectly
-        // consider the url to be external because it is confused by the mocks
         const topMenuUrl = new URL("/top-menu-url", window.location.origin).toString();
         const sampleMenuData = {
             fields: {
@@ -464,8 +441,6 @@ describe("EditMenuDialog", () => {
                         builder.getEditableContent().ownerDocument;
                 },
                 onClickOk() {
-                    // little lie to avoid calling `toRelativeIfSameDomain`,
-                    // so that we still have the absolute url (see NOTE above)
                     this.props.isMegaMenu = true;
                     super.onClickOk();
                     this.props.isMegaMenu = false;
@@ -490,7 +465,6 @@ describe("EditMenuDialog", () => {
 
             expect("button:contains('Create Page')").toHaveCount(0);
             deferred.resolve();
-            // the request is done again by "Edit Menu"
             await expect.waitForSteps(["check existing"]);
             await animationFrame();
             expect("button:contains('Create Page')").toHaveCount(1);

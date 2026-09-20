@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { localization } from "@web/core/l10n/localization";
-import { useService } from "@web/core/utils/hooks";
-import { Component, useState } from "@odoo/owl";
-
 import { AccountReportEllipsisPopover } from "@account/components/account_report/ellipsis/popover/ellipsis_popover";
+import { Component, useState } from "@odoo/owl";
+import { localization } from "@web/core/l10n/localization";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 
 export class AccountReportEllipsis extends Component {
     static template = "account.AccountReportEllipsis";
@@ -25,7 +24,9 @@ export class AccountReportEllipsis extends Component {
     // Ellipsis
     //------------------------------------------------------------------------------------------------------------------
     get triggersEllipsis() {
-        if (this.props.name) return this.props.name.length > this.props.maxCharacters;
+        if (this.props.name) {
+            return this.props.name.length > this.props.maxCharacters;
+        }
 
         return false;
     }

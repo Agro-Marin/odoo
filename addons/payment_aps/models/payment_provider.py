@@ -17,27 +17,27 @@ class PaymentProvider(models.Model):
     )
     aps_merchant_identifier = fields.Char(
         string="APS Merchant Identifier",
-        help="The code of the merchant account to use with this provider.",
-        required_if_provider="aps",
         copy=False,
+        required_if_provider="aps",
+        help="The code of the merchant account to use with this provider.",
     )
     aps_access_code = fields.Char(
         string="APS Access Code",
-        help="The access code associated with the merchant account.",
-        required_if_provider="aps",
         copy=False,
+        required_if_provider="aps",
         groups="base.group_system",
+        help="The access code associated with the merchant account.",
     )
     aps_sha_request = fields.Char(
         string="APS SHA Request Phrase",
-        required_if_provider="aps",
         copy=False,
+        required_if_provider="aps",
         groups="base.group_system",
     )
     aps_sha_response = fields.Char(
         string="APS SHA Response Phrase",
-        required_if_provider="aps",
         copy=False,
+        required_if_provider="aps",
         groups="base.group_system",
     )
 
@@ -58,7 +58,7 @@ class PaymentProvider(models.Model):
         else:  # 'test'
             return "https://sbcheckout.payfort.com/FortAPI/paymentPage"
 
-    def _aps_calculate_signature(self, data, incoming=True):
+    def _get_aps_signature(self, data, incoming=True):
         """Compute the signature for the provided data according to the APS documentation.
 
         :param dict data: The data to sign.
@@ -71,5 +71,5 @@ class PaymentProvider(models.Model):
             [f"{k}={v}" for k, v in sorted(data.items()) if k != "signature"]
         )
         key = self.aps_sha_response if incoming else self.aps_sha_request
-        signing_string = "".join([key, sign_data, key])
+        signing_string = key + sign_data + key
         return hashlib.sha256(signing_string.encode()).hexdigest()

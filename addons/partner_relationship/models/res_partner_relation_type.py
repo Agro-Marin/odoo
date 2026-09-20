@@ -16,8 +16,14 @@ class ResPartnerRelationType(models.Model):
     _description = "Partner Relationship Type"
     _order = "category, sequence, id"
 
-    code = fields.Char(required=True, copy=False)
-    name = fields.Char(required=True, translate=True)
+    code = fields.Char(
+        copy=False,
+        required=True,
+    )
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     name_inverse = fields.Char(translate=True)
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
@@ -29,15 +35,19 @@ class ResPartnerRelationType(models.Model):
 
     is_symmetric = fields.Boolean(
         help="The relationship reads the same from both ends: sibling, cousin,"
-        " compadre, business partner.",
+        " compadre, business partner."
     )
     is_antisymmetric = fields.Boolean(
         help="The relationship cannot hold in both directions: if one contact is"
         " the parent of another, the reverse is impossible. Leave off for a tie"
         " that can genuinely be mutual, such as cross-shareholding or a"
-        " reciprocal guarantee.",
+        " reciprocal guarantee."
     )
-    category = fields.Selection(CATEGORY_SELECTION, required=True, default="blood")
+    category = fields.Selection(
+        selection=CATEGORY_SELECTION,
+        default="blood",
+        required=True,
+    )
     degree = fields.Integer(
         default=0,
         help="Civil-law kinship distance. Zero for a tie that carries no"

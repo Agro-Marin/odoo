@@ -10,6 +10,10 @@ from typing import Any
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 class InvalidVapidError(Exception):
     pass
@@ -86,4 +90,7 @@ def sign(claims: dict[str, Any], key: str, ttl: int, algorithm: Algorithm) -> st
     if not ttl:
         raise ValueError("A JWT requires a non-zero ttl for its 'exp' claim.")
     claims = {**claims, "exp": int(time.time()) + ttl}
+    _debug.logic(
+        "jwt_signed", algorithm=algorithm.value, ttl=ttl, claims=sorted(claims)
+    )
     return _generate_jwt(claims, non_padded_key, algorithm=algorithm)

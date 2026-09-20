@@ -4,6 +4,9 @@
     <record id="mojeracun_reject_wizard_form" model="ir.ui.view">
         <field name="name">l10n_hr_edi.mojeracun_reject_wizard.form</field>
         <field name="model">l10n_hr_edi.mojeracun_reject_wizard</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_manager'))]" />
         <field name="arch" type="xml">
             <form>
                 <sheet>
@@ -21,15 +24,12 @@
                 <footer>
                     <button
                         name="button_reject_invoice"
-                        string="Reject invoice"
                         type="object"
+                        string="Reject invoice"
                         class="btn-primary" />
                 </footer>
             </form>
         </field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_manager'))]" />
     </record>
 
 </odoo>

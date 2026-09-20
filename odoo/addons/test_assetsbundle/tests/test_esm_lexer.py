@@ -106,7 +106,27 @@ class TestLexerWorkerDegradation(BaseCase):
             self.skipTest("es-module-lexer worker unavailable (npm install?)")
         self.assertEqual([imp["n"] for imp in response["imports"]], ["@x/y"])
         self.assertEqual(response["starFrom"], ["@x/z"])
+        self.assertEqual(response["reexports"], [{"n": "@x/z", "kind": "star"}])
         self.assertIn("b", response["names"])
+
+    @unittest.skipUnless(shutil.which("node"), "node binary not available")
+    def test_the_worker_types_every_re_export_form(self):
+        response = self._worker().request(
+            "export { a } from '@x/named';\n"
+            "export { default as d } from '@x/dflt';\n"
+            "export * as ns from '@x/ns';\n"
+        )
+        if response is None:
+            self.skipTest("es-module-lexer worker unavailable (npm install?)")
+        self.assertEqual(
+            response["reexports"],
+            [
+                {"n": "@x/named", "kind": "named"},
+                {"n": "@x/dflt", "kind": "default"},
+                {"n": "@x/ns", "kind": "star"},
+            ],
+        )
+        self.assertEqual(response["imports"], [], "a re-export is not an import")
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_union_of_both_lists_is_what_discovery_uses(self):

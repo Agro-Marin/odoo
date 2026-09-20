@@ -1,3 +1,5 @@
+from psycopg import IntegrityError
+
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, tagged
@@ -39,20 +41,17 @@ class TestPartyDelegation(TransactionCase):
         )
         self.assertEqual(self.env.cr.fetchone()[0], 0)
 
-    def test_linking_a_user_leaves_a_squatter_with_a_fresh_party(self):
+    def test_an_employee_on_a_users_contact_is_that_users(self):
         user = self.env["res.users"].create(
             {"name": "Party User", "login": "party_user"}
         )
-        squatter = self.env["hr.employee"].create(
-            {"name": "Party Squatter", "partner_id": user.partner_id.id}
+        employee = self.env["hr.employee"].create(
+            {"name": "Party User", "partner_id": user.partner_id.id}
         )
-        owner = self.env["hr.employee"].create(
-            {"name": "Party Owner", "user_id": user.id}
-        )
-        self.assertEqual(owner.partner_id, user.partner_id)
-        self.assertTrue(squatter.partner_id)
-        self.assertNotEqual(squatter.partner_id, user.partner_id)
-        self.assertEqual(squatter.partner_id.name, "Party Squatter")
+        self.assertEqual(employee.user_id, user)
+        self.assertEqual(employee.resource_id.user_id, user)
+        with self.assertRaises(IntegrityError), self.cr.savepoint():
+            self.env["hr.employee"].create({"name": "Party Owner", "user_id": user.id})
 
     def test_a_user_rename_reaches_the_employee_without_a_sync(self):
         user = self.env["res.users"].create(
@@ -75,13 +74,12 @@ class TestPartyDelegation(TransactionCase):
                 "tz": "Asia/Tokyo",
             }
         )
+        work_zone = employee.tz
         employee.user_id = user
         self.assertEqual(employee.resource_id.partner_id, user.partner_id)
-        self.assertEqual(employee.tz, "Asia/Tokyo")
+        self.assertEqual(employee.tz, work_zone)
 
-    def test_a_timezone_written_on_the_employee_reaches_the_user_through_the_party(
-        self,
-    ):
+    def test_a_work_zone_written_on_the_employee_leaves_the_user_display_zone(self):
         user = self.env["res.users"].create(
             {"name": "Party TZ", "login": "party_tz", "tz": "UTC"}
         )
@@ -89,7 +87,7 @@ class TestPartyDelegation(TransactionCase):
             {"name": "Party TZ", "user_id": user.id}
         )
         employee.tz = "America/Mexico_City"
-        self.assertEqual(user.tz, "America/Mexico_City")
+        self.assertEqual(user.tz, "UTC")
         self.assertEqual(employee.resource_id.tz, "America/Mexico_City")
 
     def test_the_work_channels_are_the_partys(self):

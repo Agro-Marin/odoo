@@ -5,7 +5,7 @@
         <field name="name">sale.report.view.graph.slides</field>
         <field name="model">sale.report</field>
         <field name="arch" type="xml">
-            <graph string="eLearning Sales Analysis" type="line" sample="1">
+            <graph type="line" string="eLearning Sales Analysis" sample="1">
                 <field name="date_order" interval="day" />
                 <field name="price_total" type="measure" />
             </graph>

@@ -15,7 +15,7 @@ class TestPaymentTransaction(FlutterwaveCommon):
     )  # Freeze time for consistent singularization behavior.
     def test_reference_is_singularized(self):
         """Test that transaction references are unique at the provider level."""
-        reference = self.env["payment.transaction"]._compute_reference(
+        reference = self.env["payment.transaction"]._get_unique_reference(
             self.flutterwave.code
         )
         self.assertEqual(reference, "tx-20111102120021")
@@ -27,7 +27,7 @@ class TestPaymentTransaction(FlutterwaveCommon):
             "odoo.addons.payment.models.payment_provider.PaymentProvider._send_api_request",
             return_value={"link": "https://dummy.com"},
         ):
-            rendering_values = tx._get_specific_rendering_values(None)
+            rendering_values = tx._prepare_redirect_form_values(None)
         self.assertDictEqual(rendering_values, {"api_url": "https://dummy.com"})
 
     @mute_logger("odoo.addons.payment.models.payment_transaction")
@@ -36,10 +36,10 @@ class TestPaymentTransaction(FlutterwaveCommon):
         tx = self._create_transaction(flow="redirect")
         with patch(
             "odoo.addons.payment_flutterwave.models.payment_transaction.PaymentTransaction"
-            "._get_specific_rendering_values",
+            "._prepare_redirect_form_values",
             return_value={"api_url": "https://dummy.com"},
         ):
-            processing_values = tx._get_processing_values()
+            processing_values = tx._prepare_processing_values()
         form_info = self._extract_values_from_html_form(
             processing_values["redirect_form_html"]
         )

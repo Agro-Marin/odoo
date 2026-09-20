@@ -22,10 +22,8 @@ patch(ComboConfiguratorDialog.prototype, {
     },
 
     /**
-     * Check whether the provided combo quantity can be added to the cart.
-     *
-     * @param {Number} quantity The quantity to check.
-     * @return {Boolean} Whether the combo quantity can be added to the cart.
+     * @param {Number} quantity
+     * @return {Boolean}
      */
     isComboQuantityAllowed(quantity) {
         return this._selectedComboItems.every((comboItem) =>

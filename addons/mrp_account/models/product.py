@@ -1,5 +1,8 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_round
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
@@ -63,7 +66,7 @@ class ProductProduct(models.Model):
         self.check_singleton()
         bom = self.env["mrp.bom"]._get_bom_by_product(self)[self]
         if bom:
-            self.standard_price = self._compute_bom_price(
+            self.standard_price = self._get_bom_price(
                 bom, boms_to_recompute=boms_to_recompute
             )
         else:
@@ -73,15 +76,16 @@ class ProductProduct(models.Model):
                 limit=1,
             )
             if bom:
-                price = self._compute_bom_price(
+                price = self._get_bom_price(
                     bom, boms_to_recompute=boms_to_recompute, byproduct_bom=True
                 )
                 if price:
                     self.standard_price = price
 
-    def _compute_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
+    def _get_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
         self.check_singleton()
         if not bom:
+            _debug.logic("bom_price", product=self.id, by="no_bom")
             return 0
         if not boms_to_recompute:
             boms_to_recompute = []
@@ -97,18 +101,18 @@ class ProductProduct(models.Model):
                 continue
 
             if line.child_bom_id and line.child_bom_id in boms_to_recompute:
-                child_total = line.product_id._compute_bom_price(
+                child_total = line.product_id._get_bom_price(
                     line.child_bom_id, boms_to_recompute=boms_to_recompute
                 )
                 total += (
-                    line.product_id.uom_id._compute_price(
+                    line.product_id.uom_id._get_price_in_unit(
                         child_total, line.product_uom_id
                     )
                     * line.product_qty
                 )
             else:
                 total += (
-                    line.product_id.uom_id._compute_price(
+                    line.product_id.uom_id._get_price_in_unit(
                         line.product_id.standard_price, line.product_uom_id
                     )
                     * line.product_qty
@@ -119,10 +123,18 @@ class ProductProduct(models.Model):
             )
             product_uom_qty = 0
             for line in byproduct_lines:
-                product_uom_qty += line.product_uom_id._compute_quantity(
+                product_uom_qty += line.product_uom_id._get_quantity_in_unit(
                     line.product_qty, self.uom_id, round=False
                 )
             byproduct_cost_share = sum(byproduct_lines.mapped("cost_share"))
+            _debug.logic(
+                "bom_price",
+                product=self.id,
+                bom=bom.id,
+                by="byproduct_share",
+                total=total,
+                share=byproduct_cost_share,
+            )
             if byproduct_cost_share and product_uom_qty:
                 return total * byproduct_cost_share / 100 / product_uom_qty
         else:
@@ -131,7 +143,15 @@ class ProductProduct(models.Model):
                 total *= float_round(
                     1 - byproduct_cost_share / 100, precision_rounding=0.0001
                 )
-            return bom.product_uom_id._compute_price(
+            _debug.logic(
+                "bom_price",
+                product=self.id,
+                bom=bom.id,
+                by="rolled_up",
+                total=total,
+                byproduct_share=byproduct_cost_share,
+            )
+            return bom.product_uom_id._get_price_in_unit(
                 total / bom.product_qty, self.uom_id
             )
         return 0.0
@@ -149,8 +169,8 @@ class ProductCategory(models.Model):
     _inherit = "product.category"
 
     property_stock_account_production_cost_id = fields.Many2one(
-        "account.account",
-        "Production Account",
+        comodel_name="account.account",
+        string="Production Account",
         company_dependent=True,
         ondelete="restrict",
         check_company=True,

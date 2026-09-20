@@ -17,7 +17,7 @@ def _trace_targets():
     return [
         (modules_db, "initialize", "db.initialize"),
         (loading, "load_module_graph", "load_module_graph"),
-        (Registry, "_setup_models__", "setup_models"),
+        (Registry, "setup_models", "setup_models"),
         (Registry, "init_models", "init_models"),
         (Registry, "finalize_constraints", "finalize_constraints"),
         (Registry, "check_null_constraints", "check_null_constraints"),

@@ -1,7 +1,5 @@
 from datetime import UTC, datetime, timedelta
 
-import requests
-
 from odoo import _, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -31,14 +29,16 @@ class ResConfigSettings(models.TransientModel):
     )
     # Application Registry Info
     cloud_storage_azure_tenant_id = fields.Char(
-        string="Azure Tenant ID", config_parameter="cloud_storage_azure_tenant_id"
+        string="Azure Tenant ID",
+        config_parameter="cloud_storage_azure_tenant_id",
     )
     cloud_storage_azure_client_id = fields.Char(
-        string="Azure Client ID", config_parameter="cloud_storage_azure_client_id"
+        string="Azure Client ID",
+        config_parameter="cloud_storage_azure_client_id",
     )
     cloud_storage_azure_client_secret = fields.Char(
         string="Azure Client Secret",
-        config_parameter="cloud_storage_azure_client_secret",
+        secret_parameter="cloud_storage_azure_client_secret",
     )
     cloud_storage_azure_invalidate_user_delegation_key = fields.Boolean(
         string="Invalidate Cached Azure User Delegation Key",
@@ -55,7 +55,9 @@ class ResConfigSettings(models.TransientModel):
             "account_name": ICP.get_param("cloud_storage_azure_account_name"),
             "tenant_id": ICP.get_param("cloud_storage_azure_tenant_id"),
             "client_id": ICP.get_param("cloud_storage_azure_client_id"),
-            "client_secret": ICP.get_param("cloud_storage_azure_client_secret"),
+            "client_secret": self.env["credential.credential"]._get_system_secret(
+                "cloud_storage_azure_client_secret"
+            ),
         }
         return configuration if all(configuration.values()) else {}
 
@@ -78,8 +80,13 @@ class ResConfigSettings(models.TransientModel):
         upload_url = self.env["ir.attachment"]._generate_cloud_storage_azure_sas_url(
             **blob_info, permission="c", expiry=upload_expiry
         )
-        upload_response = requests.put(
-            upload_url, data=b"", headers={"x-ms-blob-type": "BlockBlob"}, timeout=5
+        upload_response = self.env["ir.egress"].request(
+            "PUT",
+            upload_url,
+            purpose="cloud_storage",
+            data=b"",
+            headers={"x-ms-blob-type": "BlockBlob"},
+            timeout=5,
         )
         if upload_response.status_code != 201:
             raise ValidationError(
@@ -96,7 +103,9 @@ class ResConfigSettings(models.TransientModel):
         download_url = self.env["ir.attachment"]._generate_cloud_storage_azure_sas_url(
             **blob_info, permission="r", expiry=download_expiry
         )
-        download_response = requests.get(download_url, timeout=5)
+        download_response = self.env["ir.egress"].request(
+            "GET", download_url, purpose="cloud_storage", timeout=5
+        )
         if download_response.status_code != 200:
             raise ValidationError(
                 _(

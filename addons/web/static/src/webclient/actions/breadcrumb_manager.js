@@ -15,7 +15,16 @@ import { actionStorage } from "./action_storage.js";
  * @returns {boolean}
  */
 export function isMenuController(action) {
-    return action?.tag === "menu" || action?.id === "menu";
+    return action?.tag === "menu";
+}
+
+/**
+ * @param {{ id?: any, path?: string, tag?: string }} action
+ * @param {string | number} key
+ * @returns {boolean}
+ */
+function actionAnswersTo(action, key) {
+    return [action.id, action.path, action.tag].includes(key);
 }
 
 /**
@@ -251,8 +260,6 @@ export async function controllersFromState(state, am) {
                 controller.currentState
             );
             if (actionState.action) {
-                controller.action.id = actionState.action;
-
                 const [actionRequestKey, clientAction] = resolveClientAction(
                     actionState.action,
                 );
@@ -263,6 +270,10 @@ export async function controllersFromState(state, am) {
                     controller.action.tag = actionRequestKey;
                     controller.action.type = "ir.actions.client";
                     controller.displayName = clientAction.displayName?.toString();
+                } else if (typeof actionState.action === "number") {
+                    controller.action.id = actionState.action;
+                } else {
+                    controller.action.path = actionState.action;
                 }
                 if (actionState.active_id) {
                     controller.action.context = {
@@ -288,7 +299,8 @@ export async function controllersFromState(state, am) {
     if (
         state.action &&
         state.resId &&
-        controllers.at(-1)?.action?.id === state.action
+        controllers.length &&
+        actionAnswersTo(controllers.at(-1).action, state.action)
     ) {
         const bcControllers = await loadBreadcrumbs(
             controllers.slice(0, -1),

@@ -7,8 +7,6 @@ from odoo.addons.payment import utils as payment_utils
 
 @tagged("post_install", "-at_install")
 class TestDonationPortal(HttpCase):
-    """Public donation form and transaction route guards."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -56,13 +54,11 @@ class TestDonationPortal(HttpCase):
         }
 
     def test_donation_form_renders_for_public(self):
-        """The public donation page renders with the default amount."""
         res = self.url_open("/donation/pay")
         self.assertEqual(res.status_code, 200)
         self.assertIn("donation", res.text.lower())
 
     def test_donation_below_minimum_is_rejected(self):
-        """An amount under the snippet minimum raises the validation."""
         reply = self._donation_rpc(50, self._base_params(10.0))
         self.assertIn("error", reply)
         self.assertIn(
@@ -71,28 +67,24 @@ class TestDonationPortal(HttpCase):
         )
 
     def test_donation_requires_name(self):
-        """A public donor without name is rejected."""
         params = self._base_params(30.0)
         params["partner_details"]["name"] = ""
         reply = self._donation_rpc(0, params)
         self.assertIn("Name is required", reply["error"]["data"]["message"])
 
     def test_donation_requires_email(self):
-        """A public donor without email is rejected."""
         params = self._base_params(30.0)
         params["partner_details"]["email"] = ""
         reply = self._donation_rpc(0, params)
         self.assertIn("Email is required", reply["error"]["data"]["message"])
 
     def test_donation_requires_country(self):
-        """A public donor without country is rejected."""
         params = self._base_params(30.0)
         params["partner_details"]["country_id"] = False
         reply = self._donation_rpc(0, params)
         self.assertIn("Country is required", reply["error"]["data"]["message"])
 
     def test_public_donation_creates_transaction(self):
-        """The public flow creates a donation tx carrying the donor details."""
         reply = self._donation_rpc(0, self._base_params(40.0))
         self.assertNotIn("error", reply, reply.get("error"))
         self.assertIn("reference", reply["result"])

@@ -2,7 +2,6 @@ import enum
 import typing
 from collections.abc import Collection, Mapping
 from collections.abc import Set as AbstractSet
-from typing import Self
 
 from odoo.libs.sql import SQL
 
@@ -43,6 +42,8 @@ class NewId:
     def __hash__(self) -> int:
         return self.__hash
 
+    # a total order in which a NewId sorts right after its origin and every
+    # NewId without one sorts last: n < NewId(origin=n) < n + 1 < NewId()
     def __lt__(self, other: object) -> bool:
         if isinstance(other, NewId):
             s, o = self.origin, other.origin
@@ -213,6 +214,8 @@ SQL_OPERATORS = {
     "not ilike": SQL(" NOT ILIKE "),
     "not =like": SQL(" NOT LIKE "),
     "not =ilike": SQL(" NOT ILIKE "),
+    "=~": SQL(" ~ "),
+    "not =~": SQL(" !~ "),
 }
 
 
@@ -267,6 +270,5 @@ __all__ = [
     "ContextType",
     "IdType",
     "NewId",
-    "Self",
     "ValuesType",
 ]

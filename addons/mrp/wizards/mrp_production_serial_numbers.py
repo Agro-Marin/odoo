@@ -1,25 +1,34 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpProductionSerials(models.TransientModel):
     _name = "mrp.production.serials"
     _description = "Assign serial numbers to production order"
 
-    production_id = fields.Many2one("mrp.production", "Production")
+    production_id = fields.Many2one(comodel_name="mrp.production")
 
-    workorder_id = fields.Many2one("mrp.workorder", "Workorder")
+    workorder_id = fields.Many2one(comodel_name="mrp.workorder")
 
     lot_name = fields.Char(
-        "First SN", compute="_compute_serial_defaults", store=True, readonly=False
+        string="First SN",
+        compute="_compute_serial_defaults",
+        store=True,
+        readonly=False,
     )
     lot_quantity = fields.Integer(
-        "Number of SN", compute="_compute_lot_quantity", store=True, readonly=False
+        string="Number of SN",
+        compute="_compute_lot_quantity",
+        store=True,
+        readonly=False,
     )
 
     serial_numbers = fields.Text(
-        "Produced Serial Numbers",
+        string="Produced Serial Numbers",
         compute="_compute_serial_defaults",
         store=True,
         readonly=False,
@@ -72,6 +81,9 @@ class MrpProductionSerials(models.TransientModel):
         self.check_singleton()
         lots = self._get_or_create_lots()
 
+        _debug.pipeline(
+            "serials_split", production=self.production_id.id, lots=len(lots)
+        )
         split_amounts = {self.production_id: [1] * len(lots)}
         mos = self.production_id._split_productions(amounts=split_amounts)
         for mo, serial in zip(mos[: len(lots)], lots, strict=True):
@@ -81,6 +93,7 @@ class MrpProductionSerials(models.TransientModel):
     def action_apply(self):
         self.check_singleton()
         lots = self._get_or_create_lots()
+        _debug.lifecycle("serials_applied", production=self.production_id.id, lots=lots)
         self.production_id.lot_producing_ids = lots
         if self.production_id.qty_producing != len(
             self.production_id.lot_producing_ids
@@ -106,9 +119,11 @@ class MrpProductionSerials(models.TransientModel):
     def _get_or_create_lots(self):
         self.check_singleton()
         if not self.serial_numbers:
+            _debug.logic("serials_refused", reason="none_entered", wizard=self.id)
             raise UserError(self.env._("There is no serial numbers to apply."))
         lots = self._get_names_from_serial_numbers()
         if not lots:
+            _debug.logic("serials_refused", reason="none_valid", wizard=self.id)
             raise UserError(self.env._("No valid serial numbers provided."))
         existing_lots = (
             self.env["stock.lot"]
@@ -141,4 +156,11 @@ class MrpProductionSerials(models.TransientModel):
                 }
             )
         new_lots = self.env["stock.lot"].create(new_lots_vals)
+        _debug.lifecycle(
+            "serial_lots_resolved",
+            production=self.production_id.id,
+            wanted=len(lots),
+            existing=len(existing_lots),
+            created=len(new_lots),
+        )
         return existing_lots + new_lots

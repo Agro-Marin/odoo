@@ -11,9 +11,7 @@ patch(Product, {
 
 patch(Product.prototype, {
     /**
-     * Check whether this product is out of stock.
-     *
-     * @return {Boolean} - Whether this product is out of stock.
+     * @return {Boolean}
      */
     isOutOfStock() {
         return !this.env.isQuantityAllowed(this.props, 1);

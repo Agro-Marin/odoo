@@ -24,7 +24,7 @@ class PurchaseOrder(models.Model):
     """
 
     grid_product_tmpl_id = fields.Many2one(
-        "product.template",
+        comodel_name="product.template",
         store=False,
         help="Technical field for product_matrix functionalities.",
     )
@@ -194,15 +194,16 @@ class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
     product_template_id = fields.Many2one(
-        "product.template",
-        string="Product Template",
+        comodel_name="product.template",
         related="product_id.product_tmpl_id",
+        string="Product Template",
         domain=[("purchase_ok", "=", True)],
     )
     is_configurable_product = fields.Boolean(
-        "Is the product configurable?",
         related="product_template_id.has_configurable_attributes",
+        string="Is the product configurable?",
     )
     product_template_attribute_value_ids = fields.Many2many(
-        related="product_id.product_template_attribute_value_ids", readonly=True
+        related="product_id.product_template_attribute_value_ids",
+        readonly=True,
     )

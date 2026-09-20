@@ -9,8 +9,8 @@
             <button name="action_coupon_send" position="after">
                 <button
                     name="action_coupon_share"
-                    string="Share"
                     type="object"
+                    string="Share"
                     icon="fa-share-alt" />
             </button>
         </field>

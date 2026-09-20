@@ -131,12 +131,12 @@ Top-level layout (detailed maps are separate docs):
 
 | Path | Contents | Map |
 |------|----------|-----|
-| `controllers/` | 7 `.py` — 8 Controller classes (public pages, sitemap, form builder, model pages, dashboard) | `ROUTE_MAP.md` |
+| `controllers/` | 9 `.py` — 8 Controller classes, with the SEO and theme routes as mixins of `Website` in `seo.py` and `theme.py` (public pages, sitemap, form builder, model pages, dashboard) | `ROUTE_MAP.md` |
 | `models/` | 45 `.py` — 63 model classes (website, mixins, pages/menus, framework extensions, themes, visitors) | `MODEL_MAP.md` |
 | `wizards/` | 4 `.py` + XML — transient wizards (robots, blocked domains, language install, portal) | `MODEL_MAP.md` |
-| `static/src/` | 346 JS across 142 directories (two runtimes) | `DIRECTORY_MAP.md` |
-| `static/tests/` | 218 `.js` (HOOT suites + 86 tours) | `TEST_TAGS.md` |
-| `tests/` | 47 Python test files | `TEST_TAGS.md` |
+| `static/src/` | 348 JS across 142 directories (two runtimes) | `DIRECTORY_MAP.md` |
+| `static/tests/` | 225 `.js` (HOOT suites + 86 tours) | `TEST_TAGS.md` |
+| `tests/` | 51 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | QWeb templates, ~66 `s_*` snippet templates, fixtures, ACLs, translations | — |
 | `doc/` | `website.snippet.rst` (snippet authoring guide) | — |
 
@@ -156,7 +156,7 @@ per-directory table.
 | **Components** | `components/` | backend | Editor dialogs (add-page, edit-menu, SEO, page-properties), backend fields, page/theme views, media/resource editors, loaders. |
 | **Services** | `services/` | backend | `website_service.js` (reactive backend state), `website_custom_menus.js`. |
 | **Common** | `common/` | both | Mail `Record` models (`Website`, `WebsiteVisitor`) shared public + backend. |
-| **Utils** | `utils/`, `js/` | both | `images.js`, `videos.js`, `misc.js` (EventBus, UTM); `text_processing.js`, `highlight_utils.js`, `http_cookie.js`. |
+| **Utils** | `utils/`, `js/` | both | `google_maps.js` (shared public/editor API loader), `images.js`, `videos.js`, `misc.js` (EventBus, UTM); `text_processing.js`, `highlight_utils.js`, `http_cookie.js`. |
 
 ## Asset Bundles
 
@@ -207,13 +207,13 @@ recolor the whole UI:
 
 | Category | Count |
 |----------|-------|
-| Python (controllers) | 7 files (8 Controller classes; `__init__.py` has no routes) |
+| Python (controllers) | 9 files (8 Controller classes; `__init__.py` has no routes) |
 | Python (models) | 45 files (63 model classes) |
 | Python (wizard) | 4 `.py` + XML |
-| Python (tests) | 47 |
-| JavaScript (src) | 346 across 142 directories |
-| JavaScript (`.edit.js` variants) | 31 |
-| JavaScript (tests) | 217 (incl. 86 tours) |
+| Python (tests) | 51 |
+| JavaScript (src) | 348 across 142 directories |
+| JavaScript (`.edit.js` variants) | 32 |
+| JavaScript (tests) | 225 (incl. 86 tours) |
 | SCSS | 153 |
 | Snippet template dirs (`s_*`) | 66 |
 | Route handlers / URL variants | 57 / 70 |

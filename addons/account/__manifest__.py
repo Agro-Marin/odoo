@@ -1,6 +1,6 @@
 {
     "name": "Invoicing",
-    "version": "1.18",
+    "version": "1.25",
     "category": "Accounting/Accounting",
     "sequence": 10,
     "summary": "Invoices & Payments",
@@ -123,7 +123,6 @@ You could use this simplified accounting in case you work with an (external) acc
         "wizards/account_auto_reconcile_wizard_views.xml",
         "wizards/account_reconcile_wizard_views.xml",
         "views/account_reconcile_menus.xml",
-        # --- folded from account_reports ---
         "security/account_reports_security.xml",
         "data/pdf_export_templates.xml",
         "data/customer_reports_pdf_export_templates.xml",
@@ -171,8 +170,8 @@ You could use this simplified accounting in case you work with an (external) acc
         "views/account_return_check_template_views.xml",
         "views/account_audit_views.xml",
         "data/account_return_data.xml",
-        "data/menuitems.xml",
         "data/account_return_check_template.xml",
+        "data/menuitems.xml",
     ],
     "demo": [
         "demo/account_demo.xml",
@@ -180,12 +179,18 @@ You could use this simplified accounting in case you work with an (external) acc
     ],
     "assets": {
         "account.assets_pdf_export": [
-            ("include", "web._assets_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "web/static/fonts/fonts.scss",
             "web/static/src/webclient/actions/reports/report_paged_media.css",
             "account/static/src/scss/**/*",
@@ -213,7 +218,6 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/tours/*",
             "account/static/src/js/search/search_bar/search_bar.js",
             "account/static/src/helpers/*.js",
-            # --- folded from account_reports ---
             "account/static/src/js/**/*",
             "account/static/src/widgets/**/*",
             "account/static/src/scss/account_return.scss",
@@ -225,7 +229,6 @@ You could use this simplified accounting in case you work with an (external) acc
                 "remove",
                 "account/static/tests/tours/**/*",
             ),
-            # --- folded from account_reports ---
             "account/static/tests/*.js",
             "account/static/tests/account_report/**/*.js",
         ],
@@ -238,26 +241,21 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/tours/tour_utils.js",
             "account/static/src/js/tours/account.js",
             "account/static/tests/tours/**/*",
-            # --- folded from account_reports ---
         ],
         "web.report_assets_common": [
             "account/static/src/css/report_invoice.css",
-            # --- folded from account_reports ---
             "account/static/src/scss/account_pdf_export_template.scss",
         ],
         "web.report_assets_pdf": [
             "account/static/src/css/report_invoice.css",
         ],
     },
-    "installable": True,
-    "application": True,
     "esm": {
-        # ESM/esbuild bundle taxonomy -- aggregated and validated by
-        # odoo.libs.esm_registry (see its docstring for the schema).
         "bundles": [
             "account.assets_financial_report",
             "account.assets_pdf_export",
         ],
     },
+    "application": True,
     "post_init_hook": "_account_post_init",
 }

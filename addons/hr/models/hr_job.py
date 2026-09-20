@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 from odoo.addons.html_editor.tools import handle_history_divergence
 
@@ -12,57 +13,66 @@ class HrJob(models.Model):
 
     active = fields.Boolean(default=True)
     name = fields.Char(
-        string="Job Position", required=True, index="trigram", translate=True
+        string="Job Position",
+        translate=True,
+        index="trigram",
+        required=True,
     )
     sequence = fields.Integer(default=10)
     expected_employees = fields.Integer(
-        compute="_compute_employee_counts",
         string="Total Forecasted Employees",
-        help="Expected number of employees for this job position after new recruitment.",
+        compute="_compute_employee_counts",
         groups="hr.group_hr_user",
+        help="Expected number of employees for this job position after new recruitment.",
     )
     no_of_employee = fields.Integer(
-        compute="_compute_employee_counts",
         string="Current Number of Employees",
-        help="Number of employees currently occupying this job position.",
+        compute="_compute_employee_counts",
         groups="hr.group_hr_user",
+        help="Number of employees currently occupying this job position.",
     )
     no_of_recruitment = fields.Integer(
         string="Target",
+        default=1,
         copy=False,
         help="Number of new employees you expect to recruit.",
-        default=1,
     )
     employee_ids = fields.One2many(
-        "hr.employee", "job_id", string="Employees", groups="base.group_user"
+        comodel_name="hr.employee",
+        inverse_name="job_id",
+        string="Employees",
+        groups="base.group_user",
     )
-    description = fields.Html(string="Job Description", sanitize_attributes=False)
-    requirements = fields.Text("Requirements", groups="hr.group_hr_user")
+    description = fields.Html(
+        string="Job Description",
+        sanitize_attributes=False,
+    )
+    requirements = fields.Text(groups="hr.group_hr_user")
     user_id = fields.Many2one(
-        "res.users",
-        "Recruiter",
-        domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
+        comodel_name="res.users",
+        string="Recruiter",
         default=lambda self: self.env.user,
-        groups="hr.group_hr_user",
+        domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
         tracking=True,
+        groups="hr.group_hr_user",
         help="The Recruiter will be the default value for all Applicants in this job \
             position. The Recruiter is automatically added to all meetings with the Applicant.",
     )
     department_id = fields.Many2one(
-        "hr.department",
-        string="Department",
+        comodel_name="hr.department",
+        index="btree_not_null",
         check_company=True,
         tracking=True,
-        index="btree_not_null",
     )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
         tracking=True,
     )
     contract_type_id = fields.Many2one(
-        "hr.contract.type", string="Employment Type", tracking=True
+        comodel_name="hr.contract.type",
+        string="Employment Type",
+        tracking=True,
     )
 
     _name_src_uniq = name_uniq_index(
@@ -82,6 +92,7 @@ class HrJob(models.Model):
         "The expected number of new employees must be positive.",
     )
 
+    @dbg.timed
     @api.depends("no_of_recruitment", "employee_ids.job_id", "employee_ids.active")
     def _compute_employee_counts(self):
         employee_data = self.env["hr.employee"]._read_group(
@@ -92,11 +103,17 @@ class HrJob(models.Model):
             job.no_of_employee = result.get(job.id, 0)
             job.expected_employees = result.get(job.id, 0) + job.no_of_recruitment
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
-        return super(HrJob, self.with_context(mail_create_nosubscribe=True)).create(
+        dbg.lifecycle.debug(
+            "hr.job.create: %d vals, keys=%s", len(vals_list), dbg.vals_keys(vals_list)
+        )
+        jobs = super(HrJob, self.with_context(mail_create_nosubscribe=True)).create(
             vals_list
         )
+        dbg.lifecycle.debug("hr.job.create: created %s", dbg.rec(jobs))
+        return jobs
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
@@ -111,7 +128,11 @@ class HrJob(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "hr.job.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if len(self) == 1:
             handle_history_divergence(self, "description", vals)
         return super().write(vals)

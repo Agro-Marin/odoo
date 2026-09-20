@@ -5,9 +5,13 @@ class CrmLostReason(models.Model):
     _name = "crm.lost.reason"
     _description = "Opp. Lost Reason"
 
-    name = fields.Char("Description", required=True, translate=True)
-    active = fields.Boolean("Active", default=True)
-    leads_count = fields.Integer("Leads Count", compute="_compute_leads_count")
+    name = fields.Char(
+        string="Description",
+        translate=True,
+        required=True,
+    )
+    active = fields.Boolean(default=True)
+    leads_count = fields.Integer(compute="_compute_leads_count")
 
     def _compute_leads_count(self):
         lead_data = (

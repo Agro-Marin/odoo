@@ -79,9 +79,9 @@ assert_grep "builder-iframe bundle present" 'website.assets_inside_builder_ifram
 
 # ------- Python surface -------
 assert_eq "Controller files (incl __init__)" \
-    "$(ls "$WEB"/controllers/*.py | wc -l)" "7"
+    "$(ls "$WEB"/controllers/*.py | wc -l)" "9"
 assert_eq "Controller files (excl __init__)" \
-    "$(ls "$WEB"/controllers/*.py | grep -vc __init__)" "6"
+    "$(ls "$WEB"/controllers/*.py | grep -vc __init__)" "8"
 assert_eq "Model files" \
     "$(ls "$WEB"/models/*.py | wc -l)" "45"
 assert_eq "Wizard py files (excl __init__)" \
@@ -173,8 +173,9 @@ assert_doc_cites "TEST_TAGS body cites the real static/tests JS count" \
     "$JS_TESTS" '^%s `\.js` files\.' TEST_TAGS.md
 assert_eq "tour definitions (static/tests/tours)" \
     "$(find "$WEB/static/tests/tours" -name '*.js' -type f | wc -l)" "86"
-assert_eq "*.edit.js variants in static/src" \
-    "$(find "$WEB/static/src" -name '*.edit.js' -type f | wc -l)" "31"
+assert_doc_cites "ARCHITECTURE cites the real *.edit.js variant count" \
+    "$(find "$WEB/static/src" -name '*.edit.js' -type f | wc -l)" \
+    '^\| JavaScript \(`\.edit\.js` variants\) \| %s \|' ARCHITECTURE.md
 assert_range "snippet s_* directories" \
     "$(find "$WEB/static/src/snippets" -maxdepth 1 -type d -name 's_*' | wc -l)" "60" "72"
 

@@ -13,8 +13,10 @@ came from *instrumented runs*, not from reading. This page is the surface that
 makes such a reading cheap, so the next improvement starts from a measurement.
 
 Everything here is temporary by construction and comes out at the end of the
-campaign. `tooling/trace/stamp.py --revert` removes the per-component half; the
-namespaces below are deleted with the call sites that use them.
+campaign. The per-component half was written by a stamper in the tooling tree,
+deleted in `7b0f58cb517f`; no `// trace-stamp` line remains in any `static/src`, so that
+half is already out. The namespaces below are deleted with the call sites that
+use them.
 
 ## Two gates, deliberately independent
 
@@ -106,7 +108,7 @@ zero is a claim about the probe until the guard has been checked.
 
 ## The namespaces
 
-10 namespaces, each with its own flag. There are 7 category factories
+9 namespaces, each with its own flag. There are 6 category factories
 (`make<Name>Log(category)`) for callers that bind a category once; the other
 loggers accept the category directly. The livechat logger is private and
 exposed through its category factory.
@@ -115,7 +117,6 @@ exposed through its category factory.
 |---|---|---|---|
 | `asset` | `assets` | `env.js`, `boot/start.js`, `core/templates.js`, `core/assets.js`, `core/registry.js`, `session.js` | What loaded, in what order |
 | `rpc` | `rpc` | `core/network/rpc.js` | Every request and its outcome |
-| `action` | `action` | `webclient/actions/action_service.js` | `doAction` dispatch and handler choice |
 | `model` | `model` | `model/relational_model/` — load, save, archive, delete, duplicate | Record lifecycle |
 | `l10n` | `l10n` | `core/l10n/localization_service.js` | Translation fetch and cache |
 | `component` | `component` | `env.js` (`mountComponent`) | Every `App` this fork mounts |
@@ -134,22 +135,19 @@ Which *component* re-rendered. That fact exists only inside each component's own
 `setup()`, so it cannot be reached from a shared junction — which is what the
 stamper below is for.
 
-## The stamper — `tooling/trace/stamp.py`
+## The stamper (deleted)
 
 Writes `useRenderCounter("<module>:<Class>")` into every component `setup()` in a
 scope, and takes it back out.
 
-```bash
-python tooling/trace/stamp.py --check    # scope + gate risk, writes nothing
-python tooling/trace/stamp.py --apply
-python tooling/trace/stamp.py --revert
-```
+It was deleted with the tooling tree in `7b0f58cb517f`. What follows records how it
+behaved, for anyone rebuilding one.
 
 Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 863 files
+   apply/revert cycle over `addons/web/static/src` returns all 873 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
@@ -195,7 +193,7 @@ module has.**
 
 | Key | Call sites | So a count of N means |
 |---|---|---|
-| `asset` js | 18 | N events across 19 kinds — cache hits, bundle fetches, import-map injections. **Not bundles.** |
+| `asset` js | 19 | N events across 20 kinds — cache hits, bundle fetches, import-map injections. **Not bundles.** |
 | `asset` boot | 6 | N boot phases reached, of 6 possible |
 | `asset` env | 5 | N env/service-wave milestones |
 | `asset` templates | 2 | N compile-or-register events; roughly per template, but the two are summed |
@@ -475,9 +473,8 @@ reference the code, so deleting code first turns a tidy removal into a red lane.
 
 **Goes:**
 
-1. `python tooling/trace/stamp.py --revert`, then delete `tooling/trace/`.
-   Verify the revert first — an apply/revert cycle must leave every file
-   byte-identical, and a tree that does not is a tree with probes still in it.
+1. Done: the stamper and its directory went with the tooling tree in `7b0f58cb517f`,
+   and no `// trace-stamp` line is left in any `static/src`.
 2. The structured sink in `core/utils/asset_log.js`: `_record`,
    `_traceArmedAtInit`, `log.active`, and the `__odooTrace` / `__odooTraceStats`
    / `__odooTraceReset` globals.

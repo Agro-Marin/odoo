@@ -1,6 +1,9 @@
 from odoo import _lt, api, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+_debug = DebugLog(__name__)
 
 
 class MixinTagNested(models.AbstractModel):
@@ -28,12 +31,25 @@ class MixinTagNested(models.AbstractModel):
         ancestors = self.browse(ancestor_ids)
         ancestors.fetch(["name"])
         names = {tag.id: tag.name or "" for tag in ancestors}
+        _debug.perf.count(
+            "nested_display_names",
+            model=self._name,
+            tags=len(self),
+            with_path=len(paths),
+            ancestors=len(ancestors),
+        )
 
         for tag in self:
             path_ids = paths.get(tag.id)
             if path_ids is not None:
                 tag.display_name = " / ".join(names[key] for key in path_ids)
                 continue
+            _debug.logic(
+                "nested_display_name_walked",
+                model=self._name,
+                tag=tag.id,
+                reason="no_parent_path",
+            )
             walked = []
             seen = set()
             current = tag
@@ -48,6 +64,14 @@ class MixinTagNested(models.AbstractModel):
         domain = super()._search_display_name(operator, value)
         if operator.endswith("like"):
             if operator.startswith("not"):
+                _debug.logic(
+                    "display_name_search_unsupported",
+                    model=self._name,
+                    operator=operator,
+                )
                 return NotImplemented
+            _debug.logic(
+                "display_name_search_child_of", model=self._name, operator=operator
+            )
             return [("id", "child_of", tuple(self._search(domain)))]
         return domain

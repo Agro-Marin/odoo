@@ -10,8 +10,8 @@
             <div id="warning_text_pos_sms" position="replace">
                 <div class="row">
                     <label
-                        string="Receipt template"
                         for="pos_sms_receipt_template_id"
+                        string="Receipt template"
                         class="col-lg-3 o_light_label" />
                     <field
                         name="pos_sms_receipt_template_id"

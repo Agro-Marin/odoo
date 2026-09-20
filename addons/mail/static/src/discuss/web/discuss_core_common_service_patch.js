@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { DiscussCoreCommon } from "@mail/discuss/core/common/discuss_core_common_service";
 import { applyCounterDelta } from "@mail/utils/common/counters";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.bus");
 patch(DiscussCoreCommon.prototype, {
     /**
      * @param {import("models").Thread} thread
@@ -43,6 +46,12 @@ patch(DiscussCoreCommon.prototype, {
                     this.store.history.messages.filter((msg) => !msg.thread?.eq(thread))
                 )
             );
+        log.logic("channel delete purges mailboxes", () => ({
+            thread: thread.localId,
+            starredRemoved: starredCounter,
+            needaction: thread.message_needaction_counter,
+            wasDiscussThread: thread.eq(this.store.discuss.thread),
+        }));
         if (thread.eq(this.store.discuss.thread)) {
             this.store.discuss.thread = undefined;
         }

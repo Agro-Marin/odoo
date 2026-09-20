@@ -41,7 +41,7 @@
             <field name="channel_id" ref="support_bot_session_1_demo" />
             <field
                 name="livechat_member_history_ids"
-                eval="[(4, ref('support_bot_session_1_history_member_guest_demo'))]" />
+                eval="[Command.link(ref('support_bot_session_1_history_member_guest_demo'))]" />
         </record>
         <record id="support_bot_session_1_message_1" model="mail.message">
             <field name="model">discuss.channel</field>

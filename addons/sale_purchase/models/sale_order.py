@@ -1,13 +1,16 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 from .exception_activity import group_by_order, notify_orders_of_exception
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     purchase_order_count = fields.Integer(
-        "Number of Purchase Order Generated",
+        string="Number of Purchase Order Generated",
         compute="_compute_purchase_order_count",
         groups="purchase.group_purchase_user",
     )
@@ -19,11 +22,13 @@ class SaleOrder(models.Model):
 
     def _action_confirm(self):
         result = super()._action_confirm()
+        _debug.pipeline("purchase_generation_on_confirm", orders=self)
         self.line_ids.sudo()._purchase_service_generation()
         return result
 
     def _action_cancel(self):
         result = super()._action_cancel()
+        _debug.pipeline("purchase_notified_of_sale_cancel", orders=self)
         self.sudo()._activity_cancel_on_purchase()
         return result
 

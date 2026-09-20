@@ -2536,7 +2536,7 @@ class TestTaxReport(TestAccountReportsCommon):
         company_2 = self.company_data_2["company"]
         company_2.currency_id = company_1.currency_id
 
-        foreign_vat_fpos = self.env["account.fiscal.position"].create(  # noqa: F841
+        self.env["account.fiscal.position"].create(
             {
                 "name": "fpos",
                 "foreign_vat": "tagada tsoin tsoin",

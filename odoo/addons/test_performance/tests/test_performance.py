@@ -252,7 +252,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
             rec1.write({"line_ids": [Command.create({"value": 0})]})
         self.assertEqual(len(rec1.line_ids), 1)
 
-        with self.assertQueryCount(8):
+        with self.assertQueryCount(4):
             self.env.invalidate_all()
             rec1.write(
                 {"line_ids": [Command.create({"value": val}) for val in range(1, 12)]}
@@ -298,7 +298,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
         rec1.write({"line_ids": [Command.create({"value": val}) for val in range(12)]})
         lines = rec1.line_ids
 
-        with self.assertQueryCount(10):
+        with self.assertQueryCount(9):
             self.env.invalidate_all()
             rec1.write({"line_ids": [Command.unlink(line.id) for line in lines[0]]})
         self.assertEqual(rec1.line_ids, lines[1:])
@@ -389,7 +389,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
             rec1.write({"tag_ids": [Command.create({"name": 0})]})
         self.assertEqual(len(rec1.tag_ids), 1)
 
-        with self.assertQueryCount(8):
+        with self.assertQueryCount(4):
             self.env.invalidate_all()
             rec1.write(
                 {"tag_ids": [Command.create({"name": val}) for val in range(1, 12)]}
@@ -499,7 +499,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_create_base_with_lines(self):
-        with self.assertQueryCount(__system__=7, demo=7):
+        with self.assertQueryCount(3):
             self.env["test_performance.base"].create(
                 {
                     "name": "X",
@@ -508,12 +508,37 @@ class TestPerformance(SavepointCaseWithUserDemo):
             )
 
     @users("__system__", "demo")
+    def test_create_base_with_lines_does_not_grow_with_the_lines(self):
+        self.assertQueriesConstant(
+            lambda lines: self.env["test_performance.base"].create(
+                {
+                    "name": "X",
+                    "line_ids": [
+                        Command.create({"value": val}) for val in range(lines)
+                    ],
+                }
+            ),
+            small=2,
+            large=40,
+        )
+
+    @users("__system__", "demo")
+    def test_create_many_bases_does_not_grow_with_the_batch(self):
+        self.assertQueriesConstant(
+            lambda size: self.env["test_performance.base"].create(
+                [{"name": f"X{i}", "value": i} for i in range(size)]
+            ),
+            small=2,
+            large=40,
+        )
+
+    @users("__system__", "demo")
     @warmup
     def test_create_base_with_tags(self):
         with self.assertQueryCount(2):
             self.env["test_performance.base"].create({"name": "X"})
 
-        with self.assertQueryCount(8):
+        with self.assertQueryCount(4):
             self.env["test_performance.base"].create(
                 {
                     "name": "X",
@@ -759,13 +784,13 @@ class TestIncrementFieldsSkipLock(TransactionCase):
                 "" if did_update else "not ",
             )
 
-        self.record.invalidate_recordset()
-
         self.assertTrue(
             did_update,
             "increment_fields_skiplock should have updated the field: "
             "no concurrent transaction holds the row lock.",
         )
+        # the increment dropped the counter from the cache: the read that
+        # follows fetches the row, without an invalidation by the caller
         with self.assertQueryCount(1):
             self.assertEqual(
                 self.record.value,
@@ -841,3 +866,28 @@ class TestIncrementFieldsSkipLock(TransactionCase):
             self.record._increment_fields_skiplock("value_null_by_default")
         self.record.invalidate_recordset(["value_null_by_default"])
         self.assertEqual(self.record.value_null_by_default, 1)
+
+
+@tagged("post_install", "-at_install")
+class TestAssertQueriesConstant(TransactionCase):
+    def test_a_batch_of_reads_served_by_one_fetch_passes(self):
+        def read_batch(size):
+            records = self.env["test_performance.base"].create(
+                [{"name": f"X{i}"} for i in range(size)]
+            )
+            self.env.invalidate_all()
+            records.mapped("name")
+
+        self.assertQueriesConstant(read_batch, small=2, large=20)
+
+    def test_a_read_per_record_fails(self):
+        def n_plus_one(size):
+            records = self.env["test_performance.base"].create(
+                [{"name": f"X{i}"} for i in range(size)]
+            )
+            for record in records:
+                self.env.invalidate_all()
+                _ = record.name
+
+        with self.assertRaisesRegex(AssertionError, "grows with the batch"):
+            self.assertQueriesConstant(n_plus_one, small=2, large=20)

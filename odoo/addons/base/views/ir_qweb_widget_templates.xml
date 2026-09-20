@@ -5,11 +5,11 @@
         <div
             t-if="('name' in fields) or (options.get('country_image') and 'country_id' in fields and object.country_id.image_url)">
             <t t-if="'name' in fields">
-                <span t-if="object.name" itemprop="name" t-esc="name" />
+                <span t-if="object.name" itemprop="name" t-out="name" />
                 <span
                     t-elif="object.parent_name"
                     itemprop="name"
-                    t-esc="object.parent_name" />
+                    t-out="object.parent_name" />
             </t>
             <span
                 t-if="options.get('country_image') and 'country_id' in fields and object.country_id.image_url"
@@ -20,7 +20,7 @@
 
     <template id="contact">
         <address t-ignore="true" class="o_portal_address mb-0">
-            <div t-if="not (('name' in fields) or (address and 'address' in fields) or (city and 'city' in fields) or (phone and 'phone' in fields) or (website and 'website' in fields) or (email and 'email' in fields))" class="css_non_editable_mode_hidden"> --<span class="text-muted" t-esc="name" />-- </div>
+            <div t-if="not (('name' in fields) or (address and 'address' in fields) or (city and 'city' in fields) or (phone and 'phone' in fields) or (website and 'website' in fields) or (email and 'email' in fields))" class="css_non_editable_mode_hidden"> --<span class="text-muted" t-out="name" />-- </div>
             <t t-if="object.country_id.name_position != 'after'">
                 <t t-call="base.contact_name" />
             </t>
@@ -42,7 +42,7 @@
                     <span
                         class="w-100 lh-sm text-break d-block"
                         itemprop="streetAddress"
-                        t-esc="address" />
+                        t-out="address" />
                 </div>
                 <t t-set="has_city" t-value="city and 'city' in fields" />
                 <t
@@ -78,7 +78,7 @@
                         role="img"
                         aria-label="Phone"
                         title="Phone" />
-                    <span class="o_force_ltr" itemprop="telephone" t-esc="phone" />
+                    <span class="o_force_ltr" itemprop="telephone" t-out="phone" />
                 </div>
                 <div t-if="not (phone and 'phone' in fields)" itemprop="telephone" />
                 <div
@@ -93,7 +93,7 @@
                     <a
                         class="text-break w-100"
                         t-att-href="website and '%s%s' % ('http://' if '://' not in website else '',website)">
-                        <span itemprop="website" t-esc="website" />
+                        <span itemprop="website" t-out="website" />
                     </a>
                 </div>
                 <div
@@ -105,10 +105,10 @@
                         role="img"
                         aria-label="Email"
                         title="Email" />
-                    <span class="text-break w-100" itemprop="email" t-esc="email" />
+                    <span class="text-break w-100" itemprop="email" t-out="email" />
                 </div>
             </div>
-            <div t-if="vat and 'vat' in fields"><span t-esc="vat_label" />: <span itemprop="vatID" t-esc="vat" /></div>
+            <div t-if="vat and 'vat' in fields"><span t-out="vat_label" />: <span itemprop="vatID" t-out="vat" /></div>
             <t t-if="object.country_id and object.country_id.name_position == 'after'">
                 <t t-call="base.contact_name" />
             </t>

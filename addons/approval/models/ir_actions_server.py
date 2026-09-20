@@ -1,5 +1,7 @@
 from odoo import models
 
+from . import approval_trace as trace
+
 
 class IrActionsServer(models.Model):
     _inherit = "ir.actions.server"
@@ -20,6 +22,12 @@ class IrActionsServer(models.Model):
         for action in self:
             bindings = Binding._bindings_for_action(action.id)
             records = action._get_records_targeted(action) if bindings else None
+            trace.BINDING.event(
+                "action_run",
+                action=action.id,
+                bindings=bindings.ids,
+                records=records.ids if records else None,
+            )
             if not bindings or not records:
                 result = super(IrActionsServer, action).run()
                 continue

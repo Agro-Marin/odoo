@@ -4,10 +4,13 @@ import math
 import os
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 
 from . import _process_state
 from ._env import get_env_str
+
+_debug = DebugLog(__name__)
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -128,6 +131,7 @@ class _Exposition:
     ) -> None:
         owner = self._owner.get(name)
         if owner is None:
+            _debug.logic("metrics.untyped_sample", name=name)
             self.declare(name, "untyped")
             owner = name
         self._families[owner].samples.append(
@@ -160,9 +164,12 @@ def get_service_metrics() -> dict[str, Any]:
         "registries": len(Registry.registries),
     }
     if server is None:
+        _debug.logic("metrics.no_server", registries=out["registries"])
         return out
     out["flavor"] = server.flavor
-    out.update(server.get_metrics())
+    with _debug.perf("metrics.service_collected", flavor=server.flavor) as span:
+        out.update(server.get_metrics())
+        span.set(keys=len(out))
     return out
 
 
@@ -218,6 +225,10 @@ _POOL_COUNTERS: dict[str, tuple[str, str]] = {
     "connections_discarded": (
         "odoo_pool_connections_discarded_total",
         "Connections dropped rather than returned to the pool.",
+    ),
+    "connections_trimmed": (
+        "odoo_pool_connections_trimmed_total",
+        "Idle connections closed to keep this process's backends within db_maxconn.",
     ),
     "probe_run": (
         "odoo_pool_probe_run_total",
@@ -282,9 +293,9 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             "odoo_pool_backends",
             health["backends"],
             help=(
-                "Server connections held (checked out + idle). NOT bounded by "
-                "db_maxconn: each per-DSN pool retains up to that many idle, "
-                "so this can reach maxconn x databases."
+                "Server connections held (checked out + idle). Trimmed on every "
+                "return to at most db_maxconn per pool mode; a transient "
+                "excess is one in flight."
             ),
             labels=label,
         )
@@ -303,6 +314,55 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             )
 
 
+_REPLICA_GAUGES = {
+    ("breaker", "closed"): (
+        "odoo_replica_breaker_closed",
+        (
+            "1 while read-only cursors are routed to the replica; 0 while the "
+            "circuit breaker holds them on the primary."
+        ),
+    ),
+    ("breaker", "failures"): (
+        "odoo_replica_breaker_failures",
+        "Consecutive replica cursor failures counted by the breaker.",
+    ),
+    ("breaker", "trips"): (
+        "odoo_replica_breaker_trips",
+        "Times the breaker opened since the registry was built.",
+    ),
+    ("breaker", "cooldown_remaining_seconds"): (
+        "odoo_replica_breaker_cooldown_remaining_seconds",
+        "Seconds until the breaker lets one request try the replica again.",
+    ),
+    ("lag", "last_lag_seconds"): (
+        "odoo_replica_lag_seconds",
+        (
+            "Apply lag measured on the last sample; +Inf for a standby that has "
+            "replayed nothing yet."
+        ),
+    ),
+    ("lag", "lagging"): (
+        "odoo_replica_lagging",
+        "1 while the lag gate routes read-only cursors to the primary.",
+    ),
+}
+
+
+def _add_replica_family(exp: _Exposition, database: str, health: dict) -> None:
+    label = {"database": database}
+    for (section, key), (name, help_text) in _REPLICA_GAUGES.items():
+        value = (health.get(section) or {}).get(key)
+        if isinstance(value, (int, float)):
+            exp.add(name, value, help=help_text, labels=label)
+    if "write_pins" in health:
+        exp.add(
+            "odoo_replica_write_pins",
+            health["write_pins"],
+            help="Sessions currently reading from the primary because they wrote.",
+            labels=label,
+        )
+
+
 def render_prometheus_exposition() -> str:
     from odoo import db
 
@@ -312,6 +372,7 @@ def render_prometheus_exposition() -> str:
     try:
         svc = get_service_metrics()
     except Exception:
+        _debug.logic("metrics.service_metrics_unavailable")
         svc = {}
     if svc:
         exp.add(
@@ -331,6 +392,14 @@ def render_prometheus_exposition() -> str:
                 count,
                 help="Live prefork worker processes.",
                 labels={"type": kind},
+            )
+        for outcome, count in (svc.get("worker_exits") or {}).items():
+            exp.add(
+                "odoo_worker_exits_total",
+                count,
+                kind="counter",
+                help="Worker exits since the master started, by outcome.",
+                labels={"outcome": outcome},
             )
         for kind, count in (svc.get("threads") or {}).items():
             exp.add(
@@ -368,16 +437,43 @@ def render_prometheus_exposition() -> str:
         ):
             if key in svc:
                 exp.add(name, svc[key], help=help_text)
+        if "overruns_cancelled" in svc:
+            exp.add(
+                "odoo_overruns_cancelled_total",
+                svc["overruns_cancelled"],
+                kind="counter",
+                help="Requests, sweeps and jobs over their wall-clock budget whose "
+                "queries were cancelled, since the process started.",
+            )
 
     try:
         pools = db.get_pool_health()
     except Exception:
+        _debug.logic("metrics.pool_health_unavailable")
         pools = {}
     for mode, health in (pools or {}).items():
         if health:
             _add_pool_family(exp, mode, health)
+            _debug.pipeline(
+                "metrics.pool_family_added",
+                pool=mode,
+                stats=len(health.get("pool") or {}),
+                databases=len(health.get("per_database") or {}),
+            )
+    try:
+        replicas = db.get_replica_health()
+    except Exception:
+        _debug.logic("metrics.replica_health_unavailable")
+        replicas = {}
+    for database, health in replicas.items():
+        _add_replica_family(exp, database, health)
+    if replicas:
+        _debug.pipeline("metrics.replica_families_added", databases=len(replicas))
 
-    return exp.render()
+    with _debug.perf("metrics.rendered", families=len(exp._families)) as span:
+        text: str = exp.render()
+        span.set(bytes=len(text))
+    return text
 
 
 __all__ = (

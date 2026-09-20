@@ -41,14 +41,12 @@ class TestStockNotificationProduct(HttpCase):
         product = ProductProduct.browse(self.product.id)
         self.assertTrue(product._has_stock_notification(partner))
 
-        # No email should be sent
         ProductProduct._send_availability_email()
         emails = self.env["mail.mail"].search(
             [("email_to", "=", partner.email_formatted)]
         )
         self.assertEqual(len(emails), 0)
 
-        # Replenish Product
         quants = (
             self.env["stock.quant"]
             .with_context(inventory_mode=True)

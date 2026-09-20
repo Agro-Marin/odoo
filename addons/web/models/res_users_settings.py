@@ -9,29 +9,32 @@ class ResUsersSettings(models.Model):
     _inherit = "res.users.settings"
 
     embedded_actions_config_ids = fields.One2many(
-        "res.users.settings.embedded.action", "user_setting_id"
+        comodel_name="res.users.settings.embedded.action",
+        inverse_name="user_setting_id",
     )
     density = fields.Selection(
-        [
+        selection=[
             ("default", "Default"),
             ("compact", "Compact"),
             ("condensed", "Condensed"),
         ],
+        string="Content Density",
         default="default",
         required=True,
-        string="Content Density",
     )
     color_scheme = fields.Selection(
-        [
+        selection=[
             ("system", "System"),
             ("light", "Light"),
             ("dark", "Dark"),
         ],
         default="system",
         required=True,
-        string="Color Scheme",
     )
-    homemenu_config = fields.Json(string="Home Menu Configuration", readonly=True)
+    homemenu_config = fields.Json(
+        string="Home Menu Configuration",
+        readonly=True,
+    )
     homemenu_usage = fields.Json(
         string="Home Menu Usage",
         readonly=True,

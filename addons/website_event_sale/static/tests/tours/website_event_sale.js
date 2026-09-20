@@ -26,7 +26,6 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
             run: "edit 1234",
         },
         {
-            // The input number should be changed to EVENT_MAX_TICKETS without particular conditions (EVENT_MAX_TICKETS < 1234)
             trigger: "div.o_wevent_ticket_selector:contains('Max.') input.form-control",
         },
         {
@@ -45,7 +44,6 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
             run: "edit 2002",
         },
         {
-            // The input number should be changed to min(limit per order, seats available) (11 < 12 < 2002)
             trigger:
                 "div.o_wevent_ticket_selector:contains('VIP'):contains('11') input.form-control",
         },

@@ -1,8 +1,0 @@
-{
-  "expected": {},
-  "note": "Empty since the tax_country_id fix. TestAutoPostBills.test_autopost_bills failed because _update_tax_country_id assigned through self.concat(*record_group), which concatenates onto the receiver, so every group's assignment covered the whole batch and the second loop decided for everybody; and because those assignments are real writes from inside a constraint, so AccountMove.write recorded a derivation as a manual modification and suppressed vendor autoposting. Both fixed. The earlier record read 1 expected of 59 at 26c6ccd72c7, measured on a wider install than this spec produces; its refuted theory -- that _get_edi_creation fails to carry skip_is_manually_modified -- was correct as a refutation, the write is not in the import path at all.",
-  "run_spec": "-u account_edi_ubl_cii --test-enable --test-tags '/account_edi_ubl_cii' on a database carrying account and account_edi_ubl_cii",
-  "suite": "/account_edi_ubl_cii",
-  "tests_total": 37,
-  "verified_at": "17d60aa1a9f"
-}

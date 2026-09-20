@@ -11,28 +11,26 @@ class ProductUom(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         default=lambda self: self.env.company,
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
-        required=True,
-        check_company=True,
-        ondelete="cascade",
         index=True,
+        required=True,
+        ondelete="cascade",
+        check_company=True,
     )
     uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     barcode = fields.Char(
-        required=True,
-        copy=False,
         index="btree_not_null",
+        copy=False,
+        required=True,
     )
 
     _barcode_company_uniq = models.UniqueIndex(

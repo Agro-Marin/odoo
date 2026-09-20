@@ -17,7 +17,6 @@ class Website(models.Model):
         help="This field holds the image used as mobile app icon on the website (PNG format).",
     )
     events_app_name = fields.Char(
-        string="Events App Name",
         compute="_compute_events_app_name",
         store=True,
         readonly=False,
@@ -38,12 +37,6 @@ class Website(models.Model):
 
     @api.depends("favicon")
     def _compute_app_icon(self):
-        """Computes a squared image based on the favicon to be used as mobile webapp icon.
-        App Icon should be in PNG format and size of at least 512x512.
-
-        If the favicon is an SVG image, it will be skipped and the app_icon will be set to False.
-
-        """
         for website in self:
             image = (
                 ImageProcess(base64.b64decode(website.favicon))

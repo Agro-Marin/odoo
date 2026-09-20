@@ -2,6 +2,7 @@ import typing
 from collections.abc import Callable
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import SENTINEL
 
 if typing.TYPE_CHECKING:
@@ -9,6 +10,8 @@ if typing.TYPE_CHECKING:
     from ..primitives import IdType
     from ..runtime import Environment
     from .base import Field
+
+_debug = DebugLog(__name__)
 
 
 def _run_batch_then_single(
@@ -22,19 +25,52 @@ def _run_batch_then_single(
     try:
         batch()
         return False
-    except catching:
+    except catching as e:
         if reraise_when_single and len(recs) == 1:
             raise
+        _debug.logic(
+            "field.cache_miss.batch_fallback",
+            records=len(recs),
+            error=type(e).__name__,
+        )
     single()
     return True
+
+
+def missing_record_error(env: Environment, record: object) -> MissingError:
+    return MissingError(
+        "\n".join(
+            [
+                env._("Record does not exist or has been deleted."),
+                env._(
+                    "(Record: %(record)s, User: %(user)s)",
+                    record=record,
+                    user=env.uid,
+                ),
+            ]
+        )
+    )
 
 
 def get_cache_miss_from_storage(
     field: Field, record: BaseModel, env: Environment, record_id
 ):
     recs = field._to_prefetch(record)
+    transaction = env.transaction
+
+    def _batch() -> None:
+        if len(recs) == 1:
+            recs._fetch_field(field)
+            return
+        outer = transaction.prefetch_batch
+        transaction.prefetch_batch = (recs._name, recs._ids)
+        try:
+            recs._fetch_field(field)
+        finally:
+            transaction.prefetch_batch = outer
+
     _run_batch_then_single(
-        lambda: recs._fetch_field(field),
+        _batch,
         lambda: record._fetch_field(field),
         recs,
         catching=(AccessError,),
@@ -42,18 +78,18 @@ def get_cache_miss_from_storage(
     field_cache = field._get_cache(env)
     value = field_cache.get(record_id, SENTINEL)
     if value is SENTINEL:
-        raise MissingError(
-            "\n".join(
-                [
-                    env._("Record does not exist or has been deleted."),
-                    env._(
-                        "(Record: %(record)s, User: %(user)s)",
-                        record=record,
-                        user=env.uid,
-                    ),
-                ]
-            )
-        ) from None
+        value = field._value_after_delegated_fetch(env, record_id)
+    if value is SENTINEL:
+        _debug.logic(
+            "field.cache_miss.record_missing_after_fetch",
+            model=record._name,
+            field=field.name,
+            record=record_id,
+            prefetched=len(recs),
+            su=env.su,
+            uid=env.uid,
+        )
+        raise missing_record_error(env, record) from None
     return value
 
 
@@ -95,6 +131,12 @@ def get_cache_miss_by_compute(
     field: Field, record: BaseModel, env: Environment, record_id
 ):
     if env.is_protected(field, record):
+        _debug.logic(
+            "field.cache_miss.compute_protected",
+            model=field.model_name,
+            field=field.name,
+            record=record_id,
+        )
         value = field.convert_to_cache(False, record, validate=False)
         field._update_cache(record, value)
     else:
@@ -110,6 +152,13 @@ def get_cache_miss_by_compute(
 
         missing_recs_ids = tuple(field._iter_cache_missing_ids(recs))
         if missing_recs_ids:
+            _debug.logic(
+                "field.cache_miss.compute_unassigned",
+                model=field.model_name,
+                field=field.name,
+                records=len(recs),
+                unassigned=len(missing_recs_ids),
+            )
             missing_recs = record.browse(missing_recs_ids)
             if field.readonly and not field.store:
                 raise ValueError(
@@ -162,14 +211,27 @@ def get_cache_miss(
     field: Field, record: BaseModel, env: Environment, record_id: IdType
 ) -> typing.Any:
     if field.store and record_id:
+        source = "storage"  # debuglog
         value = get_cache_miss_from_storage(field, record, env, record_id)
     elif field.store and record._has_origin and not (field.compute and field.readonly):
+        source = "origin"  # debuglog
         value = get_cache_miss_from_origin(field, record, env, record_id)
     elif field.compute:
+        source = "compute"  # debuglog
         value = get_cache_miss_by_compute(field, record, env, record_id)
     elif field.is_delegating and not record_id:
+        source = "delegation"  # debuglog
         value = get_cache_miss_by_delegation(field, record, env)
     else:
+        source = "default"  # debuglog
         value = get_cache_miss_from_default(field, record, env, record_id)
 
+    if _debug.logic.enabled:
+        _debug.logic(
+            "field.cache_miss",
+            model=field.model_name,
+            field=field.name,
+            record=record_id,
+            source=source,
+        )
     return field.convert_to_record(value, record)

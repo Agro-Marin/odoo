@@ -6,14 +6,13 @@ import { browser } from "@web/core/browser/browser";
 const SupportedPaymentMethodsEdit = (I) =>
     class extends I {
         dynamicContent = {
-            // Bypass the ctrl-click required to open a link in edit mode.
             ".o_wpay_view_providers_btn": {
                 "t-on-click": this.onClickViewProviders.bind(this),
             },
         };
 
         /**
-         * @override To display an alert when no payment methods could be found.
+         * @override
          */
         setup() {
             super.setup();
@@ -22,7 +21,6 @@ const SupportedPaymentMethodsEdit = (I) =>
         }
 
         async onClickViewProviders() {
-            // Open the view in a separate tab such that any edits are kept.
             browser.open("/odoo/action-payment.action_payment_provider", "_blank");
         }
     };

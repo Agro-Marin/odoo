@@ -18,7 +18,7 @@
         <field name="picking_type_id" ref="picking_type_warehouse0_repair" />
         <field
             name="move_ids"
-            eval="[(5, 0, 0), (0, 0, {             'location_dest_id': obj().env.ref('product.product_product_11').property_stock_production.id,             'location_id': obj().env.ref('stock.stock_location_stock').id,             'product_id': obj().env.ref('product.product_product_11').id,             'product_uom_id': obj().env.ref('uom.product_uom_unit').id,             'product_uom_qty': '1.0',             'state': 'draft',             'repair_line_type': 'add',             'company_id': obj().env.ref('base.main_company').id,         })]"
+            eval="[Command.clear(), Command.create({'location_dest_id': obj().env.ref('product.product_product_11').property_stock_production.id, 'location_id': obj().env.ref('stock.stock_location_stock').id, 'product_id': obj().env.ref('product.product_product_11').id, 'product_uom_id': obj().env.ref('uom.product_uom_unit').id, 'product_uom_qty': '1.0', 'state': 'draft', 'repair_line_type': 'add', 'company_id': obj().env.ref('base.main_company').id})]"
             model="stock.move" />
         <field name="partner_id" ref="base.res_partner_12" />
     </record>
@@ -31,7 +31,7 @@
         <field name="picking_type_id" ref="picking_type_warehouse0_repair" />
         <field
             name="move_ids"
-            eval="[(5, 0, 0), (0, 0, {             'location_dest_id': obj().env.ref('product.product_product_12').property_stock_production.id,             'location_id': obj().env.ref('stock.stock_location_stock').id,             'product_id': obj().env.ref('product.product_product_12').id,             'product_uom_id': obj().env.ref('uom.product_uom_unit').id,             'product_uom_qty': 1.0,             'state': 'draft',             'repair_line_type': 'add',             'company_id': obj().env.ref('base.main_company').id,         })]"
+            eval="[Command.clear(), Command.create({'location_dest_id': obj().env.ref('product.product_product_12').property_stock_production.id, 'location_id': obj().env.ref('stock.stock_location_stock').id, 'product_id': obj().env.ref('product.product_product_12').id, 'product_uom_id': obj().env.ref('uom.product_uom_unit').id, 'product_uom_qty': 1.0, 'state': 'draft', 'repair_line_type': 'add', 'company_id': obj().env.ref('base.main_company').id})]"
             model="stock.move" />
         <field name="partner_id" ref="base.res_partner_12" />
     </record>
@@ -45,7 +45,7 @@
         <field name="picking_type_id" ref="picking_type_warehouse0_repair" />
         <field
             name="move_ids"
-            eval="[(5, 0, 0), (0, 0, {             'location_dest_id': obj().env.ref('product.product_product_13').property_stock_production.id,             'location_id': obj().env.ref('stock.stock_location_stock').id,             'product_id': obj().env.ref('product.product_product_13').id,             'product_uom_id': obj().env.ref('uom.product_uom_unit').id,             'product_uom_qty': 1.0,             'state': 'draft',             'repair_line_type': 'add',             'company_id': obj().env.ref('base.main_company').id,         })]"
+            eval="[Command.clear(), Command.create({'location_dest_id': obj().env.ref('product.product_product_13').property_stock_production.id, 'location_id': obj().env.ref('stock.stock_location_stock').id, 'product_id': obj().env.ref('product.product_product_13').id, 'product_uom_id': obj().env.ref('uom.product_uom_unit').id, 'product_uom_qty': 1.0, 'state': 'draft', 'repair_line_type': 'add', 'company_id': obj().env.ref('base.main_company').id})]"
             model="stock.move" />
         <field name="partner_id" ref="base.res_partner_12" />
     </record>

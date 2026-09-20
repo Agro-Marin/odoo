@@ -2385,7 +2385,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
                         [
                             self.ref("base.group_user"),
                             self.ref("stock.group_stock_manager"),
-                            self.ref("sales_team.group_sale_salesman"),
+                            self.ref("sale.group_sale_salesman"),
                         ],
                     )
                 ],
@@ -3062,15 +3062,24 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             2,
             "Expected two pickings: Stock->Output and Output->Customer",
         )
-        self.assertEqual(pickings[0].location_id, stock_location)
-        self.assertEqual(pickings[0].location_dest_id, transit_location)
-        self.assertEqual(pickings[1].location_id, transit_location)
-        self.assertEqual(pickings[1].location_dest_id, customer_location)
+        # selected by destination, not by position: `stock.picking._order` ends
+        # `id desc`, and both pickings carry the same date_planned, so indexing
+        # asserts which one the procurement happened to create last
+        to_transit = pickings.filtered(
+            lambda picking: picking.location_dest_id == transit_location
+        )
+        to_customer = pickings.filtered(
+            lambda picking: picking.location_dest_id == customer_location
+        )
+        self.assertEqual(len(to_transit), 1)
+        self.assertEqual(len(to_customer), 1)
+        self.assertEqual(to_transit.location_id, stock_location)
+        self.assertEqual(to_customer.location_id, transit_location)
 
-        pickings[0].move_ids.picked = True
-        pickings[0].button_validate()
+        to_transit.move_ids.picked = True
+        to_transit.button_validate()
 
-        self.assertEqual(pickings[0].state, "done")
+        self.assertEqual(to_transit.state, "done")
         self.assertEqual(len(sale_order.line_ids), 1)
 
     def test_multi_step_product_forecast_availability(self):
@@ -3241,7 +3250,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
                 "company_id": company_a.id,
                 "company_ids": [Command.link(company_a.id)],
                 "group_ids": [
-                    Command.link(self.env.ref("sales_team.group_sale_salesman").id)
+                    Command.link(self.env.ref("sale.group_sale_salesman").id)
                 ],
             }
         )
@@ -3733,7 +3742,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         user = new_test_user(
             self.env,
             login="fgh",
-            groups="base.group_user,stock.group_stock_user, sales_team.group_sale_salesman",
+            groups="base.group_user,stock.group_stock_user, sale.group_sale_salesman",
         )
         self.new_product.tracking = "lot"
         lot = self.env["stock.lot"].create(

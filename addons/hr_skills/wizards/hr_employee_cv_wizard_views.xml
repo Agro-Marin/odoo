@@ -31,15 +31,15 @@
                 <footer>
                     <button
                         name="action_validate"
-                        string="Print"
                         type="object"
+                        string="Print"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -51,6 +51,9 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
         <field name="context">{'default_employee_ids': active_ids}</field>
+        <field name="binding_model_id" ref="hr.model_hr_employee" />
+        <field name="binding_type">report</field>
+        <field name="binding_view_types">list,kanban,form</field>
     </record>
 
 </odoo>

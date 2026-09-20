@@ -13,15 +13,15 @@
                 </div>
                 <footer>
                     <button
+                        name="reset_template"
+                        type="object"
                         string="Reset Template"
                         class="btn btn-primary"
-                        type="object"
-                        name="reset_template"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -29,7 +29,7 @@
     </record>
 
     <record id="mail_template_reset_action" model="ir.actions.act_window">
-        <field name="name">Reset Mail Template</field>
+        <field name="name">Reset Mail Template…</field>
         <field name="res_model">mail.template.reset</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="mail_template_reset_view_form" />

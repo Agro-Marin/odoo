@@ -7,7 +7,9 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast } from "@web/core/utils/concurrency";
+const log = makeLogger("pos.hooks");
 
 export function useAutoFocusToLast() {
     const root = useRef("root");
@@ -30,13 +32,21 @@ export function useAsyncLockedMethod(method) {
     let called = false;
     return async (...args) => {
         if (called) {
+            log.logic("useAsyncLockedMethod: call dropped, locked", () => ({
+                component: component.constructor.name,
+                method: method.name,
+            }));
             return;
         }
+        const endCall = log.perf(
+            `${component.constructor.name}.${method.name || "anonymous"}`,
+        );
         try {
             called = true;
             return await method.call(component, ...args);
         } finally {
             called = false;
+            endCall();
         }
     };
 }
@@ -67,19 +77,24 @@ export function useTrackedAsync(asyncFn, options = {}) {
         state.status = "loading";
         state.result = null;
         state.lastArgs = args;
+        const endCall = log.perf(`useTrackedAsync ${asyncFn.name || "anonymous"}`);
         try {
             const result = await asyncFn(...args);
             if (callId !== lastCallId) {
+                endCall({ callId, superseded: true });
                 return;
             }
             state.status = "success";
             state.result = result;
+            endCall({ callId, status: "success" });
         } catch (error) {
             if (callId !== lastCallId) {
+                endCall({ callId, superseded: true, error: error?.message });
                 return;
             }
             state.status = "error";
             state.result = error;
+            endCall({ callId, status: "error", error: error?.message });
         }
     };
 
@@ -137,6 +152,12 @@ export function useIsChildLarger(container) {
         if (!oldLargerState && state.isLarger) {
             state.maxItems--;
         }
+        log.logic("useIsChildLarger: computeSize", () => ({
+            children: container.el.children.length,
+            containerWidth,
+            isLarger,
+            maxItems: state.maxItems,
+        }));
     };
 
     useExternalListener(window, "resize", () => {

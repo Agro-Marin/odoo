@@ -20,10 +20,10 @@
                     <setting id="update_tax_tags" groups="base.group_no_one">
                         <button
                             name="%(account_update_tax_tags.action_view_wizard)d"
-                            icon="fa-refresh"
                             type="action"
-                            class="btn-link"
-                            string="Update tax tags on existing Journal Entries" />
+                            string="Update tax tags on existing Journal Entries"
+                            icon="fa-refresh"
+                            class="btn-link" />
                     </setting>
                 </xpath>
             </field>

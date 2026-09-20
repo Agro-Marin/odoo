@@ -44,7 +44,7 @@
                                         </div>
                                         <div t-else="" class="o_value">
                                             <t t-set="formattedValue" t-value="getFormattedValue(cell)"/>
-                                            <span t-att-data-tooltip="formattedValue.help">
+                                            <span t-att-data-tooltip="env.isSmall ? undefined : formattedValue.help">
                                                 <t t-esc="formattedValue.value"/>
                                                 <sup
                                                     t-if="formattedValue.currencies"
@@ -128,8 +128,8 @@
                         ? 'padding-left: ' + padding + 'px;'
                         : 'padding-right: ' + padding + 'px;'
             }}"
-            t-att-data-tooltip="cell.label"
-            t-attf-data-tooltip-position="{{ l10n.direction === 'ltr' ? 'right' : 'left' }}"
+            t-att-data-tooltip="env.isSmall ? undefined : cell.label"
+            t-att-data-tooltip-position="env.isSmall ? undefined : (l10n.direction === 'ltr' ? 'right' : 'left')"
             t-on-pointerdown.capture.stop.synthetic=""
             t-on-click.stop.synthetic="(ev) => this.onHeaderClick(ev, cell, isXAxis)"
         >

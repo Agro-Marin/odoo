@@ -137,7 +137,7 @@
                 // Get data from Odoo template
                 let rawData;
                 try {
-                    rawData = JSON.parse(atob('<t t-esc="memory_graph" />'));
+                    rawData = JSON.parse(atob('<t t-out="memory_graph" />'));
                 } catch (e) {
                     document.body.innerHTML = `<p style="color:red;padding:20px">Failed to load memory profile data: ${e.message}</p>`;
                     throw e;

@@ -1,31 +1,33 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     margin = fields.Float(
-        "Margin",
-        compute="_compute_margins",
         min_display_digits="Product Price",
+        compute="_compute_margins",
         store=True,
         groups="base.group_user",
     )
     margin_percent = fields.Float(
-        "Margin (%)",
+        string="Margin (%)",
         compute="_compute_margins",
         store=True,
-        groups="base.group_user",
         aggregator="avg",
+        groups="base.group_user",
     )
     purchase_price = fields.Float(
         string="Cost",
-        compute="_compute_purchase_price",
         min_display_digits="Product Price",
-        store=True,
-        readonly=False,
-        copy=False,
+        compute="_compute_purchase_price",
         precompute=True,
+        store=True,
+        copy=False,
+        readonly=False,
         groups="base.group_user",
     )
 
@@ -37,13 +39,16 @@ class SaleOrderLine(models.Model):
                 continue
             line = line.with_company(line.company_id)
 
-            product_cost = line.product_id.uom_id._compute_price(
+            product_cost = line.product_id.uom_id._get_price_in_unit(
                 line.product_id.standard_price,
                 line.product_uom_id,
             )
 
             line.purchase_price = line._convert_to_sol_currency(
                 product_cost, line.product_id.cost_currency_id
+            )
+            _debug.logic(
+                "line_cost", line=line, standard=product_cost, cost=line.purchase_price
             )
 
     @api.depends(
@@ -55,6 +60,13 @@ class SaleOrderLine(models.Model):
     )
     def _compute_margins(self):
         for line in self:
+            _debug.logic(
+                "margin_basis",
+                line=line,
+                by="delivered"
+                if line.qty_transferred and not line.product_qty
+                else "ordered",
+            )
             if line.qty_transferred and not line.product_qty:
                 calculated_subtotal = line.price_unit * line.qty_transferred
                 line.margin = calculated_subtotal - (

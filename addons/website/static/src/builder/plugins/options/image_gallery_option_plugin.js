@@ -9,12 +9,15 @@ import { forwardToThumbnail } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { loadImageInfo } from "@html_editor/utils/image_processing";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
 
 import { updateCarouselIndicators } from "../carousel_option_plugin.js";
 import { ImageGalleryComponent } from "./image_gallery_option.js";
+
+const log = makeLogger("website.builder.plugin.image_gallery_option");
 
 /**
  * @typedef { Object } ImageGalleryOptionShared
@@ -73,10 +76,10 @@ class ImageGalleryOption extends Plugin {
         on_image_saved_handlers: ({ imageEl }) => this.updateCarouselThumbnail(imageEl),
         on_snippet_dropped_handlers: ({ snippetEl }) => {
             const carousels = snippetEl.querySelectorAll(".s_image_gallery .carousel");
+            log.pipeline("ImageGalleryOption onSnippetDropped", () => ({
+                carousels: carousels.length,
+            }));
             for (const carousel of carousels) {
-                // TODO: Remove in master. This should be replaced with a simple
-                // `style="margin: 0 12px;"` in the snippet template, similar to
-                // the one used for building carousel items.
                 carousel.style.margin = "0 12px";
             }
             this.addCarouselListener(carousels);
@@ -84,25 +87,30 @@ class ImageGalleryOption extends Plugin {
         },
         on_cloned_handlers: ({ cloneEl }) => {
             const carousels = cloneEl.querySelectorAll(".s_image_gallery .carousel");
+            log.pipeline("ImageGalleryOption onCloned", () => ({
+                carousels: carousels.length,
+            }));
             this.addUniqueIds(carousels);
         },
     };
 
     setup() {
-        // A single bound handler + explicit set so the slid.bs.carousel listener
-        // is idempotent (never double-bound) and every element it was attached
-        // to is unbound on destroy — the editor tears down but the edited page
-        // DOM (the carousels) lives on, so a leaked listener retains `this`.
         this.onCarouselSlidBound = this.onCarouselSlid.bind(this);
         this.carouselsWithSlidListener = new Set();
         const slideshowCarousels = this.document.querySelectorAll(
             ".s_image_gallery .carousel",
         );
         this.addCarouselListener(slideshowCarousels);
+        log.lifecycle("ImageGalleryOption setup", () => ({
+            slidListeners: this.carouselsWithSlidListener.size,
+        }));
     }
 
     destroy() {
         super.destroy();
+        log.lifecycle("ImageGalleryOption destroy: remove slid listeners", () => ({
+            slidListeners: this.carouselsWithSlidListener.size,
+        }));
         for (const el of this.carouselsWithSlidListener) {
             el.removeEventListener("slid.bs.carousel", this.onCarouselSlidBound);
         }
@@ -129,34 +137,33 @@ class ImageGalleryOption extends Plugin {
     }
 
     bindCarouselSlid(el) {
-        // addDomListener registers a *new* auto-cleanup on every call and never
-        // dedupes, so repeated relayouts/drops leaked listeners + detached
-        // nodes; and the old removeEventListener(this.onCarouselSlid) never
-        // matched addDomListener's wrapped handler (a silent no-op).
         if (this.carouselsWithSlidListener.has(el)) {
             return;
         }
         this.carouselsWithSlidListener.add(el);
         el.addEventListener("slid.bs.carousel", this.onCarouselSlidBound);
+        log.lifecycle("ImageGalleryOption slid listener attached", () => ({
+            id: el.id,
+        }));
     }
 
     unbindCarouselSlid(el) {
         if (this.carouselsWithSlidListener.delete(el)) {
+            log.lifecycle("ImageGalleryOption slid listener detached", () => ({
+                id: el.id,
+            }));
             el.removeEventListener("slid.bs.carousel", this.onCarouselSlidBound);
         }
     }
 
     restoreSelection(imageToSelect, isPreviewing) {
         if (imageToSelect && !isPreviewing) {
-            // Activate the containers of the equivalent cloned image.
             this.dependencies.builderOptions.setNextTarget(imageToSelect);
         }
     }
 
     /**
-     * Gets the gallery images to reorder.
-     *
-     * @param {HTMLElement} activeItemEl the current active image
+     * @param {HTMLElement} activeItemEl
      * @param {String} optionName
      * @returns {Array<HTMLElement>}
      */
@@ -171,17 +178,17 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Updates the DOM with the reordered images.
-     *
-     * @param {HTMLElement} activeItemEl the active item
-     * @param {Array<HTMLElement>} itemEls the reordered elements
+     * @param {HTMLElement} activeItemEl
+     * @param {Array<HTMLElement>} itemEls
      * @param {String} optionName
      */
     reorderGalleryItems(activeItemEl, itemEls, optionName) {
         if (optionName === "GalleryImageList") {
             const galleryEl = activeItemEl.closest(".s_image_gallery");
+            log.pipeline("ImageGalleryOption reorderGalleryItems", () => ({
+                items: itemEls.length,
+            }));
 
-            // Update the content with the new order.
             itemEls.forEach((itemEl, i) => {
                 const imgEl = this.getImageElement(itemEl);
                 imgEl.dataset.index = i;
@@ -189,9 +196,14 @@ class ImageGalleryOption extends Plugin {
             const mode = this.getMode(galleryEl);
             this.setImages(galleryEl, mode, itemEls);
 
-            // Update the active slide if it is a carousel.
             if (mode === "slideshow") {
                 const newPosition = itemEls.indexOf(activeItemEl);
+                log.logic(
+                    "ImageGalleryOption reorder slideshow: activate slide",
+                    () => ({
+                        newPosition,
+                    }),
+                );
                 const carouselEl = galleryEl.querySelector(".carousel");
                 const carouselItemEls = carouselEl.querySelectorAll(".carousel-item");
                 carouselItemEls.forEach((itemEl, i) => {
@@ -199,7 +211,6 @@ class ImageGalleryOption extends Plugin {
                 });
                 updateCarouselIndicators(carouselEl, newPosition);
 
-                // Activate the active image.
                 const activeImageEl = galleryEl.querySelector(
                     ".carousel-item.active img",
                 );
@@ -209,12 +220,16 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Set the images in the gallery by following the wanted layout
      * @param {Element} imageGalleryElement
      * @param {String('slideshow'|'masonry'|'grid'|'nomode')} mode
      * @param {Element[]} images
      */
     setImages(imageGalleryElement, mode, images) {
+        log.pipeline("ImageGalleryOption setImages", () => ({
+            mode,
+            images: images.length,
+            modeChanged: mode !== this.getMode(imageGalleryElement),
+        }));
         if (mode !== this.getMode(imageGalleryElement)) {
             imageGalleryElement.classList.remove(
                 "o_nomode",
@@ -248,6 +263,10 @@ class ImageGalleryOption extends Plugin {
         const columnsNumber = this.getColumns(imageGalleryElement);
         const colClass = "col-lg-" + 12 / columnsNumber;
         const columns = [];
+        const endMasonry = log.perf("ImageGalleryOption masonry layout", () => ({
+            images: images.length,
+            columns: columnsNumber,
+        }));
 
         const row = document.createElement("div");
         row.classList.add("row", "s_nb_column_fixed");
@@ -260,7 +279,6 @@ class ImageGalleryOption extends Plugin {
             columns.push(column);
         }
 
-        // Dispatch images in columns by always putting the next one in the smallest height column
         for (const imageEl of images) {
             let min = Infinity;
             let smallestColEl;
@@ -279,11 +297,10 @@ class ImageGalleryOption extends Plugin {
             }
             smallestColEl.append(imageEl);
         }
+        endMasonry();
     }
 
     /**
-     * Displays the images with the "grid" layout.
-     *
      * @param {Element} imageGalleryElement
      * @param {Element[]} images
      */
@@ -345,6 +362,9 @@ class ImageGalleryOption extends Plugin {
         });
 
         const images = imagesData.map((data) => data.imgEl);
+        const endRender = log.perf("ImageGalleryOption render slideshow", () => ({
+            images: images.length,
+        }));
         const slideshowEl = renderToElement("website.s_image_gallery_slideshow", {
             images: images,
             index: 0,
@@ -354,6 +374,7 @@ class ImageGalleryOption extends Plugin {
             colorContrast,
             copyAttributes: true,
         });
+        endRender();
         if (carouselEl) {
             this.unbindCarouselSlid(carouselEl);
         }
@@ -374,6 +395,7 @@ class ImageGalleryOption extends Plugin {
                 .querySelector(".carousel .carousel-inner")
                 ?.classList.remove("d-none");
         } else {
+            log.logic("ImageGalleryOption slideshow without images: hide controls");
             imageGalleryElement.style.removeProperty("height");
             slideshowEl
                 .querySelector(".carousel .o_carousel_controllers")
@@ -386,16 +408,21 @@ class ImageGalleryOption extends Plugin {
     }
 
     onCarouselSlid(ev) {
-        // When the carousel slides, update the builder options to select the active image
         const activeImageEl = ev.target.querySelector(".carousel-item.active img");
         this.dependencies.builderOptions.updateContainers(activeImageEl);
     }
 
     async processImages(editingElement, newImages = []) {
+        const endWebp = log.perf("ImageGalleryOption transformImagesToWebp", () => ({
+            images: newImages.length,
+        }));
         await this.transformImagesToWebp(newImages);
+        endWebp();
         this.setImageProperties(editingElement, newImages);
+        const endClone = log.perf("ImageGalleryOption cloneContainerImages");
         const { clonedImgs, imageToSelect } =
             await this.cloneContainerImages(editingElement);
+        endClone(() => ({ cloned: clonedImgs.length, selected: !!imageToSelect }));
         return { images: [...clonedImgs, ...newImages], imageToSelect };
     }
 
@@ -425,7 +452,9 @@ class ImageGalleryOption extends Plugin {
                     mimetypeBeforeConversion,
                 )
             ) {
-                // Convert to webp but keep original width.
+                log.logic("ImageGalleryOption convert image to webp", () => ({
+                    mimetypeBeforeConversion,
+                }));
                 const update = await this.dependencies.imagePostProcess.processImage({
                     img,
                     newDataset: {
@@ -446,9 +475,6 @@ class ImageGalleryOption extends Plugin {
         let imageToSelect;
         const currentContainers = this.dependencies.builderOptions.getContainers();
         for (const image of imagesHolder) {
-            // Only on Chrome: appended images are sometimes invisible
-            // and not correctly loaded from cache, we use a clone of the
-            // image to force the loading.
             const newImg = image.cloneNode(true);
             const imgEl =
                 newImg.tagName === "IMG"
@@ -465,13 +491,15 @@ class ImageGalleryOption extends Plugin {
             }
             clonedImgs.push(newImg);
         }
+        const endDecode = log.perf("ImageGalleryOption decode cloned images", () => ({
+            images: imgLoaded.length,
+        }));
         await Promise.allSettled(imgLoaded);
+        endDecode();
         return { clonedImgs, imageToSelect };
     }
 
     /**
-     * Get the image target's layout mode (slideshow, masonry, grid or nomode).
-     *
      * @returns {String('slideshow'|'masonry'|'grid'|'nomode')}
      */
     getMode(imageGalleryElement) {
@@ -514,19 +542,22 @@ class ImageGalleryOption extends Plugin {
     }
 
     onWillRemove(toRemoveEl) {
-        // If the removed element is an image from a gallery, store the gallery
-        // element for `onRemoved`.
         if (toRemoveEl.matches(".s_image_gallery img")) {
+            log.logic(
+                "ImageGalleryOption gallery image will be removed: relayout after",
+            );
             this.imageRemovedGalleryElement = toRemoveEl.closest(".s_image_gallery");
         }
     }
 
     onRemoved() {
-        // If the removed element is an image from a gallery, relayout the
-        // gallery.
         if (this.imageRemovedGalleryElement) {
             const mode = this.getMode(this.imageRemovedGalleryElement);
             const images = this.getImageHolder(this.imageRemovedGalleryElement);
+            log.pipeline("ImageGalleryOption relayout after image removal", () => ({
+                mode,
+                images: images.length,
+            }));
             this.setImages(this.imageRemovedGalleryElement, mode, images);
             this.imageRemovedGalleryElement = undefined;
         }
@@ -534,6 +565,7 @@ class ImageGalleryOption extends Plugin {
 
     updateCarouselThumbnail(mediaEl) {
         if (mediaEl.matches(".s_image_gallery img")) {
+            log.pipeline("ImageGalleryOption forward image to thumbnail");
             forwardToThumbnail(mediaEl);
         }
     }
@@ -548,6 +580,7 @@ export class AddImageAction extends BuilderAction {
     static dependencies = ["media", "imageGalleryOption"];
     async load({ editingElement }) {
         let selectedImages;
+        log.lifecycle("AddImageAction open media dialog");
         await new Promise((resolve) => {
             const onClose = this.dependencies.media.openMediaDialog({
                 onlyImages: true,
@@ -560,8 +593,12 @@ export class AddImageAction extends BuilderAction {
             onClose.then(resolve);
         });
         if (!selectedImages) {
+            log.logic("AddImageAction no image selected");
             return [];
         }
+        log.pipeline("AddImageAction process selected images", () => ({
+            images: selectedImages.length,
+        }));
         return this.dependencies.imageGalleryOption.processImages(
             editingElement,
             selectedImages,
@@ -570,6 +607,10 @@ export class AddImageAction extends BuilderAction {
     apply({ editingElement, loadResult: { images } }) {
         if (images && images.length) {
             const mode = this.dependencies.imageGalleryOption.getMode(editingElement);
+            log.pipeline("AddImageAction apply", () => ({
+                mode,
+                images: images.length,
+            }));
             this.dependencies.imageGalleryOption.setImages(
                 editingElement,
                 mode,
@@ -583,6 +624,7 @@ export class RemoveAllImagesAction extends BuilderAction {
     static dependencies = ["imageGalleryOption"];
     apply({ editingElement: el }) {
         const mode = this.dependencies.imageGalleryOption.getMode(el);
+        log.pipeline("RemoveAllImagesAction apply", () => ({ mode }));
         this.dependencies.imageGalleryOption.setImages(el, mode, []);
     }
 }
@@ -594,6 +636,10 @@ export class SetImageGalleryLayoutAction extends BuilderAction {
     }
     apply({ isPreviewing, editingElement, params: { mainParam: mode }, loadResult }) {
         if (mode !== this.dependencies.imageGalleryOption.getMode(editingElement)) {
+            log.logic("SetImageGalleryLayoutAction switch layout", () => ({
+                mode,
+                isPreviewing,
+            }));
             this.dependencies.imageGalleryOption.setImages(
                 editingElement,
                 mode,
@@ -624,6 +670,10 @@ export class SetImageGalleryColumnsAction extends BuilderAction {
         if (
             columns !== this.dependencies.imageGalleryOption.getColumns(editingElement)
         ) {
+            log.logic("SetImageGalleryColumnsAction change columns", () => ({
+                columns,
+                isPreviewing,
+            }));
             editingElement.dataset.columns = columns;
             this.dependencies.imageGalleryOption.setImages(
                 editingElement,
@@ -646,6 +696,7 @@ export class SetImageGalleryColumnsAction extends BuilderAction {
 export class SetCarouselSpeedAction extends BuilderAction {
     static id = "setCarouselSpeed";
     apply({ editingElement, value }) {
+        log.pipeline("SetCarouselSpeedAction apply", () => ({ seconds: value }));
         editingElement.dataset.bsInterval = value * 1000;
     }
     getValue({ editingElement }) {

@@ -78,16 +78,16 @@
                 <button
                     name="%(sale_timesheet.action_timesheet_from_invoice)d"
                     type="action"
-                    class="oe_stat_button"
                     icon="fa-regular fa-clock"
+                    groups="hr_timesheet.group_hr_timesheet_user"
                     invisible="timesheet_count == 0"
-                    groups="hr_timesheet.group_hr_timesheet_user">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field
                                 name="timesheet_total_duration"
-                                class="mr4"
-                                nolabel="1" />
+                                nolabel="1"
+                                class="mr4" />
                             <field
                                 name="timesheet_encode_uom_id"
                                 options="{'no_open': True}" />

@@ -2,14 +2,17 @@
 /** @odoo-module native */
 
 import { markRaw, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { isX2Many } from "@web/core/field_types";
-import { omit } from "@web/core/utils/collections/objects";
+import { deepEqual, omit } from "@web/core/utils/collections/objects";
 import { Operation } from "@web/core/utils/operation";
 
 import { DataPoint } from "./datapoint.js";
+
+const log = makeLogger("web.model.record");
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
-import { sameMany2OneValue } from "./field_values.js";
+import { sameFieldValue, sameMany2OneValue } from "./field_values.js";
 import { RecordEditState } from "./record_edit_state.js";
 import {
     archive,
@@ -23,6 +26,7 @@ import {
     preprocessMany2OneReferenceChanges,
     preprocessPropertiesChanges,
     preprocessReferenceChanges,
+    preprocessRelatedPropertyChanges,
     preprocessX2manyChanges,
 } from "./record_preprocessors.js";
 import { processProperties as processRecordProperties } from "./record_properties.js";
@@ -127,6 +131,8 @@ export class RelationalRecord extends DataPoint {
         }
         /** @type {Set<string>} */
         this.loadedFieldNames = markRaw(new Set(Object.keys(data)));
+        /** @type {Record<string, unknown>} */
+        this._x2manyPayloads = markRaw({});
         const missingFields = this.fieldNames.filter(
             (fieldName) => !(fieldName in data),
         );
@@ -140,13 +146,18 @@ export class RelationalRecord extends DataPoint {
      */
     setData(data, { orderBys, keepChanges } = {}) {
         this._isEvalContextReady = false;
+        const inPlace = Boolean(this.data && this.resId && !keepChanges);
         if (this.data) {
             for (const fieldName of Object.keys(data)) {
                 this.loadedFieldNames.add(fieldName);
             }
         }
         if (this.resId) {
-            this._values = markRaw(this.parseServerValues(data, { orderBys }));
+            const currentValues = inPlace ? this._unchangedX2Manys(data) : undefined;
+            this._values = markRaw(
+                this.parseServerValues(data, { orderBys, currentValues }),
+            );
+            this._rememberX2ManyPayloads(data);
             Object.assign(this._textValues, this._getTextValues(data));
         } else {
             const allVals = { ...this.getDefaultValues(), ...data };
@@ -163,7 +174,11 @@ export class RelationalRecord extends DataPoint {
         } else {
             this.dirty = this.dirty || this._hasChanges;
         }
-        this.data = { ...this._values, ...this.changes };
+        if (inPlace) {
+            this._reconcileData({ ...this._values, ...this.changes });
+        } else {
+            this.data = { ...this._values, ...this.changes };
+        }
         this._initialTextValues = markRaw({ ...this._textValues });
         if (keepChanges) {
             Object.assign(this._textValues, this._getTextValues(this.changes));
@@ -278,6 +293,11 @@ export class RelationalRecord extends DataPoint {
     }
 
     async discard() {
+        log.logic("discard", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            dirty: this.dirty,
+        }));
         this.model.closeUrgentSaveNotification();
         await this.model.askChanges();
         return this.model.mutex.exec(() => this.discardLocked());
@@ -349,6 +369,13 @@ export class RelationalRecord extends DataPoint {
      * @param {{ save?: boolean, withoutParentUpdate?: boolean }} [options]
      */
     async update(changes, { save, withoutParentUpdate } = {}) {
+        log.logic("update", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            fields: Object.keys(changes),
+            save: Boolean(save),
+            urgent: this.model.urgentSave.isActive,
+        }));
         if (this.model.urgentSave.isActive) {
             const envelope = await this.updateLocked(changes, { withoutParentUpdate });
             return openMultiEditEnvelope(envelope).result;
@@ -453,6 +480,73 @@ export class RelationalRecord extends DataPoint {
         this._editState.clearChanges();
     }
 
+    /**
+     * A reload writes only the fields that read differently, so the
+     * components subscribed to the others are left alone.
+     *
+     * @param {Record<string, any>} next
+     */
+    _reconcileData(next) {
+        const written = [];
+        for (const fieldName of Object.keys(this.data)) {
+            if (!(fieldName in next)) {
+                delete this.data[fieldName];
+                written.push(`-${fieldName}`);
+            }
+        }
+        for (const fieldName of Object.keys(next)) {
+            const field = this.fields[fieldName];
+            if (
+                !field ||
+                !sameFieldValue(field, this.data[fieldName], next[fieldName])
+            ) {
+                this.data[fieldName] = next[fieldName];
+                written.push(fieldName);
+            }
+        }
+        log.logic("reconcileData", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            written,
+        }));
+    }
+
+    /**
+     * The x2many lists a reload may keep: the server sent the rows it sent
+     * last time, and nothing local is staged on them.
+     *
+     * @param {Record<string, any>} data
+     * @returns {Record<string, any>}
+     */
+    _unchangedX2Manys(data) {
+        /** @type {Record<string, any>} */
+        const kept = {};
+        for (const fieldName of Object.keys(data)) {
+            if (!isX2Many(this.fields[fieldName]) || !this.activeFields[fieldName]) {
+                continue;
+            }
+            const list = toRaw(this.data[fieldName]);
+            if (
+                list &&
+                !list.hasStagedCommands &&
+                !list.records.some((record) => record.hasPendingChanges) &&
+                deepEqual(this._x2manyPayloads[fieldName], data[fieldName])
+            ) {
+                kept[fieldName] = list;
+            }
+        }
+        return kept;
+    }
+
+    /** @param {Record<string, any>} data */
+    _rememberX2ManyPayloads(data) {
+        for (const fieldName of Object.keys(data)) {
+            if (isX2Many(this.fields[fieldName])) {
+                this._x2manyPayloads[fieldName] = data[fieldName];
+            }
+        }
+    }
+
     rebuildData() {
         this.data = { ...this._values, ...this.changes };
         this.setEvalContext();
@@ -505,6 +599,13 @@ export class RelationalRecord extends DataPoint {
 
     /** @param {any} changes */
     applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
+        log.pipeline("applyChanges", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            changes: Object.keys(changes),
+            serverChanges: Object.keys(serverChanges),
+            undoable,
+        }));
         let undoChanges = NO_UNDO;
         if (undoable) {
             const initialTextValues = { ...this._textValues };
@@ -842,6 +943,12 @@ export class RelationalRecord extends DataPoint {
 
     /** @param {Mode} mode */
     switchModeLocked(mode) {
+        log.lifecycle("switchMode", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            from: this.config.mode,
+            to: mode,
+        }));
         this.model.patchConfig(this.config, { mode });
         if (mode === "readonly") {
             this._noUpdateParent = false;
@@ -883,6 +990,11 @@ export class RelationalRecord extends DataPoint {
         if (!onChangeFields.length) {
             return /** @type {Record<string, any>} */ ({});
         }
+        log.pipeline("onchange", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            fields: onChangeFields,
+        }));
 
         const localChanges = this.getChangesLocked(
             { ...this.changes, ...changes },
@@ -941,14 +1053,42 @@ export class RelationalRecord extends DataPoint {
      * @returns {Promise<unknown[]>}
      */
     _preprocessChanges(changes) {
-        return Promise.all([
-            preprocessMany2oneChanges(this, changes),
-            preprocessMany2OneReferenceChanges(this, changes),
-            preprocessReferenceChanges(this, changes),
-            preprocessX2manyChanges(this, changes),
-            preprocessPropertiesChanges(this, changes),
-            preprocessHtmlChanges(this, changes),
-        ]);
+        const relatedPropertyNames = Object.keys(changes).filter(
+            (name) => this.fields[name]?.relatedPropertyField,
+        );
+        /** @type {Promise<unknown>[]} */
+        const pending = [];
+        for (const preprocess of [
+            preprocessMany2oneChanges,
+            preprocessMany2OneReferenceChanges,
+            preprocessReferenceChanges,
+            preprocessX2manyChanges,
+            preprocessPropertiesChanges,
+            preprocessHtmlChanges,
+        ]) {
+            try {
+                // Invoke synchronously: urgent saves depend on the initial
+                // property composition even when they skip asynchronous waits.
+                pending.push(Promise.resolve(preprocess(this, changes)));
+            } catch (error) {
+                pending.push(Promise.reject(error));
+                break;
+            }
+        }
+        return Promise.all(pending).then(
+            (results) => {
+                // Keep the initial synchronous composition for urgent saves, but
+                // replace incomplete relation values before a normal save/onchange.
+                preprocessRelatedPropertyChanges(this, changes, relatedPropertyNames);
+                return results;
+            },
+            async (error) => {
+                // Join started work before rollback without adding a promise
+                // continuation to successful updates (which changes render timing).
+                await Promise.allSettled(pending);
+                throw error;
+            },
+        );
     }
 
     /**
@@ -1044,6 +1184,7 @@ export class RelationalRecord extends DataPoint {
             await this._onUpdate({ withoutParentUpdate });
         } catch (e) {
             undoChanges();
+            rollbackLists();
             restoreDirty();
             throw e;
         }

@@ -2,12 +2,10 @@
 <odoo>
 
     <data>
-        <!-- Sub nav -->
         <template id="user_profile_sub_nav" name="User profile subnav">
             <div class="o_wprofile_all_users_nav">
                 <div class="container">
                     <div class="row align-items-center justify-content-between">
-                        <!-- Desktop Mode -->
                         <div
                             t-if="url_from"
                             class="o_wprofile_all_users_nav_btn_container col pe-0 flex-grow-0 d-none d-md-flex">
@@ -31,7 +29,6 @@
 
                         <div
                             class="col d-none d-md-flex flex-row align-items-center justify-content-end">
-                            <!-- search -->
                             <form
                                 t-attf-action="/profile/users"
                                 role="search"
@@ -58,7 +55,6 @@
                             </form>
                         </div>
 
-                        <!-- Mobile Mode -->
                         <div class="col d-md-none py-1">
                             <div
                                 class="btn-group d-flex justify-content-between gap-1"
@@ -113,10 +109,6 @@
                 </div>
             </div>
         </template>
-        <!--
-            Single User Profile Page
-        -->
-        <!-- Profile Page -->
         <template id="user_profile_main" name="Profile Page">
             <t t-set="body_classname" t-value="'o_wprofile_body'" />
             <t t-call="website.layout">
@@ -135,7 +127,6 @@
 
                 <div class="container pb-3 pb-md-0 pt-2 pt-md-5">
                     <div class="row">
-                        <!-- ==== Header Left ==== -->
                         <div class="col-12 col-md-4 col-lg-3">
                             <div
                                 t-attf-class="d-flex align-items-start h-100 #{'justify-content-between' if (request.env.user == user) else 'justify-content-around' }">
@@ -152,7 +143,6 @@
                             </div>
                         </div>
 
-                        <!-- ==== Header Right ==== -->
                         <div class="col-12 col-md-8 col-lg-9 d-flex flex-column">
                             <div
                                 class="d-flex justify-content-between align-items-start">
@@ -193,7 +183,6 @@
             <div class="container">
                 <div class="row">
 
-                    <!-- ========== SIDEBAR ========== -->
                     <div class="col-12 col-md-4 col-lg-3 mt-3 mt-md-0">
                         <div class="o_wprofile_sidebar px-3 py-2 py-md-3 mb-3 mb-md-5">
                             <div
@@ -246,7 +235,6 @@
                         </div>
                     </div>
 
-                    <!-- ========== PROFILE CONTENT ========== -->
                     <div class="col-12 col-md-8 col-lg-9 position-relative">
                         <ul
                             class="nav nav-tabs o_wprofile_nav_tabs flex-nowrap"
@@ -419,7 +407,6 @@
                 <a t-else="" t-attf-href="/profile/ranks_badges" class="btn-link btn-sm"><i class="oi oi-arrow-right me-1" />All Badges</a>
             </div>
         </template>
-        <!-- About Ranks and badges Page -->
         <template id="rank_badge_main" name="Ranks Page">
             <t t-call="website.layout">
                 <div class="container mb32 mt48">
@@ -511,7 +498,6 @@
             </a>
             <h6 t-else="" t-field="badge.name" class="d-inline my-0" />
         </template>
-        <!--Access Denied - Profile Page-->
         <template id="profile_access_denied" name="Access Denied - Profile Page">
             <t t-call="website.layout">
                 <div class="container mb32 mt48">
@@ -522,9 +508,6 @@
                 </div>
             </t>
         </template>
-        <!--
-            All Users Page
-        -->
         <template id="users_page_main" name="Users Page">
             <t t-set="body_classname" t-value="'o_wprofile_body'" />
             <t t-call="website.layout">
@@ -578,7 +561,6 @@
                             </tr>
                         </t>
                         <t t-if="my_user">
-                            <!-- keep same table to avoid missaligment -->
                             <tr>
                                 <td colspan="7" />
                             </tr>
@@ -669,7 +651,6 @@
                 <b t-out="user['badge_count']" /> <span class="text-muted small fw-bold">Badges</span>
             </td>
         </template>
-        <!-- Custom Pager: lighter than existing one, no box around number, first / end displayed -->
         <template id="pager_nobox" name="Pager (not box display)">
             <ul
                 t-if="pager['page_count'] &gt; 1"

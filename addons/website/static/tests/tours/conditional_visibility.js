@@ -121,14 +121,11 @@ registerWebsitePreviewTour(
     },
     () => [
         checkEyeIcon("Text - Image", true),
-        // Drag a "Banner" snippet on the website.
         ...insertSnippet(snippets[1]),
-        // Click on the "Banner" snippet.
         ...clickOnSnippet(snippets[1]),
         ...changeOptionInPopover("Banner", "Visibility", "Conditionally"),
         checkEyeIcon("Banner", true),
         goBackToBlocks(),
-        // Drag a "Popup" snippet on the website.
         ...insertSnippet(snippets[2]),
         {
             content: "Wait for the popup to display",
@@ -185,7 +182,6 @@ registerWebsitePreviewTour(
         url: "/",
     },
     () => [
-        // Click on the "Text-Image" snippet.
         ...clickOnSnippet(snippets[0]),
         {
             content: "Click on the 'move down' option",
@@ -207,7 +203,6 @@ registerWebsitePreviewTour(
             content: "Check that the footer is visible",
             trigger: ":iframe #wrapwrap footer",
         },
-        // Click on the "Banner" snippet.
         ...clickOnSnippet(snippets[1]),
         {
             content: "Drag the 'Banner' snippet to the end of the page",

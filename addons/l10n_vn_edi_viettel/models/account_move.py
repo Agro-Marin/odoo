@@ -7,11 +7,11 @@ import uuid
 import zipfile
 from datetime import datetime, timedelta
 
-import requests
 from requests import RequestException
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs import guarded_http, netguard
 from odoo.tools import float_repr, float_round
 
 SINVOICE_API_URL = "https://api-vinvoice.viettel.vn/services/einvoiceapplication/api/"
@@ -25,15 +25,16 @@ def _l10n_vn_edi_send_request(
 ):
     """Send a request to the API based on the given parameters. In case of errors, the error message is returned."""
     try:
-        response = requests.request(
-            method,
-            url,
-            json=json_data,
-            params=params,
-            headers=headers,
-            cookies=cookies,
-            timeout=SINVOICE_TIMEOUT,
-        )
+        with guarded_http.guarded_session(netguard.PUBLIC_ONLY) as session:
+            response = session.request(
+                method,
+                url,
+                json=json_data,
+                params=params,
+                headers=headers,
+                cookies=cookies,
+                timeout=SINVOICE_TIMEOUT,
+            )
         resp_json = response.json()
         error = None
         if resp_json.get("code") or resp_json.get("error"):
@@ -49,7 +50,6 @@ class AccountMove(models.Model):
 
     # EDI values
     l10n_vn_edi_invoice_state = fields.Selection(
-        string="Sinvoice Status",
         selection=[
             ("ready_to_send", "Ready to send"),
             ("sent", "Sent"),
@@ -59,90 +59,91 @@ class AccountMove(models.Model):
             ("adjusted", "Adjusted"),
             ("replaced", "Replaced"),
         ],
-        copy=False,
+        string="Sinvoice Status",
         compute="_compute_l10n_vn_edi_invoice_state",
         store=True,
+        copy=False,
         readonly=False,
     )
     # This id is important when sending by batches in order to recognize individual invoices.
     l10n_vn_edi_invoice_transaction_id = fields.Char(
         string="SInvoice Transaction ID",
-        help="Technical field to store the transaction ID if needed",
         export_string_translation=False,
         copy=False,
+        help="Technical field to store the transaction ID if needed",
     )
     l10n_vn_edi_invoice_symbol = fields.Many2one(
-        string="Invoice Symbol",
         comodel_name="l10n_vn_edi_viettel.sinvoice.symbol",
+        string="Invoice Symbol",
         compute="_compute_l10n_vn_edi_invoice_symbol",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     l10n_vn_edi_invoice_number = fields.Char(
         string="SInvoice Number",
-        help="Invoice Number as appearing on SInvoice.",
         copy=False,
         readonly=True,
+        help="Invoice Number as appearing on SInvoice.",
     )
     l10n_vn_edi_reservation_code = fields.Char(
         string="Secret Code",
-        help="Secret code that can be used by a customer to lookup an invoice on SInvoice.",
         copy=False,
         readonly=True,
+        help="Secret code that can be used by a customer to lookup an invoice on SInvoice.",
     )
     l10n_vn_edi_issue_date = fields.Datetime(
         string="Issue Date",
-        help="Date of issue of the invoice on the e-invoicing system.",
         copy=False,
         readonly=True,
+        help="Date of issue of the invoice on the e-invoicing system.",
     )
     l10n_vn_edi_sinvoice_file_id = fields.Many2one(
         comodel_name="ir.attachment",
+        export_string_translation=False,
         compute=lambda self: self._compute_linked_attachment_id(
             "l10n_vn_edi_sinvoice_file_id", "l10n_vn_edi_sinvoice_file"
         ),
         depends=["l10n_vn_edi_sinvoice_file"],
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_sinvoice_file = fields.Binary(
         string="SInvoice json File",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_sinvoice_xml_file_id = fields.Many2one(
         comodel_name="ir.attachment",
+        export_string_translation=False,
         compute=lambda self: self._compute_linked_attachment_id(
             "l10n_vn_edi_sinvoice_xml_file_id", "l10n_vn_edi_sinvoice_xml_file"
         ),
         depends=["l10n_vn_edi_sinvoice_xml_file"],
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_sinvoice_xml_file = fields.Binary(
         string="SInvoice xml File",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_sinvoice_pdf_file_id = fields.Many2one(
         comodel_name="ir.attachment",
+        export_string_translation=False,
         compute=lambda self: self._compute_linked_attachment_id(
             "l10n_vn_edi_sinvoice_pdf_file_id", "l10n_vn_edi_sinvoice_pdf_file"
         ),
         depends=["l10n_vn_edi_sinvoice_pdf_file"],
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_sinvoice_pdf_file = fields.Binary(
         string="SInvoice pdf File",
+        export_string_translation=False,
         copy=False,
         readonly=True,
-        export_string_translation=False,
     )
     # Replacement/Adjustment fields
     l10n_vn_edi_agreement_document_name = fields.Char(
@@ -154,25 +155,25 @@ class AccountMove(models.Model):
         copy=False,
     )
     l10n_vn_edi_adjustment_type = fields.Selection(
-        string="Adjustment type",
         selection=[
             ("1", "Money adjustment"),
             ("2", "Information adjustment"),
         ],
+        string="Adjustment type",
         copy=False,
     )
     # Only used in case of replacement invoice.
     l10n_vn_edi_replacement_origin_id = fields.Many2one(
         comodel_name="account.move",
         string="Replacement of",
+        export_string_translation=False,
         copy=False,
         readonly=True,
         check_company=True,
-        export_string_translation=False,
     )
     l10n_vn_edi_reversed_entry_invoice_number = fields.Char(
-        string="Revered Entry SInvoice Number",  # Need string here to avoid same label warning
         related="reversed_entry_id.l10n_vn_edi_invoice_number",
+        string="Revered Entry SInvoice Number",  # Need string here to avoid same label warning
         export_string_translation=False,
     )
 
@@ -244,10 +245,10 @@ class AccountMove(models.Model):
         )
         return fields_list
 
-    def _l10n_vn_edi_fetch_invoice_file_data(self, file_format):
+    def _l10n_vn_edi_download_invoice_file_data(self, file_format):
         """Helper to try fetching a few time in case the files are not yet ready."""
         self.check_singleton()
-        files_data, error_message = self._l10n_vn_edi_try_fetch_invoice_file_data(
+        files_data, error_message = self._l10n_vn_edi_try_download_invoice_file_data(
             file_format
         )
 
@@ -259,13 +260,13 @@ class AccountMove(models.Model):
         threshold = 1
         while not files_data["fileToBytes"] and threshold < 3:
             time.sleep(0.125 * threshold)
-            files_data, error_message = self._l10n_vn_edi_try_fetch_invoice_file_data(
+            files_data, error_message = self._l10n_vn_edi_try_download_invoice_file_data(
                 file_format
             )
             threshold += 1
         return files_data, error_message
 
-    def _l10n_vn_edi_try_fetch_invoice_file_data(self, file_format):
+    def _l10n_vn_edi_try_download_invoice_file_data(self, file_format):
         """
         Query sinvoice in order to fetch the data representation of the invoice, either zip or pdf.
         """
@@ -294,14 +295,14 @@ class AccountMove(models.Model):
             cookies={"access_token": access_token},
         )
 
-    def _l10n_vn_edi_fetch_invoice_xml_file_data(self):
+    def _l10n_vn_edi_download_invoice_xml_file_data(self):
         """
         Query sinvoice in order to fetch the xsl and xml data representation of the invoice.
 
         Returns a list of tuple with both file names, mimetype, content and the field it should be stored in.
         """
         self.check_singleton()
-        files_data, error_message = self._l10n_vn_edi_fetch_invoice_file_data("ZIP")
+        files_data, error_message = self._l10n_vn_edi_download_invoice_file_data("ZIP")
         if error_message:
             return files_data, error_message
 
@@ -322,14 +323,14 @@ class AccountMove(models.Model):
                             "res_field": "l10n_vn_edi_sinvoice_xml_file",
                         }, ""
 
-    def _l10n_vn_edi_fetch_invoice_pdf_file_data(self):
+    def _l10n_vn_edi_download_invoice_pdf_file_data(self):
         """
         Query sinvoice in order to fetch the pdf data representation of the invoice.
 
         Returns a tuple with the pdf name, mimetype, content and field.
         """
         self.check_singleton()
-        file_data, error_message = self._l10n_vn_edi_fetch_invoice_file_data("PDF")
+        file_data, error_message = self._l10n_vn_edi_download_invoice_file_data("PDF")
         if error_message:
             return file_data, error_message
 
@@ -360,7 +361,7 @@ class AccountMove(models.Model):
             # SInvoice will return a NOT_FOUND_DATA error if the status in Odoo matches the one on their side.
             # Because of that we wouldn't be able to differentiate a real issue (invoice on our side not matching theirs)
             # With simply a status already up to date. So we need to check the status first to see if we need to update.
-            invoice_lookup, error_message = invoice._l10n_vn_edi_lookup_invoice()
+            invoice_lookup, error_message = invoice._l10n_vn_edi_get_invoice()
             if error_message:
                 raise UserError(error_message)
 
@@ -541,7 +542,7 @@ class AccountMove(models.Model):
         # If the request was sent but ended up failing, there is still the possibility that the invoice was saved
         # on their system (timeout, for example)
         if self.l10n_vn_edi_invoice_transaction_id:
-            invoice_lookup, error_message = self._l10n_vn_edi_lookup_invoice()
+            invoice_lookup, error_message = self._l10n_vn_edi_get_invoice()
             if "result" in invoice_lookup:
                 invoice_data = invoice_lookup["result"][0]
             # note: We do not catch errors on this endpoint for simplicity, as it should not be required.
@@ -914,7 +915,7 @@ class AccountMove(models.Model):
 
         json_values["taxBreakdowns"] = tax_breakdowns
 
-    def _l10n_vn_edi_lookup_invoice(self):
+    def _l10n_vn_edi_get_invoice(self):
         """Lookup on invoice, returning its current details on SInvoice."""
         self.check_singleton()
         access_token, error = self._l10n_vn_edi_get_access_token()

@@ -11,27 +11,27 @@
                 <field name="facilitator_id" />
                 <separator />
                 <filter
-                    string="Has Open Actions"
                     name="open_actions"
+                    string="Has Open Actions"
                     domain="[('action_ids.state', 'in', ['open', 'in_progress'])]" />
                 <separator />
                 <filter
-                    string="Draft"
                     name="draft"
+                    string="Draft"
                     domain="[('state', '=', 'draft')]" />
-                <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
+                <filter name="done" string="Done" domain="[('state', '=', 'done')]" />
                 <group>
                     <filter
-                        string="Project"
                         name="group_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                     <filter
-                        string="Date"
                         name="group_date"
+                        string="Date"
                         context="{'group_by': 'date:month'}" />
                     <filter
-                        string="Facilitator"
                         name="group_facilitator"
+                        string="Facilitator"
                         context="{'group_by': 'facilitator_id'}" />
                 </group>
             </search>
@@ -45,9 +45,9 @@
             <form string="Retrospective">
                 <header>
                     <button
-                        string="Carry Forward Actions"
                         name="action_carry_forward"
                         type="object"
+                        string="Carry Forward Actions"
                         invisible="not previous_id or state == 'done'"
                         class="oe_highlight" />
                     <field name="state" widget="statusbar" />
@@ -70,17 +70,17 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="What Went Well" name="went_well">
+                        <page name="went_well" string="What Went Well">
                             <field
                                 name="went_well"
                                 placeholder="Practices and decisions worth repeating..." />
                         </page>
-                        <page string="What Needs Improvement" name="to_improve">
+                        <page name="to_improve" string="What Needs Improvement">
                             <field
                                 name="to_improve"
                                 placeholder="Areas where changes would improve outcomes..." />
                         </page>
-                        <page string="Action Items" name="actions">
+                        <page name="actions" string="Action Items">
                             <field name="action_ids">
                                 <list editable="bottom">
                                     <field name="name" />
@@ -161,29 +161,29 @@
                 <field name="owner_id" />
                 <separator />
                 <filter
-                    string="Open"
                     name="open"
+                    string="Open"
                     domain="[('state', 'in', ['open', 'in_progress'])]" />
                 <filter
-                    string="My Actions"
                     name="my_actions"
+                    string="My Actions"
                     domain="[('owner_id', '=', uid)]" />
                 <group>
                     <filter
-                        string="Project"
                         name="group_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                     <filter
-                        string="Category"
                         name="group_category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                     <filter
-                        string="Owner"
                         name="group_owner"
+                        string="Owner"
                         context="{'group_by': 'owner_id'}" />
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                 </group>
             </search>

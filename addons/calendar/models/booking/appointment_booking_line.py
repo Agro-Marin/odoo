@@ -9,50 +9,51 @@ class AppointmentBookingLine(models.Model):
     _order = "event_start desc, id desc"
 
     active = fields.Boolean(related="calendar_event_id.active")
-    appointment_resource_id = fields.Many2one(
-        "appointment.resource", string="Appointment Resource", ondelete="cascade"
+    resource_id = fields.Many2one(
+        comodel_name="resource.resource",
+        string="Resource",
+        ondelete="cascade",
     )
     appointment_user_id = fields.Many2one(
-        "res.users",
-        string="Appointment User",
+        comodel_name="res.users",
         related="calendar_event_id.user_id",
+        string="Appointment User",
         readonly=False,
     )
     appointment_type_id = fields.Many2one(
-        "appointment.type",
+        comodel_name="appointment.type",
         related="calendar_event_id.appointment_type_id",
-        precompute=True,
-        store=True,
         readonly=True,
         ondelete="cascade",
-        index=True,
     )
     capacity_reserved = fields.Integer(
-        "Capacity Reserved",
         default=1,
         required=True,
         help="Capacity reserved by the user",
     )
     capacity_used = fields.Integer(
-        "Capacity Used",
         compute="_compute_capacity_used",
-        readonly=True,
         precompute=True,
         store=True,
+        readonly=True,
         help="Capacity that will be used based on the capacity and user/resource selected",
     )
     calendar_event_id = fields.Many2one(
-        "calendar.event",
+        comodel_name="calendar.event",
         string="Booking",
-        ondelete="cascade",
-        required=True,
         index=True,
+        required=True,
+        ondelete="cascade",
     )
     event_start = fields.Datetime(
-        "Booking Start", related="calendar_event_id.start", readonly=True, store=True
+        related="calendar_event_id.start",
+        string="Booking Start",
+        readonly=True,
     )
     event_stop = fields.Datetime(
-        "Booking End", related="calendar_event_id.stop", readonly=True, store=True
+        related="calendar_event_id.stop",
+        string="Booking End",
+        readonly=True,
     )
 
     _check_capacity_reserved = models.Constraint(
@@ -61,7 +62,7 @@ class AppointmentBookingLine(models.Model):
     )
 
     @api.constrains(
-        "appointment_resource_id", "appointment_type_id", "appointment_user_id"
+        "resource_id", "appointment_type_id", "appointment_user_id"
     )
     def _check_user_or_resource_set(self):
         for line in self:
@@ -70,14 +71,14 @@ class AppointmentBookingLine(models.Model):
                 and not line.appointment_user_id
             ) or (
                 line.appointment_type_id.schedule_based_on == "resources"
-                and not line.appointment_resource_id
+                and not line.resource_id
             ):
                 raise ValidationError(
                     _("Booking line must have a user or resource set.")
                 )
 
     @api.constrains(
-        "appointment_resource_id", "appointment_type_id", "appointment_user_id"
+        "resource_id", "appointment_type_id", "appointment_user_id"
     )
     def _check_user_or_resource_match_appointment_type(self):
         """Check appointment user/resource linked to the lines is indeed usable through the appointment type."""
@@ -89,7 +90,7 @@ class AppointmentBookingLine(models.Model):
                         non_compatible_users_and_resource += user
             else:
                 non_compatible_users_and_resource = (
-                    lines.appointment_resource_id - appointment_type.resource_ids
+                    lines.resource_id - appointment_type.resource_ids
                 )
 
             if non_compatible_users_and_resource:
@@ -104,8 +105,8 @@ class AppointmentBookingLine(models.Model):
                 )
 
     @api.depends(
-        "appointment_resource_id.capacity",
-        "appointment_resource_id.shareable",
+        "resource_id.capacity",
+        "resource_id.booking_exclusive",
         "appointment_type_id.manage_capacity",
         "capacity_reserved",
         "calendar_event_id.show_as",
@@ -135,9 +136,9 @@ class AppointmentBookingLine(models.Model):
                 line.capacity_used = 1
             elif (
                 line.appointment_type_id.schedule_based_on == "resources"
-                and not line.appointment_resource_id.shareable
+                and line.resource_id.booking_exclusive
             ):
-                line.capacity_used = line.appointment_resource_id.capacity
+                line.capacity_used = line.resource_id.capacity
             else:
                 line.capacity_used = line.capacity_reserved
 

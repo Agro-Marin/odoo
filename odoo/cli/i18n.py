@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import get_module_path
 from odoo.tools import OrderedSet
 from odoo.tools.translate import (
@@ -17,6 +18,7 @@ from odoo.tools.translate import (
 from . import DatabaseCommand, open_environment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 type _SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]
 
@@ -168,24 +170,35 @@ class I18n(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
         self.bootstrap_config(parsed_args, extra_args=unknown)
+        subcommand = getattr(parsed_args.func, "__name__", None)
+        _debug.lifecycle("cli.i18n", subcommand=subcommand, db=parsed_args.db_name)
         parsed_args.func(parsed_args)
+        _debug.lifecycle("cli.i18n.done", subcommand=subcommand)
 
     def _get_languages(
         self, env: Any, language_codes: list[str], installed_only: bool = True
     ) -> Any:
         Lang = env["res.lang"].with_context(active_test=False)
-        languages = Lang.search(
-            Domain.OR(
-                [
-                    Domain("iso_code", "in", language_codes),
-                    Domain("code", "in", language_codes),
-                ]
+        with _debug.perf(
+            "cli.i18n.language_search", cr=env.cr, codes=len(language_codes)
+        ):
+            languages = Lang.search(
+                Domain.OR(
+                    [
+                        Domain("iso_code", "in", language_codes),
+                        Domain("code", "in", language_codes),
+                    ]
+                )
             )
-        )
         matched_codes = set(languages.mapped("iso_code")) | set(
             languages.mapped("code")
         )
         if not_found_language_codes := set(language_codes) - matched_codes:
+            _debug.logic(
+                "cli.i18n.languages_skipped",
+                reason="not_found",
+                count=len(not_found_language_codes),
+            )
             _logger.warning(
                 "Ignoring not found languages: %s",
                 ", ".join(not_found_language_codes),
@@ -194,6 +207,11 @@ class I18n(DatabaseCommand):
             if not_installed_languages := languages.filtered(lambda x: not x.active):
                 languages -= not_installed_languages
                 iso_codes = not_installed_languages.mapped("iso_code")
+                _debug.logic(
+                    "cli.i18n.languages_skipped",
+                    reason="not_installed",
+                    count=len(not_installed_languages),
+                )
                 _logger.warning(
                     textwrap.dedent("""\
                         Ignoring not installed languages: %s
@@ -205,6 +223,12 @@ class I18n(DatabaseCommand):
                     self.loadlang_parser.prog,
                     " ".join(iso_codes),
                 )
+        _debug.logic(
+            "cli.i18n.languages_resolved",
+            requested=len(language_codes),
+            matched=len(languages),
+            installed_only=installed_only,
+        )
         return languages
 
     def _import_translations(self, parsed_args: argparse.Namespace) -> None:
@@ -214,64 +238,132 @@ class I18n(DatabaseCommand):
             for path in paths
             if (not path.exists() or path.suffix not in IMPORT_EXTENSIONS)
         ]:
+            _debug.logic("cli.i18n.import_paths_invalid", count=len(invalid_paths))
             _logger.warning(
                 "Ignoring invalid paths: %s",
                 ", ".join(str(path) for path in invalid_paths),
             )
             paths -= set(invalid_paths)
         if not paths:
+            _debug.logic("cli.i18n.import_rejected", reason="no_valid_path")
             self.import_parser.error("No valid path was provided")
 
         with open_environment(parsed_args.db_name) as env:
             translation_importer = TranslationImporter(env.cr)
             language = self._get_languages(env, [parsed_args.language])
             if not language:
+                _debug.logic("cli.i18n.import_rejected", reason="no_language")
                 self.import_parser.error("No valid language has been provided")
             if len(language) > 1:
+                _debug.logic(
+                    "cli.i18n.import_rejected",
+                    reason="ambiguous_language",
+                    matches=len(language),
+                )
                 self.import_parser.error(
                     f"-l {parsed_args.language!r} matches several languages "
                     f"({', '.join(language.mapped('code'))}); use the full code"
                 )
-            for path in paths:
-                with path.open("rb") as infile:
-                    translation_importer.load(
-                        infile, path.suffix.removeprefix("."), language.code
-                    )
-            translation_importer.save(
+            _debug.pipeline(
+                "cli.i18n.import",
+                db=parsed_args.db_name,
+                lang=language.code,
+                files=len(paths),
                 overwrite=parsed_args.overwrite or parsed_args.force_overwrite,
                 force_overwrite=parsed_args.force_overwrite,
             )
+            for path in paths:
+                with path.open("rb") as infile:
+                    with _debug.perf(
+                        "cli.i18n.import_load",
+                        cr=env.cr,
+                        path=str(path),
+                        format=path.suffix.removeprefix("."),
+                        lang=language.code,
+                    ):
+                        translation_importer.load(
+                            infile, path.suffix.removeprefix("."), language.code
+                        )
+            with _debug.perf("cli.i18n.import_save", cr=env.cr, lang=language.code):
+                translation_importer.save(
+                    overwrite=parsed_args.overwrite or parsed_args.force_overwrite,
+                    force_overwrite=parsed_args.force_overwrite,
+                )
+            _debug.lifecycle(
+                "cli.i18n.imported",
+                db=parsed_args.db_name,
+                lang=language.code,
+                files=len(paths),
+            )
+
+    def _check_export_output(
+        self,
+        parsed_args: argparse.Namespace,
+        requested_languages: list[str],
+        *,
+        export_pot: bool,
+    ) -> None:
+        if len(requested_languages) != 1:
+            _debug.logic(
+                "cli.i18n.export_rejected",
+                reason="output_needs_one_language",
+                languages=len(requested_languages),
+            )
+            self.export_parser.error(
+                "When --output is specified, one single --language must be supplied"
+            )
+        if parsed_args.output != "-":
+            parsed_args.output = Path(parsed_args.output)
+            if parsed_args.output.suffix not in EXPORT_EXTENSIONS:
+                _debug.logic(
+                    "cli.i18n.export_rejected",
+                    reason="output_extension",
+                    suffix=parsed_args.output.suffix,
+                )
+                self.export_parser.error(
+                    f"Extensions allowed for --output are {', '.join(EXPORT_EXTENSIONS)}"
+                )
+            if export_pot and parsed_args.output.suffix == ".csv":
+                _debug.logic("cli.i18n.export_rejected", reason="pot_as_csv")
+                self.export_parser.error(
+                    "Cannot export template in .csv format, please specify a language."
+                )
+            _debug.logic(
+                "cli.i18n.export_output",
+                to="file",
+                suffix=parsed_args.output.suffix,
+                pot=export_pot,
+            )
+        else:
+            _debug.logic("cli.i18n.export_output", to="stdout", pot=export_pot)
 
     def _export_translations(self, parsed_args: argparse.Namespace) -> None:
         requested_languages = list(parsed_args.languages or ["pot"])
         export_pot = "pot" in requested_languages
 
         if parsed_args.output:
-            if len(requested_languages) != 1:
-                self.export_parser.error(
-                    "When --output is specified, one single --language must be supplied"
-                )
-            if parsed_args.output != "-":
-                parsed_args.output = Path(parsed_args.output)
-                if parsed_args.output.suffix not in EXPORT_EXTENSIONS:
-                    self.export_parser.error(
-                        f"Extensions allowed for --output are {', '.join(EXPORT_EXTENSIONS)}"
-                    )
-                if export_pot and parsed_args.output.suffix == ".csv":
-                    self.export_parser.error(
-                        "Cannot export template in .csv format, please specify a language."
-                    )
+            self._check_export_output(
+                parsed_args, requested_languages, export_pot=export_pot
+            )
 
         if export_pot:
             requested_languages.remove("pot")
 
         with open_environment(parsed_args.db_name, readonly=True) as env:
-            modules = env["ir.module.module"].search_fetch(
-                [("name", "in", parsed_args.modules)], ["name", "state"]
-            )
+            with _debug.perf(
+                "cli.i18n.module_search", cr=env.cr, requested=len(parsed_args.modules)
+            ):
+                modules = env["ir.module.module"].search_fetch(
+                    [("name", "in", parsed_args.modules)], ["name", "state"]
+                )
             if not_found_module_names := set(parsed_args.modules) - set(
                 modules.mapped("name")
             ):
+                _debug.logic(
+                    "cli.i18n.modules_skipped",
+                    reason="not_found",
+                    count=len(not_found_module_names),
+                )
                 _logger.warning(
                     "Ignoring not found modules: %s",
                     ", ".join(not_found_module_names),
@@ -279,22 +371,42 @@ class I18n(DatabaseCommand):
             if not_installed_modules := modules.filtered(
                 lambda x: x.state != "installed"
             ):
+                _debug.logic(
+                    "cli.i18n.modules_skipped",
+                    reason="not_installed",
+                    count=len(not_installed_modules),
+                )
                 _logger.warning(
                     "Ignoring not installed modules: %s",
                     ", ".join(not_installed_modules.mapped("name")),
                 )
                 modules -= not_installed_modules
             if len(modules) < 1:
+                _debug.logic("cli.i18n.export_rejected", reason="no_module")
                 self.export_parser.error("No valid module has been provided")
             module_names = modules.mapped("name")
 
             languages = self._get_languages(env, requested_languages)
             languages_count = len(languages) + export_pot
+            _debug.pipeline(
+                "cli.i18n.export",
+                db=parsed_args.db_name,
+                modules=len(module_names),
+                languages=len(languages),
+                pot=export_pot,
+                output=str(parsed_args.output) if parsed_args.output else None,
+            )
             if languages_count == 0:
+                _debug.logic("cli.i18n.export_rejected", reason="no_language")
                 self.export_parser.error("No valid language has been provided")
 
             if parsed_args.output:
                 if len(languages) > 1:
+                    _debug.logic(
+                        "cli.i18n.export_rejected",
+                        reason="ambiguous_language",
+                        matches=len(languages),
+                    )
                     self.export_parser.error(
                         f"--output requires a single language; got "
                         f"{len(languages)} matches: {languages.mapped('code')}"
@@ -304,28 +416,45 @@ class I18n(DatabaseCommand):
                     env, module_names, lang_code, parsed_args.output
                 )
             else:
-                module_paths = {}
-                for module_name in module_names:
-                    module_path = get_module_path(module_name)
-                    if not module_path:
-                        self.export_parser.error(
-                            f"module {module_name!r} is installed in the "
-                            "database but was not found on the addons path; "
-                            "fix --addons-path or export with --output"
-                        )
-                    module_paths[module_name] = module_path
-                for module_name in module_names:
-                    i18n_path = Path(module_paths[module_name], "i18n")
-                    if export_pot:
-                        path = i18n_path / f"{module_name}.pot"
-                        self._export_translations_to_path(
-                            env, [module_name], None, path
-                        )
-                    for language in languages:
-                        path = i18n_path / f"{language.iso_code}.po"
-                        self._export_translations_to_path(
-                            env, [module_name], language.code, path
-                        )
+                self._export_translations_to_modules(
+                    env, module_names, languages, export_pot=export_pot
+                )
+
+    def _export_translations_to_modules(
+        self, env: Any, module_names: list[str], languages: Any, *, export_pot: bool
+    ) -> None:
+        module_paths = {}
+        for module_name in module_names:
+            module_path = get_module_path(module_name)
+            if not module_path:
+                _debug.logic(
+                    "cli.i18n.export_rejected",
+                    module=module_name,
+                    reason="not_on_addons_path",
+                )
+                self.export_parser.error(
+                    f"module {module_name!r} is installed in the "
+                    "database but was not found on the addons path; "
+                    "fix --addons-path or export with --output"
+                )
+            module_paths[module_name] = module_path
+        _debug.pipeline(
+            "cli.i18n.export_to_modules",
+            modules=len(module_names),
+            languages=len(languages),
+            pot=export_pot,
+            files=len(module_names) * (len(languages) + export_pot),
+        )
+        for module_name in module_names:
+            i18n_path = Path(module_paths[module_name], "i18n")
+            if export_pot:
+                path = i18n_path / f"{module_name}.pot"
+                self._export_translations_to_path(env, [module_name], None, path)
+            for language in languages:
+                path = i18n_path / f"{language.iso_code}.po"
+                self._export_translations_to_path(
+                    env, [module_name], language.code, path
+                )
 
     def _export_translations_to_path(
         self,
@@ -339,22 +468,63 @@ class I18n(DatabaseCommand):
         _logger.info("Exporting %s (%s) to %s", source, lang_code or "pot", destination)
 
         if destination == "stdout":
-            if not trans_export(lang_code, module_names, sys.stdout.buffer, "po", env):
+            with _debug.perf(
+                "cli.i18n.export_file",
+                cr=env.cr,
+                source=source,
+                lang=lang_code or "pot",
+                format="po",
+                to="stdout",
+            ) as span:
+                exported = trans_export(
+                    lang_code, module_names, sys.stdout.buffer, "po", env
+                )
+                span.set(terms_found=bool(exported))
+            if not exported:
                 _logger.warning("No translatable terms were found in %s.", module_names)
             return
 
         path = Path(path)
+        if _debug.lifecycle.enabled and not path.parent.is_dir():
+            _debug.lifecycle("cli.i18n.export_dir_created", path=str(path.parent))
         path.parent.mkdir(parents=True, exist_ok=True)
         export_format = path.suffix.removeprefix(".")
         if export_format == "pot":
             export_format = "po"
         with path.open("wb") as outfile:
-            if not trans_export(lang_code, module_names, outfile, export_format, env):
+            with _debug.perf(
+                "cli.i18n.export_file",
+                cr=env.cr,
+                source=source,
+                lang=lang_code or "pot",
+                format=export_format,
+                to=str(path),
+            ) as span:
+                exported = trans_export(
+                    lang_code, module_names, outfile, export_format, env
+                )
+                span.set(terms_found=bool(exported), bytes=outfile.tell())
+            if not exported:
                 _logger.warning("No translatable terms were found in %s.", module_names)
 
     def _load_languages(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name) as env:
-            for language in self._get_languages(
+            languages = self._get_languages(
                 env, parsed_args.languages, installed_only=False
-            ):
-                load_language(env.cr, language.code)
+            )
+            _debug.pipeline(
+                "cli.i18n.loadlang",
+                db=parsed_args.db_name,
+                requested=len(parsed_args.languages),
+                resolved=len(languages),
+                already_active=len(languages.filtered("active")),
+            )
+            for language in languages:
+                with _debug.perf(
+                    "cli.i18n.load_language",
+                    cr=env.cr,
+                    lang=language.code,
+                    was_active=language.active,
+                ):
+                    load_language(env.cr, language.code)
+                _debug.lifecycle("cli.i18n.language_loaded", lang=language.code)

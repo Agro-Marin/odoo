@@ -4,11 +4,11 @@ import { fields, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 export class WebsiteVisitor extends models.ServerModel {
     _name = "website.visitor";
 
-    country_id = fields.Many2one({ relation: "res.country", string: "Country" }); // FIXME: somehow not fetched properly
+    country_id = fields.Many2one({ relation: "res.country", string: "Country" });
     display_name = fields.Char({ compute: "_compute_display_name" });
     page_visit_history = fields.Char();
-    lang_id = fields.Many2one({ relation: "res.lang", string: "Language" }); // FIXME: somehow not fetched properly
-    partner_id = fields.Many2one({ relation: "res.partner", string: "Contact" }); // FIXME: somehow not fetched properly
+    lang_id = fields.Many2one({ relation: "res.lang", string: "Language" });
+    partner_id = fields.Many2one({ relation: "res.partner", string: "Contact" });
     website_id = fields.Many2one({ relation: "website", string: "Website" });
 
     _compute_display_name() {

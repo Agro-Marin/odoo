@@ -63,8 +63,10 @@ class SlidesCase(MailCase):
             {
                 "country_id": cls.env.ref("base.be").id,
                 "email": "customer@customer.example.com",
+                "phone_ids": [
+                    Command.create({"number": "0456001122", "type": "landline"})
+                ],
                 "name": "Caroline Customer",
-                "phone_ids": [Command.create({"number": "0456001122"})],
             }
         )
 
@@ -140,12 +142,6 @@ class SlidesCase(MailCase):
                 }
             )
         )
-        # Create a lightweight survey for quiz questions on slide_3, through the
-        # supported path. An eLearning officer holds no direct survey.survey
-        # rights (website_slides_survey confines them to certifications), so
-        # building the fixture as user_officer raised AccessError and took the
-        # whole suite down at setUpClass. _check_quiz_survey is the API the
-        # controller uses, and it owns the sudo.
         cls.slide_3._check_quiz_survey()
         cls.quiz_survey = cls.slide_3.survey_id
         cls.question_1 = (

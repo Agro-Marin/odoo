@@ -1,4 +1,7 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrderLine(models.Model):
@@ -23,10 +26,6 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_max_available_qty(self):
-        """The max quantity of a combo product is the max quantity of its selected combo item with
-        the lowest max quantity. If none of the combo items has a max quantity, then the combo
-        product also has no max quantity.
-        """
         self.check_singleton()
         cart_and_free_quantities = [
             line.order_id._get_cart_and_free_qty(line.product_id)
@@ -44,6 +43,12 @@ class SaleOrderLine(models.Model):
         if self.product_id.is_storable and not self.product_id.allow_out_of_stock_order:
             cart_qty, avl_qty = self.order_id._get_cart_and_free_qty(self.product_id)
             if cart_qty > avl_qty:
+                _debug.logic(
+                    "line_out_of_stock",
+                    line=self.id,
+                    wanted=cart_qty,
+                    available=avl_qty,
+                )
                 self._set_shop_warning_stock(cart_qty, max(avl_qty, 0))
                 return False
         return True

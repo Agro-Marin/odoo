@@ -18,22 +18,22 @@
                                 invisible="program_type == 'ewallet'" />
                             <field
                                 name="customer_ids"
-                                widget="many2many_tags"
                                 placeholder="For all customers"
+                                widget="many2many_tags"
                                 invisible="mode == 'anonymous'" />
                             <field
                                 name="customer_tag_ids"
                                 widget="many2many_tags"
-                                invisible="mode == 'anonymous'"
-                                options="{'color_field': 'color'}" />
+                                options="{'color_field': 'color'}"
+                                invisible="mode == 'anonymous'" />
                             <field
                                 name="coupon_qty"
                                 string="Quantity to generate"
                                 readonly="mode == 'selected'"
                                 required="mode == 'anonymous'" />
                             <label
-                                string="Coupon value"
                                 for="points_granted"
+                                string="Coupon value"
                                 groups="base.group_no_one"
                                 invisible="program_type != 'coupons'" />
                             <span
@@ -44,8 +44,8 @@
                                 <field name="points_name" class="oe_inline" />
                             </span>
                             <label
-                                string="Gift Card value"
                                 for="points_granted"
+                                string="Gift Card value"
                                 invisible="program_type != 'gift_card'" />
                             <span
                                 class="d-inline-block"
@@ -59,8 +59,8 @@
                                     no_label="1" />
                             </span>
                             <label
-                                string="eWallet value"
                                 for="points_granted"
+                                string="eWallet value"
                                 invisible="program_type != 'ewallet'" />
                             <span
                                 class="d-inline-block"
@@ -79,8 +79,8 @@
                             <div class="border-bottom w-100 fw-bold">Description</div>
                             <field
                                 name="description"
-                                nolabel="1"
                                 placeholder="Example: Gift for customer"
+                                nolabel="1"
                                 required="True" />
                         </group>
                     </group>
@@ -106,9 +106,9 @@
                         <span invisible="will_send_mail">
                             Generate 
                         </span>
-                        <field name="program_type" nolabel="1" />
+                        <field name="program_type" />
                     </button>
-                    <button special="cancel" data-hotkey="x" string="Cancel" />
+                    <button special="cancel" string="Cancel" data-hotkey="x" />
                 </footer>
             </form>
         </field>

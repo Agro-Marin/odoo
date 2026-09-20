@@ -4,9 +4,12 @@ import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils"
 import { filterExtends } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
+
+const log = makeLogger("website.builder.plugin.website_parallax_plugin");
 
 /**
  * @typedef { Object } WebsiteParallaxShared
@@ -33,9 +36,16 @@ class WebsiteParallaxPlugin extends Plugin {
             this.getResource("builder_options"),
             BaseWebsiteBackgroundOption,
         );
+        log.lifecycle("WebsiteParallaxPlugin setup", () => ({
+            backgroundOptions: this.backgroundOptionClasses.length,
+        }));
     }
     applyParallaxType({ editingElement, value }) {
         const isParallax = value !== "none";
+        log.pipeline("WebsiteParallaxPlugin applyParallaxType", () => ({
+            value,
+            isParallax,
+        }));
         editingElement.classList.toggle("parallax", isParallax);
         editingElement.classList.toggle("s_parallax_is_fixed", value === "fixed");
         editingElement.classList.toggle(
@@ -51,9 +61,6 @@ class WebsiteParallaxPlugin extends Plugin {
             zoomOut: 1.2,
         };
         editingElement.dataset.scrollBackgroundRatio = typeValues[value];
-        // Set a parallax type only if there is a zoom option selected.
-        // This is to avoid useless element in the DOM since in the animation
-        // we need the type only for zoom options.
         if (value === "zoomIn" || value === "zoomOut") {
             editingElement.dataset.parallaxType = value;
         } else {
@@ -62,6 +69,7 @@ class WebsiteParallaxPlugin extends Plugin {
         let parallaxEl = editingElement.querySelector(":scope > .s_parallax_bg");
         if (isParallax) {
             if (!parallaxEl) {
+                log.logic("WebsiteParallaxPlugin create parallax background");
                 parallaxEl = document.createElement("span");
                 parallaxEl.classList.add("s_parallax_bg");
                 editingElement.prepend(parallaxEl);
@@ -71,6 +79,7 @@ class WebsiteParallaxPlugin extends Plugin {
                 );
             }
         } else if (parallaxEl) {
+            log.logic("WebsiteParallaxPlugin remove parallax background");
             this.dependencies.backgroundImageOption.changeEditingEl(
                 parallaxEl,
                 editingElement,
@@ -96,9 +105,14 @@ class WebsiteParallaxPlugin extends Plugin {
             bgImage === "none" ||
             editingEl.classList.contains("o_background_video")
         ) {
-            // The parallax option was enabled but the background image was
-            // removed or a background video has been added: disable the
-            // parallax option.
+            log.logic(
+                "WebsiteParallaxPlugin removeParallax: no parallax image",
+                () => ({
+                    hasParallaxEl: !!parallaxEl,
+                    bgImage,
+                    hasVideo: editingEl.classList.contains("o_background_video"),
+                }),
+            );
             this.applyParallaxType({
                 editingElement: editingEl,
                 value: "none",
@@ -129,9 +143,6 @@ export class SetParallaxTypeAction extends BuilderAction {
         }
         const parallaxType = editingElement.dataset.parallaxType;
         if (parallaxType) {
-            // Compatibility: Previously, "zoom_out" and "zoom_in" had their
-            // behavior reversed. The previous "zoom_out" correspond to the
-            // current "zoomIn" type.
             if (parallaxType === "zoom_out") {
                 return value === "zoomIn";
             }

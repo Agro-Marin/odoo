@@ -23,14 +23,14 @@
                 <footer>
                     <button
                         name="action_load_template"
-                        string="Load"
                         type="object"
+                        string="Load"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

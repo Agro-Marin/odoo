@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!--Access Denied - Profile Page-->
         <template
             id="profile_access_denied"
             inherit_id="website_profile.profile_access_denied">

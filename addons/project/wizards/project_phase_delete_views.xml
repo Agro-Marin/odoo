@@ -19,30 +19,30 @@
                 </div>
                 <footer>
                     <button
-                        string="Archive Phases"
-                        type="object"
                         name="action_archive"
-                        class="btn btn-primary"
+                        type="object"
+                        string="Archive Phases"
                         invisible="not phases_active or projects_count == 0"
+                        class="btn btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Delete"
-                        type="object"
                         name="action_unlink"
-                        class="btn btn-primary"
+                        type="object"
+                        string="Delete"
                         invisible="projects_count &gt; 0"
+                        class="btn btn-primary"
                         data-hotkey="w" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
+                        string="Discard"
+                        invisible="not (phases_active or projects_count)"
                         class="btn btn-primary"
-                        invisible="not (phases_active or projects_count)" />
+                        data-hotkey="x" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        invisible="phases_active or projects_count" />
+                        string="Discard"
+                        invisible="phases_active or projects_count"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -58,11 +58,11 @@
                 </div>
                 <footer>
                     <button
-                        string="Confirm"
-                        type="object"
                         name="action_unarchive_project"
+                        type="object"
+                        string="Confirm"
                         class="btn btn-primary" />
-                    <button string="Discard" special="cancel" />
+                    <button special="cancel" string="Discard" />
                 </footer>
             </form>
         </field>

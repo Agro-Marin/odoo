@@ -20,6 +20,7 @@
         "views/res_company_views.xml",
         "views/res_config_settings_views.xml",
         "data/ir_cron.xml",
+        "views/l10n_es_edi_verifactu_menus.xml",
     ],
     "demo": [
         "demo/demo_certificate.xml",
@@ -30,6 +31,5 @@
             "l10n_es_edi_verifactu/static/src/css/warning.scss",
         ],
     },
-    "installable": True,
     "post_init_hook": "_l10n_es_edi_verifactu_post_init_hook",
 }

@@ -10,7 +10,8 @@ This module allows to generate a project/task from sales orders.
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
-        "sale_management",
+        "sale",
+        "sale_team",
         "sale_service",
         "project_account",
     ],
@@ -25,7 +26,6 @@ This module allows to generate a project/task from sales orders.
         "views/project_update_template.xml",
         "views/project_sharing_views.xml",
         "views/project_views.xml",
-        "views/project_workflow_step_views.xml",
         "data/sale_project_data.xml",
         "wizards/project_template_create_wizard.xml",
     ],
@@ -46,7 +46,7 @@ This module allows to generate a project/task from sales orders.
         ],
     },
     "auto_install": [
-        "sale_management",
+        "sale",
         "project_account",
     ],
     "post_init_hook": "_set_allow_billable_in_project",

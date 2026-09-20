@@ -9,16 +9,11 @@ class PaymentProvider(models.Model):
 
     custom_mode = fields.Selection(selection_add=[("on_site", "Pay on site")])
 
-    # === CRUD METHODS === #
-
     def _get_default_payment_method_codes(self):
-        """Override of `payment` to return the default payment method codes."""
         self.check_singleton()
         if self.custom_mode != "on_site":
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
-
-    # === BUSINESS METHODS === #
 
     @api.model
     def _get_compatible_providers(
@@ -30,16 +25,6 @@ class PaymentProvider(models.Model):
         report=None,
         **kwargs,
     ):
-        """Override of payment to exclude on-site payment providers if the delivery method is not
-        pick up in store.
-
-        :param int company_id: The company to which providers must belong, as a `res.company` id
-        :param int sale_order_id: The sale order to be paid, if any, as a `sale.order` id
-        :param int website_id: The provided website, as a `website` id
-        :param dict report: The availability report.
-        :return: The compatible providers
-        :rtype: recordset of `payment.provider`
-        """
         compatible_providers = super()._get_compatible_providers(
             company_id,
             *args,
@@ -50,8 +35,6 @@ class PaymentProvider(models.Model):
         )
         order = self.env["sale.order"].browse(sale_order_id).exists()
 
-        # Show on-site payment providers only if in-store delivery methods exist and the order
-        # contains physical products.
         if order.carrier_id.delivery_type != "in_store" or not any(
             product.type == "consu" for product in order.line_ids.product_id
         ):

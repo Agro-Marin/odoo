@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
@@ -10,6 +11,8 @@ import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
 import { parseNoteEntries } from "./utils/note_entries.js";
 const { DateTime } = luxon;
+
+const log = makeLogger("pos.order");
 
 export class PosOrder extends PosOrderAccounting {
     static pythonModel = "pos.order";
@@ -58,6 +61,15 @@ export class PosOrder extends PosOrderAccounting {
         if (!this.config_id) {
             this.config_id = this.config;
         }
+        log.lifecycle("setup", () => ({
+            order: this.uuid,
+            id: this.id,
+            state: this.state,
+            synced: this.isSynced,
+            dirty: this._dirty,
+            lines: this.lines?.length,
+            keys: Object.keys(vals),
+        }));
     }
 
     initState() {
@@ -167,6 +179,13 @@ export class PosOrder extends PosOrderAccounting {
             (this.preset_id?.needsName &&
                 !(this.floating_order_name || this.partner_id)) ||
             (this.preset_id?.needsPartner && !this.partner_id);
+        log.logic("getMissingPresetRequirement", () => ({
+            order: this.uuid,
+            preset: this.preset_id?.id,
+            invalidCustomer: Boolean(invalidCustomer),
+            partner: this.partner_id?.id,
+            presetTime: this.preset_time,
+        }));
         if (invalidCustomer) {
             return {
                 field: _t("Customer"),
@@ -196,6 +215,16 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     setPreset(preset) {
+        log.lifecycle("setPreset", () => ({
+            order: this.uuid,
+            from: this.preset_id?.id,
+            to: preset.id,
+            pricelist: (preset.pricelist_id || this.config.pricelist_id)?.id,
+            fiscalPosition: (
+                preset.fiscal_position_id || this.config.default_fiscal_position_id
+            )?.id,
+            isReturn: preset.is_return,
+        }));
         this.setPricelist(preset.pricelist_id || this.config.pricelist_id);
         this.fiscal_position_id =
             preset.fiscal_position_id || this.config.default_fiscal_position_id;
@@ -221,6 +250,7 @@ export class PosOrder extends PosOrderAccounting {
     }
     updateLastOrderChange() {
         const orderlineIdx = [];
+        const before = Object.keys(this.last_order_preparation_change.lines).length;
         this.lines.forEach((line) => {
             orderlineIdx.push(line.preparationKey);
 
@@ -270,6 +300,13 @@ export class PosOrder extends PosOrderAccounting {
             serverDate: serializeDateTime(DateTime.now()),
         };
         this._markDirty();
+        log.pipeline("updateLastOrderChange", () => ({
+            order: this.uuid,
+            lines: this.lines.length,
+            before,
+            after: Object.keys(this.last_order_preparation_change.lines).length,
+            sittingMode: this.last_order_preparation_change.sittingMode,
+        }));
     }
 
     isEmpty() {
@@ -282,6 +319,10 @@ export class PosOrder extends PosOrderAccounting {
 
     assertEditable() {
         if (this.finalized) {
+            log.logic("assertEditable: finalized", () => ({
+                order: this.uuid,
+                state: this.state,
+            }));
             throw new Error("Finalized Order cannot be modified");
         }
         return true;
@@ -311,9 +352,14 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     setPricelist(pricelist) {
+        log.logic("setPricelist", () => ({
+            order: this.uuid,
+            pricelist: pricelist?.id,
+        }));
         this.pricelist_id = pricelist ? pricelist : false;
 
         const lines_to_recompute = this.getLinesToCompute();
+        const endReprice = log.perf("setPricelist");
 
         for (const line of lines_to_recompute) {
             if (line.isLotTracked()) {
@@ -344,6 +390,12 @@ export class PosOrder extends PosOrderAccounting {
         const combo_parent_lines = this.lines.filter(
             (line) => line.price_type === "original" && line.combo_line_ids?.length,
         );
+        log.logic("setPricelist: scope", () => ({
+            order: this.uuid,
+            repriced: lines_to_recompute.length,
+            comboParents: combo_parent_lines.length,
+            manualSkipped: this.lines.length - lines_to_recompute.length,
+        }));
         for (const pLine of combo_parent_lines) {
             const { childLineFree, childLineExtra } =
                 this.getFreeAndExtraChildLines(pLine);
@@ -378,6 +430,11 @@ export class PosOrder extends PosOrderAccounting {
                 attributes_prices[line.combo_parent_id.id].indexOf(currentItem),
                 1,
             );
+        });
+        endReprice({
+            order: this.uuid,
+            lines: lines_to_recompute.length,
+            comboChildren: combo_children_lines.length,
         });
     }
 
@@ -420,6 +477,11 @@ export class PosOrder extends PosOrderAccounting {
      */
     removeOrderline(line) {
         const linesToRemove = line.getAllLinesInCombo();
+        log.logic("removeOrderline", () => ({
+            order: this.uuid,
+            line: line.uuid,
+            combo: linesToRemove.length,
+        }));
         for (const lineToRemove of linesToRemove) {
             const refunded = lineToRemove.refunded_orderline_id;
             const refundMap = refunded?.order_id?.uiState?.lineToRefund;
@@ -470,6 +532,11 @@ export class PosOrder extends PosOrderAccounting {
 
     addPaymentline(payment_method) {
         this.assertEditable();
+        log.logic("addPaymentline", () => ({
+            order: this.uuid,
+            method: payment_method.id,
+            inProgress: this.electronicPaymentInProgress(),
+        }));
 
         if (this.electronicPaymentInProgress()) {
             return {
@@ -486,10 +553,18 @@ export class PosOrder extends PosOrderAccounting {
         this.selectPaymentline(newPaymentLine);
         newPaymentLine.setAmount(totalAmountDue);
 
-        if (
+        const pending =
             (payment_method.payment_terminal && !this.isRefund) ||
-            payment_method.payment_method_type === "qr_code"
-        ) {
+            payment_method.payment_method_type === "qr_code";
+        log.lifecycle("addPaymentline: created", () => ({
+            order: this.uuid,
+            payment: newPaymentLine.uuid,
+            method: payment_method.id,
+            type: payment_method.payment_method_type,
+            amount: totalAmountDue,
+            pending,
+        }));
+        if (pending) {
             newPaymentLine.setPaymentStatus("pending");
         }
         return { status: true, data: newPaymentLine };
@@ -504,6 +579,7 @@ export class PosOrder extends PosOrderAccounting {
 
     removePaymentline(line) {
         this.assertEditable();
+        log.logic("removePaymentline", () => ({ order: this.uuid, line: line.uuid }));
 
         if (this.getSelectedPaymentline() === line) {
             this.selectPaymentline(undefined);
@@ -603,6 +679,11 @@ export class PosOrder extends PosOrderAccounting {
 
     setToInvoice(to_invoice) {
         this.assertEditable();
+        log.lifecycle("setToInvoice", () => ({
+            order: this.uuid,
+            from: this.to_invoice,
+            to: to_invoice,
+        }));
         this.to_invoice = to_invoice;
     }
 
@@ -612,6 +693,7 @@ export class PosOrder extends PosOrderAccounting {
 
     setPartner(partner) {
         this.assertEditable();
+        log.logic("setPartner", () => ({ order: this.uuid, partner: partner?.id }));
         this.partner_id = partner;
         this.updatePricelistAndFiscalPosition(partner);
         if (partner.is_company) {
@@ -642,6 +724,12 @@ export class PosOrder extends PosOrderAccounting {
 
     getScreenData() {
         const screen = this.uiState?.screen_data["value"];
+        log.logic("getScreenData", () => ({
+            order: this.uuid,
+            saved: screen?.name,
+            finalized: this.finalized,
+            payments: this.payment_ids.length,
+        }));
         if (!screen) {
             if (!this.finalized && this.payment_ids.length > 0) {
                 return { name: "PaymentScreen" };
@@ -679,11 +767,27 @@ export class PosOrder extends PosOrderAccounting {
             newPartnerPricelist = this.config.pricelist_id;
         }
 
-        if (!this.config.use_presets || !this.preset_id?.fiscal_position_id) {
+        const applyFiscalPosition =
+            !this.config.use_presets || !this.preset_id?.fiscal_position_id;
+        const applyPricelist =
+            !this.config.use_presets || !this.preset_id?.pricelist_id;
+        log.logic("updatePricelistAndFiscalPosition", () => ({
+            order: this.uuid,
+            partner: newPartner?.id,
+            fiscalPosition: newPartnerFiscalPosition?.id,
+            pricelist: newPartnerPricelist?.id,
+            applyFiscalPosition,
+            applyPricelist,
+            presetOverrides: {
+                fiscalPosition: this.preset_id?.fiscal_position_id?.id,
+                pricelist: this.preset_id?.pricelist_id?.id,
+            },
+        }));
+        if (applyFiscalPosition) {
             this.fiscal_position_id = newPartnerFiscalPosition;
         }
 
-        if (!this.config.use_presets || !this.preset_id?.pricelist_id) {
+        if (applyPricelist) {
             this.setPricelist(newPartnerPricelist);
         }
     }
@@ -720,7 +824,16 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     canBeValidated() {
-        return this.isPaid() && this._isValidEmptyOrder() && !this.isCustomerRequired;
+        const result =
+            this.isPaid() && this._isValidEmptyOrder() && !this.isCustomerRequired;
+        log.logic("canBeValidated", () => ({
+            order: this.uuid,
+            result,
+            isPaid: this.isPaid(),
+            validEmptyOrder: this._isValidEmptyOrder(),
+            isCustomerRequired: this.isCustomerRequired,
+        }));
+        return result;
     }
 
     getOrderlines() {
@@ -729,6 +842,11 @@ export class PosOrder extends PosOrderAccounting {
 
     serializeForORM(opts = {}) {
         const data = super.serializeForORM(opts);
+        log.pipeline("serializeForORM", () => ({
+            order: this.uuid,
+            keys: Object.keys(data).length,
+            opts,
+        }));
         if (
             data.last_order_preparation_change &&
             typeof data.last_order_preparation_change === "object"

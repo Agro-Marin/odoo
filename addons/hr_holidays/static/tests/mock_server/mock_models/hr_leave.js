@@ -30,6 +30,9 @@ export class HrLeave extends models.Model {
             ["hour", "Hours"],
         ],
     });
+    can_approve = fields.Boolean();
+    can_refuse = fields.Boolean();
+    can_validate = fields.Boolean();
     can_cancel = fields.Boolean();
     is_hatched = fields.Boolean();
     is_striked = fields.Boolean();

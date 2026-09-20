@@ -229,7 +229,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
     def _use_chart_template(cls, company, chart_template_ref=None):
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -438,7 +438,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -454,7 +454,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -517,7 +517,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -533,7 +533,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -563,7 +563,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -583,7 +583,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -616,7 +616,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -647,7 +647,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         new_company = self.env["res.company"].create({"name": "New Company"})
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -679,7 +679,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -705,7 +705,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -734,7 +734,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -757,7 +757,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -778,7 +778,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         fiscal_position.tax_ids.original_tax_ids = False
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -804,7 +804,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -826,7 +826,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data2,
             autospec=True,
         ):
@@ -865,7 +865,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         )
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -875,7 +875,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -916,7 +916,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -958,7 +958,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -990,7 +990,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1033,7 +1033,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1099,7 +1099,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -1110,6 +1110,58 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         for model in TEMPLATE_MODELS + sub_models:
             data_after = self.env[model].search(get_domain(model))
             self.assertEqual(data_before[model], data_after)
+
+    def test_first_load_of_a_preset_template_sets_the_company_defaults(self):
+        company = self.env["res.company"].create(
+            {"name": "Preset Co", "country_id": self.country_be.id}
+        )
+        company.chart_template = "test"
+        self._use_chart_template(company)
+
+        ChartTemplate = self.env["account.chart.template"].with_company(company)
+        receivable = self.env["ir.default"]._get(
+            "res.partner", "property_account_receivable_id", company_id=company.id
+        )
+        payable = self.env["ir.default"]._get(
+            "res.partner", "property_account_payable_id", company_id=company.id
+        )
+        self.assertEqual(
+            receivable, ChartTemplate.ref("test_account_receivable_template").id
+        )
+        self.assertEqual(payable, ChartTemplate.ref("test_account_payable_template").id)
+        self.assertEqual(
+            company.income_account_id,
+            ChartTemplate.ref("test_account_income_template"),
+        )
+
+    def test_reload_keeps_the_company_defaults_already_set(self):
+        other_receivable = self.env["account.account"].create(
+            {
+                "name": "Chosen receivable",
+                "code": "411999",
+                "account_type": "asset_receivable",
+                "company_ids": [Command.set(self.company.ids)],
+            }
+        )
+        self.env["ir.default"].set(
+            "res.partner",
+            "property_account_receivable_id",
+            other_receivable.id,
+            company_id=self.company.id,
+        )
+        income_before = self.company.income_account_id
+
+        self._use_chart_template(self.company)
+
+        self.assertEqual(
+            self.env["ir.default"]._get(
+                "res.partner",
+                "property_account_receivable_id",
+                company_id=self.company.id,
+            ),
+            other_receivable.id,
+        )
+        self.assertEqual(self.company.income_account_id, income_before)
 
     def test_unknown_company_fields(self):
         def local_get_data(self, template_code):
@@ -1124,7 +1176,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1150,7 +1202,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -1182,7 +1234,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             ),
             patch.object(
                 AccountChartTemplate,
-                "_get_chart_template_data",
+                "_prepare_chart_template_data",
                 side_effect=test_get_data,
                 autospec=True,
             ),
@@ -1230,7 +1282,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -1419,7 +1471,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         ):
             with patch.object(
                 AccountChartTemplate,
-                "_get_chart_template_data",
+                "_prepare_chart_template_data",
                 side_effect=local_get_data,
                 autospec=True,
             ):
@@ -1543,7 +1595,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1608,7 +1660,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1639,7 +1691,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertFalse(company.country_id)
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -1660,7 +1712,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=local_get_data,
             autospec=True,
         ):
@@ -1695,7 +1747,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         self.assertFalse(other_company.tax_exigibility)
         with patch.object(
             AccountChartTemplate,
-            "_get_chart_template_data",
+            "_prepare_chart_template_data",
             side_effect=test_get_data,
             autospec=True,
         ):
@@ -1727,7 +1779,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         register = self.ChartTemplate._template_register
         register[None]["account.account"].append(contributes_nothing)
         try:
-            data = self.ChartTemplate._get_chart_template_model_data(
+            data = self.ChartTemplate._prepare_chart_template_model_data(
                 "test", "account.account"
             )
         finally:
@@ -1786,7 +1838,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
     def test_utility_account_codes_all_follow_code_digits(self):
         for code_digits in (4, 6, 9, 12):
             with self.subTest(code_digits=code_digits):
-                values = self.ChartTemplate._get_accounts_data_values(
+                values = self.ChartTemplate._prepare_utility_account_vals(
                     self.company, {"code_digits": code_digits}
                 )
                 explicit_codes = {
@@ -1803,7 +1855,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                         f"{code_digits}-digit chart",
                     )
         self.assertEqual(
-            self.ChartTemplate._get_accounts_data_values(
+            self.ChartTemplate._prepare_utility_account_vals(
                 self.company, {"code_digits": 6}
             )["account_journal_early_pay_discount_loss_account_id"]["code"],
             "999998",

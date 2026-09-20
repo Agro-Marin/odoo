@@ -5,7 +5,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { hover, queryFirst } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, mockTouch } from "@odoo/hoot-mock";
-import { Component, onPatched, useState, xml } from "@odoo/owl";
+import { Component, onPatched, onRendered, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineParams,
@@ -781,3 +781,132 @@ test("a rejecting swipe action still resets the swiper", async () => {
         message: "the swiper is reset even though the action rejected",
     });
 });
+
+test("a finger moving across the swiper moves the target without rendering it", async () => {
+    let renders = 0;
+    patchWithCleanup(ActionSwiper.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { ActionSwiper };
+        static template = xml`
+            <div class="d-flex">
+                <ActionSwiper onRightSwipe="{ action: () => {}, icon: 'fa-circle', bgColor: 'bg-warning' }">
+                    <div class="target-component" style="width: 200px; height: 80px">Test</div>
+                </ActionSwiper>
+            </div>
+        `;
+    }
+    await mountWithCleanup(Parent);
+    const swiper = queryFirst(".o_actionswiper");
+    const targetContainer = queryFirst(".o_actionswiper_target_container");
+    const rightArea = queryFirst(".o_actionswiper_right_swipe_area");
+    renders = 0;
+
+    const dragHelper = await contains(swiper).drag({
+        position: { clientX: 0, clientY: 0 },
+    });
+    await animationFrame();
+    const rendersAtStart = renders;
+    for (const clientX of [10, 20, 30, 40, 50]) {
+        await dragHelper.moveTo(swiper, { position: { clientX, clientY: 0 } });
+    }
+    await animationFrame();
+    expect(renders).toBe(rendersAtStart);
+    expect(targetContainer.style.transform).toBe("translateX(50px)");
+    expect(rightArea.style.maxWidth).toBe("50px");
+
+    await dragHelper.drop();
+    await animationFrame();
+    expect(targetContainer.style.transform).toBe("");
+    expect(rightArea.style.maxWidth).toBe("0px");
+});
+
+test("swipe threshold follows a resized container", async () => {
+    const swiper = await mountWithCleanup(ActionSwiper, {
+        props: {
+            onRightSwipe: {
+                action: () => expect.step("swipe"),
+                icon: "fa-circle",
+                bgColor: "bg-warning",
+            },
+            slots: {},
+        },
+    });
+    const el = swiper.targetContainer.el;
+    const width = el.getBoundingClientRect().width;
+    el.style.width = `${width / 2}px`;
+    swiper.onTouchStart(
+        /** @type {any} */ ({ composedPath: () => [el], touches: [{ clientX: 0 }] }),
+    );
+    swiper.onTouchMove(
+        /** @type {any} */ ({ touches: [{ clientX: width / 3 }], preventDefault() {} }),
+    );
+    swiper.onTouchEnd();
+    await advanceTime(600);
+    expect.verifySteps(["swipe"]);
+});
+
+for (const direction of ["ltr", "rtl"]) {
+    for (const edge of ["left", "right"]) {
+        test(`a ${direction} scrollable permits swiping only at its physical ${edge} edge`, async () => {
+            /** @type {ActionSwiper} */
+            let swiper;
+            class TrackedSwiper extends ActionSwiper {
+                setup() {
+                    super.setup();
+                    swiper = this;
+                }
+            }
+            class Parent extends Component {
+                static props = ["*"];
+                static components = { TrackedSwiper };
+                static template = xml`
+                    <div style="width: 200px">
+                        <TrackedSwiper onRightSwipe="action" onLeftSwipe="action">
+                            <div class="scroll-content" t-att-style="style">
+                                <div style="width: 450px; height: 40px">Content</div>
+                            </div>
+                        </TrackedSwiper>
+                    </div>`;
+                action = {
+                    action: () => expect.step("swipe"),
+                    icon: "fa-circle",
+                    bgColor: "bg-warning",
+                };
+                style = `direction: ${direction}; overflow-x: auto; border: 2px solid; width: 199.5px;`;
+            }
+            await mountWithCleanup(Parent);
+            const scrollable = queryFirst(".scroll-content");
+            const range = scrollable.scrollWidth - scrollable.clientWidth;
+            const left = direction === "rtl" ? -range : 0;
+            const right = direction === "rtl" ? 0 : range;
+            const gesture = async () => {
+                swiper.onTouchStart(
+                    /** @type {any} */ ({
+                        composedPath: () => [scrollable],
+                        touches: [{ clientX: 0 }],
+                    }),
+                );
+                swiper.onTouchMove(
+                    /** @type {any} */ ({
+                        touches: [{ clientX: edge === "left" ? 150 : -150 }],
+                        preventDefault() {},
+                    }),
+                );
+                swiper.onTouchEnd();
+                await advanceTime(600);
+            };
+            scrollable.scrollLeft = (left + right) / 2;
+            await gesture();
+            expect.verifySteps([]);
+            scrollable.scrollLeft = edge === "left" ? left : right;
+            await gesture();
+            expect.verifySteps(["swipe"]);
+        });
+    }
+}

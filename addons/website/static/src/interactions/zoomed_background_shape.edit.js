@@ -5,7 +5,6 @@ import { ZoomedBackgroundShape } from "@website/interactions/zoomed_background_s
 const ZoomedBackgroundShapeEdit = (I) =>
     class extends I {
         shouldStop() {
-            // Force restart.
             return true;
         }
     };

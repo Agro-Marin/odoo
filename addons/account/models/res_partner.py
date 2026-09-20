@@ -5,11 +5,14 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.account.models.account_move import BYPASS_LOCK_CHECK
 
 _logger = logging.getLogger(__name__)
+
+_debug = DebugLog(__name__)
 
 
 _ref_company_registry = {
@@ -52,39 +55,36 @@ class ResPartner(models.Model):
         return len(reports) > 1
 
     fiscal_country_group_codes = fields.Json(
-        compute="_compute_fiscal_country_group_codes",
+        compute="_compute_fiscal_country_group_codes"
     )
-    partner_vat_placeholder = fields.Char(
-        compute="_compute_partner_vat_placeholder",
-    )
+    partner_vat_placeholder = fields.Char(compute="_compute_partner_vat_placeholder")
     duplicate_bank_partner_ids = fields.Many2many(
         related="bank_ids.duplicate_bank_partner_ids"
     )
     name = fields.Char(tracking=True)
     credit = fields.Monetary(
+        string="Total Receivable",
         compute="_compute_credit_debit",
         search="_search_credit",
-        string="Total Receivable",
-        help="Total amount this customer owes you.",
         groups="account.group_account_invoice,account.group_account_readonly",
+        help="Total amount this customer owes you.",
     )
     credit_to_invoice = fields.Monetary(
         compute="_compute_credit_to_invoice",
         groups="account.group_account_invoice,account.group_account_readonly",
     )
     credit_limit = fields.Float(
-        string="Credit Limit",
-        help="Credit limit specific to this partner.",
-        groups="account.group_account_invoice,account.group_account_readonly",
-        company_dependent=True,
         copy=False,
         readonly=False,
+        company_dependent=True,
+        groups="account.group_account_invoice,account.group_account_readonly",
+        help="Credit limit specific to this partner.",
     )
     use_partner_credit_limit = fields.Boolean(
         string="Partner Limit",
-        groups="account.group_account_invoice,account.group_account_readonly",
         compute="_compute_use_partner_credit_limit",
         inverse="_inverse_use_partner_credit_limit",
+        groups="account.group_account_invoice,account.group_account_readonly",
         help="Set a value greater than 0.0 to activate a credit limit check",
     )
     show_credit_limit = fields.Boolean(
@@ -93,105 +93,118 @@ class ResPartner(models.Model):
     )
     days_sales_outstanding = fields.Float(
         string="Days Sales Outstanding (DSO)",
-        help="[(Total Receivable/Total Revenue) * number of days since the first invoice] for this customer",
         compute="_compute_days_sales_outstanding",
         groups="account.group_account_invoice,account.group_account_readonly",
+        help="[(Total Receivable/Total Revenue) * number of days since the first invoice] for this customer",
     )
     debit = fields.Monetary(
+        string="Total Payable",
         compute="_compute_credit_debit",
         search="_search_debit",
-        string="Total Payable",
-        help="Total amount you have to pay to this vendor.",
         groups="account.group_account_invoice,account.group_account_readonly",
+        help="Total amount you have to pay to this vendor.",
     )
     total_invoiced = fields.Monetary(
         compute="_compute_total_invoiced",
-        string="Total Invoiced",
         groups="account.group_account_invoice,account.group_account_readonly",
     )
     currency_id = fields.Many2one(
-        "res.currency",
+        comodel_name="res.currency",
         compute="_compute_currency_id",
         readonly=True,
-        string="Currency",
     )
     property_account_payable_id = fields.Many2one(
-        "account.account",
-        company_dependent=True,
-        check_company=True,
+        comodel_name="account.account",
         string="Account Payable",
+        company_dependent=True,
         domain="[('account_type', '=', 'liability_payable')]",
         ondelete="restrict",
+        check_company=True,
     )
     property_account_receivable_id = fields.Many2one(
-        "account.account",
-        company_dependent=True,
-        check_company=True,
+        comodel_name="account.account",
         string="Account Receivable",
+        company_dependent=True,
         domain="[('account_type', '=', 'asset_receivable')]",
         ondelete="restrict",
+        check_company=True,
     )
     property_account_position_id = fields.Many2one(
-        "account.fiscal.position",
+        comodel_name="account.fiscal.position",
+        string="Fiscal Position",
         company_dependent=True,
         check_company=True,
-        string="Fiscal Position",
         help="The fiscal position determines the taxes/accounts used for this contact.",
     )
     property_payment_term_id = fields.Many2one(
-        "account.payment.term",
-        company_dependent=True,
-        check_company=True,
+        comodel_name="account.payment.term",
         string="Customer Payment Terms",
+        company_dependent=True,
         ondelete="restrict",
+        check_company=True,
     )
     property_supplier_payment_term_id = fields.Many2one(
-        "account.payment.term",
+        comodel_name="account.payment.term",
+        string="Vendor Payment Terms",
         company_dependent=True,
         check_company=True,
-        string="Vendor Payment Terms",
     )
     ref_company_ids = fields.One2many(
-        "res.company", "partner_id", string="Companies that refers to partner"
+        comodel_name="res.company",
+        inverse_name="partner_id",
+        string="Companies that refers to partner",
     )
     supplier_invoice_count = fields.Integer(
-        compute="_compute_supplier_invoice_count", string="# Vendor Bills"
+        string="# Vendor Bills",
+        compute="_compute_supplier_invoice_count",
     )
     customer_invoice_count = fields.Integer(
-        compute="_compute_customer_invoice_count", string="# Customer Invoices"
+        string="# Customer Invoices",
+        compute="_compute_customer_invoice_count",
     )
     account_move_count = fields.Integer(
         compute="_compute_account_move_count",
         groups="account.group_account_invoice,account.group_account_readonly",
     )
     invoice_ids = fields.One2many(
-        "account.move", "partner_id", string="Invoices", readonly=True, copy=False
+        comodel_name="account.move",
+        inverse_name="partner_id",
+        string="Invoices",
+        copy=False,
+        readonly=True,
     )
     contract_ids = fields.One2many(
-        "account.analytic.account",
-        "partner_id",
+        comodel_name="account.analytic.account",
+        inverse_name="partner_id",
         string="Partner Contracts",
         readonly=True,
     )
-    bank_account_count = fields.Count("bank_ids", string="Bank")
+    bank_account_count = fields.Count(
+        count_of="bank_ids",
+        string="Bank",
+    )
     trust = fields.Selection(
-        [("good", "Good Debtor"), ("normal", "Normal Debtor"), ("bad", "Bad Debtor")],
+        selection=[
+            ("good", "Good Debtor"),
+            ("normal", "Normal Debtor"),
+            ("bad", "Bad Debtor"),
+        ],
         string="Degree of trust you have in this debtor",
         company_dependent=True,
     )
     ignore_abnormal_invoice_date = fields.Boolean(company_dependent=True)
     ignore_abnormal_invoice_amount = fields.Boolean(company_dependent=True)
     invoice_sending_method = fields.Selection(
-        string="Invoice sending",
         selection=[
             ("manual", "Manual"),
             ("email", "by Email"),
         ],
+        string="Invoice sending",
         company_dependent=True,
     )
     invoice_edi_format = fields.Selection(
-        string="eInvoice format",
         selection=[],
+        string="eInvoice format",
         compute="_compute_invoice_edi_format",
         inverse="_inverse_invoice_edi_format",
         compute_sudo=True,
@@ -202,21 +215,28 @@ class ResPartner(models.Model):
         store=False,
     )
     invoice_template_pdf_report_id = fields.Many2one(
-        string="Invoice report",
         comodel_name="ir.actions.report",
-        domain="[('id', 'in', available_invoice_template_pdf_report_ids)]",
-        readonly=False,
+        string="Invoice report",
         store=True,
+        readonly=False,
+        domain="[('id', 'in', available_invoice_template_pdf_report_ids)]",
     )
     available_invoice_template_pdf_report_ids = fields.One2many(
         comodel_name="ir.actions.report",
         compute="_compute_available_invoice_template_pdf_report_ids",
     )
     display_invoice_template_pdf_report_id = fields.Boolean(
-        default=_default_display_invoice_template_pdf_report_id, store=False
+        default=_default_display_invoice_template_pdf_report_id,
+        store=False,
     )
-    supplier_rank = fields.Integer(default=0, copy=False)
-    customer_rank = fields.Integer(default=0, copy=False)
+    supplier_rank = fields.Integer(
+        default=0,
+        copy=False,
+    )
+    customer_rank = fields.Integer(
+        default=0,
+        copy=False,
+    )
     autopost_bills = fields.Selection(
         selection=[
             ("always", "Always"),
@@ -224,31 +244,31 @@ class ResPartner(models.Model):
             ("never", "Never"),
         ],
         string="Auto-post bills",
-        help="Automatically post bills for this trusted partner",
         default="ask",
         required=True,
+        help="Automatically post bills for this trusted partner",
     )
 
     property_outbound_payment_channel_id = fields.Many2one(
         comodel_name="account.payment.channel",
-        check_company=True,
         company_dependent=True,
         domain=lambda self: [
             ("journal_id.active", "=", True),
             ("payment_type", "=", "outbound"),
             ("company_id", "parent_of", self.env.company.id),
         ],
+        check_company=True,
     )
 
     property_inbound_payment_channel_id = fields.Many2one(
         comodel_name="account.payment.channel",
-        check_company=True,
         company_dependent=True,
         domain=lambda self: [
             ("journal_id.active", "=", True),
             ("payment_type", "=", "inbound"),
             ("company_id", "parent_of", self.env.company.id),
         ],
+        check_company=True,
     )
 
     @api.depends("company_id", "country_code")
@@ -289,8 +309,15 @@ class ResPartner(models.Model):
         return "%s, %s" % (order_by_field, res) if res else order_by_field
 
     @api.depends_context("company")
+    @_debug.perf.timed
     def _compute_credit_debit(self):
         self.debit = self.credit = False
+        _debug.logic(
+            "credit_debit_scope",
+            partners=self,
+            skipped=not self.ids,
+            reason="no_stored_ids" if not self.ids else None,
+        )
         if not self.ids:
             return
         query = self.env["account.move.line"]._search(
@@ -370,6 +397,13 @@ class ResPartner(models.Model):
 
         if ASSET_DIFFERENCE_COMPARISONS[operator](0.0, operand):
             negated = ASSET_DIFFERENCE_NEGATIONS[operator]
+            _debug.logic(
+                "asset_difference_negated",
+                account_type=account_type,
+                operator=operator,
+                negated=negated,
+                operand=operand,
+            )
             return Domain(
                 "id",
                 "not any!",
@@ -382,10 +416,12 @@ class ResPartner(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _search_credit(self, operator, operand):
         return self._asset_difference_search("asset_receivable", operator, operand)
 
     @api.model
+    @_debug.perf.timed
     def _search_debit(self, operator, operand):
         return self._asset_difference_search("liability_payable", operator, operand)
 
@@ -404,6 +440,7 @@ class ResPartner(models.Model):
 
     @api.depends_context("company", "tz")
     @api.depends("credit")
+    @_debug.perf.timed
     def _compute_days_sales_outstanding(self):
         commercial_partners = {
             commercial_partner: (invoice_date_min, amount_total_signed_sum)
@@ -425,6 +462,12 @@ class ResPartner(models.Model):
             )
         }
         today = fields.Date.context_today(self)
+        _debug.pipeline(
+            "dso_invoice_groups_read",
+            partners=self,
+            commercial_groups=len(commercial_partners),
+            today=today,
+        )
         for partner in self:
             oldest_invoice_date, total_invoiced_tax_included = commercial_partners.get(
                 partner.commercial_partner_id, (today, 0)
@@ -461,6 +504,11 @@ class ResPartner(models.Model):
             partner.currency_id = currency
 
     def _aggregate_by_partner_hierarchy(self, comodel, domain, aggregate):
+        self_ids = set(self._ids)
+        # a partner is readable by users who may not read what hangs off it; a
+        # statistic over records they cannot see is 0, not an AccessError
+        if not self.env[comodel].has_access("read"):
+            return dict.fromkeys(self_ids, 0)
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
             ["parent_id"],
@@ -470,7 +518,6 @@ class ResPartner(models.Model):
             groupby=["partner_id"],
             aggregates=[aggregate],
         )
-        self_ids = set(self._ids)
         result = dict.fromkeys(self_ids, 0)
         for partner, value in groups:
             while partner:
@@ -592,7 +639,9 @@ class ResPartner(models.Model):
             "credit_limit",
         ]
 
+    @_debug.perf.timed
     def action_view_partner_invoices(self):
+        _debug.lifecycle("action_view_partner_invoices", records=self)
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_out_invoice_type"
@@ -612,7 +661,9 @@ class ResPartner(models.Model):
         }
         return action
 
+    @_debug.perf.timed
     def action_view_partner_bills(self):
+        _debug.lifecycle("action_view_partner_bills", records=self)
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.res_partner_action_supplier_bills"
@@ -659,7 +710,9 @@ class ResPartner(models.Model):
             [("partner_id", "child_of", self.commercial_partner_id.id)]
         )
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         partner2move_lines = {}
         if "parent_id" in vals:
             parent_write = self.filtered(
@@ -672,6 +725,11 @@ class ResPartner(models.Model):
                     .search([("partner_id", "in", parent_write.ids)])
                     .grouped("partner_id")
                 )
+                _debug.logic(
+                    "parent_change_move_lines",
+                    partners=parent_write,
+                    with_lines=len(partner2move_lines),
+                )
                 self._check_parent_vat_matches(vals["parent_id"], partner2move_lines)
 
         res = super().write(vals)
@@ -680,9 +738,11 @@ class ResPartner(models.Model):
             self._update_accounting_commercial_partner(partner2move_lines)
         return res
 
+    @_debug.perf.timed
     def _check_parent_vat_matches(self, parent_id, partner2move_lines):
         if not parent_id:
             return
+        parent_id = self._fields["parent_id"].convert_to_cache(parent_id, self)
         parent_vat = self.browse(parent_id).vat or ""
         mismatched = next(
             (
@@ -693,6 +753,7 @@ class ResPartner(models.Model):
             None,
         )
         if mismatched is not None:
+            _debug.logic("parent_vat_mismatch", partner=mismatched, parent=parent_id)
             raise UserError(
                 _(
                     "You cannot set a partner as an invoicing address of another if they have a different %(vat_label)s.",
@@ -713,6 +774,14 @@ class ResPartner(models.Model):
             )
 
         unlocked = {"bypass_lock_check": BYPASS_LOCK_CHECK}
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "_update_accounting_commercial_partner",
+                lines_moves_by_partner={
+                    cp.id: (len(lines), len(moves_by_commercial[cp]))
+                    for cp, lines in lines_by_commercial.items()
+                },
+            )
         for commercial_partner, move_lines in lines_by_commercial.items():
             move_lines.with_context(**unlocked).partner_id = commercial_partner
         for commercial_partner, moves in moves_by_commercial.items():
@@ -728,7 +797,15 @@ class ResPartner(models.Model):
         updated._message_log_batch(bodies=dict.fromkeys(updated.ids, body))
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         rank_field = SEARCH_MODE_RANK_FIELDS.get(
             self.env.context.get("res_partner_search_mode")
         )
@@ -737,7 +814,9 @@ class ResPartner(models.Model):
         return super().create(vals_list)
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_if_partner_in_account_move(self):
+        _debug.lifecycle("_unlink_if_partner_in_account_move", records=self)
         moves = (
             self.env["account.move"]
             .sudo()
@@ -754,6 +833,7 @@ class ResPartner(models.Model):
                 _("The partner cannot be deleted because it is used in Accounting")
             )
 
+    @_debug.perf.timed
     def _increase_rank(self, field: str, n: int = 1):
         assert field in ("customer_rank", "supplier_rank")
         if not self:
@@ -769,8 +849,21 @@ class ResPartner(models.Model):
             else:
                 record[field] += n
 
+        _debug.logic(
+            "rank_increase_routed",
+            partners=self,
+            field=field,
+            n=n,
+            deferred=len(data),
+            already_registered=already_registered,
+            register_hook=not (already_registered or not data),
+        )
         if already_registered or not data:
             return
+
+        _debug.lifecycle(
+            "_increase_rank_registered_postcommit", field=field, data_count=len(data)
+        )
 
         @postcommit.add
         def increase_partner_rank():
@@ -790,6 +883,12 @@ class ResPartner(models.Model):
                             values=list(data.values()),
                         )
                     )
+                    _debug.pipeline(
+                        "rank_increments_flushed",
+                        field=field,
+                        partners=len(data),
+                        rows=cr.rowcount,
+                    )
                 data.clear()
             except Exception:
                 _logger.warning(
@@ -807,6 +906,7 @@ class ResPartner(models.Model):
 
         return frontend_writable_fields
 
+    @_debug.perf.timed
     def _check_vat(self, validation="error"):
         for partner in self:
             vat, _country_code = self._run_vat_checks(
@@ -819,6 +919,7 @@ class ResPartner(models.Model):
                 partner.vat = vat
 
     @api.model
+    @_debug.perf.timed
     def _run_vat_checks(self, country, vat, partner_name="", validation="error"):
         assert validation in (False, "error", "setnull")
         return vat, (country and country.code) or ""
@@ -832,6 +933,7 @@ class ResPartner(models.Model):
         return []
 
     @api.model
+    @_debug.perf.timed
     def _get_import_criteria_from_vat(self, customer_values):
         vat = customer_values.get("vat")
         if not vat:
@@ -902,6 +1004,13 @@ class ResPartner(models.Model):
                 }
             )
 
+        _debug.pipeline(
+            "vat_criteria_built",
+            criteria=len(criteria),
+            country_prefix=country_prefix,
+            country_variants=bool(extra_vat_values),
+            numeric_regex=bool(vat_only_numeric),
+        )
         return {
             "criteria": criteria,
         }
@@ -947,7 +1056,7 @@ class ResPartner(models.Model):
                         (
                             "phone_ids.sanitized",
                             "=",
-                            self.env["phone.number"]._sanitize_number(phone),
+                            self.env["phone.number"]._normalize_number(phone),
                         )
                     ],
                 }
@@ -990,6 +1099,7 @@ class ResPartner(models.Model):
         )
 
     @api.model
+    @_debug.perf.timed
     def _update_customer_values_from_search_plan(
         self, search_plan, company, customer_values_list
     ):
@@ -1000,6 +1110,12 @@ class ResPartner(models.Model):
                 [*self._check_company_domain(company), ("company_id", "!=", False)],
                 [("company_id", "=", False)],
             ]
+        )
+        _debug.pipeline(
+            "customer_search_started",
+            company=company,
+            plans=len(search_plan),
+            customers=len(customer_values_list),
         )
         for customer_values in customer_values_list:
             partner = None
@@ -1037,6 +1153,16 @@ class ResPartner(models.Model):
 
                 if partner:
                     break
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "customer_search_done",
+                company=company,
+                customers=len(customer_values_list),
+                matched=sum(
+                    1 for values in customer_values_list if values.get("customer")
+                ),
+                cache_keys=len(cache),
+            )
 
     def _get_import_customer_search_plan(self, domain=None):
         return [
@@ -1081,7 +1207,15 @@ class ResPartner(models.Model):
             company=company or self.env.company,
             customer_values_list=[customer_values],
         )
-        return customer_values.get("customer") or self.browse()
+        partner = customer_values.get("customer") or self.browse()
+        _debug.logic(
+            "import_match",
+            by_name=bool(name),
+            by_vat=bool(vat),
+            by_email=bool(email),
+            partner=partner,
+        )
+        return partner
 
     def _merge_method(self, destination, source):
         if (
@@ -1140,7 +1274,9 @@ class ResPartner(models.Model):
             [("move_type", "in", ("out_invoice", "out_refund"))],
         )
 
+    @_debug.perf.timed
     def action_view_business_doc(self):
+        _debug.lifecycle("action_view_business_doc", records=self)
         return self._get_records_action()
 
     @api.model
@@ -1160,4 +1296,5 @@ class ResPartner(models.Model):
                 formats=list(formats),
             )
         )
+        _debug.perf.count("edi_formats_cleared", rows=self.env.cr.rowcount)
         self.invalidate_model(["invoice_edi_format_store"])

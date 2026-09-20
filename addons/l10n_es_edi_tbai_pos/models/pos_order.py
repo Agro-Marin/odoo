@@ -8,7 +8,7 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     l10n_es_tbai_state = fields.Selection(
-        [
+        selection=[
             ("to_send", "To Send"),
             ("sent", "Sent"),
         ],
@@ -16,9 +16,9 @@ class PosOrder(models.Model):
         compute="_compute_l10n_es_tbai_state",
     )
     l10n_es_tbai_chain_index = fields.Integer(
+        related="l10n_es_tbai_post_document_id.chain_index",
         string="TicketBAI chain index",
         help="Invoice index in chain, set if and only if an in-chain XML was submitted and did not error",
-        related="l10n_es_tbai_post_document_id.chain_index",
     )
 
     l10n_es_tbai_post_document_id = fields.Many2one(
@@ -27,25 +27,25 @@ class PosOrder(models.Model):
     )
 
     l10n_es_tbai_post_file = fields.Binary(
-        string="TicketBAI Post File",
         related="l10n_es_tbai_post_document_id.xml_attachment_id.datas",
+        string="TicketBAI Post File",
     )
     l10n_es_tbai_post_file_name = fields.Char(
-        string="TicketBAI Post Attachment Name",
         related="l10n_es_tbai_post_document_id.xml_attachment_id.name",
+        string="TicketBAI Post Attachment Name",
     )
 
     l10n_es_tbai_is_required = fields.Boolean(
-        string="TicketBAI required",
         related="company_id.l10n_es_tbai_is_enabled",
+        string="TicketBAI required",
     )
 
     l10n_es_tbai_refund_reason = fields.Selection(
         selection=TBAI_REFUND_REASONS,
         string="Invoice Refund Reason Code (TicketBai)",
+        copy=False,
         help="BOE-A-1992-28740. Ley 37/1992, de 28 de diciembre, del Impuesto sobre el "
         "Valor Añadido. Artículo 80. Modificación de la base imponible.",
-        copy=False,
     )
 
     # -------------------------------------------------------------------------

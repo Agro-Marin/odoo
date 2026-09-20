@@ -13,15 +13,15 @@
                 <footer>
                     <button
                         name="action_reset"
-                        string="Continue"
                         type="object"
+                        string="Continue"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         name="cancel_button"
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -40,15 +40,15 @@
                 <footer>
                     <button
                         name="action_set"
-                        string="Continue"
                         type="object"
+                        string="Continue"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         name="cancel_button"
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

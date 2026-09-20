@@ -1,6 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
+import { getCalendarColor as getColor } from "@web/core/colors/colors";
+
+export { getColor };
+
 /**
  * @param {Object} record
  * @param {boolean} [forceAllDay=false]
@@ -25,37 +29,6 @@ export function convertRecordToEvent(record, forceAllDay = false) {
         end: end.toISO(),
         allDay,
     };
-}
-
-const CSS_COLOR_REGEX =
-    /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,\s*[0-9.]{1,4}\s*)?\))|)$/i;
-const colorMap = new Map();
-/**
- * @param {string|number|false} key
- * @returns {string|number|false}
- */
-export function getColor(key) {
-    if (!key) {
-        return false;
-    }
-    if (colorMap.has(key)) {
-        return colorMap.get(key);
-    }
-
-    if (typeof key === "string" && CSS_COLOR_REGEX.test(key)) {
-        colorMap.set(key, key);
-    } else if (typeof key === "number") {
-        colorMap.set(key, ((key - 1) % 55) + 1);
-    } else {
-        const stringKey = String(key);
-        let hash = 0;
-        for (let i = 0; i < stringKey.length; i++) {
-            hash = (hash * 31 + stringKey.charCodeAt(i)) | 0;
-        }
-        colorMap.set(key, (Math.abs(hash) % 24) + 1);
-    }
-
-    return colorMap.get(key);
 }
 
 /**

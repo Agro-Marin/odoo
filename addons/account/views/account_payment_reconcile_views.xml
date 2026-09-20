@@ -19,10 +19,10 @@
                     name="action_view_manual_reconciliation_widget"
                     type="object"
                     string="Payment Matching"
-                    class="oe_stat_button"
                     icon="fa-dollar"
                     groups="account.group_account_user"
-                    invisible="is_invoice_reconciled or not move_id or state not in ('in_process', 'paid')" />
+                    invisible="is_invoice_reconciled or not move_id or state not in ('in_process', 'paid')"
+                    class="oe_stat_button" />
             </xpath>
         </field>
     </record>

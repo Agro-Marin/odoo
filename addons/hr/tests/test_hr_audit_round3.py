@@ -52,23 +52,18 @@ class TestHrAuditRound3(TestHrCommon):
         self.assertEqual(here.user_id, user)
         self.assertEqual(there.user_id, user)
 
-    def test_remove_work_contact_id_on_create_without_company(self):
+    def test_a_contact_given_a_login_links_its_employee(self):
+        employee = self.Employee.create({"name": "Hired Before Login"})
         user = self.env["res.users"].create(
-            {"name": "Shared Partner", "login": "shared_partner_r3"}
+            {
+                "name": "Hired Before Login",
+                "login": "hired_before_login",
+                "partner_id": employee.partner_id.id,
+            }
         )
-        squatter = self.Employee.create(
-            {"name": "Squatter", "partner_id": user.partner_id.id}
-        )
-        self.assertEqual(squatter.partner_id, user.partner_id)
-
-        self.Employee.create({"name": "Real Owner", "user_id": user.id})
-
-        self.assertNotEqual(
-            squatter.partner_id,
-            user.partner_id,
-            "the userless employee must lose the partner now claimed by a user",
-        )
-        self.assertEqual(squatter.partner_id.name, "Squatter")
+        self.assertEqual(employee.user_id, user)
+        user.active = False
+        self.assertEqual(employee.user_id, user)
 
     def test_department_subscription_covers_every_written_employee(self):
         dept_a = self.env["hr.department"].create({"name": "R3 A"})
@@ -101,7 +96,7 @@ class TestHrAuditRound3(TestHrCommon):
             "the written department's channel must auto-subscribe its members",
         )
 
-    def test_calendar_tz_batch_resolves_the_employee_local_date(self):
+    def test_schedule_tz_batch_answers_the_work_zone_whatever_the_version(self):
         tokyo = self.env["resource.calendar"].create(
             {"name": "R3 Tokyo", "tz": "Asia/Tokyo"}
         )
@@ -135,8 +130,8 @@ class TestHrAuditRound3(TestHrCommon):
             date(2026, 1, 15),
         )
         self.assertEqual(
-            employee._get_calendar_tz_batch(instant),
-            {employee.id: "Pacific/Auckland"},
+            employee._get_schedule_tz_batch(instant),
+            {employee.id: "Asia/Tokyo"},
         )
 
     def test_calendar_tz_batch_keeps_each_group_to_its_own_employees(self):
@@ -163,7 +158,7 @@ class TestHrAuditRound3(TestHrCommon):
         self.env.flush_all()
 
         self.assertEqual(
-            (tokyo_emp | ny_emp)._get_calendar_tz_batch(datetime(2026, 1, 15, 3, 0)),
+            (tokyo_emp | ny_emp)._get_schedule_tz_batch(datetime(2026, 1, 15, 3, 0)),
             {tokyo_emp.id: "Asia/Tokyo", ny_emp.id: "America/New_York"},
         )
 
@@ -574,13 +569,13 @@ class TestHrAuditRound3(TestHrCommon):
         )
         period_start = datetime(2026, 3, 2, tzinfo=ZoneInfo("UTC"))
         period_stop = datetime(2026, 3, 6, 23, 59, tzinfo=ZoneInfo("UTC"))
-        self.env["resource.calendar.leaves"].create(
+        self.env["resource.schedule.exception"].create(
             {
                 "name": "R3 Public Holiday",
                 "calendar_id": calendar.id,
                 "date_from": datetime(2026, 3, 4, 0, 0),
                 "date_to": datetime(2026, 3, 4, 23, 59),
-                "time_type": "other",
+                "time_type_id": self.env.ref("resource.time_type_work").id,
             }
         )
 

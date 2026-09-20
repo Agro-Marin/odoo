@@ -9,8 +9,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -40,12 +40,12 @@
                         <button
                             name="action_open_partners"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-address-book">
+                            icon="fa-address-book"
+                            class="oe_stat_button">
                             <field
                                 name="partner_count"
-                                widget="statinfo"
-                                string="Contacts" />
+                                string="Contacts"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <group>

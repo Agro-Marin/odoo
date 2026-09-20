@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("website.builder.plugin.popup_visibility_plugin");
 
 /**
  * @typedef { Object } PopupVisibilityShared
@@ -26,19 +29,18 @@ export class PopupVisibilityPlugin extends Plugin {
 
     setup() {
         this.addDomListener(this.editable, "click", (ev) => {
-            // Note: links are excluded here so that internal modal buttons do
-            // not close the popup as we want to allow edition of those buttons.
             if (ev.target.matches(".s_popup .js_close_popup:not(a, .btn)")) {
                 ev.stopPropagation();
                 const popupEl = ev.target.closest(".s_popup");
+                log.logic("close popup button clicked: hiding popup", () => ({
+                    id: popupEl?.id,
+                }));
                 this.dependencies.visibility.hideElement(popupEl);
             }
         });
         const history = this.dependencies.history;
         const Modal = this.getModal();
-        // Patching the edited realm's own class keeps the patch scoped to the
-        // document being edited. Guarded because the frontend bundle is absent
-        // in editor tests mounted without it.
+        log.lifecycle("setup", () => ({ patchModal: !!Modal }));
         this.unpatchModal = Modal
             ? patch(Modal.prototype, {
                   _hideModal() {
@@ -55,20 +57,19 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     /**
-     * @returns {Function|undefined} the edited document's Bootstrap Modal class
+     * @returns {Function|undefined}
      */
     getModal() {
         return getBootstrapComponent(this.window, "Modal");
     }
 
     destroy() {
+        log.lifecycle("destroy");
         super.destroy();
         this.unpatchModal();
     }
 
     /**
-     * The `.modal` a `.s_popup` wraps, or null for a malformed snippet.
-     *
      * @param {HTMLElement} targetEl
      * @returns {HTMLElement|null}
      */
@@ -77,43 +78,79 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     onTargetShow(targetEl) {
-        // Check if the popup is within the editable, because it is cloned on
-        // save (see save plugin) and Bootstrap moves it if it is not within the
-        // document (see Bootstrap Modal's _showElement).
         if (!this.editable.contains(targetEl)) {
+            log.logic("onTargetShow skip: target outside editable");
             return;
         }
         const modalEl = this.getModalEl(targetEl);
         const Modal = this.getModal();
         if (modalEl && Modal) {
-            Modal.getOrCreateInstance(modalEl).show();
+            log.pipeline("onTargetShow show popup modal", () => ({ id: targetEl.id }));
+            this.settleModal(Modal.getOrCreateInstance(modalEl), true);
+        }
+    }
+
+    /**
+     * Bootstrap silently drops a show() or hide() that arrives while the
+     * opposite transition is still running (the eye toggled twice within a
+     * fade), leaving the popup in the state the panel does not claim. The
+     * call is replayed once that transition ends.
+     *
+     * @param {import("bootstrap").Modal} modal
+     * @param {boolean} shown the state the popup must end in
+     */
+    settleModal(modal, shown) {
+        if (modal._isTransitioning && modal._isShown !== shown) {
+            const event = shown ? "hidden.bs.modal" : "shown.bs.modal";
+            log.logic("settleModal: transition in flight, replaying after", () => ({
+                event,
+            }));
+            const endWait = log.perf("settleModal wait", () => ({ event }));
+            modal._element.addEventListener(
+                event,
+                () => {
+                    endWait();
+                    if (shown) {
+                        modal.show();
+                    } else {
+                        modal.hide();
+                    }
+                },
+                { once: true },
+            );
+            return;
+        }
+        if (shown) {
+            modal.show();
+        } else {
+            modal.hide();
         }
     }
 
     onTargetHide(targetEl, isCleaning) {
-        // Do not use Bootstrap to close the popup, as we are cleaning a
-        // clone of it. Instead, hide it manually (see `cleanForSave`).
         if (isCleaning) {
+            log.logic("onTargetHide skip: cleaning");
             return;
         }
         const modalEl = this.getModalEl(targetEl);
         const Modal = this.getModal();
         if (modalEl && Modal) {
-            Modal.getOrCreateInstance(modalEl).hide();
+            log.pipeline("onTargetHide hide popup modal", () => ({ id: targetEl.id }));
+            this.settleModal(Modal.getOrCreateInstance(modalEl), false);
         }
     }
 
     cleanForSave({ root: rootEl }) {
         const Modal = this.getModal();
         if (!Modal) {
+            log.logic("cleanForSave skip: no bootstrap Modal");
             return;
         }
-        // Hide the popups manually, as we cannot rely on the `onTargetHide`
-        // flow since the cleaned popup is a clone and is not in the DOM.
+        log.pipeline("cleanForSave hide open popups", () => ({
+            count: rootEl.querySelectorAll(".s_popup .modal.show").length,
+        }));
         for (const modalEl of rootEl.querySelectorAll(".s_popup .modal.show")) {
             modalEl.parentElement.dataset.invisible = "1";
-            // Do not call .hide() directly, because it is queued whereas
-            // .dispose() is not.
             modalEl.classList.remove("show");
             const modal = Modal.getOrCreateInstance(modalEl);
             modal._hideModal();
@@ -122,9 +159,7 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     /**
-     * Hides all the open popups that do not contain the given target element.
-     *
-     * @param {HTMLElement} targetEl the element
+     * @param {HTMLElement} targetEl
      */
     hidePopupsWithoutTarget(targetEl) {
         const openPopupEls = this.editable.querySelectorAll(
@@ -134,6 +169,9 @@ export class PopupVisibilityPlugin extends Plugin {
             return;
         }
 
+        log.pipeline("hidePopupsWithoutTarget", () => ({
+            openPopups: openPopupEls.length,
+        }));
         for (const popupEl of openPopupEls) {
             if (!popupEl.contains(targetEl)) {
                 this.dependencies.visibility.toggleTargetVisibility(popupEl, false);

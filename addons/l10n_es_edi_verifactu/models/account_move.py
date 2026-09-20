@@ -5,8 +5,8 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     l10n_es_edi_verifactu_required = fields.Boolean(
-        string="Veri*Factu Required",
         related="company_id.l10n_es_edi_verifactu_required",
+        string="Veri*Factu Required",
     )
     l10n_es_edi_verifactu_document_ids = fields.One2many(
         comodel_name="l10n_es_edi_verifactu.document",
@@ -14,13 +14,13 @@ class AccountMove(models.Model):
         string="Veri*Factu Documents",
     )
     l10n_es_edi_verifactu_state = fields.Selection(
-        string="Veri*Factu Status",
         selection=[
             ("rejected", "Rejected"),
             ("registered_with_errors", "Registered with Errors"),
             ("accepted", "Accepted"),
             ("cancelled", "Cancelled"),
         ],
+        string="Veri*Factu Status",
         compute="_compute_l10n_es_edi_verifactu_state",
         store=True,
         help="""- Rejected: Successfully sent to the AEAT, but it was rejected during validation
@@ -50,8 +50,8 @@ class AccountMove(models.Model):
         help='Technical field to enable a dynamic selection of the field "Veri*Factu Regime Key"',
     )
     l10n_es_edi_verifactu_clave_regimen = fields.Selection(
-        string="Veri*Factu Regime Key",
         selection="_selection_l10n_es_edi_verifactu_clave_regimen",
+        string="Veri*Factu Regime Key",
         compute="_compute_l10n_es_edi_verifactu_clave_regimen",
         store=True,
         readonly=False,
@@ -60,14 +60,14 @@ class AccountMove(models.Model):
         comodel_name="account.move",
         string="Substitution of",
         index="btree_not_null",
-        readonly=True,
         copy=False,
+        readonly=True,
         check_company=True,
     )
     l10n_es_edi_verifactu_substitution_move_ids = fields.One2many(
-        string="Substituted by",
         comodel_name="account.move",
         inverse_name="l10n_es_edi_verifactu_substituted_entry_id",
+        string="Substituted by",
     )
     l10n_es_edi_verifactu_refund_reason = fields.Selection(
         selection=[
@@ -234,13 +234,13 @@ class AccountMove(models.Model):
                         "You are modifying a journal entry for which a Veri*Factu document has been sent to the AEAT already."
                     )
                     warning_level = "warning"
-                elif last_document._filter_waiting():
+                elif last_document._filtered_waiting():
                     warning = _(
                         "You are modifying a journal entry for which a Veri*Factu document is waiting to be sent."
                     )
                     warning_level = "warning"
 
-            if last_document._filter_waiting():
+            if last_document._filtered_waiting():
                 warning = _(
                     "%(existing_warning)sA Veri*Factu document is waiting to be sent as soon as possible.",
                     existing_warning=(warning + "\n" if warning else ""),
@@ -276,7 +276,7 @@ class AccountMove(models.Model):
             if (
                 move.l10n_es_edi_verifactu_state
                 in ("registered_with_errors", "accepted", "cancelled")
-                or move.l10n_es_edi_verifactu_document_ids._filter_waiting()
+                or move.l10n_es_edi_verifactu_document_ids._filtered_waiting()
             ):
                 move.show_reset_to_draft_button = False
 

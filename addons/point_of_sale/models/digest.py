@@ -1,11 +1,13 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from ..tools import debug_log as dbg
+
 
 class DigestDigest(models.Model):
     _inherit = "digest.digest"
 
-    kpi_pos_total = fields.Boolean("POS Sales")
+    kpi_pos_total = fields.Boolean(string="POS Sales")
     kpi_pos_total_value = fields.Monetary(compute="_compute_kpi_pos_total_value")
 
     @api.depends_context("uid")
@@ -15,16 +17,17 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._update_company_based_kpi(
-            "pos.order",
-            "kpi_pos_total_value",
-            date_field="date_order",
-            additional_domain=[
-                ("state", "not in", ["draft", "cancel"]),
-                ("account_move", "=", False),
-            ],
-            sum_field="amount_total",
-        )
+        with dbg.timer(self.env, "digest kpi_pos_total_value for %s", dbg.rec(self)):
+            self._update_company_based_kpi(
+                "pos.order",
+                "kpi_pos_total_value",
+                date_field="date_order",
+                additional_domain=[
+                    ("state", "not in", ["draft", "cancel"]),
+                    ("account_move", "=", False),
+                ],
+                sum_field="amount_total",
+            )
 
     def _get_kpi_actions(self, company, user):
         res = super()._get_kpi_actions(company, user)

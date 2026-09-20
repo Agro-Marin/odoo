@@ -1,6 +1,6 @@
 {
     "name": "Events Organization",
-    "version": "1.11",
+    "version": "1.14",
     "category": "Marketing/Events",
     "summary": "Trainings, Conferences, Meetings, Exhibitions, Registrations",
     "description": """
@@ -19,6 +19,7 @@ Key Features
     "website": "https://www.odoo.com/app/events",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "barcodes",
         "mail",
         "phone_validation",
@@ -28,7 +29,6 @@ Key Features
     "data": [
         "security/event_security.xml",
         "security/ir.model.access.csv",
-        "views/event_menu_views.xml",
         "views/event_ticket_views.xml",
         "views/event_mail_views.xml",
         "views/event_registration_views.xml",
@@ -50,6 +50,7 @@ Key Features
         "views/event_question_views.xml",
         "views/event_registration_answer_views.xml",
         "data/event_question_data.xml",
+        "views/event_menu_views.xml",
     ],
     "demo": [
         "demo/res_users_demo.xml",
@@ -73,6 +74,9 @@ Key Features
         "web.assets_frontend": [
             "event/static/src/js/tours/**/*",
         ],
+        "web.assets_unit_tests": [
+            "event/static/tests/**/*.js",
+        ],
         "web.report_assets_common": [
             "/event/static/src/scss/event_badge_report.scss",
             "/event/static/src/scss/event_full_page_ticket_report.scss",
@@ -82,5 +86,4 @@ Key Features
             "/event/static/src/scss/event_full_page_ticket_report_pdf.scss",
         ],
     },
-    "installable": True,
 }

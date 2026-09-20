@@ -2,7 +2,7 @@
 import { Component, useRef } from "@odoo/owl";
 import { usePopover } from "@web/ui/popover";
 
-import { ApprovalButtonPopover } from "./approval_button_popover";
+import { ApprovalButtonPopover } from "./approval_button_popover.js";
 
 export class ApprovalButton extends Component {
     static template = "approval.ApprovalButton";

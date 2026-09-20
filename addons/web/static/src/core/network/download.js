@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     ConnectionLostError,
     InvalidResponseError,
@@ -67,6 +68,8 @@ export function downloadFile(data, filename, mimetype) {
 }
 downloadFile._download = _download;
 
+const log = makeLogger("web.download");
+
 /**
  * @param {*} options
  * @returns {Promise<any>}
@@ -78,6 +81,10 @@ export function download(options) {
 download._download = (/** @type {any} */ options) =>
     new Promise((resolve, reject) => {
         const xhr = new browser.XMLHttpRequest();
+        log.pipeline("download", () => ({
+            url: options.url || options.form?.action,
+            keys: Object.keys(options.data || {}),
+        }));
         let data;
         if (Object.hasOwn(options, "form")) {
             xhr.open(options.form.method, options.form.action);

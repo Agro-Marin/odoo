@@ -1,8 +1,11 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.query import Query
 
 from odoo.addons.account.models.account_move import PAYMENT_STATE_SELECTION
+
+_debug = DebugLog(__name__)
 
 
 class AccountInvoiceReport(models.Model):
@@ -12,18 +15,38 @@ class AccountInvoiceReport(models.Model):
     _rec_name = "invoice_date"
     _order = "invoice_date desc"
 
-    move_id = fields.Many2one("account.move", readonly=True)
-    journal_id = fields.Many2one("account.journal", string="Journal", readonly=True)
-    company_id = fields.Many2one("res.company", string="Company", readonly=True)
-    company_currency_id = fields.Many2one(
-        "res.currency", string="Company Currency", readonly=True
+    move_id = fields.Many2one(
+        comodel_name="account.move",
+        readonly=True,
     )
-    partner_id = fields.Many2one("res.partner", string="Partner", readonly=True)
-    commercial_partner_id = fields.Many2one("res.partner", string="Main Partner")
-    country_id = fields.Many2one("res.country", string="Country")
-    invoice_user_id = fields.Many2one("res.users", string="Salesperson", readonly=True)
+    journal_id = fields.Many2one(
+        comodel_name="account.journal",
+        readonly=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
+    company_currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        readonly=True,
+    )
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        readonly=True,
+    )
+    commercial_partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Main Partner",
+    )
+    country_id = fields.Many2one(comodel_name="res.country")
+    invoice_user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Salesperson",
+        readonly=True,
+    )
     move_type = fields.Selection(
-        [
+        selection=[
             ("out_invoice", "Customer Invoice"),
             ("in_invoice", "Vendor Bill"),
             ("out_refund", "Customer Credit Note"),
@@ -32,40 +55,78 @@ class AccountInvoiceReport(models.Model):
         readonly=True,
     )
     state = fields.Selection(
-        [("draft", "Draft"), ("posted", "Open"), ("cancel", "Cancelled")],
+        selection=[("draft", "Draft"), ("posted", "Open"), ("cancel", "Cancelled")],
         string="Invoice Status",
         readonly=True,
     )
     payment_state = fields.Selection(
-        selection=PAYMENT_STATE_SELECTION, string="Payment Status", readonly=True
+        selection=PAYMENT_STATE_SELECTION,
+        string="Payment Status",
+        readonly=True,
     )
     fiscal_position_id = fields.Many2one(
-        "account.fiscal.position", string="Fiscal Position", readonly=True
+        comodel_name="account.fiscal.position",
+        readonly=True,
     )
-    invoice_date = fields.Date(readonly=True, string="Invoice Date")
+    invoice_date = fields.Date(readonly=True)
 
-    quantity = fields.Float(string="Product Quantity", readonly=True)
-    product_id = fields.Many2one("product.product", string="Product", readonly=True)
-    product_uom_id = fields.Many2one("uom.uom", string="Unit", readonly=True)
-    product_categ_id = fields.Many2one(
-        "product.category", string="Product Category", readonly=True
+    quantity = fields.Float(
+        string="Product Quantity",
+        readonly=True,
     )
-    invoice_date_due = fields.Date(string="Due Date", readonly=True)
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        readonly=True,
+    )
+    product_uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Unit",
+        readonly=True,
+    )
+    product_categ_id = fields.Many2one(
+        comodel_name="product.category",
+        string="Product Category",
+        readonly=True,
+    )
+    invoice_date_due = fields.Date(
+        string="Due Date",
+        readonly=True,
+    )
     account_id = fields.Many2one(
-        "account.account", string="Revenue/Expense Account", readonly=True
+        comodel_name="account.account",
+        string="Revenue/Expense Account",
+        readonly=True,
     )
     price_subtotal_currency = fields.Float(
-        string="Untaxed Amount in Currency", readonly=True
+        string="Untaxed Amount in Currency",
+        readonly=True,
     )
-    price_subtotal = fields.Float(string="Untaxed Amount", readonly=True)
-    price_total = fields.Float(string="Total", readonly=True)
-    price_total_currency = fields.Float(string="Total in Currency", readonly=True)
+    price_subtotal = fields.Float(
+        string="Untaxed Amount",
+        readonly=True,
+    )
+    price_total = fields.Float(
+        string="Total",
+        readonly=True,
+    )
+    price_total_currency = fields.Float(
+        string="Total in Currency",
+        readonly=True,
+    )
     price_average = fields.Float(
-        string="Average Price", readonly=True, aggregator="avg"
+        string="Average Price",
+        readonly=True,
+        aggregator="avg",
     )
-    price_margin = fields.Float(string="Margin", readonly=True)
-    inventory_value = fields.Float(string="Inventory Value", readonly=True)
-    currency_id = fields.Many2one("res.currency", string="Currency", readonly=True)
+    price_margin = fields.Float(
+        string="Margin",
+        readonly=True,
+    )
+    inventory_value = fields.Float(readonly=True)
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        readonly=True,
+    )
 
     _depends = {
         "account.move": [
@@ -109,6 +170,7 @@ class AccountInvoiceReport(models.Model):
         return SQL("%s %s %s", self._select(), self._from(), self._where())
 
     @api.model
+    @_debug.perf.timed
     def _select(self) -> SQL:
         return SQL(
             """
@@ -119,7 +181,7 @@ class AccountInvoiceReport(models.Model):
                 line.account_id,
                 line.journal_id,
                 line.company_id,
-                line.company_currency_id,
+                line_company.currency_id AS company_currency_id,
                 line.partner_id AS commercial_partner_id,
                 account.account_type AS user_type,
                 move.state,
@@ -165,16 +227,18 @@ class AccountInvoiceReport(models.Model):
     def _from(self) -> SQL:
         return SQL(
             """
-            FROM account_move_line line
-                LEFT JOIN res_partner partner ON partner.id = line.partner_id
-                LEFT JOIN product_product product ON product.id = line.product_id
-                LEFT JOIN account_account account ON account.id = line.account_id
-                LEFT JOIN product_template template ON template.id = product.product_tmpl_id
-                LEFT JOIN uom_uom uom_line ON uom_line.id = line.product_uom_id
-                LEFT JOIN uom_uom uom_template ON uom_template.id = template.uom_id
-                INNER JOIN account_move move ON move.id = line.move_id
-                LEFT JOIN res_partner commercial_partner ON commercial_partner.id = move.commercial_partner_id
-                JOIN %(currency_table)s ON account_currency_table.company_id = line.company_id
+            FROM
+                account_move_line line
+            LEFT JOIN res_partner partner ON partner.id = line.partner_id
+            LEFT JOIN product_product product ON product.id = line.product_id
+            LEFT JOIN account_account account ON account.id = line.account_id
+            LEFT JOIN product_template template ON template.id = product.product_tmpl_id
+            LEFT JOIN uom_uom uom_line ON uom_line.id = line.product_uom_id
+            LEFT JOIN uom_uom uom_template ON uom_template.id = template.uom_id
+            INNER JOIN account_move move ON move.id = line.move_id
+            INNER JOIN res_company line_company ON line_company.id = line.company_id
+            LEFT JOIN res_partner commercial_partner ON commercial_partner.id = move.commercial_partner_id
+            JOIN %(currency_table)s ON account_currency_table.company_id = line.company_id
             """,
             currency_table=self.env["res.currency"]._get_simple_currency_table(
                 self.env.companies
@@ -191,6 +255,7 @@ class AccountInvoiceReport(models.Model):
             """,
         )
 
+    @_debug.perf.timed
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
@@ -206,6 +271,7 @@ class ReportAccountReport_Invoice(models.AbstractModel):
     _description = "Account report without payment lines"
 
     @api.model
+    @_debug.perf.timed
     def _get_report_values(self, docids, data=None):
         docs = self.env["account.move"].browse(docids)
 
@@ -218,6 +284,9 @@ class ReportAccountReport_Invoice(models.AbstractModel):
                 if new_code_url:
                     qr_code_urls[invoice.id] = new_code_url
 
+        _debug.pipeline(
+            "invoice_qr_codes_generated", moves=docs, qr_codes=len(qr_code_urls)
+        )
         return {
             "doc_ids": docids,
             "doc_model": "account.move",
@@ -232,6 +301,7 @@ class ReportAccountReport_Invoice_With_Payments(models.AbstractModel):
     _inherit = ["report.account.report_invoice"]
 
     @api.model
+    @_debug.perf.timed
     def _get_report_values(self, docids, data=None):
         rslt = super()._get_report_values(docids, data)
         rslt["report_type"] = data.get("report_type") if data else ""

@@ -11,6 +11,5 @@ Swiss POS Localization
         "l10n_ch",
         "point_of_sale",
     ],
-    "installable": True,
     "auto_install": True,
 }

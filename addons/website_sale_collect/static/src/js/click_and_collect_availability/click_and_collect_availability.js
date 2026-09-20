@@ -40,10 +40,8 @@ export class ClickAndCollectAvailability extends Component {
     }
 
     /**
-     * Update the state with the product combination info.
-     *
      * @private
-     * @param {Object} combinationInfo - The information on the current product variant.
+     * @param {Object} combinationInfo
      * @return {void}
      */
     _updateStateWithCombinationInfo(combinationInfo) {
@@ -54,14 +52,11 @@ export class ClickAndCollectAvailability extends Component {
     }
 
     /**
-     * Configure and open the location selector.
-     *
      * @return {void}
      */
     async openLocationSelector() {
         if (!this.state.active) {
-            // Combination is not possible.
-            return; // Do not open the location selector.
+            return;
         }
         const { zip_code, id } = this.state.selectedLocationData;
         this.dialog.add(LocationSelectorDialog, {
@@ -75,7 +70,6 @@ export class ClickAndCollectAvailability extends Component {
                 this.state.inStoreStockData =
                     location.additional_data.in_store_stock_data;
                 const jsonLocation = JSON.stringify(location);
-                // Set the in-store delivery method and the selected pickup location on the order.
                 await rpc("/shop/set_click_and_collect_location", {
                     pickup_location_data: jsonLocation,
                 });

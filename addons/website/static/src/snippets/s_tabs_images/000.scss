@@ -13,7 +13,6 @@
         }
     }
 
-    // Forces custom colors to be maintained independently of the color preset.
     .s_tabs_pills_template .nav-link.active {
         background: var(--#{$prefix}nav-pills-link-active-bg) !important;
         color: var(--#{$prefix}nav-pills-link-active-color) !important;

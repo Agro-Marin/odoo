@@ -10,8 +10,8 @@
                 <xpath expr="//*[@name='filter_my_sessions']" position="after">
                     <filter
                         name="filter_my_team"
-                        domain="[('channel_member_ids.partner_id.user_ids.employee_id.member_of_department', '=', True)]"
-                        string="My Team" />
+                        string="My Team"
+                        domain="[('channel_member_ids.partner_id.user_ids.employee_id.member_of_department', '=', True)]" />
                 </xpath>
             </field>
         </record>
@@ -26,8 +26,8 @@
                 <xpath expr="//*[@name='filter_my_sessions']" position="after">
                     <filter
                         name="filter_my_team"
-                        domain="[('channel_member_ids.partner_id.user_ids.employee_id.member_of_department', '=', True)]"
-                        string="My Team" />
+                        string="My Team"
+                        domain="[('channel_member_ids.partner_id.user_ids.employee_id.member_of_department', '=', True)]" />
                 </xpath>
             </field>
         </record>

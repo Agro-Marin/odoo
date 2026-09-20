@@ -35,13 +35,13 @@
     </t>
 
     <t t-name="hr_skills.ResumeListRenderer.RecordRow" t-inherit-mode="primary" t-inherit="web.ListRenderer.RecordRow">
-        <xpath expr="//t[@t-foreach='getColumns(record)']" position="replace">
+        <xpath expr="//t[@t-foreach='api.getColumns(record)']" position="replace">
             <t t-set="data" t-value="record.data"/>
             <td class="o_resume_timeline_cell position-relative pe-lg-2">
                 <div class="rounded-circle bg-info position-relative"/>
             </td>
-            <td class="o_data_cell pt-0" t-on-click="(ev) => this.onCellClicked(record, null, ev)">
-                <div t-attf-class="o_resume_line" t-att-data-id="id">
+            <td class="o_data_cell pt-0" t-on-click="(ev) => api.onCellClicked(record, null, ev)">
+                <div class="o_resume_line" t-on-click="api.onLineLinkClick">
                     <small class="o_resume_line_dates fw-bold">
                         <t t-out="api.formatDate(data.date_start)"/>
                         <t t-if="!data.is_course">
@@ -61,7 +61,7 @@
                             <a id="external_link" t-if="data.external_url" t-attf-href="#{data.external_url}" target="_blank" class="ms-2 fa-solid fa-up-right-from-square btn-secondary" style="font-size: 1rem;"/>
                         </t>
                     </div>
-                    <p t-if="data.description" class="o_resume_line_desc" t-out="data.description" t-ref="link-target-blank"/>
+                    <p t-if="data.description" class="o_resume_line_desc" t-out="data.description"/>
                 </div>
             </td>
         </xpath>

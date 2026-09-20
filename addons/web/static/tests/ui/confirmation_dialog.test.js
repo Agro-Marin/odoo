@@ -369,6 +369,26 @@ test("can't click twice on 'Ok' (AlertDialog)", async () => {
     expect.verifySteps(["Confirm action"]);
 });
 
+test("AlertDialog is the confirmation template at size sm with a contentClass", async () => {
+    const env = await makeDialogMockEnv();
+    await mountWithCleanup(AlertDialog, {
+        env,
+        props: {
+            body: "Some content",
+            title: "Alert",
+            contentClass: "my-alert",
+            close: () => {},
+            cancel: () => {},
+        },
+    });
+    expect(".modal-dialog").toHaveClass("modal-sm");
+    expect(".modal-content").toHaveClass("my-alert");
+    expect(".modal-body p.text-prewrap").toHaveText("Some content");
+    expect(".modal-footer button").toHaveCount(2);
+    expect(".modal-footer .btn-primary").toHaveAttribute("data-hotkey", "q");
+    expect(".modal-footer .btn-secondary").toHaveAttribute("data-hotkey", "x");
+});
+
 const openConfirmation = async (/** @type {any[]} */ closeParams) => {
     await mountWithCleanup(MainComponentsContainer);
     getService("dialog").add(

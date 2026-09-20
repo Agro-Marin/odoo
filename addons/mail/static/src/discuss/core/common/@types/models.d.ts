@@ -46,6 +46,9 @@ declare module "models" {
         _setupChannelStateFields(): void;
         _computeFirstUnreadMessage(): Message | null;
         _computeLastMessageSeenByAllId(): number | string | undefined;
+        _maxMessageIdByOthers(
+            fieldName: "seen_message_id" | "fetched_message_id",
+        ): number;
         _computeMaxSeenMessageIdByOthers(): number;
         _computeMaxFetchedMessageIdByOthers(): number;
         _computeLastSelfMessageSeenByEveryone(): Message | false | undefined;
@@ -74,6 +77,8 @@ declare module "models" {
         group_ids: ResGroups[];
         has_mail_thread: boolean | undefined;
         hasMemberList: Readonly<boolean>;
+        isMultiMemberChannel: Readonly<boolean>;
+        isMuted: Readonly<boolean>;
         hasOtherMembersTyping: boolean;
         hasSeenFeature: boolean;
         hasSelfAsMember: Readonly<boolean>;
@@ -82,7 +87,7 @@ declare module "models" {
         lastInterestDt: import("luxon").DateTime;
         lastMessageSeenByAllId: undefined | number;
         lastSelfMessageSeenByEveryone: Message;
-        leaveChannel: (options?: { force?: boolean }) => Promise<void>;
+        leaveChannel: (options?: { force?: boolean }) => Promise<boolean>;
         markAsFetched: () => Promise<void>;
         markedAsUnread: boolean;
         markingAsRead: boolean;

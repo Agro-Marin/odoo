@@ -1,9 +1,12 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class ResUsersSettings(models.Model):
     _inherit = "res.users.settings"
 
+    @dbg.timed
     def get_embedded_actions_settings(self) -> dict:
         embedded_actions_settings_dict = super().get_embedded_actions_settings()
         res_model = self.env.context.get("res_model")
@@ -37,6 +40,15 @@ class ResUsersSettings(models.Model):
                     ("action_id", "not in", user_configs.action_id.ids),
                 ],
             )
+        )
+        dbg.logic.debug(
+            "res.users.settings.get_embedded_actions_settings [project:%s]: user %s, "
+            "manager %s, %d own configs, %d inherited from manager",
+            res_id,
+            self.user_id.id,
+            project_manager.id,
+            len(user_configs),
+            len(manager_configs_sudo),
         )
         if manager_configs_sudo:
             embedded_actions_settings_dict.update(

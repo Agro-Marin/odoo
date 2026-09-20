@@ -4,6 +4,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare, float_round
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
@@ -14,6 +15,8 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Environment, ModelClass, ModelLike, ModelType
 
 MAXINT = 2**31 - 1
+
+_debug = DebugLog(__name__)
 
 
 def _float_to_pg_text(value: float) -> str:
@@ -44,6 +47,11 @@ class Integer(Field[int]):
         res = super()._get_attrs(model_class, name)
         if "aggregator" not in res and name == SEQUENCE_FIELD:
             res["aggregator"] = None
+            _debug.logic(
+                "field.integer.sequence_aggregator_dropped",
+                model=model_class._name,
+                field=name,
+            )
         return res
 
     @override
@@ -93,6 +101,12 @@ class Integer(Field[int]):
         self, value, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         if value and not (-MAXINT - 1 <= value <= MAXINT):
+            _debug.logic(
+                "field.integer.read_as_float",
+                model=self.model_name,
+                field=self.name,
+                record=record.id,
+            )
             return float(value)
         return value
 
@@ -143,7 +157,7 @@ class Float(Field[float]):
 
     def get_digits(self, env: Environment) -> tuple[int, int] | bool | None:
         if isinstance(self._digits, str):
-            precision = env["decimal.precision"].get_precision(self._digits)
+            precision = env.registry.locale.decimal_precision(env, self._digits)
             return 16, precision
         else:
             return self._digits
@@ -155,7 +169,7 @@ class Float(Field[float]):
 
     def get_min_display_digits(self, env: Environment) -> int | None:
         if isinstance(self._min_display_digits, str):
-            return env["decimal.precision"].get_precision(self._min_display_digits)
+            return env.registry.locale.decimal_precision(env, self._min_display_digits)
         return self._min_display_digits
 
     def _description_min_display_digits(self, env: Environment) -> int | None:
@@ -192,7 +206,7 @@ class Float(Field[float]):
             return float_round(value, precision_digits=digits[1])
         if not isinstance(digits, str):
             return value
-        precision = record.env["decimal.precision"].get_precision(digits)
+        precision = record.env.registry.locale.decimal_precision(record.env, digits)
         return float_round(value, precision_digits=precision)
 
     @override
@@ -262,6 +276,17 @@ class Monetary(Field[float]):
     def _description_currency_field(self, env: Environment) -> str | None:
         return self.get_currency_field(env[self.model_name])
 
+    @override
+    def _dynamic_description_attrs(self, env: Environment) -> frozenset[str]:
+        dynamic = super()._dynamic_description_attrs(env)
+        if not self.aggregator:
+            return dynamic
+        model = env[self.model_name]
+        currency_field = model._fields[self._get_currency_field_name(model)]
+        if not currency_field.column_type or not currency_field.store:
+            return dynamic | {"aggregator"}
+        return dynamic
+
     def _description_aggregator(self, env: Environment) -> str | None:
         model = env[self.model_name]
         currency_field_name = self._get_currency_field_name(model)
@@ -272,7 +297,14 @@ class Monetary(Field[float]):
                 model._read_group_select(
                     f"{currency_field_name}:array_agg_distinct", query
                 )
-            except ValueError, AccessError, NotImplementedError:
+            except (ValueError, AccessError, NotImplementedError) as e:
+                _debug.logic(
+                    "field.monetary.aggregator_unsupported",
+                    model=self.model_name,
+                    field=self.name,
+                    currency_field=currency_field_name,
+                    error=type(e).__name__,
+                )
                 return None
 
         return super()._description_aggregator(env)
@@ -302,9 +334,8 @@ class Monetary(Field[float]):
         return (
             record[:1]
             .with_prefetch(record._prefetch_ids)
-            .sudo()
-            .with_context(prefetch_fields=False)[currency_field_name]
-        )
+            .with_env(record.env._derive(su=True, prefetch_fields=False))
+        )[currency_field_name]
 
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
@@ -317,6 +348,13 @@ class Monetary(Field[float]):
         if self.inherited:
             self.currency_field = self.related_field.get_currency_field(
                 model.env[self.related_field.model_name]
+            )
+            _debug.logic(
+                "field.monetary.currency_field_inherited",
+                model=self.model_name,
+                field=self.name,
+                currency_field=self.currency_field,
+                related_model=self.related_field.model_name,
             )
         assert self.get_currency_field(model) in model._fields, (
             f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
@@ -351,6 +389,7 @@ class Monetary(Field[float]):
         if values and currency_field_name in values:
             dummy = record.new({currency_field_name: values[currency_field_name]})
             currency = dummy[currency_field_name]
+            currency_from = "values"  # debuglog
         elif (
             values
             and currency_field.related
@@ -359,9 +398,20 @@ class Monetary(Field[float]):
             related_field_name = currency_field.related.split(".")[0]
             dummy = record.new({related_field_name: values[related_field_name]})
             currency = dummy[currency_field_name]
+            currency_from = "related_values"  # debuglog
         else:
             currency = self._resolve_currency_record(record).with_env(record.env)
+            currency_from = "record"  # debuglog
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "field.monetary.insert_currency",
+                model=self.model_name,
+                field=self.name,
+                currency_field=currency_field_name,
+                currency_from=currency_from,
+                currency=currency.id if currency else None,
+            )
         value = float(value or 0.0)
         if currency:
             return currency.round(value)
@@ -374,7 +424,9 @@ class Monetary(Field[float]):
         value = float(value or 0.0)
         if value and validate:
             currency_field = self._get_currency_field_name(record)
-            currency = record.sudo().with_context(prefetch_fields=False)[currency_field]
+            currency = record.with_env(
+                record.env._derive(su=True, prefetch_fields=False)
+            )[currency_field]
             if len(currency) > 1:
                 raise ValueError(
                     "Got multiple currencies while assigning values of monetary field %s"
@@ -445,4 +497,12 @@ class Monetary(Field[float]):
                 and currency.with_env(env).round(value) == cache_value
             )
         )
+        if _debug.logic.enabled and len(ids_to_update) < len(records):
+            _debug.logic(
+                "field.monetary.rounded_equal_skipped",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                changed=len(ids_to_update),
+            )
         return records._spawn(env, ids_to_update, records._prefetch_ids)

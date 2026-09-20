@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Template for Dynamic Snippet -->
     <template
         id="dynamic_filter_template_product_product_products_item"
         name="Generic Product Template (customizable)">
@@ -30,7 +29,6 @@
                     name="product-id"
                     t-att-data-product-id="record.id" />
 
-                <!-- Image -->
                 <div
                     t-attf-class="oe_product_image position-relative flex-grow-0 overflow-hidden">
                     <a
@@ -61,7 +59,6 @@
                 <div class="o_wsale_product_information flex-grow-1 flex-shrink-1">
                     <div class="o_wsale_product_info_attributes_wrapper">
                         <div class="o_wsale_product_information_text">
-                            <!-- Product Name -->
                             <h2 class="o_wsale_products_item_title h6 text-break">
                                 <a
                                     class="text-decoration-none"
@@ -70,7 +67,6 @@
                                     t-att-title="data.get('display_name')"
                                     t-out="data.get('display_name')" />
                             </h2>
-                            <!-- Description -->
                             <div class="oe_subdescription_wrapper">
                                 <div
                                     class="oe_subdescription text-muted small"
@@ -78,7 +74,6 @@
                                     <div t-field="product.description_sale" />
                                 </div>
                             </div>
-                            <!-- Rating -->
                             <div
                                 t-if="is_view_active('website_sale.product_comment')"
                                 class="o_wsale_product_rating_wrapper">
@@ -92,12 +87,10 @@
                         </div>
                     </div>
                     <div class="o_wsale_product_sub justify-content-between gap-2">
-                        <!-- Price(s) -->
                         <div class="product_price" aria-label="Price information">
                             <t
                                 t-call="website_sale.price_dynamic_filter_template_product_product" />
                         </div>
-                        <!-- Actions -->
                         <div class="o_wsale_product_btn">
                             <div class="o_wsale_product_action_row">
                                 <t t-if="product._website_show_quick_add()">
@@ -110,7 +103,6 @@
                                         t-att-data-product-template-id="product.id if not product.is_product_variant else product.product_tmpl_id.id"
                                         t-att-data-product-type="product.type"
                                         t-att-data-show-quantity="is_view_active('website_sale.product_quantity')">
-                                        <!-- Avoid whitespaces undesired gaps -->
                                         <i class="fa-solid fa-shopping-cart" role="presentation" /><span class="o_label small ms-1">Add to Cart</span>
                                     </button>
                                 </t>
@@ -143,7 +135,6 @@
         </t>
     </template>
 
-    <!-- Assets -->
     <asset
         id="website_sale.s_dynamic_snippet_products_000_scss"
         name="Dynamic snippet products 000 SCSS">

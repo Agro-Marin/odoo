@@ -35,6 +35,17 @@ export function patchBrowserLocation() {
             get: () => originalValue,
         });
     }
+    // A real window.open puts the test page in the background, and Chrome
+    // throttles a background page's timers to one wake-up per second for the
+    // rest of the run: every test after the popup then pays seconds per
+    // awaited timer. A test that asserts on the call patches open itself.
+    browserModule.browser.open = () => ({
+        closed: false,
+        focus() {},
+        close() {
+            this.closed = true;
+        },
+    });
 }
 
 export function patchBrowserStorage() {

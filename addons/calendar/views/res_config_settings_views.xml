@@ -8,16 +8,16 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Calendar"
-                    string="Calendar"
                     name="calendar"
-                    groups="base.group_system">
-                    <block title="Calendar Settings" name="calendar">
+                    string="Calendar"
+                    groups="base.group_system"
+                    data-string="Calendar">
+                    <block name="calendar" title="Calendar Settings">
                         <setting
+                            id="sync_outlook_calendar_setting"
                             string="Outlook Calendar"
-                            documentation="/applications/productivity/calendar/outlook.html"
                             help="Synchronize your calendar with Outlook"
-                            id="sync_outlook_calendar_setting">
+                            documentation="/applications/productivity/calendar/outlook.html">
                             <field name="module_microsoft_calendar" />
                             <div
                                 class="content-group"
@@ -27,10 +27,10 @@
                             </div>
                         </setting>
                         <setting
+                            id="sync_google_calendar_setting"
                             string="Google Calendar"
-                            documentation="/applications/productivity/calendar/google.html"
                             help="Synchronize your calendar with Google Calendar"
-                            id="sync_google_calendar_setting">
+                            documentation="/applications/productivity/calendar/google.html">
                             <field name="module_google_calendar" />
                             <div
                                 class="content-group"

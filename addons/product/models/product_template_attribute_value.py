@@ -11,21 +11,27 @@ class ProductTemplateAttributeValue(models.Model):
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"
 
-    ptav_active = fields.Boolean(string="Active", default=True)
-    name = fields.Char(related="product_attribute_value_id.name", string="Value")
+    ptav_active = fields.Boolean(
+        string="Active",
+        default=True,
+    )
+    name = fields.Char(
+        related="product_attribute_value_id.name",
+        string="Value",
+    )
 
     product_attribute_value_id = fields.Many2one(
         comodel_name="product.attribute.value",
         string="Attribute Value",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     attribute_line_id = fields.Many2one(
         comodel_name="product.template.attribute.line",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     price_extra = fields.Float(
         string="Extra Price",
@@ -35,7 +41,7 @@ class ProductTemplateAttributeValue(models.Model):
         " eg. 200 price extra, 1000 + 200 = 1200.",
     )
     currency_id = fields.Many2one(
-        related="attribute_line_id.product_tmpl_id.currency_id",
+        related="attribute_line_id.product_tmpl_id.currency_id"
     )
 
     exclude_for = fields.One2many(
@@ -48,10 +54,8 @@ class ProductTemplateAttributeValue(models.Model):
 
     product_tmpl_id = fields.Many2one(
         related="attribute_line_id.product_tmpl_id",
-        store=True,
-        index=True,
     )
-    attribute_id = fields.Many2one(
+    attribute_id = fields.Many2one(  # noqa: E8529  One2many inverse of product.attribute.template_value_ids
         related="attribute_line_id.attribute_id",
         store=True,
         index=True,
@@ -68,10 +72,8 @@ class ProductTemplateAttributeValue(models.Model):
         string="HTML Color Index",
     )
     is_custom = fields.Boolean(related="product_attribute_value_id.is_custom")
-    display_type = fields.Selection(
-        related="product_attribute_value_id.display_type",
-    )
-    color = fields.Integer(string="Color", default=lambda self: self._default_color())
+    display_type = fields.Selection(related="product_attribute_value_id.display_type")
+    color = fields.Integer(default=lambda self: self._default_color())
     image = fields.Image(related="product_attribute_value_id.image")
 
     _attribute_value_unique = models.Constraint(
@@ -176,7 +178,7 @@ class ProductTemplateAttributeValue(models.Model):
         for value in self:
             value.display_name = f"{value.attribute_id.name}: {value.name}"
 
-    def _only_active(self):
+    def _filtered_active(self):
         return self.filtered(lambda ptav: ptav.ptav_active)
 
     def _without_no_variant_attributes(self):
@@ -202,5 +204,5 @@ class ProductTemplateAttributeValue(models.Model):
         self.check_singleton()
         all_values = self.attribute_line_id.product_template_value_ids
         if only_active:
-            all_values = all_values._only_active()
+            all_values = all_values._filtered_active()
         return len(all_values) == 1

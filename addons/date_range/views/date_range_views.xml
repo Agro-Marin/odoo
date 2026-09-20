@@ -62,8 +62,8 @@
                 <field name="company_id" column_invisible="1" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
                 <field name="active" widget="boolean_toggle" />
             </list>
         </field>
@@ -77,8 +77,8 @@
                 <widget
                     name="web_ribbon"
                     title="Archived"
-                    bg_color="bg-danger"
-                    invisible="active" />
+                    invisible="active"
+                    bg_color="bg-danger" />
                 <sheet>
                     <div class="oe_title">
                         <h1>
@@ -108,8 +108,8 @@
                             <field name="company_id" invisible="1" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company" />
                             <field name="active" invisible="1" />
                         </group>
                     </group>

@@ -3,18 +3,33 @@ from __future__ import annotations
 import threading
 from time import monotonic
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 LAG_SQL = """
     SELECT coalesce(
         CASE
             WHEN NOT pg_is_in_recovery() THEN 0
             WHEN pg_last_wal_receive_lsn() IS NULL THEN 0
             WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0
+            WHEN pg_last_xact_replay_timestamp() IS NULL THEN 'infinity'
             ELSE greatest(
                 0, extract(epoch FROM now() - pg_last_xact_replay_timestamp())
             )
         END, 0)::float8
 """
-"""Apply lag in seconds, and zero wherever the question cannot be answered.
+"""Apply lag in seconds, zero wherever the question cannot be answered, and
+infinity where it can be answered only as "behind, by an unknown amount".
+
+That last branch is a standby with WAL received and not replayed that has
+not yet replayed a single transaction since it started: `pg_last_xact_replay_
+timestamp()` is NULL until the first replayed commit, so the ELSE arithmetic
+was NULL and the coalesce turned genuinely outstanding WAL into "caught up".
+Measured on a PG 18 standby started fresh, replay paused, 1.5 s of WAL
+received: receive F9/7101E310, replay F9/71000000, timestamp NULL, and the
+query answered 0. It answers infinity now, the gate demotes on it, and the
+first replayed commit turns it into a number.
 
 The caught-up check exists because `pg_last_xact_replay_timestamp()` grows
 without bound on an idle primary, so the replay timestamp is only consulted
@@ -60,6 +75,12 @@ class ReplicaLagGate:
         self._last_sample = 0.0
         self._lagging = False
         self.last_lag = 0.0
+        _debug.lifecycle(
+            "replica.lag_gate_created",
+            max_lag=max_lag,
+            sample_interval=self.sample_interval,
+            enabled=max_lag > 0,
+        )
 
     @property
     def enabled(self) -> bool:
@@ -84,14 +105,28 @@ class ReplicaLagGate:
             now = monotonic()
             if self._last_sample and now - self._last_sample < self.sample_interval:
                 return False
+            _debug.logic(
+                "replica.lag_sample_due",
+                interval=self.sample_interval,
+                since_last_s=now - self._last_sample if self._last_sample else 0.0,
+            )
             self._last_sample = now
             return True
 
     def record(self, lag_seconds: float | None) -> None:
         lag = 0.0 if lag_seconds is None else max(0.0, lag_seconds)
         with self._lock:
+            was_lagging = self._lagging  # debuglog
             self.last_lag = lag
             self._lagging = self.enabled and lag > self.max_lag
+            _debug.perf.count(
+                "replica.lag_sampled",
+                lag=lag,
+                max_lag=self.max_lag,
+                lagging=self._lagging,
+                changed=was_lagging != self._lagging,
+                measured=lag_seconds is not None,
+            )
 
     def get_snapshot(self) -> dict:
         with self._lock:

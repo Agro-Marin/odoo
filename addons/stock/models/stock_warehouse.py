@@ -4,7 +4,10 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
+from odoo.tools import TransactionMemo
 from odoo.tools.translate import LazyTranslate, _
+
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
@@ -49,6 +52,10 @@ PARTNER_LOCATION_MISSING = {
     "supplier": _lt("Can't find any supplier location."),
 }
 
+DEFAULT_WAREHOUSE_BY_COMPANY = TransactionMemo(
+    "stock.warehouse.default_by_company", invalidated_by=("stock.warehouse",)
+)
+
 WAREHOUSE_PICKING_TYPE_CODES = {
     "in_type_id": "IN",
     "qc_type_id": "QC",
@@ -71,11 +78,11 @@ class StockWarehouse(models.Model):
 
     name = fields.Char(
         string="Warehouse",
-        required=True,
         default=lambda self: self._default_name(),
+        required=True,
     )
 
-    active = fields.Boolean(string="Active", default=True)
+    active = fields.Boolean(default=True)
 
     sequence = fields.Integer(
         default=10,
@@ -84,10 +91,9 @@ class StockWarehouse(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
         default=lambda self: self.env.company,
         readonly=True,
+        required=True,
         help="The company is automatically set from your user preferences.",
     )
 
@@ -100,12 +106,11 @@ class StockWarehouse(models.Model):
 
     view_location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="View Location",
+        index=True,
         copy=False,
         required=True,
-        check_company=True,
         domain="[('usage', '=', 'view'), ('company_id', '=', company_id)]",
-        index=True,
+        check_company=True,
     )
 
     lot_stock_id = fields.Many2one(
@@ -113,14 +118,14 @@ class StockWarehouse(models.Model):
         string="Location Stock",
         copy=False,
         required=True,
-        check_company=True,
         domain="[('usage', '=', 'internal'), ('company_id', '=', company_id)]",
+        check_company=True,
     )
 
     code = fields.Char(
         string="Short Name",
-        required=True,
         size=5,
+        required=True,
         help="Short name used to identify your warehouse",
     )
 
@@ -130,9 +135,9 @@ class StockWarehouse(models.Model):
         column1="warehouse_id",
         column2="route_id",
         string="Routes",
-        check_company=True,
-        domain="[('warehouse_selectable', '=', True), ('company_id', 'in', [False, company_id])]",
         copy=False,
+        domain="[('warehouse_selectable', '=', True), ('company_id', 'in', [False, company_id])]",
+        check_company=True,
         help="Defaults routes through the warehouse",
     )
 
@@ -143,8 +148,8 @@ class StockWarehouse(models.Model):
             ("three_steps", "Receive, Quality Control, then Store (3 steps)"),
         ],
         string="Incoming Shipments",
-        required=True,
         default="one_step",
+        required=True,
         help="Default incoming route to follow",
     )
 
@@ -155,8 +160,8 @@ class StockWarehouse(models.Model):
             ("pick_pack_ship", "Pick, Pack, then Deliver (3 steps)"),
         ],
         string="Outgoing Shipments",
-        required=True,
         default="ship_only",
+        required=True,
         help="Default outgoing route to follow",
     )
 
@@ -189,77 +194,74 @@ class StockWarehouse(models.Model):
     )
 
     mto_pull_id = fields.Many2one(
-        comodel_name="stock.rule", string="MTO rule", copy=False
+        comodel_name="stock.rule",
+        string="MTO rule",
+        copy=False,
     )
 
     pick_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="Pick Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     pack_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="Pack Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     out_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="Out Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     in_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="In Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     int_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Internal Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     qc_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Quality Control Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     store_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Storage Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     xdock_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Cross Dock Type",
-        check_company=True,
         copy=False,
+        check_company=True,
     )
 
     reception_route_id = fields.Many2one(
         comodel_name="stock.route",
         string="Receipt Route",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
     )
 
     delivery_route_id = fields.Many2one(
         comodel_name="stock.route",
-        string="Delivery Route",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
     )
 
     resupply_wh_ids = fields.Many2many(
@@ -327,8 +329,26 @@ class StockWarehouse(models.Model):
                     )
                 )
 
+    @api.model
+    def _get_default_for_company(self, company):
+        # the first warehouse of a company answers every default-warehouse
+        # question of a transaction; memoized until a warehouse changes
+        per_company = DEFAULT_WAREHOUSE_BY_COMPANY(self.env)
+        key = (company.id, self.env.uid, self.env.su)
+        if key not in per_company:
+            per_company[key] = self.search(
+                [("company_id", "=", company.id)], limit=1
+            ).id
+        return self.browse(per_company[key])
+
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.warehouse.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         taken = {}
         chosen = defaultdict(set)
         for vals in vals_list:
@@ -383,16 +403,27 @@ class StockWarehouse(models.Model):
             )
             for field_name, location in zip(sub_locations, sub_records, strict=True):
                 vals[field_name] = location.id
+            dbg.lifecycle.debug(
+                "create: warehouse %s/%s view location %s, sub locations %s",
+                vals["name"],
+                vals["code"],
+                vals["view_location_id"],
+                dbg.rec(sub_records),
+            )
 
         warehouses = super().create(vals_list)
+        dbg.lifecycle.debug("stock.warehouse.create: created %s", dbg.rec(warehouses))
 
         for warehouse in warehouses:
-            new_vals = warehouse._create_or_update_picking_types()
-            warehouse.write(new_vals)
-            warehouse._create_or_update_route()
-            warehouse._create_or_update_global_routes_rules()
+            with dbg.timer(
+                self.env, "warehouse %s picking types + routes", warehouse.id
+            ):
+                new_vals = warehouse._create_or_update_picking_types()
+                warehouse.write(new_vals)
+                warehouse._create_or_update_route()
+                warehouse._create_or_update_global_routes_rules()
 
-            warehouse._create_resupply_routes(warehouse.resupply_wh_ids)
+                warehouse._create_resupply_routes(warehouse.resupply_wh_ids)
 
         for partner_id, company_id in {
             (vals["partner_id"], vals["company_id"])
@@ -405,7 +436,11 @@ class StockWarehouse(models.Model):
 
         return warehouses
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.warehouse.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if vals.get("code"):
             vals = dict(vals, code=self._normalize_code(vals["code"]))
         self._check_company_unchanged(vals)
@@ -465,6 +500,12 @@ class StockWarehouse(models.Model):
             else warehouses.browse()
         )
 
+        if toggling or old_resupply_whs:
+            dbg.logic.debug(
+                "_pre_write_sync: toggling active on %s, old resupply %s",
+                dbg.rec(toggling),
+                {k: v.ids for k, v in old_resupply_whs.items()},
+            )
         return PendingWrite(toggling=toggling, old_resupply_whs=old_resupply_whs)
 
     def _post_write_refresh(self, vals, before):
@@ -481,6 +522,13 @@ class StockWarehouse(models.Model):
         refresh_routes = not triggers.isdisjoint(changed)
         refresh_global = not self.env.context.get("stock_no_global_route_refresh") and (
             not triggers.isdisjoint(changed) or not rule_fields.isdisjoint(changed)
+        )
+        dbg.logic.debug(
+            "_post_write_refresh on %s: picking_types=%s routes=%s global=%s",
+            dbg.rec(warehouses),
+            refresh_picking_types,
+            refresh_routes,
+            refresh_global,
         )
 
         for warehouse in warehouses:
@@ -508,10 +556,20 @@ class StockWarehouse(models.Model):
         if "active" in vals:
             self._update_multiwarehouse_group()
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.warehouse.unlink %s", dbg.rec(self))
         if not self.env.context.get("_force_unlink"):
             self._unlink_except_in_use()
         leftovers = [warehouse._get_owned_records() for warehouse in self]
+        for owned in leftovers:
+            dbg.lifecycle.debug(
+                "unlink: owned rules %s, picking types %s, routes %s, view %s",
+                dbg.rec(owned.rules),
+                dbg.rec(owned.picking_types),
+                dbg.rec(owned.routes),
+                dbg.rec(owned.view_location),
+            )
 
         for owned in leftovers:
             for records in owned.config:
@@ -675,8 +733,10 @@ class StockWarehouse(models.Model):
             fields=["id", "name", "code"],
         )
 
+    @dbg.timed
     def _update_active(self, active, reactivate_depends):
         self.check_singleton()
+        dbg.lifecycle.debug("[warehouse:%s] active -> %s", self.id, active)
         PickingType = self.env["stock.picking.type"]
         picking_types = PickingType.with_context(active_test=False).search(
             [("warehouse_id", "=", self.id)]
@@ -698,7 +758,17 @@ class StockWarehouse(models.Model):
         if active:
             dormant = resupply_routes.filtered(lambda route: not route.active)
             if dormant:
+                dbg.logic.debug(
+                    "_update_active: rules of dormant resupply routes %s stay archived",
+                    dbg.rec(dormant),
+                )
                 rules = rules.filtered(lambda rule: rule.route_id not in dormant)
+        dbg.lifecycle.debug(
+            "_update_active: picking types %s, rules %s -> active=%s",
+            dbg.rec(picking_types),
+            dbg.rec(rules),
+            active,
+        )
         rules.write({"active": active})
 
         if active:
@@ -782,6 +852,9 @@ class StockWarehouse(models.Model):
         )
         if several == (group_multi_warehouses in group_user.implied_ids):
             return
+        dbg.lifecycle.debug(
+            "_update_multiwarehouse_group: several=%s, toggling implied groups", several
+        )
         if not several:
             group_user.sudo().write(
                 {"implied_ids": [fields.Command.unlink(group_multi_warehouses.id)]}

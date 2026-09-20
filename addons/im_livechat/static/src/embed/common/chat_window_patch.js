@@ -24,7 +24,7 @@ patch(ChatWindow.prototype, {
     },
     get showGiveFeedbackBtn() {
         const thread = this.props.chatWindow.thread;
-        if (thread?.channel_type !== "livechat") {
+        if (!thread?.isLivechat) {
             return false;
         }
         return thread.chatbot?.completed || thread.livechat_end_dt;

@@ -6,6 +6,8 @@ from typing import NamedTuple
 
 from odoo.fields import Domain
 
+from . import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,15 @@ def get_domain_quantity_in_python(records, field_name, operator, value):
         matched = matches.filtered(lambda record: not predicate(record))
     else:
         matched = matches.filtered(predicate)
+    dbg.performance.debug(
+        "get_domain_quantity_in_python(%s.%s %s %s): %d records scanned, %d match",
+        records._name,
+        field_name,
+        operator,
+        value,
+        len(matches),
+        len(matched),
+    )
     return [("id", "in", matched.ids)]
 
 

@@ -3,5 +3,7 @@ from . import credential_category
 from . import credential_category_field
 from . import credential_credential
 from . import credential_access_log
-from . import inbound_access_log
-from . import rate_limit_bucket
+from . import credential_use
+from . import credential_oauth2
+from . import res_company
+from . import res_config_settings

@@ -9,9 +9,7 @@
                 class="s_carousel s_carousel_default carousel slide"
                 data-bs-ride="true"
                 data-bs-interval="10000">
-                <!-- Content -->
                 <div class="carousel-inner">
-                    <!-- #01 -->
                     <div
                         class="carousel-item active oe_img_bg o_bg_img_center o_cc o_cc5 pt152 pb152"
                         style="background-image: url('/web/image/website.s_carousel_default_image_1');"
@@ -29,7 +27,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #02 -->
                     <div
                         class="carousel-item oe_img_bg o_bg_img_center pt96 pb96"
                         style="background-image: url('/web/image/website.s_carousel_default_image_2');"
@@ -51,7 +48,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #03 -->
                     <div
                         class="carousel-item oe_img_bg o_bg_img_center pt128 pb128 o_cc o_cc5"
                         style="background-image: url('/web/image/website.s_carousel_default_image_3');"
@@ -69,7 +65,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- Controls -->
                 <button
                     class="carousel-control-prev o_not_editable"
                     contenteditable="false"
@@ -90,7 +85,6 @@
                     <span class="carousel-control-next-icon" aria-hidden="true" />
                     <span class="visually-hidden">Next</span>
                 </button>
-                <!-- Indicators -->
                 <div class="carousel-indicators o_not_editable">
                     <button
                         type="button"

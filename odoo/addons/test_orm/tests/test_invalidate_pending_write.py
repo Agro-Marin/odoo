@@ -12,7 +12,7 @@ class TestInvalidatePendingWrite(TransactionCase):
         self.env.flush_all()
         record.write({"ref": "R1"})
         self.assertTrue(
-            self.env._core.get_dirty(self.Partner._fields["ref"]),
+            self.env.core.get_dirty(self.Partner._fields["ref"]),
             "precondition: the write must leave 'ref' dirty",
         )
         return record
@@ -132,7 +132,7 @@ class TestInvalidateInversePendingWrite(TransactionCase):
         field = self.env["res.partner.bank"]._fields["partner_id"]
         self.assertIn(
             bank.id,
-            self.env._core.get_dirty(field) or (),
+            self.env.core.get_dirty(field) or (),
             "precondition: the write must leave 'partner_id' dirty",
         )
         return source, bank, target

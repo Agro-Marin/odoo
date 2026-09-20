@@ -15,18 +15,18 @@ class ChatbotScriptStep(models.Model):
     _description = "Chatbot Script Step"
     _order = "sequence, id"
 
-    name = fields.Char(string="Name", compute="_compute_name")
-    message = fields.Html(string="Message", translate=True)
-    sequence = fields.Integer(string="Sequence")
+    name = fields.Char(compute="_compute_name")
+    message = fields.Html(translate=True)
+    sequence = fields.Integer()
     chatbot_script_id = fields.Many2one(
-        "chatbot.script",
+        comodel_name="chatbot.script",
         string="Chatbot",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     step_type = fields.Selection(
-        [
+        selection=[
             ("text", "Text"),
             ("question_selection", "Question"),
             ("question_email", "Email"),
@@ -39,16 +39,19 @@ class ChatbotScriptStep(models.Model):
         required=True,
     )
     answer_ids = fields.One2many(
-        "chatbot.script.answer", "script_step_id", copy=True, string="Answers"
+        comodel_name="chatbot.script.answer",
+        inverse_name="script_step_id",
+        string="Answers",
+        copy=True,
     )
     triggering_answer_ids = fields.Many2many(
-        "chatbot.script.answer",
-        domain="[('script_step_id.sequence', '<', sequence), ('script_step_id.chatbot_script_id', '=', chatbot_script_id)]",
+        comodel_name="chatbot.script.answer",
+        string="Only If",
         compute="_compute_triggering_answer_ids",
-        readonly=False,
         store=True,
         copy=False,
-        string="Only If",
+        readonly=False,
+        domain="[('script_step_id.sequence', '<', sequence), ('script_step_id.chatbot_script_id', '=', chatbot_script_id)]",
         help="Show this step only if all of these answers have been selected.",
     )
     is_forward_operator = fields.Boolean(compute="_compute_is_forward_operator")
@@ -56,8 +59,7 @@ class ChatbotScriptStep(models.Model):
         compute="_compute_is_forward_operator_child"
     )
     operator_expertise_ids = fields.Many2many(
-        "im_livechat.expertise",
-        string="Operator Expertise",
+        comodel_name="im_livechat.expertise",
         help="When forwarding live chat conversations, the chatbot will prioritize users with matching expertise.",
     )
 

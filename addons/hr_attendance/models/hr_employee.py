@@ -10,48 +10,52 @@ from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_round
 
+from ..tools import debug_log as dbg
+
 
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
     attendance_manager_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
+        string="Attendance Approver",
         store=True,
         readonly=False,
-        string="Attendance Approver",
         domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         groups="hr_attendance.group_hr_attendance_officer",
         help="The user set in Attendance will access the attendance of the employee through the dedicated app and will be able to edit them.",
     )
     attendance_ids = fields.One2many(
-        "hr.attendance",
-        "employee_id",
+        comodel_name="hr.attendance",
+        inverse_name="employee_id",
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
     last_attendance_id = fields.Many2one(
-        "hr.attendance",
+        comodel_name="hr.attendance",
         compute="_compute_last_attendance_id",
         store=True,
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
     last_check_in = fields.Datetime(
         related="last_attendance_id.check_in",
-        store=True,
-        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
         tracking=False,
+        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
     last_check_out = fields.Datetime(
         related="last_attendance_id.check_out",
-        store=True,
-        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
         tracking=False,
+        groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
     attendance_state = fields.Selection(
+        selection=[("checked_out", "Checked out"), ("checked_in", "Checked in")],
         string="Attendance Status",
         compute="_compute_attendance_state",
-        selection=[("checked_out", "Checked out"), ("checked_in", "Checked in")],
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
+    # These four are not stored, and a non-stored compute with no `depends` is
+    # computed once and then held until something else happens to invalidate the
+    # cache -- so an attendance created after the first read did not move them.
+    # Measured: two hours read, three more worked, still two hours.
     hours_this_month = fields.Float(compute="_compute_hours_this_month")
     hours_this_month_overtime = fields.Float(compute="_compute_hours_this_month")
     hours_today = fields.Float(
@@ -67,14 +71,18 @@ class HrEmployee(models.Model):
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
     hours_this_month_display = fields.Char(
-        compute="_compute_hours_this_month", groups="hr.group_hr_user"
+        compute="_compute_hours_this_month",
+        groups="hr.group_hr_user",
     )
     overtime_ids = fields.One2many(
-        "hr.attendance.overtime.line",
-        "employee_id",
+        comodel_name="hr.attendance.overtime.line",
+        inverse_name="employee_id",
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
-    total_overtime = fields.Float(compute="_compute_total_overtime", compute_sudo=True)
+    total_overtime = fields.Float(
+        compute="_compute_total_overtime",
+        compute_sudo=True,
+    )
     display_extra_hours = fields.Boolean(
         related="company_id.hr_attendance_display_overtime"
     )
@@ -119,8 +127,8 @@ class HrEmployee(models.Model):
                     officer.sudo().write({"group_ids": [(4, officers_group.id)]})
 
         res = super().write(vals)
-        old_officers.sudo()._clean_attendance_officers()
-
+        if old_officers:
+            old_officers.sudo()._clean_attendance_officers()
         return res
 
     def action_archive(self):
@@ -152,6 +160,13 @@ class HrEmployee(models.Model):
         for employee in self:
             employee.total_overtime = mapped_validated_overtimes.get(employee, 0)
 
+    @api.depends(
+        "attendance_ids.worked_hours",
+        "attendance_ids.validated_overtime_hours",
+        "attendance_ids.check_in",
+        "attendance_ids.check_out",
+        "tz",
+    )
     def _compute_hours_this_month(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
@@ -163,7 +178,7 @@ class HrEmployee(models.Model):
                 .astimezone(UTC)
                 .replace(tzinfo=None)
             )
-            grouped = self.env["hr.attendance"]._read_group(
+            grouped = self.env["hr.attendance"]._read_group(  # noqa: E8507 - one query per timezone; employees sharing one were merged above
                 domain=[
                     ("employee_id", "in", employees.ids),
                     ("check_in", ">=", start_naive),
@@ -184,10 +199,17 @@ class HrEmployee(models.Model):
             employee.hours_this_month_display = "%g" % employee.hours_this_month
             employee.hours_this_month_overtime = round(overtime, 2)
 
+    @api.depends("attendance_ids.check_in", "attendance_ids.check_out", "tz")
     def _compute_hours_today(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
         by_tz = self.grouped("tz")
+        dbg.logic.debug(
+            "_compute_hours_today %s: %d time zone group(s) %s",
+            dbg.rec(self),
+            len(by_tz),
+            dbg.lazy(lambda: sorted(map(repr, by_tz))),
+        )
         for tz_name, employees in by_tz.items():
             start_tz = now_utc.astimezone(timezone(tz_name)).replace(
                 hour=0, minute=0, second=0, microsecond=0
@@ -291,6 +313,13 @@ class HrEmployee(models.Model):
             employee.attendance_pin_retry_after
             and now < employee.attendance_pin_retry_after
         )
+        dbg.logic.debug(
+            "_check_attendance_pin %s: %d earlier failure(s), locked=%s until %s",
+            dbg.rec(self),
+            employee.attendance_pin_failure_count,
+            bool(locked),
+            employee.attendance_pin_retry_after,
+        )
         if (
             not locked
             and pin_code
@@ -303,9 +332,16 @@ class HrEmployee(models.Model):
                         "attendance_pin_retry_after": False,
                     }
                 )
+            dbg.logic.debug("_check_attendance_pin %s: accepted", dbg.rec(self))
             return True
         employee.attendance_pin_failure_count += 1
         delay = employee._attendance_pin_retry_delay()
+        dbg.logic.debug(
+            "_check_attendance_pin %s: rejected, failure %d, next delay %ds",
+            dbg.rec(self),
+            employee.attendance_pin_failure_count,
+            delay,
+        )
         employee.attendance_pin_retry_after = (
             now + relativedelta(seconds=delay) if delay else False
         )
@@ -323,6 +359,13 @@ class HrEmployee(models.Model):
         employee = self.sudo()
         action_date = fields.Datetime.now()
         geo_information = geo_information or {}
+        dbg.pipeline.debug(
+            "[attendance:%s] _attendance_action_change at %s, state %s, geo keys %s",
+            self.id,
+            action_date,
+            employee.attendance_state,
+            dbg.keys(geo_information),
+        )
         if employee.attendance_state != "checked_in":
             attendance = employee.env["hr.attendance"].create(
                 {
@@ -375,6 +418,7 @@ class HrEmployee(models.Model):
             "device_tracking_enabled": employee.company_id.attendance_device_tracking,
         }
 
+    @dbg.timed
     def _round_overtime_window(self, first, last):
         """Widen a span of local dates to the periods its overtime is summed
         over: whole weeks when any rule the employee has ever had is weekly,
@@ -385,6 +429,12 @@ class HrEmployee(models.Model):
             rule.base_off == "quantity" and rule.quantity_period == "week"
             for rule in rules
         ):
+            dbg.logic.debug(
+                "_round_overtime_window %s: a weekly rule widens %s..%s to whole weeks",
+                dbg.rec(self),
+                first,
+                last,
+            )
             return (
                 first + relativedelta(weekday=MO(-1)),
                 last + relativedelta(weekday=SU),
@@ -416,24 +466,50 @@ class HrEmployee(models.Model):
 
     @api.depends("user_id.im_status", "attendance_state")
     def _compute_hr_presence_state(self):
+        """An attendance is evidence of presence, over whatever `hr` concluded.
+
+        Checked in means present, for every company. An attendance record is
+        somebody standing at the kiosk: it is evidence, and evidence does not
+        need the company's permission to count.
+
+        Checked out during working hours means absent only where the company
+        asked for attendance to be its presence control. That verdict is not
+        evidence but an INFERENCE from the absence of evidence -- "no record,
+        therefore not here" -- and it is only sound where the company expects
+        its employees to clock in at all.
+
+        Gating both halves was measured and is wrong. With
+        `hr_presence_control_login` on and attendance control off, an employee
+        physically checked in read **Absent**: their branch was skipped, and
+        `hr`'s own rule then judged them by a user session they did not have.
+        `_compute_presence_icon` below has consulted this flag all along, so
+        the module used to hold both answers to whether the company opted in.
+        """
         super()._compute_hr_presence_state()
-        employees = self.filtered(lambda e: e.hr_presence_state != "present")
-        employee_to_check_working = self.filtered(
-            lambda e: (
-                e.sudo().attendance_state == "checked_out"
-                and e.hr_presence_state == "out_of_working_hour"
+        # The same predicate was evaluated three times -- once to choose whom
+        # to ask `_get_employee_ids_working_now` about, once to choose whom to
+        # decide for, and once more inside the loop -- each time re-deriving
+        # `.sudo()` on a single record. `attendance_state` is read once, on the
+        # superuser twin; `hr_presence_state` is read on `self`, because it is
+        # the field being computed and the twin has a cache entry of its own.
+        attendance_state = {
+            employee.id: employee.attendance_state for employee in self.sudo()
+        }
+        expected_but_out = self.filtered(
+            lambda employee: (
+                attendance_state[employee.id] == "checked_out"
+                and employee.hr_presence_state == "out_of_working_hour"
             )
         )
-        working_now_list = employee_to_check_working._get_employee_ids_working_now()
-        for employee in employees:
-            if (
-                employee.sudo().attendance_state == "checked_out"
-                and employee.hr_presence_state == "out_of_working_hour"
-                and employee.id in working_now_list
+        working_now = set(expected_but_out._get_employee_ids_working_now())
+        for employee in self:
+            if attendance_state[employee.id] == "checked_in":
+                employee.hr_presence_state = "present"
+            elif (
+                employee.id in working_now
+                and employee.company_id.hr_presence_control_attendance
             ):
                 employee.hr_presence_state = "absent"
-            elif employee.sudo().attendance_state == "checked_in":
-                employee.hr_presence_state = "present"
 
     def _compute_presence_icon(self):
         res = super()._compute_presence_icon()

@@ -41,7 +41,7 @@ test("scroll button scrolls to next section", async () => {
     expect(isElementInViewport(sectionEls[1])).toBe(false);
     expect(isElementInViewport(sectionEls[2])).toBe(false);
     await animationFrame();
-    await advanceTime(500); // Duration defined in AnchorSlide.
+    await advanceTime(500);
     expect(isElementInViewport(sectionEls[0])).toBe(false);
     expect(isElementInViewport(sectionEls[1])).toBe(true);
     expect(isElementInViewport(sectionEls[2])).toBe(false);
@@ -50,7 +50,7 @@ test("scroll button scrolls to next section", async () => {
     expect(isElementInViewport(sectionEls[1])).toBe(true);
     expect(isElementInViewport(sectionEls[2])).toBe(false);
     await animationFrame();
-    await advanceTime(500); // Duration defined in AnchorSlide.
+    await advanceTime(500);
     expect(isElementInViewport(sectionEls[0])).toBe(false);
     expect(isElementInViewport(sectionEls[1])).toBe(false);
     expect(isElementInViewport(sectionEls[2])).toBe(true);

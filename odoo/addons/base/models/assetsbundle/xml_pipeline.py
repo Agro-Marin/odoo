@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 from odoo.tools.json import scriptsafe as json
 
@@ -11,6 +12,8 @@ if TYPE_CHECKING:
     from .bundle import AssetsBundle
     from .common import XMLBlock
 from .common import XMLAssetError
+
+_debug = DebugLog(__name__)
 
 
 class XmlTemplatePipeline:
@@ -36,6 +39,12 @@ class XmlTemplatePipeline:
                     inherit_mode = template_tree.get("t-inherit-mode", "primary")
                     if inherit_mode not in {"primary", "extension"}:
                         addon = asset.url.split("/")[1] if asset.url else asset.name
+                        _debug.logic(
+                            "xml_inherit_mode_invalid",
+                            bundle=bundle.name,
+                            template=template_name,
+                            mode=inherit_mode,
+                        )
                         raise asset._prepare_asset_error(
                             bundle.env._(
                                 'Invalid inherit mode. Module "%(module)s" and template name "%(template_name)s"',
@@ -59,14 +68,26 @@ class XmlTemplatePipeline:
                         blocks.append(block)
                     block["templates"].append((template_tree, asset.url, inherit_from))
                 else:
+                    _debug.logic(
+                        "xml_template_name_missing", bundle=bundle.name, url=asset.url
+                    )
                     raise asset._prepare_asset_error(
                         bundle.env._("Template name is missing.")
                     )
+        _debug.pipeline(
+            "xml_blocks",
+            bundle=bundle.name,
+            assets=len(bundle.templates),
+            blocks=len(blocks),
+            extension_blocks=sum(1 for b in blocks if b["type"] == "extensions"),
+        )
         return blocks
 
     def generate_xml_bundle(self) -> str:
         if self._rendered_bundle is None:
-            self._rendered_bundle = self._render_xml_bundle()
+            with _debug.perf("xml_render", bundle=self._bundle.name) as span:
+                self._rendered_bundle = self._render_xml_bundle()
+                span.set(bytes=len(self._rendered_bundle))
         return self._rendered_bundle
 
     def _render_xml_bundle(self) -> str:
@@ -76,6 +97,7 @@ class XmlTemplatePipeline:
             blocks = self.xml()
         except XMLAssetError as e:
             content.append(f"throw new Error({json.dumps(str(e))});")
+            _debug.logic("xml_bundle_error_inlined", bundle=self._bundle.name)
 
         def get_template(element: etree._Element) -> str:
             element = deepcopy(element)
@@ -110,6 +132,16 @@ class XmlTemplatePipeline:
                         )
 
         missing_names_for_primary = primary_parents - names
+        _debug.pipeline(
+            "xml_bundle",
+            bundle=self._bundle.name,
+            blocks=len(blocks),
+            templates=len(names),
+            primary_parents=len(primary_parents),
+            extension_parents=len(extension_parents),
+            missing_primary=len(missing_names_for_primary),
+            missing_extension=len(extension_parents - names),
+        )
         if missing_names_for_primary:
             content.append(
                 f"checkPrimaryTemplateParents({json.dumps(list(missing_names_for_primary))});"
@@ -123,27 +155,41 @@ class XmlTemplatePipeline:
 
         return "\n".join(content)
 
+    def _registrar_binding(self, indent: str = "") -> str:
+        return (
+            f"{indent}const {{ {self._TEMPLATE_REGISTRARS} }} = "
+            f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
+        )
+
     def generate_esm_template_bundle(self, use_import=True) -> str:
         bundle = self._bundle
         if not bundle.templates:
+            _debug.logic("esm_template_bundle_skipped", bundle=bundle.name)
             return ""
         templates = self.generate_xml_bundle()
         if not templates:
+            _debug.logic("esm_template_bundle_empty", bundle=bundle.name)
             return ""
+        _debug.logic(
+            "esm_template_bundle",
+            bundle=bundle.name,
+            use_import=use_import,
+            bytes=len(templates),
+        )
         if use_import:
             header = (
                 f"import {{ {self._TEMPLATE_REGISTRARS} }} "
                 f'from "{self._TEMPLATE_MODULE}";\n'
             )
         else:
-            header = (
-                f"const {{ {self._TEMPLATE_REGISTRARS} }} = "
-                f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
-            )
+            header = self._registrar_binding()
         return f"{header}/* {bundle.name} */\n{templates}\n"
 
     def legacy_template_iife(self) -> str:
         templates = self.generate_xml_bundle()
+        _debug.pipeline(
+            "legacy_template_iife", bundle=self._bundle.name, bytes=len(templates)
+        )
         return (
             "\n\n"
             "/*******************************************\n"
@@ -151,8 +197,7 @@ class XmlTemplatePipeline:
             "*******************************************/\n\n"
             "(function() {\n"
             '    "use strict";\n'
-            f"    const {{ {self._TEMPLATE_REGISTRARS} }} = "
-            f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
+            f"{self._registrar_binding(indent='    ')}"
             f"    /* {self._bundle.name} */\n"
             f"{templates}\n"
             "})();\n"

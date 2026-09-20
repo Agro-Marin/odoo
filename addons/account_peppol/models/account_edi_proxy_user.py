@@ -19,7 +19,8 @@ class Account_Edi_Proxy_ClientUser(models.Model):
     _inherit = "account_edi_proxy_client.user"
 
     proxy_type = fields.Selection(
-        selection_add=[("peppol", "PEPPOL")], ondelete={"peppol": "cascade"}
+        selection_add=[("peppol", "PEPPOL")],
+        ondelete={"peppol": "cascade"},
     )
 
     # -------------------------------------------------------------------------
@@ -380,7 +381,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         need_retrigger = False
         for edi_user in self:
             edi_user = edi_user.with_company(edi_user.company_id)
-            edi_user_moves = self.env["account.move"].search(
+            edi_user_moves = self.env["account.move"].search(  # noqa: E8507 - one query per EDI user, in that user's company
                 [
                     ("peppol_move_state", "=", "processing"),
                     ("company_id", "=", edi_user.company_id.id),
@@ -624,7 +625,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
             id, endpoint = payload
             if not url.startswith(endpoint):
                 return None
-            company = self.env["res.company"].browse(id).exists()
+            company = self.env["res.company"].sudo().browse(id).exists()
             if company and company.account_peppol_edi_user:
                 return company.account_peppol_edi_user
             if edi_user := self.browse(id).exists():

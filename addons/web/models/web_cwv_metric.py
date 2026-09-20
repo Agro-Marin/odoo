@@ -12,29 +12,27 @@ class WebCwvMetric(models.Model):
     _log_access = False
 
     recorded_at = fields.Datetime(
-        string="Recorded At",
-        required=True,
         default=fields.Datetime.now,
         index=True,
         readonly=True,
+        required=True,
     )
     url = fields.Char(
         string="URL",
-        required=True,
         size=2048,
         index="btree",
         readonly=True,
+        required=True,
         help="Browser path at the time the beacon fired (the query string is "
         "stripped before persisting).  May be the same path for many records.  "
         "Capped at 2048 chars at the DB level so a rogue writer cannot bloat "
         "the row.",
     )
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
+        comodel_name="res.users",
         index="btree_not_null",
-        ondelete="set null",
         readonly=True,
+        ondelete="set null",
         help="User logged in when the beacon fired; null for anonymous "
         "frontend traffic.",
     )
@@ -71,7 +69,6 @@ class WebCwvMetric(models.Model):
         "Lighthouse 'good' is < 0.1.",
     )
     user_agent = fields.Char(
-        string="User Agent",
         size=512,
         readonly=True,
         help="Truncated to 500 chars at the controller; the 512-char DB cap is "

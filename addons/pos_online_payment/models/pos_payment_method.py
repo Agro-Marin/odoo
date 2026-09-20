@@ -7,16 +7,17 @@ class PosPaymentMethod(models.Model):
 
     is_online_payment = fields.Boolean(
         string="Online Payment",
-        help="Use this payment method for online payments (payments made on a web page with online payment providers)",
         default=False,
+        help="Use this payment method for online payments (payments made on a web page with online payment providers)",
     )
     online_payment_provider_ids = fields.Many2many(
-        "payment.provider",
+        comodel_name="payment.provider",
         string="Allowed Providers",
         domain="[('is_published', '=', True), ('state', 'in', ['enabled', 'test'])]",
     )
     has_an_online_payment_provider = fields.Boolean(
-        compute="_compute_has_an_online_payment_provider", readonly=True
+        compute="_compute_has_an_online_payment_provider",
+        readonly=True,
     )
     type = fields.Selection(selection_add=[("online", "Online")])
 

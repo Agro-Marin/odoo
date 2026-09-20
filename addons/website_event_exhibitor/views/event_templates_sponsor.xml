@@ -39,7 +39,6 @@
         </xpath>
     </template>
 
-    <!-- Common template for sponsor images and 'Unpublished' badge -->
     <template id="event_sponsor_thumb_details">
         <div class="p-2">
             <span

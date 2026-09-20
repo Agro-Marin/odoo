@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from odoo.service import _prefork
+from odoo.service import _census, _prefork
 from odoo.service import settings as server_settings
+
+from .conftest import prefork_server
 
 
 class TestTheWorkerCensusCrossesTheFork:
@@ -24,7 +26,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
     @pytest.fixture
     def master(self, tmp_path):
-        obj = object.__new__(_prefork.PreforkServer)
+        obj = _prefork.PreforkServer(None)
         obj.pid = os.getpid()
         obj.logger = MagicMock()
         obj.population = 3
@@ -33,25 +35,26 @@ class TestTheWorkerCensusCrossesTheFork:
         obj.workers_http = dict.fromkeys((1, 2, 3), MagicMock())
         obj.workers_cron = dict.fromkeys((4,), MagicMock())
         obj.workers_job = dict.fromkeys((5, 6), MagicMock())
-        obj._census_written_at = float("-inf")
+        obj._census.written_at = float("-inf")
         with server_settings.override(data_dir=str(tmp_path)):
             yield obj
 
     def _child_of(self, master):
         """A forked child: same `self.pid` (the master's), different os.getpid()."""
-        child = object.__new__(_prefork.PreforkServer)
+        child = _prefork.PreforkServer(None)
         child.pid = master.pid
         child.logger = MagicMock()
         return child
 
     def test_a_child_reads_the_counts_only_the_master_knows(self, master):
         master._publish_census()
-        got = self._child_of(master)._read_census()
+        got = self._child_of(master)._census.read()
 
         assert got == {
             "workers": {"http": 3, "cron": 1, "job": 2},
             "worker_population": 3,
             "worker_generation": 7,
+            "worker_exits": {"clean": 0, "terminated": 0, "timeout": 0, "crash": 0},
             "long_polling_alive": True,
         }, "the census is the child's only route to the master's own numbers"
 
@@ -71,25 +74,23 @@ class TestTheWorkerCensusCrossesTheFork:
         self, master
     ):
         master._publish_census()
-        first = json.loads((master._get_census_path()).read_text())
+        first = json.loads((master._census.path).read_text())
 
         master.population = 99
         master._publish_census()
-        assert json.loads(master._get_census_path().read_text()) == first
+        assert json.loads(master._census.path.read_text()) == first
 
-        master._census_written_at = float("-inf")
+        master._census.written_at = float("-inf")
         master._publish_census()
-        assert (
-            json.loads(master._get_census_path().read_text())["worker_population"] == 99
-        )
+        assert json.loads(master._census.path.read_text())["worker_population"] == 99
 
     def test_a_stale_census_answers_nothing_rather_than_phantom_workers(self, master):
         master._publish_census()
-        path = master._get_census_path()
-        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        path = master._census.path
+        old = time.time() - _census.CENSUS_MAX_AGE_S - 1
         os.utime(path, (old, old))
 
-        assert self._child_of(master)._read_census() == {}, (
+        assert self._child_of(master)._census.read() == {}, (
             "the file outlives a master that was killed rather than stopped; "
             "reporting its last counts would show a full complement of workers "
             "for a server that is gone"
@@ -97,25 +98,26 @@ class TestTheWorkerCensusCrossesTheFork:
 
     def test_a_missing_or_corrupt_census_is_absent_not_an_error(self, master):
         child = self._child_of(master)
-        assert child._read_census() == {}
+        assert child._census.read() == {}
 
-        master._get_census_path().write_text("{ this is not json")
-        assert child._read_census() == {}
+        master._census.path.write_text("{ this is not json")
+        assert child._census.read() == {}
 
-        master._get_census_path().write_text('"a string, not an object"')
-        assert child._read_census() == {}
+        master._census.path.write_text('"a string, not an object"')
+        assert child._census.read() == {}
 
     def test_publishing_never_raises_even_on_a_half_built_server(self):
         """`run()`'s catch-all turns any raise here into `stop(False)`; return -1.
 
         This is not hypothetical: the first version of `_publish_census` read
-        `self._census_written_at` OUTSIDE its try, and four `TestRun` cases
-        went red because the server they build never sets it -- an
-        AttributeError in the loop took the whole master down. The throttle
-        bookkeeping is as much a part of "best effort" as the write is.
+        the throttle stamp OUTSIDE its try, and four `TestRun` cases went red
+        because the server they build never sets it -- an AttributeError in
+        the loop took the whole master down. A server with no census object at
+        all is the same shape of failure.
         """
-        bare = object.__new__(_prefork.PreforkServer)
-        bare.logger = MagicMock()
+        bare = prefork_server()
+        bare._census = MagicMock()
+        bare._census.publish.side_effect = OSError("no census")
 
         bare._publish_census()
 
@@ -130,34 +132,35 @@ class TestTheWorkerCensusCrossesTheFork:
         existed: the metrics are absent.
         """
         with server_settings.override(data_dir="/proc/nonexistent-dir"):
-            master._census_written_at = float("-inf")
+            master._census.written_at = float("-inf")
             master._publish_census()
 
         with server_settings.override(data_dir=""):
-            master._census_written_at = float("-inf")
+            master._census.written_at = float("-inf")
             master._publish_census()
-            assert master._get_census_path() is None
-            assert master._read_census() == {}
+            assert master._census.path is None
+            assert master._census.read() == {}
+            assert master._census.publish(master._get_census) is False
 
     def test_stopping_removes_the_file(self, master):
         master._publish_census()
-        path = master._get_census_path()
+        path = master._census.path
         assert path.exists()
-        master._discard_census()
+        master._census.discard()
         assert not path.exists()
-        master._discard_census()
+        master._census.discard()
 
     def test_both_sides_derive_the_same_path_from_the_masters_pid(self, master):
-        assert master._get_census_path() == self._child_of(master)._get_census_path(), (
+        assert master._census.path == self._child_of(master)._census.path, (
             "the child names the file without being told where it is, because "
             "it inherited the master's pid in self.pid across the fork"
         )
 
     def test_startup_collects_what_a_killed_master_left_behind(self, master):
-        data_dir = master._get_census_path().parent
+        data_dir = master._census.path.parent
         dead = data_dir / "prefork-census-999999.json"
         dead.write_text("{}")
-        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        old = time.time() - _census.CENSUS_MAX_AGE_S - 1
         os.utime(dead, (old, old))
 
         live = data_dir / "prefork-census-999998.json"
@@ -167,7 +170,7 @@ class TestTheWorkerCensusCrossesTheFork:
         unrelated.write_text("{}")
         os.utime(unrelated, (old, old))
 
-        master._remove_stale_censuses()
+        master._census.remove_stale()
 
         assert not dead.exists(), (
             "_discard_census only runs on a clean stop, so without this sweep "
@@ -178,11 +181,11 @@ class TestTheWorkerCensusCrossesTheFork:
 
     def test_the_sweep_never_takes_our_own_file(self, master):
         master._publish_census()
-        path = master._get_census_path()
-        old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
+        path = master._census.path
+        old = time.time() - _census.CENSUS_MAX_AGE_S - 1
         os.utime(path, (old, old))
 
-        master._remove_stale_censuses()
+        master._census.remove_stale()
 
         assert path.exists(), (
             "the sweep runs at start() before we have written anything, but it "
@@ -192,7 +195,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
 @pytest.fixture
 def prefork():
-    obj = object.__new__(_prefork.PreforkServer)
+    obj = _prefork.PreforkServer(None)
     obj.population = 2
     obj.logger = MagicMock()
     obj.workers = {}
@@ -200,11 +203,10 @@ def prefork():
     obj.workers_cron = {}
     obj.workers_job = {}
     obj.long_polling_pid = None
-    obj._consecutive_fast_deaths = 0
-    obj._respawn_not_before = 0.0
+    obj._respawn_holds = {}
     obj.queue = []
     obj._selector = None
-    obj._census_written_at = float("-inf")
+    obj._census = _census.WorkerCensus(obj.pid)
     obj.pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
     yield obj
     obj._close_watchdog_selector()
@@ -228,11 +230,12 @@ class TestSignalHandlerCoalescesSigchld:
         prefork.signal_handler(signal.SIGCHLD, None)
         assert prefork.queue == [signal.SIGCHLD]
 
-    def test_other_signals_are_not_coalesced(self, prefork):
-        prefork.signal_handler(signal.SIGHUP, None)
-        prefork.signal_handler(signal.SIGHUP, None)
-        assert prefork.queue == [signal.SIGHUP, signal.SIGHUP], (
-            "two SIGHUPs are two reload requests; collapsing them drops one"
+    @pytest.mark.parametrize("sig", [signal.SIGTTIN, signal.SIGTTOU])
+    def test_population_signals_are_not_coalesced(self, prefork, sig):
+        prefork.signal_handler(sig, None)
+        prefork.signal_handler(sig, None)
+        assert prefork.queue == [sig, sig], (
+            "population changes count each signal, even while another is pending"
         )
 
     def test_every_signal_wakes_the_select_loop(self, prefork):
@@ -255,7 +258,7 @@ class TestSignalHandlerCoalescesSigchld:
 def _fake_worker():
     w = MagicMock()
     w.watchdog_pipe = os.pipe()
-    w.eintr_pipe = os.pipe()
+    w.wakeup_pipe = os.pipe()
     return w
 
 
@@ -273,12 +276,12 @@ class TestChildClosesInheritedFds:
         newborn = _fake_worker()
         prefork.workers = {111: sibling}
         prefork._close_inherited_pipe_fds_in_child(newborn)
-        sibling_fds = [*sibling.watchdog_pipe, *sibling.eintr_pipe]
+        sibling_fds = [*sibling.watchdog_pipe, *sibling.wakeup_pipe]
         assert not any(_is_open(fd) for fd in sibling_fds), (
             f"the child kept a sibling's pipe fds open {sibling_fds}: the "
             "sibling's reader never sees EOF when that worker dies"
         )
-        for fd in (*newborn.watchdog_pipe, *newborn.eintr_pipe):
+        for fd in (*newborn.watchdog_pipe, *newborn.wakeup_pipe):
             assert _is_open(fd), "the child closed its OWN watchdog/eintr pipe"
             os.close(fd)
 
@@ -291,7 +294,7 @@ class TestChildClosesInheritedFds:
             "delivered to the child would ping the master's select loop"
         )
         prefork.pipe = os.pipe2(os.O_NONBLOCK)
-        for fd in (*newborn.watchdog_pipe, *newborn.eintr_pipe):
+        for fd in (*newborn.watchdog_pipe, *newborn.wakeup_pipe):
             os.close(fd)
 
     def test_closing_an_already_closed_fd_is_tolerated(self, prefork):
@@ -300,7 +303,7 @@ class TestChildClosesInheritedFds:
         os.close(sibling.watchdog_pipe[0])
         newborn = _fake_worker()
         prefork._close_inherited_pipe_fds_in_child(newborn)
-        for fd in (*newborn.watchdog_pipe, *newborn.eintr_pipe):
+        for fd in (*newborn.watchdog_pipe, *newborn.wakeup_pipe):
             os.close(fd)
 
 
@@ -374,15 +377,24 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
         )
         good.cursor.assert_called_once()
 
-    def test_the_backoff_window_suppresses_the_whole_cycle(self, prefork):
+    def test_the_spawn_hold_suppresses_the_whole_cycle(self, prefork):
         cfg = {"http_enable": True, "max_cron_threads": 2, "job_workers": 2}
         with patch.object(_prefork.time, "monotonic", return_value=100.0):
-            prefork._respawn_not_before = 200.0
+            prefork._get_respawn_hold(_prefork.SPAWN_HOLD).not_before = 200.0
             spawned, _ = self._run(prefork, {"db1": MagicMock()}, cfg)
         assert spawned == [], (
-            "spawn_missing_workers forked inside the respawn backoff window; a worker "
-            "crash-looping at boot would be respawned as fast as it dies"
+            "spawn_missing_workers forked inside the respawn backoff window; a "
+            "fork that failed would be retried as fast as it fails"
         )
+
+    def test_a_crash_loop_in_one_kind_holds_only_that_kind(self, prefork):
+        """One population's early deaths do not delay another's replacements."""
+        cfg = {"http_enable": True, "max_cron_threads": 1, "job_workers": 1}
+        with patch.object(_prefork.time, "monotonic", return_value=100.0):
+            prefork._get_respawn_hold("WorkerCron").not_before = 200.0
+            spawned, _ = self._run(prefork, {"db1": MagicMock()}, cfg)
+        assert "WorkerCron" not in spawned
+        assert "WorkerHTTP" in spawned and "WorkerJob" in spawned
 
     def test_a_failed_spawn_stops_the_cycle_instead_of_looping(self, prefork):
         cfg = {"http_enable": False, "max_cron_threads": 3, "job_workers": 2}
@@ -465,11 +477,11 @@ class TestTheWatchdogSelectorIsReused:
         assert prefork._selector is not None
         newborn = MagicMock()
         newborn.watchdog_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
-        newborn.eintr_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+        newborn.wakeup_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         try:
             prefork._close_inherited_pipe_fds_in_child(newborn)
         finally:
-            for fds in (newborn.watchdog_pipe, newborn.eintr_pipe):
+            for fds in (newborn.watchdog_pipe, newborn.wakeup_pipe):
                 for fd in fds:
                     with contextlib.suppress(OSError):
                         os.close(fd)
@@ -505,12 +517,12 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
         def _spawn(pid):
             w = MagicMock()
             w.watchdog_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
-            w.eintr_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+            w.wakeup_pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
             w.watchdog_time = 0.0
             w.watchdog_timeout = None
             w.close = lambda w=w: [
                 os.close(fd)
-                for fd in (*w.watchdog_pipe, *w.eintr_pipe)
+                for fd in (*w.watchdog_pipe, *w.wakeup_pipe)
                 if _still_open(fd)
             ]
             prefork.workers[pid] = w
@@ -520,7 +532,7 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
 
         yield prefork, _spawn
         for w in made:
-            for fd in (*w.watchdog_pipe, *w.eintr_pipe):
+            for fd in (*w.watchdog_pipe, *w.wakeup_pipe):
                 with contextlib.suppress(OSError):
                     os.close(fd)
 
@@ -727,31 +739,8 @@ class TestRun:
         with pytest.raises(SystemExit):
             running(stop=False, loop_raises=SystemExit(2))
 
-    def test_the_old_master_is_signalled_that_this_one_is_ready(self, running):
-        _, _, kill, _ = running(stop=False, ready_pid="4242")
-        kill.assert_called_once_with(4242, signal.SIGHUP)
-
-    def test_the_handover_variable_is_consumed_not_inherited(self, running):
-        running(stop=False, ready_pid="4242")
-        assert "ODOO_READY_SIGHUP_PID" not in os.environ, (
-            "left in the environment it is inherited by every worker fork, and "
-            "each of them signals the old master again"
-        )
-
-    def test_an_unsignalable_old_master_is_a_warning_not_a_failure(self, running):
-        rc, _calls, kill, _ = running(stop=False, ready_pid="not-a-pid")
-        assert rc is None, (
-            "the new server is up; failing the boot because the old one had "
-            "already exited would be the one outcome worse than a stale process"
-        )
-        assert not kill.called
-
-    def test_a_dead_old_master_is_also_survivable(self, running):
-        rc, _, kill, _ = running(
-            stop=False, ready_pid="999999", kill_raises=ProcessLookupError
-        )
-        assert rc is None, (
-            "the old master exited on its own between handing over and being "
-            "told to; there is nothing left to do and nothing wrong"
-        )
-        kill.assert_called_once()
+    def test_failed_preload_never_enters_the_supervisor_loop(self, running):
+        rc, calls, kill, _ = running(stop=False, preload_rc=3)
+        assert rc == 3
+        assert calls == ["start", "stop"]
+        kill.assert_not_called()

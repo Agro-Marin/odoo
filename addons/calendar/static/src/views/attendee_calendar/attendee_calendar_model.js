@@ -225,8 +225,8 @@ export class AttendeeCalendarModel extends CalendarModel {
     }
 
     async _archiveRecord(id, recurrenceUpdate) {
-        // `&& recurrenceUpdate !== "self_only"` used to be here: unreachable,
-        // "self_only" being truthy.
+        // `&& recurrenceUpdate !== "this"` used to be here: unreachable,
+        // "this" being truthy.
         if (!recurrenceUpdate) {
             await this.orm.call(this.resModel, "action_archive", [[id]]);
         } else {

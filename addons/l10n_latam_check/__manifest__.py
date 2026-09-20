@@ -1,6 +1,6 @@
 {
     "name": "Third Party and Deferred/Electronic Checks Management",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "category": "Accounting/Localizations",
     "summary": "Checks Management",
     "description": """
@@ -62,6 +62,6 @@ There are 2 main Payment Methods additions:
         "views/l10n_latam_check_view.xml",
         "views/report_payment_receipt_templates.xml",
         "wizards/account_payment_register_views.xml",
+        "views/l10n_latam_check_menus.xml",
     ],
-    "installable": True,
 }

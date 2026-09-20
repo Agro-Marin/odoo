@@ -1,20 +1,18 @@
-import time
-
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
 
 
-class TestEquipmentMulticompany(TransactionCase):
-    def test_00_equipment_multicompany_user(self):
-        """Test Check maintenance with equipment manager and user in multi company environment"""
+class TestMaintenanceMulticompany(TransactionCase):
+    def test_00_maintenance_multicompany_user(self):
+        """Test Check maintenance with maintenance manager and user in multi company environment"""
 
         # Use full models
-        Equipment = self.env["maintenance.equipment"]
-        MaintenanceRequest = self.env["maintenance.request"]
-        Category = self.env["maintenance.equipment.category"]
+        Asset = self.env["resource.asset"]
+        MaintenanceOrder = self.env["maintenance.order"]
+        Kind = self.env["resource.asset.kind"]
         ResUsers = self.env["res.users"]
         ResCompany = self.env["res.company"]
-        MaintenanceTeam = self.env["maintenance.team"]
+        MaintenanceTeam = self.env["team.team"]
 
         # Use full reference.
         group_user = self.env.ref("base.group_user")
@@ -62,175 +60,92 @@ class TestEquipmentMulticompany(TransactionCase):
         )
 
         # create a maintenance team for company A user
-        team = MaintenanceTeam.with_user(equipment_manager).create(
+        MaintenanceTeam.with_user(equipment_manager).create(
             {
+                "use_maintenance": True,
                 "name": "Metrology",
                 "company_id": company_a.id,
             }
         )
         # create a maintenance team for company B user
-        teamb = (
+        (
             MaintenanceTeam.with_user(equipment_manager)
             .with_context(allowed_company_ids=cids)
             .create(
                 {
+                    "use_maintenance": True,
                     "name": "Subcontractor",
                     "company_id": company_b.id,
                 }
             )
         )
 
-        # User should not able to create equipment category.
         with self.assertRaises(AccessError):
-            Category.with_user(user).create(
-                {
-                    "name": "Software",
-                    "company_id": company_b.id,
-                    "technician_user_id": user.id,
-                }
-            )
-
-        # create equipment category for equipment manager
-        category_1 = (
-            Category.with_user(equipment_manager)
-            .with_context(allowed_company_ids=cids)
-            .create(
-                {
-                    "name": "Monitors - Test",
-                    "company_id": company_b.id,
-                    "technician_user_id": equipment_manager.id,
-                }
-            )
-        )
-
-        # create equipment category for equipment manager
-        Category.with_user(equipment_manager).with_context(
-            allowed_company_ids=cids
-        ).create(
+            Kind.with_user(user).create({"name": "Software", "code": "software_test"})
+        kind = Kind.with_user(equipment_manager).create(
             {
-                "name": "Computers - Test",
-                "company_id": company_b.id,
+                "name": "Monitors - Test",
+                "code": "monitor_test",
                 "technician_user_id": equipment_manager.id,
             }
         )
 
-        # create equipment category for equipment user
-        Category.with_user(equipment_manager).create(
-            {
-                "name": "Phones - Test",
-                "company_id": company_a.id,
-                "technician_user_id": equipment_manager.id,
-            }
-        )
-
-        # Check category for user equipment_manager and user
-        self.assertEqual(
-            Category.with_user(equipment_manager)
-            .with_context(allowed_company_ids=cids)
-            .search_count([]),
-            3,
-        )
-        self.assertEqual(Category.with_user(user).search_count([]), 2)
-
-        # User should not able to create equipment.
         with self.assertRaises(AccessError):
-            Equipment.with_user(user).create(
+            Asset.with_user(user).create(
                 {
                     "name": "Samsung Monitor 15",
-                    "category_id": category_1.id,
-                    "assign_date": time.strftime("%Y-%m-%d"),
+                    "kind_id": kind.id,
                     "company_id": company_b.id,
-                    "owner_user_id": user.id,
                 }
             )
-
-        Equipment.with_user(equipment_manager).with_context(
+        ManagerAsset = Asset.with_user(equipment_manager).with_context(
             allowed_company_ids=cids
-        ).create(
-            {
-                "name": "Acer Laptop",
-                "category_id": category_1.id,
-                "assign_date": time.strftime("%Y-%m-%d"),
-                "company_id": company_b.id,
-                "owner_user_id": user.id,
-            }
         )
-
-        # create an equipment for user
-        Equipment.with_user(equipment_manager).with_context(
-            allowed_company_ids=cids
-        ).create(
-            {
-                "name": "HP Laptop",
-                "category_id": category_1.id,
-                "assign_date": time.strftime("%Y-%m-%d"),
-                "company_id": company_b.id,
-                "owner_user_id": equipment_manager.id,
-            }
+        laptop = ManagerAsset.create(
+            {"name": "Acer Laptop", "kind_id": kind.id, "company_id": company_b.id}
         )
-        # Now there are total 2 equipment created and can view by equipment_manager user
+        ManagerAsset.create(
+            {"name": "HP Laptop", "kind_id": kind.id, "company_id": company_a.id}
+        )
+        self.assertEqual(laptop.technician_user_id, equipment_manager)
+        self.assertEqual(ManagerAsset.search_count([("kind_id", "=", kind.id)]), 2)
         self.assertEqual(
-            Equipment.with_user(equipment_manager)
-            .with_context(allowed_company_ids=cids)
-            .search_count([]),
-            2,
+            Asset.with_user(user).search([("kind_id", "=", kind.id)]), laptop
         )
-
-        # And there is total 1 equipment can be view by Normal User ( Which user is followers)
-        self.assertEqual(Equipment.with_user(user).search_count([]), 1)
 
         # create an equipment team BY user
         with self.assertRaises(AccessError):
             MaintenanceTeam.with_user(user).create(
                 {
+                    "use_maintenance": True,
                     "name": "Subcontractor",
                     "company_id": company_b.id,
                 }
             )
 
-        # create an equipment category BY user
-        with self.assertRaises(AccessError):
-            Category.with_user(user).create(
-                {
-                    "name": "Computers",
-                    "company_id": company_b.id,
-                    "technician_user_id": user.id,
-                }
-            )
-
-        # create an maintenance stage BY user
-        with self.assertRaises(AccessError):
-            self.env["maintenance.stage"].with_user(user).create(
-                {
-                    "name": "identify corrective maintenance requirements",
-                }
-            )
-
-        # Create an maintenance request for ( User Follower ).
-        MaintenanceRequest.with_user(user).create(
+        # Create an maintenance order for ( User Follower ).
+        MaintenanceOrder.with_user(user).create(
             {
                 "name": "Some keys are not working",
                 "company_id": company_b.id,
                 "user_id": user.id,
-                "owner_user_id": user.id,
             }
         )
 
-        # Create an maintenance request for equipment_manager (Admin Follower)
-        MaintenanceRequest.with_user(equipment_manager).create(
+        # Create an maintenance order for equipment_manager (Admin Follower)
+        MaintenanceOrder.with_user(equipment_manager).create(
             {
                 "name": "Battery drains fast",
                 "company_id": company_a.id,
                 "user_id": equipment_manager.id,
-                "owner_user_id": equipment_manager.id,
             }
         )
 
-        # Now here is total 1 maintenance request can be view by Normal User
+        # Now here is total 1 maintenance order can be view by Normal User
         self.assertEqual(
-            MaintenanceRequest.with_user(equipment_manager)
+            MaintenanceOrder.with_user(equipment_manager)
             .with_context(allowed_company_ids=cids)
             .search_count([]),
             2,
         )
-        self.assertEqual(MaintenanceRequest.with_user(user).search_count([]), 1)
+        self.assertEqual(MaintenanceOrder.with_user(user).search_count([]), 1)

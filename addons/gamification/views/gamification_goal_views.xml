@@ -40,10 +40,10 @@
         <field name="arch" type="xml">
             <list
                 string="Goal List"
+                create="false"
                 decoration-danger="state == 'failed'"
-                decoration-success="state == 'reached'"
                 decoration-muted="state == 'canceled'"
-                create="false">
+                decoration-success="state == 'reached'">
                 <field name="definition_id" column_invisible="True" />
                 <field name="user_id" column_invisible="True" />
                 <field name="start_date" />
@@ -64,31 +64,31 @@
             <form string="Goal" create="false">
                 <header>
                     <button
-                        string="Start goal"
-                        type="object"
                         name="action_start"
+                        type="object"
+                        string="Start goal"
+                        groups="gamification.group_gamification_manager"
                         invisible="state != 'draft'"
-                        class="oe_highlight"
-                        groups="gamification.group_gamification_manager" />
+                        class="oe_highlight" />
 
                     <button
-                        string="Goal Reached"
-                        type="object"
                         name="action_reach"
-                        invisible="state != 'inprogress'"
-                        groups="gamification.group_gamification_manager" />
-                    <button
-                        string="Goal Failed"
                         type="object"
+                        string="Goal Reached"
+                        groups="gamification.group_gamification_manager"
+                        invisible="state != 'inprogress'" />
+                    <button
                         name="action_fail"
-                        invisible="state != 'inprogress'"
-                        groups="gamification.group_gamification_manager" />
-                    <button
-                        string="Reset Completion"
                         type="object"
+                        string="Goal Failed"
+                        groups="gamification.group_gamification_manager"
+                        invisible="state != 'inprogress'" />
+                    <button
                         name="action_cancel"
-                        invisible="state not in ('failed', 'reached')"
-                        groups="base.group_no_one" />
+                        type="object"
+                        string="Reset Completion"
+                        groups="base.group_no_one"
+                        invisible="state not in ('failed', 'reached')" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -128,11 +128,11 @@
                             <div>
                                 <field name="current" class="oe_inline" />
                                 <button
-                                    string="refresh"
-                                    type="object"
                                     name="update_goal"
-                                    class="oe_link"
-                                    invisible="computation_mode == 'manually' or state == 'draft'" />
+                                    type="object"
+                                    string="refresh"
+                                    invisible="computation_mode == 'manually' or state == 'draft'"
+                                    class="oe_link" />
                                 <div class="opacity-50" invisible="not definition_id">
                                     Reached when current value is <strong><field name="definition_condition" class="oe_inline" /></strong> than the target.
                                 </div>
@@ -178,12 +178,12 @@
                         string="Goal Definition"
                         context="{'group_by':'definition_id'}" />
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="End Date"
                         name="enddate"
+                        string="End Date"
                         context="{'group_by':'end_date'}" />
                 </group>
             </search>
@@ -194,7 +194,7 @@
         <field name="name">Goal Kanban View</field>
         <field name="model">gamification.goal</field>
         <field name="arch" type="xml">
-            <kanban highlight_color="color" create="false">
+            <kanban create="false" highlight_color="color">
                 <field name="state" />
                 <field name="color" />
                 <field name="definition_condition" />
@@ -203,13 +203,13 @@
                 <field name="last_update" />
                 <templates>
                     <t t-name="card" class="text-center">
-                        <field class="fw-bold fs-4" name="definition_id" />
+                        <field name="definition_id" class="fw-bold fs-4" />
                         <div class="d-flex justify-content-center mt-3">
                             <field
-                                class="o_image_24_cover me-1 rounded"
                                 name="user_id"
                                 widget="image"
-                                options="{'preview_image': 'avatar_128'}" />
+                                options="{'preview_image': 'avatar_128'}"
+                                class="o_image_24_cover me-1 rounded" />
                             <field name="user_id" class="fw-bold" />
                         </div>
                         <div class="pt-3 fs-1 fw-bolder">
@@ -229,8 +229,8 @@
                                 <t
                                     t-if="record.definition_condition.raw_value != 'higher'">
                                     <field
-                                        class="#{record.current.raw_value == record.target_goal.raw_value+1 ? 'text-warning' : record.current.raw_value &gt; record.target_goal.raw_value ? 'text-danger' : 'text-success'}"
-                                        name="current" />
+                                        name="current"
+                                        class="#{record.current.raw_value == record.target_goal.raw_value+1 ? 'text-warning' : record.current.raw_value &gt; record.target_goal.raw_value ? 'text-danger' : 'text-success'}" />
                                     <em>Target: less than <field name="target_goal" /></em>
                                 </t>
                             </t>

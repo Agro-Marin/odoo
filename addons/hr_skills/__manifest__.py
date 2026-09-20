@@ -1,6 +1,6 @@
 {
     "name": "Skills Management",
-    "version": "1.2",
+    "version": "1.3",
     "category": "Human Resources/Employees",
     "sequence": 270,
     "summary": "Manage skills, knowledge and resume of your employees",
@@ -23,7 +23,6 @@ This module introduces skills and resume management for employees.
         "views/hr_job_skill_views.xml",
         "data/hr_resume_data.xml",
         "data/hr_skill_data.xml",
-        "data/ir_actions_server_data.xml",
         "data/ir_cron_data.xml",
         "data/mail_activity_type_data.xml",
         "data/report_paperformat.xml",
@@ -34,6 +33,7 @@ This module introduces skills and resume management for employees.
         "views/hr_department_views.xml",
         "views/hr_employee_cv_templates.xml",
         "wizards/hr_employee_cv_wizard_views.xml",
+        "views/hr_skills_menus.xml",
     ],
     "demo": [
         "demo/hr_skill_demo.xml",
@@ -66,7 +66,6 @@ This module introduces skills and resume management for employees.
             "/hr_skills/static/src/scss/report_employee_cv.scss",
         ],
     },
-    "installable": True,
     "application": True,
     "auto_install": True,
 }

@@ -3,26 +3,20 @@
 
     <record id="mt_rfq_confirmed" model="mail.message.subtype">
         <field name="name">RFQ Confirmed</field>
-        <field name="default" eval="False" />
         <field name="res_model">purchase.order</field>
-    </record>
-
-    <record id="mt_rfq_approved" model="mail.message.subtype">
-        <field name="name">RFQ Approved</field>
         <field name="default" eval="False" />
-        <field name="res_model">purchase.order</field>
     </record>
 
     <record id="mt_rfq_sent" model="mail.message.subtype">
         <field name="name">RFQ Sent</field>
-        <field name="default" eval="False" />
         <field name="res_model">purchase.order</field>
+        <field name="default" eval="False" />
     </record>
 
     <record id="mt_rfq_done" model="mail.message.subtype">
         <field name="name">RFQ Done</field>
-        <field name="default" eval="False" />
         <field name="res_model">purchase.order</field>
+        <field name="default" eval="False" />
     </record>
 
     <record id="seq_purchase_order" model="ir.sequence">
@@ -34,10 +28,11 @@
     </record>
 
     <record id="model_purchase_order_action_share" model="ir.actions.server">
-        <field name="name">Share</field>
+        <field name="name">Share…</field>
         <field name="model_id" ref="purchase.model_purchase_order" />
         <field name="binding_model_id" ref="purchase.model_purchase_order" />
         <field name="binding_view_types">form</field>
+        <field name="binding_icon">fa-solid fa-share-nodes</field>
         <field name="state">code</field>
         <field name="code">action = records.action_share()</field>
     </record>

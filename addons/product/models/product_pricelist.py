@@ -14,11 +14,10 @@ class ProductPricelist(models.Model):
 
     name = fields.Char(
         string="Pricelist Name",
-        required=True,
         translate=True,
+        required=True,
     )
     active = fields.Boolean(
-        string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the pricelist without removing it.",
     )
@@ -31,8 +30,8 @@ class ProductPricelist(models.Model):
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        required=True,
         default=lambda self: self._default_currency_id(),
+        required=True,
         tracking=1,
     )
     country_group_ids = fields.Many2many(
@@ -47,8 +46,8 @@ class ProductPricelist(models.Model):
         comodel_name="product.pricelist.item",
         inverse_name="pricelist_id",
         string="Pricelist Rules",
-        domain=lambda self: self._domain_item_ids(),
         copy=True,
+        domain=lambda self: self._domain_item_ids(),
     )
 
     def write(self, vals):
@@ -128,7 +127,7 @@ class ProductPricelist(models.Model):
             ("product_id.active", "=", True),
         ]
 
-    def _compute_price_rule(
+    def _get_price_rule(
         self,
         products,
         quantity,
@@ -160,7 +159,7 @@ class ProductPricelist(models.Model):
             target_uom = uom or product_uom_id
 
             if target_uom != product_uom_id:
-                qty_in_product_uom = target_uom._compute_quantity_estimate(
+                qty_in_product_uom = target_uom._get_quantity_estimate(
                     quantity, product_uom_id, round=False
                 )
             else:
@@ -175,7 +174,7 @@ class ProductPricelist(models.Model):
 
         base_price_by_pid = {}
         if compute_price:
-            base_price_by_pid = self._compute_chained_base_prices(
+            base_price_by_pid = self._get_chained_base_prices(
                 products, rule_by_pid, quantity, uom, date, currency, **kwargs
             )
 
@@ -200,7 +199,7 @@ class ProductPricelist(models.Model):
 
         return results
 
-    def _compute_price_rule_multi(
+    def _get_price_rule_multi(
         self, products, quantity, uom=None, date=False, **kwargs
     ):
         if not self.ids:
@@ -209,7 +208,7 @@ class ProductPricelist(models.Model):
             pricelists = self
         results = {}
         for pricelist in pricelists:
-            subres = pricelist._compute_price_rule(
+            subres = pricelist._get_price_rule(
                 products, quantity, uom=uom, date=date, **kwargs
             )
             for product_id, price_rule in subres.items():
@@ -284,7 +283,7 @@ class ProductPricelist(models.Model):
         rule_ids.sort(key=index["position"].__getitem__)
         return rules.browse(rule_ids).with_prefetch(rules._prefetch_ids)
 
-    def _compute_chained_base_prices(
+    def _get_chained_base_prices(
         self, products, rule_by_pid, quantity, uom, date, currency, **kwargs
     ):
         products_by_base_pricelist = defaultdict(lambda: self.env[products._name])
@@ -300,7 +299,7 @@ class ProductPricelist(models.Model):
         base_price_by_pid = {}
         for base_pricelist, base_products in products_by_base_pricelist.items():
             src_currency = base_pricelist.currency_id
-            price_rule = base_pricelist._compute_price_rule(
+            price_rule = base_pricelist._get_price_rule(
                 base_products,
                 quantity,
                 currency=src_currency,
@@ -454,29 +453,29 @@ class ProductPricelist(models.Model):
         self and self.check_singleton()
         return {
             product_id: res_tuple[0]
-            for product_id, res_tuple in self._compute_price_rule(
+            for product_id, res_tuple in self._get_price_rule(
                 products, *args, **kwargs
             ).items()
         }
 
     def _get_product_price(self, product, *args, **kwargs):
         self and self.check_singleton()
-        return self._compute_price_rule(product, *args, **kwargs)[product.id][0]
+        return self._get_price_rule(product, *args, **kwargs)[product.id][0]
 
     def _get_product_price_rule(self, product, *args, **kwargs):
         self and self.check_singleton()
-        return self._compute_price_rule(product, *args, **kwargs)[product.id]
+        return self._get_price_rule(product, *args, **kwargs)[product.id]
 
     def _get_product_rule(self, product, *args, **kwargs):
         self and self.check_singleton()
-        return self._compute_price_rule(product, *args, compute_price=False, **kwargs)[
+        return self._get_price_rule(product, *args, compute_price=False, **kwargs)[
             product.id
         ][1]
 
     def _price_get(self, product, quantity, **kwargs):
         return {
             pricelist_id: price_rule[0]
-            for pricelist_id, price_rule in self._compute_price_rule_multi(
+            for pricelist_id, price_rule in self._get_price_rule_multi(
                 product, quantity, **kwargs
             )[product.id].items()
         }

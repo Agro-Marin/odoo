@@ -2,11 +2,15 @@
 /** @odoo-module native */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
+import { baseImStatus } from "@mail/core/common/presence_status";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.chat_hub");
 class ChatBubblePreview extends Component {
     static props = ["chatWindow", "close"];
     static template = "mail.ChatBubblePreview";
@@ -58,6 +62,7 @@ export class ChatBubble extends Component {
         );
         this.hover = useHover(["root", popoverRef], {
             onHover: () => {
+                log.logic("preview open", () => ({ thread: this.thread?.localId }));
                 this.env.bus.trigger("ChatBubble:preview-will-open", this);
                 this.popover.open(this.rootRef.el, {
                     chatWindow: this.props.chatWindow,
@@ -85,7 +90,7 @@ export class ChatBubble extends Component {
     get showImStatus() {
         return (
             this.thread?.correspondent?.im_status &&
-            this.thread.correspondent.im_status !== "offline"
+            baseImStatus(this.thread.correspondent.im_status) !== "offline"
         );
     }
 }

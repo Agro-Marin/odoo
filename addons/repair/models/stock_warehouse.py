@@ -1,14 +1,24 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockWarehouse(models.Model):
     _inherit = "stock.warehouse"
 
     repair_type_id = fields.Many2one(
-        "stock.picking.type", "Repair Operation Type", check_company=True, copy=False
+        comodel_name="stock.picking.type",
+        string="Repair Operation Type",
+        copy=False,
+        check_company=True,
     )
-    repair_mto_pull_id = fields.Many2one("stock.rule", "Repair MTO Rule", copy=False)
+    repair_mto_pull_id = fields.Many2one(
+        comodel_name="stock.rule",
+        string="Repair MTO Rule",
+        copy=False,
+    )
 
     def _get_picking_type_codes(self):
         codes = super()._get_picking_type_codes()
@@ -16,6 +26,7 @@ class StockWarehouse(models.Model):
         return codes
 
     def _prepare_picking_type_create_vals(self):
+        _debug.lifecycle("repair_picking_type_vals", warehouses=self)
         data = super()._prepare_picking_type_create_vals()
         prod_location = self._get_production_location()
         scrap_location = self.env["stock.location"].search(
@@ -57,13 +68,20 @@ class StockWarehouse(models.Model):
         return data
 
     def _create_missing_locations(self, vals):
+        _debug.lifecycle("repair_locations_create", warehouses=self)
         super()._create_missing_locations(vals)
-        for company_id in self.company_id:
-            location = self.env["stock.location"].search(
-                [("usage", "=", "production"), ("company_id", "=", company_id.id)],
-                limit=1,
+        companies_with_production_location = {
+            company
+            for [company] in self.env["stock.location"]._read_group(
+                [
+                    ("usage", "=", "production"),
+                    ("company_id", "in", self.company_id.ids),
+                ],
+                ["company_id"],
             )
-            if not location:
+        }
+        for company_id in self.company_id:
+            if company_id not in companies_with_production_location:
                 company_id._create_production_location()
 
     def _get_fields_route_trigger(self):

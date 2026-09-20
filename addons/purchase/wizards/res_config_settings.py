@@ -35,7 +35,7 @@ class ResConfigSettings(models.TransientModel):
     )
 
     module_account_3way_match = fields.Boolean(
-        string="3-way matching: purchases, receptions and bills",
+        string="3-way matching: purchases, receptions and bills"
     )
     module_purchase_requisition = fields.Boolean(string="Purchase Agreements")
     module_purchase_product_matrix = fields.Boolean(string="Purchase Grid Entry")

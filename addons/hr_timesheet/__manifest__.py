@@ -1,6 +1,6 @@
 {
     "name": "Task Logs",
-    "version": "1.0",
+    "version": "1.3",
     "category": "Services/Timesheets",
     "sequence": 23,
     "summary": "Track employee time on tasks",
@@ -64,7 +64,6 @@ up a management by affair.
             "hr_timesheet/static/src/scss/timesheets_task_form.scss",
         ],
     },
-    "installable": True,
     "pre_init_hook": "_pre_init_hook",
     "post_init_hook": "create_internal_project",
     "uninstall_hook": "_uninstall_hook",

@@ -5,8 +5,6 @@ from odoo.fields import Domain
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    # === COMPUTE METHODS === #
-
     @api.depends("company_id", "website_id")
     def _compute_active_provider_id(self):
         return super()._compute_active_provider_id()
@@ -16,7 +14,6 @@ class ResConfigSettings(models.TransientModel):
         return super()._compute_has_enabled_provider()
 
     def _get_domain_active_providers(self, *args, **kwargs):
-        """Override of `payment` to only return providers compatible with the current website."""
         self.check_singleton()
         return Domain.AND(
             [
@@ -29,9 +26,6 @@ class ResConfigSettings(models.TransientModel):
             ]
         )
 
-    # === ACTION METHODS === #
-
-    # Unique name to avoid colliding with `sale`.
     def action_w_payment_start_payment_onboarding(self):
         menu = self.env.ref(
             "website.menu_website_website_settings", raise_if_not_found=False

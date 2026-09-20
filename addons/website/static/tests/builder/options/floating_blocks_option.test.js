@@ -7,9 +7,6 @@ import {
 
 defineWebsiteModels();
 
-// TODO Re-enable once interactions run within iframe in hoot tests.
-// Note: without interactions within the iframe, this test will fail because the
-// alert message is not rendered.
 test.skip("alert message displayed if floating blocks has no cards", async () => {
     await setupWebsiteBuilderWithSnippet("s_floating_blocks");
     await contains(":iframe .s_floating_blocks_block").click();
@@ -28,10 +25,6 @@ test.skip("alert message displayed if floating blocks has no cards", async () =>
     expect(":iframe .s_floating_blocks_alert_empty").toBeVisible();
 });
 
-// TODO Re-enable once interactions run within iframe in hoot tests.
-// Note: without interactions within the iframe, this test will fail because the
-// alert message is not rendered, consequently the floating block wrapper will
-// be empty after the removal of the last card, and remove_plugin will remove it
 test.skip("floating blocks snippet are not removed on save even if empty", async () => {
     const resultSave = [];
     onRpc("ir.ui.view", "save", ({ args }) => {

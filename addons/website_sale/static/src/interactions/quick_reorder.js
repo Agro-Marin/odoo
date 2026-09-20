@@ -19,8 +19,6 @@ export class QuickReorder extends Interaction {
     };
 
     /**
-     * Update the total price and enable/disable the add button based on the quantity input.
-     *
      * @param {Event} ev
      * @return {void}
      */
@@ -36,11 +34,9 @@ export class QuickReorder extends Interaction {
     }
 
     /**
-     * Update the add button state based on quantity.
-     *
      * @private
-     * @param {Element} qtyInput - The quantity input element.
-     * @param {number} qty - The quantity value.
+     * @param {Element} qtyInput
+     * @param {number} qty
      * @return {void}
      */
     _updateAddButton(qtyInput, qty) {
@@ -55,13 +51,11 @@ export class QuickReorder extends Interaction {
     }
 
     /**
-     * Update the total price display for the related line.
-     *
      * @private
-     * @param {Element} qtyInput - The quantity input element.
-     * @param {number} qty - The quantity.
-     * @param {number} priceUnit - The unit price.
-     * @param {number} digits - The number of decimal digits for the currency.
+     * @param {Element} qtyInput
+     * @param {number} qty
+     * @param {number} priceUnit
+     * @param {number} digits
      * @return {void}
      */
     _updateTotalPrice(qtyInput, qty, priceUnit, digits) {
@@ -75,8 +69,6 @@ export class QuickReorder extends Interaction {
     }
 
     /**
-     * Trigger the reorder action when Enter key is pressed on quantity input.
-     *
      * @param {Event} ev
      * @return {void}
      */
@@ -92,13 +84,10 @@ export class QuickReorder extends Interaction {
     }
 
     /**
-     * Reorder the product and update the page's content.
-     *
      * @param {Event} ev
      * @return {void}
      */
     async reorderProduct(ev) {
-        // Extract product data from the button dataset.
         const addButtonDataset = ev.currentTarget.dataset;
         const productTemplateId = parseInt(addButtonDataset.productTemplateId, 10);
         const productId = parseInt(addButtonDataset.productId, 10);
@@ -108,13 +97,11 @@ export class QuickReorder extends Interaction {
             addButtonDataset.selectedComboItems || "[]",
         );
 
-        // Capture the button index before DOM updates.
         const allButtons = document.querySelectorAll(
             ".o_wsale_quick_reorder_product_button",
         );
         const currentButtonIndex = Array.from(allButtons).indexOf(ev.currentTarget);
 
-        // Process combo products if applicable.
         let linkedProducts = [];
         if (isCombo) {
             const { quantity: updatedQty, combos } = await rpc(
@@ -147,25 +134,17 @@ export class QuickReorder extends Interaction {
             }),
         );
 
-        // Add the product to the cart and update the DOM.
         const cart = document.getElementById("shop_cart");
-        // `updateCartNavBar` regenerates the cart lines and `updateQuickReorderSidebar`
-        // regenerates the quick reorder products, so we need to stop and start interactions to
-        // make sure the regenerated reorder products and cart lines are properly handled.
         this.services["public.interactions"].stopInteractions(cart);
         wSaleUtils.updateCartNavBar(data);
         wSaleUtils.updateQuickReorderSidebar(data);
         this.services["public.interactions"].startInteractions(cart);
 
-        // Move the focus to the next quantity input.
         this._focusNextQuantityInput(currentButtonIndex);
     }
 
     /**
-     * Moves the focus to the next quantity input.
-     *
-     * @param {number} buttonIndex - The index of the reorder button that was clicked before
-     *                                    DOM updates.
+     * @param {number} buttonIndex
      * @return {void}
      */
     _focusNextQuantityInput(buttonIndex) {

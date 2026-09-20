@@ -22,7 +22,7 @@ patch(LinkNavigation.prototype, {
     /** @param {import("models").Thread} [fromThread] */
     onLinkFollowed(fromThread) {
         super.onLinkFollowed(...arguments);
-        if (!this.env.isSmall && fromThread?.model === "discuss.channel") {
+        if (!this.env.isSmall && fromThread?.isChannelKind) {
             fromThread.open({ focus: false });
         }
     },

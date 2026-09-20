@@ -17,7 +17,7 @@
                 </div>
             </t>
             <t t-else="">
-                <t>$0</t> <!-- Replaced by old content. -->
+                <t>$0</t>
             </t>
         </div>
     </template>

@@ -13,7 +13,7 @@ class L10n_IdQrisTransaction(models.Model):
     _name = "l10n_id.qris.transaction"
     _description = "Record of QRIS transactions"
 
-    model = fields.Char(string="Model")  # payment in respond to which model
+    model = fields.Char()  # payment in respond to which model
     model_id = fields.Char(string="Model ID")  # id/uuid
 
     # Fields that store the QRIS details coming from API request
@@ -23,7 +23,8 @@ class L10n_IdQrisTransaction(models.Model):
     qris_creation_datetime = fields.Datetime(readonly=True)
 
     bank_id = fields.Many2one(
-        "res.partner.bank", help="Bank used to generate the current QRIS transaction"
+        comodel_name="res.partner.bank",
+        help="Bank used to generate the current QRIS transaction",
     )
     paid = fields.Boolean(help="Payment Status of QRIS")
 
@@ -67,7 +68,7 @@ class L10n_IdQrisTransaction(models.Model):
         # Looping to make requests is far from ideal, but we have no choices as they don't allow getting multiple QR result at once.
         # Ensure to loop in reverse and check from the most recent QR code.
         for transaction in self.sorted(lambda t: t.qris_creation_datetime):
-            status_response = self.sudo().bank_id._l10n_id_qris_fetch_status(
+            status_response = self.sudo().bank_id._l10n_id_qris_get_status(
                 transaction
             )
             if status_response["data"].get("qris_status") == "paid":

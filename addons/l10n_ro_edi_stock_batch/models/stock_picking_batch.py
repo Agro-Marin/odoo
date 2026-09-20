@@ -1,16 +1,11 @@
 import base64
 
 import markupsafe
-import requests
 
-from odoo import _, api, fields, models
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.l10n_ro_edi_stock.models.etransport_api import ETransportAPI
-from odoo.addons.l10n_ro_edi_stock.models.mixin_stock_consignment import (
-    OPERATION_SCOPES,
-    OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES,
-)
 
 
 class StockPickingBatch(models.Model):
@@ -18,140 +13,12 @@ class StockPickingBatch(models.Model):
 
     # Document fields
     l10n_ro_edi_stock_document_ids = fields.One2many(
-        comodel_name="l10n_ro_edi.document", inverse_name="batch_id"
+        comodel_name="l10n_ro_edi.document",
+        inverse_name="batch_id",
     )
 
-    ################################################################################
-    # Onchange Methods
-    ################################################################################
-
-    @api.onchange("l10n_ro_edi_stock_operation_type")
-    def _l10n_ro_edi_stock_reset_variable_selection_fields(self):
-        self.l10n_ro_edi_stock_operation_scope = False
-
-        # the 'location' value is always valid, regardless of which operation type is chosen
-        self.l10n_ro_edi_stock_start_loc_type = "location"
-        self.l10n_ro_edi_stock_end_loc_type = "location"
-
-    ################################################################################
-    # Compute Methods
-    ################################################################################
-
-    @api.depends("company_id.account_fiscal_country_id.code")
-    def _compute_l10n_ro_edi_stock_default_location_type(self):
-        for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == "RO":
-                if not batch.l10n_ro_edi_stock_start_loc_type:
-                    batch.l10n_ro_edi_stock_start_loc_type = "location"
-                else:
-                    batch.l10n_ro_edi_stock_start_loc_type = (
-                        batch.l10n_ro_edi_stock_start_loc_type
-                    )
-
-                if not batch.l10n_ro_edi_stock_end_loc_type:
-                    batch.l10n_ro_edi_stock_end_loc_type = "location"
-                else:
-                    batch.l10n_ro_edi_stock_start_loc_type = (
-                        batch.l10n_ro_edi_stock_start_loc_type
-                    )
-            else:
-                batch.l10n_ro_edi_stock_start_loc_type = False
-                batch.l10n_ro_edi_stock_end_loc_type = False
-
-    @api.depends("l10n_ro_edi_stock_operation_type")
-    def _compute_l10n_ro_edi_stock_available_operation_scopes(self):
-        for batch in self:
-            if batch.l10n_ro_edi_stock_operation_type:
-                allowed_scopes = OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES.get(
-                    batch.l10n_ro_edi_stock_operation_type, ("9999",)
-                )
-            else:
-                allowed_scopes = [c for c, _dummy in OPERATION_SCOPES]
-
-            batch.l10n_ro_edi_stock_available_operation_scopes = ",".join(
-                allowed_scopes
-            )
-
-    @api.depends("l10n_ro_edi_stock_operation_type")
-    def _compute_l10n_ro_edi_stock_available_location_types(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_available_start_loc_types = self.env[
-                "stock.picking"
-            ]._l10n_ro_edi_stock_get_available_location_types(
-                batch.l10n_ro_edi_stock_operation_type, "start"
-            )
-            batch.l10n_ro_edi_stock_available_end_loc_types = self.env[
-                "stock.picking"
-            ]._l10n_ro_edi_stock_get_available_location_types(
-                batch.l10n_ro_edi_stock_operation_type, "end"
-            )
-
-    @api.depends(
-        "l10n_ro_edi_stock_document_ids", "company_id.account_fiscal_country_id.code"
-    )
-    def _compute_l10n_ro_edi_stock_current_document_state(self):
-        for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == "RO" and (
-                document := batch._l10n_ro_edi_stock_get_current_document()
-            ):
-                batch.l10n_ro_edi_stock_state = document.state
-            else:
-                batch.l10n_ro_edi_stock_state = False
-
-    @api.depends(
-        "l10n_ro_edi_stock_document_ids", "company_id.account_fiscal_country_id.code"
-    )
-    def _compute_l10n_ro_edi_stock_current_document_uit(self):
-        for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == "RO" and (
-                document := batch._l10n_ro_edi_stock_get_current_document()
-            ):
-                batch.l10n_ro_edi_stock_document_uit = document.l10n_ro_edi_stock_uit
-            else:
-                batch.l10n_ro_edi_stock_document_uit = False
-
-    @api.depends("company_id.account_fiscal_country_id.code")
-    def _compute_l10n_ro_edi_stock_enable(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_enable = (
-                batch.company_id.account_fiscal_country_id.code == "RO"
-            )
-
-    @api.depends("l10n_ro_edi_stock_enable", "state", "l10n_ro_edi_stock_state")
-    def _compute_l10n_ro_edi_stock_enable_send(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_enable_send = (
-                batch.l10n_ro_edi_stock_enable
-                and batch.state != "draft"
-                and batch.l10n_ro_edi_stock_state in (False, "stock_sending_failed")
-                and not batch._l10n_ro_edi_stock_get_last_document("stock_validated")
-            )
-
-    @api.depends("l10n_ro_edi_stock_enable", "state", "l10n_ro_edi_stock_state")
-    def _compute_l10n_ro_edi_stock_enable_fetch(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_enable_fetch = (
-                batch.l10n_ro_edi_stock_enable
-                and batch.l10n_ro_edi_stock_state == "stock_sent"
-            )
-
-    @api.depends("l10n_ro_edi_stock_state")
-    def _compute_l10n_ro_edi_stock_enable_amend(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_enable_amend = batch.l10n_ro_edi_stock_enable and (
-                batch.l10n_ro_edi_stock_state == "stock_validated"
-                or (
-                    batch.l10n_ro_edi_stock_state == "stock_sending_failed"
-                    and batch._l10n_ro_edi_stock_get_last_document("stock_validated")
-                )
-            )
-
-    @api.depends("l10n_ro_edi_stock_state")
-    def _compute_l10n_ro_edi_stock_fields_readonly(self):
-        for batch in self:
-            batch.l10n_ro_edi_stock_fields_readonly = (
-                batch.l10n_ro_edi_stock_state == "stock_sent"
-            )
+    def _l10n_ro_edi_stock_is_shipped(self) -> bool:
+        return self.state != "draft"
 
     ################################################################################
     # Validation methods
@@ -160,11 +27,13 @@ class StockPickingBatch(models.Model):
     def action_done(self):
         # EXTENDS 'stock_picking_batch'
         self.check_singleton()
+        if not self.l10n_ro_edi_stock_enable:
+            return super().action_done()
         self._check_company()
 
         self.picking_ids.with_context(
             l10n_ro_edi_stock_validate_carrier=True
-        )._l10n_ro_edi_stock_validate_carrier()
+        )._l10n_ro_edi_stock_check_carrier()
 
         # Carrier should be the same on all pickings
         first_carrier = self.picking_ids[0].carrier_id
@@ -187,7 +56,7 @@ class StockPickingBatch(models.Model):
 
         return super().action_done()
 
-    def _l10n_ro_edi_stock_validate_fetch_data(self, errors=None):
+    def _l10n_ro_edi_stock_get_fetch_data_errors(self, errors=None):
         if errors is None:
             errors = []
         self.check_singleton()
@@ -232,37 +101,11 @@ class StockPickingBatch(models.Model):
         self._l10n_ro_edi_stock_send_etransport_document(send_type=send_type)
 
     def action_l10n_ro_edi_stock_fetch_status(self):
-        self._l10n_ro_edi_stock_fetch_document_status()
+        self._l10n_ro_edi_stock_update_document_status()
 
     ################################################################################
     # Document Helpers
     ################################################################################
-
-    def _l10n_ro_edi_stock_get_current_document(self):
-        self.check_singleton()
-        return (
-            self.l10n_ro_edi_stock_document_ids.sorted()[0]
-            if self.l10n_ro_edi_stock_document_ids
-            else None
-        )
-
-    def _l10n_ro_edi_stock_get_all_documents(self, states):
-        self.check_singleton()
-
-        if isinstance(states, str):
-            states = [states]
-
-        return self.l10n_ro_edi_stock_document_ids.filtered(
-            lambda doc: doc.state in states
-        )
-
-    def _l10n_ro_edi_stock_get_last_document(self, state):
-        self.check_singleton()
-        documents_in_state = self.l10n_ro_edi_stock_document_ids.filtered(
-            lambda doc: doc.state == state
-        ).sorted()
-
-        return documents_in_state and documents_in_state[0]
 
     def _l10n_ro_edi_stock_create_document_stock_sent(self, values: dict[str, object]):
         self.check_singleton()
@@ -347,7 +190,7 @@ class StockPickingBatch(models.Model):
             "l10n_ro_edi_stock_document_uit": self.l10n_ro_edi_stock_document_uit,
         }
 
-        if errors := self.env["stock.picking"]._l10n_ro_edi_stock_validate_data(
+        if errors := self.env["stock.picking"]._l10n_ro_edi_stock_get_data_errors(
             data=data
         ):
             self._l10n_ro_edi_stock_get_all_documents("stock_sending_failed").unlink()
@@ -419,8 +262,8 @@ class StockPickingBatch(models.Model):
                 }
             )
 
-    def _l10n_ro_edi_stock_fetch_document_status(self):
-        session = requests.Session()
+    def _l10n_ro_edi_stock_update_document_status(self):
+        session = self.env["ir.egress"].session(purpose="l10n_ro_etransport")
         documents_to_delete = self.env["l10n_ro_edi.document"]
         to_fetch = self.filtered(lambda b: b.l10n_ro_edi_stock_state == "stock_sent")
 
@@ -429,7 +272,7 @@ class StockPickingBatch(models.Model):
                 lambda doc: doc.state == "stock_sent"
             )[0]
 
-            if errors := batch._l10n_ro_edi_stock_validate_fetch_data():
+            if errors := batch._l10n_ro_edi_stock_get_fetch_data_errors():
                 documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents(
                     "stock_sending_failed"
                 )

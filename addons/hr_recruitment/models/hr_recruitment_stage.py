@@ -6,55 +6,58 @@ class HrRecruitmentStage(models.Model):
     _description = "Recruitment Stages"
     _order = "sequence"
 
-    name = fields.Char("Stage Name", required=True, translate=True)
-    sequence = fields.Integer("Sequence", default=10)
+    name = fields.Char(
+        string="Stage Name",
+        translate=True,
+        required=True,
+    )
+    sequence = fields.Integer(default=10)
     job_ids = fields.Many2many(
-        "hr.job",
+        comodel_name="hr.job",
         string="Job Specific",
         help="Specific jobs that use this stage. Other jobs will not use this stage.",
     )
-    requirements = fields.Text("Requirements")
+    requirements = fields.Text()
     template_id = fields.Many2one(
-        "mail.template",
-        "Email Template",
+        comodel_name="mail.template",
+        string="Email Template",
         help="If set, a message is posted on the applicant using the template when the applicant is set to the stage.",
     )
     fold = fields.Boolean(
-        "Folded in Kanban",
+        string="Folded in Kanban",
         help="This stage is folded in the kanban view when there are no records in that stage to display.",
     )
     hired_stage = fields.Boolean(
-        "Hired Stage",
-        help="If checked, this stage is used to determine the hire date of an applicant",
+        help="If checked, this stage is used to determine the hire date of an applicant"
     )
     rotting_threshold_days = fields.Integer(
-        "Days to rot",
+        string="Days to rot",
         default=0,
         help="Day count before applicants in this stage become stale. \
         Set to 0 to disable.  Changing this parameter will not affect the rotting status/date of resources last updated before this change.",
     )
     legend_blocked = fields.Char(
-        "Red Kanban Label",
-        default=lambda self: _("Blocked"),
+        string="Red Kanban Label",
         translate=True,
+        default=lambda self: _("Blocked"),
         required=True,
     )
     legend_waiting = fields.Char(
-        "Orange Kanban Label",
-        default=lambda self: _("Waiting"),
+        string="Orange Kanban Label",
         translate=True,
+        default=lambda self: _("Waiting"),
         required=True,
     )
     legend_done = fields.Char(
-        "Green Kanban Label",
-        default=lambda self: _("Ready for Next Stage"),
+        string="Green Kanban Label",
         translate=True,
+        default=lambda self: _("Ready for Next Stage"),
         required=True,
     )
     legend_normal = fields.Char(
-        "Grey Kanban Label",
-        default=lambda self: _("In Progress"),
+        string="Grey Kanban Label",
         translate=True,
+        default=lambda self: _("In Progress"),
         required=True,
     )
     is_warning_visible = fields.Boolean(compute="_compute_is_warning_visible")
@@ -71,6 +74,11 @@ class HrRecruitmentStage(models.Model):
 
     @api.model
     def _get_first_stage_by_job(self, jobs):
+        """The stage a new application lands in, per job.
+
+        A job-specific stage wins over a generic one at the same sequence.
+        """
+        none = self.browse()
         stages_by_job = dict(
             self._read_group(
                 [("job_ids", "in", jobs.ids + [False]), ("fold", "=", False)],
@@ -78,22 +86,24 @@ class HrRecruitmentStage(models.Model):
                 ["id:recordset"],
             )
         )
-        generic_stages = stages_by_job.get(self.env["hr.job"], self)
+        generic_stages = stages_by_job.get(self.env["hr.job"], none)
         first_stage_by_job = {}
         for job in jobs:
-            job_stages = stages_by_job.get(job, self)
+            job_stages = stages_by_job.get(job, none)
             candidates = job_stages | generic_stages
-            first_stage_by_job[job] = (
-                min(
-                    candidates,
-                    key=lambda stage: (
-                        stage.sequence,
-                        stage not in job_stages,
-                        stage.id,
-                    ),
-                )
-                if candidates
-                else self
+            if not candidates:
+                first_stage_by_job[job] = none
+                continue
+            # By id, not by `stage not in job_stages`: recordset membership is a
+            # scan, and this runs inside the comparison key.
+            job_stage_ids = set(job_stages._ids)
+            first_stage_by_job[job] = min(
+                candidates,
+                key=lambda stage: (
+                    stage.sequence,
+                    stage.id not in job_stage_ids,
+                    stage.id,
+                ),
             )
         return first_stage_by_job
 

@@ -14,6 +14,5 @@
         "au",
         "nz",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

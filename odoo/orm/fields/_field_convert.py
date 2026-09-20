@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from psycopg.types.json import Json as PsycopgJson
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -14,6 +15,8 @@ if typing.TYPE_CHECKING:
 
 from . import _field_ddl as _ddl
 from ._field_stubs import _FieldStubs
+
+_debug = DebugLog(__name__)
 
 
 class _FieldConvertMixin[T](_FieldStubs):
@@ -58,6 +61,12 @@ class _FieldConvertMixin[T](_FieldStubs):
             return value
         fallback = self._get_company_dependent_fallback_raw(record)
         if value == self.convert_to_column(fallback, record):
+            _debug.logic(
+                "field.company_dependent.insert_as_fallback",
+                model=self.model_name,
+                field=self.name,
+                company=record.env.company.id,
+            )
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
@@ -66,7 +75,7 @@ class _FieldConvertMixin[T](_FieldStubs):
     ) -> typing.Any:
         langs_dict = {}
         found = False
-        for cache_key, sub_cache in record.env._core.iter_context_caches(self):
+        for cache_key, sub_cache in record.env.core.iter_context_caches(self):
             if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is not None:
@@ -81,18 +90,18 @@ class _FieldConvertMixin[T](_FieldStubs):
         return PsycopgJson(langs_dict) if langs_dict else None
 
     def _get_flat_column_value(self, record: ModelLike, record_id) -> typing.Any:
-        flat = record.env._core.get_field_data_or_none(self)
+        flat = record.env.core.get_field_data_or_none(self)
         return SENTINEL if flat is None else flat.get(record_id, SENTINEL)
 
     def _get_column_update_plain(self, record: ModelLike, record_id) -> typing.Any:
         env = record.env
         if not self._is_context_dependent(env):
-            value = env._core.get_field_data(self)[record_id]
+            value = env.core.get_field_data(self)[record_id]
             if value is PENDING:
                 return PENDING
             return self.convert_to_column(value, record, validate=False)
         found = False
-        for _key, cache in env._core.iter_context_caches(self):
+        for _key, cache in env.core.iter_context_caches(self):
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is not PENDING:
@@ -108,7 +117,7 @@ class _FieldConvertMixin[T](_FieldStubs):
         found = False
         saw_pending = False
         company_index = record.env.registry.field_depends_context[self].index("company")
-        for ctx_key, cache in record.env._core.iter_context_caches(self):
+        for ctx_key, cache in record.env.core.iter_context_caches(self):
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is PENDING:
@@ -135,7 +144,7 @@ class _FieldConvertMixin[T](_FieldStubs):
         if self.translate is True:
             return self._get_column_update_model_translation(record, record_id)
         if self.translate:
-            value = record.env._core.get_field_data(self)[record_id]
+            value = record.env.core.get_field_data(self)[record_id]
             return PsycopgJson(value) if value else None
         if not self.company_dependent:
             return self._get_column_update_plain(record, record_id)

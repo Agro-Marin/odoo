@@ -38,10 +38,10 @@
         <field name="model">mailing.subscription</field>
         <field name="arch" type="xml">
             <graph
-                js_class="subscription_graph"
-                string="Mailing List Subscriptions"
                 type="pie"
-                sample="1">
+                string="Mailing List Subscriptions"
+                sample="1"
+                js_class="subscription_graph">
                 <field name="opt_out_datetime" interval="week" />
                 <!-- Hide the bounce measure from the measures dropdown -->
                 <field name="message_bounce" type="measure" invisible="1" />
@@ -54,7 +54,7 @@
         <field name="model">mailing.subscription</field>
         <field name="arch" type="xml">
             <pivot string="Mailing List Subscriptions" sample="1">
-                <field name="opt_out_datetime" interval="week" type="row" />
+                <field name="opt_out_datetime" type="row" interval="week" />
                 <field name="list_id" type="row" />
             </pivot>
         </field>
@@ -65,9 +65,9 @@
         <field name="model">mailing.subscription</field>
         <field name="arch" type="xml">
             <list
+                type="object"
                 string="Mailing List Subscriptions"
                 create="0"
-                type="object"
                 action="open_mailing_contact">
                 <field name="create_date" string="Subscription Date" />
                 <field name="contact_id" string="Mailing Contact" />
@@ -90,28 +90,28 @@
                 <field name="contact_id" />
                 <field name="opt_out_datetime" />
                 <filter
-                    string="Subscription Date"
                     name="filter_create_date"
+                    string="Subscription Date"
                     date="create_date"
                     default_period="month" />
                 <separator />
                 <filter
-                    string="Unsubscription Date"
                     name="filter_opt_out_datetime"
+                    string="Unsubscription Date"
                     date="opt_out_datetime"
                     default_period="month" />
                 <group>
                     <filter
-                        string="Unsubscription Date"
                         name="group_by_opt_out_datetime"
+                        string="Unsubscription Date"
                         context="{'group_by': 'opt_out_datetime:week'}" />
                     <filter
-                        string="Mailing List"
                         name="group_by_list_id"
+                        string="Mailing List"
                         context="{'group_by': 'list_id'}" />
                     <filter
-                        string="Reason"
                         name="group_by_opt_out_reason_id"
+                        string="Reason"
                         context="{'group_by': 'opt_out_reason_id'}" />
                 </group>
                 </search>

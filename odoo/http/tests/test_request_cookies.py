@@ -14,20 +14,17 @@ class _Registry(dict):
         self.calls = 0
         self["ir.http"] = self
 
-    def _sanitize_cookies(self, cookies):
+    def _update_cookies(self, cookies):
         self.calls += 1
         for name in self.dropped:
             cookies.poplist(name)
 
 
 def _request(**cookies) -> Any:
-    request: Any = object.__new__(Request)
-    request.registry = None
-    request._cookies_memo = None
-    request.httprequest = types.SimpleNamespace(
-        cookies=werkzeug.datastructures.MultiDict(cookies)
+    httprequest: Any = types.SimpleNamespace(
+        remote_addr=None, cookies=werkzeug.datastructures.MultiDict(cookies)
     )
-    return request
+    return Request(httprequest, app=None)
 
 
 def test_without_a_registry_every_cookie_is_visible():

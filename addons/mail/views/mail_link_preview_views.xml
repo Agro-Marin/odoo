@@ -17,8 +17,8 @@
                             <field name="og_image" />
                             <field
                                 name="og_image"
-                                nolabel="1"
                                 widget="image_url"
+                                nolabel="1"
                                 options="{'size': [150, 150]}" />
                             <field name="og_mimetype" />
                             <field name="image_mimetype" />

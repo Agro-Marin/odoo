@@ -6,16 +6,18 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
 import odoo
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets import esbuild_process, esbuild_stubs
 from odoo.tools.json import scriptsafe as json
 
 _esbuild_log = get_asset_logger("esbuild")
+_debug = DebugLog(__name__)
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
@@ -56,8 +58,8 @@ def _esbuild_argv(
     external_flags: list[str],
     sourcemap_flags: list[str],
     alias_flags: list[str],
-    extra_flags: list[str] = (),
-    entry_points: list[str] = (),
+    extra_flags: Sequence[str] = (),
+    entry_points: Sequence[str] = (),
     out_dir: str | None = None,
 ) -> list[str]:
     output_flags = (
@@ -220,6 +222,7 @@ class EsbuildCompiler:
         addon_flags_provider: Callable[[Path], tuple[list[str], list[str]]]
         | None = None,
         exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
     ) -> None:
         self.name = name
         self.native_modules = list(native_modules)
@@ -230,6 +233,7 @@ class EsbuildCompiler:
         self._exported_specs = (
             None if exported_specs is None else frozenset(exported_specs)
         )
+        self._registered_reach = dict(registered_reach or {})
         self._addon_flags_provider = (
             addon_flags_provider or self._get_esbuild_addon_flags
         )
@@ -242,6 +246,10 @@ class EsbuildCompiler:
 
     @classmethod
     def invalidate_addon_scan_cache(cls) -> None:
+        _debug.lifecycle(
+            "esbuild.addon_scan_invalidated",
+            cached=cls._esbuild_addon_scan_cache is not None,
+        )
         cls._esbuild_addon_scan_cache = None
 
     @classmethod
@@ -362,28 +370,54 @@ class EsbuildCompiler:
                 "Run 'npm install' in the Odoo root directory."
             )
 
-        alias_flags, external_flags = self._esbuild_flags(
-            odoo_root, dynamic_child_specs
-        )
-
-        tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
-        out_path = str(Path(tmp_dir) / "bundle.out.js")
-        metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
-
-        self._mirror_roots = {}
-        argv_aliases, node_path = self._addon_resolution_root(alias_flags, odoo_root)
-        moved = set(alias_flags) - set(argv_aliases)
-        alias_flags = [
-            flag
-            for flag in esbuild_stubs.stub_aliases(
-                list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
+        with _debug.perf(
+            "esbuild.compile_prepared",
+            bundle=self.name,
+            modules=len(self.native_modules),
+            standalone=self._standalone,
+            dynamic_children=len(dynamic_child_specs or ()),
+            parent_stubs=len(secondary_parent_stubs or {}),
+        ) as span:
+            alias_flags, external_flags = self._esbuild_flags(
+                odoo_root, dynamic_child_specs
             )
-            if flag not in moved
-        ]
 
-        entry_lines = self._esbuild_entry_lines(odoo_root)
-        entry_text = "\n".join(entry_lines)
-        entry_bytes = len(entry_text.encode("utf-8"))
+            tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
+            out_path = str(Path(tmp_dir) / "bundle.out.js")
+            metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
+
+            self._mirror_roots = {}
+            argv_aliases, node_path = self._addon_resolution_root(
+                alias_flags, odoo_root
+            )
+            moved = set(alias_flags) - set(argv_aliases)
+            if secondary_parent_stubs:
+                alias_flags, self._mirror_roots = esbuild_stubs.mirror_aliases(
+                    self.native_modules,
+                    list(alias_flags),
+                    secondary_parent_stubs,
+                    tmp_dir,
+                    odoo_root,
+                )
+            alias_flags = [flag for flag in alias_flags if flag not in moved]
+
+            # Parent-owned members are supplied by the stubs when imported.
+            # Registering them again as entry modules creates a second namespace.
+            entry_modules = [
+                asset
+                for asset in self.native_modules
+                if asset.module_path not in (secondary_parent_stubs or {})
+            ]
+            entry_lines = self._esbuild_entry_lines(odoo_root, modules=entry_modules)
+            entry_text = "\n".join(entry_lines)
+            entry_bytes = len(entry_text.encode("utf-8"))
+            span.set(
+                aliases=len(alias_flags),
+                externals=len(external_flags),
+                moved=len(moved),
+                entries=len(entry_lines),
+                node_path=node_path is not None,
+            )
 
         esbuild_process.log_invoke(
             self.name, entry_lines, entry_bytes, alias_flags, external_flags, tmp_dir
@@ -402,6 +436,7 @@ class EsbuildCompiler:
             external_flags=external_flags,
             sourcemap_flags=sourcemap_flags,
             alias_flags=alias_flags,
+            extra_flags=["--preserve-symlinks"] if self._mirror_roots else [],
         )
         try:
             esbuild_process.run_esbuild(
@@ -451,8 +486,16 @@ class EsbuildCompiler:
             timeout_s, target, source_maps
         )
         if not any(entries.values()):
+            _debug.logic("esbuild.group_empty", bundle=self.name, groups=len(entries))
             return EsbuildGroupResult({}, None)
         _t0 = time.monotonic()
+        _debug.pipeline(
+            "esbuild.compile_group",
+            bundle=self.name,
+            groups=len(entries),
+            modules=sum(len(m) for m in entries.values()),
+            parent_stubs=len(secondary_parent_stubs or {}),
+        )
         odoo_root = Path(odoo.__path__[0]).parent
         esbuild = _get_esbuild_path()
         if not esbuild:
@@ -561,6 +604,32 @@ class EsbuildCompiler:
             source_maps = ""
         return timeout_s, target, source_maps
 
+    def _reached_module_path(self, url: str, odoo_root: Path) -> str | None:
+        from odoo.tools.misc import file_path
+
+        rel = url.lstrip("/")
+        for candidate in (rel, rel.removesuffix(".js") + "/index.js"):
+            try:
+                path = file_path(candidate)
+            except ValueError, FileNotFoundError:
+                continue
+            return self._mirrored_path(candidate) or (
+                "./" + os.path.relpath(path, odoo_root)
+            )
+        return None
+
+    def _mirrored_path(self, url: str) -> str | None:
+        # a mirrored addon's static/src lives in the layout with its siblings
+        # (tests, lib) symlinked next to it, and esbuild preserves symlinks
+        # there: an entry spelled by its real path and an alias import of the
+        # same file (`@website/../tests/tours/x`) are two modules to esbuild,
+        # each registering its tours once
+        addon, _, rest = url.lstrip("/").partition("/static/")
+        mirror = self._mirror_roots.get(addon) if rest else None
+        if mirror is None:
+            return None
+        return str(mirror.parent / rest)
+
     def _standalone_alias_flags(
         self, odoo_root: Path, already_aliased: set[str]
     ) -> list[str]:
@@ -585,10 +654,9 @@ class EsbuildCompiler:
 
     def _entry_path(self, asset, odoo_root: Path) -> str:
         url = asset.url or ""
-        addon, _, rest = url.lstrip("/").partition("/static/src/")
-        mirror = self._mirror_roots.get(addon) if rest else None
-        if mirror is not None:
-            return str(mirror / rest)
+        mirrored = self._mirrored_path(url)
+        if mirrored is not None:
+            return mirrored
         if self._absolute_entry_paths:
             return str(
                 Path(asset._filename) if asset._filename else odoo_root / f"addons{url}"
@@ -622,6 +690,15 @@ class EsbuildCompiler:
             for name in names:
                 register_entries.append(f"  {json.dumps(name)}: __m{i}")
                 registered_specs.add(name)
+        for i, (spec, url) in enumerate(sorted(self._registered_reach.items())):
+            if spec in registered_specs:
+                continue
+            reached = self._reached_module_path(url, odoo_root)
+            if reached is None:
+                continue
+            entry_lines.append(f"import * as __r{i} from {json.dumps(reached)};")
+            register_entries.append(f"  {json.dumps(spec)}: __r{i}")
+            registered_specs.add(spec)
 
         if self._standalone:
             entry_lines.append("if (globalThis.odoo?.loader?.registerNativeModules) {")

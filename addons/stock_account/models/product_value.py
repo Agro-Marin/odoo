@@ -1,4 +1,7 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductValue(models.Model):
@@ -6,42 +9,53 @@ class ProductValue(models.Model):
     _description = "Product Value"
     _order = "date desc, id desc"
 
-    product_id = fields.Many2one("product.product", string="Product", index=True)
-    lot_id = fields.Many2one("stock.lot", string="Lot")
-    move_id = fields.Many2one("stock.move", string="Move", index="btree_not_null")
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        index=True,
+    )
+    lot_id = fields.Many2one(comodel_name="stock.lot")
+    move_id = fields.Many2one(
+        comodel_name="stock.move",
+        index="btree_not_null",
+    )
 
-    value = fields.Monetary(string="Value", currency_field="currency_id", required=True)
-    company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        compute="_compute_company_id",
-        store=True,
+    value = fields.Monetary(
+        currency_field="currency_id",
         required=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        compute="_compute_company_id",
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
     )
     currency_id = fields.Many2one(
-        "res.currency", related="company_id.currency_id", string="Currency"
+        comodel_name="res.currency",
+        related="company_id.currency_id",
+        string="Currency",
     )
-    date = fields.Datetime(string="Date", default=fields.Datetime.now, required=True)
+    date = fields.Datetime(
+        default=fields.Datetime.now,
+        required=True,
+    )
     user_id = fields.Many2one(
-        "res.users", string="User", default=lambda self: self.env.user, required=True
+        comodel_name="res.users",
+        default=lambda self: self.env.user,
+        required=True,
     )
 
-    description = fields.Char(string="Description")
+    description = fields.Char()
 
     current_value = fields.Monetary(
-        string="Current Value", currency_field="currency_id", related="move_id.value"
+        related="move_id.value",
+        string="Current Value",
+        currency_field="currency_id",
     )
-    current_value_details = fields.Char(
-        string="Current Value Details", compute="_compute_current_value_details"
-    )
-    current_value_description = fields.Text(
-        string="Current Value Description", compute="_compute_value_description"
-    )
-    computed_value_description = fields.Text(
-        string="Computed Value Description", compute="_compute_value_description"
-    )
+    current_value_details = fields.Char(compute="_compute_current_value_details")
+    current_value_description = fields.Text(compute="_compute_value_description")
+    computed_value_description = fields.Text(compute="_compute_value_description")
 
     @api.depends("move_id", "lot_id", "product_id")
     def _compute_company_id(self):
@@ -57,6 +71,7 @@ class ProductValue(models.Model):
 
     @api.depends("move_id.value", "move_id.move_line_ids.quantity_product_uom")
     def _compute_current_value_details(self):
+        _debug.perf.count("manual_valuation_details", values=self)
         for product_value in self:
             move = product_value.move_id
             quantity = move._get_valued_qty() if move else 0
@@ -88,6 +103,7 @@ class ProductValue(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _debug.lifecycle("manual_valuation_create", count=len(vals_list))
         product_ids = set()
         move_ids = set()
         lot_ids = set()

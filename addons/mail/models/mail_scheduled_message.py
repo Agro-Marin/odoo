@@ -10,11 +10,13 @@ from markupsafe import Markup
 from odoo import _, api, fields, models, modules
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.access_scan import (
     get_accessible_query,
+    prepare_column_fetcher,
     prepare_document_access_error,
 )
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
@@ -25,42 +27,64 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailScheduledMessage(models.Model):
     _name = "mail.scheduled.message"
     _description = "Scheduled Message"
+    _search_visibility_fields = (
+        "model",
+        "res_id",
+    )
 
     _mail_partner_fields = ()
 
     _SEARCH_ACCESS_CHUNK_MIN = 30
     _SEARCH_ACCESS_CHUNK_MAX = 8192
 
-    subject = fields.Char("Subject")
-    body = fields.Html("Contents", sanitize_style=True)
-    scheduled_date = fields.Datetime("Scheduled Date", required=True)
+    subject = fields.Char()
+    body = fields.Html(
+        string="Contents",
+        sanitize_style=True,
+    )
+    scheduled_date = fields.Datetime(required=True)
     attachment_ids: IrAttachment = fields.Many2many(
-        "ir.attachment",
-        "scheduled_message_attachment_rel",
-        "scheduled_message_id",
-        "attachment_id",
+        comodel_name="ir.attachment",
+        relation="scheduled_message_attachment_rel",
+        column1="scheduled_message_id",
+        column2="attachment_id",
         string="Attachments",
         bypass_search_access=True,
     )
     composition_comment_option = fields.Selection(
-        [("reply_all", "Reply-All"), ("forward", "Forward")], string="Comment Options"
+        selection=[("reply_all", "Reply-All"), ("forward", "Forward")],
+        string="Comment Options",
     )
-    model = fields.Char("Related Document Model", required=True)
+    model = fields.Char(
+        string="Related Document Model",
+        required=True,
+    )
     res_id = fields.Many2oneReference(
-        "Related Document Id", model_field="model", required=True
+        model_field="model",
+        string="Related Document Id",
+        required=True,
     )
-    author_id: ResPartner = fields.Many2one("res.partner", "Author", required=True)
-    partner_ids: ResPartner = fields.Many2many("res.partner", string="Recipients")
+    author_id: ResPartner = fields.Many2one(
+        comodel_name="res.partner",
+        required=True,
+    )
+    partner_ids: ResPartner = fields.Many2many(
+        comodel_name="res.partner",
+        string="Recipients",
+    )
     is_note = fields.Boolean(
-        "Is a note", default=False, help="If the message will be posted as a Note."
+        string="Is a note",
+        default=False,
+        help="If the message will be posted as a Note.",
     )
-    notification_parameters = fields.Text("Notification parameters")
-    send_context = fields.Json("Sending Context")
+    notification_parameters = fields.Text(string="Notification parameters")
+    send_context = fields.Json(string="Sending Context")
 
     @api.constrains("model")
     def _check_model(self) -> None:
@@ -106,6 +130,12 @@ class MailScheduledMessage(models.Model):
                         "res_id": scheduled_message.id,
                     }
                 )
+        _debug.lifecycle(
+            "create",
+            count=len(scheduled_messages),
+            models=sorted({vals["model"] for vals in vals_list}),
+            dates=sorted(set(scheduled_messages.mapped("scheduled_date"))),
+        )
         if scheduled_messages:
             self.env.ref("mail.ir_cron_post_scheduled_message")._add_triggers(
                 set(scheduled_messages.mapped("scheduled_date"))
@@ -126,15 +156,6 @@ class MailScheduledMessage(models.Model):
         if self.env.is_superuser() or bypass_access:
             return super()._search(
                 domain, offset, limit, order, bypass_access=True, **kwargs
-            )
-
-        fnames = ("id", "model", "res_id")
-
-        def fetch(query: Query) -> list[tuple]:
-            return self.env.execute_query(
-                query.select(
-                    *[self._field_to_sql(self._table, fname) for fname in fnames]
-                )
             )
 
         def allowed(rows: list[tuple]) -> list[int]:
@@ -158,7 +179,7 @@ class MailScheduledMessage(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
+            fetch=prepare_column_fetcher(self, ("id", "model", "res_id")),
             allowed=allowed,
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,
@@ -183,11 +204,18 @@ class MailScheduledMessage(models.Model):
             model: self._get_postable_ids(model, res_ids)
             for model, res_ids in model_ids.items()
         }
-        return self.browse(
+        forbidden = self.browse(
             scheduled_message.id
             for scheduled_message in self.sudo()
             if scheduled_message.res_id not in postable_ids[scheduled_message.model]
         )
+        _debug.logic(
+            "documents_checked",
+            asked=len(self),
+            models=len(model_ids),
+            forbidden=len(forbidden),
+        )
+        return forbidden
 
     def _check_access(self, operation: str) -> tuple | None:
         result = super()._check_access(operation)
@@ -209,6 +237,7 @@ class MailScheduledMessage(models.Model):
                 )
             )
         res = super().write(vals)
+        _debug.lifecycle("write", scheduled=self.ids, fields=list(vals))
         if new_scheduled_date := vals.get("scheduled_date"):
             self.env.ref("mail.ir_cron_post_scheduled_message")._trigger(
                 fields.Datetime.to_datetime(new_scheduled_date)
@@ -276,10 +305,24 @@ class MailScheduledMessage(models.Model):
                     )
                 )
                 scheduled_message._message_created_hook(message)
+                _debug.lifecycle(
+                    "posted",
+                    scheduled=scheduled_message.id,
+                    model=scheduled_message.model,
+                    record=scheduled_message.res_id,
+                    message=message.id,
+                    creator=message_creator.id,
+                )
                 scheduled_message.unlink()
                 if auto_commit:
                     self.env.cr.commit()
-            except Exception:
+            except Exception as error:
+                _debug.logic(
+                    "post_failed",
+                    scheduled=scheduled_message.id,
+                    error=type(error).__name__,
+                    raised=raise_exception,
+                )
                 if raise_exception:
                     raise
                 _logger.info(
@@ -348,6 +391,7 @@ class MailScheduledMessage(models.Model):
     def _post_messages_cron(self, limit: int = 50) -> None:
         domain = [("scheduled_date", "<=", fields.Datetime.now())]
         messages_to_post = self.search(domain, limit=limit)
+        _debug.pipeline("cron_pass", due=len(messages_to_post), limit=limit)
         _logger.info("Posting %s scheduled messages", len(messages_to_post))
         messages_to_post.with_context(mail_notify_force_send=True)._post_message(
             raise_exception=False

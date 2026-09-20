@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 import requests
 import werkzeug.utils
 
-from odoo import _, http, modules
+from odoo import http, modules
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.filesystem import guess_mimetype
@@ -20,8 +20,8 @@ REQUEST_TIMEOUT = 10
 
 class Web_Unsplash(HTML_Editor):
     def _get_access_key(self):
-        return (
-            request.env["ir.config_parameter"].sudo().get_param("unsplash.access_key")
+        return request.env["credential.credential"]._get_system_secret(
+            "unsplash.access_key"
         )
 
     def _notify_download(self, url):
@@ -30,10 +30,12 @@ class Web_Unsplash(HTML_Editor):
                 not url.startswith("https://api.unsplash.com/photos/")
                 and not modules.module.current_test
             ):
-                raise ValueError(_("ERROR: Unknown Unsplash notify URL!"))
+                raise ValueError("ERROR: Unknown Unsplash notify URL!")
             access_key = self._get_access_key()
-            requests.get(
+            request.env["ir.egress"].request(
+                "GET",
                 url,
+                purpose="unsplash",
                 params=urlencode({"client_id": access_key}),
                 timeout=REQUEST_TIMEOUT,
             )
@@ -66,6 +68,9 @@ class Web_Unsplash(HTML_Editor):
 
         for key, value in unsplashurls.items():
             url = value.get("url")
+            if not url:
+                logger.error("ERROR: Unknown Unsplash URL!: %s", url)
+                continue
             try:
                 if (
                     not url.startswith(
@@ -74,9 +79,11 @@ class Web_Unsplash(HTML_Editor):
                     and not modules.module.current_test
                 ):
                     logger.error("ERROR: Unknown Unsplash URL!: %s", url)
-                    raise ValueError(_("ERROR: Unknown Unsplash URL!"))
+                    raise ValueError("ERROR: Unknown Unsplash URL!")
 
-                req = requests.get(url, timeout=REQUEST_TIMEOUT)
+                req = request.env["ir.egress"].request(
+                    "GET", url, purpose="unsplash", timeout=REQUEST_TIMEOUT
+                )
                 if req.status_code != requests.codes.ok:
                     continue
 
@@ -84,7 +91,7 @@ class Web_Unsplash(HTML_Editor):
 
                 image = image_process(image, verify_resolution=True)
                 mimetype = guess_mimetype(image)
-            except requests.exceptions.RequestException, UserError:
+            except requests.exceptions.RequestException, UserError, ValueError:
                 logger.exception("Failed to fetch or process Unsplash image")
                 continue
 
@@ -118,8 +125,10 @@ class Web_Unsplash(HTML_Editor):
                 return {"error": "no_access"}
             return {"error": "key_not_found"}
         post["client_id"] = access_key
-        response = requests.get(
+        response = request.env["ir.egress"].request(
+            "GET",
             "https://api.unsplash.com/search/photos/",
+            purpose="unsplash",
             params=urlencode(post),
             timeout=REQUEST_TIMEOUT,
         )
@@ -140,7 +149,7 @@ class Web_Unsplash(HTML_Editor):
             request.env["ir.config_parameter"].sudo().set_param(
                 "unsplash.app_id", post.get("appId")
             )
-            request.env["ir.config_parameter"].sudo().set_param(
+            request.env["credential.credential"]._set_system_secret(
                 "unsplash.access_key", post.get("key")
             )
             return True

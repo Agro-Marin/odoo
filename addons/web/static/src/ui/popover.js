@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-export { Popover } from "./popover/popover.js";
+export { getPopoverForTarget, Popover } from "./popover/popover.js";
 export { makePopover, usePopover } from "./popover/popover_hook.js";
 
 /**

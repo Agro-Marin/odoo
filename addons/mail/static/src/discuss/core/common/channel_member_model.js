@@ -5,7 +5,6 @@ import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { user } from "@web/core/user";
 const { DateTime } = luxon;
 
 export class ChannelMember extends Record {
@@ -153,13 +152,6 @@ export class ChannelMember extends Record {
         return (
             this.persona?.eq(message.author) || this.seen_message_id?.id >= message.id
         );
-    }
-    get lastSeenDt() {
-        return this.last_seen_dt
-            ? this.last_seen_dt.toLocaleString(DateTime.TIME_24_SIMPLE, {
-                  locale: user.lang,
-              })
-            : undefined;
     }
 }
 

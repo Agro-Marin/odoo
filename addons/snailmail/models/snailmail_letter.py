@@ -34,76 +34,99 @@ class SnailmailLetter(models.Model):
     _name = "snailmail.letter"
     _description = "Snailmail Letter"
 
-    user_id = fields.Many2one("res.users", "Sent by")
-    model = fields.Char("Model", required=True)
-    res_id = fields.Integer("Document ID", required=True)
-    partner_id = fields.Many2one("res.partner", string="Recipient", required=True)
-    company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Sent by",
+    )
+    model = fields.Char(required=True)
+    res_id = fields.Integer(
+        string="Document ID",
         required=True,
-        readonly=True,
+    )
+    partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Recipient",
+        required=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
         default=lambda self: self.env.company.id,
+        readonly=True,
+        required=True,
     )
     report_template = fields.Many2one(
-        "ir.actions.report", "Optional report to print and attach"
+        comodel_name="ir.actions.report",
+        string="Optional report to print and attach",
     )
 
     attachment_id = fields.Many2one(
-        "ir.attachment", string="Attachment", ondelete="cascade", index="btree_not_null"
+        comodel_name="ir.attachment",
+        index="btree_not_null",
+        ondelete="cascade",
     )
-    attachment_datas = fields.Binary("Document", related="attachment_id.datas")
-    attachment_fname = fields.Char("Attachment Filename", related="attachment_id.name")
-    color = fields.Boolean(
-        string="Color", default=lambda self: self.env.company.snailmail_color
+    attachment_datas = fields.Binary(
+        related="attachment_id.datas",
+        string="Document",
     )
+    attachment_fname = fields.Char(
+        related="attachment_id.name",
+        string="Attachment Filename",
+    )
+    color = fields.Boolean(default=lambda self: self.env.company.snailmail_color)
     cover = fields.Boolean(
-        string="Cover Page", default=lambda self: self.env.company.snailmail_cover
+        string="Cover Page",
+        default=lambda self: self.env.company.snailmail_cover,
     )
     duplex = fields.Boolean(
-        string="Both side", default=lambda self: self.env.company.snailmail_duplex
+        string="Both side",
+        default=lambda self: self.env.company.snailmail_duplex,
     )
     state = fields.Selection(
-        [
+        selection=[
             ("pending", "In Queue"),
             ("sent", "Sent"),
             ("error", "Error"),
             ("canceled", "Cancelled"),
         ],
-        "Status",
-        readonly=True,
-        copy=False,
+        string="Status",
         default="pending",
+        copy=False,
+        readonly=True,
         required=True,
         help="When a letter is created, the status is 'Pending'.\n"
         "If the letter is correctly sent, the status goes in 'Sent',\n"
         "If not, it will got in state 'Error' and the error message will be displayed in the field 'Error Message'.",
     )
     error_code = fields.Selection(
-        [(err_code, err_code) for err_code in ERROR_CODES], string="Error"
+        selection=[(err_code, err_code) for err_code in ERROR_CODES],
+        string="Error",
     )
-    info_msg = fields.Html("Information")
+    info_msg = fields.Html(string="Information")
 
     reference = fields.Char(
         string="Related Record",
         compute="_compute_reference",
-        readonly=True,
         store=False,
+        readonly=True,
     )
 
     message_id = fields.Many2one(
-        "mail.message", string="Snailmail Status Message", index="btree_not_null"
+        comodel_name="mail.message",
+        string="Snailmail Status Message",
+        index="btree_not_null",
     )
     notification_ids = fields.One2many(
-        "mail.notification", "letter_id", "Notifications"
+        comodel_name="mail.notification",
+        inverse_name="letter_id",
+        string="Notifications",
     )
 
-    street = fields.Char("Street")
-    street2 = fields.Char("Street2")
-    zip = fields.Char("Zip")
-    city = fields.Char("City")
-    state_id = fields.Many2one("res.country.state", string="State")
-    country_id = fields.Many2one("res.country", string="Country")
+    street = fields.Char()
+    street2 = fields.Char()
+    zip = fields.Char()
+    city = fields.Char()
+    state_id = fields.Many2one(comodel_name="res.country.state")
+    country_id = fields.Many2one(comodel_name="res.country")
 
     @api.depends("attachment_id", "partner_id")
     def _compute_display_name(self):
@@ -491,7 +514,7 @@ class SnailmailLetter(models.Model):
         params = self._snailmail_create("print")
         try:
             response = iap_tools.iap_jsonrpc(
-                endpoint + PRINT_ENDPOINT, params=params, timeout=timeout
+                endpoint + PRINT_ENDPOINT, params=params, timeout=timeout, env=self.env
             )
         except AccessError as ae:
             for doc in params["documents"]:

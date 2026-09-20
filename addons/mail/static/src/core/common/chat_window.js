@@ -11,6 +11,7 @@ import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { useHover, useMessageScrolling } from "@mail/utils/common/hooks";
 import {
     Component,
+    onWillRender,
     toRaw,
     useChildSubEnv,
     useRef,
@@ -20,10 +21,14 @@ import {
 import { Dropdown } from "@web/components/dropdown";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("mail.chat_window");
+
 /**
  * @typedef {Object} Props
  * @property {import("models").ChatWindow} chatWindow
@@ -45,6 +50,7 @@ export class ChatWindow extends Component {
     static template = "mail.ChatWindow";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         useSubEnv({ inChatWindow: true });
         this.store = useService("mail.store");
@@ -58,6 +64,7 @@ export class ChatWindow extends Component {
         this.ui = useService("ui");
         this.contentRef = useRef("content");
         this.threadActions = useThreadActions({ thread: () => this.thread });
+        onWillRender(() => (this.partitionedActions = this.threadActions.partition));
         this.actionsMenuButtonHover = useHover("actionsMenuButton");
         this.parentChannelHover = useHover("parentChannel");
         this.isMobileOS = isMobileOS();
@@ -87,11 +94,11 @@ export class ChatWindow extends Component {
     }
 
     get hasActionsMenu() {
+        const { group, other, quick } = this.partitionedActions;
         return (
-            this.partitionedActions.group.length > 0 ||
-            this.partitionedActions.other.length > 0 ||
-            (this.ui.isSmall && this.partitionedActions.quick.length > 2) ||
-            (!this.ui.isSmall && this.partitionedActions.quick.length > 3)
+            group.length > 0 ||
+            other.length > 0 ||
+            quick.length > (this.ui.isSmall ? 2 : 3)
         );
     }
 
@@ -122,6 +129,10 @@ export class ChatWindow extends Component {
     onKeydown(ev) {
         const chatWindow = toRaw(this.props.chatWindow);
         if (ev.key === "Escape" && this.threadActions.activeAction) {
+            log.logic("Escape closes active action", () => ({
+                thread: chatWindow.thread?.localId,
+                action: this.threadActions.activeAction.id,
+            }));
             this.threadActions.activeAction.close();
             ev.stopPropagation();
             return;
@@ -151,6 +162,10 @@ export class ChatWindow extends Component {
                 const index = this.store.chatHub.opened.findIndex((cw) =>
                     cw.eq(chatWindow),
                 );
+                log.logic("tab to next chat window", () => ({
+                    index,
+                    opened: this.store.chatHub.opened.length,
+                }));
                 if (index === this.store.chatHub.opened.length - 1) {
                     this.store.chatHub.opened[0].focus({ jumpToNewMessage: true });
                 } else {
@@ -201,6 +216,7 @@ export class ChatWindow extends Component {
     /** @param {string} name */
     async renameThread(name) {
         const thread = toRaw(this.thread);
+        log.logic("renameThread", () => ({ thread: thread.localId, name }));
         await thread.rename(name);
         this.state.editingName = false;
     }
@@ -212,6 +228,9 @@ export class ChatWindow extends Component {
     /** @param {string} name */
     async renameGuest(name) {
         const newName = name.trim();
+        log.logic("renameGuest", () => ({
+            changed: this.store.self.name !== newName,
+        }));
         if (this.store.self.name !== newName) {
             await this.store.self_guest?.updateGuestName(newName);
         }

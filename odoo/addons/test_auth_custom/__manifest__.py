@@ -7,5 +7,4 @@
     "depends": [
         "base",
     ],
-    "installable": True,
 }

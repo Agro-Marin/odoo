@@ -1,13 +1,18 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
     document_ids = fields.One2many(
-        "document.document", "partner_id", string="Documents"
+        comodel_name="document.document",
+        inverse_name="partner_id",
+        string="Documents",
     )
-    document_count = fields.Integer("Document Count", compute="_compute_document_count")
+    document_count = fields.Integer(compute="_compute_document_count")
 
     def _compute_document_count(self) -> None:
         document_count_dict = dict(
@@ -18,6 +23,7 @@ class ResPartner(models.Model):
             )
         )
 
+        _debug.perf.count("partner_document_counts", partners=self)
         for record in self:
             record.document_count = document_count_dict.get(record, 0)
 

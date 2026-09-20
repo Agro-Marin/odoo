@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Timer widget -->
     <template id="display_timer_widget" name="Display Timer Widget">
         <t
             t-set="pre_countdown_display"

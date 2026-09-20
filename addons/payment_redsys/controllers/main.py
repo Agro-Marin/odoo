@@ -8,6 +8,7 @@ from werkzeug.exceptions import Forbidden
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
 
 _logger = get_payment_logger(__name__)
@@ -35,7 +36,10 @@ class RedsysController(http.Controller):
             ._search_by_reference("redsys", data)
         )
         if tx_sudo:
-            self._check_signature(encoded_data, tx_sudo)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id,
+                lambda: self._check_signature(encoded_data, tx_sudo),
+            )
             tx_sudo._process("redsys", data)
         return request.redirect("/payment/status")
 
@@ -59,7 +63,10 @@ class RedsysController(http.Controller):
             ._search_by_reference("redsys", data)
         )
         if tx_sudo:
-            self._check_signature(encoded_data, tx_sudo)
+            payment_utils.admit_notification(
+                tx_sudo.provider_id,
+                lambda: self._check_signature(encoded_data, tx_sudo),
+            )
             tx_sudo._process("redsys", data)
         return ""
 
@@ -76,14 +83,14 @@ class RedsysController(http.Controller):
         received_signature = payment_data.get("Ds_Signature")
         if not received_signature:
             _logger.warning("Received notification with missing signature.")
-            raise Forbidden()
+            raise Forbidden
 
         # Compare the received signature with the expected signature computed from the payment data.
-        expected_signature = tx_sudo.provider_id._redsys_calculate_signature(
+        expected_signature = tx_sudo.provider_id._get_redsys_signature(
             payment_data.get("Ds_MerchantParameters"),
             tx_sudo.reference,
             tx_sudo.provider_id.redsys_secret_key,
         )
         if not hmac.compare_digest(received_signature, expected_signature):
             _logger.warning("Received notification with invalid signature.")
-            raise Forbidden()
+            raise Forbidden

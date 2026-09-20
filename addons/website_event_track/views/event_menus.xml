@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- MAIN ITEMS -->
         <menuitem
             id="menu_event_track"
             name="Tracks"
@@ -10,7 +9,6 @@
             action="action_event_track"
             sequence="40"
             groups="base.group_no_one" />
-        <!-- CONFIGURATION -->
         <menuitem
             id="event_track_stage_menu"
             name="Track Stages"

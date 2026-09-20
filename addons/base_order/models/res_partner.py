@@ -1,7 +1,10 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 _DAYS_NO_ORDER_SENTINEL = 9999
+
+_debug = DebugLog(__name__)
 
 
 class ResPartner(models.Model):
@@ -14,14 +17,14 @@ class ResPartner(models.Model):
         "configured on the company.",
     )
     days_since_last_order = fields.Integer(
-        string="Days Since Last Order",
         compute="_compute_days_since_last_order",
         help="Number of days since this partner's last order.",
     )
 
-    def _compute_order_count(self, order_model, count_field, group, domain=None):
+    def _update_order_count(self, order_model, count_field, group, domain=None):
         self[count_field] = 0
         if not self.env.user.has_group(group):
+            _debug.logic("order_count_skipped", field=count_field, reason="no_group")
             return
 
         all_partners = self.with_context(active_test=False).search_fetch(
@@ -44,6 +47,13 @@ class ResPartner(models.Model):
         )
         self_ids = set(self._ids)
 
+        _debug.perf.count(
+            "partner_order_count",
+            model=order_model,
+            partners=len(self),
+            descendants=len(all_partners),
+            rows=len(order_groups),
+        )
         for partner, count in order_groups:
             while partner:
                 if partner.id in self_ids:
@@ -97,6 +107,9 @@ class ResPartner(models.Model):
             self._get_order_activity_sources(),
         )
         if not partners or not sources:
+            _debug.logic(
+                "recent_orders_skipped", partners=partners, sources=len(sources)
+            )
             return
 
         cutoff_date = self.env.company._get_order_cycle_cutoff_date()
@@ -123,6 +136,12 @@ class ResPartner(models.Model):
             for partner, count in order_groups:
                 counts[partner.id] = counts.get(partner.id, 0) + count
 
+        _debug.perf.count(
+            "recent_orders",
+            partners=len(partners),
+            sources=len(sources),
+            rows=len(counts),
+        )
         for partner in partners:
             partner.recent_orders_count = counts.get(partner.id, 0)
 
@@ -134,6 +153,7 @@ class ResPartner(models.Model):
             self._get_order_activity_sources(),
         )
         if not partners or not sources:
+            _debug.logic("last_order_skipped", partners=partners, sources=len(sources))
             return
 
         last_dates = {}
@@ -159,6 +179,12 @@ class ResPartner(models.Model):
                     last_dates[partner.id] = last_date
 
         today = fields.Date.today()
+        _debug.perf.count(
+            "days_since_last_order",
+            partners=len(partners),
+            sources=len(sources),
+            rows=len(last_dates),
+        )
         for partner in partners:
             last_date = last_dates.get(partner.id)
             partner.days_since_last_order = (

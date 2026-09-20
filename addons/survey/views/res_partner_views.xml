@@ -15,12 +15,12 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='anchor_buttons_learning']" position="before">
                 <button
-                    class="oe_stat_button"
+                    name="action_view_certifications"
                     type="object"
                     icon="fa-trophy"
-                    name="action_view_certifications"
                     groups="survey.group_survey_user"
-                    invisible="certifications_count == 0 or is_company">
+                    invisible="certifications_count == 0 or is_company"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="certifications_count" />
@@ -36,12 +36,12 @@
                     </div>
                 </button>
                 <button
-                    class="oe_stat_button"
+                    name="action_view_certifications"
                     type="object"
                     icon="fa-trophy"
-                    name="action_view_certifications"
                     groups="survey.group_survey_user"
-                    invisible="certifications_company_count == 0 or not is_company">
+                    invisible="certifications_company_count == 0 or not is_company"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="certifications_company_count" />

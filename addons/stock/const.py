@@ -1,16 +1,3 @@
-import operator as py_operator
-
-PY_OPERATORS = {
-    "<": py_operator.lt,
-    ">": py_operator.gt,
-    "<=": py_operator.le,
-    ">=": py_operator.ge,
-    "=": py_operator.eq,
-    "!=": py_operator.ne,
-    "in": lambda elem, container: elem in container,
-    "not in": lambda elem, container: elem not in container,
-}
-
 QUANTITY_FIELDS = (
     "qty_available",
     "qty_free",
@@ -45,6 +32,9 @@ BLOCK_TYPE_SELECTION = [
 
 INCOMING_BLOCK_TYPES = ("soft_in", "soft_both", "hard")
 OUTGOING_BLOCK_TYPES = ("soft_out", "soft_both", "hard")
+
+PARTNER_LOCATION_USAGES = ("supplier", "customer")
+PARTNER_USAGE_BY_PICKING_CODE = {"incoming": "supplier", "outgoing": "customer"}
 
 BLOCKABLE_USAGES = ("internal",)
 

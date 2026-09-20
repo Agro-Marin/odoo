@@ -20,15 +20,12 @@ export class ProductComparison extends Interaction {
 
     setup() {
         this.bus = new EventBus();
-        // Mount the ProductComparisonBottomBar on pages with comparison functionality
         this.mountComponent(this.el, ProductComparisonBottomBar, {
             bus: this.bus,
         });
     }
 
     /**
-     * Add a product to the comparison.
-     *
      * @param {Event} ev
      */
     async addProduct(ev) {
@@ -56,8 +53,6 @@ export class ProductComparison extends Interaction {
     }
 
     /**
-     * Enable/disable the "add to comparison" button based on the selected variant.
-     *
      * @param {Event} ev
      */
     onChangeVariant(ev) {
@@ -76,8 +71,6 @@ export class ProductComparison extends Interaction {
     }
 
     /**
-     * Remove a product from the comparison.
-     *
      * @param {Event} ev
      */
     removeProduct(ev) {
@@ -89,15 +82,8 @@ export class ProductComparison extends Interaction {
         redirect(productIds.length ? comparisonUrl : "/shop");
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     /**
-     * Check whether the maximum number of products in the comparison has been reached, and if so,
-     * show a warning.
-     *
-     * @return {boolean} Whether the maximum number of products in the comparison has been reached.
+     * @return {boolean}
      */
     _checkMaxComparisonProducts() {
         if (
@@ -118,10 +104,8 @@ export class ProductComparison extends Interaction {
     }
 
     /**
-     * Check whether the product is already in the comparison, and if so, show a warning.
-     *
-     * @param productId The ID of the product to check.
-     * @return {boolean} Whether the product is already in the comparison.
+     * @param productId
+     * @return {boolean}
      */
     _checkProductAlreadyInComparison(productId) {
         if (comparisonUtils.getComparisonProductIds().includes(productId)) {

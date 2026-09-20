@@ -12,7 +12,7 @@
                     string="myDATA"
                     invisible="'GR' not in fiscal_country_codes">
                     <field name="l10n_gr_edi_preferred_classification_ids">
-                        <list editable="bottom" default_order="priority desc">
+                        <list default_order="priority desc" editable="bottom">
                             <field name="priority" widget="handle" />
                             <field
                                 name="l10n_gr_edi_available_inv_type"

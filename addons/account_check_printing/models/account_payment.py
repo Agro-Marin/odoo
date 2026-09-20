@@ -11,18 +11,17 @@ class AccountPayment(models.Model):
 
     check_amount_in_words = fields.Char(
         string="Amount in Words",
-        store=True,
         compute="_compute_check_amount_in_words",
+        store=True,
     )
     check_manual_sequencing = fields.Boolean(
         related="journal_id.check_manual_sequencing"
     )
     check_number = fields.Char(
-        string="Check Number",
-        store=True,
-        copy=False,
         compute="_compute_check_number",
         inverse="_inverse_check_number",
+        store=True,
+        copy=False,
         help="The selected journal is configured to print check numbers. If your pre-printed check paper already has numbers "
         "or if the current numbering is wrong, you can change it in the journal configuration page.",
     )
@@ -31,7 +30,6 @@ class AccountPayment(models.Model):
 
     check_layout_available = fields.Boolean(
         string="Has Check Layout",
-        store=False,
         default=lambda self: (
             len(
                 self.env["res.company"]
@@ -40,6 +38,7 @@ class AccountPayment(models.Model):
             )
             > 1
         ),
+        store=False,
     )
 
     @api.depends("payment_channel_id.code", "check_number")
@@ -435,3 +434,18 @@ class AccountPayment(models.Model):
                 i += num_stub_lines
 
         return stub_pages
+
+    def _get_micr_line(self):
+        """Generate MICR line to be printed on blank checks.
+        A - ⑆ (transit: used to delimit a bank code),
+        B - ⑇ (amount: used to delimit a transaction amount),
+        C - ⑈ (on - us: used to delimit a customer account number),
+        D - ⑉ (dash: used to delimit parts of numbers—e.g., routing numbers or account numbers)."""
+        micr_check_number = self.check_number or "000000"
+        micr_bank_routing = (
+            self.journal_id.bank_account_id.clearing_number or "000000000"
+        )
+        micr_bank_acc_number = self.journal_id.bank_acc_number or "000000000"
+        return (
+            f"C{micr_check_number}C   A{micr_bank_routing}A   {micr_bank_acc_number}C"
+        )

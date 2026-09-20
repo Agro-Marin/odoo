@@ -161,7 +161,8 @@ export class GridLayoutPlugin extends Plugin {
     sendGridItemToBack() {
         const rowEl = this.overlayTarget.parentNode;
         const columnEls = [...rowEl.children].filter((el) => el !== this.overlayTarget);
-        const minZindex = Math.min(0, ...columnEls.map((el) => el.style.zIndex));
+        const zIndexes = columnEls.map((el) => Number(el.style.zIndex) || 0);
+        const minZindex = zIndexes.length ? Math.min(...zIndexes) : 0;
 
         // While the minimum z-index is not 0, it is OK to decrease it and to
         // set the column to it. Otherwise, the column is set to 0 and the

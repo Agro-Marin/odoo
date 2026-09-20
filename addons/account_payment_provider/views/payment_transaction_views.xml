@@ -10,13 +10,13 @@
                 <button
                     name="action_view_invoices"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-money"
-                    invisible="invoices_count == 0">
+                    invisible="invoices_count == 0"
+                    class="oe_stat_button">
                     <field
                         name="invoices_count"
-                        widget="statinfo"
-                        string="Invoice(s)" />
+                        string="Invoice(s)"
+                        widget="statinfo" />
                 </button>
             </button>
             <field name="reference" position="after">

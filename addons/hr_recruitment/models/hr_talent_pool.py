@@ -7,31 +7,37 @@ class HrTalentPool(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.color"]
 
     active = fields.Boolean(default=True)
-    name = fields.Char(string="Title", required=True, translate=True)
+    name = fields.Char(
+        string="Title",
+        translate=True,
+        required=True,
+    )
     company_id = fields.Many2one(
-        "res.company",
-        string="Company",
+        comodel_name="res.company",
         default=lambda self: self.env.company,
         tracking=True,
     )
     pool_manager = fields.Many2one(
-        "res.users",
-        "Pool Manager",
+        comodel_name="res.users",
         default=lambda self: self.env.user,
         domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         tracking=True,
     )
     talent_ids = fields.Many2many(
-        comodel_name="hr.applicant", string="Talent", groups="base.group_user"
+        comodel_name="hr.applicant",
+        groups="base.group_user",
     )
     no_of_talents = fields.Integer(
-        compute="_compute_no_of_talents",
         string="# Talents",
+        compute="_compute_no_of_talents",
         help="The number of talents in this talent pool.",
     )
     description = fields.Html(string="Talent Pool Description")
-    color = fields.Integer(string="Color", default=lambda self: self._default_color())
-    categ_ids = fields.Many2many(comodel_name="hr.applicant.category", string="Tags")
+    color = fields.Integer(default=lambda self: self._default_color())
+    categ_ids = fields.Many2many(
+        comodel_name="hr.applicant.category",
+        string="Tags",
+    )
 
     def _compute_no_of_talents(self):
         talents = self.env["hr.applicant"]._read_group(

@@ -23,6 +23,5 @@
             "barcodes/static/tests/barcode_test_helpers.js",
         ],
     },
-    "installable": True,
     "post_init_hook": "_update_default_nomenclature",
 }

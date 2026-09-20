@@ -3,8 +3,11 @@ from typing import Any
 
 from odoo import api, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
+
+_debug = DebugLog(__name__)
 
 
 class MixinStoreSync(models.AbstractModel):
@@ -110,6 +113,13 @@ class MixinStoreSync(models.AbstractModel):
             ]
             if not diff:
                 continue
+            _debug.pipeline(
+                "sync_diff",
+                model=record._name,
+                record=record.id,
+                subchannel=subchannel,
+                fields=[self._get_store_field_name(field) for field in diff],
+            )
             diff += self._sync_diff_extra_fields(record, diff)
             Store(bus_channel=record._bus_channel(), bus_subchannel=subchannel).add(
                 record, diff

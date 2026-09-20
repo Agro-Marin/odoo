@@ -725,7 +725,7 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             ]
         )
 
-        self.env["resource.calendar.leaves"].create(
+        self.env["resource.schedule.exception"].create(
             [
                 {
                     "name": "Public Holiday for company 0",
@@ -733,7 +733,6 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                     "date_from": datetime(2019, 5, 27, 0, 0, 0),
                     "date_to": datetime(2019, 5, 29, 23, 0, 0),
                     "resource_id": False,
-                    "time_type": "leave",
                 }
             ]
         )

@@ -10,7 +10,6 @@ import {
     VERTICAL_ALIGNMENT,
 } from "@html_builder/utils/option_sequence";
 
-// Gives names to website options sequence.
 const [LAYOUT, ...__DETECT_ERROR_WEBSITE_0__] = splitBetween(
     SNIPPET_SPECIFIC_AFTER,
     LAYOUT_COLUMN,

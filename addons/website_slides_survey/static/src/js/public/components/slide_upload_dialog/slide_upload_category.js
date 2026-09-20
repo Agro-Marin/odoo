@@ -44,10 +44,6 @@ patch(SlideUploadCategory.prototype, {
         return isFormValid;
     },
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     onCertificationSelect(value) {
         this.state.choices.certificationId = value;
         this.state.form.slideName = this.state.choices.certifications.find(
@@ -55,10 +51,6 @@ patch(SlideUploadCategory.prototype, {
         ).label;
         this.state.showCertificationRequiredError = false;
     },
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
 
     _getSelectMenuValues() {
         const result = super._getSelectMenuValues();

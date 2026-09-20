@@ -109,7 +109,8 @@ def _put_cache(field, rec, value):
 
 
 def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
-    with model_test_env(GHost, GChild, GCurrency) as env:
+    # the test plants cache values: no cache-against-rows check at the end
+    with model_test_env(GHost, GChild, GCurrency, check_cache=False) as env:
         host, *_ = _seed(env)
         for fname, samples in _SCALAR_DIFFERENTIAL.items():
             field = host._fields[fname]
@@ -127,7 +128,8 @@ def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
 
 
 def test_many2one_fastpath_matches_canonical_on_cache_hit():
-    with model_test_env(GHost, GChild, GCurrency) as env:
+    # the test plants cache values: no cache-against-rows check at the end
+    with model_test_env(GHost, GChild, GCurrency, check_cache=False) as env:
         host, _cur_a, cur_b = _seed(env)
         field = host._fields["f_m2o"]
         fast = type(field).__get__
@@ -141,7 +143,8 @@ def test_many2one_fastpath_matches_canonical_on_cache_hit():
 
 
 def test_html_fastpath_matches_canonical_on_normal_hit():
-    with model_test_env(GHost, GChild, GCurrency) as env:
+    # the test plants cache values: no cache-against-rows check at the end
+    with model_test_env(GHost, GChild, GCurrency, check_cache=False) as env:
         host, *_ = _seed(env)
         field = host._fields["f_html"]
         fast = type(field).__get__
@@ -270,8 +273,10 @@ def test_acl_preamble_bypassed_for_superuser_even_when_grouped():
 def test_acl_preamble_allows_when_has_field_access_true():
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
+        child_ids = host.child_ids._ids
         host = host.with_env(env(user=2, su=False))
         assert host.env.su is False
+        host._fields["child_ids"]._update_cache(host, child_ids)
         spy = _AclSpy(type(host))
         spy.allow = True
         try:
@@ -362,7 +367,8 @@ def test_id_field_invariants():
 
 
 def test_pending_in_cache_is_never_returned_protected_yields_falsy():
-    with model_test_env(GHost, GChild, GCurrency) as env:
+    # the test plants cache values: no cache-against-rows check at the end
+    with model_test_env(GHost, GChild, GCurrency, check_cache=False) as env:
         host = env["g.host"].create({"f_int": 5})
         field = host._fields["f_int"]
         _put_cache(field, host, PENDING)
@@ -395,11 +401,11 @@ def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
         assert field.is_stored_computed
         assert type(field).__get__(field, host) == 4
         _put_cache(field, host, PENDING)
-        env._core.schedule(field, [host.id])
+        env.core.schedule(field, [host.id])
         got = type(field).__get__(field, host)
         assert got is not PENDING
         assert got == 4
-        assert not env._core.has_pending_field(field)
+        assert not env.core.has_pending_field(field)
 
 
 def test_pending_evicted_for_a_scalar_read():

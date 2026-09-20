@@ -5,25 +5,25 @@ class CrmLead(models.Model):
     _inherit = "crm.lead"
 
     event_lead_rule_id = fields.Many2one(
-        "event.lead.rule",
+        comodel_name="event.lead.rule",
         string="Registration Rule",
-        help="Rule that created this lead",
         index="btree_not_null",
+        help="Rule that created this lead",
     )
     event_id = fields.Many2one(
-        "event.event",
+        comodel_name="event.event",
         string="Source Event",
-        help="Event triggering the rule that created this lead",
         index="btree_not_null",
+        help="Event triggering the rule that created this lead",
     )
     registration_ids = fields.Many2many(
-        "event.registration",
+        comodel_name="event.registration",
         string="Source Registrations",
         groups="event.group_event_registration_desk",
         help="Registrations triggering the rule that created this lead",
     )
     registration_count = fields.Count(
-        "registration_ids",
+        count_of="registration_ids",
         string="# Registrations",
         groups="event.group_event_registration_desk",
         help="Counter for the registrations linked to this lead",

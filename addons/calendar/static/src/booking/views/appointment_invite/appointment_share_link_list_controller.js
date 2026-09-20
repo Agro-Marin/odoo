@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ListController, listView } from "@web/views/list";
 import { FormViewDialog } from "@web/views/view_dialogs";

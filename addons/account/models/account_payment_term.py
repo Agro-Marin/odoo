@@ -5,8 +5,11 @@ from markupsafe import Markup
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare
 from odoo.tools import date_utils, format_date, formatLang
+
+_debug = DebugLog(__name__)
 
 
 class AccountPaymentTerm(models.Model):
@@ -30,24 +33,40 @@ class AccountPaymentTerm(models.Model):
     def _default_example_date(self):
         return self.env.context.get("example_date") or fields.Date.today()
 
-    name = fields.Char(string="Payment Terms", translate=True, required=True)
+    name = fields.Char(
+        string="Payment Terms",
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(
         default=True,
         help="If the active field is set to False, it will allow you to hide the payment terms without removing it.",
     )
-    note = fields.Html(string="Description on the Invoice", translate=True)
-    line_ids = fields.One2many(
-        "account.payment.term.line",
-        "payment_id",
-        string="Terms",
-        copy=True,
-        default=_default_line_ids,
+    note = fields.Html(
+        string="Description on the Invoice",
+        translate=True,
     )
-    company_id = fields.Many2one("res.company", string="Company")
-    sequence = fields.Integer(required=True, default=10)
-    currency_id = fields.Many2one("res.currency", compute="_compute_currency_id")
+    line_ids = fields.One2many(
+        comodel_name="account.payment.term.line",
+        inverse_name="payment_id",
+        string="Terms",
+        default=_default_line_ids,
+        copy=True,
+    )
+    company_id = fields.Many2one(comodel_name="res.company")
+    sequence = fields.Integer(
+        default=10,
+        required=True,
+    )
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        compute="_compute_currency_id",
+    )
 
-    display_on_invoice = fields.Boolean(string="Show installment dates", default=True)
+    display_on_invoice = fields.Boolean(
+        string="Show installment dates",
+        default=True,
+    )
     example_amount = fields.Monetary(
         currency_field="currency_id",
         default=_default_example_amount,
@@ -62,33 +81,34 @@ class AccountPaymentTerm(models.Model):
         readonly=True,
     )
     example_date = fields.Date(
-        string="Date example", default=_default_example_date, store=False
+        string="Date example",
+        default=_default_example_date,
+        store=False,
     )
     example_preview = fields.Html(compute="_compute_example_previews")
     example_preview_discount = fields.Html(compute="_compute_example_previews")
 
     discount_percentage = fields.Float(
         string="Discount %",
-        help="Early Payment Discount granted for this payment term",
         default=2.0,
+        help="Early Payment Discount granted for this payment term",
     )
     discount_days = fields.Integer(
-        string="Discount Days",
-        help="Number of days before the early payment proposition expires",
         default=10,
+        help="Number of days before the early payment proposition expires",
     )
     early_pay_discount_computation = fields.Selection(
-        [
+        selection=[
             ("included", "On early payment"),
             ("excluded", "Never"),
             ("mixed", "Always (upon invoice)"),
         ],
         string="Cash Discount Tax Reduction",
-        readonly=False,
-        store=True,
         compute="_compute_early_pay_discount_computation",
+        store=True,
+        readonly=False,
     )
-    early_discount = fields.Boolean(string="Early Discount")
+    early_discount = fields.Boolean()
     is_immediate = fields.Boolean(
         string="Immediate Payment Term",
         compute="_compute_is_immediate",
@@ -174,6 +194,7 @@ class AccountPaymentTerm(models.Model):
         "discount_days",
     )
     @api.depends_context("lang")
+    @_debug.perf.timed
     def _compute_example_previews(self):
         for record in self:
             currency = record.currency_id
@@ -199,9 +220,15 @@ class AccountPaymentTerm(models.Model):
                 }
 
             if not record.line_ids:
+                _debug.logic(
+                    "example_preview_skipped",
+                    term=record,
+                    reason="no_lines",
+                    early_discount=record.early_discount,
+                )
                 continue
 
-            terms = record._compute_terms(
+            terms = record._get_terms(
                 date_ref=date_ref,
                 currency=currency,
                 company=record.company_id or self.env.company,
@@ -231,6 +258,12 @@ class AccountPaymentTerm(models.Model):
                     }
                 )
             record.example_preview = example_preview
+            _debug.pipeline(
+                "example_preview_built",
+                term=record,
+                early_discount=record.early_discount,
+                installments=len(terms.get("line_ids") or ()),
+            )
 
     @api.model
     def _get_amount_by_date(self, terms):
@@ -246,6 +279,7 @@ class AccountPaymentTerm(models.Model):
     @api.constrains(
         "line_ids", "early_discount", "discount_percentage", "discount_days"
     )
+    @_debug.perf.timed
     def _check_lines(self):
         precision = self._get_percent_precision()
         for terms in self:
@@ -253,22 +287,35 @@ class AccountPaymentTerm(models.Model):
                 line.value_amount for line in terms.line_ids if line.value == "percent"
             )
             if float_compare(total_percent, 100.0, precision_digits=precision) != 0:
+                _debug.logic(
+                    "term_rejected",
+                    term=terms,
+                    reason="percent_total",
+                    total_percent=total_percent,
+                )
                 raise ValidationError(
                     _(
                         "The Payment Term must have at least one percent line and the sum of the percent must be 100%."
                     )
                 )
             if len(terms.line_ids) > 1 and terms.early_discount:
+                _debug.logic(
+                    "term_rejected", term=terms, reason="early_discount_multi_line"
+                )
                 raise ValidationError(
                     _(
                         "The Early Payment Discount functionality can only be used with payment terms using a single 100% line. "
                     )
                 )
             if terms.early_discount and terms.discount_percentage <= 0.0:
+                _debug.logic(
+                    "term_rejected", term=terms, reason="early_discount_percentage"
+                )
                 raise ValidationError(
                     _("The Early Payment Discount must be strictly positive.")
                 )
             if terms.early_discount and terms.discount_days <= 0:
+                _debug.logic("term_rejected", term=terms, reason="early_discount_days")
                 raise ValidationError(
                     _("The Early Payment Discount days must be strictly positive.")
                 )
@@ -294,7 +341,8 @@ class AccountPaymentTerm(models.Model):
             company_currency.round(foreign_amount / rate) if rate else 0.0
         )
 
-    def _compute_terms(
+    @_debug.perf.timed
+    def _get_terms(
         self,
         *,
         date_ref,
@@ -372,10 +420,22 @@ class AccountPaymentTerm(models.Model):
             residual_amount_currency -= term_vals["foreign_amount"]
             pay_term["line_ids"].append(term_vals)
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "_get_terms",
+                term=self,
+                ref=date_ref,
+                total=total_amount_currency,
+                discount=pay_term["discount_percentage"],
+                discount_date=pay_term["discount_date"],
+                terms=[(t["date"], t["foreign_amount"]) for t in pay_term["line_ids"]],
+            )
         return pay_term
 
     @api.ondelete(at_uninstall=False)
+    @_debug.perf.timed
     def _unlink_except_referenced_terms(self):
+        _debug.lifecycle("_unlink_except_referenced_terms", records=self)
         if self.env["account.move"].search_count(
             [("invoice_payment_term_id", "in", self.ids)], limit=1
         ):
@@ -391,7 +451,9 @@ class AccountPaymentTerm(models.Model):
             return False
         return date_ref + relativedelta(days=self.discount_days)
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         return [
@@ -411,30 +473,33 @@ class AccountPaymentTermLine(models.Model):
     _description = "Payment Terms Line"
     _order = "sequence, id"
 
-    sequence = fields.Integer(required=True, default=10)
-    value = fields.Selection(
-        [("percent", "Percent"), ("fixed", "Fixed")],
+    sequence = fields.Integer(
+        default=10,
         required=True,
+    )
+    value = fields.Selection(
+        selection=[("percent", "Percent"), ("fixed", "Fixed")],
         default="percent",
+        required=True,
         help="Select here the kind of valuation related to this payment terms line.",
     )
     value_amount = fields.Float(
         string="Due",
         digits="Payment Terms",
-        help="For percent enter a ratio between 0-100.",
         compute="_compute_value_amount",
         store=True,
         readonly=False,
+        help="For percent enter a ratio between 0-100.",
     )
     delay_type = fields.Selection(
-        [
+        selection=[
             ("days_after", "Days after invoice date"),
             ("days_after_end_of_month", "Days after end of month"),
             ("days_after_end_of_next_month", "Days after end of next month"),
             ("days_end_of_month_on_the", "Days end of month on the"),
         ],
-        required=True,
         default="days_after",
+        required=True,
     )
     display_days_next_month = fields.Boolean(compute="_compute_display_days_next_month")
     days_next_month = fields.Integer(
@@ -442,13 +507,16 @@ class AccountPaymentTermLine(models.Model):
         default=10,
     )
     nb_days = fields.Integer(
-        string="Days", readonly=False, store=True, compute="_compute_nb_days"
+        string="Days",
+        compute="_compute_nb_days",
+        store=True,
+        readonly=False,
     )
     payment_id = fields.Many2one(
-        "account.payment.term",
+        comodel_name="account.payment.term",
         string="Payment Terms",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
 
@@ -499,6 +567,7 @@ class AccountPaymentTermLine(models.Model):
         return due_date + relativedelta(days=self.nb_days)
 
     @api.constrains("days_next_month")
+    @_debug.perf.timed
     def _check_days_next_month(self):
         for record in self:
             if not 0 <= record.days_next_month <= 31:
@@ -512,6 +581,7 @@ class AccountPaymentTermLine(models.Model):
             )
 
     @api.constrains("value", "value_amount", "payment_id")
+    @_debug.perf.timed
     def _check_percent(self):
         for term_line in self:
             if term_line.value == "percent" and not (

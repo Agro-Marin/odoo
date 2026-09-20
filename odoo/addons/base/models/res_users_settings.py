@@ -1,6 +1,9 @@
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResUsersSettings(models.Model):
@@ -9,12 +12,11 @@ class ResUsersSettings(models.Model):
     _rec_name = "user_id"
 
     user_id = fields.Many2one(
-        "res.users",
-        string="User",
-        required=True,
+        comodel_name="res.users",
         index=False,
-        ondelete="cascade",
+        required=True,
         domain=[("res_users_settings_id", "=", False)],
+        ondelete="cascade",
     )
 
     _unique_user_id = models.Constraint(
@@ -30,6 +32,9 @@ class ResUsersSettings(models.Model):
     def _get_or_create_for_user(self, user: Any) -> Self:
         settings = user.sudo().res_users_settings_ids
         if not settings:
+            _debug.lifecycle(
+                "settings_created", uid=user.id, transient=self.env.cr.readonly
+            )
             if self.env.cr.readonly:
                 settings = self.sudo().new({"user_id": user.id})
             else:
@@ -72,9 +77,20 @@ class ResUsersSettings(models.Model):
                 continue
             field = self._fields.get(setting)
             if not field or (field.compute and not field.inverse):
+                _debug.logic(
+                    "setting_ignored",
+                    setting=setting,
+                    reason="unknown" if not field else "computed",
+                )
                 continue
             if self._is_setting_changed(setting, new_value):
                 changed_settings[setting] = new_value
+        _debug.logic(
+            "settings_changed",
+            uid=self.user_id.id,
+            requested=list(new_settings),
+            changed=list(changed_settings),
+        )
         self.write(changed_settings)
         return self._res_users_settings_format([*changed_settings.keys(), "id"])
 
@@ -87,6 +103,13 @@ class ResUsersSettings(models.Model):
             case "one2many" | "many2many":
                 current_ids = set(current_value.ids)
                 target_ids = self._get_x2many_command_target_ids(current_ids, new_value)
+                _debug.logic(
+                    "x2many_setting_compared",
+                    setting=fname,
+                    resolvable=target_ids is not None,
+                    current=len(current_ids),
+                    target=len(target_ids) if target_ids is not None else None,
+                )
                 return target_ids is None or target_ids != current_ids
             case _:
                 return new_value != current_value

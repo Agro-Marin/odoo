@@ -221,7 +221,7 @@
         <field name="binding_type">report</field>
         <field
             name="group_ids"
-            eval="[(4,ref('hr_timesheet.group_hr_timesheet_user'))]" />
+            eval="[Command.link(ref('hr_timesheet.group_hr_timesheet_user'))]" />
     </record>
 
     <template id="report_timesheet_project">
@@ -238,7 +238,7 @@
         <field name="binding_model_id" ref="model_project_project" />
         <field
             name="group_ids"
-            eval="[(4,ref('hr_timesheet.group_hr_timesheet_user'))]" />
+            eval="[Command.link(ref('hr_timesheet.group_hr_timesheet_user'))]" />
     </record>
 
     <record id="timesheet_report_task_timesheets" model="ir.actions.report">

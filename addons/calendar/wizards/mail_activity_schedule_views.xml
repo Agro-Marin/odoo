@@ -54,10 +54,10 @@
                     expr="//button[@name='action_schedule_activities']"
                     position="before">
                     <button
-                        string="Schedule"
-                        invisible="activity_category != 'meeting'"
                         name="action_create_calendar_event"
                         type="object"
+                        string="Schedule"
+                        invisible="activity_category != 'meeting'"
                         class="btn-primary" />
                 </xpath>
             </field>

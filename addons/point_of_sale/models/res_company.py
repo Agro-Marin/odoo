@@ -2,18 +2,20 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ResCompany(models.Model):
     _name = "res.company"
     _inherit = ["res.company", "mixin.pos.load"]
 
     point_of_sale_update_stock_quantities = fields.Selection(
-        [
+        selection=[
             ("closing", "At the session closing"),
             ("real", "In real time"),
         ],
-        default="real",
         string="Update quantities in stock",
+        default="real",
         help="At the session closing: A picking is created for the entire session when it's closed\n In real time: Each order sent to the server create its own picking",
     )
     point_of_sale_use_ticket_qr_code = fields.Boolean(
@@ -26,15 +28,15 @@ class ResCompany(models.Model):
         help="Add a 5-digit code on the receipt to allow the user to request the invoice for an order on the portal.",
     )
     point_of_sale_ticket_portal_url_display_mode = fields.Selection(
-        [
+        selection=[
             ("qr_code", "QR code"),
             ("url", "URL"),
             ("qr_code_and_url", "QR code + URL"),
         ],
-        default="qr_code_and_url",
         string="Print",
-        help="Choose how the URL to the portal will be print on the receipt.",
+        default="qr_code_and_url",
         required=True,
+        help="Choose how the URL to the portal will be print on the receipt.",
     )
 
     @api.model
@@ -89,6 +91,11 @@ class ResCompany(models.Model):
                 )
             )
             if sessions_in_period:
+                dbg.logic.debug(
+                    "lock date on company %s refused by open sessions %s",
+                    record.id,
+                    dbg.rec(sessions_in_period),
+                )
                 sessions_str = ", ".join(sessions_in_period.mapped("name"))
                 raise ValidationError(
                     _(

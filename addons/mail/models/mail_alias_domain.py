@@ -6,12 +6,14 @@ from typing import Literal, NamedTuple, Self
 from odoo import _, api, exceptions, fields, models
 from odoo.api import ValuesType
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import ormcache
 
 if typing.TYPE_CHECKING:
     from odoo.addons.base.models.res_company import ResCompany
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class AliasDomainConfig(NamedTuple):
@@ -35,42 +37,40 @@ class MailAliasDomain(models.Model):
     _order = "sequence ASC, id ASC"
 
     name = fields.Char(
-        "Name",
         required=True,
         help="Email domain e.g. 'example.com' in 'odoo@example.com'",
     )
     company_ids: ResCompany = fields.One2many(
-        "res.company",
-        "alias_domain_id",
+        comodel_name="res.company",
+        inverse_name="alias_domain_id",
         string="Companies",
         help="Companies using this domain as default for sending mails",
     )
     sequence = fields.Integer(default=10)
     bounce_alias = fields.Char(
-        "Bounce Alias",
         default="bounce",
         required=True,
         help="Local-part of email used for Return-Path used when emails bounce e.g. "
         "'bounce' in 'bounce@example.com'",
     )
-    bounce_email = fields.Char("Bounce Email", compute="_compute_bounce_email")
+    bounce_email = fields.Char(compute="_compute_bounce_email")
     catchall_alias = fields.Char(
-        "Catchall Alias",
         default="catchall",
         required=True,
         help="Local-part of email used for Reply-To to catch answers e.g. "
         "'catchall' in 'catchall@example.com'",
     )
-    catchall_email = fields.Char("Catchall Email", compute="_compute_catchall_email")
+    catchall_email = fields.Char(compute="_compute_catchall_email")
     default_from = fields.Char(
-        "Default From Alias",
+        string="Default From Alias",
         default="notifications",
         help="Default from when it does not match outgoing server filters. Can be either "
         "a local-part e.g. 'notifications' either a complete email address e.g. "
         "'notifications@example.com' to override all outgoing emails.",
     )
     default_from_email = fields.Char(
-        "Default From", compute="_compute_default_from_email"
+        string="Default From",
+        compute="_compute_default_from_email",
     )
 
     _bounce_email_uniques = models.Constraint(
@@ -192,7 +192,7 @@ class MailAliasDomain(models.Model):
                 if not value:
                     continue
                 if (
-                    self.env["mail.alias"]._sanitize_alias_name(
+                    self.env["mail.alias"]._normalize_alias_name(
                         value, is_email=is_email
                     )
                     != value
@@ -216,7 +216,7 @@ class MailAliasDomain(models.Model):
                 raise exceptions.ValidationError(
                     _("You cannot assign an empty domain name.")
                 )
-            if self.env["mail.alias"]._sanitize_alias_domain_name(domain.name) != (
+            if self.env["mail.alias"]._normalize_alias_domain_name(domain.name) != (
                 domain.name
             ):
                 raise exceptions.ValidationError(
@@ -232,6 +232,7 @@ class MailAliasDomain(models.Model):
     @ormcache(cache="stable")
     def _get_config(self) -> AliasDomainConfig:
         domains = self.sudo().search([])
+        _debug.perf.count("config_computed", domains=len(domains))
         return AliasDomainConfig(
             tuple(domains.ids),
             tuple(filter(None, domains.mapped("name"))),
@@ -295,12 +296,15 @@ class MailAliasDomain(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
-            self._sanitize_configuration(vals)
+            self._update_configuration(vals)
 
         was_unconfigured = not self.search_count([], limit=1)
 
         alias_domains = super().create(vals_list)
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle(
+            "create", domains=alias_domains.ids, was_unconfigured=was_unconfigured
+        )
 
         if was_unconfigured and alias_domains:
             default = self._get_default_domain()
@@ -314,13 +318,15 @@ class MailAliasDomain(models.Model):
         return alias_domains
 
     def write(self, vals: ValuesType) -> Literal[True]:
-        self._sanitize_configuration(vals)
+        self._update_configuration(vals)
         ret = super().write(vals)
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("write", domains=self.ids, fields=list(vals))
         return ret
 
     def unlink(self) -> Literal[True]:
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("unlink", domains=self.ids)
         return super().unlink()
 
     @api.ondelete(at_uninstall=False)
@@ -363,24 +369,24 @@ class MailAliasDomain(models.Model):
                     )
 
     @api.model
-    def _sanitize_configuration(self, config_values: dict) -> None:
+    def _update_configuration(self, config_values: dict) -> None:
         Alias = self.env["mail.alias"]
         if name := config_values.get("name"):
-            config_values["name"] = Alias._sanitize_alias_domain_name(name) or name
+            config_values["name"] = Alias._normalize_alias_domain_name(name) or name
         for fname, _email_fname, is_email in CONFIG_FIELDS:
             if value := config_values.get(fname):
-                config_values[fname] = Alias._sanitize_alias_name(
+                config_values[fname] = Alias._normalize_alias_name(
                     value, is_email=is_email
                 )
 
     @api.model
-    def _sanitize_allowed_domains(self, allowed_domains: str) -> str:
+    def _normalize_allowed_domains(self, allowed_domains: str) -> str:
         Alias = self.env["mail.alias"]
         seen, value = set(), []
         for candidate in allowed_domains.split(","):
             if not candidate.strip():
                 continue
-            domain = Alias._sanitize_alias_domain_name(candidate)
+            domain = Alias._normalize_alias_domain_name(candidate)
             if not domain:
                 raise exceptions.ValidationError(
                     _(
@@ -408,37 +414,12 @@ class MailAliasDomain(models.Model):
         if not split:
             return []
         config = self._get_config()
-        aliases = set(
-            config.bounce_emails + config.catchall_emails + config.default_from_emails
+        addresses = self.env["mail.alias"]._get_alias_addresses()
+        local_alias_names = addresses.local_names
+        aliases = addresses.full_names.union(
+            config.bounce_emails, config.catchall_emails, config.default_from_emails
         )
-
         allowed_domains = self._get_allowed_domains()
-        localparts_tocheck = [
-            local_part
-            for _email, local_part, domain in split
-            if not allowed_domains or domain in allowed_domains
-        ]
-
-        potential_aliases = self.env["mail.alias"].search(
-            [
-                "|",
-                ("alias_full_name", "in", [email for email, _lp, _d in split]),
-                "&",
-                ("alias_name", "in", localparts_tocheck),
-                ("alias_incoming_local", "=", True),
-            ],
-            order="id",
-        )
-        aliases.update(
-            potential_aliases.filtered(lambda x: not x.alias_incoming_local).mapped(
-                "alias_full_name"
-            )
-        )
-        local_alias_names = set(
-            potential_aliases.filtered(lambda x: x.alias_incoming_local).mapped(
-                "alias_name"
-            )
-        )
 
         res, seen = [], set()
         for email, local_part, domain in split:
@@ -450,6 +431,12 @@ class MailAliasDomain(models.Model):
             ):
                 seen.add(email)
                 res.append(email)
+        _debug.logic(
+            "alias_emails",
+            asked=len(split),
+            matched=len(res),
+            allowed_domains=len(allowed_domains),
+        )
         return res
 
     @api.model
@@ -459,8 +446,9 @@ class MailAliasDomain(models.Model):
         if not raw_name:
             return self.browse()
 
-        alias_domain = self.env["mail.alias"]._sanitize_alias_domain_name(raw_name)
+        alias_domain = self.env["mail.alias"]._normalize_alias_domain_name(raw_name)
         if not alias_domain:
+            _debug.logic("icp_migration_skipped", reason="unusable_domain")
             _logger.warning(
                 "Ignoring `mail.catchall.domain` = %r: not a usable domain name. "
                 "No alias domain was created; configure one in Settings.",
@@ -469,7 +457,9 @@ class MailAliasDomain(models.Model):
             return self.browse()
 
         if existing := self.search([("name", "=", alias_domain)], limit=1):
+            _debug.logic("icp_migration", domain=existing.id, by="existing")
             return existing
+        _debug.lifecycle("icp_migration", name=alias_domain, by="created")
         return self.create(
             {
                 "bounce_alias": Icp.get_param("mail.bounce.alias") or "bounce",

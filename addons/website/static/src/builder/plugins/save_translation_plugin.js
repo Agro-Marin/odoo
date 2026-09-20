@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
+
+const log = makeLogger("website.builder.translation.save_translation");
 
 export class SaveTranslationPlugin extends Plugin {
     static id = "saveTranslation";
@@ -17,7 +20,6 @@ export class SaveTranslationPlugin extends Plugin {
     };
 
     async saveDelayTranslations(groupedDirtyElements) {
-        // Don't take dirty elements as they will be saved
         const cleanDelayTranslationEls = [
             ...this.editable.querySelectorAll(".o_delay_translation:not(.o_dirty)"),
         ];
@@ -25,12 +27,15 @@ export class SaveTranslationPlugin extends Plugin {
             this.dependencies.savePlugin.groupElements(cleanDelayTranslationEls);
         const updateTranslationProms = [];
         const currentWebsiteLang = this.services.website.currentWebsite.metadata.lang;
+        // Empty on purpose: naming the language is what promotes its delayed
+        // translation to a validated one server-side (`_fr_FR` -> `fr_FR`), as
+        // it stands; posting the rendered terms would store a displayed
+        // fallback as a real translation.
         const translations = {};
         translations[currentWebsiteLang] = {};
         for (const [key, els] of Object.entries(groupedDelayTranslationElements)) {
-            // Keep only delay translation related to particular field that will
-            // not be updated by a modified (dirty) element
             if (groupedDirtyElements[key]) {
+                log.logic("saveDelayTranslations: skip dirty group", { key });
                 continue;
             }
             updateTranslationProms.push(
@@ -42,13 +47,16 @@ export class SaveTranslationPlugin extends Plugin {
                 }),
             );
         }
+        log.pipeline("saveDelayTranslations: posting delayed translations", () => ({
+            cleanDelayed: cleanDelayTranslationEls.length,
+            groups: Object.keys(groupedDelayTranslationElements).length,
+            rpcs: updateTranslationProms.length,
+            lang: currentWebsiteLang,
+        }));
         return Promise.all(updateTranslationProms);
     }
     /**
-     * If the elements hold a translation, saves it. Otherwise, fallback to the
-     * standard saving with the lang kept.
-     *
-     * @param {Array<HTMLElement>} els - the elements to save.
+     * @param {Array<HTMLElement>} els
      */
     async saveTranslationElements(els) {
         if (els[0].dataset["oeTranslationSourceSha"]) {
@@ -61,6 +69,11 @@ export class SaveTranslationPlugin extends Plugin {
                             this.getEscapedElement(el).innerHTML,
                     })),
                 );
+            log.pipeline("saveTranslationElements: posting translations", () => ({
+                count: els.length,
+                model: els[0].dataset["oeModel"],
+                field: els[0].dataset["oeField"],
+            }));
             return rpc("/website/field/translation/update", {
                 model: els[0].dataset["oeModel"],
                 record_id: [Number(els[0].dataset["oeId"])],
@@ -68,7 +81,12 @@ export class SaveTranslationPlugin extends Plugin {
                 translations,
             });
         }
+        log.logic("saveTranslationElements: no source sha, save view", () => ({
+            count: els.length,
+        }));
+        const endSaveView = log.perf("saveTranslationElements saveView");
         await this.dependencies.savePlugin.saveView(els[0], false);
+        endSaveView();
         return true;
     }
 
@@ -97,6 +115,10 @@ export class SaveTranslationPlugin extends Plugin {
                 }
             }
         }
+        log.pipeline("getEscapedElement", () => ({
+            elements: allElements.length,
+            excluded: exclusionSet.size,
+        }));
         return escapedEl;
     }
 }

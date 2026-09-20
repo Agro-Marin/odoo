@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     cartesian,
     sections,
@@ -87,6 +88,8 @@ import {
  */
 
 const SUPERSEDED = Symbol("superseded");
+
+const log = makeLogger("web.view.pivot");
 
 /**
  * @template {object} [E=import("@web/env").OdooEnv]
@@ -423,7 +426,12 @@ export class PivotModel extends Model {
      * @override
      * @param {SearchParams} searchParams
      */
-    async load(searchParams) {
+    load(searchParams) {
+        return this.loads.track(this._loadSearchParams(searchParams));
+    }
+
+    /** @param {SearchParams} searchParams */
+    async _loadSearchParams(searchParams) {
         this.searchParams = searchParams;
         const rawPivotMeasures = searchParams.context.pivot_measures;
         const pivotMeasuresKey = JSON.stringify(rawPivotMeasures ?? null);
@@ -480,14 +488,33 @@ export class PivotModel extends Model {
             metaData.measures,
         );
         const config = { metaData, data: this.data };
-        await addPropertyFieldDefs(
-            this.orm,
-            metaData.resModel,
-            searchParams.context,
-            metaData.fields,
-            new Set([...metaData.rowGroupBys, ...metaData.colGroupBys]),
+        log.pipeline("load", () => ({
+            resModel: metaData.resModel,
+            reload: this.reload,
+        }));
+        let generation;
+        const properties = this._keepLastAdd(
+            addPropertyFieldDefs(
+                this.orm,
+                metaData.resModel,
+                searchParams.context,
+                metaData.fields,
+                new Set([...metaData.rowGroupBys, ...metaData.colGroupBys]),
+                () => generation === this.keepLast.generation,
+            ),
         );
-        if (await this._loadData(config)) {
+        generation = this.keepLast.generation;
+        if (
+            (await properties) === SUPERSEDED ||
+            generation !== this.keepLast.generation
+        ) {
+            log.logic("property load superseded");
+            return;
+        }
+        const endLoad = log.perf(`loadData ${metaData.resModel}`);
+        const loaded = await this._loadData(config);
+        endLoad({ loaded });
+        if (loaded) {
             this.reload = true;
             this.lastPivotMeasuresKey = pivotMeasuresKey;
         }
@@ -627,6 +654,7 @@ export class PivotModel extends Model {
 
     async _getGroupsSubdivision(params, groupInfo) {
         const { resModel, groupDomain, groupingSets, measureSpecs, kwargs } = params;
+        const endSets = log.perf(`formattedReadGroupingSets ${resModel}`);
         const result = await this.orm.formattedReadGroupingSets(
             resModel,
             groupDomain,
@@ -634,6 +662,7 @@ export class PivotModel extends Model {
             measureSpecs,
             kwargs,
         );
+        endSets({ groupingSets: groupingSets.length, measures: measureSpecs.length });
         return groupInfo.map((info) => ({
             ...info,
             subGroups: result[info.subGroupIndex],

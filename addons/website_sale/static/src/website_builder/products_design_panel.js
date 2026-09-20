@@ -55,7 +55,6 @@ export class ProductsDesignPanel extends BaseOptionComponent {
     }
 
     setupActionConnections() {
-        // Set panel reference for setGap action
         const builderActions = this.env.editor.shared.builderActions;
         const action = builderActions.getAction("setGap");
 

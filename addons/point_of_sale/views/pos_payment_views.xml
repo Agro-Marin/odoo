@@ -10,7 +10,7 @@
                     <group>
                         <field name="session_id" readonly="0" />
                         <field name="pos_order_id" />
-                        <field name="amount" readonly="0" widget="monetary" />
+                        <field name="amount" widget="monetary" readonly="0" />
                         <field name="currency_id" />
                         <field name="payment_method_id" />
                         <field
@@ -93,12 +93,5 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="menu_pos_payment"
-        parent="menu_point_of_sale"
-        action="action_pos_payment_form"
-        sequence="13"
-        groups="group_pos_manager,group_pos_user" />
 
 </odoo>

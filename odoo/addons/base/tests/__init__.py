@@ -1,5 +1,6 @@
 from . import common
 from . import test_acl
+from . import test_x2many_cache_scope
 from . import test_api
 from . import test_barcode
 from . import test_base
@@ -24,6 +25,8 @@ from . import test_catalog_mixin
 from . import test_init
 from . import test_ir_actions
 from . import test_ir_actions_audit
+from . import test_ir_actions_reach
+from . import test_ir_actions_tree
 from . import test_ir_actions_report_audit
 from . import test_ir_actions_server_audit
 from . import test_ir_actions_server_regressions
@@ -38,8 +41,6 @@ from . import test_ir_cron_audit
 from . import test_ir_job
 from . import test_ir_filters
 from . import test_ir_http
-from . import test_ir_mail_server
-from . import test_ir_mail_server_smtpd
 from . import test_ir_model
 from . import test_table_object_conversion
 from . import test_ir_model_data
@@ -52,7 +53,6 @@ from . import test_ir_default_audit
 from . import test_ir_autovacuum_audit
 from . import test_ir_demo
 from . import test_ir_logging
-from . import test_ir_mail_server_audit
 from . import test_cache_scan_predicates
 from . import test_log_access_cache
 from . import test_sort_collation
@@ -66,14 +66,15 @@ from . import test_depends_audit
 from . import test_depends_completeness
 from . import test_inverse_cache_alignment
 from . import test_field_description_audit
-from . import test_report_introspection
-from . import test_report_layout_audit
-from . import test_report_modernization
 from . import test_report_paperformat_audit
 from . import test_menu
 from . import test_misc
 from . import test_mixin_profiler
 from . import test_module
+from . import test_module_data_rename_model
+from . import test_module_data_remove_xmlid_records
+from . import test_module_data_rename_in_view_arches
+from . import test_module_data_rename_module
 from . import test_orm
 from . import test_ormcache
 from . import test_properties_base_definition
@@ -91,6 +92,8 @@ from . import test_tz
 
 from . import test_user_has_group
 from . import test_views
+from . import test_view_provenance
+from . import test_view_payload
 from . import test_res_company
 from . import test_res_currency
 from . import test_res_country
@@ -108,7 +111,6 @@ from . import test_res_users_apikeys
 from . import test_res_users_identitycheck
 from . import test_res_users_log
 from . import test_res_users_settings
-from . import test_reports
 from . import test_test_retry
 from . import test_seeded_users
 from . import test_test_suite
@@ -137,3 +139,5 @@ from . import test_res_config_install
 from . import test_default_group
 from . import test_ir_actions_webhook
 from . import test_xml_utils
+from . import test_device_log_isolation
+from . import test_id_sequence_names

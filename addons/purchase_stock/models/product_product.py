@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_round
 
 _SUGGESTED_QTY_OPERATORS = {
@@ -17,6 +18,9 @@ _SUGGESTED_QTY_OPERATORS = {
 }
 
 
+_debug = DebugLog(__name__)
+
+
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
@@ -25,16 +29,12 @@ class ProductProduct(models.Model):
         inverse_name="product_id",
         string="PO Lines",
     )
-    monthly_demand = fields.Float(
-        compute="_compute_monthly_demand",
-    )
+    monthly_demand = fields.Float(compute="_compute_monthly_demand")
     suggested_qty = fields.Integer(
         compute="_compute_suggested_qty",
         search="_search_suggested_qty",
     )
-    suggest_estimated_price = fields.Float(
-        compute="_compute_suggest_estimated_price",
-    )
+    suggest_estimated_price = fields.Float(compute="_compute_suggest_estimated_price")
 
     @api.depends_context(
         "suggest_based_on",
@@ -44,6 +44,7 @@ class ProductProduct(models.Model):
     )
     @api.depends("monthly_demand")
     def _compute_suggested_qty(self):
+        _debug.perf.count("suggested_qty_compute", products=self)
         ctx = self.env.context
         self.suggested_qty = 0
         if ctx.get("suggest_based_on") == "actual_demand":
@@ -82,6 +83,7 @@ class ProductProduct(models.Model):
     )
     @api.depends("suggested_qty")
     def _compute_suggest_estimated_price(self):
+        _debug.perf.count("suggest_price_compute", products=self)
         seller_args = {
             "partner_id": self.env["res.partner"].browse(
                 self.env.context.get("partner_id"),
@@ -113,6 +115,7 @@ class ProductProduct(models.Model):
 
     @api.depends_context("suggest_based_on", "warehouse_id")
     def _compute_monthly_demand(self):
+        _debug.perf.count("monthly_demand_compute", products=self)
         based_on = self.env.context.get("suggest_based_on", "30_days")
         start_date, limit_date = self._get_monthly_demand_range(based_on)
         move_domain = Domain(
@@ -133,11 +136,17 @@ class ProductProduct(models.Model):
                 self._get_domain_monthly_demand_moves_location(),
             ],
         )
-        move_qty_by_products = self.env["stock.move"]._read_group(
-            move_domain,
-            ["product_id"],
-            ["product_qty:sum"],
-        )
+        with _debug.perf(
+            "monthly_demand_aggregate",
+            cr=self.env.cr,
+            products=self,
+            based_on=based_on,
+        ):
+            move_qty_by_products = self.env["stock.move"]._read_group(
+                move_domain,
+                ["product_id"],
+                ["product_qty:sum"],
+            )
         qty_by_product = {product.id: qty for product, qty in move_qty_by_products}
         factor = 1
 
@@ -261,6 +270,7 @@ class ProductProduct(models.Model):
             )
 
     def _get_monthly_demand_range(self, based_on):
+        _debug.logic("monthly_demand_range", products=self, based_on=based_on)
         start_date = limit_date = datetime.now()
 
         if not based_on or based_on in {"actual_demand", "30_days"}:
@@ -288,6 +298,7 @@ class ProductProduct(models.Model):
         return start_date, limit_date
 
     def _get_quantity_in_progress(self, location_ids=False, warehouse_ids=False):
+        _debug.logic("qty_in_progress_read", products=self)
         if not location_ids:
             location_ids = []
         if not warehouse_ids:
@@ -320,7 +331,7 @@ class ProductProduct(models.Model):
                 location = location_final
             else:
                 location = order.picking_type_id.default_location_dest_id
-            product_qty = uom._compute_quantity_estimate(
+            product_qty = uom._get_quantity_estimate(
                 product_qty_sum,
                 product.uom_id,
                 round=False,

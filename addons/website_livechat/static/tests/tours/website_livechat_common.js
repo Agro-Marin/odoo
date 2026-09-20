@@ -1,7 +1,3 @@
-/*******************************
- *         Common Steps
- *******************************/
-
 export const start = [
     {
         content: "click on livechat widget",

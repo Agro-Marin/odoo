@@ -4,18 +4,15 @@ import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 
+const log = makeLogger("website.builder.plugin.gallery_element_option");
+
 /**
- * @typedef {((
- *      activeItemEl: HTMLElement,
- *      optionName: string
- * ) => HTMLElement[])[]} get_gallery_items_handlers
- * @typedef {((
- *      activeItemEl: HTMLElement,
- *      itemEls: HTMLElement[],
- *      optionName: string
- * ) => void)[]} reorder_items_handlers
+ * @typedef {(( activeItemEl: HTMLElement, optionName: string ) => HTMLElement[])[]} get_gallery_items_handlers
+ * @typedef {(( activeItemEl: HTMLElement, itemEls: HTMLElement[], optionName: string ) => void)[]} reorder_items_handlers
  */
 
 export class GalleryElementOption extends BaseOptionComponent {
@@ -23,19 +20,13 @@ export class GalleryElementOption extends BaseOptionComponent {
     static selector =
         ".s_image_gallery img, .s_carousel .carousel-item, .s_quotes_carousel .carousel-item, .s_carousel_intro .carousel-item, .s_carousel_cards .carousel-item";
     setup() {
-        // `BaseOptionComponent.setup` wires the editor context and injects the
-        // builder components (BuilderRow, BuilderButton, ...) that this
-        // option's template uses; skipping it raised "Cannot find the
-        // definition of component BuilderRow" at render time. It only appeared
-        // to work because a sibling option's setup used to publish those
-        // components onto the shared base class.
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState((editingElement) => {
             const isImageWall = editingElement.closest(
                 '[data-snippet="s_images_wall"]',
             );
             if (isImageWall) {
-                // Prevented disable reordering buttons for image wall.
                 return {
                     hasMultiItems: true,
                     isFirstItem: false,
@@ -74,18 +65,28 @@ export class SetGalleryElementPositionAction extends BuilderAction {
             ? "Carousel"
             : "GalleryImageList";
 
-        // Get the items to reorder.
         activeItemEl = activeItemEl.closest("a") || activeItemEl;
         const itemEls = [];
         for (const getGalleryItems of this.getResource("get_gallery_items_handlers")) {
             itemEls.push(...getGalleryItems(activeItemEl, optionName));
         }
 
-        // Reorder the items.
         const oldPosition = itemEls.indexOf(activeItemEl);
+        log.pipeline("SetGalleryElementPositionAction apply", () => ({
+            optionName,
+            position,
+            oldPosition,
+            items: itemEls.length,
+        }));
         if (oldPosition === 0 && position === "prev") {
+            log.logic("SetGalleryElementPositionAction wrap to last", () => ({
+                oldPosition,
+            }));
             position = "last";
         } else if (oldPosition === itemEls.length - 1 && position === "next") {
+            log.logic("SetGalleryElementPositionAction wrap to first", () => ({
+                oldPosition,
+            }));
             position = "first";
         }
         itemEls.splice(oldPosition, 1);
@@ -104,7 +105,6 @@ export class SetGalleryElementPositionAction extends BuilderAction {
                 break;
         }
 
-        // Update the DOM with the new items order.
         this.dispatchTo("reorder_items_handlers", activeItemEl, itemEls, optionName);
     }
 }

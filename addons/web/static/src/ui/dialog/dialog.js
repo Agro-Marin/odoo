@@ -9,8 +9,11 @@ import {
     useState,
 } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
+import { uniqueId } from "@web/core/utils/functions";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useActiveElement } from "@web/ui/active_element";
@@ -53,6 +56,8 @@ const useDialogDraggable = makeDraggableHook(
     }),
 );
 
+const log = makeLogger("web.ui.dialog");
+
 export class Dialog extends Component {
     static template = "web.Dialog";
     static props = {
@@ -94,6 +99,7 @@ export class Dialog extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.modalRef = useForwardRefToParent("modalRef");
         useActiveElement("modalRef");
         this.data = useState(this.env.dialogData);
@@ -112,7 +118,7 @@ export class Dialog extends Component {
             },
             { bypassEditableProtection: true },
         );
-        this.id = `dialog_${this.data.id}`;
+        this.id = uniqueId("dialog_");
         useChildSubEnv({ inDialog: true, dialogId: this.id });
         this.isMovable = this.props.header;
         if (this.isMovable) {

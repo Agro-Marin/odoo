@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { onceAllImagesLoaded } from "@website/utils/images";
+
+const log = makeLogger("website.interaction.carousel_slider");
 
 export class CarouselSlider extends Interaction {
     static selector = ".carousel";
@@ -56,15 +59,6 @@ export class CarouselSlider extends Interaction {
             ];
         }
 
-        // Resolve `options` here rather than in `start()`. DEFENSIVE, not a
-        // fix for an observed failure: Colibri binds the `dynamicContent`
-        // listeners before calling `start()` (`Colibri.startInteraction`), and
-        // `onSlideCarousel`/`onSlidCarousel` read `this.options`, which
-        // `start()` only assigned partway through. Nothing can currently fire
-        // `slide.bs.carousel` in that window -- the two run synchronously and
-        // Bootstrap's autoplay is `setInterval`-driven -- but the window opens
-        // the moment `start()` gains an `await` or an earlier slide call, and
-        // `setup()` is where per-instance state belongs anyway.
         const itemWidth = getComputedStyle(this.el).getPropertyValue(
             "--o-carousel-item-width-percentage",
         );
@@ -86,40 +80,52 @@ export class CarouselSlider extends Interaction {
         } else if (!this.hasInterval) {
             this.el.dataset.bsInterval = "1000";
         }
+        log.pipeline("CarouselSlider setup", () => ({
+            id: this.el.id,
+            hasInner: !!this.carouselInnerEl,
+            items: this.carouselItemEls?.length,
+            scrollMode: this.options.scrollMode,
+            itemsPerSlide: this.options.itemsPerSlide,
+            hasInterval: this.hasInterval,
+            ride: this.el.dataset.bsRide,
+            interval: this.el.dataset.bsInterval,
+        }));
     }
 
     start() {
+        log.lifecycle("CarouselSlider start", () => ({
+            id: this.el.id,
+            carouselOptions: this.carouselOptions,
+        }));
         this.computeMaxHeight();
         this.updateContent();
         const carouselBS = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
         this.registerCleanup(() => carouselBS.dispose());
 
-        // Preload first items only when carousel is on screen
         const observer = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (entry.isIntersecting) {
+                    log.lifecycle("CarouselSlider visible: observer released", () => ({
+                        id: this.el.id,
+                    }));
                     this.loadItemsToAppear();
                     observer.unobserve(this.el);
                 }
             });
         });
         observer.observe(this.el);
-        // `disconnect`, not `unobserve`: the observer must stop holding the
-        // element whatever it is currently watching.
+        log.lifecycle("CarouselSlider intersection observer attached", () => ({
+            id: this.el.id,
+        }));
         this.registerCleanup(() => observer.disconnect());
     }
 
     computeMaxHeight() {
         this.maxHeight = undefined;
-        // "updateContent()" is necessary to reset the min-height before the
-        // following check.
         this.updateContent();
         for (const itemEl of this.el.querySelectorAll(".carousel-item")) {
             const isActive = itemEl.classList.contains("active");
             itemEl.classList.add("active");
-            // We must use "offsetHeight" instead of "getBoundingClientRect()"
-            // otherwise it is not correct in the snippet dialog because of
-            // the "transform: scale" on "o_snippets_preview_row" elements.
             const height = itemEl.offsetHeight;
             if (height > this.maxHeight || this.maxHeight === undefined) {
                 this.maxHeight = height;
@@ -129,25 +135,23 @@ export class CarouselSlider extends Interaction {
     }
 
     /**
-     * Handles the 'slide' event of the carousel. Called *before* a slide
-     * transition.
-     *
-     * @param {Event} ev The Bootstrap Carousel slide event.
+     * @param {Event} ev
      */
     onSlideCarousel(ev) {
         if (!this.carouselInnerEl) {
-            // Defensive, for symmetry with `loadItemsToAppear`, which already
-            // guards the same field: the selector is a bare `.carousel`, so
-            // hand-written markup can match without a `.carousel-inner`.
-            // Bootstrap would not emit a slide event for such an element, so
-            // this is not a reachable crash today.
+            log.logic("CarouselSlider onSlide: no .carousel-inner", () => ({
+                id: this.el.id,
+            }));
             return;
         }
         const imageEls = [...this.carouselInnerEl.querySelectorAll("img")];
         const isLoading = imageEls.some((el) => el.loading !== "lazy" && !el.complete);
         if (isLoading) {
-            // If images are loading, prevent the slide transition. It will
-            // slide once the next images are loaded.
+            log.logic("CarouselSlider onSlide: deferred until images load", () => ({
+                id: this.el.id,
+                to: ev.to,
+                images: imageEls.length,
+            }));
             ev.preventDefault();
             onceAllImagesLoaded(this.carouselInnerEl).then(() => {
                 Carousel.getOrCreateInstance(this.el).to(ev.to);
@@ -160,27 +164,19 @@ export class CarouselSlider extends Interaction {
     }
 
     /**
-     * Handles the 'slid' event of the carousel. Called *after* a slide
-     * transition.
-     *
-     * @param {Event} ev The Bootstrap Carousel slid event.
+     * @param {Event} ev
      */
     onSlidCarousel(ev) {
         if (this.options.scrollMode === "single") {
             this.onSlidSingleScroll(ev);
         }
-        this.loadItemsToAppear(); // Preload future items after a slide
+        this.loadItemsToAppear();
     }
 
     /**
-     * Manages multi-items single-scroll behavior during the 'slide' event.
-     * Prepares the DOM for smooth transitions by moving elements.
-     *
-     * @param {Event} ev The Bootstrap Carousel slide event.
+     * @param {Event} ev
      */
     onSlideSingleScroll(ev) {
-        // We need to keep the active element at the beginning of the carousel-items elements
-        // This allows to have a smooth transition when the carousel is sliding
         if (ev.direction === "right") {
             const carouselItemsEls = Array.from(
                 this.carouselInnerEl.querySelectorAll(".carousel-item"),
@@ -190,16 +186,9 @@ export class CarouselSlider extends Interaction {
     }
 
     /**
-     * Manages single-item scroll behavior during the 'slid' event.
-     * Completes the DOM manipulation started in `onSlideSingleScroll`.
-     *
-     * @param {Event} ev The Bootstrap Carousel slid event.
+     * @param {Event} ev
      */
     onSlidSingleScroll(ev) {
-        // As for the onSlideSingleScroll method, we need to keep the active
-        // element at the beginning of the carousel-items list in the DOM. So
-        // when animation is done, we move the first item (which is not active
-        // anymore) to the end.
         if (ev.direction === "left") {
             const carouselItemsEls =
                 this.carouselInnerEl.querySelectorAll(".carousel-item");
@@ -208,13 +197,13 @@ export class CarouselSlider extends Interaction {
     }
 
     /**
-     * Loads images of the carousel-item necessary for both 'prev' and 'next'
-     * animations. Loads images for items that are about to become visible.
-     *
-     * @param {number} [nbItemsToLoad=1] The number of items to preload on each side.
+     * @param {number} [nbItemsToLoad=1]
      */
     loadItemsToAppear(nbItemsToLoad = 1) {
         if (!this.carouselInnerEl) {
+            log.logic("CarouselSlider loadItemsToAppear: no .carousel-inner", () => ({
+                id: this.el.id,
+            }));
             return;
         }
         const index = this.carouselItemEls.findIndex((el) =>
@@ -222,7 +211,6 @@ export class CarouselSlider extends Interaction {
         );
         const activeItemIndex = index >= 0 ? index : 0;
 
-        // Load "Next" items: nbItemsToLoad items after the active element
         const nbItemElsOnScreen =
             this.options.scrollMode === "single" ? this.options.itemsPerSlide + 1 : 1;
         const nextEndIndex = Math.min(
@@ -234,8 +222,6 @@ export class CarouselSlider extends Interaction {
             nextEndIndex,
         );
 
-        // load "Prev" items : nbItemsToLoad items before the active element (circular wrapping)
-        // if currentIndex is 0, then the nbItemsToLoad items are the last elements of the carousel
         let prevItemElsToLoad;
         if (activeItemIndex - nbItemsToLoad < 0) {
             const wrapAmount = Math.abs(activeItemIndex - nbItemsToLoad);
@@ -252,25 +238,23 @@ export class CarouselSlider extends Interaction {
                 .reverse();
         }
 
+        log.pipeline("CarouselSlider loadItemsToAppear", () => ({
+            id: this.el.id,
+            activeItemIndex,
+            items: this.carouselItemEls.length,
+            next: nextItemElsToLoad.length,
+            prev: prevItemElsToLoad.length,
+        }));
         this.prefetchImages(nextItemElsToLoad.concat(prevItemElsToLoad));
     }
 
     /**
-     * Replaces loading from `lazy` to `eager` for all images of the given
-     * carousel slides. This forces the browser to load the images immediately.
-     * The goal is to avoid the flicker (mainly on Firefox) when the carousel
-     * slides.
-     *
      * @param {HTMLElement[]} toLoadEls
      */
     prefetchImages(toLoadEls) {
         for (const carouselItemEl of toLoadEls) {
             const imageEls = carouselItemEl.querySelectorAll("img[loading='lazy']");
             for (const imageEl of imageEls) {
-                // We remove the attribute with the goal of forcing it
-                // to the "eager" value. Removing the attribute is better so
-                // that the attribute is not saved as eager in edit mode (the
-                // lazy value is auto added on page rendering).
                 imageEl.removeAttribute("loading");
             }
         }

@@ -1,26 +1,30 @@
 import typing
 from collections.abc import (
+    Iterable,
     Iterator,
     Reversible,
 )
 from typing import override
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from ..._recordset import is_recordset
 from ...domain import Domain
 from ...domain.ast import DomainCondition, OptimizationLevel
-from ...primitives import Command, NewId
+from ...primitives import Command, IdType, NewId
 from .. import _field_ddl as _ddl
-from ._base import _Relational
+from ._base import _is_cache_order_stable, _Relational, _RelationalMulti
 
 if typing.TYPE_CHECKING:
     from ..._typing import ModelClass, ModelLike
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
+
+_debug = DebugLog(__name__)
 
 
 def _optimize_comodel_id_lookup(condition: DomainCondition) -> Domain | None:
@@ -70,6 +74,12 @@ class Many2one(_Relational):
         if level == OptimizationLevel.FULL:
             domain = _optimize_comodel_id_lookup(condition)
             if domain is not None:
+                _debug.logic(
+                    "field.many2one.id_lookup_flattened",
+                    model=model._name,
+                    field=condition.field_expr,
+                    operator=condition.operator,
+                )
                 return domain
         return super()._optimize_condition(condition, model, level)
 
@@ -87,6 +97,12 @@ class Many2one(_Relational):
         if name in model_class._inherits.values():
             self.delegate = True
             self.bypass_search_access = True
+            _debug.lifecycle(
+                "field.many2one.delegate",
+                model=model_class._name,
+                field=name,
+                comodel=self.comodel_name,
+            )
         elif self.delegate:
             comodel_name = self.comodel_name or "comodel_name"
             raise TypeError(
@@ -103,6 +119,15 @@ class Many2one(_Relational):
                 self.ondelete = "cascade" if self.required else "set null"
             else:
                 self.ondelete = "restrict" if self.required else "set null"
+            _debug.logic(
+                "field.many2one.ondelete_defaulted",
+                model=self.model_name,
+                field=self.name,
+                comodel=self.comodel_name,
+                ondelete=self.ondelete,
+                required=self.required,
+                transient=model.is_transient(),
+            )
         if self.ondelete == "set null" and self.required:
             raise ValueError(
                 f"The m2o field {self.name} of model {model._name} is required but declares its ondelete policy "
@@ -141,10 +166,9 @@ class Many2one(_Relational):
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:
-        for record in records:
-            self._update_cache(
-                record, self.convert_to_cache(value, record, validate=False)
-            )
+        self._update_cache(
+            records, self.convert_to_cache(value, records, validate=False)
+        )
 
     @override
     def convert_to_column(
@@ -229,6 +253,17 @@ class Many2one(_Relational):
                 allowed_ids = set(targets._filtered_display_name_access()._ids)
             except MissingError:
                 allowed_ids = None
+            if _debug.pipeline.enabled:
+                _debug.pipeline(
+                    "field.many2one.read_display_names",
+                    model=self.model_name,
+                    field=self.name,
+                    comodel=self.comodel_name,
+                    values=len(values),
+                    targets=len(target_ids),
+                    allowed=len(allowed_ids) if allowed_ids is not None else None,
+                    per_record=allowed_ids is None,
+                )
 
         result: list[typing.Any] = []
         for value in values:
@@ -291,6 +326,14 @@ class Many2one(_Relational):
         cache_value = self.convert_to_cache(value, records)
 
         if self.bypass_search_access and not records.env.su:
+            _debug.logic(
+                "field.many2one.write_target_access_checked",
+                model=self.model_name,
+                field=self.name,
+                comodel=self.comodel_name,
+                target=cache_value,
+                uid=records.env.uid,
+            )
             try:
                 records.env[self.comodel_name].browse(cache_value).check_access("read")
             except AccessError as e:
@@ -306,7 +349,16 @@ class Many2one(_Relational):
 
         self._update_cache(records, cache_value, dirty=True)
 
-        self._update_inverses(records, cache_value)
+        self._update_inverses([(records, cache_value)])
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "field.many2one.dirty",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                target=cache_value,
+                inverses=len(records.pool.field_inverses[self]),
+            )
 
     def _remove_inverses(self, records: BaseModel) -> None:
         inverse_fields = records.pool.field_inverses[self]
@@ -323,35 +375,110 @@ class Many2one(_Relational):
         )
 
         for invf in inverse_fields:
+            invf = typing.cast("_RelationalMulti", invf)
             inv_cache = invf._get_cache(corecords.env)
             for corecord in corecords:
+                invf._sync_other_scopes(corecords.env, corecord.id, removed=record_ids)
                 ids0 = inv_cache.get(corecord.id)
                 if ids0 is not None:
                     ids1 = tuple(id_ for id_ in ids0 if id_ not in record_ids)
-                    invf._update_cache(corecord, ids1)
+                    invf._update_cache(corecord, ids1, keep_other_scopes=True)
 
-    def _update_inverses(self, records: BaseModel, value: int | NewId | None) -> None:
-        if value is None:
+    def _resort_inverses(self, records: BaseModel) -> None:
+        env = records.env
+        field_cache = self._get_cache(env)
+        corecord_ids = {
+            coid
+            for id_ in records._ids
+            if (coid := field_cache.get(id_)) and isinstance(coid, int)
+        }
+        if not corecord_ids:
             return
-        corecord = self.convert_to_record(value, records)
+        changed_ids = set(records._ids)
         for invf in records.pool.field_inverses[self]:
-            valid_records = records.filtered_domain(invf.get_comodel_domain(corecord))
-            if not valid_records:
+            if not invf.is_one2many:
                 continue
-            ids0 = invf._get_cache(corecord.env).get(corecord.id)
-            if ids0 is None and corecord.id:
+            inv_cache = invf._get_cache(env)
+            for coid in corecord_ids:
+                ids0 = inv_cache.get(coid)
+                if (
+                    not isinstance(ids0, tuple)
+                    or len(ids0) < 2
+                    or changed_ids.isdisjoint(ids0)
+                    or not all(isinstance(id_, int) for id_ in ids0)
+                ):
+                    continue
+                ids1 = records.browse(ids0)._sorted_by_ids(records._order, False)
+                if ids1 is not None and ids1 != ids0:
+                    _debug.logic(
+                        "field.many2one.inverse_resorted",
+                        model=self.model_name,
+                        field=self.name,
+                        inverse=f"{invf.model_name}.{invf.name}",
+                        corecord=coid,
+                    )
+                    invf._update_cache(env[invf.model_name].browse(coid), ids1)
+
+    def _update_inverses(
+        self, updates: Iterable[tuple[BaseModel, int | NewId | None]]
+    ) -> None:
+        updates = [(records, value) for records, value in updates if value is not None]
+        if not updates:
+            return
+        env = updates[0][0].env
+        model = env[self.model_name]
+        for invf in model.pool.field_inverses[self]:
+            invf = typing.cast("_RelationalMulti", invf)
+            additions: dict[IdType, tuple[IdType, ...]] = {}
+            for records, value in updates:
+                corecord = self.convert_to_record(value, records)
+                valid_records = records.filtered_domain(
+                    invf.get_comodel_domain(corecord)
+                )
+                if valid_records:
+                    additions[corecord.id] = tuple(
+                        unique(additions.get(corecord.id, ()) + valid_records._ids)
+                    )
+            if not additions:
                 continue
-            ids1 = tuple(unique((ids0 or ()) + valid_records._ids))
-            if corecord.id and not _is_cache_order_stable(records, ids1):
-                invf._invalidate_cache(corecord.env, [corecord.id])
-            else:
-                invf._update_cache(corecord, ids1)
+            invf._sync_added_to_other_scopes(env, additions)
+            inv_cache = invf._get_cache(env)
+            for coid, added in additions.items():
+                ids0 = inv_cache.get(coid)
+                if ids0 is None and coid:
+                    continue
+                ids1 = tuple(unique((ids0 or ()) + added))
+                if coid and not _is_cache_order_stable(model, ids1):
+                    # never invalidate here: the next read would fetch, and a
+                    # fetch flushes the half-written transaction this call is
+                    # part of
+                    sorted_ids = model.browse(ids1)._sorted_by_ids(model._order, False)
+                    if sorted_ids is not None:
+                        ids1 = sorted_ids
+                    if _debug.logic.enabled and sorted_ids is None:
+                        _debug.logic(
+                            "field.many2one.inverse_appended_unsorted",
+                            model=self.model_name,
+                            field=self.name,
+                            inverse=f"{invf.model_name}.{invf.name}",
+                            corecord=coid,
+                        )
+                invf._update_cache(
+                    env[invf.model_name].browse((coid,)), ids1, keep_other_scopes=True
+                )
 
     @override
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
         sql_field = super().to_sql(model, alias)
         if self.company_dependent:
             comodel = model.env[self.comodel_name]
+            _debug.logic(
+                "field.many2one.company_dependent_exists_subselect",
+                model=model._name,
+                field=self.name,
+                comodel=self.comodel_name,
+                alias=alias,
+            )
             sql_field = SQL(
                 """(SELECT %(cotable_alias)s.id
                     FROM %(cotable)s AS %(cotable_alias)s
@@ -399,6 +526,14 @@ class Many2one(_Relational):
                 for cond in value.iter_conditions()
             )
 
+        _debug.logic(
+            "field.many2one.any_strategy",
+            model=model._name,
+            field=self.name,
+            operator=operator,
+            strategy="left_join" if left_join else "subselect",
+            bypass_access=bypass_access,
+        )
         if left_join:
             comodel, coalias = self.join(model, alias, query)
             if not positive:
@@ -444,6 +579,14 @@ class Many2one(_Relational):
     def join(self, model: ModelLike, alias: str, query: Query) -> tuple[BaseModel, str]:
         comodel = model.env[self.comodel_name]
         coalias = query.get_table_alias(alias, self.name)
+        _debug.pipeline(
+            "field.many2one.join",
+            model=model._name,
+            field=self.name,
+            comodel=self.comodel_name,
+            alias=alias,
+            coalias=coalias,
+        )
         query.add_join(
             "LEFT JOIN",
             coalias,
@@ -481,12 +624,3 @@ class PrefetchMany2one(Reversible):
             for id_ in reversed(self.record._prefetch_ids)
             if (coid := field_cache.get(id_)) is not None and coid is not _pending
         )
-
-
-def _is_cache_order_stable(records: BaseModel, ids: tuple) -> bool:
-    # A new record cannot be read back from the database, so its id stays in the cache.
-    if not all(isinstance(id_, int) for id_ in ids):
-        return True
-    return records._order.replace(" ", "").lower() in ("id", "idasc") and list(
-        ids
-    ) == sorted(ids)

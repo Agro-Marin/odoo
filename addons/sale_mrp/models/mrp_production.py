@@ -1,16 +1,21 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpProduction(models.Model):
     _inherit = "mrp.production"
 
     sale_order_count = fields.Integer(
-        "Count of Source SO",
+        string="Count of Source SO",
         compute="_compute_sale_order_count",
-        groups="sales_team.group_sale_salesman",
+        groups="sale.group_sale_salesman",
     )
     sale_line_id = fields.Many2one(
-        "sale.order.line", "Origin sale order line", copy=False
+        comodel_name="sale.order.line",
+        string="Origin sale order line",
+        copy=False,
     )
 
     @api.depends("reference_ids.sale_ids", "sale_line_id.order_id")
@@ -45,6 +50,11 @@ class MrpProduction(models.Model):
     def action_confirm(self):
         res = super().action_confirm()
         for production in self.filtered("sale_line_id"):
+            _debug.lifecycle(
+                "finished_moves_linked_to_sale_line",
+                production=production,
+                line=production.sale_line_id,
+            )
             production.move_finished_ids.filtered(
                 lambda move, production=production: (
                     move.product_id == production.product_id

@@ -7,7 +7,10 @@ class HrSkillLevel(models.Model):
     _order = "level_progress, id"
 
     skill_type_id = fields.Many2one(
-        "hr.skill.type", required=True, index=True, ondelete="cascade"
+        comodel_name="hr.skill.type",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     name = fields.Char(required=True)
     level_progress = fields.Integer(
@@ -19,13 +22,20 @@ class HrSkillLevel(models.Model):
     )
 
     technical_is_new_default = fields.Boolean(
-        compute="_compute_technical_is_new_default", readonly=False
+        compute="_compute_technical_is_new_default",
+        readonly=False,
     )
 
     _check_level_progress = models.Constraint(
         "CHECK(level_progress BETWEEN 0 AND 100)",
         "Progress should be a number between 0 and 100.",
     )
+
+    @api.constrains("skill_type_id")
+    def _check_skill_type_id(self):
+        self.env["mixin.hr.individual.skill"]._check_library_type_matches_rows(
+            self, "skill_level_id"
+        )
 
     def _compute_technical_is_new_default(self):
         self.technical_is_new_default = False

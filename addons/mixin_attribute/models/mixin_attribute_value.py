@@ -16,12 +16,8 @@ class MixinAttributeValue(models.AbstractModel):
     _description = "Attribute Value Mixin"
     _order = "sequence, name"
 
-    sequence = fields.Integer(
-        default=10,
-    )
-    color = fields.Integer(
-        default=lambda self: self._default_color(),
-    )
+    sequence = fields.Integer(default=10)
+    color = fields.Integer(default=lambda self: self._default_color())
 
     _name_src_uniq = name_uniq_index(
         "attribute_id",
@@ -63,7 +59,7 @@ class MixinAttributeValue(models.AbstractModel):
             return None
         return self.env[field.comodel_name]._attribute_line_model
 
-    def _used_records(self):
+    def _filtered_used(self):
         """Return the subset of ``self`` already chosen on some attribute line.
 
         Consumers with a narrower notion of in-use override this -- product
@@ -93,7 +89,7 @@ class MixinAttributeValue(models.AbstractModel):
 
         :return: the message, or False when nothing is in use
         """
-        used = self._used_records()
+        used = self._filtered_used()
         if not used:
             return False
         names = ", ".join(used.mapped("display_name"))
@@ -126,7 +122,7 @@ class MixinAttributeValue(models.AbstractModel):
         """
         if "attribute_id" in vals:
             moved = self.filtered(lambda v: v.attribute_id.id != vals["attribute_id"])
-            used = moved._used_records()
+            used = moved._filtered_used()
             if used:
                 names = ", ".join(used.mapped("display_name"))
                 usage = used._usage_label()

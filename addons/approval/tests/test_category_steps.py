@@ -251,11 +251,6 @@ class TestCategorySteps(ApprovalCommon):
         with self.assertRaises(UserError):
             self._prepare_request(category)
 
-    def test_steps_cannot_be_combined_with_the_approver_sequence(self):
-        category = self._category(approve_sequentially=True)
-        with self.assertRaises(ValidationError):
-            self._step(category, "Clash", (self.approver_1,))
-
     def test_a_step_needs_members_or_a_group(self):
         category = self._category()
         with self.assertRaises(ValidationError):
@@ -271,9 +266,7 @@ class TestCategorySteps(ApprovalCommon):
             ["First", "Second"],
         )
 
-    # -- untouched without steps -------------------------------------------
-
-    def test_a_category_without_steps_keeps_its_minimum(self):
+    def test_a_pool_step_keeps_its_minimum(self):
         category = self._category(
             approvers=[(self.approver_1, False, 10), (self.approver_2, False, 20)],
             approval_minimum=2,
@@ -283,3 +276,49 @@ class TestCategorySteps(ApprovalCommon):
         self.assertEqual(request.state, "pending")
         request.with_user(self.approver_2).action_approve()
         self.assertEqual(request.state, "approved")
+
+
+@tagged("post_install", "-at_install")
+class TestStepReadingTheRequest(ApprovalCommon):
+    """A step whose source model is approval.request reads the request itself, so a
+    request raised with no document can still have its approvers named for it."""
+
+    def _category_with_request_step(self, **step_vals):
+        category = self._make_category("Request subject")
+        self.env["approval.category.step"].create(
+            {
+                "category_id": category.id,
+                "name": "From the request",
+                "minimum": 1,
+                "subject_model_id": self.env["ir.model"]._get("approval.request").id,
+                "subject_user_path": "partner_id.user_ids",
+                **step_vals,
+            }
+        )
+        return category
+
+    def test_the_approver_path_reads_the_request(self):
+        self.partner.user_ids = self.approver_1
+        request = self._prepare_request(
+            self._category_with_request_step(), partner_id=self.partner.id
+        )
+        self.assertEqual(request.approver_ids.user_id, self.approver_1)
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_the_condition_reads_the_request(self):
+        self.partner.user_ids = self.approver_1
+        category = self._category_with_request_step(
+            subject_domain=f"[('partner_id', '=', {self.partner.id})]"
+        )
+        matching = self._prepare_request(category, partner_id=self.partner.id)
+        self.assertEqual(matching._get_applicable_steps(), category.step_ids)
+        other = self.env["res.partner"].create({"name": "Other partner"})
+        request = self.env["approval.request"].create(
+            {
+                "category_id": category.id,
+                "request_owner_id": self.owner_user.id,
+                "partner_id": other.id,
+            }
+        )
+        self.assertFalse(request._get_applicable_steps())

@@ -1,6 +1,6 @@
 {
     "name": "SMS gateway",
-    "version": "3.0",
+    "version": "3.1",
     "category": "Sales/Sales",
     "summary": "SMS Text Messaging",
     "description": """
@@ -35,6 +35,7 @@ The service is provided by the In App Purchase Odoo platform.
         "views/sms_template_views.xml",
         "security/ir.model.access.csv",
         "security/sms_security.xml",
+        "views/sms_menus.xml",
     ],
     "demo": [
         "demo/sms_demo.xml",
@@ -48,6 +49,5 @@ The service is provided by the In App Purchase Odoo platform.
             "sms/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

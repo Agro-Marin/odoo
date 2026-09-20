@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import {
     KanbanMany2ManyAvatarUserTagsList,
     KanbanMany2ManyTagsAvatarUserField,
     kanbanMany2ManyTagsAvatarUserField,
 } from "@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field";
+import { registry } from "@web/core/registry";
 
 export class Many2ManyAvatarUserApproverTagsList extends KanbanMany2ManyAvatarUserTagsList {
     static template = "account.KanbanMany2ManyAvatarUserTagsList";

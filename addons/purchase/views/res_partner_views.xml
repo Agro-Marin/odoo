@@ -34,8 +34,8 @@
             <field name="property_supplier_payment_term_id" position="before">
                 <field
                     name="user_purchase_id"
-                    domain="[('share', '=', False)]"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    domain="[('share', '=', False)]" />
             </field>
         </field>
     </record>
@@ -47,6 +47,9 @@
         <field
             name="context">{'search_default_partner_id': active_id, 'default_partner_id':
             active_id}</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('purchase.group_purchase_user'))]" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 This vendor has no purchase order. Create a new RfQ
@@ -57,10 +60,9 @@
                 of the products and the vendor bill.
             </p>
         </field>
-        <field name="group_ids" eval="[(4, ref('purchase.group_purchase_user'))]" />
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('purchase.view_purchase_order_list')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('purchase.view_purchase_order_kanban_without_dashboard')}),             ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('purchase.view_purchase_order_list')}), Command.create({'view_mode': 'kanban', 'view_id': ref('purchase.view_purchase_order_kanban_without_dashboard')})]" />
     </record>
 
     <record id="res_partner_view_purchase_buttons" model="ir.ui.view">
@@ -71,23 +73,29 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='anchor_buttons_purchase']" position="before">
                 <button
-                    id="button_purchase_orders"
-                    class="oe_stat_button"
                     name="%(purchase.act_res_partner_2_purchase_order)d"
+                    id="button_purchase_orders"
                     type="action"
+                    icon="fa-credit-card"
                     groups="purchase.group_purchase_user"
-                    icon="fa-credit-card">
+                    class="oe_stat_button">
                     <field
-                        string="Purchases"
                         name="purchase_order_count"
+                        string="Purchases"
                         widget="statinfo" />
                 </button>
             </xpath>
             <page name="partner_warnings" position="attributes">
-                <attribute name="groups" add="purchase.group_warning_purchase" separator="," />
+                <attribute
+                    name="groups"
+                    add="purchase.group_warning_purchase"
+                    separator="," />
             </page>
             <group name="warnings" position="inside">
-                <group name="purchase_warning" groups="purchase.group_warning_purchase" col="2">
+                <group
+                    name="purchase_warning"
+                    col="2"
+                    groups="purchase.group_warning_purchase">
                     <separator
                         name="purchase_warning_separator"
                         string="Warning on Purchase Orders and Bills"
@@ -95,8 +103,8 @@
                     <field
                         name="purchase_warn_msg"
                         placeholder="e.g. This vendor is on vacation until the end of August."
-                        nolabel="1"
-                        colspan="2" />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
             </group>
         </field>

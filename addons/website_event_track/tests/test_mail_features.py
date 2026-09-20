@@ -61,7 +61,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
 
     @users("user_eventmanager")
     def test_track_default_recipients(self):
-        """Test track default recipients"""
         tracks = self.tracks.with_user(self.env.user)
         defaults = tracks._message_get_default_recipients()
         expected_all = {
@@ -70,31 +69,26 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                 "email_to": "not.partner@test.example.com",
                 "partner_ids": [],
             },
-            # partner wins, being the contact
             self.tracks[1].id: {
                 "email_cc": "",
                 "email_to": "",
                 "partner_ids": self.event_customer.ids,
             },
-            # contact(_email) > partner_email (speaker info)
             self.tracks[2].id: {
                 "email_cc": "",
                 "email_to": "",
                 "partner_ids": self.event_customer.ids,
             },
-            # contact wins (whatever email)
             self.tracks[3].id: {
                 "email_cc": "",
                 "email_to": "",
                 "partner_ids": self.event_customer.ids,
             },
-            # wrong email -> fallback on valid speaker email
             self.tracks[4].id: {
                 "email_cc": "",
                 "email_to": '"Speaker" <speaker@test.example.com>',
                 "partner_ids": [],
             },
-            # no partner: contact then speaker
             self.tracks[5].id: {
                 "email_cc": "",
                 "email_to": '"Contact" <contact@test.example.com>',
@@ -109,7 +103,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
 
     @users("user_eventmanager")
     def test_track_suggested_recipients(self):
-        """Test track suggested recipients"""
         tracks = self.tracks.with_user(self.env.user)
         expected_all = [
             [
@@ -120,7 +113,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                     "partner_id": False,
                 },
             ],
-            # event with a partner, use it
             [
                 {
                     "create_values": {},
@@ -129,7 +121,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                     "partner_id": self.event_customer.id,
                 },
             ],
-            # suggested take both partner and contact_email, as they are different
             [
                 {
                     "create_values": {},
@@ -144,7 +135,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                     "partner_id": False,
                 },
             ],
-            # contact wins (whatever email)
             [
                 {
                     "create_values": {},
@@ -159,7 +149,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                     "partner_id": False,
                 },
             ],
-            # partner with wrong email: add speaker as fallback
             [
                 {
                     "create_values": {},
@@ -174,7 +163,6 @@ class TestTrackMailFeatures(TestEventOnlineCommon, MailCase):
                     "partner_id": False,
                 },
             ],
-            # no partner: contact then speaker
             [
                 {
                     "create_values": {},

@@ -4,6 +4,8 @@ import json
 import typing
 import uuid
 from collections import abc, defaultdict
+from collections.abc import Sequence
+from collections.abc import Set as AbstractSet
 from datetime import date, datetime
 from operator import attrgetter
 from typing import override
@@ -11,6 +13,7 @@ from typing import override
 from psycopg.types.json import Json as PsycopgJson
 
 from odoo.exceptions import AccessError, MissingError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import fast_clone
 from odoo.tools import SQL, OrderedSet, html_sanitize, is_list_of
 from odoo.tools.misc import frozendict, has_list_types
@@ -21,8 +24,12 @@ from ..domain.ast import DomainCondition, OptimizationLevel
 from ..parsing import parse_field_expr
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ..validation import regex_alphanumeric
+from ._field_sql import PYTHON_INEQUALITY_OPERATOR
 from .base import Field, _logger
+from .reference import REFERENCE_VERIFIED_CACHE_KEY
 from .temporal import _value_to_date, _value_to_datetime
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
@@ -47,7 +54,7 @@ def _optimize_property_temporal_comparand(
     if (
         operator not in ("in", "not in", ">", "<", ">=", "<=")
         or condition.field_expr.count(".") != 1
-        or not isinstance(condition.value, (str, OrderedSet))
+        or not isinstance(condition.value, (str, AbstractSet))
     ):
         return condition
     definition = model.get_property_definition(condition.field_expr)
@@ -66,10 +73,35 @@ def _optimize_property_temporal_comparand(
     elif isinstance(value, (date, datetime)):
         value = str(value)
 
+    _debug.logic(
+        "field.properties.temporal_comparand",
+        model=model._name,
+        field_expr=condition.field_expr,
+        operator=operator,
+        property_type=property_type,
+    )
     return DomainCondition(condition.field_expr, operator, value)
 
 
 RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
+
+
+def _is_unset(value: typing.Any) -> bool:
+    return value is False or value is None or (type(value) is list and not value)
+
+
+def _same_value(domain_value: typing.Any, value: typing.Any) -> bool:
+    # 0 == False and 1 == True in Python; a stored 0 is not an unset property
+    return domain_value == value and isinstance(domain_value, bool) is isinstance(
+        value, bool
+    )
+
+
+def _unset_property_sql(raw_sql_field: SQL, property_name: str) -> tuple[SQL, SQL]:
+    return (
+        SQL("%s IS NULL", raw_sql_field),
+        SQL("NOT (%s ? %s)", raw_sql_field, property_name),
+    )
 
 
 class Properties(Field):
@@ -155,12 +187,26 @@ class Properties(Field):
             if not self.inherited_field:
                 self._depends = (self.definition_record,)
                 self.compute = self._compute
+            _debug.lifecycle(
+                "field.properties.definition_bound",
+                model=self.model_name,
+                field=self.name,
+                definition_record=self.definition_record,
+                definition_field=self.definition_record_field,
+                computed=not self.inherited_field,
+            )
 
     @override
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.inherited_field and not self.definition:
             self.definition = self.inherited_field.definition
+            _debug.logic(
+                "field.properties.definition_inherited",
+                model=self.model_name,
+                field=self.name,
+                definition=self.definition,
+            )
             self._setup_definition_attrs(model)
 
     @override
@@ -225,6 +271,7 @@ class Properties(Field):
                     types_by_name[definition["name"]] = definition.get("type")
 
         converted = dict(values)
+        replaced = 0  # debuglog
         for name, value in values.items():
             if not is_recordset(value):
                 continue
@@ -239,6 +286,14 @@ class Properties(Field):
                     f"{self}: its definition declares "
                     f"{property_type or 'no relational type'}"
                 )
+            replaced += 1  # debuglog
+        _debug.logic(
+            "field.properties.recordsets_replaced",
+            model=self.model_name,
+            field=self.name,
+            replaced=replaced,
+            definitions=len(types_by_name),
+        )
         return converted
 
     @override
@@ -274,7 +329,7 @@ class Properties(Field):
             else:
                 result.append([])
 
-        res_ids_per_model = self._get_res_ids_per_model(records.env, result)
+        res_ids_per_model = self._get_res_ids_per_model(records.env, result, records)
 
         for value in result:
             self._parse_json_types(value, records.env, res_ids_per_model)
@@ -283,6 +338,15 @@ class Properties(Field):
             for value in result:
                 self._add_display_name(value, records.env)
 
+        _debug.pipeline(
+            "field.properties.read",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            with_definition=sum(1 for value in result if value),
+            comodels=len(res_ids_per_model),
+            display_names=use_display_name,
+        )
         return result
 
     @override
@@ -296,9 +360,13 @@ class Properties(Field):
         return value or ""
 
     def _get_res_ids_per_model(
-        self, env: typing.Any, values_list: list[typing.Any]
+        self,
+        env: typing.Any,
+        values_list: list[typing.Any],
+        records: ModelLike | None = None,
     ) -> dict[str, set[int]]:
         ids_per_model: defaultdict[str, OrderedSet] = defaultdict(OrderedSet)
+        relational: dict[str, str] = {}
 
         for record_values in values_list:
             for property_definition in record_values:
@@ -309,6 +377,7 @@ class Properties(Field):
 
                 if type_ not in RELATIONAL_PROPERTY_TYPES or comodel not in env:
                     continue
+                relational[property_definition["name"]] = comodel
 
                 if type_ == "many2one":
                     default = [default] if default else []
@@ -321,16 +390,84 @@ class Properties(Field):
                 ids_per_model[comodel].update(default)
                 ids_per_model[comodel].update(property_value)
 
+        if not ids_per_model:
+            return {}
+        # the pairs a cursor has already seen exist stay verified until an
+        # unlink discards their model (the unlink mixin does, by cache key)
+        verified = env.cr.cache.setdefault(REFERENCE_VERIFIED_CACHE_KEY, {}).setdefault(
+            (self.model_name, self.name), set()
+        )
+        unverified = any(
+            (model, id_) not in verified
+            for model, ids in ids_per_model.items()
+            for id_ in ids
+        )
+        # one record asked and a statement is due: its prefetch siblings'
+        # cached values name the records the next reads will ask about, so
+        # they are verified in the same statement instead of one per record
+        if unverified and records is not None and len(records) == 1:
+            cached = self._get_cache(env)
+            for sibling_id in records._prefetch_ids:
+                raw = cached.get(sibling_id)
+                if not isinstance(raw, dict):
+                    continue
+                for name, comodel in relational.items():
+                    value = raw.get(name)
+                    if value.__class__ is int:
+                        ids_per_model[comodel].add(value)
+                    elif isinstance(value, list):
+                        ids_per_model[comodel].update(
+                            v for v in value if v.__class__ is int
+                        )
+
         res_ids_per_model = {}
         for model, ids in ids_per_model.items():
-            recs = env[model].browse(ids).exists()
-            res_ids_per_model[model] = set(recs.ids)
+            unknown = [id_ for id_ in ids if (model, id_) not in verified]
+            existing = env[model].browse(unknown).exists() if unknown else None
+            if existing is not None:
+                verified.update((model, id_) for id_ in existing._ids)
+            res_ids = {id_ for id_ in ids if (model, id_) in verified}
+            res_ids_per_model[model] = res_ids
+            _debug.perf.count(
+                "field.properties.res_ids_verified",
+                field=self.name,
+                comodel=model,
+                requested=len(ids),
+                queried=len(unknown),
+                existing=len(res_ids),
+            )
 
-            for record in recs:
+            for record in env[model].browse(sorted(res_ids)):
                 with contextlib.suppress(AccessError):
                     record.display_name  # noqa: B018  the read IS the access check suppress() catches
 
         return res_ids_per_model
+
+    @override
+    def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
+        # the row and the cache already carry the value: only a definition change
+        # still has work to do after the insert
+        definition_writes = [
+            (record, value)
+            for record, value in record_values
+            if isinstance(value, list)
+            and any(
+                isinstance(definition, dict)
+                and (
+                    definition.get("definition_changed")
+                    or definition.get("definition_deleted")
+                )
+                for definition in value
+            )
+        ]
+        _debug.logic(
+            "field.properties.create",
+            model=self.model_name,
+            field=self.name,
+            records=len(record_values),
+            definition_writes=len(definition_writes),
+        )
+        super().create(definition_writes)
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
@@ -354,6 +491,14 @@ class Properties(Field):
             definition.get("definition_changed") or definition.get("definition_deleted")
             for definition in (value or [])
         )
+        _debug.logic(
+            "field.properties.write",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            properties=len(value or ()),
+            definition_changed=definition_changed,
+        )
         if definition_changed:
             value = [
                 definition
@@ -369,6 +514,14 @@ class Properties(Field):
                 for property_definition in properties_definition:
                     property_definition.pop("value", None)
                 container[self._get_definition_record_field()] = properties_definition
+                _debug.lifecycle(
+                    "field.properties.definition_written",
+                    model=self.model_name,
+                    field=self.name,
+                    container=container._name,
+                    container_id=container.id,
+                    properties=len(properties_definition),
+                )
 
                 _logger.info(
                     "Properties field: User #%i changed definition of %r",
@@ -379,6 +532,12 @@ class Properties(Field):
         return super().mark_dirty(records, value)
 
     def _compute(self, records: BaseModel) -> None:
+        _debug.pipeline(
+            "field.properties.compute",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+        )
         for record in records.sudo():
             record[self.name] = self._add_default_values(
                 record.env,
@@ -399,6 +558,12 @@ class Properties(Field):
             properties_values = properties_values._values
 
         if not values.get(self._get_definition_record()):
+            _debug.logic(
+                "field.properties.defaults_skipped",
+                model=self.model_name,
+                field=self.name,
+                reason="no_container",
+            )
             return {}
 
         container_id = values[self._get_definition_record()]
@@ -419,6 +584,13 @@ class Properties(Field):
                 and any(d.get("definition_changed") for d in properties_values)
             )
         ):
+            _debug.logic(
+                "field.properties.defaults_skipped",
+                model=self.model_name,
+                field=self.name,
+                reason="no_definition",
+                container=container_id._name,
+            )
             return {}
 
         assert isinstance(properties_values, (list, dict))
@@ -430,6 +602,7 @@ class Properties(Field):
                 properties_values, properties_definition
             )
 
+        defaulted = 0  # debuglog
         for properties_value in properties_list_values:
             if properties_value.get("value") is None:
                 property_name = properties_value.get("name")
@@ -440,7 +613,17 @@ class Properties(Field):
                     default = properties_value.get("default")
                 if default is not None:
                     properties_value["value"] = default
+                    defaulted += 1  # debuglog
 
+        _debug.logic(
+            "field.properties.defaults_applied",
+            model=self.model_name,
+            field=self.name,
+            container=container_id._name,
+            properties=len(properties_list_values),
+            defaulted=defaulted,
+            given_as="list" if isinstance(properties_values, list) else "dict",
+        )
         return properties_list_values
 
     def _get_properties_definition(
@@ -534,9 +717,17 @@ class Properties(Field):
 
     @classmethod
     def _add_missing_names(cls, values_list: list[dict[str, typing.Any]]) -> None:
+        generated = 0  # debuglog
         for definition in values_list:
             if definition.get("definition_changed") and not definition.get("name"):
                 definition["name"] = str(uuid.uuid4()).replace("-", "")[:16]
+                generated += 1  # debuglog
+        if _debug.lifecycle.enabled and generated:
+            _debug.lifecycle(
+                "field.properties.names_generated",
+                generated=generated,
+                properties=len(values_list),
+            )
 
     @classmethod
     def _parse_json_types(
@@ -604,6 +795,17 @@ class Properties(Field):
                     property_definition["name"].endswith("_html") and property_value
                 )
 
+            if (
+                _debug.logic.enabled
+                and property_value in (False, [])
+                and property_definition.get("value") not in (False, [], None)
+            ):
+                _debug.logic(
+                    "field.properties.value_rejected",
+                    property=property_definition.get("name"),
+                    property_type=property_type,
+                    comodel=res_model or None,
+                )
             property_definition["value"] = property_value
 
     @classmethod
@@ -697,32 +899,65 @@ class Properties(Field):
         self, records: BaseModel, field_expr: str, operator: str, value: typing.Any
     ) -> typing.Any:
         getter = self.get_expression_getter(field_expr)
-        domain = None
-        if operator == "any" or isinstance(value, Domain):
-            domain = Domain(value).optimize(records)
-        elif (
+        relational = (
             operator == "in"
             and isinstance(value, COLLECTION_TYPES)
             and hasattr(getter(records[:1]), "_ids")
-        ):
-            domain = Domain("id", "in", value).optimize(records)
-        if domain is not None:
+        )
+        _debug.logic(
+            "field.properties.filter_function",
+            model=self.model_name,
+            field_expr=field_expr,
+            operator=operator,
+            strategy="relational_domain"
+            if relational or operator == "any" or isinstance(value, Domain)
+            else "collection"
+            if operator == "in" and isinstance(value, COLLECTION_TYPES)
+            else "scalar",
+        )
+        if operator == "any" or isinstance(value, Domain):
+            domain = Domain(value).optimize(records)
             return lambda rec: getter(rec).filtered_domain(domain)
+        if relational:
+            # the same buckets as _property_in_to_sql: False is the unset
+            # property, an id matches the record or one of the records
+            match_unset = any(v is False for v in value)
+            ids = [v for v in value if v is not False]
+            domain = Domain("id", "in", ids).optimize(records) if ids else Domain.FALSE
 
-        match = super().filter_function(records, field_expr, operator, value)
-        if operator != "in" or not isinstance(value, COLLECTION_TYPES):
-            return match
+            def matches_record(rec: BaseModel) -> bool:
+                corecords = getter(rec)
+                if not corecords:
+                    return match_unset
+                return bool(corecords.filtered_domain(domain))
 
-        value_set = value if isinstance(value, abc.Set) else set(value)
-        match_empty = False in value_set or self.falsy_value in value_set
+            return matches_record
 
-        def match_collection(rec):
+        if operator == "in" and isinstance(value, COLLECTION_TYPES):
+            return self._filter_property_in(getter, value)
+        return super().filter_function(records, field_expr, operator, value)
+
+    @staticmethod
+    def _filter_property_in(
+        getter: abc.Callable[[BaseModel], typing.Any], value: abc.Collection
+    ) -> abc.Callable[[BaseModel], bool]:
+        # the same buckets as _property_in_to_sql: False is the unset property
+        # (json false, null or no key), [True] alone means "set", and a value
+        # matches a scalar or one item of a tags list
+        values = list(value)
+        if len(values) == 1 and values[0] is True:
+            return lambda rec: not _is_unset(getter(rec))
+        match_unset = any(v is False for v in values)
+        values = [v for v in values if v is not False]
+
+        def matches(rec: BaseModel) -> bool:
             rec_value = getter(rec)
-            if type(rec_value) is not list:
-                return match(rec)
-            return match_empty if not rec_value else not value_set.isdisjoint(rec_value)
+            if _is_unset(rec_value):
+                return match_unset
+            items = rec_value if type(rec_value) is list else (rec_value,)
+            return any(_same_value(v, item) for v in values for item in items)
 
-        return match_collection
+        return matches
 
     def property_to_sql(
         self,
@@ -761,12 +996,7 @@ class Properties(Field):
                 )
             )
             if check_null_op_false == "=":
-                sqls.extend(
-                    (
-                        SQL("%s IS NULL", raw_sql_field),
-                        SQL("NOT (%s ? %s)", raw_sql_field, property_name),
-                    )
-                )
+                sqls.extend(_unset_property_sql(raw_sql_field, property_name))
         for one_value in value:
             sql_value = SQL("%s", json.dumps(one_value))
             sql_array = SQL("%s", json.dumps([one_value]))
@@ -791,6 +1021,14 @@ class Properties(Field):
                     )
                 )
         assert sqls, "No SQL generated for property"
+        if operator == "not in" and check_null_op_false is None:
+            # "not in" keeps the records without the property, as a column's
+            # NOT IN keeps the NULLs; a NULL json value answers neither branch
+            return SQL(
+                "(%s OR %s)",
+                SQL(" AND ").join(sqls),
+                SQL(" OR ").join(_unset_property_sql(raw_sql_field, property_name)),
+            )
         if len(sqls) == 1:
             return sqls[0]
         combine_sql = SQL(" OR ") if operator == "in" else SQL(" AND ")
@@ -812,6 +1050,17 @@ class Properties(Field):
         raw_sql_field = model._field_to_sql(alias, fname, query)
         sql_left = model._field_to_sql(alias, field_expr, query)
 
+        _debug.logic(
+            "field.properties.condition_to_sql",
+            model=model._name,
+            field_expr=field_expr,
+            operator=operator,
+            shape="in"
+            if operator in ("in", "not in")
+            else "text"
+            if isinstance(value, str) or operator.endswith("like")
+            else "json",
+        )
         if operator in ("in", "not in"):
             return self._property_in_to_sql(
                 operator, value, sql_left, raw_sql_field, property_name
@@ -834,7 +1083,16 @@ class Properties(Field):
             raise ValueError(f"Invalid operator {operator} for Properties") from None
 
         if isinstance(value, str):
-            sql_left = SQL("(%s ->> %s)", raw_sql_field, property_name)
+            # ->> renders an unset property (json false) as the text 'false',
+            # which LIKE '%a%' and < 'red' would match; only text compares
+            sql_json = sql_left
+            sql_left = SQL(
+                "(CASE WHEN jsonb_typeof(%s) IN ('boolean', 'null')"
+                " THEN NULL ELSE %s ->> %s END)",
+                sql_json,
+                raw_sql_field,
+                property_name,
+            )
             sql_right = SQL("%s", value)
             sql = SQL(
                 "%s%s%s",
@@ -844,15 +1102,19 @@ class Properties(Field):
             )
             if operator in Domain.NEGATIVE_OPERATORS:
                 sql = SQL("(%s OR %s IS NULL)", sql, sql_left)
+            elif operator in PYTHON_INEQUALITY_OPERATOR:
+                # a list or a number does not order against text
+                sql = SQL("(jsonb_typeof(%s) = 'string' AND %s)", sql_json, sql)
             return sql
 
         sql_right = SQL("%s", json.dumps(value))
-        return SQL(
-            "%s%s%s",
-            unaccent(sql_left),
-            sql_operator,
-            unaccent(sql_right),
-        )
+        sql = SQL("%s%s%s", sql_left, sql_operator, sql_right)
+        if operator in PYTHON_INEQUALITY_OPERATOR and isinstance(value, int | float):
+            # jsonb orders every boolean above every number: an unset
+            # property (false) would satisfy size > 2
+            json_type = "boolean" if isinstance(value, bool) else "number"
+            sql = SQL("(jsonb_typeof(%s) = %s AND %s)", sql_left, json_type, sql)
+        return sql
 
 
 class Property(abc.Mapping):
@@ -876,6 +1138,15 @@ class Property(abc.Mapping):
                 use_display_name=False,
             )
             index = self._definitions_by_name = {prop["name"]: prop for prop in values}
+            if _debug.perf.enabled:
+                _debug.perf.count(
+                    "field.properties.definitions_indexed",
+                    model=getattr(self.field, "model_name", None),
+                    field=getattr(self.field, "name", None),
+                    record=getattr(self.record, "id", None),
+                    definitions=len(index),
+                    values=len(self._values),
+                )
         return index
 
     def __iter__(self) -> typing.Iterator[str]:
@@ -1041,16 +1312,39 @@ class PropertiesDefinition(Field):
                 if property_model not in record.env:
                     property_definition["comodel"] = False
                     property_definition.pop("domain", None)
+                    _debug.logic(
+                        "field.properties_definition.comodel_dropped",
+                        model=self.model_name,
+                        field=self.name,
+                        property=property_definition.get("name"),
+                        comodel=property_model,
+                    )
                 elif property_domain := property_definition.get("domain"):
                     if len(property_domain) > 8192:
                         del property_definition["domain"]
+                        _debug.logic(
+                            "field.properties_definition.domain_dropped",
+                            model=self.model_name,
+                            field=self.name,
+                            property=property_definition.get("name"),
+                            reason="too_long",
+                            length=len(property_domain),
+                        )
                     else:
                         try:
                             dom = Domain(ast.literal_eval(property_domain))
                             model = record.env[property_model]
                             dom.check(model)
-                        except ValueError, SyntaxError, MemoryError:
+                        except (ValueError, SyntaxError, MemoryError) as exc:
                             del property_definition["domain"]
+                            _debug.logic(
+                                "field.properties_definition.domain_dropped",
+                                model=self.model_name,
+                                field=self.name,
+                                property=property_definition.get("name"),
+                                reason="invalid",
+                                error=type(exc).__name__,
+                            )
 
             elif type_ in ("selection", "tags"):
                 property_definition[type_] = property_definition.get(type_) or []
@@ -1182,3 +1476,10 @@ class PropertiesDefinition(Field):
             self._check_property_keys(property_definition, allowed_keys_set)
             self._check_property_name(property_definition, properties_names)
             self._check_property_options(property_definition, env)
+        _debug.pipeline(
+            "field.properties_definition.checked",
+            model=self.model_name,
+            field=self.name,
+            definitions=len(properties_definition),
+            allowed_keys=len(allowed_keys_set),
+        )

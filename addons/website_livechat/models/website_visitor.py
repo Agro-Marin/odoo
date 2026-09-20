@@ -1,35 +1,40 @@
 from odoo import Command, _, api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import get_lang
 
 from odoo.addons.mail.tools.discuss import Store
+
+_debug = DebugLog(__name__)
 
 
 class WebsiteVisitor(models.Model):
     _inherit = "website.visitor"
 
     livechat_operator_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
+        string="Speaking with",
         compute="_compute_livechat_operator_id",
         store=True,
-        string="Speaking with",
         index="btree_not_null",
     )
     livechat_operator_name = fields.Char(
-        "Operator Name", related="livechat_operator_id.name"
+        related="livechat_operator_id.name",
+        string="Operator Name",
     )
     discuss_channel_ids = fields.One2many(
-        "discuss.channel",
-        "livechat_visitor_id",
+        comodel_name="discuss.channel",
+        inverse_name="livechat_visitor_id",
         string="Visitor's livechat channels",
         readonly=True,
     )
-    session_count = fields.Integer("# Sessions", compute="_compute_session_count")
+    session_count = fields.Integer(
+        string="# Sessions",
+        compute="_compute_session_count",
+    )
 
     def _auto_init(self):
-        # Skip the computation of the field `livechat_operator_id` at the module installation
-        # We can assume no livechat operator attributed to visitor if it was not installed
         if not column_exists(self.env.cr, "website_visitor", "livechat_operator_id"):
             create_column(
                 self.env.cr, "website_visitor", "livechat_operator_id", "int4"
@@ -66,24 +71,25 @@ class WebsiteVisitor(models.Model):
             visitor.session_count = session_count.get(visitor.id, 0)
 
     def action_send_chat_request(self):
-        """Send a chat request to website_visitor(s).
-        This creates a chat_request and a discuss_channel with livechat active flag.
-        But for the visitor to get the chat request, the operator still has to speak to the visitor.
-        The visitor will receive the chat request the next time he navigates to a website page.
-        (see _handle_webpage_dispatch for next step)"""
-        # check if visitor is available
         unavailable_visitors_count = self.env["discuss.channel"].search_count(
             [("livechat_visitor_id", "in", self.ids), ("livechat_end_dt", "=", False)]
         )
         if unavailable_visitors_count:
+            _debug.logic(
+                "visitor_unlink_refused",
+                reason="live_chat_open",
+                sessions=unavailable_visitors_count,
+            )
             raise UserError(
                 _(
                     "Recipients are not available. Please refresh the page to get latest visitors status."
                 )
             )
-        # check if user is available as operator
         for website in self.mapped("website_id"):
             if not website.channel_id:
+                _debug.logic(
+                    "livechat_refused", reason="no_channel", website=website.id
+                )
                 raise UserError(
                     _(
                         "No Livechat Channel allows you to send a chat request for website %s.",
@@ -91,7 +97,6 @@ class WebsiteVisitor(models.Model):
                     )
                 )
         self.website_id.channel_id.write({"user_ids": [(4, self.env.user.id)]})
-        # Create chat_requests and linked discuss_channels
         discuss_channel_vals_list = []
         for visitor in self:
             operator = self.env.user
@@ -124,7 +129,6 @@ class WebsiteVisitor(models.Model):
         discuss_channels = self.env["discuss.channel"].create(discuss_channel_vals_list)
         for channel in discuss_channels:
             if not channel.livechat_visitor_id.partner_id:
-                # sudo: mail.guest - creating a guest in a dedicated channel created from livechat
                 guest = (
                     self.env["mail.guest"]
                     .sudo()
@@ -138,14 +142,12 @@ class WebsiteVisitor(models.Model):
                     )
                 )
                 channel._add_members(guests=guest, post_joined_message=False)
-        # Open empty channel to allow the operator to start chatting with the visitor
         Store(bus_channel=self.env.user).add(
             discuss_channels,
             extra_fields={"open_chat_window": True},
         ).bus_send()
 
     def _merge_visitor(self, target):
-        """Copy sessions of the secondary visitors to the main partner visitor."""
         target.discuss_channel_ids |= self.discuss_channel_ids
         self.discuss_channel_ids.channel_partner_ids = [
             (3, self.env.ref("base.public_partner").id),
@@ -153,24 +155,22 @@ class WebsiteVisitor(models.Model):
         ]
         return super()._merge_visitor(target)
 
-    def _upsert_visitor(self, access_token, force_track_values=None):
-        visitor_id, upsert = super()._upsert_visitor(
-            access_token, force_track_values=force_track_values
+    def _upsert_visitor(self, access_token, force_track_values=None, **visitor_values):
+        visitor_id, created = super()._upsert_visitor(
+            access_token, force_track_values=force_track_values, **visitor_values
         )
-        if upsert == "inserted":
+        if created:
             visitor_sudo = self.sudo().browse(visitor_id)
             if guest := self.env["mail.guest"]._get_guest_from_context():
-                # sudo: mail.guest - guest can access their own channels and link them to newly created visitor.
                 guest_livechats = guest.sudo().channel_ids.filtered(
                     lambda c: c.channel_type == "livechat"
                 )
                 guest_livechats.livechat_visitor_id = visitor_sudo.id
                 guest_livechats.country_id = visitor_sudo.country_id
-        return visitor_id, upsert
+        return visitor_id, created
 
     def _field_store_repr(self, field_spec):
         if field_spec == "page_visit_history":
-            # sudo: website.track - reading the history of accessible visitor is acceptable
             return [
                 Store.Attr(
                     "page_visit_history",

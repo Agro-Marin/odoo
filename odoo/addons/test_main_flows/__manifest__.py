@@ -24,6 +24,5 @@ It will install some main apps and will try to execute the most important action
             "test_main_flows/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "post_init_hook": "_auto_install_enterprise_dependencies",
 }

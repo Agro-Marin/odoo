@@ -11,9 +11,8 @@
             </separator>
             <group>
                 <filter
-                    string="Document Type"
                     name="l10n_latam_document_type"
-                    domain=""
+                    string="Document Type"
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </group>
         </field>

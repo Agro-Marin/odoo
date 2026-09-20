@@ -5,10 +5,7 @@ from odoo.tools.translate import _
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
 
-    purchase_order_count = fields.Integer(
-        string="Purchase Order Count",
-        compute="_compute_purchase_order_count",
-    )
+    purchase_order_count = fields.Integer(compute="_compute_purchase_order_count")
 
     def _get_domain_purchase_order(self):
         return [
@@ -24,7 +21,7 @@ class AccountAnalyticAccount(models.Model):
     def _compute_purchase_order_count(self):
         for account in self:
             account.purchase_order_count = (
-                self.env["purchase.order"].search_count(
+                self.env["purchase.order"].search_count(  # noqa: E8507 - one count per account, on the account's own domain
                     account._get_domain_purchase_order(),
                 )
                 if account.plan_id

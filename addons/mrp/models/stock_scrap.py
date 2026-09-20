@@ -1,23 +1,29 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockScrap(models.Model):
     _inherit = "stock.scrap"
 
     production_id = fields.Many2one(
-        "mrp.production",
-        "Manufacturing Order",
+        comodel_name="mrp.production",
+        string="Manufacturing Order",
         index="btree_not_null",
         check_company=True,
     )
     workorder_id = fields.Many2one(
-        "mrp.workorder", "Work Order", index="btree_not_null", check_company=True
+        comodel_name="mrp.workorder",
+        string="Work Order",
+        index="btree_not_null",
+        check_company=True,
     )
     product_is_kit = fields.Boolean(related="product_id.is_kit")
     product_template = fields.Many2one(related="product_id.product_tmpl_id")
     bom_id = fields.Many2one(
-        "mrp.bom",
-        "Kit",
+        comodel_name="mrp.bom",
+        string="Kit",
         domain="[('type', '=', 'phantom'), '|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_template)]",
         check_company=True,
     )
@@ -111,6 +117,12 @@ class StockScrap(models.Model):
     def _replenish_scrapped_quantity(self, values=False):
         self.check_singleton()
         values = values or {}
+        _debug.pipeline(
+            "scrap_replenished",
+            scrap=self.id,
+            production=self.production_id,
+            grouped=bool(self.production_id.production_group_id),
+        )
         if self.production_id and self.production_id.production_group_id:
             values.update(
                 {

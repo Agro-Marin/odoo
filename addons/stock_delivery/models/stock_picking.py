@@ -5,6 +5,10 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockPicking(models.Model):
@@ -27,38 +31,43 @@ class StockPicking(models.Model):
         readonly=True,
     )
     allowed_carrier_ids = fields.Many2many(
-        "delivery.carrier",
+        comodel_name="delivery.carrier",
         compute="_compute_allowed_carrier_ids",
     )
     carrier_id = fields.Many2one(
-        "delivery.carrier",
-        string="Carrier",
+        comodel_name="delivery.carrier",
         domain="[('id', 'in', allowed_carrier_ids)]",
         check_company=True,
     )
     weight = fields.Float(
-        compute="_compute_weight",
         digits="Stock Weight",
+        compute="_compute_weight",
+        compute_sudo=True,
         store=True,
         help="Total weight of the products in the picking.",
-        compute_sudo=True,
     )
-    carrier_tracking_ref = fields.Char(string="Tracking Reference", copy=False)
+    carrier_tracking_ref = fields.Char(
+        string="Tracking Reference",
+        copy=False,
+    )
     carrier_tracking_url = fields.Char(
-        string="Tracking URL", compute="_compute_carrier_tracking_url"
+        string="Tracking URL",
+        compute="_compute_carrier_tracking_url",
     )
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
         compute="_compute_weight_uom_name",
-        readonly=True,
         default=_default_weight_uom_name,
+        readonly=True,
     )
     is_return_picking = fields.Boolean(compute="_compute_is_return_picking")
     return_label_ids = fields.One2many(
-        "ir.attachment", compute="_compute_return_label_ids"
+        comodel_name="ir.attachment",
+        compute="_compute_return_label_ids",
     )
     destination_country_code = fields.Char(
-        related="partner_id.country_id.code", string="Destination Country"
+        related="partner_id.country_id.code",
+        string="Destination Country",
     )
     integration_level = fields.Selection(related="carrier_id.integration_level")
 
@@ -73,6 +82,7 @@ class StockPicking(models.Model):
         "move_ids.product_id.volume",
     )
     def _compute_allowed_carrier_ids(self):
+        _debug.perf.count("allowed_carriers_compute", pickings=self)
         Carrier = self.env["delivery.carrier"]
         carriers_by_company = {
             company: Carrier.search(Carrier._check_company_domain(company))
@@ -81,7 +91,7 @@ class StockPicking(models.Model):
         for picking in self:
             carriers = carriers_by_company.get(picking.company_id, Carrier.browse())
             picking.allowed_carrier_ids = (
-                carriers.available_carriers(picking.partner_id, picking)
+                carriers._filtered_available_carriers(picking.partner_id, picking)
                 if picking.partner_id
                 else carriers
             )
@@ -106,19 +116,31 @@ class StockPicking(models.Model):
             else:
                 picking.is_return_picking = False
 
+    @api.depends("carrier_id")
     def _compute_return_label_ids(self):
-        for picking in self:
-            if picking.carrier_id:
-                picking.return_label_ids = self.env["ir.attachment"].search(
-                    [
-                        ("res_model", "=", "stock.picking"),
-                        ("res_id", "=", picking.id),
-                        (
+        with_carrier = self.filtered("carrier_id")
+        labels_by_picking = {}
+        if with_carrier:
+            labels_by_picking = (
+                self.env["ir.attachment"]
+                .search(
+                    Domain("res_model", "=", "stock.picking")
+                    & Domain.OR(
+                        Domain("res_id", "=", picking.id)
+                        & Domain(
                             "name",
                             "=like",
                             "%s%%" % picking.carrier_id.get_return_label_prefix(),
-                        ),
-                    ]
+                        )
+                        for picking in with_carrier
+                    )
+                )
+                .grouped("res_id")
+            )
+        for picking in self:
+            if picking.carrier_id:
+                picking.return_label_ids = labels_by_picking.get(
+                    picking.id, self.env["ir.attachment"]
                 )
             else:
                 picking.return_label_ids = False
@@ -138,6 +160,7 @@ class StockPicking(models.Model):
             )
 
     def button_validate(self):
+        _debug.pipeline("delivery_validate_enter", pickings=self)
         res = super().button_validate()
         if res is not True:
             return res
@@ -157,6 +180,7 @@ class StockPicking(models.Model):
         return res
 
     def _get_carrier_exception_note(self, exception):
+        _debug.logic("carrier_exception", picking=self.id, carrier=self.carrier_id.id)
         self.check_singleton()
         line_1 = _("Exception occurred with respect to carrier on the transfer")
         line_2 = _("Manual actions might be needed.")
@@ -174,6 +198,7 @@ class StockPicking(models.Model):
 
     def _send_confirmation_email(self):
 
+        _debug.pipeline("delivery_confirmation_email", pickings=self)
         processed_carrier_picking = False
 
         for pick in self:
@@ -207,18 +232,25 @@ class StockPicking(models.Model):
         return super()._send_confirmation_email()
 
     def send_to_shipper(self):
+        _debug.pipeline(
+            "shipper_send_enter", picking=self.id, carrier=self.carrier_id.id
+        )
         self.check_singleton()
         res = self.carrier_id.send_shipping(self)[0]
         if self.carrier_id.free_over and self.sale_id:
-            amount_without_delivery = (
-                self.sale_id._compute_amount_total_without_delivery()
-            )
+            amount_without_delivery = self.sale_id._get_amount_total_without_delivery()
             if (
-                self.carrier_id._compute_currency_id(
+                self.carrier_id._get_converted_price(
                     self.sale_id, amount_without_delivery, "pricelist_to_company"
                 )
                 >= self.carrier_id.amount
             ):
+                _debug.logic(
+                    "shipping_free_over",
+                    picking=self.id,
+                    carrier=self.carrier_id.id,
+                    threshold=self.carrier_id.amount,
+                )
                 res["exact_price"] = 0.0
         self.carrier_price = self.carrier_id._apply_margins(
             res["exact_price"], self.sale_id
@@ -261,12 +293,22 @@ class StockPicking(models.Model):
             )
         )
         self.message_post(body=msg)
+        _debug.pipeline(
+            "shipper_send_done",
+            picking=self.id,
+            carrier=self.carrier_id.id,
+            price=self.carrier_price,
+            tracking=bool(self.carrier_tracking_ref),
+        )
         self._add_delivery_cost_to_so()
 
     def _check_carrier_details_compliance(self):
         return
 
     def print_return_label(self):
+        _debug.lifecycle(
+            "return_label_print", picking=self.id, carrier=self.carrier_id.id
+        )
         self.check_singleton()
         self.carrier_id.get_return_label(self)
 
@@ -286,6 +328,9 @@ class StockPicking(models.Model):
         }
 
     def _add_delivery_cost_to_so(self):
+        _debug.pipeline(
+            "delivery_cost_to_so", picking=self.id, price=self.carrier_price
+        )
         self.check_singleton()
         sale_order = self.sale_id
         if (
@@ -331,6 +376,7 @@ class StockPicking(models.Model):
         }
 
     def cancel_shipment(self):
+        _debug.lifecycle("shipment_cancel", pickings=self, carrier=self.carrier_id.id)
         for picking in self:
             picking.carrier_id.cancel_shipment(picking)
             msg = "Shipment %s cancelled" % picking.carrier_tracking_ref

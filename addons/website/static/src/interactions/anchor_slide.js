@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Collapse, Offcanvas } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.anchor_slide");
 
 export class AnchorSlide extends Interaction {
     static selector = "a[href^='/'][href*='#'], a[href^='#']";
@@ -13,20 +16,19 @@ export class AnchorSlide extends Interaction {
     };
 
     setup() {
-        /**
-         * It expands the corresponding accordion item if the target element
-         * matches the hash.
-         */
         const hash = window.location.hash.substring(1);
         const anchorEl = document.getElementById(hash);
         if (anchorEl && anchorEl.classList.contains("accordion-item")) {
+            log.logic("AnchorSlide setup: open accordion from location hash", () => ({
+                hash,
+            }));
             this.handleAccordionAnchor(anchorEl);
         }
     }
 
     /**
-     * @param {HTMLElement} el the element to scroll to.
-     * @param {string} [scrollValue='true'] scroll value
+     * @param {HTMLElement} el
+     * @param {string} [scrollValue='true']
      * @returns {Promise}
      */
     scrollTo(el, scrollValue = "true") {
@@ -41,9 +43,7 @@ export class AnchorSlide extends Interaction {
     }
 
     /**
-     * Automatically opens the specific accordion item and closes the others.
-     *
-     * @param {HTMLElement} anchorEl - The accordion item element to handle.
+     * @param {HTMLElement} anchorEl
      */
     handleAccordionAnchor(anchorEl) {
         const accordionCollapseEl = anchorEl.querySelector(".accordion-collapse");
@@ -58,22 +58,35 @@ export class AnchorSlide extends Interaction {
     animateClick(ev) {
         const ensureSlash = (path) => (path.endsWith("/") ? path : path + "/");
         if (ensureSlash(this.el.pathname) !== ensureSlash(window.location.pathname)) {
+            log.logic(
+                "AnchorSlide animateClick: other page, native navigation",
+                () => ({
+                    href: this.el.pathname,
+                    current: window.location.pathname,
+                }),
+            );
             return;
         }
-        // Avoid flicker at destination in case of ending "/" difference.
         if (this.el.pathname !== window.location.pathname) {
             this.el.pathname = window.location.pathname;
         }
         let hash = this.el.hash;
         if (!hash.length) {
+            log.logic("AnchorSlide animateClick: empty hash", () => ({
+                href: this.el.getAttribute("href"),
+            }));
             return;
         }
-        // Escape special characters to make the selector work.
         hash = "#" + CSS.escape(hash.substring(1));
         const anchorEl = this.el.ownerDocument.querySelector(hash);
         const scrollValue = anchorEl?.dataset.anchor;
-        // No need to scroll when target is _blank as it should open in new tab
         if (!anchorEl || !scrollValue || this.el.target === "_blank") {
+            log.logic("AnchorSlide animateClick: no animated scroll", () => ({
+                hash,
+                hasAnchor: !!anchorEl,
+                scrollValue,
+                target: this.el.target,
+            }));
             return;
         }
 
@@ -81,19 +94,19 @@ export class AnchorSlide extends Interaction {
             this.handleAccordionAnchor(anchorEl);
         }
         const offcanvasEl = this.el.closest(".offcanvas.o_navbar_mobile");
+        log.pipeline("AnchorSlide animateClick: scroll", () => ({
+            hash,
+            scrollValue,
+            accordion: anchorEl.classList.contains("accordion-item"),
+            afterOffcanvasHide: !!offcanvasEl?.classList.contains("show"),
+        }));
         if (offcanvasEl && offcanvasEl.classList.contains("show")) {
-            // Special case for anchors in offcanvas in mobile: we can't just
-            // scrollTo() after preventDefault because preventDefault would
-            // prevent the offcanvas to be closed. The choice is then to close
-            // it ourselves manually and once it's fully closed, then start our
-            // own smooth scrolling.
             ev.preventDefault();
             Offcanvas.getInstance(offcanvasEl).hide();
             this.addListener(
                 offcanvasEl,
                 "hidden.bs.offcanvas",
                 () => this.manageScroll(hash, anchorEl, scrollValue),
-                // the listener must be automatically removed when invoked
                 { once: true },
             );
         } else {
@@ -104,17 +117,11 @@ export class AnchorSlide extends Interaction {
 
     /**
      * @param {string} hash
-     * @param {HTMLElement} anchorEl the element to scroll to.
-     * @param {string} [scrollValue='true'] scroll value
+     * @param {HTMLElement} anchorEl
+     * @param {string} [scrollValue='true']
      */
     manageScroll(hash, anchorEl, scrollValue = "true") {
         if (hash === "#top" || hash === "#bottom") {
-            // If the anchor targets #top or #bottom, directly call the
-            // "scrollTo" function. The reason is that the header or the footer
-            // could have been removed from the DOM. By receiving a string as
-            // parameter, the "scrollTo" function handles the scroll to the top
-            // or to the bottom of the document even if the header or the
-            // footer is removed from the DOM.
             this.scrollTo(hash);
         } else {
             this.scrollTo(anchorEl, scrollValue);

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import {
@@ -8,6 +9,8 @@ import {
     getObservedEls,
     makeHighlightSvgs,
 } from "@website/js/highlight_utils";
+
+const log = makeLogger("website.interaction.text_highlights");
 
 export class TextHighlight extends Interaction {
     static selector = "#wrapwrap, .o_wslides_fs_content";
@@ -23,20 +26,29 @@ export class TextHighlight extends Interaction {
         this.mutationObserver = new window.MutationObserver(
             this.updateEntries.bind(this),
         );
+        log.lifecycle("TextHighlight setup: observers created", () => ({
+            root: this.el.id || this.el.className,
+        }));
     }
 
     start() {
+        log.pipeline("TextHighlight start: observe highlights", () => ({
+            highlights: this.el.querySelectorAll(".o_text_highlight").length,
+        }));
         for (const textEl of this.el.querySelectorAll(".o_text_highlight")) {
             this.handleEl(textEl);
         }
     }
 
     destroy() {
+        log.lifecycle(
+            "TextHighlight destroy: observers disconnected, svgs removed",
+            () => ({
+                svgs: this.el.querySelectorAll(".o_text_highlight_svg").length,
+            }),
+        );
         this.resizeObserver.disconnect();
         this.mutationObserver.disconnect();
-        // The SVGs are inserted with removeOnClean=false (see _updateEntries) to
-        // avoid piling up one never-pruned cleanup per SVG per update cycle on
-        // this page-lifetime interaction; clean them all here in one pass.
         for (const svg of this.el.querySelectorAll(".o_text_highlight_svg")) {
             svg.remove();
         }
@@ -46,6 +58,7 @@ export class TextHighlight extends Interaction {
         this.waitForAnimationFrame(() => this._updateEntries(entries));
     }
     _updateEntries(entries) {
+        const endUpdate = log.perf("TextHighlight rebuild highlight svgs");
         const closestToObserves = new Set();
         for (const { target, addedNodes = [], removedNodes = [] } of entries) {
             const elements = [target, ...addedNodes, ...removedNodes]
@@ -71,19 +84,17 @@ export class TextHighlight extends Interaction {
                 }
                 const svgs = makeHighlightSvgs(el, highlightID);
                 for (const svg of svgs) {
-                    // removeOnClean=false: these SVGs are already explicitly
-                    // removed above on the next cycle and in destroy(); letting
-                    // insert() register a per-SVG cleanup leaks (the colibri
-                    // cleanups array is append-only until teardown).
                     this.insert(svg, el, "beforeend", false);
                     adaptHighlightPosition(el, svg);
                 }
             }
         }
+        endUpdate(() => ({
+            entries: entries.length,
+            containers: closestToObserves.size,
+        }));
     }
     /**
-     * TODO: Remove in master (left in stable for compatibility)
-     *
      * @param {HTMLElement} el
      */
     closestToObserve(el) {
@@ -91,8 +102,6 @@ export class TextHighlight extends Interaction {
     }
 
     /**
-     * TODO: Remove in master (left in stable for compatibility)
-     *
      * @param {HTMLElement} el
      */
     getObservedEls(el) {
@@ -103,10 +112,6 @@ export class TextHighlight extends Interaction {
      * @param {HTMLElement} el
      */
     handleEl(el) {
-        // The `ResizeObserver` cannot detect the width change on highlight
-        // units (`.o_text_highlight_item`) as long as the width of the entire
-        // `.o_text_highlight` element remains the same, so we need to observe
-        // each one of them and do the adjustment only once for the whole text.
         for (const elToObserve of this.getObservedEls(el)) {
             this.resizeObserver.observe(elToObserve);
         }
@@ -126,8 +131,9 @@ export class TextHighlight extends Interaction {
      * @param {HTMLElement} el
      */
     onTextHighlightAdded(el) {
-        // todo: what was the purpose of this?
-        // this.lockTextHighlightObserver(el);
+        log.logic("TextHighlight onTextHighlightAdded", () => ({
+            highlight: getCurrentTextHighlight(el),
+        }));
         this.handleEl(el);
     }
 }

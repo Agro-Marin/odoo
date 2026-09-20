@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { formatXML } from "@web/core/utils/dom/xml";
+
+const log = makeLogger("website.component.resource_editor.utils");
 
 const MAPPING = {
     "{": "}",
@@ -14,10 +17,8 @@ const OPENINGS = ["{", "(", "["];
 const CLOSINGS = ["}", ")", "]"];
 
 /**
- * Checks the syntax validity of some SCSS.
- *
  * @param {string} scss
- * @returns {Object} object with keys "isValid" and "error" if not valid
+ * @returns {Object}
  */
 export function checkSCSS(scss) {
     const stack = [];
@@ -27,6 +28,10 @@ export function checkSCSS(scss) {
             stack.push(scss[i]);
         } else if (CLOSINGS.includes(scss[i])) {
             if (stack.pop() !== MAPPING[scss[i]]) {
+                log.logic("checkSCSS unexpected closing", () => ({
+                    line,
+                    char: scss[i],
+                }));
                 return {
                     isValid: false,
                     error: {
@@ -40,6 +45,7 @@ export function checkSCSS(scss) {
         }
     }
     if (stack.length > 0) {
+        log.logic("checkSCSS unclosed", () => ({ line, open: stack.length }));
         return {
             isValid: false,
             error: {
@@ -52,10 +58,8 @@ export function checkSCSS(scss) {
 }
 
 /**
- * Checks the syntax validity of some XML.
- *
  * @param {string} xml
- * @returns {Object} object with keys "isValid" and "error" if not valid
+ * @returns {Object}
  */
 export function checkXML(xml) {
     const xmlDoc = new window.DOMParser().parseFromString(xml, "text/xml");
@@ -88,9 +92,11 @@ export function checkXML(xml) {
         errorEl.querySelectorAll(".o_we_source_text_origin").forEach((el, i) => {
             el.after(codeEls[i]);
         });
-        // Some browsers format the <parsererror> text without a "line N", so
-        // the match can be null — fall back to line 1 instead of throwing.
         const lineMatch = errorEl.innerHTML.match(/[Ll]ine[^\d]+(\d+)/);
+        log.logic("checkXML parser error", () => ({
+            line: lineMatch?.[1],
+            sourceTexts: sourceTextEls.length,
+        }));
         return {
             isValid: false,
             error: {
@@ -103,24 +109,16 @@ export function checkXML(xml) {
 }
 
 /**
- * Formats some XML so that it has proper indentation and structure.
- *
- * Wraps {@link formatXML} from `@web/core/utils/dom/xml` with an
- * additional guard: if the XML contains an inline `<script>` with a
- * body, formatting is skipped to avoid breaking it.
- *
  * @param {string} xml
- * @param {number} [indent=4] number of spaces per indentation level
- * @returns {string} formatted xml
+ * @param {number} [indent=4]
+ * @returns {string}
  */
 export function formatXMLSafe(xml, indent = 4) {
-    // Do nothing if an inline script is present to avoid breaking it.
     if (/<script(?: [^>]*)?>[^<][\s\S]*<\/script>/i.test(xml)) {
+        log.logic("formatXMLSafe skip: inline script");
         return xml;
     }
     return formatXML(xml, indent);
 }
 
-// Re-export for backward compatibility — existing callers import
-// formatXML from this module.
 export { formatXML };

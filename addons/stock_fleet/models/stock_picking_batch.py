@@ -1,59 +1,74 @@
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
 
-    vehicle_id = fields.Many2one("fleet.vehicle", string="Vehicle")
-    vehicle_category_id = fields.Many2one(
-        "fleet.vehicle.model.category",
-        string="Vehicle Category",
-        compute="_compute_vehicle_category_id",
+    vehicle_id = fields.Many2one(
+        comodel_name="resource.asset",
+        domain="[('is_vehicle', '=', True)]",
+    )
+    vehicle_model_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Vehicle Model",
+        compute="_compute_vehicle_model_id",
         store=True,
         readonly=False,
+        domain="[('is_vehicle', '=', True)]",
     )
     allowed_dock_ids = fields.Many2many(
-        related="picking_type_id.dock_ids", string="Allowed Docks"
+        related="picking_type_id.dock_ids",
+        string="Allowed Docks",
     )
     dock_id = fields.Many2one(
-        "stock.location",
-        string="Dock",
-        domain="[('id', 'child_of', allowed_dock_ids)]",
+        comodel_name="stock.location",
         compute="_compute_dock_id",
         store=True,
         readonly=False,
+        domain="[('id', 'child_of', allowed_dock_ids)]",
     )
     vehicle_weight_capacity = fields.Float(
+        related="vehicle_model_id.weight_capacity",
         string="Vehcilce Payload Capacity",
-        related="vehicle_category_id.weight_capacity",
     )
     weight_uom_name = fields.Char(
-        string="Weight unit of measure label", compute="_compute_weight_uom_name"
+        string="Weight unit of measure label",
+        compute="_compute_weight_uom_name",
     )
     vehicle_volume_capacity = fields.Float(
-        string="Max Volume (m³)", related="vehicle_category_id.volume_capacity"
+        related="vehicle_model_id.volume_capacity",
+        string="Max Volume (m³)",
     )
     volume_uom_name = fields.Char(
-        string="Volume unit of measure label", compute="_compute_volume_uom_name"
+        string="Volume unit of measure label",
+        compute="_compute_volume_uom_name",
     )
     driver_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         compute="_compute_driver_id",
-        string="Driver",
         store=True,
         readonly=False,
     )
     used_weight_percentage = fields.Float(
-        string="Weight %", compute="_compute_capacity_percentage"
+        string="Weight %",
+        compute="_compute_capacity_percentage",
     )
     used_volume_percentage = fields.Float(
-        string="Volume %", compute="_compute_capacity_percentage"
+        string="Volume %",
+        compute="_compute_capacity_percentage",
     )
-    end_date = fields.Datetime("End Date", compute="_compute_end_date", store=True)
+    end_date = fields.Datetime(
+        compute="_compute_end_date",
+        store=True,
+    )
     has_dispatch_management = fields.Boolean(
-        string="Dispatch Management", related="picking_type_id.dispatch_management"
+        related="picking_type_id.dispatch_management",
+        string="Dispatch Management",
     )
 
     @api.depends("date_planned")
@@ -69,9 +84,10 @@ class StockPickingBatch(models.Model):
                 )
 
     @api.depends("vehicle_id")
-    def _compute_vehicle_category_id(self):
+    def _compute_vehicle_model_id(self):
         for rec in self:
-            rec.vehicle_category_id = rec.vehicle_id.category_id
+            if rec.vehicle_id:
+                rec.vehicle_model_id = rec.vehicle_id.product_id
 
     @api.depends(
         "picking_ids",
@@ -103,15 +119,16 @@ class StockPickingBatch(models.Model):
     @api.depends("vehicle_id")
     def _compute_driver_id(self):
         for rec in self:
-            rec.driver_id = rec.vehicle_id.driver_id
+            rec.driver_id = rec.vehicle_id.operator_id.partner_id
 
     @api.depends(
         "estimated_shipping_weight",
-        "vehicle_category_id.weight_capacity",
+        "vehicle_model_id.weight_capacity",
         "estimated_shipping_volume",
-        "vehicle_category_id.volume_capacity",
+        "vehicle_model_id.volume_capacity",
     )
     def _compute_capacity_percentage(self):
+        _debug.perf.count("batch_capacity_compute", batches=self)
         self.used_weight_percentage = False
         self.used_volume_percentage = False
         for batch in self:
@@ -126,12 +143,14 @@ class StockPickingBatch(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _debug.lifecycle("fleet_batch_create", count=len(vals_list))
         batches = super().create(vals_list)
         batches.order_on_zip()
         batches.filtered(lambda b: b.dock_id)._set_moves_destination_to_dock()
         return batches
 
     def write(self, vals):
+        _debug.lifecycle("fleet_batch_write", batches=self, fields=len(vals))
         res = super().write(vals)
         if "picking_ids" in vals:
             self.order_on_zip()
@@ -140,11 +159,13 @@ class StockPickingBatch(models.Model):
         return res
 
     def order_on_zip(self):
+        _debug.pipeline("batch_order_on_zip", batches=self)
         sorted_records = self.picking_ids.sorted(lambda p: p.zip or "")
         for idx, record in enumerate(sorted_records):
             record.batch_sequence = idx
 
     def _set_moves_destination_to_dock(self):
+        _debug.pipeline("batch_moves_to_dock", batches=self)
         for batch in self:
             if not batch.dock_id:
                 batch.picking_ids._reset_location()
@@ -153,9 +174,9 @@ class StockPickingBatch(models.Model):
             else:
                 batch.picking_ids.move_ids.write({"location_id": batch.dock_id.id})
 
-    def _get_merged_batch_vals(self):
+    def _prepare_merged_batch_vals(self):
         self.check_singleton()
-        vals = super()._get_merged_batch_vals()
+        vals = super()._prepare_merged_batch_vals()
         vals.update(
             {
                 "vehicle_id": self.vehicle_id.id,

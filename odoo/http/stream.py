@@ -5,11 +5,12 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
-from typing import Any
+from typing import Any, ClassVar
 from zlib import adler32
 
 from werkzeug.utils import send_file as _send_file
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import file_path
 
 from .constants import STATIC_CACHE_LONG
@@ -17,8 +18,12 @@ from .core import request
 from .settings import current as current_settings
 from .wrappers import Response, _Response
 
+_debug = DebugLog(__name__)
+
 
 class Stream:
+    _ALLOWED_KWARGS: ClassVar[frozenset[str]]
+
     type: str = ""
     data: bytes | None = None
     path: str | None = None
@@ -35,25 +40,6 @@ class Stream:
     size: int | None = None
     public: bool = False
 
-    _ALLOWED_KWARGS: frozenset[str] = frozenset(
-        {
-            "type",
-            "data",
-            "path",
-            "url",
-            "mimetype",
-            "as_attachment",
-            "download_name",
-            "conditional",
-            "etag",
-            "last_modified",
-            "max_age",
-            "immutable",
-            "size",
-            "public",
-        }
-    )
-
     def __init__(self, **kwargs: Any) -> None:
         unknown = kwargs.keys() - self._ALLOWED_KWARGS
         if unknown:
@@ -66,6 +52,9 @@ class Stream:
         cls, path: str, filter_ext: tuple[str, ...] = ("",), public: bool = False
     ) -> Stream:
         path = file_path(path, filter_ext)
+        _debug.logic(
+            "http.stream.path_checked", path=path, filters=",".join(filter_ext) or None
+        )
         return cls._from_trusted_path(path, public=public)
 
     @classmethod
@@ -74,10 +63,18 @@ class Stream:
         st = p.stat()
         if not S_ISREG(st.st_mode):
             msg = f"Path {path!r} is not a regular file"
+            _debug.logic("http.stream.not_regular", is_dir=S_ISDIR(st.st_mode))
             if S_ISDIR(st.st_mode):
                 raise IsADirectoryError(msg)
             raise OSError(msg)
         check = adler32(path.encode())
+        _debug.lifecycle(
+            "http.stream.from_path",
+            name=p.name,
+            size=st.st_size,
+            mimetype=mimetypes.guess_type(path)[0],
+            public=public,
+        )
         return cls(
             type="path",
             path=path,
@@ -95,11 +92,20 @@ class Stream:
         if isinstance(data, str):
             data = data.encode()
 
+        decoded = False  # debuglog
         with contextlib.suppress(ValueError):
             data = base64.b64decode(
                 data.replace(b"\r", b"").replace(b"\n", b""),
                 validate=True,
             )
+            decoded = True  # debuglog
+        _debug.lifecycle(
+            "http.stream.from_field",
+            model=getattr(record, "_name", None),
+            field=field_name,
+            size=len(data),
+            base64=decoded,
+        )
         return cls(
             type="data",
             data=data,
@@ -127,6 +133,7 @@ class Stream:
             raise ValueError(msg)
 
         self._check_type()
+        _debug.perf.count("http.stream.read", type=self.type, size=self.size)
 
         if self.type == "data":
             return self._get_required_attribute("data")
@@ -135,6 +142,11 @@ class Stream:
 
     def _prepare_url_redirect(self) -> Any:
         url = self._get_required_attribute("url")
+        _debug.logic(
+            "http.stream.url_redirect",
+            code=302 if self.max_age is not None else 301,
+            max_age=self.max_age,
+        )
         if self.max_age is not None:
             res = request.redirect(url, code=302, local=False)
             res.headers["Cache-Control"] = f"max-age={self.max_age}"
@@ -153,6 +165,13 @@ class Stream:
                 send_file_kwargs["use_x_sendfile"] = True
 
         res = _send_file(path, **send_file_kwargs)
+        _debug.logic(
+            "http.stream.sendfile",
+            x_sendfile=settings.x_sendfile,
+            in_filestore=x_accel_redirect is not None,
+            accel="X-Sendfile" in res.headers and x_accel_redirect is not None,
+            size=self.size,
+        )
         if "X-Sendfile" in res.headers and x_accel_redirect is not None:
             res.headers["X-Accel-Redirect"] = x_accel_redirect
             res.headers.pop("X-Sendfile", None)
@@ -185,7 +204,7 @@ class Stream:
             "etag": self.etag,
             "last_modified": self.last_modified,
             "max_age": STATIC_CACHE_LONG if immutable else self.max_age,
-            "environ": request.httprequest.environ if environ is None else environ,
+            "environ": request.httprequest.raw_environ if environ is None else environ,
             "response_class": _Response,
             **send_file_kwargs,
         }
@@ -197,6 +216,16 @@ class Stream:
         else:
             res = self._prepare_path_response(send_file_kwargs)
 
+        _debug.pipeline(
+            "http.stream.response",
+            type=self.type,
+            mimetype=self.mimetype,
+            size=self.size,
+            status=res.status_code,
+            public=self.public,
+            immutable=immutable,
+            attachment=as_attachment,
+        )
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"
 
@@ -214,3 +243,8 @@ class Stream:
             cache_control["immutable"] = None
 
         return Response(res)
+
+
+Stream._ALLOWED_KWARGS = frozenset(
+    name for name in Stream.__annotations__ if not name.startswith("_")
+)

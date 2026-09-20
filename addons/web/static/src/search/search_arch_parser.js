@@ -7,8 +7,11 @@ import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { clamp } from "@web/core/utils/format/numbers";
+import { faIconClass } from "@web/core/utils/icons";
 import { isInvisible } from "@web/search/search_state";
 import { DEFAULT_INTERVAL, toGeneratorId } from "@web/search/utils/dates";
+import { literalNbsp } from "@web/views/ir/view_ir";
+import { irToElement } from "@web/views/ir/view_ir";
 
 const ALL = _t("All");
 const DEFAULT_LIMIT = 200;
@@ -29,18 +32,7 @@ const IMPLAUSIBLE_PERIOD_SPAN = 100;
  * @returns {string | null}
  */
 function _normalizeIconClass(iconClass) {
-    if (!iconClass) {
-        return null;
-    }
-    if (
-        iconClass.startsWith("fa-solid") ||
-        iconClass.startsWith("fa-regular") ||
-        iconClass.startsWith("fa-brands")
-    ) {
-        return iconClass;
-    }
-    const name = iconClass.startsWith("fa fa-") ? iconClass.slice(3) : iconClass;
-    return `fa-solid ${name}`;
+    return iconClass ? faIconClass(iconClass) : null;
 }
 
 /**
@@ -71,7 +63,7 @@ function reduceType(type) {
 
 export class SearchArchParser {
     /**
-     * @param {{ irFilters?: Record<string, any>[], arch?: string }} searchViewDescription
+     * @param {{ irFilters?: Record<string, any>[], arch?: string, ir?: import("@web/views/ir/view_ir_schema").ViewIRNode }} searchViewDescription
      * @param {Record<string, Record<string, any>>} fields
      * @param {Record<string, any>} [searchDefaults={}]
      * @param {Record<string, any>} [searchPanelDefaults={}]
@@ -84,11 +76,12 @@ export class SearchArchParser {
         searchPanelDefaults = {},
         evalContext = {},
     ) {
-        const { irFilters, arch } = searchViewDescription;
+        const { irFilters, arch, ir } = searchViewDescription;
 
         this.fields = fields || {};
         this.irFilters = irFilters || [];
-        this.arch = arch || "<search/>";
+        /** @type {Element | string} */
+        this.arch = ir ? irToElement(ir, { text: literalNbsp }) : arch || "<search/>";
         this.evalContext = evalContext;
 
         /** @type {((orm: any) => Promise<void>)[]} */

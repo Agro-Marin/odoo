@@ -1,6 +1,6 @@
 {
     "name": "Vietnam - E-invoicing",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Accounting/Localizations/EDI",
     "summary": "E-invoicing using SInvoice by Viettel",
     "description": """
@@ -13,6 +13,7 @@ Using SInvoice by Viettel
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "l10n_vn",
     ],
     "countries": [
@@ -26,7 +27,7 @@ Using SInvoice by Viettel
         "views/sinvoice_views.xml",
         "wizards/account_move_reversal_view.xml",
         "wizards/l10n_vn_edi_cancellation_request_views.xml",
+        "views/l10n_vn_edi_viettel_menus.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

@@ -60,7 +60,7 @@ class TestSMSSchedule(EventCase, SMSCase):
                             0,
                             {  # 3 days before event
                                 "interval_nbr": 3,
-                                "interval_unit": "days",
+                                "interval_unit": "day",
                                 "interval_type": "before_event",
                                 "notification_type": "sms",
                                 "template_ref": "sms.template,%i"

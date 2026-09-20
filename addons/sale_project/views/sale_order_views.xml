@@ -11,10 +11,10 @@
                 <button
                     name="action_view_project_ids"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-puzzle-piece"
+                    groups="project.group_project_user"
                     invisible="not show_project_button"
-                    groups="project.group_project_user">
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <div class="o_row">
                             <span class="o_stat_value order-first">
@@ -33,21 +33,21 @@
                 <button
                     name="action_view_milestone"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-regular fa-square-check"
+                    groups="project.group_project_milestone"
                     invisible="not is_product_milestone or not project_ids or state == 'draft'"
-                    groups="project.group_project_milestone">
+                    class="oe_stat_button">
                     <field
                         name="milestone_count"
-                        widget="statinfo"
-                        string="Milestones" />
+                        string="Milestones"
+                        widget="statinfo" />
                 </button>
             </button>
             <field name="journal_id" position="before">
                 <field
                     name="project_id"
-                    groups="project.group_project_user"
-                    context="{'default_allow_billable': True, 'default_partner_id': partner_id, 'order_id': id, 'order_state' : state}" />
+                    context="{'default_allow_billable': True, 'default_partner_id': partner_id, 'order_id': id, 'order_state' : state}"
+                    groups="project.group_project_user" />
             </field>
         </field>
     </record>
@@ -82,12 +82,12 @@
             <sheet position="after">
                 <footer>
                     <button
-                        string="Confirm &amp; Close"
                         special="save"
+                        string="Confirm &amp; Close"
                         class="btn btn-primary" />
                     <button
-                        string="Discard"
                         special="cancel"
+                        string="Discard"
                         class="btn btn-secondary" />
                 </footer>
             </sheet>

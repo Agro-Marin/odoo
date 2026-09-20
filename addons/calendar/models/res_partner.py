@@ -9,27 +9,62 @@ from odoo.tools import SQL
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    meeting_count = fields.Integer("# Meetings", compute="_compute_meeting_count")
+    meeting_count = fields.Integer(
+        string="# Meetings",
+        compute="_compute_meeting_count",
+    )
     meeting_ids = fields.Many2many(
-        "calendar.event",
-        "calendar_event_res_partner_rel",
-        "res_partner_id",
-        "calendar_event_id",
+        comodel_name="calendar.event",
+        relation="calendar_event_res_partner_rel",
+        column1="res_partner_id",
+        column2="calendar_event_id",
         string="Meetings",
         copy=False,
     )
 
     calendar_last_notif_ack = fields.Datetime(
-        "Last notification marked as read from base Calendar",
+        string="Last notification marked as read from base Calendar",
         default=fields.Datetime.now,
     )
 
+    def _get_calendar_event_resources(self, company=None):
+        """Resolve people in one query: this company's resource, else a shared one, else any.
+
+        A person is a human resource through their party, so an attendee with no
+        user — an outside contractor, an employee with no login — resolves exactly
+        like one who has a login. A person attends a meeting once, so the last
+        fallback books the resource they have elsewhere rather than nothing.
+        """
+        company = company or self.env.company
+        resources = (
+            self.env["resource.resource"]
+            .sudo()
+            .search_fetch(
+                [("partner_id", "in", self.ids), ("resource_type", "=", "user")],
+                ["partner_id", "company_id"],
+                order="id",
+            )
+        )
+        by_partner = resources.grouped("partner_id")
+        return {
+            partner: by_partner.get(partner, resources.browse()).sorted(
+                key=lambda resource: (
+                    0
+                    if resource.company_id == company
+                    else 1
+                    if not resource.company_id
+                    else 2
+                )
+            )[:1]
+            for partner in self
+        }
+
     def _compute_meeting_count(self):
-        result = self._compute_meeting()
+        result = self._get_meetings_by_partner()
         for p in self:
             p.meeting_count = len(result.get(p.id, []))
 
-    def _compute_meeting(self):
+    def _get_meetings_by_partner(self):
         if self.ids:
             # prefetch 'parent_id'
             all_partners = self.with_context(active_test=False).search_fetch(
@@ -147,7 +182,7 @@ class ResPartner(models.Model):
         # which the second cannot express as a domain.
         action["domain"] = [
             "|",
-            ("id", "in", self._compute_meeting()[self.id]),
+            ("id", "in", self._get_meetings_by_partner()[self.id]),
             ("partner_ids", "in", self.ids),
         ]
         return action
@@ -236,13 +271,16 @@ class ResPartner(models.Model):
         stop = self._calendar_utc(end_datetime)
         if start >= stop:
             return {}
-        resources = user_resources
-        if resources is None:
-            users = (events.filtered("allday").partner_ids & self).user_ids
-            resources = users._get_calendar_event_resources() if users else {}
         resources_by_partner = defaultdict(lambda: self.env["resource.resource"])
-        for user, resource in resources.items():
-            resources_by_partner[user.partner_id.id] |= resource
+        if user_resources is None:
+            attendees = events.filtered("allday").partner_ids & self
+            for partner, resource in (
+                attendees._get_calendar_event_resources() if attendees else {}
+            ).items():
+                resources_by_partner[partner.id] |= resource
+        else:
+            for user, resource in user_resources.items():
+                resources_by_partner[user.partner_id.id] |= resource
         grouped = defaultdict(list)
         for event in events:
             if not event.active or event.show_as != "busy":
@@ -277,7 +315,7 @@ class ResPartner(models.Model):
         return True
 
     upcoming_appointment_ids = fields.Many2many(
-        "calendar.event",
+        comodel_name="calendar.event",
         string="Upcoming Appointments",
         compute="_compute_upcoming_appointment_ids",
     )

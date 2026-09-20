@@ -15,6 +15,9 @@ from datetime import UTC, date, datetime
 from typing import Literal
 
 from odoo.libs.datetime import all_timezones, timezone
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 ANCHOR_MINUTES = 15
 
@@ -24,6 +27,7 @@ def days_by_timezone(anchor: datetime) -> tuple[tuple[date, tuple[str, ...]], ..
     days = defaultdict(list)
     for tz_name in all_timezones():
         days[anchor.astimezone(timezone(tz_name)).date()].append(tz_name)
+    _debug.perf.count("days_by_timezone_computed", anchor=anchor, days=len(days))
     return tuple((day, tuple(sorted(names))) for day, names in sorted(days.items()))
 
 
@@ -40,6 +44,8 @@ def today_in_tz(
 ) -> date:
     moment = moment or datetime.now(UTC)
     if not tz or tz not in all_timezones():
+        if _debug.logic.enabled and tz:
+            _debug.logic("timezone_unknown", tz=tz)
         return moment.date()
     return moment.astimezone(timezone(tz)).date()
 

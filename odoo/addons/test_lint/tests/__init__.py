@@ -19,7 +19,9 @@ from . import test_l10n
 from . import test_machine_doc_identifiers
 from . import test_manifests
 from . import test_xml_records
+from . import test_xml_lint
 from . import test_button_targets
+from . import test_contextual_menu
 from . import test_view_hygiene
 from . import test_pretty_xml
 from . import test_fixers
@@ -35,6 +37,7 @@ from . import test_test_holes
 from . import test_esm_specifiers
 from . import test_esm_bundles
 from . import test_asset_paths_exist
+from . import test_template_extensions
 from . import test_bundle_double_evaluation
 from . import test_bundles_assemble
 from . import test_copy_translations
@@ -43,3 +46,4 @@ from . import test_group_refs
 from . import test_record_refs
 from . import test_fixture_models
 from . import test_migration_versions
+from . import test_field_declarations

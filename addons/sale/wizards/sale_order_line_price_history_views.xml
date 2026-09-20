@@ -44,8 +44,8 @@
                             name="divergence_pct"
                             widget="percentage"
                             invisible="not line_id"
-                            decoration-success="divergence_favorable"
-                            decoration-danger="not divergence_favorable and divergence_pct" />
+                            decoration-danger="not divergence_favorable and divergence_pct"
+                            decoration-success="divergence_favorable" />
                         <field name="divergence_favorable" invisible="1" />
                         <field
                             name="partner_avg_price_unit"
@@ -58,16 +58,16 @@
                                 name="partner_divergence_pct"
                                 widget="percentage"
                                 class="oe_inline"
-                                decoration-success="partner_divergence_favorable"
-                                decoration-danger="not partner_divergence_favorable and partner_divergence_pct" />
+                                decoration-danger="not partner_divergence_favorable and partner_divergence_pct"
+                                decoration-success="partner_divergence_favorable" />
                             <span class="text-muted">
-                                over <field name="partner_avg_sample_count" class="oe_inline" nolabel="1" /> document(s)
+                                over <field name="partner_avg_sample_count" nolabel="1" class="oe_inline" /> document(s)
                             </span>
                         </div>
                         <field name="partner_divergence_favorable" invisible="1" />
                     </group>
                 </group>
-                <field name="line_ids" nolabel="1">
+                <field name="line_ids">
                     <list create="false" delete="false">
                         <field name="currency_id" column_invisible="True" />
                         <field name="divergence_favorable" column_invisible="True" />
@@ -85,14 +85,14 @@
                         <field
                             name="divergence_pct"
                             widget="percentage"
-                            decoration-success="divergence_favorable"
-                            decoration-danger="not divergence_favorable and divergence_pct" />
+                            decoration-danger="not divergence_favorable and divergence_pct"
+                            decoration-success="divergence_favorable" />
                         <field name="tax_ids" widget="many2many_tags" optional="hide" />
                         <button
                             name="action_set_price"
                             type="object"
-                            icon="fa-check"
                             title="Apply this price to the current line"
+                            icon="fa-check"
                             column_invisible="not context.get('default_line_id')" />
                     </list>
                 </field>
@@ -101,8 +101,8 @@
                         name="action_view_history"
                         type="object"
                         string="Full history"
-                        class="btn-secondary"
-                        invisible="not product_id" />
+                        invisible="not product_id"
+                        class="btn-secondary" />
                     <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>
             </form>

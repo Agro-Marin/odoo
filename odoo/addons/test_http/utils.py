@@ -3,7 +3,7 @@ from html.parser import HTMLParser
 import geoip2.errors
 import geoip2.models
 
-from odoo.http import FilesystemSessionStore
+from odoo.http import MemorySessionStore as _MemorySessionStore
 
 TEST_IP = "192.0.2.42"
 TEST_IP_GEOIP_CITY = geoip2.models.City(
@@ -133,43 +133,7 @@ class MemoryGeoipResolver:
         return record
 
 
-class MemorySessionStore(FilesystemSessionStore):
-    def __init__(self, session_class, renew_missing=False):
-        super().__init__(
-            path="", session_class=session_class, renew_missing=renew_missing
-        )
-        self.store = {}
-
-    def get(self, sid):
-        session = self.store.get(sid)
-        if not session:
-            session = self.new()
-        return session
-
-    def save(self, session):
-        self.store[session.sid] = session
-
-    def delete(self, session):
-        self.store.pop(session.sid, None)
-
-    def _remove_sid(self, sid):
-        self.store.pop(sid, None)
-
-    def remove_sessions_for_identifiers(self, identifiers, exclude_sid=None):
-        sid_to_remove = [
-            sid
-            for sid in self.store
-            if sid != exclude_sid
-            and any(sid.startswith(identifier) for identifier in identifiers)
-        ]
-        for sid in sid_to_remove:
-            self.store.pop(sid)
-
-    def get_missing_session_identifiers(self, identifiers):
-        return set(identifiers).difference(self.store)
-
-    def vacuum(self):
-        return
+MemorySessionStore = _MemorySessionStore
 
 
 class HtmlTokenizer(HTMLParser):

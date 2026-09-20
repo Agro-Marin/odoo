@@ -1,11 +1,19 @@
 // @ts-check
 /** @odoo-module native */
+import {
+    onLocalStorageChange,
+    readLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 
 import { fields, Record } from "./record.js";
 export const CHAT_HUB_KEY = "mail.ChatHub";
 export const CHAT_HUB_COMPACT_LS = "mail.user_setting.chathub_compact";
+
+const log = makeLogger("mail.chat_hub");
 
 export class ChatHub extends Record {
     BUBBLE = 56;
@@ -28,36 +36,38 @@ export class ChatHub extends Record {
         const chatHub = /** @type {import("models").ChatHub} */ (
             /** @type {unknown} */ (super.new(data, ids))
         );
-        chatHub._onStorage = /** @param {StorageEvent} ev */ (ev) => {
-            if (ev.key === CHAT_HUB_KEY) {
-                chatHub.load(ev.newValue || undefined).catch(() => {});
-            } else if (ev.key === null) {
-                chatHub.load().catch(() => {});
-            }
-            if (ev.key === CHAT_HUB_COMPACT_LS) {
-                chatHub._recomputeCompact++;
-            }
-        };
-        browser.addEventListener("storage", chatHub._onStorage);
+        chatHub._stopStorage = onLocalStorageChange(
+            chatHub.store,
+            CHAT_HUB_KEY,
+            (newValue) => {
+                log.pipeline("crosstab storage", () => ({ key: CHAT_HUB_KEY }));
+                chatHub.load(newValue || undefined).catch(() => {});
+            },
+        );
+        const endInit = log.perf("init");
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
             .catch(() => {})
-            .finally(() => chatHub.initPromise.resolve());
+            .finally(() => {
+                endInit({
+                    opened: chatHub.opened.length,
+                    folded: chatHub.folded.length,
+                });
+                chatHub.initPromise.resolve();
+            });
         return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (chatHub));
     }
 
     delete() {
-        browser.removeEventListener("storage", this._onStorage);
+        this._stopStorage();
         super.delete();
     }
-    /** @type {(event: StorageEvent) => void} */
-    _onStorage;
-    _recomputeCompact = 0;
+    /** @type {() => void} */
+    _stopStorage;
     compact = fields.Attr(false, {
         /** @this {import("models").ChatHub} */
         compute() {
-            void this._recomputeCompact;
-            return browser.localStorage.getItem(CHAT_HUB_COMPACT_LS) === "true";
+            return readLocalStorageItem(this.store, CHAT_HUB_COMPACT_LS) === "true";
         },
     });
     canShowOpened = fields.Many("ChatWindow");
@@ -75,6 +85,10 @@ export class ChatHub extends Record {
     loadMutex = new Mutex();
 
     async closeAll() {
+        log.logic("closeAll", () => ({
+            opened: this.opened.length,
+            folded: this.folded.length,
+        }));
         await this.initPromise;
         const promises = [];
         for (const cw of [...this.opened, ...this.folded]) {
@@ -85,14 +99,20 @@ export class ChatHub extends Record {
     }
 
     hideAll() {
+        log.logic("hideAll", () => ({ opened: this.opened.length }));
         for (const cw of this.opened) {
             cw.bypassCompact = false;
         }
-        browser.localStorage.setItem(CHAT_HUB_COMPACT_LS, String(true));
-        this._recomputeCompact++;
+        setLocalStorageItem(this.store, CHAT_HUB_COMPACT_LS, String(true));
     }
 
     onRecompute() {
+        if (this.opened.length > this.maxOpened) {
+            log.logic("onRecompute folds overflow", () => ({
+                opened: this.opened.length,
+                maxOpened: this.maxOpened,
+            }));
+        }
         while (this.opened.length > this.maxOpened) {
             const cw = this.opened.pop();
             this.folded.unshift(cw);
@@ -108,6 +128,7 @@ export class ChatHub extends Record {
     async _load(str) {
         /** @type {{ opened?: Object[], folded?: Object[] }} */
         let parsed;
+        log.lifecycle("load", () => ({ raw: str }));
         try {
             parsed = str && str !== "undefined" ? JSON.parse(str) : {};
         } catch {
@@ -118,6 +139,7 @@ export class ChatHub extends Record {
             opened.some((data) => !data.id || !data.model) ||
             folded.some((data) => !data.id || !data.model);
         if (hasInvalidData) {
+            log.logic("load discards invalid data");
             opened.length = 0;
             folded.length = 0;
             browser.localStorage.removeItem(CHAT_HUB_KEY);
@@ -137,6 +159,12 @@ export class ChatHub extends Record {
                 .map((thread) => this.store.ChatWindow.insert({ thread }));
         const toFold = insertChatWindows(foldThreads);
         const toOpen = insertChatWindows(openThreads);
+        log.pipeline("load resolved", () => ({
+            requestedOpened: opened.length,
+            requestedFolded: folded.length,
+            toOpen: toOpen.length,
+            toFold: toFold.length,
+        }));
         for (const chatWindow of [...this.opened, ...this.folded]) {
             if (chatWindow.notIn(toOpen) && chatWindow.notIn(toFold)) {
                 chatWindow.close({ notifyState: false });
@@ -172,6 +200,10 @@ export class ChatHub extends Record {
     }
 
     save() {
+        log.lifecycle("save", () => ({
+            opened: this.opened.length,
+            folded: this.folded.length,
+        }));
         browser.localStorage.setItem(
             CHAT_HUB_KEY,
             JSON.stringify({

@@ -1,6 +1,9 @@
 from markupsafe import Markup
 
 from odoo import _, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class EventRegistration(models.Model):
@@ -11,6 +14,7 @@ class EventRegistration(models.Model):
             line_suffix=line_suffix
         )
         if not self.registration_answer_ids:
+            _debug.logic("lead_description_without_answers", registration=self)
             return reg_description
 
         answer_descriptions = []
@@ -26,6 +30,11 @@ class EventRegistration(models.Model):
             answer_descriptions.append(
                 Markup("  - %s<br/>%s") % (answer.question_id.title, answer_value)
             )
+        _debug.pipeline(
+            "lead_description_with_answers",
+            registration=self,
+            answers=self.registration_answer_ids,
+        )
         return Markup("%s%s<br/>%s") % (
             reg_description,
             _("Questions"),
@@ -37,10 +46,16 @@ class EventRegistration(models.Model):
         res.append("registration_answer_ids")
         return res
 
-    def _get_lead_values(self, rule):
-        lead_values = super()._get_lead_values(rule)
+    def _prepare_lead_vals(self, rule):
+        lead_values = super()._prepare_lead_vals(rule)
         if self.visitor_id:
             lead_values["visitor_ids"] = self.visitor_id
         if self.visitor_id.lang_id:
             lead_values["lang_id"] = self.visitor_id.lang_id[0].id
+        _debug.logic(
+            "registration_lead_values",
+            registration=self,
+            visitor=self.visitor_id,
+            lang=self.visitor_id.lang_id[:1],
+        )
         return lead_values

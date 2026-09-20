@@ -359,7 +359,7 @@ class TestHrWorkEntry(TransactionCase):
 
     def test_generation_ignores_another_company_global_leave(self):
         leave_type = self.env.ref("hr_work_entry.work_entry_type_leave")
-        self.env["resource.calendar.leaves"].with_company(self.company_b).create(
+        self.env["resource.schedule.exception"].with_company(self.company_b).create(
             {
                 "name": "Company B shutdown",
                 "date_from": "2024-01-03 00:00:00",
@@ -368,7 +368,7 @@ class TestHrWorkEntry(TransactionCase):
                 "work_entry_type_id": leave_type.id,
             }
         )
-        vals_list = self.employee_a.version_id._get_work_entries_values(
+        vals_list = self.employee_a.version_id._prepare_work_entries_values(
             datetime(2024, 1, 1, 0, 0), datetime(2024, 1, 5, 23, 59, 59)
         )
         january_third = [

@@ -15,10 +15,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="pos_menu_products_tag_action"
-        parent="point_of_sale.pos_menu_products_configuration"
-        action="product.action_product_tag"
-        sequence="3" />
-
 </odoo>

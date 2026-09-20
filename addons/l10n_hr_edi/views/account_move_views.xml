@@ -9,28 +9,28 @@
             <field name="arch" type="xml">
                 <xpath expr="//button[@name='action_cancel']" position="before">
                     <button
-                        string="MER: Reject eRacun"
                         name="l10n_hr_edi_mer_action_reject"
-                        class="oe_highlight"
                         type="object"
+                        string="MER: Reject eRacun"
                         groups="account.group_account_invoice"
-                        invisible="(move_type not in ('in_invoice', 'in_refund') or state != 'draft' or l10n_hr_business_document_status == '1' or l10n_hr_mer_document_eid == False)" />
+                        invisible="(move_type not in ('in_invoice', 'in_refund') or state != 'draft' or l10n_hr_business_document_status == '1' or l10n_hr_mer_document_eid == False)"
+                        class="oe_highlight" />
                 </xpath>
                 <xpath expr="//button[@name='action_cancel']" position="after">
                     <button
-                        string="MER: Fetch status"
                         name="l10n_hr_edi_mer_action_fetch_status"
-                        class="oe_highlight"
                         type="object"
+                        string="MER: Fetch status"
                         groups="account.group_account_invoice"
-                        invisible="not l10n_hr_mer_document_eid" />
+                        invisible="not l10n_hr_mer_document_eid"
+                        class="oe_highlight" />
                     <button
-                        string="MER: Report payments"
                         name="l10n_hr_edi_mer_action_report_paid"
-                        class="oe_highlight"
                         type="object"
+                        string="MER: Report payments"
                         groups="account.group_account_invoice"
-                        invisible="not l10n_hr_mer_document_eid or (amount_total - amount_residual) == l10n_hr_payment_reported_amount or move_type not in ('out_invoice', 'out_refund')" />
+                        invisible="not l10n_hr_mer_document_eid or (amount_total - amount_residual) == l10n_hr_payment_reported_amount or move_type not in ('out_invoice', 'out_refund')"
+                        class="oe_highlight" />
                 </xpath>
                 <xpath expr="//header" position="after">
                     <div
@@ -60,13 +60,13 @@
                 </xpath>
                 <xpath expr="//page[@id='other_tab_entry']" position="after">
                     <page
+                        name="page_hr_edi_tab"
                         id="l10n_hr_edi_tab"
                         string="Croatia: Fiscalization 2.0"
-                        name="page_hr_edi_tab"
                         invisible="country_code != 'HR'">
                         <group
-                            string="Accounting information"
-                            name="l10n_hr_accounting_info_group">
+                            name="l10n_hr_accounting_info_group"
+                            string="Accounting information">
                             <field
                                 name="l10n_hr_invoice_sending_time"
                                 invisible="move_type not in ('out_invoice', 'out_refund')"
@@ -92,8 +92,8 @@
                                 readonly="True" />
                         </group>
                         <group
-                            string="Fiscalization"
                             name="l10n_hr_fiscalization_info_group"
+                            string="Fiscalization"
                             invisible="not l10n_hr_edi_addendum_id">
                             <field
                                 name="l10n_hr_business_document_status"
@@ -121,8 +121,8 @@
                                 readonly="True" />
                         </group>
                         <group
-                            string="Payment reporting"
                             name="l10n_hr_payment_info_group"
+                            string="Payment reporting"
                             invisible="not l10n_hr_edi_addendum_id or move_type not in ('out_invoice', 'out_refund')">
                             <field
                                 name="l10n_hr_payment_reported_amount"
@@ -130,8 +130,8 @@
                             <field name="l10n_hr_payment_method_type" />
                         </group>
                         <group
-                            string="MojEracun"
                             name="l10n_hr_mojeracun_info_group"
+                            string="MojEracun"
                             invisible="not l10n_hr_mer_document_eid">
                             <field name="l10n_hr_mer_document_eid" readonly="True" />
                             <field name="l10n_hr_mer_document_status" readonly="True" />
@@ -143,8 +143,8 @@
                     position="after">
                     <field
                         name="l10n_hr_kpd_category_id"
-                        column_invisible="parent.country_code != 'HR'"
-                        options="{'no_create': True, 'readonly': False}" />
+                        options="{'no_create': True, 'readonly': False}"
+                        column_invisible="parent.country_code != 'HR'" />
                 </xpath>
             </field>
         </record>
@@ -157,55 +157,55 @@
                     expr="//button[@name='action_force_register_payment']"
                     position="after">
                     <button
-                        string="MER: Report payments"
                         name="l10n_hr_edi_mer_action_report_paid"
-                        class="oe_highlight"
                         type="object"
-                        groups="account.group_account_invoice" />
+                        string="MER: Report payments"
+                        groups="account.group_account_invoice"
+                        class="oe_highlight" />
                 </xpath>
                 <xpath expr="//field[@name='abnormal_date_warning']" position="after">
                     <field
                         name="l10n_hr_mer_document_eid"
                         string="MojEracun eID"
-                        readonly="True"
                         widget="badge"
-                        optional="hide" />
+                        optional="hide"
+                        readonly="True" />
                     <field
                         name="l10n_hr_mer_document_status"
                         string="MojEracun Status"
-                        readonly="True"
                         widget="badge"
-                        decoration-success="l10n_hr_mer_document_status in ['30', '40', '70']"
-                        decoration-warning="l10n_hr_mer_document_status == '20'"
+                        optional="hide"
+                        readonly="True"
                         decoration-danger="l10n_hr_mer_document_status in ['45', '50']"
-                        optional="hide" />
+                        decoration-success="l10n_hr_mer_document_status in ['30', '40', '70']"
+                        decoration-warning="l10n_hr_mer_document_status == '20'" />
                     <field
                         name="l10n_hr_business_document_status"
                         string="Business Document Status"
-                        readonly="True"
                         widget="badge"
-                        decoration-success="l10n_hr_business_document_status in ['0', '2', '4', '99']"
-                        decoration-warning="l10n_hr_business_document_status == '3'"
+                        optional="hide"
+                        readonly="True"
                         decoration-danger="l10n_hr_business_document_status == '1'"
-                        optional="hide" />
+                        decoration-success="l10n_hr_business_document_status in ['0', '2', '4', '99']"
+                        decoration-warning="l10n_hr_business_document_status == '3'" />
                     <field
                         name="l10n_hr_fiscalization_status"
                         string="Fiscalization 2.0 Status"
-                        readonly="True"
                         widget="badge"
-                        decoration-success="l10n_hr_fiscalization_status == '0'"
-                        decoration-warning="l10n_hr_fiscalization_status == '2'"
+                        optional="hide"
+                        readonly="True"
                         decoration-danger="l10n_hr_fiscalization_status == '1'"
-                        optional="hide" />
+                        decoration-success="l10n_hr_fiscalization_status == '0'"
+                        decoration-warning="l10n_hr_fiscalization_status == '2'" />
                     <field
                         name="l10n_hr_payment_reported_amount"
                         string="Reported Paid"
-                        readonly="True"
-                        decoration-success="l10n_hr_payment_reported_amount == (amount_total - amount_residual) and amount_total != amount_residual"
-                        decoration-warning="l10n_hr_payment_reported_amount &lt; (amount_total - amount_residual)"
-                        decoration-danger="l10n_hr_payment_reported_amount &gt; (amount_total - amount_residual)"
+                        optional="hide"
                         invisible="not l10n_hr_mer_document_eid or state in ('draft', 'cancelled')"
-                        optional="hide" />
+                        readonly="True"
+                        decoration-danger="l10n_hr_payment_reported_amount &gt; (amount_total - amount_residual)"
+                        decoration-success="l10n_hr_payment_reported_amount == (amount_total - amount_residual) and amount_total != amount_residual"
+                        decoration-warning="l10n_hr_payment_reported_amount &lt; (amount_total - amount_residual)" />
                 </xpath>
             </field>
         </record>
@@ -216,12 +216,12 @@
             <field name="arch" type="xml">
                 <xpath expr="//search/group" position="before">
                     <filter
-                        string="Is a MER document"
                         name="l10n_hr_is_mer"
+                        string="Is a MER document"
                         domain="[('l10n_hr_mer_document_eid', '!=', False)]" />
                     <filter
-                        string="Has unreported payments"
                         name="l10n_hr_has_unreported_payments"
+                        string="Has unreported payments"
                         domain="[('l10n_hr_payment_unreported', '!=', False)]" />
                     <separator />
                 </xpath>

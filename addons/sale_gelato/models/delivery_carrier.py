@@ -1,20 +1,23 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.sale_gelato import utils
+
+_debug = DebugLog(__name__)
 
 
 class ProviderGelato(models.Model):
     _inherit = "delivery.carrier"
 
     delivery_type = fields.Selection(
-        selection_add=[("gelato", "Gelato")], ondelete={"gelato": "cascade"}
+        selection_add=[("gelato", "Gelato")],
+        ondelete={"gelato": "cascade"},
     )
     gelato_shipping_service_type = fields.Selection(
-        string="Gelato Shipping Service Type",
         selection=[("normal", "Standard Delivery"), ("express", "Express Delivery")],
-        required=True,
         default="normal",
+        required=True,
     )
 
     def _is_available_for_order(self, order):
@@ -26,8 +29,10 @@ class ProviderGelato(models.Model):
             return False
         return super()._is_available_for_order(order)
 
-    def available_carriers(self, partner, source):
-        available_delivery_methods = super().available_carriers(partner, source)
+    def _filtered_available_carriers(self, partner, source):
+        available_delivery_methods = super()._filtered_available_carriers(
+            partner, source
+        )
         if source._name == "sale.order":
             is_gelato_order = any(
                 source.line_ids.product_id.mapped("gelato_product_uid")
@@ -37,6 +42,7 @@ class ProviderGelato(models.Model):
                 source.move_ids.product_id.mapped("gelato_product_uid")
             )
         else:
+            _debug.logic("gelato_carriers_refused", reason="bad_source_type")
             raise UserError(_("Invalid source document type"))
         if is_gelato_order:
             return available_delivery_methods.filtered(

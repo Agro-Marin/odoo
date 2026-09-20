@@ -4,7 +4,6 @@ from odoo.tools.translate import LazyTranslate
 
 _lt = LazyTranslate(__name__, default_lang="en_US")
 
-# Website configurator
 
 SHOP_PAGE_STYLE_MAPPING = {
     "classic_grid": {
@@ -12,7 +11,7 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/classic_grid.jpg",
         "views": {
             "enable": [
-                "website_sale.template_footer_website_sale",  # Footer
+                "website_sale.template_footer_website_sale",
             ],
             "disable": [],
         },
@@ -43,22 +42,22 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/modern_grid.jpg",
         "views": {
             "enable": [
-                "website.template_header_search",  # Header menu with search bar
-                "website.header_width_full",  # Header width
-                "website_sale.products_mobile_cols_single",  # Mobile cols single
-                "website_sale.products_attributes_top",  # Filters
-                "website_sale.filmstrip_categories_grid",  # Category style
-                "website_sale.template_footer_website_sale",  # Footer
-                "website.footer_copyright_content_width_fluid",  # Footer width
+                "website.template_header_search",
+                "website.header_width_full",
+                "website_sale.products_mobile_cols_single",
+                "website_sale.products_attributes_top",
+                "website_sale.filmstrip_categories_grid",
+                "website_sale.template_footer_website_sale",
+                "website.footer_copyright_content_width_fluid",
             ],
             "disable": [
-                "website_sale.products_attributes",  # Filters
+                "website_sale.products_attributes",
             ],
         },
         "website_fields": {
             "shop_ppr": 5,
             "shop_gap": "0px",
-            "shop_page_container": "fluid",  # Content fullwidth
+            "shop_page_container": "fluid",
             "shop_opt_products_design_classes": "o_wsale_products_opt_thumb_cover "
             "o_wsale_products_opt_img_hover_zoom_out_light "
             "o_wsale_products_opt_has_cta "
@@ -88,22 +87,22 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/showcase.jpg",
         "views": {
             "enable": [
-                "website.template_header_sales_four",  # Header
-                "website.header_width_full",  # Header width
-                "website_sale.products_shop_title_align",  # Shop title centered
-                "website_sale.filmstrip_categories_pills",  # Category style
-                "website_sale.products_attributes_top",  # Filters
-                "website_sale.floating_bar",  # Toolbar/floating
-                "website_sale.template_footer_website_sale",  # Footer
-                "website.footer_copyright_content_width_fluid",  # Footer width
+                "website.template_header_sales_four",
+                "website.header_width_full",
+                "website_sale.products_shop_title_align",
+                "website_sale.filmstrip_categories_pills",
+                "website_sale.products_attributes_top",
+                "website_sale.floating_bar",
+                "website_sale.template_footer_website_sale",
+                "website.footer_copyright_content_width_fluid",
             ],
             "disable": [
-                "website_sale.products_attributes",  # Filters
+                "website_sale.products_attributes",
             ],
         },
         "website_fields": {
             "shop_gap": "0px",
-            "shop_page_container": "fluid",  # Content fullwidth
+            "shop_page_container": "fluid",
             "shop_opt_products_design_classes": "o_wsale_products_opt_name_color_regular "
             "o_wsale_products_opt_thumb_cover "
             "o_wsale_products_opt_has_cta "
@@ -132,15 +131,15 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/chips_contained.jpg",
         "views": {
             "enable": [
-                "website.template_header_sales_one",  # Header
-                "website_sale.products_shop_title_align",  # Shop title centered
-                "website_sale.products_mobile_cols_single",  # Mobile cols single
-                "website_sale.filmstrip_categories_bordered",  # Category style
-                "website_sale.products_attributes_top",  # Filters
-                "website_sale.template_footer_website_sale",  # Footer
+                "website.template_header_sales_one",
+                "website_sale.products_shop_title_align",
+                "website_sale.products_mobile_cols_single",
+                "website_sale.filmstrip_categories_bordered",
+                "website_sale.products_attributes_top",
+                "website_sale.template_footer_website_sale",
             ],
             "disable": [
-                "website_sale.products_attributes",  # Filters
+                "website_sale.products_attributes",
             ],
         },
         "website_fields": {
@@ -176,10 +175,10 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/condensed_list.jpg",
         "views": {
             "enable": [
-                "website.template_header_hamburger",  # Header
-                "website.no_autohide_menu",  # Header
-                "website_sale.filmstrip_categories_images",  # Category style
-                "website_sale.template_footer_website_sale",  # Footer
+                "website.template_header_hamburger",
+                "website.no_autohide_menu",
+                "website_sale.filmstrip_categories_images",
+                "website_sale.template_footer_website_sale",
             ],
             "disable": [],
         },
@@ -212,13 +211,13 @@ SHOP_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/shop/cards.jpg",
         "views": {
             "enable": [
-                "website_sale.products_mobile_cols_single",  # Mobile cols single
-                "website_sale.filmstrip_categories_large_images",  # Category style
-                "website_sale.products_attributes_top",  # Filters
-                "website_sale.template_footer_website_sale",  # Footer
+                "website_sale.products_mobile_cols_single",
+                "website_sale.filmstrip_categories_large_images",
+                "website_sale.products_attributes_top",
+                "website_sale.template_footer_website_sale",
             ],
             "disable": [
-                "website_sale.products_attributes",  # Filters
+                "website_sale.products_attributes",
             ],
         },
         "website_fields": {
@@ -279,13 +278,12 @@ PRODUCT_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/product/focused.jpg",
         "views": {
             "enable": [
-                # Purchase style
                 "website_sale.cta_wrapper_large",
                 "website_sale.product_buy_now_large",
                 "website_sale.product_quantity_large",
             ],
             "disable": [
-                "website_sale.cta_wrapper_boxed",  # Purchase style
+                "website_sale.cta_wrapper_boxed",
             ],
         },
         "website_fields": {
@@ -301,13 +299,12 @@ PRODUCT_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/product/large_image.jpg",
         "views": {
             "enable": [
-                "website_sale.carousel_product_indicators_bottom",  # Thumbnail position
-                "website_sale.cta_wrapper_boxed",  # Purchase style
+                "website_sale.carousel_product_indicators_bottom",
+                "website_sale.cta_wrapper_boxed",
             ],
             "disable": [
-                "website_sale.carousel_product_indicators_left",  # Thumbnail position
-                "website_sale.cta_separator",  # Separator
-                # Purchase style
+                "website_sale.carousel_product_indicators_left",
+                "website_sale.cta_separator",
                 "website_sale.cta_wrapper_large",
                 "website_sale.product_buy_now_large",
                 "website_sale.product_quantity_large",
@@ -323,12 +320,11 @@ PRODUCT_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/product/functional.jpg",
         "views": {
             "enable": [
-                "website_sale.carousel_product_indicators_bottom",  # Thumbnail position
-                "website_sale.cta_wrapper_boxed",  # Purchase style
+                "website_sale.carousel_product_indicators_bottom",
+                "website_sale.cta_wrapper_boxed",
             ],
             "disable": [
-                "website_sale.carousel_product_indicators_left",  # Thumbnail position
-                # Purchase style
+                "website_sale.carousel_product_indicators_left",
                 "website_sale.cta_wrapper_large",
                 "website_sale.product_buy_now_large",
                 "website_sale.product_quantity_large",
@@ -344,14 +340,13 @@ PRODUCT_PAGE_STYLE_MAPPING = {
         "img_src": "/website_sale/static/src/img/configurator/product/large_grid.jpg",
         "views": {
             "enable": [
-                # Purchase style
                 "website_sale.cta_wrapper_large",
                 "website_sale.product_buy_now_large",
                 "website_sale.product_quantity_large",
             ],
             "disable": [
-                "website_sale.cta_separator",  # Separator
-                "website_sale.cta_wrapper_boxed",  # Purchase style
+                "website_sale.cta_separator",
+                "website_sale.cta_wrapper_boxed",
             ],
         },
         "website_fields": {
@@ -408,7 +403,6 @@ SNIPPET_DEFAULTS = {
 PRODUCT_FEED_SOFT_LIMIT = 5000
 PRODUCT_FEED_HARD_LIMIT = 6000
 
-# Google Merchant Center
 GMC_SUPPORTED_UOM = {
     "oz",
     "lb",

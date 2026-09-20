@@ -82,7 +82,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
         const editableBody = editingElement.ownerDocument.body;
         editingElement.dataset.ribbonId = ribbonId;
 
-        // Update all ribbons with this ID
         const ribbons = editableBody.ownerDocument.querySelectorAll(
             `[data-ribbon-id="${ribbonId}"]`,
         );
@@ -183,7 +182,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
 
         await Promise.all(proms);
 
-        // Building the final template to ribbon-id map so that we can remove duplicate entries
         const finalTemplateRibbons = this.productTemplatesRibbons.reduce(
             (acc, { templateId, ribbonId }) => {
                 acc[templateId] = ribbonId;
@@ -191,8 +189,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
             },
             {},
         );
-        // Inverting the relationship so that we have all templates that have the same ribbon to
-        // reduce RPCs
         const ribbonTemplates = {};
         for (const [templateId, ribbonId] of Object.entries(finalTemplateRibbons)) {
             const rid = (ribbonTemplates[ribbonId] ||= []);
@@ -214,10 +210,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
         return Promise.all(promises);
     }
 
-    /**
-     * Deletes a ribbon, hides/relabels every DOM node sharing its ribbon id, and persists
-     * the change via `_saveRibbons()`.
-     */
     deleteRibbon(editingElement) {
         const ribbonId = parseInt(
             editingElement.querySelector(".o_ribbons")?.dataset.ribbonId,
@@ -231,8 +223,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
             }
             delete this.ribbonsObject[ribbonId];
 
-            // update "reactive" count to trigger rerendering the BuilderSelect component (which
-            // has the value as a t-key)
             this.count.value++;
         }
         const isProductPage =
@@ -252,7 +242,6 @@ class ProductsRibbonOptionPlugin extends Plugin {
             if (isProductPage) {
                 templateId = this.productTemplateID;
             } else {
-                // Find the product template ID from the ribbon element's parent form
                 const productForm = ribbonElement.closest("form.oe_product_cart");
                 const templateElement = productForm?.querySelector(
                     '[data-oe-model="product.template"]',

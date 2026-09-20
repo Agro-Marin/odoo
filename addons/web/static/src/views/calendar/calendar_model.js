@@ -3,6 +3,8 @@
 
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { getFieldCodec } from "@web/core/field_codec";
 import { isX2Many } from "@web/core/field_types";
 import {
@@ -110,6 +112,8 @@ async function fetchDynamicFilterColors(
     return shouldFetchColor ? records : [];
 }
 
+const log = makeLogger("web.view.calendar");
+
 export class CalendarModel extends Model {
     static DEBOUNCED_LOAD_DELAY = 600;
     static services = ["notification"];
@@ -170,7 +174,8 @@ export class CalendarModel extends Model {
     }
     /** @param {Object} [params] */
     async load(params = {}) {
-        const previousMeta = { ...this.meta };
+        // Concurrent loads share meta; only published metadata is a rollback point.
+        this.publishedMeta ??= { ...this.meta };
         Object.assign(this.meta, params);
         if (!this.meta.date) {
             this.meta.date =
@@ -182,17 +187,33 @@ export class CalendarModel extends Model {
             this.meta.scale = this.meta.scales[0];
         }
         const data = { ...this.data };
+        log.pipeline("load", () => ({
+            resModel: this.meta.resModel,
+            scale: this.meta.scale,
+            date: this.meta.date?.toISODate(),
+            params: Object.keys(params),
+        }));
+        const endLoad = log.perf(`updateData ${this.meta.resModel}`);
         try {
             await this.keepLast.add(this.updateData(data));
         } catch (error) {
             if (error instanceof SupersededError) {
+                endLoad({ superseded: true });
                 return;
             }
-            Object.assign(this.meta, previousMeta);
+            for (const key of Object.keys(this.meta)) {
+                if (!(key in this.publishedMeta)) {
+                    delete this.meta[key];
+                }
+            }
+            Object.assign(this.meta, this.publishedMeta);
+            endLoad({ failed: true });
             throw error;
         }
+        endLoad({ records: Object.keys(data.records || {}).length });
         browser.localStorage.setItem(this.storageKey, this.meta.scale);
         this.data = data;
+        this.publishedMeta = { ...this.meta };
         this.notify();
     }
 
@@ -339,6 +360,7 @@ export class CalendarModel extends Model {
         await this.load();
     }
     async createRecord(record) {
+        log.logic("createRecord", () => ({ resModel: this.meta.resModel, record }));
         const rawRecord = this.buildRawRecord(record);
         const context = this.makeContextDefaults(rawRecord);
         await this.orm.create(this.meta.resModel, [rawRecord], { context });
@@ -422,11 +444,12 @@ export class CalendarModel extends Model {
             try {
                 await this.orm.unlink(info.writeResModel, [recordId]);
             } finally {
-                await this.debouncedLoad().catch((error) => console.error(error));
+                await this.debouncedLoad().catch(reportUncaught);
             }
         }
     }
     async unlinkRecord(recordId) {
+        log.logic("unlinkRecord", () => ({ resModel: this.meta.resModel, recordId }));
         await this.orm.unlink(this.meta.resModel, [recordId]);
         this.invalidateUnusualDays();
         await this.load();
@@ -467,7 +490,7 @@ export class CalendarModel extends Model {
                 }
             }
         } finally {
-            await this.debouncedLoad().catch((error) => console.error(error));
+            await this.debouncedLoad().catch(reportUncaught);
         }
     }
     async updateRecord(record, options = {}) {
@@ -479,7 +502,7 @@ export class CalendarModel extends Model {
             });
         } finally {
             this.invalidateUnusualDays();
-            await this.load().catch((error) => console.error(error));
+            await this.load().catch(reportUncaught);
         }
     }
 

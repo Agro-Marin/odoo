@@ -16,28 +16,25 @@ class StockWarehouseOrderpoint(models.Model):
         comodel_name="product.supplierinfo",
         string="Vendor Pricelist",
         inverse="_inverse_supplier_id",
-        check_company=True,
         domain="['|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_tmpl_id)]",
+        check_company=True,
     )
-    supplier_id_placeholder = fields.Char(
-        compute="_compute_supplier_id_placeholder",
-    )
+    supplier_id_placeholder = fields.Char(compute="_compute_supplier_id_placeholder")
     vendor_ids = fields.One2many(
-        string="Vendors",
         related="product_id.seller_ids",
+        string="Vendors",
     )
     effective_vendor_id = fields.Many2one(
         comodel_name="res.partner",
         compute="_compute_effective_vendor_id",
-        store=False,
         search="_search_effective_vendor_id",
+        store=False,
         help="Either the vendor set directly or the one computed to be used by this replenishment",
     )
     available_vendor = fields.Many2one(
         comodel_name="res.partner",
-        string="Available Vendor",
-        store=False,
         search="_search_available_vendor",
+        store=False,
         help="Any vendor on the product's pricelist",
     )
 
@@ -198,8 +195,8 @@ class StockWarehouseOrderpoint(models.Model):
             )
         return self.env["product.supplierinfo"]
 
-    def _get_lead_days_values(self):
-        values = super()._get_lead_days_values()
+    def _prepare_lead_time_params(self):
+        values = super()._prepare_lead_time_params()
         if self.supplier_id:
             values["supplierinfo"] = self.supplier_id
         return values
@@ -269,7 +266,7 @@ class StockWarehouseOrderpoint(models.Model):
                 (orderpoint.product_id.id, orderpoint.location_id.id),
                 0.0,
             )
-            product_uom_qty = orderpoint.product_id.uom_id._compute_quantity_estimate(
+            product_uom_qty = orderpoint.product_id.uom_id._get_quantity_estimate(
                 product_qty,
                 orderpoint.product_uom_id,
                 round=False,

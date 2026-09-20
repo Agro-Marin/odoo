@@ -9,17 +9,17 @@ class MyInvoisStatusUpdateWizard(models.TransientModel):
     document_id = fields.Many2one(
         comodel_name="myinvois.document",
         string="Document To Update",
-        required=True,
         readonly=True,
+        required=True,
     )
     reason = fields.Char(
-        help="Reason for updating the document.",
         required=True,
+        help="Reason for updating the document.",
     )
     new_status = fields.Char(
-        help="New status to set on the document.",
-        required=True,
         readonly=True,
+        required=True,
+        help="New status to set on the document.",
     )
 
     def button_request_update(self):

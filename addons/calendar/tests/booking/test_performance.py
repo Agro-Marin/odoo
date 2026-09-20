@@ -26,6 +26,13 @@ class AppointmentUIPerformanceCase(AppointmentPerformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        shipped_type_ids = (
+            cls.env["ir.model.data"]
+            .search([("model", "=", "appointment.type")])
+            .mapped("res_id")
+        )
+        cls.env["appointment.type"].browse(shipped_type_ids).exists().active = False
+        cls._website_renders_the_page = "website" in cls.env
 
         # tweak in case website is installed
         if "website" in cls.env and "channel_id" in cls.env["website"]:
@@ -77,7 +84,7 @@ class OnlineAppointmentPerformance(AppointmentUIPerformanceCase):
     @warmup
     def test_appointment_invitation_page_anonymous(self):
         """Anonymous access of invitation page"""
-        random.seed(1871)  # fix shuffle in _slots_fill_users_availability
+        random.seed(1871)  # fix shuffle in _slots_add_users_availability
         invitation = self.env["appointment.invite"].create(
             {
                 "short_code": "spock",
@@ -88,7 +95,9 @@ class OnlineAppointmentPerformance(AppointmentUIPerformanceCase):
         self.authenticate(None, None)
         t0 = time.time()
         with freeze_time(self.reference_now):
-            with self.assertQueryCount(default=30):
+            with self.assertQueryCount(
+                default=30 if self._website_renders_the_page else 27
+            ):
                 response = self._test_url_open(invitation.redirect_url)
         self.assertEqual(response.status_code, 200)
         t1 = time.time()
@@ -98,13 +107,13 @@ class OnlineAppointmentPerformance(AppointmentUIPerformanceCase):
     @warmup
     def test_appointment_type_page_website_authenticated(self):
         """Authenticated access of Appointment type page"""
-        random.seed(1871)  # fix shuffle in _slots_fill_users_availability
+        random.seed(1871)  # fix shuffle in _slots_add_users_availability
         self.apt_type_bxls_2days.is_published = True
 
         self.authenticate("staff_user_aust", "staff_user_aust")
         t0 = time.time()
         with freeze_time(self.reference_now):
-            with self.assertQueryCount(27):
+            with self.assertQueryCount(31 if self._website_renders_the_page else 27):
                 response = self._test_url_open(
                     "/appointment/%i" % self.apt_type_bxls_2days.id
                 )

@@ -74,7 +74,6 @@ class TestLivechatCommon(MailCommon, TransactionCaseWithUserDemo):
         )
         self.env["mail.presence"]._update_presence(self.operator)
 
-        # override the _get_visitor_from_request to return self.visitor
         self.target_visitor = self.visitor
 
         def get_visitor_from_request(self_mock, **kwargs):
@@ -87,8 +86,6 @@ class TestLivechatCommon(MailCommon, TransactionCaseWithUserDemo):
         )
 
     def _send_message(self, channel, email_from, body, author_id=False):
-        # As bus is unavailable in test mode, we cannot call /mail/message/post route to post a message.
-        # Instead, we post directly the message on the given channel.
         channel.with_context(mail_post_autofollow_author_skip=True).message_post(
             author_id=author_id,
             email_from=email_from,

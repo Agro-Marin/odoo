@@ -3,6 +3,7 @@
 
 import { Component, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { faIconClass } from "@web/core/utils/icons";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
 
@@ -25,6 +26,10 @@ export class CopyButton extends Component {
     /** @type {number | undefined} */
     tooltipCloseTimer;
 
+    get iconClass() {
+        return faIconClass(this.props.icon || "fa-clipboard");
+    }
+
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
         this.button = useRef("button");
@@ -33,7 +38,11 @@ export class CopyButton extends Component {
     }
 
     showTooltip() {
-        this.popover.open(/** @type {HTMLElement} */ (this.button.el), {
+        const target = this.button.el;
+        if (!target) {
+            return;
+        }
+        this.popover.open(target, {
             tooltip: this.props.successText,
         });
         browser.clearTimeout(this.tooltipCloseTimer);
@@ -46,6 +55,9 @@ export class CopyButton extends Component {
             content = await this.props.content();
         } else {
             content = this.props.content;
+        }
+        if (content === undefined || content === null) {
+            return;
         }
         if (typeof content === "string" || content instanceof String) {
             write = (/** @type {string} */ value) =>

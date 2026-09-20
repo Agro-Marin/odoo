@@ -77,7 +77,7 @@ class EventMailCommon(EventCase, MailCase, CronMixinCase):
                                 0,
                                 {  # one hour after subscription
                                     "interval_nbr": 1,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "interval_type": "after_sub",
                                     "template_ref": f"mail.template,{cls.template_subscription.id}",
                                 },
@@ -87,7 +87,7 @@ class EventMailCommon(EventCase, MailCase, CronMixinCase):
                                 0,
                                 {  # 1 days before event
                                     "interval_nbr": 1,
-                                    "interval_unit": "days",
+                                    "interval_unit": "day",
                                     "interval_type": "before_event",
                                     "template_ref": f"mail.template,{cls.template_reminder.id}",
                                 },
@@ -97,7 +97,7 @@ class EventMailCommon(EventCase, MailCase, CronMixinCase):
                                 0,
                                 {  # immediately after event
                                     "interval_nbr": 1,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "interval_type": "after_event",
                                     "template_ref": f"mail.template,{cls.template_reminder.id}",
                                 },
@@ -169,7 +169,7 @@ class TestMailSchedule(EventMailCommon):
             [
                 ("event_id", "=", test_event.id),
                 ("interval_type", "=", "after_sub"),
-                ("interval_unit", "=", "hours"),
+                ("interval_unit", "=", "hour"),
             ]
         )
         self.assertEqual(
@@ -224,7 +224,7 @@ class TestMailSchedule(EventMailCommon):
             lambda s: s.interval_type == "after_sub" and s.interval_unit == "now"
         )
         after_sub_scheduler_2 = schedulers.filtered(
-            lambda s: s.interval_type == "after_sub" and s.interval_unit == "hours"
+            lambda s: s.interval_type == "after_sub" and s.interval_unit == "hour"
         )
         event_prev_scheduler = schedulers.filtered(
             lambda s: s.interval_type == "before_event"
@@ -1270,32 +1270,32 @@ class TestMailScheduleInternals(EventMailCommon):
         for i_type, i_unit, i_nbr, exp in [
             # attendee: create date
             ("after_sub", "now", 3, now),
-            ("after_sub", "hours", 3, now + relativedelta(hours=3)),
-            ("after_sub", "days", 3, now + relativedelta(days=3)),
-            ("after_sub", "weeks", 3, now + relativedelta(weeks=3)),
-            ("after_sub", "months", 3, now + relativedelta(months=3)),
+            ("after_sub", "hour", 3, now + relativedelta(hours=3)),
+            ("after_sub", "day", 3, now + relativedelta(days=3)),
+            ("after_sub", "week", 3, now + relativedelta(weeks=3)),
+            ("after_sub", "month", 3, now + relativedelta(months=3)),
             # event: start date
             ("before_event", "now", 3, start),
-            ("before_event", "hours", 3, start - relativedelta(hours=3)),
-            ("before_event", "days", 3, start - relativedelta(days=3)),
-            ("before_event", "weeks", 3, start - relativedelta(weeks=3)),
-            ("before_event", "months", 3, start - relativedelta(months=3)),
+            ("before_event", "hour", 3, start - relativedelta(hours=3)),
+            ("before_event", "day", 3, start - relativedelta(days=3)),
+            ("before_event", "week", 3, start - relativedelta(weeks=3)),
+            ("before_event", "month", 3, start - relativedelta(months=3)),
             ("after_event_start", "now", 3, start),
-            ("after_event_start", "hours", 3, start + relativedelta(hours=3)),
-            ("after_event_start", "days", 3, start + relativedelta(days=3)),
-            ("after_event_start", "weeks", 3, start + relativedelta(weeks=3)),
-            ("after_event_start", "months", 3, start + relativedelta(months=3)),
+            ("after_event_start", "hour", 3, start + relativedelta(hours=3)),
+            ("after_event_start", "day", 3, start + relativedelta(days=3)),
+            ("after_event_start", "week", 3, start + relativedelta(weeks=3)),
+            ("after_event_start", "month", 3, start + relativedelta(months=3)),
             # event: end date
             ("after_event", "now", 3, end),
-            ("after_event", "hours", 3, end + relativedelta(hours=3)),
-            ("after_event", "days", 3, end + relativedelta(days=3)),
-            ("after_event", "weeks", 3, end + relativedelta(weeks=3)),
-            ("after_event", "days", 3, end + relativedelta(days=3)),
+            ("after_event", "hour", 3, end + relativedelta(hours=3)),
+            ("after_event", "day", 3, end + relativedelta(days=3)),
+            ("after_event", "week", 3, end + relativedelta(weeks=3)),
+            ("after_event", "day", 3, end + relativedelta(days=3)),
             ("before_event_end", "now", 3, end),
-            ("before_event_end", "hours", 3, end - relativedelta(hours=3)),
-            ("before_event_end", "days", 3, end - relativedelta(days=3)),
-            ("before_event_end", "weeks", 3, end - relativedelta(weeks=3)),
-            ("before_event_end", "months", 3, end - relativedelta(months=3)),
+            ("before_event_end", "hour", 3, end - relativedelta(hours=3)),
+            ("before_event_end", "day", 3, end - relativedelta(days=3)),
+            ("before_event_end", "week", 3, end - relativedelta(weeks=3)),
+            ("before_event_end", "month", 3, end - relativedelta(months=3)),
         ]:
             with self.subTest(i_type=i_type, i_unit=i_unit, i_nbr=i_nbr):
                 event.write(
@@ -1356,7 +1356,7 @@ class TestMailScheduleInternals(EventMailCommon):
                                 {
                                     "interval_nbr": "2",
                                     "interval_type": i_type,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "template_ref": f"mail.template,{self.template_subscription.id}",
                                 },
                             ),
@@ -1432,7 +1432,7 @@ class TestMailScheduleInternals(EventMailCommon):
                         0,
                         {
                             "interval_nbr": 5,
-                            "interval_unit": "hours",
+                            "interval_unit": "hour",
                             "interval_type": "before_event",
                             "template_ref": "mail.template,%i"
                             % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -1568,7 +1568,7 @@ class TestMailScheduleInternals(EventMailCommon):
                                 0,
                                 {  # 3 hours before event
                                     "interval_nbr": 3,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "interval_type": "before_event",
                                     "template_ref": "mail.template,%i"
                                     % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -1674,7 +1674,7 @@ class TestMailScheduleInternals(EventMailCommon):
                                 0,
                                 {  # 3 hours after subscription
                                     "interval_nbr": 3,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "interval_type": "after_sub",
                                     "template_ref": "mail.template,%i"
                                     % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -1687,7 +1687,7 @@ class TestMailScheduleInternals(EventMailCommon):
                                 0,
                                 {  # 3 hours after event end
                                     "interval_nbr": 3,
-                                    "interval_unit": "hours",
+                                    "interval_unit": "hour",
                                     "interval_type": "after_event",
                                     "template_ref": "mail.template,%i"
                                     % self.env["ir.model.data"]._xmlid_to_res_id(

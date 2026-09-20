@@ -1,6 +1,6 @@
 // @ts-check
 
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { registry } from "@web/core/registry";
 
@@ -10,7 +10,6 @@ import {
     fields,
     models,
     mountView,
-    onRpc,
     stepAllNetworkCalls,
 } from "../web_test_helpers.js";
 
@@ -57,10 +56,6 @@ defineModels([Foo, IrActionsReport]);
 
 describe.current.tags("desktop");
 
-beforeEach(() => {
-    onRpc("has_group", () => true);
-});
-
 const printItems = [
     {
         id: 1,
@@ -103,7 +98,6 @@ test("render ActionMenus in list view", async () => {
         "/web/webclient/load_menus",
         "get_views",
         "web_search_read",
-        "has_group",
     ]);
 
     await contains(`thead .o_list_record_selector input`).click();
@@ -226,7 +220,6 @@ test("render ActionMenus in list view with extraPrintItems", async () => {
         "/web/webclient/load_menus",
         "get_views",
         "web_search_read",
-        "has_group",
     ]);
 
     await contains(`thead .o_list_record_selector input`).click();
@@ -277,11 +270,11 @@ test("static action items are properly ordered and styled", async () => {
     expect(`div.o_control_panel .o_cp_action_menus .dropdown-toggle`).toHaveCount(1);
     await contains(`div.o_control_panel .o_cp_action_menus .dropdown-toggle`).click();
 
-    expect(queryAllTexts(`.o_menu_item`)).toEqual(["Export", "Duplicate", "Delete"]);
+    expect(queryAllTexts(`.o_menu_item`)).toEqual(["Export…", "Duplicate", "Delete"]);
     expect(`.o_menu_item:last`).toHaveClass("text-danger");
 });
 
-test("no separator is drawn above the first action item", async () => {
+test("dividers separate sections and never lead the menu", async () => {
     await mountView({
         type: "list",
         resModel: "foo",
@@ -296,6 +289,7 @@ test("no separator is drawn above the first action item", async () => {
     await contains(`thead .o_list_record_selector input`).click();
     await contains(`div.o_control_panel .o_cp_action_menus .dropdown-toggle`).click();
 
-    expect(`.o-dropdown--menu .dropdown-divider`).toHaveCount(0);
+    expect(`.o-dropdown--menu .dropdown-divider`).toHaveCount(2);
     expect(`.o-dropdown--menu > *:first`).toHaveClass("o_menu_item");
+    expect(`.o-dropdown--menu > *:last`).toHaveClass("text-danger");
 });

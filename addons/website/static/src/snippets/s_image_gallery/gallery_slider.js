@@ -1,17 +1,16 @@
 /** @odoo-module native */
 import { isVisible } from "@html_editor/utils/dom_info";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 
+const log = makeLogger("website.snippet.s_image_gallery.slider");
+
 /**
- * This interaction is kept for compatibility with snippets dropped before 18.0.
- * If you have to update or extend the GallerySlider, you are probably looking
- * for GallerySlider001.
  * @deprecated
- **/
+ */
 export class GallerySlider extends Interaction {
-    // TODO in master: use `.o_slideshow:not([data-vjs])`
     static selector = ".o_slideshow:not([data-vcss]), .o_slideshow[data-vcss='001']";
     dynamicContent = {
         ".carousel": {
@@ -33,7 +32,7 @@ export class GallerySlider extends Interaction {
             this.prevEl = this.indicatorEl.querySelector("li.o_indicators_left");
             this.nextEl = this.indicatorEl.querySelector("li.o_indicators_right");
             if (this.prevEl) {
-                this.prevEl.style.visibility = ""; // force visibility as some databases have it hidden
+                this.prevEl.style.visibility = "";
             }
             if (this.nextEl) {
                 this.nextEl.style.visibility = "";
@@ -41,11 +40,16 @@ export class GallerySlider extends Interaction {
             this.liEls = this.indicatorEl.querySelectorAll("li[data-bs-slide-to]");
             let indicatorWidth = this.indicatorEl.getBoundingClientRect().width;
             if (indicatorWidth === 0) {
-                // An ancestor may be hidden so we try to find it and make it
-                // visible just to take the correct width.
                 let indicatorParentEl = this.indicatorEl.parentElement;
                 while (indicatorParentEl) {
                     if (!isVisible(indicatorParentEl)) {
+                        log.logic(
+                            "setup: indicators hidden, measuring via parent",
+                            () => ({
+                                parent: indicatorParentEl.className,
+                                forcedDisplay: !indicatorParentEl.style.display,
+                            }),
+                        );
                         if (!indicatorParentEl.style.display) {
                             indicatorParentEl.style.display = "block";
                             indicatorWidth =
@@ -63,14 +67,22 @@ export class GallerySlider extends Interaction {
                         (this.liEls.length > 0
                             ? this.liEls[0].getBoundingClientRect().width
                             : undefined),
-                ) - 3; // - navigator - 1 to leave some space
+                ) - 3;
             this.realNbPerPage = this.nbPerPage || 1;
             this.nbPages = Math.ceil(this.liEls.length / this.realNbPerPage);
         }
+        log.lifecycle("setup", () => ({
+            hasCarousel: !!this.carouselEl,
+            hasIndicators: !!this.indicatorEl,
+            indicators: this.liEls?.length,
+            nbPerPage: this.nbPerPage,
+            nbPages: this.nbPages,
+        }));
         this.onSlidCarousel();
     }
 
     destroy() {
+        log.lifecycle("destroy: restoring indicator arrows");
         if (this.prevEl) {
             this.indicatorEl.prepend(this.prevEl);
         }
@@ -105,18 +117,20 @@ export class GallerySlider extends Interaction {
      * @param {MouseEvent} ev
      */
     onClickIndicator(ev) {
-        // Delegate from this.indicatorEl.
         const dispatchedEl = ev.target.closest("li:not([data-bs-slide-to])");
         if (!dispatchedEl || dispatchedEl.parentElement !== this.indicatorEl) {
             return;
         }
         this.page += dispatchedEl.classList.contains("o_indicators_left") ? -1 : 1;
-        this.page = Math.max(0, Math.min(this.nbPages - 1, this.page)); // should not be necessary
+        this.page = Math.max(0, Math.min(this.nbPages - 1, this.page));
+        log.logic("onClickIndicator: page change", () => ({
+            page: this.page,
+            nbPages: this.nbPages,
+            hide: this.hideOnClickIndicator,
+        }));
         Carousel.getOrCreateInstance(this.carouselEl).to(
             this.page * this.realNbPerPage,
         );
-        // We dont use hide() before the slide animation in the editor because there is a traceback
-        // TO DO: fix this traceback
         if (this.hideOnClickIndicator) {
             this.hide();
         }

@@ -152,7 +152,6 @@ test("pasted/dropped images are converted to attachments on save in website edit
 
     const editor = getEditor();
 
-    // Paste image
     const p = queryOne(":iframe section > p:has(br)");
     setSelection({ anchorNode: p, anchorOffset: 0 });
     pasteFile(
@@ -162,7 +161,6 @@ test("pasted/dropped images are converted to attachments on save in website edit
         ),
     );
 
-    // Check if image is set to be saved as attachment
     await waitFor(":iframe img.o_b64_image_to_save");
     expect(
         queryOne(":iframe img.o_b64_image_to_save").src.startsWith(
@@ -170,7 +168,6 @@ test("pasted/dropped images are converted to attachments on save in website edit
         ),
     ).toBe(true);
 
-    // Save and check if image has been saved as attachment
     await contains(".o-snippets-top-actions button:contains(Save)").click();
     expect.verifySteps(["add_data", "save"]);
 });
@@ -217,12 +214,10 @@ test("pasted/dropped images are converted to attachments on snippet save", async
 
     const editor = getEditor();
 
-    // Paste images
     let p = queryOne(":iframe section[test-id='1'] > p:has(br)");
     setSelection({ anchorNode: p, anchorOffset: 0 });
     pasteFile(editor, createBase64ImageFile(imageData, "image-1.png"));
 
-    // Check if image is set to be saved as attachment
     expect(
         await waitFor(":iframe [test-id='1'] img.o_b64_image_to_save"),
     ).toHaveAttribute("src", /^data:image\/png;base64,/);
@@ -231,18 +226,15 @@ test("pasted/dropped images are converted to attachments on snippet save", async
     setSelection({ anchorNode: p, anchorOffset: 0 });
     pasteFile(editor, createBase64ImageFile(imageData, "image-2.png"));
 
-    // Check if image is set to be saved as attachment
     expect(
         await waitFor(":iframe [test-id='2'] img.o_b64_image_to_save"),
     ).toHaveAttribute("src", /^data:image\/png;base64,/);
 
-    // Save snippet of section 1 and check if its image has been saved as attachment
     await contains(":iframe [test-id='1']").click();
     await contains("button.oe_snippet_save").click();
     await contains(".modal button:contains(Save)").click();
     await expect.waitForSteps(["add_data image-1.png", "save snippet"]);
 
-    // Save and check if image of section 2 has been saved as attachment
     await contains(".o-snippets-top-actions button:contains(Save)").click();
     await expect.waitForSteps(["add_data image-2.png", "save"]);
 });
@@ -262,7 +254,6 @@ describe("Image format/optimize", () => {
         queryAll(`[data-action-id="setImageFormat"]`)
             .find((el) => el.textContent.includes("800px"))
             .click();
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         const img = queryFirst(":iframe .test-options-target img");
@@ -296,7 +287,6 @@ describe("Image format/optimize", () => {
         await contains(":iframe .test-options-target img").click();
         await waitSidebarUpdated();
         await setInputRange(`[data-action-id="setImageQuality"] input`, 50);
-        // ensure the shape action has been applied
         await editor.shared.operation.next(() => {});
 
         expect(img.dataset.quality).toBe("50");

@@ -1,7 +1,7 @@
 {
     "name": "Mail Group",
-    "category": "Productivity/Discuss",
     "version": "1.1",
+    "category": "Productivity/Discuss",
     "summary": "Manage your mailing lists",
     "description": """
 Manage your mailing lists from Odoo.

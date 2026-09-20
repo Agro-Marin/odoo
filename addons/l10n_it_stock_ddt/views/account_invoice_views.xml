@@ -10,10 +10,10 @@
                 <button
                     name="get_linked_ddts"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-calendar"
-                    invisible="l10n_it_ddt_count == 0">
-                    <field name="l10n_it_ddt_count" widget="statinfo" string="DDTs" />
+                    invisible="l10n_it_ddt_count == 0"
+                    class="oe_stat_button">
+                    <field name="l10n_it_ddt_count" string="DDTs" widget="statinfo" />
                 </button>
             </xpath>
         </field>

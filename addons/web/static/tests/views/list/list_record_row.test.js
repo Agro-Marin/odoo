@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryAll } from "@odoo/hoot-dom";
+import { press, queryAll } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onRendered, useState } from "@odoo/owl";
 import {
@@ -115,6 +115,58 @@ test("api members dispatch on the renderer with the row's record (C1/C4)", async
     expect(".o_data_row .o_data_cell[name='name']").toHaveCount(3);
 });
 
+registerTemplate(
+    "test_list_record_row.WidenedRow",
+    "/web/static/tests/views/list/list_record_row.test.js",
+    `
+    <t t-name="test_list_record_row.WidenedRow"
+       t-inherit="web.ListRenderer.RecordRow"
+       t-inherit-mode="primary">
+        <xpath expr="//td[1]" position="replace">
+            <td class="o_list_record_selector">
+                <CheckBox onChange.bind="(selected) => api.toggleRecordSelection(selected, record)"/>
+            </td>
+        </xpath>
+    </t>`,
+);
+
+test.tags("desktop");
+test("a row handler forwards every argument, so a renderer may widen its signature", async () => {
+    // the shape account_online_synchronization's duplicate-transaction list
+    // takes: the renderer's toggleRecordSelection(selected, record) is called
+    // from its row template with both arguments
+    /** @type {any[]} */
+    const calls = [];
+    const listView = registry.category("views").get("list");
+    class WidenedListRenderer extends listView.Renderer {
+        static recordRowTemplate = "test_list_record_row.WidenedRow";
+        get hasSelectors() {
+            return true;
+        }
+        /**
+         * @param {boolean} selected
+         * @param {any} record
+         */
+        toggleRecordSelection(selected, record) {
+            calls.push([selected, record?.data.name]);
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "widened_row_list",
+            { ...listView, Renderer: WidenedListRenderer },
+            { force: true },
+        );
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="widened_row_list"><field name="name"/></list>`,
+    });
+    await contains(".o_data_row:eq(1) .o_list_record_selector input").click();
+    expect(calls).toEqual([[true, "beta"]]);
+});
+
 test.tags("desktop");
 test("action callbacks resolve the record to the renderer's context (C2)", async () => {
     const captured = setupCustomRowList();
@@ -199,4 +251,57 @@ test("a record data change re-renders that row standalone (C8)", async () => {
             (/** @type {any} */ el) => el.textContent,
         ),
     ).toEqual(["alpha", "beta-prime", "gamma"]);
+});
+
+test.tags("desktop");
+test("getRowRecords decides the rows of the template, the grid state and keyboard navigation alike", async () => {
+    /** @type {any} */
+    let renderer = null;
+    const listView = registry.category("views").get("list");
+    class FilteringListRenderer extends listView.Renderer {
+        setup() {
+            super.setup();
+            this.hidden = useState({ names: [] });
+            renderer = this;
+        }
+        /** @param {any} list */
+        getRowRecords(list) {
+            return super
+                .getRowRecords(list)
+                .filter((record) => !this.hidden.names.includes(record.data.name));
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "filtering_list",
+            { ...listView, Renderer: FilteringListRenderer },
+            { force: true },
+        );
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list js_class="filtering_list"><field name="name"/></list>`,
+    });
+    expect(".o_data_row").toHaveCount(3);
+    expect(renderer.gridState.rowCount).toBe(3);
+
+    renderer.hidden.names.push("beta");
+    await animationFrame();
+    expect(
+        queryAll(".o_data_row .o_data_cell").map((cell) => cell.textContent),
+    ).toEqual(["alpha", "gamma"]);
+    expect(renderer.gridState.rowCount).toBe(2);
+    expect(renderer.gridState.findRowByRecordId("2")).toBe(undefined);
+
+    await press("ArrowDown");
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_data_row:eq(0) .o_list_record_selector input").toBeFocused();
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_data_row:eq(1) .o_list_record_selector input").toBeFocused();
+    expect(".o_data_row:eq(1) .o_data_cell").toHaveText("gamma", {
+        message: "the hidden row is skipped, not landed on",
+    });
 });

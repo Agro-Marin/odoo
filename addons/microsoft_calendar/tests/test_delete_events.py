@@ -321,7 +321,7 @@ class TestDeleteEvents(TestCommon):
 
         # act
         self.recurrent_events[idx].with_user(self.organizer_user).action_mass_archive(
-            "self_only"
+            "this"
         )
         self.call_post_commit_hooks()
 
@@ -378,7 +378,7 @@ class TestDeleteEvents(TestCommon):
         with self.assertRaises(UserError):
             self.recurrent_events[idx].with_user(
                 self.organizer_user
-            ).action_mass_archive("all_events")
+            ).action_mass_archive("all")
             self.call_post_commit_hooks()
 
         # Ensure that event remains undeleted after deletion attempt and delete method wasn't called.

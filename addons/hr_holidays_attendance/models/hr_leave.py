@@ -1,12 +1,16 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrLeave(models.Model):
     _inherit = "hr.leave"
 
     employee_overtime = fields.Float(
-        compute="_compute_employee_overtime", groups="base.group_user"
+        compute="_compute_employee_overtime",
+        groups="base.group_user",
     )
     overtime_deductible = fields.Boolean(compute="_compute_overtime_deductible")
 
@@ -40,7 +44,9 @@ class HrLeave(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if self.OVERTIME_TRIGGER_FIELDS.isdisjoint(vals):
+            _debug.logic("overtime_check_skipped", leaves=self, fields=list(vals))
             return res
+        _debug.pipeline("overtime_check_on_write", leaves=self, fields=list(vals))
         self._check_overtime_deductible(self)
         return res
 
@@ -58,6 +64,12 @@ class HrLeave(models.Model):
         hours = leaves.employee_id._get_deductible_employee_overtime()
         for leave in leaves.filtered("overtime_deductible"):
             if hours[leave.employee_id] < 0:
+                _debug.logic(
+                    "overtime_insufficient",
+                    leave=leave,
+                    employee=leave.employee_id,
+                    balance=hours[leave.employee_id],
+                )
                 if leave.employee_id.user_id == self.env.user:
                     raise ValidationError(
                         _("You do not have enough extra hours to request this leave")
@@ -75,30 +87,6 @@ class HrLeave(models.Model):
 
     def action_refuse(self):
         return super().action_refuse()
-
-    def _apply_leave_request(self):
-        super()._apply_leave_request()
-        self._update_leaves_overtime()
-
-    def _remove_resource_leave(self):
-        res = super()._remove_resource_leave()
-        self._update_leaves_overtime()
-        return res
-
-    def _update_leaves_overtime(self):
-        Attendance = self.env["hr.attendance"]
-        dates = [
-            Attendance._get_day_start_and_day(leave.employee_id, leave.date_from)[1]
-            for leave in self.filtered(lambda leave: leave.state == "confirmed")
-        ]
-        if dates:
-            Attendance.search(
-                [
-                    ("date", ">=", min(dates)),
-                    ("date", "<=", max(dates)),
-                    ("employee_id", "in", self.employee_id.ids),
-                ]
-            )._update_overtime()
 
     def _force_cancel(self, *args, **kwargs):
         super()._force_cancel(*args, **kwargs)

@@ -14,6 +14,7 @@ import docutils.core
 from docutils import parsers, readers, writers
 from docutils.writers.html4css1 import Writer as HtmlWriter
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.rst import SAFE_SETTINGS
 
 if typing.TYPE_CHECKING:
@@ -38,6 +39,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 EMPTY: typing.Final = inspect.Parameter.empty
 
@@ -107,6 +109,7 @@ def to_doctree(docstring: str) -> nodes.document:
             docstring, settings=_prepare_tree_settings()
         )
         if stderr.tell():
+            _debug.logic("docstring.parse_warnings", chars=len(docstring))
             _logger.warning(PARSE_ERROR.format(docstring, stderr.getvalue()))
         return doctree
 
@@ -340,7 +343,15 @@ def parse_signature(
 def enhance_signature_using_docstring(signature: Signature, docstring: str) -> None:
     doctree = to_doctree(inspect.cleandoc(docstring))
 
+    fields = 0  # debuglog
+    unmatched = 0  # debuglog
     for field in iter_info_fields(doctree):
+        fields += 1  # debuglog
+        if (
+            field.kind in ("param", "type")
+            and field.name.rpartition(" ")[2].strip() not in signature.parameters
+        ):
+            unmatched += 1  # debuglog
         match (field.kind, field.name):
             case (None, _):
                 _logger.warning(
@@ -384,4 +395,10 @@ def enhance_signature_using_docstring(signature: Signature, docstring: str) -> N
                     PARSE_ERROR.format(docstring, f"cannot parse {field.raw}")
                 )
 
+    _debug.logic(
+        "docstring.signature_enhanced",
+        fields=fields,
+        unmatched=unmatched,
+        params=len(signature.parameters),
+    )
     signature.doc = render_doctree_html(doctree)

@@ -972,7 +972,12 @@ export class MockServer {
         if (jsonRpcParams) {
             if (error) {
                 if (error instanceof RPCError) {
-                    jsonRpcParams.error = { ...error };
+                    jsonRpcParams.error = {
+                        code: Number.isInteger(error.code) ? error.code : 200,
+                        message: error.message || "Odoo Server Error",
+                        data: error.data,
+                        type: error.subType ?? undefined,
+                    };
                 } else {
                     jsonRpcParams.error = {
                         ...makeErrorFromResponse({
@@ -989,7 +994,7 @@ export class MockServer {
                 }
                 return jsonRpcParams;
             } else {
-                jsonRpcParams.result = result;
+                jsonRpcParams.result = result === undefined ? null : result;
                 return jsonRpcParams;
             }
         } else if (error) {

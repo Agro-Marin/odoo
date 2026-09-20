@@ -12,34 +12,34 @@
                     <field name="channel_id" string="Course" />
                         <separator />
                     <filter
-                        string="Archived"
                         name="filter_archived"
+                        string="Archived"
                         domain="[('active', '=', False)]" />
                     <separator />
                     <filter
-                        string="Invite Sent"
                         name="filter_invited"
+                        string="Invite Sent"
                         domain="[('member_status', '=', 'invited')]" />
                     <filter
-                        string="Joined"
                         name="filter_joined"
+                        string="Joined"
                         domain="[('member_status', '=', 'joined')]" />
                     <filter
-                        string="Ongoing"
                         name="filter_ongoing"
+                        string="Ongoing"
                         domain="[('member_status', '=', 'ongoing')]" />
                     <filter
-                        string="Completed"
                         name="filter_completed"
+                        string="Completed"
                         domain="[('member_status', '=', 'completed')]" />
                     <group>
                         <filter
-                            string="Course"
                             name="groupby_channel_id"
+                            string="Course"
                             context="{'group_by': 'channel_id'}" />
                         <filter
-                            string="Status"
                             name="groupby_member_status"
+                            string="Status"
                             context="{'group_by': 'member_status'}" />
                     </group>
                 </search>
@@ -51,9 +51,9 @@
             <field name="arch" type="xml">
                 <list
                     string="Attendees"
-                    js_class="slide_channel_partner_enroll_tree"
                     create="0"
-                    sample="1">
+                    sample="1"
+                    js_class="slide_channel_partner_enroll_tree">
                     <field name="channel_id" string="Course Name" />
                     <field name="partner_id" />
                     <field name="partner_email" string="Email" />
@@ -67,10 +67,10 @@
                         name="member_status"
                         string="Status"
                         widget="badge"
-                        decoration-success="member_status == 'completed'"
                         decoration-info="member_status == 'ongoing'"
-                        decoration-warning="member_status == 'joined'"
-                        decoration-muted="member_status == 'invited'" />
+                        decoration-muted="member_status == 'invited'"
+                        decoration-success="member_status == 'completed'"
+                        decoration-warning="member_status == 'joined'" />
                     <field name="completion" string="Progress" widget="progressbar" />
                     <field name="next_slide_id" />
                     <field
@@ -82,26 +82,26 @@
                     <field
                         name="channel_enroll"
                         widget="badge"
-                        decoration-success="channel_enroll == 'public'"
+                        optional="hide"
                         decoration-info="channel_enroll == 'invite'"
-                        decoration-warning="channel_enroll == 'payment'"
-                        optional="hide" />
+                        decoration-success="channel_enroll == 'public'"
+                        decoration-warning="channel_enroll == 'payment'" />
                     <field
                         name="channel_website_id"
-                        groups="website.group_multi_website"
-                        optional="hide" />
+                        optional="hide"
+                        groups="website.group_multi_website" />
                     <field name="active" column_invisible="True" />
                     <button
                         name="action_archive"
+                        type="object"
                         title="Archive"
                         icon="fa-times"
-                        type="object"
                         invisible="not active" />
                     <button
                         name="action_unarchive"
+                        type="object"
                         title="Unarchive"
                         icon="fa-undo"
-                        type="object"
                         invisible="active" />
                 </list>
             </field>
@@ -110,7 +110,7 @@
             <field name="name">slide.channel.partner.view.kanban</field>
             <field name="model">slide.channel.partner</field>
             <field name="arch" type="xml">
-                <kanban can_open="0" string="Attendees" class="o_slide_attendee_kanban">
+                <kanban string="Attendees" class="o_slide_attendee_kanban" can_open="0">
                     <templates>
                         <t t-name="card">
                             <field name="channel_id" class="fw-bolder fs-5" />
@@ -131,7 +131,7 @@
             <field name="name">slide.channel.partner.view.graph</field>
             <field name="model">slide.channel.partner</field>
             <field name="arch" type="xml">
-                <graph string="Attendees" stacked="0" sample="1" />
+                <graph string="Attendees" sample="1" stacked="0" />
             </field>
         </record>
         <record id="slide_channel_partner_view_pivot" model="ir.ui.view">

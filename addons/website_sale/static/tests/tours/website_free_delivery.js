@@ -4,7 +4,6 @@ import * as tourUtils from "@website_sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add("check_free_delivery", {
     url: "/shop",
     steps: () => [
-        // Part 1: Check free delivery
         ...tourUtils.addToCart({
             productName: "Office Chair Black TEST",
             expectUnloadPage: true,
@@ -19,7 +18,6 @@ registry.category("web_tour.tours").add("check_free_delivery", {
             trigger: "#o_delivery_methods span:contains('0.0')",
             run: "click",
         },
-        // Part 2: check multiple delivery & price loaded asynchronously
         {
             trigger: '#o_delivery_methods input[name="o_delivery_radio"]:checked',
         },

@@ -6,10 +6,10 @@ import { useService } from "@web/core/utils/hooks";
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
 import {
     assignMoves,
-    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
+    prepareLabelAction,
 } from "../reception_report_utils.js";
 
 export class ReceptionReportTable extends Component {

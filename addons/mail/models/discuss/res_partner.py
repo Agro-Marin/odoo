@@ -3,9 +3,12 @@ import typing
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, email_normalize, single_email_re
 
 from odoo.addons.mail.tools.discuss import Store, to_record_id
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from .discuss_channel import DiscussChannel
@@ -17,24 +20,24 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     channel_ids: DiscussChannel = fields.Many2many(
-        "discuss.channel",
-        "discuss_channel_member",
-        "partner_id",
-        "channel_id",
+        comodel_name="discuss.channel",
+        relation="discuss_channel_member",
+        column1="partner_id",
+        column2="channel_id",
         string="Channels",
         copy=False,
     )
     channel_member_ids: DiscussChannelMember = fields.One2many(
-        "discuss.channel.member",
-        "partner_id",
+        comodel_name="discuss.channel.member",
+        inverse_name="partner_id",
     )
     is_in_call = fields.Boolean(
         compute="_compute_is_in_call",
         groups="base.group_system",
     )
     rtc_session_ids: DiscussChannelRtcSession = fields.One2many(
-        "discuss.channel.rtc.session",
-        "partner_id",
+        comodel_name="discuss.channel.rtc.session",
+        inverse_name="partner_id",
     )
 
     @api.depends("rtc_session_ids")
@@ -86,6 +89,14 @@ class ResPartner(models.Model):
                     > 0
                 )
 
+        _debug.logic(
+            "channel_invite_search",
+            channel=channel_id,
+            limit=limit,
+            count=channel_invites["count"],
+            selectable_email=bool(selectable_email),
+            email_already_sent=email_already_sent,
+        )
         return {
             **channel_invites,
             "email_already_sent": email_already_sent,
@@ -169,6 +180,14 @@ class ResPartner(models.Model):
             ("partner_id", "in", partners.ids),
         ]
         members = self.env["discuss.channel.member"].search(members_domain)
+        _debug.logic(
+            "mention_suggestions",
+            channel=channel.id,
+            limit=limit,
+            group=allowed_group.id or None,
+            partners=len(partners),
+            members=len(members),
+        )
         member_fields = [
             Store.One("channel_id", [], as_thread=True),
             *self.env["discuss.channel.member"]._to_store_persona([]),

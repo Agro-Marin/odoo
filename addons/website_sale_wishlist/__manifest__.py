@@ -30,6 +30,5 @@ Allow shoppers of your eCommerce store to create personalized collections of pro
             "website_sale_wishlist/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

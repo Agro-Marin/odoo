@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <template id="auth_totp_mail_form" inherit_id="auth_totp.auth_totp_form">

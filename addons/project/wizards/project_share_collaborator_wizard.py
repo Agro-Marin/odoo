@@ -1,45 +1,50 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectShareCollaboratorWizard(models.TransientModel):
     _name = "project.share.collaborator.wizard"
     _description = "Project Sharing Collaborator Wizard"
 
     parent_wizard_id = fields.Many2one(
-        "project.share.wizard",
+        comodel_name="project.share.wizard",
         export_string_translation=False,
     )
     partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Collaborator",
         required=True,
     )
     access_mode = fields.Selection(
-        [
-            ("read", "Read"),
-            ("edit_limited", "Edit with limited access"),
+        selection=[
+            ("view", "View"),
             ("edit", "Edit"),
+            ("advanced_edit", "Advanced Edit"),
         ],
-        default="read",
+        default="view",
         required=True,
-        help="Read: collaborators can view tasks but cannot edit them.\n"
-        "Edit with limited access: collaborators can view and edit tasks they follow in the Kanban view.\n"
-        "Edit: collaborators can view and edit all tasks in the Kanban view. Additionally, they can choose which tasks they want to follow.",
+        help="View: read the tasks and write in their chatter.\n"
+        "Edit: also create and update tasks.\n"
+        "Advanced Edit: also move tasks between steps and change their priority.",
     )
     send_invitation = fields.Boolean(
-        string="Send Invitation",
         compute="_compute_send_invitation",
+        default=True,
         store=True,
         readonly=False,
-        default=True,
     )
 
     @api.depends("partner_id", "access_mode")
     def _compute_send_invitation(self) -> None:
         project = self.parent_wizard_id.resource_ref
         for collaborator in self:
-            if collaborator.partner_id not in project.message_partner_ids or (
-                collaborator.access_mode != "read"
-                and collaborator.partner_id not in project.collaborator_ids.partner_id
-            ):
+            if collaborator.partner_id not in project.collaborator_ids.partner_id:
+                dbg.logic.debug(
+                    "share collaborator: partner %s mode=%s is new to project %s -> "
+                    "send_invitation",
+                    collaborator.partner_id.id,
+                    collaborator.access_mode,
+                    project.id,
+                )
                 collaborator.send_invitation = True

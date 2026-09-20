@@ -1,7 +1,10 @@
 from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
@@ -31,6 +34,7 @@ class AccountMove(models.Model):
                 max(sale_order_date_effective) if sale_order_date_effective else False
             )
             if date_effective_res:
+                _debug.logic("delivery_date_from_order", move=move, by="date_effective")
                 move.delivery_date = fields.Datetime.context_timestamp(
                     move, date_effective_res
                 )
@@ -42,16 +46,17 @@ class AccountMove(models.Model):
         )
         return dict(ctx, move_is_downpayment=move_is_downpayment)
 
-    def _get_invoiced_lot_values(self):
+    def _prepare_invoice_lot_rows(self):
         self.check_singleton()
 
-        res = super()._get_invoiced_lot_values()
+        res = super()._prepare_invoice_lot_rows()
 
         if (
             self.state == "draft"
             or not self.invoice_date
             or self.move_type not in ("out_invoice", "out_refund")
         ):
+            _debug.logic("invoiced_lots_skipped", move=self, reason="not_posted")
             return res
 
         current_invoice_amls = self.invoice_line_ids.filtered(
@@ -105,7 +110,7 @@ class AccountMove(models.Model):
 
             product = sml.product_id
             product_uom_id = product.uom_id
-            quantity = sml.product_uom_id._compute_quantity(
+            quantity = sml.product_uom_id._get_quantity_in_unit(
                 sml.quantity, product_uom_id
             )
 
@@ -143,6 +148,7 @@ class AccountMove(models.Model):
 
             qties_per_lot[sml.lot_id] += quantity
 
+        _debug.perf.count("invoiced_lots", move=self, lots=len(qties_per_lot))
         for lot, qty in qties_per_lot.items():
             lot = lot.sudo()
 
@@ -168,8 +174,8 @@ class AccountMove(models.Model):
 
         return res
 
-    def _get_protected_vals(self, vals, records):
-        res = super()._get_protected_vals(vals, records)
+    def _get_field_protections(self, vals, records):
+        res = super()._get_field_protections(vals, records)
         perma_protected = {self._fields["delivery_date"]}
 
         if records._name == self._name:

@@ -24,8 +24,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
             invoice_sudo = self._document_check_access(
                 "account.move", invoice_id, access_token
             )
-        except MissingError as error:
-            raise error  # noqa: TRY201
+        except MissingError:
+            raise
         except AccessError as error:
             raise ValidationError(_("The access token is invalid.")) from error
 
@@ -91,7 +91,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             **kwargs,
         )
 
-        return tx_sudo._get_processing_values()
+        return tx_sudo._prepare_processing_values()
 
     # Payment overrides
 
@@ -120,7 +120,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
 
             # Check the access token against the invoice values. Done after fetching the invoice
             # as we need the invoice fields to check the access token.
-            if not payment_utils.check_access_token(
+            if not payment_utils.is_access_token_valid(
                 access_token,
                 invoice_sudo.partner_id.id,
                 amount,
@@ -144,7 +144,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             *args, amount=amount, access_token=access_token, **kwargs
         )
 
-    def _get_extra_payment_form_values(
+    def _prepare_extra_payment_form_context(
         self, invoice_id=None, access_token=None, **kwargs
     ):
         """Override of `payment` to reroute the payment flow to the portal view of the invoice.
@@ -155,7 +155,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         :return: The extended rendering context values.
         :rtype: dict
         """
-        form_values = super()._get_extra_payment_form_values(
+        form_values = super()._prepare_extra_payment_form_context(
             invoice_id=invoice_id, access_token=access_token, **kwargs
         )
         if invoice_id:
@@ -168,7 +168,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             except (
                 AccessError
             ):  # It is a payment access token computed on the payment context.
-                if not payment_utils.check_access_token(
+                if not payment_utils.is_access_token_valid(
                     access_token,
                     kwargs.get("partner_id"),
                     kwargs.get("amount"),
@@ -192,7 +192,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
                 {
                     "transaction_route": f"/invoice/transaction/{invoice_id}",
                     "landing_route": f"{invoice_sudo.access_url}"
-                    f"?access_token={invoice_sudo._portal_ensure_token()}",
+                    f"?access_token={invoice_sudo._portal_get_or_create_token()}",
                     "access_token": invoice_sudo.access_token,
                 }
             )

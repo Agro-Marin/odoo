@@ -3,6 +3,7 @@
 
 import { EventBus } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RouterEvent } from "@web/core/events";
 import { slidingWindow } from "@web/core/utils/collections/arrays";
 import { deepEqual, omit, pick } from "@web/core/utils/collections/objects";
@@ -11,6 +12,8 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 import { compareUrls, objectToUrlEncodedString } from "@web/core/utils/urls";
 
 import { browser } from "./browser.js";
+
+const log = makeLogger("web.router");
 
 export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
@@ -311,6 +314,7 @@ function makePushArgs() {
 export function startRouter() {
     const url = new URL(/** @type {any} */ (browser.location));
     _router.state = router.urlToState(url);
+    log.lifecycle("start", () => ({ url: url.href, state: _router.state }));
     if (browser.location.pathname === "/web") {
         browser.history.replaceState(browser.history.state, "", url.href);
     }
@@ -362,6 +366,11 @@ function onPopState(/** @type {any} */ ev) {
         ev.state?.nextState ||
         router.urlToState(new URL(/** @type {any} */ (browser.location)));
     const routeChanged = !deepEqual(previousState, _router.state);
+    log.logic("popstate", () => ({
+        routeChanged,
+        skip: Boolean(ev.state?.skipRouteChange),
+        state: _router.state,
+    }));
     if (!ev.state?.skipRouteChange && routeChanged) {
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
@@ -428,6 +437,13 @@ function makeDebouncedPush(mode) {
         const pushArgs = _router.pushArgs;
         const nextState = computeNextState(pushArgs.state, pushArgs.replace);
         const url = browser.location.origin + router.stateToUrl(nextState);
+        log.logic("push", () => ({
+            mode: pushArgs.mode,
+            replace: pushArgs.replace,
+            reload: pushArgs.reload,
+            url,
+            changed: !compareUrls(url + browser.location.hash, browser.location.href),
+        }));
         if (!compareUrls(url + browser.location.hash, browser.location.href)) {
             if (pushArgs.mode === "push") {
                 const originalTitle = document.title;
@@ -503,6 +519,7 @@ export const router = {
     /** @param {object} marker */
     pushEphemeral: (marker) => {
         _router.ephemeralStack.push(marker);
+        log.logic("pushEphemeral", () => ({ depth: _router.ephemeralStack.length }));
         browser.history.pushState(
             {
                 ...browser.history.state,

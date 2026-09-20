@@ -489,22 +489,26 @@ class TestSubqueries(TransactionCase):
         nodes = Node.create([{"parent_id": parent_node.id} for _ in range(3)])
         Head.create({"node_id": parent_node.id})
 
+        # the closure is one recursive statement on the port, and it stays a
+        # subquery of the search that asked for it
         with self.assertQueries(
             [
                 """
-            SELECT "test_orm_hierarchy_node"."id"
-            FROM "test_orm_hierarchy_node"
-            WHERE "test_orm_hierarchy_node"."parent_id" IN (%s)
-        """,
-                """
-            SELECT "test_orm_hierarchy_node"."id"
-            FROM "test_orm_hierarchy_node"
-            WHERE "test_orm_hierarchy_node"."parent_id" IN (%s)
-        """,
-                """
             SELECT "test_orm_hierarchy_head"."id"
             FROM "test_orm_hierarchy_head"
-            WHERE "test_orm_hierarchy_head"."node_id" IN (%s)
+            WHERE "test_orm_hierarchy_head"."node_id" IN (
+                SELECT "test_orm_hierarchy_node"."id"
+                FROM "test_orm_hierarchy_node"
+                WHERE "test_orm_hierarchy_node"."id" IN (WITH RECURSIVE closure AS (
+                    SELECT "test_orm_hierarchy_node"."id" FROM "test_orm_hierarchy_node"
+                    WHERE "test_orm_hierarchy_node"."id" = ANY(%s)
+                UNION
+                    SELECT "test_orm_hierarchy_node"."id" FROM "test_orm_hierarchy_node"
+                    JOIN closure parent ON parent.id = "test_orm_hierarchy_node"."parent_id"
+                    WHERE TRUE
+                )
+                SELECT id FROM closure)
+            )
             ORDER BY "test_orm_hierarchy_head"."id"
         """,
             ]
@@ -904,9 +908,11 @@ class TestSearchRelated(TransactionCase):
             WHERE "test_orm_related"."foo_id" IN (
                 SELECT "test_orm_related_foo"."id"
                 FROM "test_orm_related_foo"
-                WHERE EXISTS (
-                    SELECT 1 FROM ir_attachment WHERE res_model = %s AND res_field = %s
-                    AND res_id = "test_orm_related_foo"."id"
+                WHERE "test_orm_related_foo"."id" IN (
+                    SELECT res_id FROM "ir_attachment"
+                    WHERE ("ir_attachment"."res_field" IN (%s)
+                        AND "ir_attachment"."res_id" > %s
+                        AND "ir_attachment"."res_model" IN (%s))
                 )
                 AND "test_orm_related_foo"."id" < %s
             )
@@ -944,9 +950,11 @@ class TestSearchRelated(TransactionCase):
                 ON ("test_orm_related"."foo_id" = "test_orm_related__foo_id"."id")
             WHERE (
                 "test_orm_related"."foo_id" IS NOT NULL
-                AND EXISTS (
-                    SELECT 1 FROM ir_attachment WHERE res_model = %s AND res_field = %s
-                    AND res_id = "test_orm_related__foo_id"."id"
+                AND "test_orm_related__foo_id"."id" IN (
+                    SELECT res_id FROM "ir_attachment"
+                    WHERE ("ir_attachment"."res_field" IN (%s)
+                        AND "ir_attachment"."res_id" > %s
+                        AND "ir_attachment"."res_model" IN (%s))
                 )
             )
             AND "test_orm_related"."id" < %s
@@ -2218,7 +2226,7 @@ class TestFlushSearch(TransactionCase):
             SELECT "test_orm_city"."id", "test_orm_city"."name"
             FROM "test_orm_city"
             WHERE "test_orm_city"."id" IN (%s)
-            ORDER BY "test_orm_city"."name"
+            ORDER BY "test_orm_city"."name", "test_orm_city"."id"
         """,
             ],
             flush=False,
@@ -2447,3 +2455,63 @@ class TestReadGroupNoGroupby(TransactionCase):
         self.assertEqual(len(base), 1)
         self.assertEqual(model._read_group([], [], ["__count"], offset=1), base)
         self.assertEqual(model._read_group([], [], ["__count"], limit=0), base)
+
+
+class TestRegexOperator(TransactionCase):
+    def test_regex_matches_and_its_negation_keeps_nulls(self):
+        Foo = self.env["test_orm.foo"]
+        yearly = Foo.create({"name": "INV/2026/00001"})
+        monthly = Foo.create({"name": "INV/2026/02/00007"})
+        unnamed = Foo.create({"name": False})
+        ids = (yearly + monthly + unnamed).ids
+
+        with self.assertQueries(
+            [
+                """
+            SELECT "test_orm_foo"."id"
+            FROM "test_orm_foo"
+            WHERE ("test_orm_foo"."id" IN (%s, %s, %s) AND "test_orm_foo"."name" ~ %s)
+            ORDER BY "test_orm_foo"."id"
+        """
+            ]
+        ):
+            found = Foo.search(
+                [("id", "in", ids), ("name", "=~", r"^INV/\d{4}/\d{5}$")]
+            )
+        self.assertEqual(found, yearly)
+
+        found = Foo.search(
+            [("id", "in", ids), ("name", "not =~", r"^INV/\d{4}/\d{5}$")]
+        )
+        self.assertEqual(found, monthly + unnamed)
+
+        domain = [("name", "=~", r"/\d{2}/")]
+        self.assertEqual(
+            (yearly + monthly + unnamed).filtered_domain(domain),
+            Foo.search([("id", "in", ids)] + domain),
+        )
+
+
+class TestSearchOrderIsTotal(TransactionCase):
+    def test_rows_tied_on_the_order_come_back_by_id_whatever_their_storage(self):
+        Category = self.env["test_orm.category"]
+        tied = Category.create([{"name": "tie"} for _ in range(3)])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE test_orm_category SET color = 1 WHERE id = %s", [tied[0].id]
+        )
+        domain = [("id", "in", tied.ids)]
+        self.assertEqual(Category.search(domain, order="name").ids, sorted(tied.ids))
+        self.assertEqual(
+            [
+                Category.search(domain, order="name", limit=1, offset=page).id
+                for page in range(3)
+            ],
+            sorted(tied.ids),
+            "a page boundary inside the tie neither repeats nor skips a record",
+        )
+        self.assertEqual(
+            Category.search(domain, order="name, id desc").ids,
+            sorted(tied.ids, reverse=True),
+            "an order that already names id keeps its own direction",
+        )

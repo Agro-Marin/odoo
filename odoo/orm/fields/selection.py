@@ -2,6 +2,7 @@ import typing
 from collections import defaultdict
 from typing import override
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import pg_varchar
 from odoo.tools.misc import SENTINEL, Sentinel, merge_sequences
 
@@ -15,6 +16,8 @@ if typing.TYPE_CHECKING:
 
     SelectValue = tuple[str, str]
     OnDeletePolicy = str | Callable[[BaseModel], None]
+
+_debug = DebugLog(__name__)
 
 
 class Selection[T = str | typing.Literal[False]](Field[T]):
@@ -60,7 +63,7 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
         attrs = super()._get_attrs(model_class, name)
         attrs.pop("selection_add", None)
         if attrs.get("group_expand") is True:
-            attrs["group_expand"] = self._default_group_expand
+            attrs["group_expand"] = self._get_group_expand
         return attrs
 
     def _apply_selection_arg(self, field, values):
@@ -72,6 +75,14 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
         selection = field._args__["selection"]
         if isinstance(selection, (list, tuple)):
             if values is not None and list(values) != [kv[0] for kv in selection]:
+                _debug.logic(
+                    "field.selection.overridden",
+                    model=self.model_name,
+                    field=self.name,
+                    module=field._module,
+                    previous=len(values),
+                    values=len(selection),
+                )
                 _logger.warning(
                     "%s: selection=%r overrides existing selection; use selection_add instead",
                     self,
@@ -83,6 +94,13 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             self.ondelete = None
             self.selection = selection
             values = None
+            _debug.logic(
+                "field.selection.dynamic",
+                model=self.model_name,
+                field=self.name,
+                module=field._module,
+                source="method" if isinstance(selection, str) else "callable",
+            )
         else:
             raise ValueError(
                 f"{self!r}: selection={selection!r} should be a list, a callable or a method name"
@@ -146,6 +164,15 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             for key in merge_sequences(values, values_add)
         }
         self.ondelete.update(ondelete)
+        _debug.logic(
+            "field.selection.add_merged",
+            model=self.model_name,
+            field=self.name,
+            module=field._module,
+            added=new_values,
+            relabeled=len(values_add) - len(new_values),
+            total=len(values),
+        )
         return values
 
     def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
@@ -191,6 +218,14 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
                         value_modules[value_label[0]].add(module)
         return value_modules
 
+    @override
+    def _dynamic_description_attrs(self, env: Environment) -> frozenset[str]:
+        dynamic = super()._dynamic_description_attrs(env)
+        selection = self._get_selection()
+        if isinstance(selection, str) or callable(selection):
+            return dynamic | {"selection"}
+        return dynamic
+
     def _description_selection(self, env: Environment) -> list[SelectValue]:
         selection = self._get_selection()
         if isinstance(selection, str) or callable(selection):
@@ -201,11 +236,11 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             return selection
 
         translations = dict(
-            env["ir.model.fields"].get_field_selection(self.model_name, self.name)
+            env.registry.metaschema.field_selection(env, self.model_name, self.name)
         )
         return [(key, translations.get(key, label)) for key, label in selection]
 
-    def _default_group_expand(
+    def _get_group_expand(
         self, records: BaseModel, groups: typing.Any, domain: typing.Any
     ) -> list[str]:
         return self.get_values(records.env)

@@ -1,6 +1,7 @@
 import logging
 
 from odoo import api, fields, models, modules
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.module import get_resource_from_path
 from odoo.tools.translate import xml_translate
 
@@ -16,6 +17,7 @@ from odoo.addons.base.models.ir_asset import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ThemeIrAsset(models.Model):
@@ -40,11 +42,14 @@ class ThemeIrAsset(models.Model):
     path = fields.Char(required=True)
     target = fields.Char()
     active = fields.Boolean(default=True)
-    sequence = fields.Integer(default=DEFAULT_SEQUENCE, required=True)
+    sequence = fields.Integer(
+        default=DEFAULT_SEQUENCE,
+        required=True,
+    )
     copy_ids = fields.One2many(
-        "ir.asset",
-        "theme_template_id",
-        "Assets using a copy of me",
+        comodel_name="ir.asset",
+        inverse_name="theme_template_id",
+        string="Assets using a copy of me",
         copy=False,
         readonly=True,
     )
@@ -80,8 +85,13 @@ class ThemeIrUiView(models.Model):
     name = fields.Char(required=True)
     key = fields.Char()
     type = fields.Char()
-    priority = fields.Integer(default=DEFAULT_SEQUENCE, required=True)
-    mode = fields.Selection([("primary", "Base view"), ("extension", "Extension View")])
+    priority = fields.Integer(
+        default=DEFAULT_SEQUENCE,
+        required=True,
+    )
+    mode = fields.Selection(
+        selection=[("primary", "Base view"), ("extension", "Extension View")]
+    )
     active = fields.Boolean(default=True)
     arch = fields.Text(translate=xml_translate)
     arch_fs = fields.Char(default=_default_arch_fs)
@@ -92,9 +102,9 @@ class ThemeIrUiView(models.Model):
         ]
     )
     copy_ids = fields.One2many(
-        "ir.ui.view",
-        "theme_template_id",
-        "Views using a copy of me",
+        comodel_name="ir.ui.view",
+        inverse_name="theme_template_id",
+        string="Views using a copy of me",
         copy=False,
         readonly=True,
     )
@@ -108,6 +118,12 @@ class ThemeIrUiView(models.Model):
                 lambda x: x.website_id == website
             )
             if not inherit:
+                _debug.logic(
+                    "theme_view_deferred",
+                    reason="parent_not_copied_yet",
+                    view=self.id,
+                    key=self.key,
+                )
                 return False
 
         if inherit and inherit.website_id != website:
@@ -120,6 +136,12 @@ class ThemeIrUiView(models.Model):
                 )
             )
             if website_specific_inherit:
+                _debug.logic(
+                    "theme_view_inherit_retargeted",
+                    view=self.id,
+                    inherit=website_specific_inherit.id,
+                    website=website.id,
+                )
                 inherit = website_specific_inherit
 
         new_view = {
@@ -150,9 +172,9 @@ class ThemeIrAttachment(models.Model):
     key = fields.Char(required=True)
     url = fields.Char()
     copy_ids = fields.One2many(
-        "ir.attachment",
-        "theme_template_id",
-        "Attachment using a copy of me",
+        comodel_name="ir.attachment",
+        inverse_name="theme_template_id",
+        string="Attachment using a copy of me",
         copy=False,
         readonly=True,
     )
@@ -175,22 +197,31 @@ class ThemeWebsiteMenu(models.Model):
     _name = "theme.website.menu"
     _description = "Website Theme Menu"
 
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     url = fields.Char(default="")
     page_id = fields.Many2one(
-        "theme.website.page", ondelete="cascade", index="btree_not_null"
+        comodel_name="theme.website.page",
+        index="btree_not_null",
+        ondelete="cascade",
     )
-    new_window = fields.Boolean("New Window")
+    new_window = fields.Boolean()
     sequence = fields.Integer()
-    parent_id = fields.Many2one("theme.website.menu", index=True, ondelete="cascade")
+    parent_id = fields.Many2one(
+        comodel_name="theme.website.menu",
+        index=True,
+        ondelete="cascade",
+    )
     mega_menu_content = fields.Html()
     mega_menu_classes = fields.Char()
 
     use_main_menu_as_parent = fields.Boolean(default=True)
     copy_ids = fields.One2many(
-        "website.menu",
-        "theme_template_id",
-        "Menu using a copy of me",
+        comodel_name="website.menu",
+        inverse_name="theme_template_id",
+        string="Menu using a copy of me",
         copy=False,
         readonly=True,
     )
@@ -230,16 +261,22 @@ class ThemeWebsitePage(models.Model):
 
     url = fields.Char()
     view_id = fields.Many2one(
-        "theme.ir.ui.view", required=True, index=True, ondelete="cascade"
+        comodel_name="theme.ir.ui.view",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
-    website_indexed = fields.Boolean("Page Indexed", default=True)
+    website_indexed = fields.Boolean(
+        string="Page Indexed",
+        default=True,
+    )
     is_published = fields.Boolean()
     is_new_page_template = fields.Boolean(string="New Page Template")
 
     copy_ids = fields.One2many(
-        "website.page",
-        "theme_template_id",
-        "Page using a copy of me",
+        comodel_name="website.page",
+        inverse_name="theme_template_id",
+        string="Page using a copy of me",
         copy=False,
         readonly=True,
     )
@@ -248,6 +285,12 @@ class ThemeWebsitePage(models.Model):
         self.check_singleton()
         view_id = self.view_id.copy_ids.filtered(lambda x: x.website_id == website)
         if not view_id:
+            _debug.logic(
+                "theme_page_deferred",
+                reason="view_not_copied_yet",
+                page=self.id,
+                url=self.url,
+            )
             return False
 
         return {
@@ -302,12 +345,18 @@ class ThemeUtils(models.AbstractModel):
         theme_post_copy = "_%s_post_copy" % mod.name
         if hasattr(self, theme_post_copy):
             _logger.info("Executing method %s", theme_post_copy)
+            _debug.pipeline("theme_post_copy", theme=mod.name, method=theme_post_copy)
             method = getattr(self, theme_post_copy)
             return method(mod)
+        _debug.logic("theme_post_copy_absent", theme=mod.name)
         return False
 
     @api.model
     def _reset_default_config(self):
+        _debug.lifecycle(
+            "theme_config_reset",
+            website=self.env["website"].get_current_website().id,
+        )
         self.env["website.assets"].update_scss_customization(
             "/website/static/src/scss/options/user_values.scss",
             {
@@ -355,7 +404,17 @@ class ThemeUtils(models.AbstractModel):
                 >= 1
             )
             if not has_specific and active == obj.active:
+                _debug.logic(
+                    "asset_toggle_noop", key=key, active=active, website=website.id
+                )
                 return
+        _debug.lifecycle(
+            "asset_toggled",
+            key=key,
+            active=active,
+            website=website.id,
+            assets=obj,
+        )
         obj.write({"active": active})
 
     @api.model
@@ -375,7 +434,20 @@ class ThemeUtils(models.AbstractModel):
                 >= 1
             )
             if not has_specific and active == obj.active:
+                _debug.logic(
+                    "view_toggle_noop",
+                    xmlid=xml_id,
+                    active=active,
+                    website=website.id,
+                )
                 return
+        _debug.lifecycle(
+            "view_toggled",
+            xmlid=xml_id,
+            active=active,
+            website=website.id,
+            views=obj,
+        )
         obj.write({"active": active})
 
     @api.model
@@ -405,12 +477,14 @@ class IrUiView(models.Model):
     _inherit = "ir.ui.view"
 
     theme_template_id = fields.Many2one(
-        "theme.ir.ui.view", copy=False, index="btree_not_null"
+        comodel_name="theme.ir.ui.view",
+        index="btree_not_null",
+        copy=False,
     )
 
     def write(self, vals):
         test_mode = modules.module.current_test
-        if not (test_mode or self.pool._init):
+        if self.pool.ready and not test_mode:
             return super().write(vals)
         no_arch_updated_views = other_views = self.env["ir.ui.view"]
         for record in self:
@@ -421,6 +495,11 @@ class IrUiView(models.Model):
                 other_views += record
         res = super(IrUiView, other_views).write(vals)
         if no_arch_updated_views:
+            _debug.logic(
+                "theme_arch_unchanged",
+                views=no_arch_updated_views,
+                count=len(no_arch_updated_views),
+            )
             res &= super(IrUiView, no_arch_updated_views).write(
                 dict(vals, arch_updated=False)
             )
@@ -431,7 +510,9 @@ class IrAsset(models.Model):
     _inherit = "ir.asset"
 
     theme_template_id = fields.Many2one(
-        "theme.ir.asset", copy=False, index="btree_not_null"
+        comodel_name="theme.ir.asset",
+        index="btree_not_null",
+        copy=False,
     )
 
 
@@ -440,7 +521,9 @@ class IrAttachment(models.Model):
 
     key = fields.Char(copy=False)
     theme_template_id = fields.Many2one(
-        "theme.ir.attachment", copy=False, index="btree_not_null"
+        comodel_name="theme.ir.attachment",
+        index="btree_not_null",
+        copy=False,
     )
 
 
@@ -448,7 +531,9 @@ class WebsiteMenu(models.Model):
     _inherit = "website.menu"
 
     theme_template_id = fields.Many2one(
-        "theme.website.menu", copy=False, index="btree_not_null"
+        comodel_name="theme.website.menu",
+        index="btree_not_null",
+        copy=False,
     )
 
 
@@ -456,5 +541,7 @@ class WebsitePage(models.Model):
     _inherit = "website.page"
 
     theme_template_id = fields.Many2one(
-        "theme.website.page", copy=False, index="btree_not_null"
+        comodel_name="theme.website.page",
+        index="btree_not_null",
+        copy=False,
     )

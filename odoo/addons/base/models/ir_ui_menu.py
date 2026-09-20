@@ -7,6 +7,9 @@ from typing import Any, Self
 from odoo import _lt, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 MENU_ITEM_SEPARATOR = "/"
 _MISSING = object()
@@ -20,26 +23,38 @@ class IrUiMenu(models.Model):
     _order = "sequence,id"
     _allow_sudo_commands = False
 
-    name = fields.Char(string="Menu", required=True, translate=True)
+    name = fields.Char(
+        string="Menu",
+        translate=True,
+        required=True,
+    )
     active = fields.Boolean(default=True)
     sequence = fields.Integer(default=10)
     parent_id = fields.Many2one(
-        "ir.ui.menu", string="Parent Menu", index=True, ondelete="restrict"
+        comodel_name="ir.ui.menu",
+        string="Parent Menu",
+        index=True,
+        ondelete="restrict",
     )
-    child_id = fields.One2many("ir.ui.menu", "parent_id", string="Child IDs")
+    child_id = fields.One2many(
+        comodel_name="ir.ui.menu",
+        inverse_name="parent_id",
+        string="Child IDs",
+    )
     group_ids = fields.Many2many(
-        "res.groups",
-        "ir_ui_menu_group_rel",
-        "menu_id",
-        "gid",
+        comodel_name="res.groups",
+        relation="ir_ui_menu_group_rel",
+        column1="menu_id",
+        column2="gid",
         string="Groups",
         help="If you have groups, the visibility of this menu will be based on these groups. "
         "If this field is empty, Odoo will compute visibility based on the related object's read access.",
     )
     complete_name = fields.Char(
-        string="Full Path", compute="_compute_complete_name", recursive=True
+        string="Full Path",
+        compute="_compute_complete_name",
+        recursive=True,
     )
-    display_name = fields.Char(recursive=True)
     web_icon = fields.Char(string="Web Icon File")
     web_keywords = fields.Char(
         string="Search Keywords",
@@ -58,7 +73,10 @@ class IrUiMenu(models.Model):
         ]
     )
 
-    web_icon_data = fields.Binary(string="Web Icon Image", attachment=True)
+    web_icon_data = fields.Binary(
+        string="Web Icon Image",
+        attachment=True,
+    )
 
     @api.depends("name", "parent_id.complete_name")
     def _compute_complete_name(self) -> None:
@@ -80,6 +98,7 @@ class IrUiMenu(models.Model):
             return False
         path_info = path.split(",")
         if len(path_info) != 2:
+            _debug.logic("web_icon_skipped", parts=len(path_info))
             return False
         icon_path = str(Path(path_info[0]) / path_info[1])
         try:
@@ -99,6 +118,7 @@ class IrUiMenu(models.Model):
             ) as icon_file:
                 return base64.encodebytes(icon_file.read())
         except FileNotFoundError, ValueError:
+            _debug.logic("web_icon_unreadable", path=icon_path)
             return False
 
     _hierarchy_cycle_message = _lt("Error! You cannot create recursive menus.")
@@ -162,16 +182,25 @@ class IrUiMenu(models.Model):
             for model_name, action_ids in action_ids_by_model.items()
             for action in exists_actions(model_name, action_ids)
         }
+        _debug.perf.count(
+            "menu_actions_checked",
+            action_models=len(action_ids_by_model),
+            referenced=sum(len(ids) for ids in action_ids_by_model.values()),
+            existing=len(existing_actions),
+        )
         menu_ids = set(menus._ids)
         visible_ids = set()
         access = self.env["ir.model.access"]
+        no_action = access_denied = 0  # debuglog
         for menu in menus:
             action = menu.action
             if not action or action not in existing_actions:
+                no_action += 1  # debuglog
                 continue
             model_fname = MODEL_BY_TYPE.get(action._name)
             gating_model = action[model_fname] if model_fname else None
             if gating_model and not access.check(gating_model, "read", False):
+                access_denied += 1  # debuglog
                 continue
             menu_id = menu.id
             while menu_id not in visible_ids and menu_id in menu_ids:
@@ -179,20 +208,35 @@ class IrUiMenu(models.Model):
                 menu = menu.parent_id
                 menu_id = menu.id
 
+        _debug.perf.count(
+            "visible_menus_computed",
+            uid=self.env.uid,
+            debug=debug,
+            candidates=len(menus),
+            visible=len(visible_ids),
+            no_action=no_action,
+            access_denied=access_denied,
+        )
         return frozenset(visible_ids)
 
-    def _filter_visible_menus(self) -> Self:
-        visible_ids = self._get_visible_menu_ids(self._get_session_debug())
-        return self.filtered(lambda menu: menu.id in visible_ids)
+    def _filter_visible_menus(self, debug: str | bool | None = None) -> Self:
+        if debug is None:
+            debug = self._get_session_debug()
+        visible_ids = self._get_visible_menu_ids(debug)
+        visible = self.filtered(lambda menu: menu.id in visible_ids)
+        _debug.logic("menus_filtered", candidates=len(self), visible=len(visible))
+        return visible
 
-    @api.depends("name", "parent_id.display_name")
+    @api.depends("complete_name")
     def _compute_display_name(self) -> None:
-        self._update_full_name("display_name")
+        for menu in self:
+            menu.display_name = menu.complete_name
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         if not vals_list:
             return self.browse()
+        _debug.lifecycle("create", count=len(vals_list))
         self.env.registry.clear_cache()
         return super().create(
             [
@@ -205,12 +249,18 @@ class IrUiMenu(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if self and vals:
+            _debug.lifecycle("write", count=len(self), fields=list(vals))
             self.env.registry.clear_cache()
         if "web_icon" in vals:
             vals = {
                 **vals,
                 "web_icon_data": self._prepare_web_icon_data(vals.get("web_icon")),
             }
+            _debug.lifecycle(
+                "web_icon_refreshed",
+                count=len(self),
+                loaded=bool(vals["web_icon_data"]),
+            )
         return super().write(vals)
 
     def _prepare_web_icon_data(self, web_icon: str | None) -> bytes | bool:
@@ -224,20 +274,27 @@ class IrUiMenu(models.Model):
         direct_children = self.with_context(active_test=False).search(
             [("parent_id", "in", self.ids)]
         )
+        _debug.lifecycle(
+            "unlink.children_detached", count=len(self), children=len(direct_children)
+        )
         direct_children.write({"parent_id": False})
 
+        _debug.lifecycle("unlink", count=len(self), orphaned=len(direct_children))
         self.env.registry.clear_cache()
         return super().unlink()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
+        renamed = 0  # debuglog
         for vals in vals_list:
             if name := vals.get("name"):
+                renamed += 1  # debuglog
                 if match := NUMBER_PARENS.search(name):
                     next_num = int(match.group(1)) + 1
                     vals["name"] = NUMBER_PARENS.sub(f"({next_num})", name, count=1)
                 else:
                     vals["name"] = name + " (1)"
+        _debug.lifecycle("copy_data", count=len(self), renamed=renamed)
         return vals_list
 
     @api.model
@@ -269,23 +326,39 @@ class IrUiMenu(models.Model):
         for menu in menu_roots_data:
             menu["xmlid"] = xmlids.get(menu["id"], "")
 
+        _debug.pipeline("load_menus_root", uid=self.env.uid, roots=len(menu_roots))
         return menu_root
 
     @api.model
     @tools.ormcache("self.env.uid", "debug", "self.env.lang")
     def load_menus(self, debug: bool) -> dict[str | int, Any]:
         blacklisted_menu_ids = self._get_blacklisted_menu_ids()
-        visible_menus = self.search_fetch(
-            [("id", "not in", blacklisted_menu_ids)],
-            ["name", "parent_id", "action", "web_icon", "web_keywords"],
-        )._filter_visible_menus()
+        with _debug.perf(
+            "load_menus.fetch",
+            cr=self.env.cr,
+            uid=self.env.uid,
+            blacklisted=len(blacklisted_menu_ids),
+        ):
+            visible_menus = self.search_fetch(
+                [("id", "not in", blacklisted_menu_ids)],
+                ["name", "parent_id", "action", "web_icon", "web_keywords"],
+            )._filter_visible_menus(debug)
 
         children_dict = defaultdict(list)
         for menu in visible_menus:
             children_dict[menu.parent_id.id].append(menu.id)
 
         app_info = self._get_app_id_by_menu(children_dict)
+        reachable = len(visible_menus)  # debuglog
         visible_menus = visible_menus.filtered(lambda menu: menu.id in app_info)
+        _debug.pipeline(
+            "load_menus",
+            uid=self.env.uid,
+            debug=debug,
+            reachable=reachable,
+            visible=len(visible_menus),
+            apps=len(children_dict[False]),
+        )
 
         xmlids = visible_menus._get_menuitems_xmlids()
         icons_by_menu = self._get_menu_icons(visible_menus)
@@ -340,6 +413,13 @@ class IrUiMenu(models.Model):
         ).items():
             menus_dict[menu_id]["web_category"] = category
             menus_dict[menu_id]["web_category_sequence"] = sequence
+        _debug.pipeline(
+            "load_menus.built",
+            uid=self.env.uid,
+            menus=len(menus_dict),
+            action_types=len(action_ids_by_type),
+            actions=len(action_info_by_action),
+        )
 
         menus_dict["root"] = {
             "id": False,
@@ -373,6 +453,7 @@ class IrUiMenu(models.Model):
             if module:
                 modules_by_menu[menu_id] = module
         if not modules_by_menu:
+            _debug.logic("app_categories_skipped", roots=len(root_menu_ids))
             return {}
         # sudo: an app's heading is not the reader's business to have rights on
         modules = (
@@ -391,6 +472,12 @@ class IrUiMenu(models.Model):
                 category = category.parent_id
             if category:
                 categories[menu_id] = (category.name, category.sequence)
+        _debug.perf.count(
+            "app_categories_computed",
+            roots=len(root_menu_ids),
+            modules=len(modules),
+            headings=len({name for name, _seq in categories.values()}),
+        )
         return categories
 
     @classmethod
@@ -398,6 +485,9 @@ class IrUiMenu(models.Model):
         app_info: dict[int, int] = {}
         for root_menu_id in children_dict[False]:
             cls._update_app_id(app_info, children_dict, root_menu_id, root_menu_id)
+        _debug.perf.count(
+            "app_ids_assigned", apps=len(children_dict[False]), menus=len(app_info)
+        )
         return app_info
 
     @classmethod
@@ -423,6 +513,9 @@ class IrUiMenu(models.Model):
                 fields=["res_id", "datas", "mimetype"],
             )
         )
+        _debug.perf.count(
+            "menu_icons_loaded", menus=len(visible_menus), icons=len(icon_attachments)
+        )
         return {attachment["res_id"]: attachment for attachment in icon_attachments}
 
     def _get_action_info(self, action_ids_by_type: dict) -> dict[tuple, dict[str, Any]]:
@@ -436,6 +529,11 @@ class IrUiMenu(models.Model):
                     "path": action.path,
                     "res_model": action.res_model if has_res_model else False,
                 }
+        _debug.perf.count(
+            "menu_actions_loaded",
+            types=len(action_ids_by_type),
+            actions=len(action_info_by_action),
+        )
         return action_info_by_action
 
     def _get_menuitems_xmlids(self) -> dict[int, str]:
@@ -447,5 +545,5 @@ class IrUiMenu(models.Model):
                 ["res_id", "complete_name"],
             )
         )
-
+        _debug.perf.count("menu_xmlids_loaded", menus=len(self), xmlids=len(menuitems))
         return {menu.res_id: menu.complete_name for menu in menuitems}

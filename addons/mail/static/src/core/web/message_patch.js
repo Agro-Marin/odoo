@@ -3,6 +3,7 @@
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { Message } from "@mail/core/common/message";
 import { messageActionOpenFullComposer } from "@mail/core/web/message_actions_patch";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     formatChar,
     formatFieldFloat,
@@ -21,6 +22,8 @@ import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.message.ui");
 patch(Message.prototype, {
     setup() {
         super.setup();
@@ -85,6 +88,10 @@ patch(Message.prototype, {
     },
 
     openRecord() {
+        log.logic("openRecord", () => ({
+            messageId: this.message.id,
+            thread: this.message.thread?.localId,
+        }));
         this.message.thread.open({ focus: true });
         this.message.thread.highlightMessage = this.message;
     },

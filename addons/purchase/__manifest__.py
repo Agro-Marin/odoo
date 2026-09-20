@@ -1,6 +1,6 @@
 {
     "name": "Purchase",
-    "version": "1.8",
+    "version": "1.9",
     "category": "Supply Chain/Purchase",
     "sequence": 35,
     "summary": "Purchase orders, tenders and agreements",
@@ -72,6 +72,5 @@
             "purchase/static/tests/**/*.test.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

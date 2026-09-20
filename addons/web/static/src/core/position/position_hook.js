@@ -42,7 +42,7 @@ export function usePosition(refName, getTarget, options = {}) {
     const update = () => {
         const targetEl = getTarget();
         if (!ref.el || !targetEl?.isConnected || lock) {
-            return;
+            return false;
         }
         if (options.position !== lastRequestedPosition) {
             lastRequestedPosition = options.position;
@@ -57,20 +57,31 @@ export function usePosition(refName, getTarget, options = {}) {
             `${solution.direction}-${solution.variant}`
         );
         options.onPositioned?.(ref.el, solution);
+        return true;
     };
 
     const component = useComponent();
     const bus = /** @type {any} */ (component.env)[POSITION_BUS] || new EventBus();
 
     let executingUpdate = false;
+    let updateRequested = false;
     const batchedUpdate = async () => {
         if (executingUpdate) {
+            updateRequested = true;
             return;
         }
         executingUpdate = true;
         try {
-            update();
-            await Promise.resolve();
+            let positioned;
+            do {
+                // triggers arriving while a positioning runs are coalesced
+                // into it; while a bail-out runs (on a bus shared with an
+                // ancestor, the ancestor's trigger can reach this element
+                // before it exists) they are retried, not dropped
+                updateRequested = false;
+                positioned = update();
+                await Promise.resolve();
+            } while (updateRequested && !positioned);
         } finally {
             executingUpdate = false;
         }

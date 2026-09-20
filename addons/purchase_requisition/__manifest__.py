@@ -1,6 +1,6 @@
 {
     "name": "Purchase Agreements",
-    "version": "0.2",
+    "version": "0.3",
     "category": "Supply Chain/Purchase",
     "description": """
 This module allows you to manage your Purchase Agreements.
@@ -27,6 +27,7 @@ are agreements you have with vendors to benefit from a predetermined pricing.
         "reports/report_purchaserequisition.xml",
         "wizards/purchase_requisition_alternative_warning.xml",
         "wizards/purchase_requisition_create_alternative.xml",
+        "views/purchase_requisition_menus.xml",
     ],
     "demo": [
         "demo/purchase_requisition_demo.xml",

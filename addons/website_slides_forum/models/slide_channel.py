@@ -1,14 +1,21 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SlideChannel(models.Model):
     _inherit = "slide.channel"
 
     forum_id = fields.Many2one(
-        "forum.forum", "Course Forum", copy=False, index="btree_not_null"
+        comodel_name="forum.forum",
+        string="Course Forum",
+        index="btree_not_null",
+        copy=False,
     )
     forum_total_posts = fields.Integer(
-        "Number of active forum posts", related="forum_id.total_posts"
+        related="forum_id.total_posts",
+        string="Number of active forum posts",
     )
 
     _forum_uniq = models.Constraint(
@@ -32,6 +39,9 @@ class SlideChannel(models.Model):
         channels = super(
             SlideChannel, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
+        _debug.lifecycle(
+            "course_forums_opened", channels=channels, forums=channels.forum_id
+        )
         channels.forum_id.privacy = False
         return channels
 
@@ -42,6 +52,12 @@ class SlideChannel(models.Model):
         if "forum_id" in vals:
             self.forum_id.privacy = False
             if old_forum != self.forum_id:
+                _debug.lifecycle(
+                    "previous_forum_locked",
+                    channel=self,
+                    old_forum=old_forum,
+                    new_forum=self.forum_id,
+                )
                 old_forum.write(
                     {
                         "privacy": "private",

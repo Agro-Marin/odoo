@@ -1,6 +1,6 @@
 {
     "name": "Surveys",
-    "version": "3.9",
+    "version": "3.10",
     "category": "Marketing/Surveys",
     "sequence": 220,
     "summary": "Send your surveys or share them live.",
@@ -113,6 +113,9 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/tests/tours/*.js",
         ],
         "web.assets_unit_tests": [
+            "survey/static/src/interactions/survey_result_chart.js",
+            "survey/static/src/interactions/survey_session_chart.js",
+            "survey/static/src/interactions/survey_session_colors.js",
             "survey/static/tests/components/*.test.js",
             "survey/static/tests/fields/*.test.js",
         ],
@@ -134,11 +137,14 @@ sent mails with personal token for the invitation of the survey.
                 "survey.survey_assets",
                 "survey.survey_user_input_session_assets",
             ],
+            "web.assets_frontend_minimal": [
+                "survey.survey_assets",
+                "survey.survey_user_input_session_assets",
+            ],
         },
         "external_libs": {
             "chartjs-plugin-datalabels": "/survey/static/lib/chartjs-plugin-datalabels.js",
         },
     },
-    "installable": True,
     "application": True,
 }

@@ -4,10 +4,13 @@ from markupsafe import Markup
 
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import LazyGettext
 
 from .account_audit_account_status import STATUS_SELECTION
 from .account_return_check_template import CHECK_TYPES
+
+_debug = DebugLog(__name__)
 
 
 class AccountReturnCheck(models.Model):
@@ -15,30 +18,43 @@ class AccountReturnCheck(models.Model):
     _description = "Accounting Return Check"
     _order = "name, id"
 
-    code = fields.Char(string="Check ID", required=True)
+    code = fields.Char(
+        string="Check ID",
+        required=True,
+    )
     type = fields.Selection(
         selection=CHECK_TYPES,
-        string="Type",
         default="check",
         required=True,
     )
     template_id = fields.Many2one(
         comodel_name="account.return.check.template",
-        string="Template",
         ondelete="set null",
     )
 
     # Refreshed fields
-    name = fields.Char(string="Name", required=True, translate=True)
-    message = fields.Text(string="Description", translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    message = fields.Text(
+        string="Description",
+        translate=True,
+    )
     state = fields.Char(
-        string="Return State To Check For", default="new", required=True
+        string="Return State To Check For",
+        default="new",
+        required=True,
     )
     records_count = fields.Integer(readonly=True)
     records_name = fields.Char(
-        compute="_compute_records_name", compute_sudo=True
+        compute="_compute_records_name",
+        compute_sudo=True,
     )  # sudo is necessary because we're accessing ir.model
-    records_model = fields.Many2one(string="Model", comodel_name="ir.model")
+    records_model = fields.Many2one(
+        comodel_name="ir.model",
+        string="Model",
+    )
     action = fields.Json()
     result = fields.Selection(
         selection=STATUS_SELECTION,
@@ -47,7 +63,6 @@ class AccountReturnCheck(models.Model):
     )
     attachment_ids = fields.Many2many(
         comodel_name="ir.attachment",
-        string="Attachment",
         bypass_search_access=True,
     )
 
@@ -55,16 +70,23 @@ class AccountReturnCheck(models.Model):
     return_id = fields.Many2one(
         comodel_name="account.return",
         string="Account Return",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     is_return_active = fields.Boolean(related="return_id.active")
     return_state = fields.Char(
-        string="Return State", related="return_id.state", store=True
+        related="return_id.state",
+        string="Return State",
     )
-    return_name = fields.Char(string="Return Name", related="return_id.name")
-    date_deadline = fields.Date("Deadline", related="return_id.date_deadline")
+    return_name = fields.Char(
+        related="return_id.name",
+        string="Return Name",
+    )
+    date_deadline = fields.Date(
+        related="return_id.date_deadline",
+        string="Deadline",
+    )
 
     # Editable fields
     refresh_result = fields.Boolean(default=True)
@@ -75,7 +97,9 @@ class AccountReturnCheck(models.Model):
         context={"active_test": False},
     )
     supervisor_id = fields.Many2one(
-        comodel_name="res.users", string="Supervised By", readonly=True
+        comodel_name="res.users",
+        string="Supervised By",
+        readonly=True,
     )
     approver_supervisor_ids = fields.Many2many(
         comodel_name="res.users",
@@ -87,7 +111,15 @@ class AccountReturnCheck(models.Model):
     cycle = fields.Selection(related="template_id.cycle")
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         new_vals_list = [
             {
                 key: self.env._(value) if isinstance(value, LazyGettext) else value  # pylint: disable=E8502
@@ -111,10 +143,17 @@ class AccountReturnCheck(models.Model):
                         value, LazyGettext
                     ):
                         record[check_field] = value._translate(lang=lang_code)
+        _debug.pipeline(
+            "check_translations_applied",
+            checks=records,
+            langs=len(all_langs),
+        )
 
         return records
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         for check in self:
             user = self.env.user
             if "supervisor_id" in vals and not user.has_groups(
@@ -132,6 +171,14 @@ class AccountReturnCheck(models.Model):
                         self.env._(
                             "You're only allowed to change the check state when the return hasn't been reviewed."
                         )
+                    )
+                if _debug.logic.enabled:
+                    _debug.logic(
+                        "check_result_changed",
+                        check=check,
+                        old=check.result,
+                        new=vals.get("result"),
+                        by_superuser=user.id == SUPERUSER_ID,
                     )
 
                 if user.id != SUPERUSER_ID:
@@ -186,10 +233,16 @@ class AccountReturnCheck(models.Model):
 
             type = vals.get("type", check.type)
             if type != "file" and check.attachment_ids:
+                _debug.logic("check_attachments_dropped", check=check, type=type)
                 check.attachment_ids.unlink()
 
             if "attachment_ids" in vals and type == "file":
                 check.refresh_result = not bool(check.attachment_ids)
+                _debug.logic(
+                    "file_check_refresh_toggled",
+                    check=check,
+                    attachments=check.attachment_ids,
+                )
 
         return result
 
@@ -204,12 +257,13 @@ class AccountReturnCheck(models.Model):
             )
 
     @api.constrains("code")
+    @_debug.perf.timed
     def _check_code(self):
         for record in self:
             if (
                 len(
                     record.return_id.check_ids.filtered(
-                        lambda check: check.code == record.code  # noqa: B023
+                        lambda check, record=record: check.code == record.code
                     )
                 )
                 > 1
@@ -223,7 +277,8 @@ class AccountReturnCheck(models.Model):
         for check in self:
             check.approver_supervisor_ids = check.approver_ids | check.supervisor_id
 
-    def _get_evaluation_context(self):
+    @_debug.perf.timed
+    def _prepare_evaluation_context(self):
         def generate_journals_options():
             options = self.env.ref("account.trial_balance_report").get_options({})
             journals = options.get("journals", [])
@@ -235,6 +290,12 @@ class AccountReturnCheck(models.Model):
             return journals
 
         company = self.return_id.company_id
+        _debug.logic(
+            "evaluation_context_built",
+            check=self,
+            tax_return=self.return_id,
+            company=company,
+        )
         return {
             "active_id": self.return_id.id,
             "active_ids": [self.return_id.id],
@@ -273,13 +334,15 @@ class AccountReturnCheck(models.Model):
         except (SyntaxError, TypeError, ValueError) as error:
             raise ValidationError(_("Invalid code")) from error
 
+    @_debug.perf.timed
     def action_review(self):
         """Preprocess and return the action that must be triggered when clicking a check.
 
         :rtype: dict or None
         """
         # Actions coming from data carry their domain and context as strings, so they must be
-        # evaluated against _get_evaluation_context before being returned.
+        # evaluated against _prepare_evaluation_context before being returned.
+        _debug.lifecycle("action_review", records=self)
         self.check_singleton()
 
         if (
@@ -293,6 +356,12 @@ class AccountReturnCheck(models.Model):
             )
             other_companies_partners_ids = (
                 other_companies.sudo().mapped("partner_id").ids
+            )
+            _debug.logic(
+                "review_intercompany_partners",
+                check=self,
+                tax_return=self.return_id,
+                other_companies=other_companies,
             )
 
             return {
@@ -308,7 +377,17 @@ class AccountReturnCheck(models.Model):
         if self.action:
             action = {**self.action}
 
-            evaluation_context = self._get_evaluation_context()
+            evaluation_context = self._prepare_evaluation_context()
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "review_action_string_expressions",
+                    check=self,
+                    keys=",".join(
+                        key
+                        for key in ("context", "domain", "params")
+                        if isinstance(self.action.get(key), str)
+                    ),
+                )
 
             if "context" in self.action and isinstance(self.action["context"], str):
                 action["context"] = self._parse_expression(
@@ -358,18 +437,30 @@ class AccountReturnCheck(models.Model):
 
             action["active_id"] = self.return_id.id
             action["active_model"] = self.return_id._name
+            _debug.logic(
+                "review_action_resolved",
+                check=self,
+                template=self.template_id,
+                action_type=action.get("type"),
+                has_domain=bool(action.get("domain")),
+            )
 
             return action
+        _debug.logic("review_skipped", check=self, reason="no_action")
         return None
 
+    @_debug.perf.timed
     def action_view_document(self):
+        _debug.lifecycle("action_view_document", records=self)
         return {
             "type": "ir.actions.act_url",
             "url": f"/web/content/{self.attachment_ids.id}",
             "target": "download",
         }
 
+    @_debug.perf.timed
     def action_unlink_attachments(self):
+        _debug.lifecycle("action_unlink_attachments", records=self)
         self.check_singleton()
         self.attachment_ids.unlink()
         self.refresh_result = True
@@ -385,10 +476,9 @@ class CheckActionExpressionTransformer(ast.NodeTransformer):
             return ast.Constant(self.evaluation_context[node.id])
         return node
 
-    def get_call_args(self, ast_arguments):
+    def prepare_call_args(self, ast_arguments):
         args = []
-        for ast_arg in ast_arguments:
-            args.append(ast.literal_eval(self.visit(ast_arg)))  # noqa: PERF401
+        args.extend(ast.literal_eval(self.visit(ast_arg)) for ast_arg in ast_arguments)
         return args
 
     def visit_Call(self, node):
@@ -397,6 +487,6 @@ class CheckActionExpressionTransformer(ast.NodeTransformer):
             and not node.keywords
             and callable(helper := self.evaluation_context.get(node.func.id))
         ):
-            return ast.Constant(helper(*self.get_call_args(node.args)))
+            return ast.Constant(helper(*self.prepare_call_args(node.args)))
         # Preserve unsupported calls so literal_eval rejects them as invalid expressions.
         return node

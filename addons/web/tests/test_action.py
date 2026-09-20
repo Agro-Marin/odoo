@@ -358,3 +358,61 @@ class TestLoadBreadcrumbs(HttpCase):
             ),
         )
         self.assertEqual(resp.json()["error"]["message"], "Odoo Server Error")
+
+
+@tagged("post_install", "-at_install", "web_http", "web_action")
+class TestLoadAudit(HttpCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.users"].create(
+            {
+                "name": "load audit",
+                "login": "load_audit",
+                "password": "load_audit_pw",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+        cls.restricted = cls.env["ir.actions.act_window"].create(
+            {
+                "name": "restricted",
+                "res_model": "res.partner",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_system").id])],
+            }
+        )
+
+    def _load(self, action_id):
+        return self.url_open(
+            "/web/action/load",
+            headers={"Content-Type": "application/json"},
+            data=json_dumps({"params": {"action_id": action_id}}),
+        ).json()
+
+    def test_a_restricted_action_is_refused_as_if_it_did_not_exist(self):
+        self.authenticate("load_audit", "load_audit_pw")
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_actions_actions", level="INFO"
+        ) as captured:
+            body = self._load(self.restricted.id)
+        self.assertNotIn("result", body)
+        missing = self._load(self.restricted.id + 100000)["error"]["data"]
+        refused = body["error"]["data"]
+        self.assertEqual(refused["name"], missing["name"])
+        self.assertIn("does not exist", refused["message"])
+        self.assertTrue(
+            any("refused" in line and "groups" in line for line in captured.output)
+        )
+
+    def test_a_member_loads_the_restricted_action(self):
+        self.authenticate("admin", "admin")
+        self.assertEqual(
+            self._load(self.restricted.id)["result"]["id"], self.restricted.id
+        )
+
+    def test_an_unreadable_target_model_is_refused_the_same_way(self):
+        closed = self.env["ir.actions.act_window"].create(
+            {"name": "closed", "res_model": "ir.config_parameter"}
+        )
+        self.authenticate("load_audit", "load_audit_pw")
+        body = self._load(closed.id)
+        self.assertIn("does not exist", body["error"]["data"]["message"])

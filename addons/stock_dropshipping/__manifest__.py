@@ -27,10 +27,10 @@ internal transfer document is needed.
         "views/sale_order_views.xml",
         "views/stock_picking_views.xml",
         "views/purchase_order_views.xml",
+        "views/stock_dropshipping_menus.xml",
     ],
     "demo": [
         "demo/stock_dropshipping_demo.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

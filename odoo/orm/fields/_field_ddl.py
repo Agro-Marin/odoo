@@ -2,6 +2,7 @@ import logging
 import typing
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
@@ -11,6 +12,7 @@ if typing.TYPE_CHECKING:
     from .textual import BaseString, Char
 
 _logger = logging.getLogger("odoo.fields")
+_debug = DebugLog(__name__)
 _schema = logging.getLogger("odoo.schema")
 
 
@@ -40,6 +42,12 @@ def update_db(
     ):
         join_field = model._fields[field._related_names[0]]
         if join_field.is_many2one and join_field.store and not join_field.compute:
+            _debug.logic(
+                "field.ddl.related_column_filled_by_join",
+                model=model._name,
+                field=field.name,
+                related=field.related,
+            )
             model.pool.post_init(field.update_db_related, model)
             return False
 
@@ -63,6 +71,13 @@ def update_db_column(
         return
     if column["udt_name"] == column_type[0]:
         return
+    _debug.logic(
+        "field.ddl.column_converted",
+        model=model._name,
+        field=field.name,
+        from_type=column["udt_name"],
+        to_type=column_type[0],
+    )
     field._convert_db_column(model, column)
 
 
@@ -80,6 +95,13 @@ def convert_db_column_translatable(
 ) -> None:
     assert field.column_type is not None, (
         f"{field}: a column conversion is only reached for a stored column"
+    )
+    _debug.logic(
+        "field.ddl.column_converted_translatable",
+        model=model._name,
+        field=field.name,
+        from_type=column["udt_name"],
+        translate=bool(field.translate),
     )
     if field.translate or column["udt_name"] == "jsonb":
         sql.convert_column_translatable(
@@ -101,6 +123,13 @@ def widen_varchar_column(
         and column["character_maximum_length"]
         and (field.size is None or column["character_maximum_length"] < field.size)
     ):
+        _debug.logic(
+            "field.ddl.varchar_widened",
+            model=model._name,
+            field=field.name,
+            from_size=column["character_maximum_length"],
+            to_size=field.size,
+        )
         sql.convert_column(model.env.cr, model._table, field.name, column_type[1])
 
 
@@ -111,9 +140,22 @@ def update_db_notnull(
 
     if not column or (field.required and not has_notnull):
         if model._has_rows_in_table():
+            _debug.pipeline(
+                "field.ddl.init_column",
+                model=model._name,
+                field=field.name,
+                new_column=not column,
+            )
             model._init_column(field.name, new_column=not column)
 
     if field.required and not has_notnull:
+        _debug.logic(
+            "field.ddl.not_null_scheduled",
+            model=model._name,
+            field=field.name,
+            new_column=not column,
+            computed=bool(field.compute),
+        )
 
         @model.pool.post_init
         def add_not_null():
@@ -175,25 +217,34 @@ def update_db_notnull(
                 )
 
     elif not field.required and has_notnull:
+        _debug.logic("field.ddl.not_null_dropped", model=model._name, field=field.name)
         sql.drop_not_null(model.env.cr, model._table, field.name)
 
 
 def update_db_related(field: Field, model: ModelLike) -> None:
     comodel = model.env[field.related_field.model_name]
     join_field, comodel_field = field._related_names
-    model.env.cr.execute(
-        SQL(
-            """ UPDATE %(model_table)s AS x
-            SET %(model_field)s = y.%(comodel_field)s
-            FROM %(comodel_table)s AS y
-            WHERE x.%(join_field)s = y.id """,
-            model_table=SQL.identifier(model._table),
-            model_field=SQL.identifier(field.name),
-            comodel_table=SQL.identifier(comodel._table),
-            comodel_field=SQL.identifier(comodel_field),
-            join_field=SQL.identifier(join_field),
+    with _debug.perf(
+        "field.ddl.related_column_filled",
+        cr=model.env.cr,
+        model=model._name,
+        field=field.name,
+        comodel=comodel._name,
+    ) as span:
+        model.env.cr.execute(
+            SQL(
+                """ UPDATE %(model_table)s AS x
+                SET %(model_field)s = y.%(comodel_field)s
+                FROM %(comodel_table)s AS y
+                WHERE x.%(join_field)s = y.id """,
+                model_table=SQL.identifier(model._table),
+                model_field=SQL.identifier(field.name),
+                comodel_table=SQL.identifier(comodel._table),
+                comodel_field=SQL.identifier(comodel_field),
+                join_field=SQL.identifier(join_field),
+            )
         )
-    )
+        span.set(rows=model.env.cr.rowcount)
 
 
 def update_db_foreign_key(
@@ -203,8 +254,20 @@ def update_db_foreign_key(
         return
     comodel = model.env[field.comodel_name]
     if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
+        _debug.logic(
+            "field.ddl.foreign_key_skipped",
+            model=model._name,
+            field=field.name,
+            reason="not_ordinary_table",
+        )
         return
     if not comodel._auto or comodel._is_table_inheritance_root():
+        _debug.logic(
+            "field.ddl.foreign_key_skipped",
+            model=model._name,
+            field=field.name,
+            reason="comodel_not_auto" if not comodel._auto else "inheritance_root",
+        )
         return
     model.pool.add_foreign_key(
         model._table,
@@ -248,6 +311,12 @@ def update_db_relation_table(field: Many2many, model: ModelLike) -> bool:
             model._table,
             comodel._table,
         )
+        _debug.lifecycle(
+            "field.ddl.relation_table_created",
+            model=model._name,
+            field=field.name,
+            relation=relation,
+        )
         model.pool.post_init(field.update_db_foreign_keys, model)
         return True
 
@@ -255,10 +324,33 @@ def update_db_relation_table(field: Many2many, model: ModelLike) -> bool:
     return False
 
 
+def _relation_is_shared_with_tree(field: Many2many, model: BaseModel) -> bool:
+    if not model._table_inheritance_root:
+        return False
+    if model._is_table_inheritance_root():
+        return True
+    root = model.env[model._get_root_model_name()]
+    root_field = root._fields.get(field.name)
+    return root_field is not None and root_field.relation == field.relation
+
+
 def update_db_foreign_keys(field: Many2many, model: BaseModel) -> None:
     comodel = model.env[field.comodel_name]
     relation, column1, column2 = field._get_relation_triple()
-    if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
+    model_side = model._is_an_ordinary_table() and not _relation_is_shared_with_tree(
+        field, model
+    )
+    _debug.pipeline(
+        "field.ddl.m2m_foreign_keys",
+        model=model._name,
+        field=field.name,
+        relation=relation,
+        model_side=model_side,
+        comodel_side=comodel._is_an_ordinary_table()
+        and not comodel._is_table_inheritance_root(),
+        ondelete=field.ondelete or "cascade",
+    )
+    if model_side:
         model.pool.add_foreign_key(
             relation,
             column1,

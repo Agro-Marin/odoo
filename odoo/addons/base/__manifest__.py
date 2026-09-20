@@ -1,6 +1,6 @@
 {
     "name": "Base",
-    "version": "1.48",
+    "version": "1.79",
     "category": "Hidden",
     "description": """
 The kernel of Odoo, needed for all installation.
@@ -31,7 +31,6 @@ The kernel of Odoo, needed for all installation.
         "views/ir_cron_trigger_views.xml",
         "views/ir_job_views.xml",
         "views/ir_filters_views.xml",
-        "views/ir_mail_server_views.xml",
         "views/ir_model_views.xml",
         "views/ir_attachment_views.xml",
         "views/ir_rule_views.xml",
@@ -42,15 +41,11 @@ The kernel of Odoo, needed for all installation.
         "data/ir_config_parameter_data.xml",
         "data/res_config_settings_data.xml",
         "data/ir_cron_data.xml",
-        "reports/ir_model_report.xml",
-        "reports/ir_model_templates.xml",
         "views/ir_logging_views.xml",
         "views/ir_qweb_widget_templates.xml",
         "views/ir_module_views.xml",
         "data/ir_module_category_data.xml",
         "data/ir_module_module.xml",
-        "reports/ir_module_reports.xml",
-        "reports/ir_module_report_templates.xml",
         "wizards/base_module_update_views.xml",
         "wizards/base_language_install_views.xml",
         "wizards/base_import_language_views.xml",
@@ -76,8 +71,8 @@ The kernel of Odoo, needed for all installation.
         "views/res_users_identitycheck_views.xml",
         "views/res_config_settings_views.xml",
         "views/report_paperformat_views.xml",
-        "views/base_menus.xml",
         "views/tag_tag_views.xml",
+        "views/base_menus.xml",
         "security/ir.model.access.csv",
     ],
     "demo": [
@@ -94,7 +89,6 @@ The kernel of Odoo, needed for all installation.
             "base/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "post_init",
 }

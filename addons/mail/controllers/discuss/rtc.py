@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from odoo import http
 from odoo.http import NotFound, Response, request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.utils import (
     get_channel_or_404,
@@ -12,6 +13,8 @@ from odoo.addons.mail.controllers.utils import (
     to_record_ids,
 )
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+_debug = DebugLog(__name__)
 
 _MAX_PEER_NOTIFICATIONS = 100
 _MAX_PEER_CONTENT_LEN = 100_000
@@ -66,6 +69,12 @@ class RtcController(http.Controller):
             ):
                 continue
             notifications_by_session[session_sudo].append((target_ids, content))
+        _debug.pipeline(
+            "peer_notifications",
+            received=len(peer_notifications),
+            sessions=len(notifications_by_session),
+            forwarded=sum(len(n) for n in notifications_by_session.values()),
+        )
         for session_sudo, notifications in notifications_by_session.items():
             session_sudo._notify_peers(notifications)
 
@@ -91,6 +100,7 @@ class RtcController(http.Controller):
                 if session and session.guest_id == guest:
                     session._update_and_broadcast(values)
                     return
+            _debug.logic("session_update_refused", session=session_id, by="guest")
             return
         session = (
             request.env["discuss.channel.rtc.session"]
@@ -100,6 +110,8 @@ class RtcController(http.Controller):
         )
         if session and session.partner_id == request.env.user.partner_id:
             session._update_and_broadcast(values)
+            return
+        _debug.logic("session_update_refused", session=session_id, by="partner")
 
     @http.route(
         "/mail/rtc/channel/join_call", methods=["POST"], type="jsonrpc", auth="public"
@@ -116,11 +128,14 @@ class RtcController(http.Controller):
         if not member:
             raise NotFound
         store = Store()
-        member.sudo()._rtc_join_call(
-            store,
-            check_rtc_session_ids=to_record_ids(check_rtc_session_ids),
-            camera=bool(camera),
-        )
+        with _debug.perf(
+            "join_call", cr=request.env.cr, channel=channel.id, member=member.id
+        ):
+            member.sudo()._rtc_join_call(
+                store,
+                check_rtc_session_ids=to_record_ids(check_rtc_session_ids),
+                camera=bool(camera),
+            )
         return store.get_result()
 
     @http.route(
@@ -194,6 +209,14 @@ class RtcController(http.Controller):
             ).write({})
         current_rtc_sessions, outdated_rtc_sessions = (
             channel_member_sudo._rtc_sync_sessions(to_record_ids(check_rtc_session_ids))
+        )
+        _debug.logic(
+            "channel_ping",
+            channel=channel_id,
+            member=member.id,
+            session=rtc_session_id,
+            current=len(current_rtc_sessions),
+            outdated=len(outdated_rtc_sessions),
         )
         return (
             Store()

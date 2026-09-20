@@ -903,6 +903,42 @@ test("single 'join' (with camera) button when last call had camera on", async ()
     });
 });
 
+test("the camera default of a chat is stored per channel and follows another tab", async () => {
+    const pyEnv = await startServer();
+    onRpc("/mail/rtc/session/notify_call_members", () => true);
+    const alfredPartnerId = pyEnv["res.partner"].create({ name: "Alfred" });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "chat",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: alfredPartnerId }),
+        ],
+    });
+    pyEnv["discuss.channel.rtc.session"].create({
+        channel_member_id: pyEnv["discuss.channel.member"].create({
+            channel_id: channelId,
+            partner_id: alfredPartnerId,
+        }),
+        channel_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click("button[title='Join Call']");
+    await contains(".o-discuss-CallParticipantCard[title='Mitchell Admin']");
+    await click("button[title='Disconnect']");
+    await contains("button[title='Join Call']", { contains: [".fa-phone"] });
+    expect(
+        browser.localStorage.getItem(`discuss_channel_camera_default_${channelId}`),
+    ).toBe("false");
+    window.dispatchEvent(
+        new StorageEvent("storage", {
+            key: `discuss_channel_camera_default_${channelId}`,
+            newValue: "true",
+        }),
+    );
+    await contains("button[title='Join Video Call']", { contains: [".fa-video"] });
+});
+
 test("dynamic focus switches to talking participant", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });

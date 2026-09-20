@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { localization } from "@web/core/l10n/localization";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/core/utils/format/numbers";
-import { parseFloat } from "@web/core/parsers";
-
 import { Component, useRef } from "@odoo/owl";
+import { localization } from "@web/core/l10n/localization";
+import { parseFloat } from "@web/core/parsers";
+import { formatFloat } from "@web/core/utils/format/numbers";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 
 export class AccountReportEditPopover extends Component {
     static template = "account.AccountReportEditPopover";
@@ -54,13 +53,13 @@ export class AccountReportEditPopover extends Component {
     async edit() {
         let editValue;
 
-        if (this.props.cell.figure_type === "boolean")
+        if (this.props.cell.figure_type === "boolean") {
             editValue = Number(
                 this.booleanTrue.el.checked && !this.booleanFalse.el.checked,
             );
-        else if (this.props.cell.figure_type === "string")
+        } else if (this.props.cell.figure_type === "string") {
             editValue = this.input.el.value;
-        else {
+        } else {
             const inputValue = this.input.el.value;
             const otherDecimalSeparator = localization.decimalPoint === "." ? "," : ".";
             const localeThousandsSeparator = localization.thousandsSep || "";

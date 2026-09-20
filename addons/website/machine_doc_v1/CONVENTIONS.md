@@ -68,7 +68,7 @@ Making a model publishable on the website is done by inheriting mixins
 
 - **`mixin.website.published`** → `is_published`, `can_publish`, `website_url`. Override `website_url` per model. `create`/`write` raise `AccessError` if publishing without `can_publish` (which routes through `website._check_access_to_modify`).
 - **`mixin.website.published.multi`** → the above + `website_id`-context-aware publish state (a record bound to another website reads unpublished). Use this, not the plain published mixin, for multi-website-scoped content.
-- **`mixin.website.seo.metadata`** → `website_meta_*` fields. Override `_default_website_meta()` to set defaults; call `get_website_meta()` (never override it).
+- **`mixin.website.seo.metadata`** → `website_meta_*` fields. Override `_get_default_website_meta()` to set defaults; call `get_website_meta()` (never override it).
 - **`mixin.website.searchable`** → override `_search_get_detail()` (returns model/base_domain/search_fields/fetch_fields/mapping/icon) to appear in frontend fuzzy search.
 
 ## Interaction & Builder Registration
@@ -92,6 +92,35 @@ The public site and the editor use distinct registries (see `INTERACTIONS.md` an
 - **Snippet options** pair a `BaseOptionComponent` (`static template`, `static
   selector`, `static applyTo`) with a `*_option_plugin.js` that registers it into
   `builder_options` at a `withSequence(...)` priority.
+
+## Debug Loggers (quality campaign, medium-term)
+
+Website's JS carries `makeLogger` sites from `@web/core/debug/debug_logger` on the four
+campaign channels (logic, perf, pipeline, lifecycle). They are off by default: turn them on
+with `odooLog.enable("website.*")` in the console, or with `?log=website.builder.*:perf` in the URL.
+Frozen at odoo `a7145e8f8265`: 1,883 sites in 270 files. Re-measure before quoting a count.
+
+| Namespace | Code |
+|-----------|------|
+| `website.builder.plugin.<static id>` | builder plugins |
+| `website.builder.option.<name>` | option components |
+| `website.builder.translation.<name>` | translation plugins and components |
+| `website.interaction.<name>[.edit\|.preview]` | public interactions |
+| `website.snippet.<s_name>[.edit]` | snippet JS; `website.form` and `website.dynamic_snippet` keep their older names |
+| `website.dialog.*`, `.component.*`, `.field.*`, `.view.*`, `.client_action.*`, `.systray.*` | backend UI |
+| `website.service.*`, `website.edit`, `website.content.*`, `website.utils.*` | services, edit service, `js/` helpers |
+
+- **Sites are removed mechanically when the campaign ends, so the shape is fixed.** Allowed
+  forms: the imports; a module-level `const log = makeLogger(...)`; `useLifecycleLog(log);`;
+  `log.logic|pipeline|lifecycle(...);`; `const endX = log.perf(...)` plus `endX(...)`. No
+  `log.measure`, and no site that is the only statement of its block.
+- **Never add a method just to host a log.** `BuilderAction.has()` compares prototypes, so an
+  added `load`, `prepare` or `clean` changes what the builder runs.
+- **Payloads are lazy arrows, so a broken payload only fails with logging on.** A
+  logging-off run cannot catch one. The campaign caught a payload reading a `const` above its
+  declaration only by running the website HOOT suites with `&log=website.*`.
+- The minimal frontend bundle inlines its own copy of the logger. The logger keeps its state
+  on `window` so every copy shares one spec and one `odooLog`; keep it that way.
 
 ## Snippet File Convention
 

@@ -11,11 +11,10 @@ from markupsafe import Markup, escape
 from odoo import Command, _, api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.guarded_http import RefusedDestination
 from odoo.libs.json import dumps as json_dumps
 from odoo.models import ValuesType
 from odoo.tools.safe_eval import safe_eval
-
-from odoo.addons.survey.models.survey_survey import webhook_url_problem
 
 _logger = logging.getLogger(__name__)
 
@@ -29,6 +28,9 @@ _SCORE_COMPARATORS = {
 }
 
 
+_WEBHOOK_RESPONSE_MAX_BYTES = 64 * 1024
+
+
 class SurveyUser_Input(models.Model):
     _name = "survey.user_input"
     _description = "Survey User Input"
@@ -37,151 +39,150 @@ class SurveyUser_Input(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     survey_id = fields.Many2one(
-        "survey.survey",
-        string="Survey",
-        readonly=True,
+        comodel_name="survey.survey",
         index=True,
+        readonly=True,
         ondelete="cascade",
     )
     scoring_type = fields.Selection(
-        string="Scoring",
         related="survey_id.scoring_type",
+        string="Scoring",
     )
-    start_datetime = fields.Datetime("Start date and time", readonly=True)
-    end_datetime = fields.Datetime("End date and time", readonly=True)
+    start_datetime = fields.Datetime(
+        string="Start date and time",
+        readonly=True,
+    )
+    end_datetime = fields.Datetime(
+        string="End date and time",
+        readonly=True,
+    )
     deadline = fields.Datetime(
-        "Deadline",
-        help="Datetime until customer can open the survey and submit answers",
+        help="Datetime until customer can open the survey and submit answers"
     )
-    lang_id = fields.Many2one("res.lang", string="Language")
+    lang_id = fields.Many2one(
+        comodel_name="res.lang",
+        string="Language",
+    )
     state = fields.Selection(
-        [("new", "New"), ("in_progress", "In Progress"), ("done", "Completed")],
+        selection=[
+            ("new", "New"),
+            ("in_progress", "In Progress"),
+            ("done", "Completed"),
+        ],
         string="Status",
         default="new",
         readonly=True,
     )
     test_entry = fields.Boolean(readonly=True)
     last_displayed_page_id = fields.Many2one(
-        "survey.question",
+        comodel_name="survey.question",
         string="Last displayed question/page",
     )
     is_attempts_limited = fields.Boolean(
-        "Limited number of attempts",
         related="survey_id.is_attempts_limited",
+        string="Limited number of attempts",
     )
     attempts_limit = fields.Integer(
-        "Number of attempts",
         related="survey_id.attempts_limit",
+        string="Number of attempts",
     )
-    attempts_count = fields.Integer(
-        "Attempts Count",
-        compute="_compute_attempts_info",
-    )
+    attempts_count = fields.Integer(compute="_compute_attempts_info")
     attempts_number = fields.Integer(
-        "Attempt n°",
+        string="Attempt n°",
         compute="_compute_attempts_info",
     )
     survey_time_limit_reached = fields.Boolean(
-        "Survey Time Limit Reached",
-        compute="_compute_survey_time_limit_reached",
+        compute="_compute_survey_time_limit_reached"
     )
     access_token = fields.Char(
-        "Identification token",
+        string="Identification token",
         default=lambda self: str(uuid.uuid4()),
+        copy=False,
         readonly=True,
         required=True,
-        copy=False,
     )
     invite_token = fields.Char(
-        "Invite token",
-        readonly=True,
+        string="Invite token",
         copy=False,
+        readonly=True,
     )
     partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Contact",
-        readonly=True,
         index="btree_not_null",
-    )
-    email = fields.Char(
-        "Email",
         readonly=True,
     )
+    email = fields.Char(readonly=True)
     nickname = fields.Char(
-        "Nickname",
-        help="Attendee nickname, mainly used to identify them in the survey session leaderboard.",
+        help="Attendee nickname, mainly used to identify them in the survey session leaderboard."
     )
     ip_address = fields.Char(
-        "IP Address",
+        string="IP Address",
         readonly=True,
         help="Respondent's IP address. Not stored if survey has 'Anonymize IP' enabled.",
     )
     save_later_datetime = fields.Datetime(
-        "Resume Link Sent",
-        readonly=True,
+        string="Resume Link Sent",
         copy=False,
+        readonly=True,
         help="When the 'continue later' link was last emailed for this attempt.",
     )
     user_input_line_ids = fields.One2many(
-        "survey.user_input.line",
-        "user_input_id",
+        comodel_name="survey.user_input.line",
+        inverse_name="user_input_id",
         string="Answers",
         copy=True,
     )
     predefined_question_ids = fields.Many2many(
-        "survey.question",
+        comodel_name="survey.question",
         string="Predefined Questions",
         readonly=True,
         context={"active_test": False},
     )
     scoring_percentage = fields.Float(
-        "Score (%)",
+        string="Score (%)",
         compute="_compute_scoring_values",
-        store=True,
         compute_sudo=True,
+        store=True,
     )
     scoring_total = fields.Float(
-        "Total Score",
-        compute="_compute_scoring_values",
-        store=True,
-        compute_sudo=True,
+        string="Total Score",
         digits=(10, 2),
+        compute="_compute_scoring_values",
+        compute_sudo=True,
+        store=True,
     )
     scoring_success = fields.Boolean(
-        "Quiz Passed",
+        string="Quiz Passed",
         compute="_compute_scoring_success",
-        store=True,
         compute_sudo=True,
+        store=True,
     )
-    survey_first_submitted = fields.Boolean(
-        string="Survey First Submitted",
-    )
+    survey_first_submitted = fields.Boolean()
     is_speeder = fields.Boolean(
-        "Speeder",
+        string="Speeder",
         compute="_compute_is_speeder",
         search="_search_is_speeder",
         help="Respondent completed the survey in less than a third of this survey's "
         "median duration, compared against every response as it stands now.",
     )
     is_straight_liner = fields.Boolean(
-        "Straight-liner",
+        string="Straight-liner",
         compute="_compute_is_straight_liner",
         store=True,
         help="Respondent selected the same answer for every choice/matrix question.",
     )
     quality_score = fields.Integer(
-        "Quality Score",
         compute="_compute_quality_score",
         search="_search_quality_score",
         help="Response quality from 0 (worst) to 100 (best). Based on speed and answer variety.",
     )
     is_session_answer = fields.Boolean(
-        "Is in a Session",
+        string="Is in a Session",
         help="Is that user input part of a survey session or not.",
     )
     question_time_limit_reached = fields.Boolean(
-        "Question Time Limit Reached",
-        compute="_compute_question_time_limit_reached",
+        compute="_compute_question_time_limit_reached"
     )
 
     _unique_token = models.Constraint(
@@ -649,27 +650,26 @@ class SurveyUser_Input(models.Model):
         payload = self._prepare_webhook_payload(event)
         json_payload = json_dumps(payload)
         input_id = self.id
+        session = self.env["ir.egress"].session(
+            purpose="survey_webhook", max_bytes=_WEBHOOK_RESPONSE_MAX_BYTES
+        )
 
         def do_post():
-            # Re-checked here, not only in the constraint: this runs after commit and
-            # `requests` resolves the name itself, so the answer that validated at write
-            # time is not the answer this connection gets.
-            problem = webhook_url_problem(webhook_url)
-            if problem:
+            try:
+                with session:
+                    session.post(
+                        webhook_url,
+                        data=json_payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=5,
+                        allow_redirects=False,
+                    )
+            except RefusedDestination as refusal:
                 _logger.warning(
                     "Survey webhook (%s) refused for input %s: %s",
                     event,
                     input_id,
-                    problem,
-                )
-                return
-            try:
-                requests.post(
-                    webhook_url,
-                    data=json_payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=5,
-                    allow_redirects=False,
+                    refusal,
                 )
             except requests.RequestException:
                 _logger.warning(

@@ -51,10 +51,10 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-warning="state == 'pending'"
-                    decoration-success="state == 'active'"
                     decoration-info="state == 'completed'"
-                    decoration-muted="state == 'cancelled'" />
+                    decoration-muted="state == 'cancelled'"
+                    decoration-success="state == 'active'"
+                    decoration-warning="state == 'pending'" />
                 <field name="start_date" />
                 <field name="end_date" />
                 <field name="mentee_milestones_reached" />
@@ -70,32 +70,32 @@
             <form string="Mentorship">
                 <header>
                     <button
-                        string="Accept"
-                        type="object"
                         name="action_accept"
-                        class="oe_highlight"
-                        invisible="state != 'pending'" />
-                    <button
-                        string="Decline"
                         type="object"
+                        string="Accept"
+                        invisible="state != 'pending'"
+                        class="oe_highlight" />
+                    <button
                         name="action_decline"
+                        type="object"
+                        string="Decline"
                         invisible="state != 'pending'" />
                     <button
                         name="action_complete"
-                        string="Complete"
                         type="object"
-                        class="btn-primary"
-                        invisible="state != 'active'" />
+                        string="Complete"
+                        invisible="state != 'active'"
+                        class="btn-primary" />
                     <button
                         name="action_cancel"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         invisible="state != 'active'" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="pending,active,completed"
-                        readonly="1" />
+                        readonly="1"
+                        statusbar_visible="pending,active,completed" />
                 </header>
                 <sheet>
                     <group>
@@ -144,25 +144,25 @@
                 <field name="mentor_id" />
                 <field name="mentee_id" />
                 <filter
-                    string="Awaiting Confirmation"
                     name="pending"
+                    string="Awaiting Confirmation"
                     domain="[('state', '=', 'pending')]" />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('state', '=', 'active')]" />
                 <filter
-                    string="Completed"
                     name="completed"
+                    string="Completed"
                     domain="[('state', '=', 'completed')]" />
                 <group>
                     <filter
-                        string="Mentor"
                         name="group_mentor"
+                        string="Mentor"
                         context="{'group_by': 'mentor_id'}" />
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                 </group>
             </search>

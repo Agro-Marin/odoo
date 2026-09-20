@@ -61,6 +61,8 @@ class IrUiView extends models.Model {
     }
 }
 
+export const websiteBuilderModels = [Website, IrUiView];
+
 export const setupWebsiteBuilderOeId = 539;
 
 export const invisibleEl =
@@ -69,7 +71,7 @@ export const invisibleEl =
 export function defineWebsiteModels() {
     describe.current.tags("desktop");
     defineMailModels();
-    defineModels([Website, IrUiView]);
+    defineModels(websiteBuilderModels);
     onRpc("/website/theme_customize_data_get", () => []);
     onRpc("website", "web_search_read", () => ({
         length: 1,
@@ -96,7 +98,6 @@ function patchDOMParser() {
             }
             const res = super.parseFromString(html, type);
             if (res.body?.firstChild?.id === "snippet_groups") {
-                // Only cache the document containing the snippets
                 domParserCache.set(html, res);
                 return res.cloneNode(true);
             }
@@ -105,10 +106,6 @@ function patchDOMParser() {
     });
 }
 
-/**
- * This helper will be moved to website. Prefer using setupHTMLBuilder
- * for builder-specific tests
- */
 export async function setupWebsiteBuilder(
     websiteContent,
     {
@@ -126,19 +123,11 @@ export async function setupWebsiteBuilder(
         delayReload = async () => {},
     } = {},
 ) {
-    // TODO: fix when the iframe is reloaded and become empty (e.g. discard button)
     if (hasToCreateWebsite) {
         const pyEnv = await startServer();
         pyEnv["website"].create({});
     }
     mockImageRequests();
-    // The builder tests drive the editor directly and cannot have the real
-    // `website_edit` service starting interactions inside the iframe, so it is
-    // removed. Restore it afterwards: the services registry is global and the
-    // HOOT framework does not snapshot it, so removing it unrestored took the
-    // service away from every *subsequent* test in the same browser session --
-    // notably the whole `@website/interactions` tree, which needs it. That is
-    // why suites passed in isolation and failed en masse in a full run.
     const services = registry.category("services");
     if (services.contains("website_edit")) {
         const websiteEditService = services.get("website_edit");
@@ -156,11 +145,16 @@ export async function setupWebsiteBuilder(
                 ? ""
                 : `data-oe-model="ir.ui.view" data-oe-id="${setupWebsiteBuilderOeId}" data-oe-field="arch"`
         }>${websiteContent}</div> ${footerContent}</div>`;
+    const realPage = loadIframeBundles && loadAssetsFrontendJS;
+    let publicEnv;
     const iframeLoaded = new Promise((resolve) => {
         resolveIframeLoaded = async (el) => {
             const iframe = el;
+            if (realPage) {
+                publicEnv = await navigateToRealPage(iframe);
+            }
             const styleEl = iframe.contentDocument.createElement("style");
-            styleEl.textContent = /*css*/ `* { transition: none !important; } `;
+            styleEl.textContent = `* { transition: none !important; } `;
             if (styleContent) {
                 styleEl.textContent += styleContent;
             }
@@ -169,16 +163,14 @@ export async function setupWebsiteBuilder(
                 "data-main-object",
                 "website.page(4,)",
             );
-            iframe.contentDocument.body.innerHTML = bodyHTML;
-            if (loadIframeBundles && loadAssetsFrontendJS) {
-                await waitFor("body[is-ready=true]", {
-                    timeout: 1000,
-                    root: iframe.contentDocument,
-                });
+            if (realPage) {
+                await installWebsiteContent(
+                    iframe.contentDocument,
+                    publicEnv,
+                    bodyHTML,
+                );
             } else {
-                // If we don't include the iframe JS, we artificially set the
-                // is-ready attribute to trick the rest of the code into
-                // thinking that it has been loaded.
+                iframe.contentDocument.body.innerHTML = bodyHTML;
                 iframe.contentDocument.body.setAttribute("is-ready", "true");
             }
 
@@ -202,24 +194,13 @@ export async function setupWebsiteBuilder(
             originalIframeLoaded = this.iframeLoaded;
             this.iframeLoaded = iframeLoaded;
         },
-        // Override for Firefox. Chrome doesn't load the initial iframe and
-        // never goes through this method. As Firefox does, it means it re-
-        // assigns `this.publicRootReady` to a deferred that is never resolved
-        // in tests, which prevents any Hoot builder test from working.
-        // Reimplement this method the day interactions within the iframe work
-        // with Hoot.
         preparePublicRootReady() {},
         async loadAssetsEditBundle() {
-            // To instantiate interactions in the iframe test we need to load
-            // the frontend bundle in it. The problem is that Hoot does not have
-            // control of this iframe and therefore does not mock anything in it
-            // (location, rpc, ...). So we don't load the js part of the bundle
-
             if (loadIframeBundles) {
                 await loadBundle("website.assets_inside_builder_iframe", {
                     targetDoc: queryOne("iframe[data-src^='/website/force/1']")
                         .contentDocument,
-                    js: false,
+                    js: realPage,
                 });
             }
             await resolveEditAssetsLoaded();
@@ -229,7 +210,12 @@ export async function setupWebsiteBuilder(
         },
         async reloadIframe() {
             await delayReload();
-            this.websiteContent.el.contentDocument.body.innerHTML = bodyHTML;
+            const doc = this.websiteContent.el.contentDocument;
+            if (realPage) {
+                await installWebsiteContent(doc, publicEnv, bodyHTML);
+            } else {
+                doc.body.innerHTML = bodyHTML;
+            }
         },
     });
     patchWithCleanup(WebsiteSystrayItem.prototype, {
@@ -240,6 +226,12 @@ export async function setupWebsiteBuilder(
             return true;
         },
     });
+    if (snippets) {
+        // the action preloads the snippets as soon as it mounts
+        patchWithCleanup(IrUiView.prototype, {
+            render_public_asset: () => getSnippetView(snippets),
+        });
+    }
     await getService("action").doAction({
         name: "Website Builder",
         tag: "website_preview",
@@ -249,8 +241,6 @@ export async function setupWebsiteBuilder(
     patchWithCleanup(EditInteractionPlugin.prototype, {
         setup() {
             super.setup();
-            // See loadAssetsEditBundle override in WebsiteBuilderClientAction
-            // patch.
             this.websiteEditService = {
                 update: () => {},
                 refresh: () => {},
@@ -263,7 +253,6 @@ export async function setupWebsiteBuilder(
     let lastUpdatePromise;
     const waitSidebarUpdated = async () => {
         await revertPreview(editor);
-        // The tick ensures that lastUpdatePromise has correctly been assigned
         await tick();
         await lastUpdatePromise;
         await animationFrame();
@@ -299,22 +288,16 @@ export async function setupWebsiteBuilder(
         },
     });
 
-    if (snippets) {
-        patchWithCleanup(IrUiView.prototype, {
-            render_public_asset: () => getSnippetView(snippets),
-        });
-    }
-
     patchWithCleanupImg();
 
     const iframe = queryOne("iframe[data-src^='/website/force/1']");
     if (isBrowserFirefox()) {
         await originalIframeLoaded;
     }
-    if (loadIframeBundles) {
+    if (loadIframeBundles && !realPage) {
         await loadBundle("web.assets_frontend", {
             targetDoc: iframe.contentDocument,
-            js: loadAssetsFrontendJS,
+            js: false,
         });
     }
     await resolveIframeLoaded(iframe);
@@ -331,8 +314,55 @@ export async function setupWebsiteBuilder(
     };
 }
 
+// A page is more than its JS: the bootstrap, the templates and the bridge
+// registrations only exist on a server-rendered document, so a test that
+// wants the frontend running in the iframe gets the real page the action
+// would navigate to, and swaps its content for the test's.
+function navigateToRealPage(iframe) {
+    const ready = new Promise((resolve, reject) => {
+        iframe.addEventListener(
+            "load",
+            () => {
+                const win = iframe.contentWindow;
+                win.addEventListener(
+                    "PUBLIC-ROOT-READY",
+                    (ev) => resolve(ev.detail.env),
+                    { once: true },
+                );
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(`the public root of ${iframe.src} never booted`),
+                        ),
+                    10000,
+                );
+            },
+            { once: true },
+        );
+    });
+    iframe.src = iframe.dataset.src;
+    return ready;
+}
+
+async function installWebsiteContent(doc, publicEnv, bodyHTML) {
+    const interactions = publicEnv.services["public.interactions"];
+    interactions.stopInteractions();
+    const template = doc.createElement("template");
+    template.innerHTML = bodyHTML;
+    const nodes = [...template.content.childNodes].filter(
+        (node) => node.nodeType === Node.ELEMENT_NODE || node.textContent.trim(),
+    );
+    const wrapwrap = nodes.find((node) => node.id === "wrapwrap");
+    doc.getElementById("wrapwrap").replaceWith(wrapwrap);
+    for (const node of nodes) {
+        if (node !== wrapwrap) {
+            doc.body.insertBefore(node, wrapwrap);
+        }
+    }
+    await interactions.startInteractions();
+}
+
 async function openBuilderSidebar(editAssetsLoaded, app) {
-    // The next line allow us to await asynchronous fetches and cache them before it is used
     await Promise.all([
         getWebsiteSnippets(),
         loadBundle("website.website_builder_assets"),
@@ -341,22 +371,10 @@ async function openBuilderSidebar(editAssetsLoaded, app) {
 
     await click(".o-website-btn-custo-primary");
     await editAssetsLoaded;
-    // animationFrame linked to state.isEditing rendering the
-    // WebsiteBuilderClientAction.
     await animationFrame();
-    // tick needed to wait for the timeout in the WebsiteBuilderClientAction
-    // useEffect to be called before advancing time.
     await tick();
-    // advanceTime linked to the setTimeout in the WebsiteBuilderClientAction
-    // component that removes the systray items.
     await advanceTime(200);
     await animationFrame();
-    // Finish on an actual readiness signal rather than on the fixed delay
-    // above. The builder's option plugins register asynchronously, and a test
-    // that selects an element before that has landed gets an options container
-    // rendered with *no options in it* -- the failure then looks like "the
-    // option does not exist" and, being a race, showed up as a suite that is
-    // green on its own and red inside a full run.
     await waitFor(".o_builder_sidebar_open");
     if (app) {
         await waitUntilIdle([app]);

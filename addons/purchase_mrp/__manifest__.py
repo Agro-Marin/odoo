@@ -30,6 +30,5 @@ from purchase order.
             "purchase_mrp/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

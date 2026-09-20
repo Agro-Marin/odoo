@@ -30,39 +30,50 @@ class LunchAlert(models.Model):
     _description = "Lunch Alert"
     _order = "write_date desc, id"
 
-    name = fields.Char("Alert Name", required=True, translate=True)
-    message = fields.Html("Message", required=True, translate=True)
+    name = fields.Char(
+        string="Alert Name",
+        translate=True,
+        required=True,
+    )
+    message = fields.Html(
+        translate=True,
+        required=True,
+    )
 
     mode = fields.Selection(
-        [("alert", "Alert in app"), ("chat", "Chat notification")],
+        selection=[("alert", "Alert in app"), ("chat", "Chat notification")],
         string="Display",
         default="alert",
     )
     recipients = fields.Selection(
-        [
+        selection=[
             ("everyone", "Everyone"),
             ("last_week", "Employee who ordered last week"),
             ("last_month", "Employee who ordered last month"),
             ("last_year", "Employee who ordered last year"),
         ],
-        string="Recipients",
         default="everyone",
     )
-    notification_time = fields.Float(default=10.0, string="Notification Time")
+    notification_time = fields.Float(default=10.0)
     notification_moment = fields.Selection(
-        [("am", "AM"), ("pm", "PM")], default="am", required=True
+        selection=[("am", "AM"), ("pm", "PM")],
+        default="am",
+        required=True,
     )
     tz = fields.Selection(
-        _selection_timezones,
+        selection=_selection_timezones,
         string="Timezone",
-        required=True,
         default=lambda self: self.env.user.tz or "UTC",
+        required=True,
     )
     cron_id = fields.Many2one(
-        "ir.cron", ondelete="cascade", required=True, readonly=True
+        comodel_name="ir.cron",
+        readonly=True,
+        required=True,
+        ondelete="cascade",
     )
 
-    until = fields.Date("Show Until")
+    until = fields.Date(string="Show Until")
     mon = fields.Boolean(default=True)
     tue = fields.Boolean(default=True)
     wed = fields.Boolean(default=True)
@@ -72,14 +83,14 @@ class LunchAlert(models.Model):
     sun = fields.Boolean(default=True)
 
     available_today = fields.Boolean(
-        "Is Displayed Today",
+        string="Is Displayed Today",
         compute="_compute_available_today",
         search="_search_available_today",
     )
 
-    active = fields.Boolean("Active", default=True)
+    active = fields.Boolean(default=True)
 
-    location_ids = fields.Many2many("lunch.location", string="Location")
+    location_ids = fields.Many2many(comodel_name="lunch.location")
 
     _notification_time_range = models.Constraint(
         "CHECK(notification_time >= 0 and notification_time <= 12)",
@@ -154,8 +165,8 @@ class LunchAlert(models.Model):
                     {
                         "user_id": self.env.ref("base.user_root").id,
                         "active": False,
-                        "interval_type": "days",
-                        "interval_number": 1,
+                        "repeat_unit": "day",
+                        "repeat_interval": 1,
                         "name": "Lunch: alert chat notification",
                         "model_id": self.env["ir.model"]._get_id(self._name),
                         "state": "code",

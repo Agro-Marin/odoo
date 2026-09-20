@@ -12,7 +12,7 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     event_count = fields.Integer(
-        "# Events",
+        string="# Events",
         compute="_compute_event_count",
         groups="event.group_event_registration_desk",
     )
@@ -74,7 +74,7 @@ class ResPartner(models.Model):
         This should only remain valid for a relatively short time.
         Here, for the duration it is in cache.
         """
-        session = requests.Session()
+        session = self.env["ir.egress"].session(purpose="static_map")
         for partner in self:
             url = partner.static_map_url
             if not url:
@@ -115,16 +115,12 @@ class ResPartner(models.Model):
 
     def _google_map_signed_img(self, zoom=13, width=298, height=298):
         """Create a signed static image URL for the location of this partner."""
-        GOOGLE_MAPS_STATIC_API_KEY = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("google_maps.signed_static_api_key")
-        )
-        GOOGLE_MAPS_STATIC_API_SECRET = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("google_maps.signed_static_api_secret")
-        )
+        GOOGLE_MAPS_STATIC_API_KEY = self.env[
+            "credential.credential"
+        ]._get_system_secret("google_maps.signed_static_api_key")
+        GOOGLE_MAPS_STATIC_API_SECRET = self.env[
+            "credential.credential"
+        ]._get_system_secret("google_maps.signed_static_api_secret")
         if not GOOGLE_MAPS_STATIC_API_KEY or not GOOGLE_MAPS_STATIC_API_SECRET:
             return None
         api_secret_bytes = self._decode_google_maps_secret(

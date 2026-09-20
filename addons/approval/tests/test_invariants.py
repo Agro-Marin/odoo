@@ -32,13 +32,7 @@ class TestOnePersonOneApproval(ApprovalCommon):
         row_1 = request.approver_ids
         self._delegate(row_1, self.approver_2)
 
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": True,
-            },
-        )
+        category._add_approver(self.approver_2, required=True)
         request.write({"amount": 1.0})
 
         effective = [a._get_effective_approver() for a in request.approver_ids]
@@ -63,13 +57,7 @@ class TestOnePersonOneApproval(ApprovalCommon):
         )
         request = self._prepare_request(category, confirm=False)
         self._delegate(request.approver_ids, self.approver_2)
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": True,
-            },
-        )
+        category._add_approver(self.approver_2, required=True)
         request.write({"amount": 1.0})
         request.action_confirm()
 
@@ -167,35 +155,6 @@ class TestApproverUniquenessIsEnforcedInTheDatabase(ApprovalCommon):
                 approver_ids_computation=True,
             ).create({"request_id": request.id, "user_id": self.approver_1.id})
             self.env.flush_all()
-
-    def test_duplicate_category_approvers_are_rejected_on_direct_create(self):
-        category = self._make_category("A4 dup cat")
-        self.env["approval.category.approver"].create(
-            {"category_id": category.id, "user_id": self.approver_1.id},
-        )
-        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
-            self.env["approval.category.approver"].create(
-                {"category_id": category.id, "user_id": self.approver_1.id},
-            )
-            self.env.flush_all()
-
-    def test_category_minimum_is_checked_when_children_are_created_directly(self):
-        category = self._make_category("A4 minimum", approval_minimum=1)
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_1.id,
-                "required": True,
-            },
-        )
-        with self.assertRaises(ValidationError):
-            self.env["approval.category.approver"].create(
-                {
-                    "category_id": category.id,
-                    "user_id": self.approver_2.id,
-                    "required": True,
-                },
-            )
 
 
 @tagged("post_install", "-at_install")
@@ -317,7 +276,6 @@ class TestPredictionIsCurrencyAware(ApprovalCommon):
         category = self._make_category(
             "A4 currency",
             approvers=[(self.approver_1, True, 10)],
-            has_amount="optional",
         )
         for _index in range(4):
             historic = self._prepare_request(

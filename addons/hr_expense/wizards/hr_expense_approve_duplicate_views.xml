@@ -6,42 +6,42 @@
         <field name="arch" type="xml">
             <form string="Expense Validate Duplicate">
                 <p>The following approved expenses have similar employee, amount and category than some expenses of this report. Please verify this report does not contain duplicates.</p>
-                <field name="expense_ids" nolabel="1">
+                <field name="expense_ids">
                     <list>
                         <field name="date" readonly="1" />
                         <field
                             name="employee_id"
-                            readonly="1"
-                            widget="many2one_avatar_employee" />
+                            widget="many2one_avatar_employee"
+                            readonly="1" />
                         <field name="product_id" readonly="1" />
                         <field name="total_amount" readonly="1" />
                         <field name="name" readonly="1" />
                         <field
                             name="manager_id"
-                            readonly="1"
-                            widget="many2one_avatar_user" />
+                            widget="many2one_avatar_user"
+                            readonly="1" />
                         <field name="approval_date" readonly="1" />
                     </list>
                 </field>
                 <footer>
                     <button
-                        string="Refuse"
-                        class="btn-primary"
                         name="action_refuse"
                         type="object"
+                        string="Refuse"
                         invisible="not expense_ids"
+                        class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Approve"
-                        class="btn-secondary"
                         name="action_approve"
                         type="object"
+                        string="Approve"
                         invisible="not expense_ids"
+                        class="btn-secondary"
                         data-hotkey="w" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

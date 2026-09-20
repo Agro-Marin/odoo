@@ -33,10 +33,10 @@
                 <field
                     name="pos_config_ids"
                     string="Point of Sale"
+                    placeholder="All PoS"
                     widget="many2many_tags"
-                    invisible="not pos_ok"
                     options="{'create': False}"
-                    placeholder="All PoS" />
+                    invisible="not pos_ok" />
             </xpath>
         </field>
     </record>

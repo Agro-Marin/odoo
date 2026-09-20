@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_l10n_tr_nilvera"
+        name="GİB e-Dispatch"
+        parent="stock.menu_stock_config_settings"
+        sequence="100" />
+
+    <menuitem
+        id="menu_l10n_tr_nilvera_trailer_plate"
+        name="GİB Plate Numbers"
+        parent="menu_l10n_tr_nilvera"
+        action="action_l10n_tr_nilvera_trailer_plate"
+        sequence="200" />
+
+</odoo>

@@ -17,28 +17,36 @@ class SmsTwilioAccountManage(models.TransientModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.company,
+        readonly=True,
+        required=True,
     )
-    sms_provider = fields.Selection(related="company_id.sms_provider", readonly=False)
+    sms_provider = fields.Selection(
+        related="company_id.sms_provider",
+        readonly=False,
+    )
     sms_twilio_account_sid = fields.Char(
-        related="company_id.sms_twilio_account_sid", readonly=False
+        related="company_id.sms_twilio_account_sid",
+        readonly=False,
     )
     sms_twilio_auth_token = fields.Char(
-        related="company_id.sms_twilio_auth_token", readonly=False
+        related="company_id.sms_twilio_auth_token",
+        readonly=False,
     )
     sms_twilio_number_ids = fields.One2many(
-        related="company_id.sms_twilio_number_ids", readonly=False
+        related="company_id.sms_twilio_number_ids",
+        readonly=False,
     )
-    test_number = fields.Char("Test Number")
+    test_number = fields.Char()
 
     def action_reload_numbers(self):
         """Fetch the available numbers from Twilio account"""
         self.company_id._assert_twilio_sid()
         try:
-            response = requests.get(
+            response = self.env["ir.egress"].request(
+                "GET",
                 f"https://api.twilio.com/2010-04-01/Accounts/{self.company_id.sms_twilio_account_sid}/IncomingPhoneNumbers.json",
+                purpose="sms_twilio",
                 auth=(
                     self.company_id.sms_twilio_account_sid,
                     self.company_id.sms_twilio_auth_token,
@@ -65,10 +73,10 @@ class SmsTwilioAccountManage(models.TransientModel):
             country_code = phone_validation.phone_get_country_code_for_number(
                 twilio_number.get("phone_number")
             )
-            country_id = self.env["res.country"].search(
+            country_id = self.env["res.country"].search(  # noqa: E8507 - one lookup per number reported by Twilio
                 [("code", "=", country_code)], limit=1
             )
-            if not self.env["sms.twilio.number"].search_count(
+            if not self.env["sms.twilio.number"].search_count(  # noqa: E8507 - one lookup per number reported by Twilio
                 [
                     ("company_id", "=", self.company_id.id),
                     ("number", "=", twilio_number.get("phone_number")),

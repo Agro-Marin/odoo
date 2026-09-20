@@ -3,8 +3,11 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { VideoSelector } from "@html_editor/main/media/media_dialog/video_selector";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.website_background_video_plugin");
 
 /**
  * @typedef { Object } WebsiteBackgroundVideoShared
@@ -13,8 +16,6 @@ import { _t } from "@web/core/translation";
  */
 
 function getBgVideoOrParallax(editingElement) {
-    // Make sure parallax and video element are considered to be below the
-    // color filters / shape
     const bgVideoEl = editingElement.querySelector(":scope > .o_bg_video_container");
     if (bgVideoEl) {
         return bgVideoEl;
@@ -56,6 +57,7 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
         system_node_selectors: ".o_bg_video_container",
     };
     loadReplaceBackgroundVideo() {
+        log.lifecycle("WebsiteBackgroundVideoPlugin open video media dialog");
         return new Promise((resolve) => {
             const onClose = this.dependencies.media.openMediaDialog({
                 extraTabs: [
@@ -84,6 +86,9 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
                 ],
                 visibleTabs: ["VIDEO_BACKGROUND"],
                 save: (media) => {
+                    log.logic("WebsiteBackgroundVideoPlugin video chosen", () => ({
+                        src: media.querySelector("iframe")?.src,
+                    }));
                     resolve(media.querySelector("iframe").src);
                 },
             });
@@ -96,9 +101,16 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
         params: { forceClean = false },
     }) {
         if (!forceClean && !mediaSrc) {
-            // No video has been chosen by the user on the media dialog
+            log.logic("WebsiteBackgroundVideoPlugin apply skipped: no video chosen");
             return;
         }
+        log.pipeline(
+            "WebsiteBackgroundVideoPlugin applyReplaceBackgroundVideo",
+            () => ({
+                hasVideo: !!mediaSrc,
+                forceClean,
+            }),
+        );
         editingElement.classList.toggle("o_background_video", !!mediaSrc);
         if (mediaSrc) {
             editingElement.dataset.bgVideoSrc = mediaSrc;
@@ -107,13 +119,12 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
         }
     }
     /**
-     * Remove the current background video and notify listeners.
-     *
      * @param {Object} context
      * @param {HTMLElement} context.editingElement
      * @param {Object} [context.params]
      */
     removeBackgroundVideo({ editingElement, params }) {
+        log.pipeline("WebsiteBackgroundVideoPlugin removeBackgroundVideo");
         editingElement.querySelector(":scope > .o_we_bg_filter")?.remove();
         this.applyReplaceBackgroundVideo({
             editingElement,

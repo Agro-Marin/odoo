@@ -20,6 +20,8 @@ import { InvoiceButton } from "@point_of_sale/app/screens/ticket_screen/invoice_
 import { SearchBar } from "@point_of_sale/app/screens/ticket_screen/search_bar/search_bar";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { ConnectionLostError } from "@web/core/network";
@@ -31,6 +33,8 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { AlertDialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
 const NBR_BY_PAGE = 30;
+
+const log = makeLogger("pos.screen.ticket");
 
 export class TicketScreen extends Component {
     static storeOnOrder = false;
@@ -55,6 +59,7 @@ export class TicketScreen extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
@@ -106,6 +111,7 @@ export class TicketScreen extends Component {
             isValid: (value) => value > 0 && value <= 100,
         });
 
+        log.logic("onClickPageNbr", () => ({ nbr, filter: this.state.filter }));
         if (nbr && !isNaN(nbr)) {
             this.state.nbrByPage = parseInt(nbr);
             this.state.page = 1;
@@ -115,6 +121,11 @@ export class TicketScreen extends Component {
         }
     }
     async onPresetSelected(preset) {
+        log.logic("onPresetSelected", () => ({
+            preset: preset?.id,
+            toggleOff: this.state.selectedPreset === preset,
+            filter: this.state.filter,
+        }));
         if (this.state.selectedPreset === preset) {
             this.state.selectedPreset = null;
         } else {
@@ -135,6 +146,10 @@ export class TicketScreen extends Component {
         await this.pos.printReceipt({ order: order });
     }
     async onFilterSelected(selectedFilter) {
+        log.logic("onFilterSelected", () => ({
+            from: this.state.filter,
+            to: selectedFilter,
+        }));
         this.state.filter = selectedFilter;
         this.state.page = 1;
         this.pos.screenState.ticketScreen.totalCount = 0;
@@ -171,11 +186,13 @@ export class TicketScreen extends Component {
         try {
             uuid = new URL(qrcode).searchParams.get("order_uuid");
         } catch {
+            log.logic("onClickScanOrder: invalid url", () => ({ qrcode }));
             invalidQrCode();
             return;
         }
         const orders = await this.pos.data.loadServerOrders([["uuid", "=", uuid]]);
         const order = orders[0];
+        log.pipeline("onClickScanOrder", () => ({ uuid, found: Boolean(order) }));
         if (order) {
             this.state.filter = "SYNCED";
             this.setSelectedOrder(order);
@@ -185,6 +202,7 @@ export class TicketScreen extends Component {
         }
     }
     async onSearch(search) {
+        log.logic("onSearch", () => ({ search, filter: this.state.filter }));
         this.state.search = search;
         this.state.page = 1;
         if (this.state.filter === "SYNCED") {
@@ -192,6 +210,11 @@ export class TicketScreen extends Component {
         }
     }
     onClickOrder(clickedOrder) {
+        log.logic("onClickOrder", () => ({
+            order: clickedOrder?.uuid,
+            finalized: clickedOrder?.finalized,
+            selectedLine: this.getSelectedOrderlineId(),
+        }));
         this.setSelectedOrder(clickedOrder);
         this.numberBuffer.reset();
         if (
@@ -205,17 +228,30 @@ export class TicketScreen extends Component {
         }
     }
     onDblClickOrder(order) {
+        log.logic("onDblClickOrder", () => ({
+            order: order.uuid,
+            finalized: order.finalized,
+        }));
         if (!order.finalized) {
             this.setOrder(order);
         }
     }
     async onClickReprintAll(order) {
         const printingChanges = order.uiState?.lastPrints;
+        log.pipeline("onClickReprintAll", () => ({
+            order: order.uuid,
+            prints: printingChanges?.length ?? 0,
+        }));
         if (printingChanges) {
             await this.pos.printChanges(order, printingChanges, true);
         }
     }
     async onNextPage() {
+        log.logic("onNextPage", () => ({
+            page: this.state.page,
+            pages: this.getNbrPages(),
+            filter: this.state.filter,
+        }));
         if (this.state.page < this.getNbrPages()) {
             this.state.page += 1;
             if (this.state.filter === "SYNCED") {
@@ -224,6 +260,10 @@ export class TicketScreen extends Component {
         }
     }
     async onPrevPage() {
+        log.logic("onPrevPage", () => ({
+            page: this.state.page,
+            filter: this.state.filter,
+        }));
         if (this.state.page > 1) {
             this.state.page -= 1;
             if (this.state.filter === "SYNCED") {
@@ -247,17 +287,32 @@ export class TicketScreen extends Component {
         const refundOrder = this.pos.models["pos.order"].find(
             (order) => order.uuid === orderUuid,
         );
+        log.logic("onClickRefundOrderUid", () => ({
+            orderUuid,
+            found: Boolean(refundOrder),
+        }));
         if (refundOrder) {
             this.setOrder(refundOrder);
         }
     }
     _setToRefundDetail(toRefundDetail, buffer) {
         if (toRefundDetail.destinationOrder) {
+            log.logic("setToRefundDetail: already has destination", () => ({
+                line: toRefundDetail.line?.uuid,
+                destination: toRefundDetail.destinationOrder?.uuid,
+            }));
             return this.numberBuffer.reset();
         }
 
         toRefundDetail.refundableQty =
             toRefundDetail.line.qty - toRefundDetail.line.refundedQty;
+        log.logic("setToRefundDetail", () => ({
+            line: toRefundDetail.line.uuid,
+            buffer,
+            qty: toRefundDetail.line.qty,
+            refunded: toRefundDetail.line.refundedQty,
+            refundableQty: toRefundDetail.refundableQty,
+        }));
         if (toRefundDetail.refundableQty <= 0) {
             return this.numberBuffer.reset();
         }
@@ -267,6 +322,12 @@ export class TicketScreen extends Component {
         } else {
             const quantity = Math.abs(parseFloat(buffer));
             if (quantity > toRefundDetail.refundableQty) {
+                log.logic("setToRefundDetail: exceeds refundable", () => ({
+                    line: toRefundDetail.line.uuid,
+                    quantity,
+                    refundableQty: toRefundDetail.refundableQty,
+                    combo: Boolean(toRefundDetail.line.combo_parent_id),
+                }));
                 this.numberBuffer.reset();
                 if (!toRefundDetail.line.combo_parent_id) {
                     this.dialog.add(AlertDialog, {
@@ -291,6 +352,13 @@ export class TicketScreen extends Component {
 
         const selectedOrderlineId = this.getSelectedOrderlineId();
         let orderline = order.lines.find((line) => line.id === selectedOrderlineId);
+        log.logic("onUpdateSelectedOrderline", () => ({
+            order: order.uuid,
+            line: orderline?.uuid,
+            key,
+            buffer,
+            combo: orderline?.isPartOfCombo(),
+        }));
         if (!orderline) {
             return this.numberBuffer.reset();
         }
@@ -323,18 +391,31 @@ export class TicketScreen extends Component {
     async onDoRefund() {
         this.numberBuffer.capture();
         const order = this.getSelectedOrder();
+        log.logic("onDoRefund", () => ({
+            order: order?.uuid,
+            lines: order?.lines?.length,
+        }));
 
         if (order && this._doesOrderHaveSoleItem(order)) {
-            if (!this._prepareAutoRefundOnOrder(order)) {
+            const prepared = this._prepareAutoRefundOnOrder(order);
+            log.logic("onDoRefund: sole item auto refund", () => ({
+                order: order.uuid,
+                prepared,
+            }));
+            if (!prepared) {
                 return;
             }
         }
 
         if (!order || !this.getHasItemsToRefund()) {
+            log.logic("onDoRefund: nothing to refund", () => ({ order: order?.uuid }));
             return;
         }
 
         if (order.fiscal_position_not_found) {
+            log.logic("onDoRefund: fiscal position not loaded", () => ({
+                order: order.uuid,
+            }));
             this.dialog.add(AlertDialog, {
                 title: _t("Fiscal Position not found"),
                 body: _t(
@@ -346,10 +427,21 @@ export class TicketScreen extends Component {
 
         const partner = order.getPartner();
         const refundableDetails = this._getRefundableDetails(partner, order);
+        log.logic("onDoRefund: refundable", () => ({
+            order: order.uuid,
+            partner: partner?.id,
+            details: refundableDetails.map((d) => ({ line: d.line.uuid, qty: d.qty })),
+        }));
         if (refundableDetails.length === 0) {
             return;
         }
         const destinationOrder = this._getEmptyOrder(partner);
+        log.pipeline("onDoRefund: destination", () => ({
+            order: order.uuid,
+            destination: destinationOrder.uuid,
+            pricelist: order.pricelist_id?.id,
+            fiscalPosition: order.fiscal_position_id?.id,
+        }));
 
         destinationOrder.is_refund = true;
         destinationOrder.pricelist_id = order.pricelist_id;
@@ -386,6 +478,15 @@ export class TicketScreen extends Component {
         const refundComboParentLines = lines.filter(
             (l) => l.refunded_orderline_id.combo_line_ids.length > 0,
         );
+        log.lifecycle("onDoRefund: lines created", () => ({
+            destination: destinationOrder.uuid,
+            lines: lines.map((l) => ({
+                line: l.uuid,
+                qty: l.qty,
+                product: l.product_id?.id,
+            })),
+            comboParents: refundComboParentLines.length,
+        }));
         for (const refundComboParent of refundComboParentLines) {
             const children = refundComboParent.refunded_orderline_id.combo_line_ids
                 .map((l) => l.refund_orderline_ids)
@@ -408,6 +509,7 @@ export class TicketScreen extends Component {
     }
 
     async onDeleteOrder(order) {
+        log.logic("onDeleteOrder", () => ({ order: order.uuid, id: order.id }));
         await this.pos.onDeleteOrder(order);
         this.setSelectedOrder(this.pos.getOrder());
     }
@@ -451,6 +553,8 @@ export class TicketScreen extends Component {
             this.state.filter === "SYNCED"
                 ? orderModel.filter((o) => o.finalized && o.uiState.displayed)
                 : orderModel.filter(this.activeOrderFilter);
+        const endFilter = log.perf("getFilteredOrders");
+        const candidates = orders.length;
 
         if (
             this.state.filter &&
@@ -479,7 +583,7 @@ export class TicketScreen extends Component {
         }
 
         const ascending = this.state.filter !== "SYNCED";
-        return orders.sort((a, b) => {
+        const sorted = orders.sort((a, b) => {
             const dateA = a.date_order;
             const dateB = b.date_order;
             if (!dateA.equals(dateB)) {
@@ -489,6 +593,14 @@ export class TicketScreen extends Component {
             const nameB = parseInt(b.pos_reference.replace(/\D/g, "")) || 0;
             return ascending ? nameA - nameB : nameB - nameA;
         });
+        endFilter({
+            filter: this.state.filter,
+            search: this.state.search.searchTerm,
+            preset: this.state.selectedPreset?.id,
+            candidates,
+            result: sorted.length,
+        });
+        return sorted;
     }
 
     getFilteredOrderList() {
@@ -629,6 +741,12 @@ export class TicketScreen extends Component {
                 }
             }
         }
+        log.logic("getEmptyOrder", () => ({
+            partner: partner?.id,
+            forPartner: emptyOrderForPartner?.uuid,
+            any: emptyOrder?.uuid,
+            create: !emptyOrderForPartner && !emptyOrder,
+        }));
         return (
             emptyOrderForPartner ||
             emptyOrder ||
@@ -697,6 +815,10 @@ export class TicketScreen extends Component {
     }
 
     async setOrder(order) {
+        log.pipeline("setOrder", () => ({
+            order: order.uuid,
+            shareable: this.pos.config.isShareable,
+        }));
         if (this.pos.config.isShareable) {
             await this.pos.syncAllOrders();
         }
@@ -708,6 +830,10 @@ export class TicketScreen extends Component {
         const order = this.pos.createNewOrder({
             preset_id: this.state.selectedPreset || null,
         });
+        log.lifecycle("onClickNewOrder", () => ({
+            order: order.uuid,
+            preset: this.state.selectedPreset?.id,
+        }));
         this.pos.selectedOrderUuid = order.uuid;
         this.pos.addPendingOrder([order.id]);
         this.pos.navigateToOrderScreen(order);
@@ -829,7 +955,14 @@ export class TicketScreen extends Component {
         const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
         const offset = (this.state.page - 1) * this.state.nbrByPage;
+        log.pipeline("fetchSyncedOrders", () => ({
+            domain,
+            offset,
+            limit: this.state.nbrByPage,
+            page: this.state.page,
+        }));
         const config_id = this.pos.config.id;
+        const endFetch = log.perf("fetchSyncedOrders");
         const { ordersInfo, totalCount } = await this.pos.data.call(
             "pos.order",
             "search_paid_order_ids",
@@ -861,11 +994,17 @@ export class TicketScreen extends Component {
             })
             .map((info) => info[0]);
 
+        log.logic("fetchSyncedOrders: cache", () => ({
+            page: ordersInfo.length,
+            totalCount,
+            toLoad: idsNotInCacheOrOutdated.length,
+        }));
         if (idsNotInCacheOrOutdated.length > 0) {
             await this.pos.data.loadServerOrders([
                 ["id", "in", Array.from(new Set(idsNotInCacheOrOutdated))],
             ]);
         }
+        endFetch({ page: ordersInfo.length, loaded: idsNotInCacheOrOutdated.length });
     }
     getPresetTimeColor(order) {
         const slot = order.preset_id.currentSlot;

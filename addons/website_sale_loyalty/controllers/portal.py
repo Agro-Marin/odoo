@@ -7,7 +7,6 @@ from odoo.addons.loyalty.controllers import portal as loyalty_portal
 class CustomerPortalLoyalty(loyalty_portal.CustomerPortalLoyalty):
     @route()
     def portal_get_card_history_values(self, card_id):
-        """Add published trigger products for the loyalty program."""
         res = super().portal_get_card_history_values(card_id)
         program_sudo = (
             request.env["loyalty.program"]

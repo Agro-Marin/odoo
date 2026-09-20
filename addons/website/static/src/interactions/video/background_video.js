@@ -1,22 +1,23 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { Interaction } from "@web/public/interaction";
+import { isYoutubeUrl, parseVideoUrl } from "@website/utils/video_urls";
 import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";
+
+const log = makeLogger("website.interaction.background_video");
 
 export class BackgroundVideo extends Interaction {
     static selector = ".o_background_video";
     dynamicSelectors = {
         ...this.dynamicSelectors,
         _dropdown: () => this.el.closest(".dropdown-menu")?.parentElement,
-        _modal: () => this.el.closest("modal"),
+        _modal: () => this.el.closest(".modal"),
     };
     dynamicContent = {
         _document: {
-            // We don't add the optional cookies warning for background videos
-            // so that the fallback message doesn't appear behind the content.
-            "t-on-optionalCookiesAccepted.once": () =>
-                (this.iframeEl.src = this.videoSrc),
+            "t-on-optionalCookiesAccepted.once": this.onOptionalCookiesAccepted,
         },
         _window: {
             "t-on-resize": this.throttled(this.adjustIframe),
@@ -37,31 +38,65 @@ export class BackgroundVideo extends Interaction {
 
     setup() {
         this.hideVideoContainer = false;
-        this.videoSrc = this.el.dataset.bgVideoSrc;
+        this.cookiesAccepted = !this.el.closest("[data-need-cookies-approval]");
+        const url = parseVideoUrl(this.el.dataset.bgVideoSrc);
+        if (isYoutubeUrl(url)) {
+            url.searchParams.set("enablejsapi", "1");
+        }
+        this.videoSrc = url?.href || "about:blank";
         this.iframeID = uniqueId("o_bg_video_iframe_");
         this.iframeEl = null;
         this.bgVideoContainer = null;
+        log.lifecycle("BackgroundVideo setup", () => ({
+            videoSrc: this.videoSrc,
+            iframeID: this.iframeID,
+        }));
     }
 
     start() {
-        const promise = setupAutoplay(
-            this.videoSrc,
-            !!this.el.dataset.needCookiesApproval,
-        );
-        if (promise) {
-            this.videoSrc += "&enablejsapi=1";
-            this.waitFor(promise).then(this.bindDeferred(this.appendBgVideo));
-        }
+        // Render independently of an optional provider API download.
+        this.waitFor().then(this.bindDeferred(this.appendBgVideo));
         this.__adjustIframe = this.throttled(this.adjustIframe);
         const resizeObserver = new ResizeObserver(this.__adjustIframe.bind(this));
-        // A change in an element padding does not trigger the resizeObserver so
-        // both inner and outer element are observed for any resizing.
         resizeObserver.observe(this.el.parentElement);
         resizeObserver.observe(this.el);
-        // The observer (and the iframe/closure it retains) must be torn down
-        // when the interaction is destroyed (edit-mode toggle, preview restart),
-        // otherwise it leaks on every re-init.
+        log.lifecycle("BackgroundVideo resize observer attached", () => ({
+            iframeID: this.iframeID,
+        }));
         this.registerCleanup(() => resizeObserver.disconnect());
+    }
+
+    onOptionalCookiesAccepted() {
+        if (this.cookiesAccepted) {
+            return;
+        }
+        this.cookiesAccepted = true;
+        if (this.iframeEl) {
+            this.iframeEl.src = this.videoSrc;
+            this.activateAutoplay();
+        }
+        log.lifecycle("BackgroundVideo cookies accepted", () => ({
+            hasIframe: !!this.iframeEl,
+        }));
+    }
+
+    activateAutoplay() {
+        const iframe = this.iframeEl;
+        const src = iframe.getAttribute("src");
+        const request = {};
+        this.autoplayRequest = request;
+        const canPlay = () =>
+            !this.isDestroyed &&
+            this.autoplayRequest === request &&
+            iframe === this.iframeEl &&
+            this.el.contains(iframe);
+        this.waitFor(setupAutoplay(this.videoSrc, !this.cookiesAccepted)).then(
+            this.bindDeferred(() => {
+                if (canPlay() && iframe.getAttribute("src") === src) {
+                    triggerAutoplay(iframe, canPlay);
+                }
+            }),
+        );
     }
 
     adjustIframe() {
@@ -76,9 +111,6 @@ export class BackgroundVideo extends Interaction {
         const relativeRatio = wrapperWidth / wrapperHeight / (16 / 9);
 
         if (this.el.closest(".s_ecomm_categories_showcase_block")) {
-            // Chrome-only: percentage sizing makes the video in "Categories
-            // Showcase" snippet jitter on hover, so force pixel values while
-            // keeping the ratio.
             const iframeHeight = Math.round(
                 relativeRatio >= 1 ? wrapperWidth * (9 / 16) : wrapperHeight,
             );
@@ -101,18 +133,23 @@ export class BackgroundVideo extends Interaction {
             this.iframeEl.style.insetBlockStart = "0";
         }
 
-        void this.iframeEl.offsetWidth; // Force style addition
+        void this.iframeEl.offsetWidth;
         this.iframeEl.classList.add("show");
     }
 
     appendBgVideo() {
-        const allowedCookies = !this.el.dataset.needCookiesApproval;
+        const allowedCookies = this.cookiesAccepted;
 
         const oldContainer =
             this.bgVideoContainer ||
             this.el.querySelector(":scope > .o_bg_video_container");
         oldContainer?.remove();
 
+        log.logic("BackgroundVideo appendBgVideo", () => ({
+            allowedCookies,
+            replacedContainer: !!oldContainer,
+        }));
+        const endRender = log.perf("BackgroundVideo appendBgVideo: render");
         this.renderAt(
             "website.background.video",
             {
@@ -122,6 +159,7 @@ export class BackgroundVideo extends Interaction {
             this.el,
             "afterbegin",
         );
+        endRender();
 
         this.bgVideoContainer = this.el.querySelector(":scope > .o_bg_video_container");
         this.iframeEl = this.bgVideoContainer.querySelector(".o_bg_video_iframe");
@@ -129,17 +167,17 @@ export class BackgroundVideo extends Interaction {
             this.iframeEl,
             "load",
             () => {
+                log.lifecycle("BackgroundVideo iframe loaded", () => ({
+                    iframeID: this.iframeID,
+                }));
                 this.bgVideoContainer.querySelector(".o_bg_video_loading")?.remove();
-                // When there is a "slide in (left or right) animation" element,
-                // we need to adjust the iframe size once it has been loaded,
-                // otherwise an horizontal scrollbar may appear.
                 this.adjustIframe();
             },
             { once: true },
         );
 
         this.adjustIframe();
-        triggerAutoplay(this.iframeEl);
+        this.activateAutoplay();
     }
 }
 

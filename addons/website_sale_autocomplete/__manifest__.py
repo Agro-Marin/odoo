@@ -1,6 +1,6 @@
 {
     "name": "Google places autocompletion",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Website/Website",
     "summary": "Assist your users with automatic completion & suggestions when filling their address during checkout",
     "description": "Assist your users with automatic completion & suggestions when filling their address during checkout",
@@ -24,6 +24,5 @@
             "website_sale_autocomplete/static/tests/**/*.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

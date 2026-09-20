@@ -2,8 +2,11 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
+
+_debug = DebugLog(__name__)
 
 
 class MrpUnbuild(models.Model):
@@ -13,47 +16,50 @@ class MrpUnbuild(models.Model):
     _order = "id desc"
 
     name = fields.Char(
-        "Reference", copy=False, readonly=True, default=lambda s: s.env._("New")
+        string="Reference",
+        default=lambda s: s.env._("New"),
+        copy=False,
+        readonly=True,
     )
     product_id = fields.Many2one(
-        "product.product",
-        "Product",
-        check_company=True,
-        domain="[('type', '=', 'consu')]",
+        comodel_name="product.product",
         compute="_compute_product_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         required=True,
+        domain="[('type', '=', 'consu')]",
+        check_company=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        "Company",
+        comodel_name="res.company",
         default=lambda s: s.env.company,
-        required=True,
         index=True,
+        required=True,
     )
     product_qty = fields.Float(
-        "Quantity",
+        string="Quantity",
         digits="Product Unit",
         compute="_compute_product_qty",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         required=True,
     )
     product_uom_id = fields.Many2one(
-        "uom.uom",
-        "Unit",
+        comodel_name="uom.uom",
+        string="Unit",
         compute="_compute_product_uom_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         required=True,
     )
     bom_id = fields.Many2one(
-        "mrp.bom",
-        "Bill of Material",
+        comodel_name="mrp.bom",
+        string="Bill of Material",
+        compute="_compute_bom_id",
+        store=True,
         domain="""[
         '|',
             ('product_id', '=', product_id),
@@ -65,67 +71,75 @@ class MrpUnbuild(models.Model):
             ('company_id', '=', company_id),
             ('company_id', '=', False)
         ]""",
-        compute="_compute_bom_id",
-        store=True,
         check_company=True,
     )
     mo_id = fields.Many2one(
-        "mrp.production",
-        "Manufacturing Order",
+        comodel_name="mrp.production",
+        string="Manufacturing Order",
+        index="btree_not_null",
         domain="[('state', '=', 'done'), ('product_id', '=?', product_id), ('bom_id', '=?', bom_id)]",
         check_company=True,
-        index="btree_not_null",
     )
     mo_bom_id = fields.Many2one(
-        "mrp.bom",
-        "Bill of Material used on the Production Order",
+        comodel_name="mrp.bom",
         related="mo_id.bom_id",
+        string="Bill of Material used on the Production Order",
     )
     lot_producing_ids = fields.Many2many(
-        "stock.lot", string="Lot/Serial Numbers", related="mo_id.lot_producing_ids"
+        comodel_name="stock.lot",
+        related="mo_id.lot_producing_ids",
+        string="Lot/Serial Numbers",
     )
     lot_id = fields.Many2one(
-        "stock.lot",
-        "Lot/Serial Number",
+        comodel_name="stock.lot",
+        string="Lot/Serial Number",
         domain="[('product_id', '=', product_id),('id', 'in', lot_producing_ids)]",
         check_company=True,
     )
-    has_tracking = fields.Selection(related="product_id.tracking", readonly=True)
+    has_tracking = fields.Selection(
+        related="product_id.tracking",
+        readonly=True,
+    )
     location_id = fields.Many2one(
-        "stock.location",
-        "Source Location",
-        domain="[('usage','=','internal')]",
-        check_company=True,
+        comodel_name="stock.location",
+        string="Source Location",
         compute="_compute_locations",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         required=True,
+        domain="[('usage','=','internal')]",
+        check_company=True,
         help="Location where the product you want to unbuild is.",
     )
     location_dest_id = fields.Many2one(
-        "stock.location",
-        "Destination Location",
-        domain="[('usage','=','internal')]",
-        check_company=True,
+        comodel_name="stock.location",
+        string="Destination Location",
         compute="_compute_locations",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
         required=True,
+        domain="[('usage','=','internal')]",
+        check_company=True,
         help="Location where you want to send the components resulting from the unbuild order.",
     )
     consume_line_ids = fields.One2many(
-        "stock.move",
-        "consume_unbuild_id",
-        readonly=True,
+        comodel_name="stock.move",
+        inverse_name="consume_unbuild_id",
         string="Consumed Disassembly Lines",
+        readonly=True,
     )
     produce_line_ids = fields.One2many(
-        "stock.move", "unbuild_id", readonly=True, string="Processed Disassembly Lines"
+        comodel_name="stock.move",
+        inverse_name="unbuild_id",
+        string="Processed Disassembly Lines",
+        readonly=True,
     )
     state = fields.Selection(
-        [("draft", "Draft"), ("done", "Done")], string="Status", default="draft"
+        selection=[("draft", "Draft"), ("done", "Done")],
+        string="Status",
+        default="draft",
     )
 
     _qty_positive = models.Constraint(
@@ -144,14 +158,16 @@ class MrpUnbuild(models.Model):
     @api.depends("company_id")
     def _compute_locations(self):
         warehouse_by_company = {}
-        for company in self.company_id:
-            warehouse_by_company[company.id] = self.env["stock.warehouse"].search(
-                [("company_id", "=", company.id)], limit=1
-            )
+        for warehouse in self.env["stock.warehouse"].search(
+            [("company_id", "in", self.company_id.ids)]
+        ):
+            warehouse_by_company.setdefault(warehouse.company_id.id, warehouse)
         for order in self:
             if not order.company_id:
                 continue
-            stock_location = warehouse_by_company[order.company_id.id].lot_stock_id
+            stock_location = warehouse_by_company.get(
+                order.company_id.id, self.env["stock.warehouse"]
+            ).lot_stock_id
             if order.location_id.company_id != order.company_id:
                 order.location_id = stock_location
             if order.location_dest_id.company_id != order.company_id:
@@ -193,11 +209,13 @@ class MrpUnbuild(models.Model):
                 vals["name"] = self.env["ir.sequence"].next_by_code("mrp.unbuild") or _(
                     "New"
                 )
+        _debug.lifecycle("create", count=len(vals_list))
         return super().create(vals_list)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_done(self):
         if "done" in self.mapped("state"):
+            _debug.logic("unbuild_refused", reason="delete_done", unbuilds=self)
             raise UserError(
                 _("You cannot delete an unbuild order if the state is 'Done'.")
             )
@@ -229,17 +247,21 @@ class MrpUnbuild(models.Model):
         self._check_company()
         self = self.with_env(self.env(context=clean_context(self.env.context)))
         if self.product_id.tracking != "none" and not self.lot_id.id:
+            _debug.logic("unbuild_refused", reason="no_lot", unbuild=self.id)
             raise UserError(_("You should provide a lot number for the final product."))
 
         if self.mo_id and self.mo_id.state != "done":
+            _debug.logic("unbuild_refused", reason="mo_not_done", unbuild=self.id)
             raise UserError(_("You cannot unbuild a undone manufacturing order."))
 
         if self.mo_id and self.mo_id.product_uom_id.is_zero(self.mo_id.qty_produced):
+            _debug.logic("unbuild_refused", reason="nothing_produced", unbuild=self)
             raise UserError(
                 _("You cannot unbuild a manufacturing order that produced nothing.")
             )
 
         if not self.mo_id and not self.bom_id:
+            _debug.logic("unbuild_refused", reason="no_bom_no_mo", unbuild=self.id)
             raise UserError(
                 _(
                     "%(product)s has no bill of materials, so there is nothing to"
@@ -254,6 +276,7 @@ class MrpUnbuild(models.Model):
         produce_moves = self._create_produce_moves()
         produce_moves._action_confirm()
         produce_moves.quantity = 0
+        _debug.pipeline("unbuild", consume=consume_moves, produce=produce_moves)
 
         previously_unbuilt_lots = (
             (self.mo_id.unbuild_ids - self)
@@ -358,6 +381,7 @@ class MrpUnbuild(models.Model):
                 move.quantity += needed_quantity
 
         unbuild_lines._apply_putaway_strategy()
+        _debug.pipeline("unbuild_lines_built", unbuild=self.id, lines=unbuild_lines)
 
         (finished_moves | consume_moves | produce_moves).picked = True
         finished_moves._action_done()
@@ -369,6 +393,7 @@ class MrpUnbuild(models.Model):
         consume_moves.mapped("move_line_ids").write(
             {"produce_line_ids": [(6, 0, produced_move_line_ids.ids)]}
         )
+        _debug.lifecycle("unbuild_done", unbuild=self.id, mo=self.mo_id)
         if self.mo_id:
             unbuild_msg = _(
                 "%(qty)s %(measure)s unbuilt in %(order)s",
@@ -385,11 +410,11 @@ class MrpUnbuild(models.Model):
     def _get_unbuild_factor(self):
         self.check_singleton()
         if self.mo_id:
-            return self.product_qty / self.mo_id.product_uom_id._compute_quantity(
+            return self.product_qty / self.mo_id.product_uom_id._get_quantity_in_unit(
                 self.mo_id.qty_produced, self.product_uom_id
             )
         return (
-            self.product_uom_id._compute_quantity(
+            self.product_uom_id._get_quantity_in_unit(
                 self.product_qty, self.bom_id.product_uom_id
             )
             / self.bom_id.product_qty
@@ -424,6 +449,7 @@ class MrpUnbuild(models.Model):
                         quantity,
                         byproduct_id=byproduct.id,
                     )
+        _debug.pipeline("unbuild_consume_moves", unbuilds=self, moves=moves)
         return moves
 
     def _create_produce_moves(self):
@@ -454,6 +480,7 @@ class MrpUnbuild(models.Model):
                         line_data["qty"],
                         bom_line_id=line.id,
                     )
+        _debug.pipeline("unbuild_produce_moves", unbuilds=self, moves=moves)
         return moves
 
     def _create_move_from_existing_move(
@@ -509,8 +536,14 @@ class MrpUnbuild(models.Model):
         available_qty = self.env["stock.quant"]._get_available_quantity(
             self.product_id, self.location_id, self.lot_id, strict=True
         )
-        unbuild_qty = self.product_uom_id._compute_quantity(
+        unbuild_qty = self.product_uom_id._get_quantity_in_unit(
             self.product_qty, self.product_id.uom_id
+        )
+        _debug.logic(
+            "unbuild_availability",
+            unbuild=self.id,
+            available=available_qty,
+            wanted=unbuild_qty,
         )
         if float_compare(available_qty, unbuild_qty, precision_digits=precision) >= 0:
             return self.action_unbuild()

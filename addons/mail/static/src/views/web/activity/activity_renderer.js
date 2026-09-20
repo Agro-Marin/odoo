@@ -7,7 +7,10 @@ import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.activity.view");
 export class ActivityRenderer extends Component {
     static components = {
         ActivityCell,
@@ -195,6 +198,11 @@ export class ActivityRenderer extends Component {
      */
     onSetProgressBarState(typeId, bar) {
         const name = typeof bar === "string" ? bar : bar.value;
+        log.logic("onSetProgressBarState", () => ({
+            typeId,
+            name,
+            clear: this.activeFilter.progressValue.active === name,
+        }));
         if (this.activeFilter.progressValue.active === name) {
             this.activeFilter.progressValue.active = null;
             this.activeFilter.activityTypeId = null;
@@ -238,6 +246,10 @@ export class ActivityRenderer extends Component {
     /** @param {number} typeId */
     toggleDisplayColumn(typeId) {
         this.storageActiveColumns[typeId] = !this.storageActiveColumns[typeId];
+        log.logic("toggleDisplayColumn", () => ({
+            typeId,
+            active: this.storageActiveColumns[typeId],
+        }));
         browser.localStorage.setItem(
             this.storageKey.join(","),
             Object.keys(this.storageActiveColumns)

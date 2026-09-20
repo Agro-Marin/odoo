@@ -22,7 +22,7 @@
             t-att-src="image_data_uri(category.image_1920)"
             class="fa-solid me-2"
             alt="" />
-        <b t-esc="category.name" />
+        <b t-out="category.name" />
         </a>
         </t>
         </nav>

@@ -4,11 +4,11 @@ import { getMessagePostParams } from "@mail/core/common/message_post";
 import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { assignDefined, makeSequential } from "@mail/utils/common/misc";
-import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, delay } from "@web/core/utils/concurrency";
 /**
  * @typedef SuggestedRecipient
  * @property {string} [display_name]
@@ -17,6 +17,18 @@ import { Deferred } from "@web/core/utils/concurrency";
  * @property {string} [lang]
  * @property {number | false} [partner_id]
  */
+
+const log = makeLogger("mail.thread");
+
+/**
+ * @param {{name: string, displayName?: string}} [persona]
+ * @returns {string|undefined}
+ */
+export function getPersonaName(persona) {
+    const displayName =
+        persona && "displayName" in persona ? persona.displayName : undefined;
+    return displayName || persona?.name;
+}
 
 export class Thread extends Record {
     static id = AND("model", "id");
@@ -58,8 +70,14 @@ export class Thread extends Record {
         const promiseKey = `${baseKey},${missingFieldNames.join(",")}`;
         const pending = store._threadFetchPromises.get(promiseKey);
         if (pending) {
+            log.logic("getOrFetch dedup", () => ({ promiseKey }));
             return pending;
         }
+        log.pipeline("getOrFetch", () => ({
+            baseKey,
+            known: Boolean(thread),
+            missing: missingFieldNames,
+        }));
         const promise = (async () => {
             try {
                 await store.fetchStoreData("mixin.mail.thread", {
@@ -88,6 +106,10 @@ export class Thread extends Record {
                 for (const fieldName of stillMissing) {
                     store._threadFetchAttempted.add(`${baseKey},${fieldName}`);
                 }
+                log.logic("getOrFetch fields absent from response", () => ({
+                    baseKey,
+                    stillMissing,
+                }));
                 console.warn(
                     `Thread.getOrFetch: fields [${stillMissing.join(", ")}] of thread ${baseKey} were requested but absent from the server response; they will not be requested again.`,
                 );
@@ -295,8 +317,14 @@ export class Thread extends Record {
     /** @type {number | "bottom" | "bottom-smooth"} */
     scrollTop = "bottom";
     transientMessages = fields.Many("mail.message");
+    /** @type {SuggestedRecipient[]} */
     additionalRecipients = fields.Attr([]);
+    /** @type {SuggestedRecipient[]} */
     suggestedRecipients = fields.Attr([]);
+    /** @returns {SuggestedRecipient[]} */
+    get allRecipients() {
+        return [...this.suggestedRecipients, ...this.additionalRecipients];
+    }
     /** @type {String[]|undefined} */
     partner_fields;
     /** @type {String|undefined} */
@@ -375,9 +403,7 @@ export class Thread extends Record {
      * @returns {string}
      */
     getPersonaName(persona) {
-        const displayName =
-            persona && "displayName" in persona ? persona.displayName : undefined;
-        return displayName || persona?.name;
+        return getPersonaName(persona);
     }
 
     /** @returns {boolean} */
@@ -422,13 +448,12 @@ export class Thread extends Record {
     }
 
     get lastEditableMessageOfSelf() {
-        const editableMessagesBySelf = this.nonEmptyMessages.filter(
-            (message) => message.isSelfAuthored && message.editable,
+        return (
+            this.messages.findLast(
+                (message) =>
+                    !message.isEmpty && message.isSelfAuthored && message.editable,
+            ) ?? null
         );
-        if (editableMessagesBySelf.length > 0) {
-            return editableMessagesBySelf.at(-1);
-        }
-        return null;
     }
 
     get needactionCounter() {
@@ -446,7 +471,7 @@ export class Thread extends Record {
     get newestPersistentMessage() {
         return this.messages.findLast(
             /** @returns {msg is import("models").Message & {id: number}} */ (msg) =>
-                Number.isInteger(msg.id),
+                msg.persistent,
         );
     }
 
@@ -455,10 +480,7 @@ export class Thread extends Record {
         compute() {
             let newest;
             for (const message of this.allMessages) {
-                if (
-                    Number.isInteger(message.id) &&
-                    (!newest || message.id > newest.id)
-                ) {
+                if (message.persistent && (!newest || message.id > newest.id)) {
                     newest = message;
                 }
             }
@@ -469,7 +491,7 @@ export class Thread extends Record {
     get oldestPersistentMessage() {
         return this.messages.find(
             /** @returns {msg is import("models").Message & {id: number}} */ (msg) =>
-                Number.isInteger(msg.id),
+                msg.persistent,
         );
     }
 
@@ -489,9 +511,7 @@ export class Thread extends Record {
     }
 
     get persistentMessages() {
-        return this.messages.filter(
-            (message) => !message.is_transient && !message.isPending,
-        );
+        return this.messages.filter((message) => message.persistent);
     }
 
     get prefix() {
@@ -515,23 +535,32 @@ export class Thread extends Record {
     /** @param {{after?: number, around?: number | string, before?: number}} [param0] */
     async fetchMessages({ after, around, before } = {}) {
         this.status = "loading";
+        log.pipeline("fetchMessages", () => ({
+            thread: this.localId,
+            after,
+            around,
+            before,
+        }));
         if (!this.canFetchMessages) {
             this.isLoaded = true;
             this.status = "ready";
             return [];
         }
         let res;
+        const endFetch = log.perf("fetchMessages");
         try {
             res = await this.fetchMessagesData({ after, around, before });
             this.hasLoadingFailedError = undefined;
             this.hasLoadingFailed = false;
         } catch (e) {
+            endFetch({ thread: this.localId, failed: true });
             this.hasLoadingFailed = true;
             this.hasLoadingFailedError = e;
             this.isLoaded = true;
             this.status = "ready";
             throw e;
         }
+        endFetch({ thread: this.localId, messages: res.messages.length });
         this.store.insert(res.data);
         const msgs = this.store["mail.message"].insert(res.messages.reverse());
         this.isLoaded = true;
@@ -562,6 +591,13 @@ export class Thread extends Record {
             (epoch === "older" && !this.loadOlder) ||
             (epoch === "newer" && !this.loadNewer)
         ) {
+            log.logic("fetchMoreMessages skipped", () => ({
+                thread: this.localId,
+                epoch,
+                status: this.status,
+                loadOlder: this.loadOlder,
+                loadNewer: this.loadNewer,
+            }));
             return;
         }
         const before = epoch === "older" ? this.oldestPersistentMessage?.id : undefined;
@@ -578,12 +614,25 @@ export class Thread extends Record {
             (before !== undefined &&
                 !this.messages.some((message) => message.id === before))
         ) {
+            log.logic("fetchMoreMessages anchor gone", () => ({
+                thread: this.localId,
+                epoch,
+                after,
+                before,
+            }));
             return;
         }
         const alreadyKnownMessages = new Set(this.messages.map(({ id }) => id));
         const messagesToAdd = fetched.filter(
             (message) => !alreadyKnownMessages.has(message.id),
         );
+        log.pipeline("fetchMoreMessages", () => ({
+            thread: this.localId,
+            epoch,
+            fetched: fetched.length,
+            added: messagesToAdd.length,
+            exhausted: fetched.length < this.store.FETCH_LIMIT,
+        }));
         if (epoch === "older") {
             this.messages.unshift(...messagesToAdd);
         } else {
@@ -604,9 +653,7 @@ export class Thread extends Record {
             }
         }
         this._enrichMessagesWithTransient();
-        this.pendingNewMessages = /** @type {typeof this.pendingNewMessages} */ (
-            /** @type {unknown} */ ([])
-        );
+        this.pendingNewMessages.clear();
     }
 
     /** @returns {import("models").ResPartner|import("models").MailGuest} */
@@ -624,6 +671,12 @@ export class Thread extends Record {
             this.status === "loading" ||
             (this.isLoaded && this.busKeepsMessagesFresh)
         ) {
+            log.logic("fetchNewMessages skipped", () => ({
+                thread: this.localId,
+                status: this.status,
+                isLoaded: this.isLoaded,
+                busKeepsMessagesFresh: this.busKeepsMessagesFresh,
+            }));
             return;
         }
         const after = this.isLoaded ? this.newestPersistentMessage?.id : undefined;
@@ -641,6 +694,10 @@ export class Thread extends Record {
                 (message) => message.id === after,
             );
             if (afterIndex === -1) {
+                log.logic("fetchNewMessages anchor gone", () => ({
+                    thread: this.localId,
+                    after,
+                }));
                 return;
             } else {
                 startIndex = afterIndex + 1;
@@ -650,6 +707,13 @@ export class Thread extends Record {
         const filtered = fetched.filter(
             (message) => !alreadyKnownMessages.has(message.id),
         );
+        log.pipeline("fetchNewMessages", () => ({
+            thread: this.localId,
+            after,
+            fetched: fetched.length,
+            added: filtered.length,
+            startIndex,
+        }));
         this.messages.splice(startIndex, 0, ...filtered);
         if (
             after === undefined &&
@@ -677,14 +741,8 @@ export class Thread extends Record {
     }
 
     getFetchRoute() {
-        if (this.isMailbox && this.id === "inbox") {
-            return `/mail/inbox/messages`;
-        }
-        if (this.isMailbox && this.id === "starred") {
-            return `/mail/starred/messages`;
-        }
-        if (this.isMailbox && this.id === "history") {
-            return `/mail/history/messages`;
+        if (this.isMailbox) {
+            return `/mail/${this.id}/messages`;
         }
         return this.fetchRouteChatter;
     }
@@ -706,23 +764,33 @@ export class Thread extends Record {
     /** @param {number | string} [messageId] */
     async _loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
+            log.logic("loadAround already loaded", () => ({
+                thread: this.localId,
+                messageId,
+            }));
             return;
         }
+        log.pipeline("loadAround", () => ({
+            thread: this.localId,
+            messageId,
+            phantom: this.messages.length,
+        }));
         this.isLoaded = false;
         this.scrollTop = undefined;
+        const endLoadAround = log.perf("loadAround");
         try {
             this.phantomMessages = this.messages;
             this.messages = await this.fetchMessages({ around: messageId });
+            endLoadAround({ thread: this.localId, messages: this.messages.length });
         } catch {
+            endLoadAround({ thread: this.localId, failed: true });
             this.isLoaded = true;
             return;
         } finally {
-            this.phantomMessages = /** @type {typeof this.phantomMessages} */ (
-                /** @type {unknown} */ ([])
-            );
+            this.phantomMessages.clear();
         }
         this.isLoaded = true;
-        this.loadNewer = messageId !== undefined ? true : false;
+        this.loadNewer = messageId !== undefined;
         this.loadOlder = true;
         const limit =
             !messageId && messageId !== 0
@@ -759,6 +827,12 @@ export class Thread extends Record {
             }
         }
         this.message_needaction_counter = 0;
+        log.pipeline("markAllMessagesAsRead", () => ({
+            thread: this.localId,
+            messages: messages.length,
+            inboxApplied,
+        }));
+        const endMarkAll = log.perf("markAllMessagesAsRead");
         try {
             await this.store.env.services.orm.silent.call(
                 "mail.message",
@@ -770,7 +844,13 @@ export class Thread extends Record {
                     ],
                 ],
             );
+            endMarkAll({ thread: this.localId });
         } catch (e) {
+            endMarkAll({ thread: this.localId, failed: true });
+            log.logic("markAllMessagesAsRead rollback", () => ({
+                thread: this.localId,
+                messages: messages.length,
+            }));
             for (const message of messages) {
                 message.needaction = true;
                 if (inbox) {
@@ -786,9 +866,17 @@ export class Thread extends Record {
     /** @param {Object} [options] */
     markAsRead(options) {
         const newestPersistentMessage = this.newestPersistentOfAllMessage;
+        log.logic("markAsRead", () => ({
+            thread: this.localId,
+            needaction: this.message_needaction_counter,
+            loaded: this.isLoaded,
+        }));
         if (!newestPersistentMessage && !this.isLoaded) {
+            log.logic("markAsRead deferred until loaded", () => ({
+                thread: this.localId,
+            }));
             this.isLoadedDeferred
-                .then(() => new Promise((resolve) => browser.setTimeout(resolve)))
+                .then(() => delay())
                 .then(() => this.markAsRead(options));
             return;
         }
@@ -805,6 +893,7 @@ export class Thread extends Record {
      * @return {boolean}
      */
     open(options) {
+        log.logic("open", () => ({ thread: this.localId, options }));
         return this.openChatUI(options) || this.openWebClientUI(options);
     }
 
@@ -845,9 +934,19 @@ export class Thread extends Record {
     } = {}) {
         const thread = await this.store.Thread.getOrFetch(this);
         if (!thread) {
+            log.logic("openChatWindow thread not fetched", () => ({
+                thread: this.localId,
+            }));
             return;
         }
         await this.store.chatHub.initPromise;
+        log.logic("openChatWindow", () => ({
+            thread: this.localId,
+            focus,
+            fromMessagingMenu,
+            bypassCompact,
+            swapOpened,
+        }));
         const cw = this.store.ChatWindow.insert(
             assignDefined({ thread: this }, { fromMessagingMenu, bypassCompact }),
         );
@@ -859,6 +958,11 @@ export class Thread extends Record {
     async closeChatWindow(options = {}) {
         await this.store.chatHub.initPromise;
         const chatWindow = this.store.ChatWindow.get({ thread: this });
+        log.logic("closeChatWindow", () => ({
+            thread: this.localId,
+            found: Boolean(chatWindow),
+            options,
+        }));
         await chatWindow?.close({ notifyState: false, ...options });
     }
 
@@ -897,20 +1001,24 @@ export class Thread extends Record {
     }
 
     /**
+     * @this {import("models").Thread}
      * @param {string | ReturnType<import("@odoo/owl").markup>} body
      * @param {Object} [postData={}]
      * @param {Object} [extraData={}]
      * @returns {Promise<import("models").Message|undefined>}
      */
     async post(body, postData = {}, extraData = {}) {
+        log.logic("post", () => ({
+            thread: this.localId,
+            attachments: postData.attachments?.length,
+            parentId: postData.parentId,
+        }));
         postData.attachments = postData.attachments ? [...postData.attachments] : [];
         const { parentId } = postData;
         const params = await getMessagePostParams(this.store, {
             body,
             postData,
-            thread: /** @type {import("models").Thread} */ (
-                /** @type {unknown} */ (this)
-            ),
+            thread: this,
         });
         Object.assign(params, extraData);
         const tmpId = this.store.getNextTemporaryId();
@@ -919,12 +1027,18 @@ export class Thread extends Record {
             params.post_data.parent_id = parentId;
         }
         const tmpMsg = await this.makeOptimisticPendingMessage(tmpId, body, postData);
+        log.pipeline("post optimistic", () => ({
+            thread: this.localId,
+            tmpId,
+            optimistic: Boolean(tmpMsg),
+        }));
         if (tmpMsg) {
             this.messages.push(tmpMsg);
             this.onNewSelfMessage(tmpMsg);
         }
         const data = await this.store.doMessagePost(params, tmpMsg);
         if (!data) {
+            log.logic("post no response", () => ({ thread: this.localId, tmpId }));
             return;
         }
         return this.processMessagePostResponse(data, tmpMsg);
@@ -939,6 +1053,12 @@ export class Thread extends Record {
         this.store.insert(data.store_data);
         /** @type {import("models").Message} */
         const message = this.store["mail.message"].get(data.message_id);
+        log.pipeline("processMessagePostResponse", () => ({
+            thread: this.localId,
+            messageId: data.message_id,
+            replacedTmp: Boolean(tmpMsg),
+            hasLink: message.hasLink,
+        }));
         this.addOrReplaceMessage(message, tmpMsg);
         this.onNewSelfMessage(message);
         tmpMsg?.delete();
@@ -950,6 +1070,10 @@ export class Thread extends Record {
 
     /** @param {number} index */
     async setMainAttachmentFromIndex(index) {
+        log.logic("setMainAttachmentFromIndex", () => ({
+            thread: this.localId,
+            index,
+        }));
         this.message_main_attachment_id = this.attachmentsInWebClientView[index];
         await this.store.env.services.orm.call(
             "ir.attachment",

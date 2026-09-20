@@ -46,17 +46,17 @@
                         <button
                             name="%(approval.action_approval_request_all)d"
                             type="action"
-                            class="oe_stat_button"
                             icon="fa-times-circle"
-                            invisible="usage_count == 0">
+                            invisible="usage_count == 0"
+                            class="oe_stat_button">
                             <field name="usage_count" string="Used" widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field
@@ -68,8 +68,8 @@
                         <group>
                             <field
                                 name="category_ids"
-                                widget="many2many_tags"
-                                placeholder="Leave empty for all categories" />
+                                placeholder="Leave empty for all categories"
+                                widget="many2many_tags" />
                         </group>
                     </group>
                     <group>

@@ -29,13 +29,13 @@
             "@odoo/hoot-dom-utils": ["addons/web/static/lib/hoot-dom/hoot_dom_utils.js"],
 
 
+            "@account_depreciation/*": ["addons/account_depreciation/static/src/*"],
             "@test_mail/*": ["addons/test_mail/static/src/*"],
 
             // >>> derived: addon aliases -- do not hand-edit.
-            // Rewrite with: python tooling/typecheck/tsconfig_paths.py --update
+            // One entry per addon with a static/src directory, sorted.
             "@account/*": ["addons/account/static/src/*"],
             "@account_accountant_batch_payment/*": ["../enterprise/account_accountant_batch_payment/static/src/*"],
-            "@account_asset/*": ["../enterprise/account_asset/static/src/*"],
             "@account_bank_statement_import/*": ["../enterprise/account_bank_statement_import/static/src/*"],
             "@account_bank_statement_import_csv/*": ["../enterprise/account_bank_statement_import_csv/static/src/*"],
             "@account_base_import/*": ["../enterprise/account_base_import/static/src/*"],
@@ -445,12 +445,11 @@
             "@repair/*": ["addons/repair/static/src/*"],
             "@resource/*": ["addons/resource/static/src/*"],
             "@resource_mail/*": ["addons/resource_mail/static/src/*"],
-            "@room/*": ["../enterprise/room/static/src/*"],
+            "@room/*": ["addons/room/static/src/*"],
             "@sale/*": ["addons/sale/static/src/*"],
             "@sale_account_accountant/*": ["../enterprise/sale_account_accountant/static/src/*"],
             "@sale_commission/*": ["../enterprise/sale_commission/static/src/*"],
             "@sale_loyalty/*": ["addons/sale_loyalty/static/src/*"],
-            "@sale_management/*": ["addons/sale_management/static/src/*"],
             "@sale_pdf_quote_builder/*": ["addons/sale_pdf_quote_builder/static/src/*"],
             "@sale_planning/*": ["../enterprise/sale_planning/static/src/*"],
             "@sale_product_matrix/*": ["addons/sale_product_matrix/static/src/*"],
@@ -461,9 +460,9 @@
             "@sale_stock_renting/*": ["../enterprise/sale_stock_renting/static/src/*"],
             "@sale_subscription/*": ["../enterprise/sale_subscription/static/src/*"],
             "@sale_subscription_stock/*": ["../enterprise/sale_subscription_stock/static/src/*"],
+            "@sale_team/*": ["addons/sale_team/static/src/*"],
             "@sale_timesheet/*": ["addons/sale_timesheet/static/src/*"],
             "@sale_timesheet_enterprise/*": ["../enterprise/sale_timesheet_enterprise/static/src/*"],
-            "@sales_team/*": ["addons/sales_team/static/src/*"],
             "@sign/*": ["../enterprise/sign/static/src/*"],
             "@sign_emsigner/*": ["../enterprise/sign_emsigner/static/src/*"],
             "@sign_itsme/*": ["../enterprise/sign_itsme/static/src/*"],

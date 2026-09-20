@@ -89,10 +89,7 @@ class IoTDeviceController extends formView.Controller {
     }
 
     onDeviceEvent(event, type) {
-        const { message: errorMessage, defaultMessage } = readDeviceEvent(
-            type,
-            event,
-        );
+        const { message: errorMessage, defaultMessage } = readDeviceEvent(type, event);
         switch (event.status) {
             case "error":
             case "timeout":

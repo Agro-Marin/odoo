@@ -18,6 +18,5 @@
             "mail_bot/static/src/scss/odoobot_style.scss",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

@@ -1,4 +1,7 @@
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountFullReconcile(models.Model):
@@ -6,18 +9,27 @@ class AccountFullReconcile(models.Model):
     _description = "Full Reconcile"
 
     partial_reconcile_ids = fields.One2many(
-        "account.partial.reconcile",
-        "full_reconcile_id",
+        comodel_name="account.partial.reconcile",
+        inverse_name="full_reconcile_id",
         string="Reconciliation Parts",
     )
     reconciled_line_ids = fields.One2many(
-        "account.move.line",
-        "full_reconcile_id",
+        comodel_name="account.move.line",
+        inverse_name="full_reconcile_id",
         string="Matched Journal Items",
     )
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
+
         def get_ids(commands):
             for command in commands:
                 if command[0] == Command.LINK:
@@ -36,6 +48,12 @@ class AccountFullReconcile(models.Model):
         fulls = super(
             AccountFullReconcile, self.with_context(tracking_disable=True)
         ).create(vals_list)
+        _debug.pipeline(
+            "created_over_group_group",
+            full=fulls,
+            move_line_ids_count=len(move_line_ids),
+            partial_ids_count=len(partial_ids),
+        )
 
         self.env.cr.execute_values(
             """
@@ -50,6 +68,10 @@ class AccountFullReconcile(models.Model):
             ],
             page_size=1000,
         )
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "full_lines_linked", rows=sum(len(ids) for ids in move_line_ids)
+            )
         fulls.reconciled_line_ids.invalidate_recordset(
             ["full_reconcile_id"], flush=False
         )
@@ -68,6 +90,10 @@ class AccountFullReconcile(models.Model):
             ],
             page_size=1000,
         )
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "full_partials_linked", rows=sum(len(ids) for ids in partial_ids)
+            )
         fulls.partial_reconcile_ids.invalidate_recordset(
             ["full_reconcile_id"], flush=False
         )
@@ -78,10 +104,13 @@ class AccountFullReconcile(models.Model):
         )
         return fulls
 
+    @_debug.perf.timed
     def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
         amls = self.reconciled_line_ids
         res = super().unlink()
         if self.env.context.get("defer_matching_number_update"):
+            _debug.logic("full_unlink_matching_number_update")
             return res
         amls = amls.exists()
         if amls:

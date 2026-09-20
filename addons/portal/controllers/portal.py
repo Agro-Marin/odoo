@@ -1,10 +1,10 @@
 import math
 import re
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
-from werkzeug.exceptions import Forbidden, NotFound
+from werkzeug.exceptions import BadRequest, Forbidden, NotFound
 
-from odoo import SUPERUSER_ID, Command, _
+from odoo import SUPERUSER_ID, _
 from odoo.exceptions import (
     AccessDenied,
     AccessError,
@@ -13,10 +13,14 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.http import Controller, prepare_content_disposition_header, request, route
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import clean_context, consteq, single_email_re, str2bool
 from odoo.tools.translate import LazyTranslate
 
+from odoo.addons.portal.utils import get_url_with_params as _get_url_with_params
 from odoo.addons.web.controllers.utils import _is_local_url
+
+_debug = DebugLog(__name__)
 
 _lt = LazyTranslate(__name__)
 
@@ -29,14 +33,12 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
 
     page_previous = max(1, page - 1)
     page_next = min(page_count, page + 1)
+    query = {k: v for k, v in (url_args or {}).items() if v is not None}
+    base_url = urlsplit(_get_url_with_params(url, query, doseq=True))
 
     def get_url(page):
-        _url = f"{url}/page/{page}" if page > 1 else url
-        if url_args:
-            query = {k: v for k, v in url_args.items() if v is not None}
-            if query:
-                _url = f"{_url}?{urlencode(query, doseq=True)}"
-        return _url
+        path = f"{base_url.path}/page/{page}" if page > 1 else base_url.path
+        return urlunsplit(base_url._replace(path=path))
 
     scope = max(scope, 3)
     if page_count <= scope:
@@ -99,7 +101,9 @@ def _pager_url(record, attr_name, with_token=True):
     if not record[attr_name]:
         return False
     if attr_name == "access_url" and with_token:
-        return f"{record[attr_name]}?access_token={record._portal_ensure_token()}"
+        return _get_url_with_params(
+            record[attr_name], {"access_token": record._portal_get_or_create_token()}
+        )
     return record[attr_name]
 
 
@@ -109,6 +113,7 @@ def _parse_record_id(raw_id):
     try:
         return int(raw_id)
     except TypeError, ValueError:
+        _debug.logic("record_id_rejected", raw=str(raw_id))
         raise NotFound from None
 
 
@@ -121,7 +126,7 @@ def _parse_callback_url(raw_callback, default):
 
 
 def _as_password_field(raw_value):
-    return raw_value.strip() if isinstance(raw_value, str) else ""
+    return raw_value if isinstance(raw_value, str) else ""
 
 
 def _parse_counter_names(raw_counters):
@@ -130,16 +135,12 @@ def _parse_counter_names(raw_counters):
     return [name for name in raw_counters if isinstance(name, str)]
 
 
-def _get_url_with_params(url_string, query_params, remove_duplicates=True):
-    url = urlsplit(url_string)
-    if remove_duplicates:
-        url_params = dict(parse_qsl(url.query, keep_blank_values=True))
-        url_params.update(query_params)
-    else:
-        url_params = parse_qsl(url.query, keep_blank_values=True) + list(
-            query_params.items()
-        )
-    return urlunsplit(url._replace(query=urlencode(url_params)))
+def _is_zip_before_city(address_fields):
+    return (
+        "zip" in address_fields
+        and "city" in address_fields
+        and address_fields.index("zip") < address_fields.index("city")
+    )
 
 
 class CustomerPortal(Controller):
@@ -166,7 +167,7 @@ class CustomerPortal(Controller):
     def _get_reserved_address_form_keys(self):
         return self._RESERVED_ADDRESS_FORM_KEYS
 
-    def _sanitize_client_address_params(self, client_params):
+    def _filter_client_address_params(self, client_params):
         reserved = self._get_reserved_address_form_keys()
         return {
             key: value for key, value in client_params.items() if key not in reserved
@@ -229,19 +230,19 @@ class CustomerPortal(Controller):
 
     def _prepare_my_account_rendering_values(self, redirect="/my", **kwargs):
         return {
-            "page_name": "my_details",
             **self._prepare_portal_layout_values(),
             **self._prepare_address_form_values(
                 partner_sudo=request.env.user.partner_id,
                 use_delivery_as_billing=True,
                 callback=redirect,
             ),
+            "page_name": "my_details",
         }
 
     @route("/my/addresses", type="http", auth="user", readonly=True, website=True)
     def my_addresses(self, **query_params):
         partner_sudo = request.env.user.partner_id
-        query_params = self._sanitize_client_address_params(query_params)
+        query_params = self._filter_client_address_params(query_params)
         address_data = self._prepare_address_data(partner_sudo, **query_params)
         has_invoice_type_address = any(
             address.type == "invoice" for address in address_data["billing_addresses"]
@@ -280,9 +281,9 @@ class CustomerPortal(Controller):
         )
 
         if partner_sudo != commercial_partner_sudo:
-            if not self._check_billing_address(commercial_partner_sudo):
+            if not self._is_billing_address_complete(commercial_partner_sudo):
                 billing_partners_sudo -= commercial_partner_sudo
-            if not self._check_delivery_address(commercial_partner_sudo):
+            if not self._is_delivery_address_complete(commercial_partner_sudo):
                 delivery_partners_sudo -= commercial_partner_sudo
 
         return {
@@ -290,7 +291,7 @@ class CustomerPortal(Controller):
             "delivery_addresses": delivery_partners_sudo,
         }
 
-    def _check_billing_address(self, partner_sudo):
+    def _is_billing_address_complete(self, partner_sudo):
         mandatory_billing_fields = self._get_mandatory_billing_address_fields(
             partner_sudo.country_id
         )
@@ -299,7 +300,7 @@ class CustomerPortal(Controller):
     def _get_mandatory_billing_address_fields(self, country_sudo):
         return self._get_mandatory_address_form_fields(country_sudo)
 
-    def _check_delivery_address(self, partner_sudo):
+    def _is_delivery_address_complete(self, partner_sudo):
         mandatory_delivery_fields = self._get_mandatory_delivery_address_fields(
             partner_sudo.country_id
         )
@@ -358,9 +359,15 @@ class CustomerPortal(Controller):
         )
 
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
+            _debug.logic(
+                "address_form_refused", reason="not_editable", partner=partner_sudo.id
+            )
             raise Forbidden
 
-        query_params = self._sanitize_client_address_params(query_params)
+        _debug.pipeline(
+            "address_form", partner=partner_sudo.id, address_type=address_type
+        )
+        query_params = self._filter_client_address_params(query_params)
 
         address_form_values = {
             **self._prepare_address_form_values(
@@ -427,10 +434,7 @@ class CustomerPortal(Controller):
             "use_delivery_as_billing": use_delivery_as_billing,
             "state_id": state_id,
             "country_states": country_sudo.state_ids,
-            "zip_before_city": (
-                "zip" in address_fields
-                and address_fields.index("zip") < address_fields.index("city")
-            ),
+            "zip_before_city": _is_zip_before_city(address_fields),
             "vat_label": request.env._("VAT"),
             "discard_url": callback or "/my/addresses",
         }
@@ -454,9 +458,14 @@ class CustomerPortal(Controller):
             .browse(_parse_record_id(partner_id))
         )
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
+            _debug.logic(
+                "address_submit_refused",
+                reason="not_editable",
+                partner=partner_sudo.id,
+            )
             raise Forbidden
 
-        form_data = self._sanitize_client_address_params(form_data)
+        form_data = self._filter_client_address_params(form_data)
 
         _partner_sudo, feedback_dict = self._create_or_update_address(
             partner_sudo, **form_data
@@ -474,11 +483,25 @@ class CustomerPortal(Controller):
         verify_address_values=True,
         **form_data,
     ):
+        if address_type not in ("billing", "delivery"):
+            _debug.logic(
+                "address_submit_refused",
+                reason="bad_address_type",
+                address_type=str(address_type),
+            )
+            raise BadRequest
         verify_address_values = verify_address_values is not False
         use_delivery_as_billing = _parse_bool_param(use_delivery_as_billing)
         callback = _parse_callback_url(callback, "/my/addresses")
 
         address_values, extra_form_data = self._parse_form_data(form_data)
+
+        current_partner = request.env["res.partner"]._get_current_partner(
+            **extra_form_data
+        )
+        if current_partner and partner_sudo != current_partner:
+            # Company name is editable only on the main address, including at checkout.
+            extra_form_data.pop("company_name", None)
 
         if verify_address_values:
             invalid_fields, missing_fields, error_messages = self._get_address_errors(
@@ -510,7 +533,7 @@ class CustomerPortal(Controller):
                 request.env["res.partner"]
                 .sudo()
                 .with_context(create_context)
-                .create(self._phone_to_address_values(address_values))
+                .create(self._resolve_address_phone_values(address_values))
             )
         elif not self._are_same_addresses(address_values, partner_sudo):
             if (address_values.get("name") or "").strip() == (
@@ -518,7 +541,7 @@ class CustomerPortal(Controller):
             ).strip():
                 address_values.pop("name", None)
             partner_sudo.write(
-                self._phone_to_address_values(address_values, partner_sudo)
+                self._resolve_address_phone_values(address_values, partner_sudo)
             )
 
         if company_name := (extra_form_data.get("company_name") or "").strip():
@@ -536,6 +559,9 @@ class CustomerPortal(Controller):
     def _parse_form_data(self, form_data):
         address_values = {}
         extra_form_data = {}
+        if "zipcode" in form_data and not form_data.get("zip"):
+            form_data = dict(form_data)
+            form_data["zip"] = form_data.pop("zipcode")
 
         ResPartner = request.env["res.partner"]
         partner_fields = ResPartner._fields
@@ -558,15 +584,6 @@ class CustomerPortal(Controller):
             elif value:
                 extra_form_data[key] = value
 
-        if "zipcode" in form_data and not form_data.get("zip"):
-            zipcode = form_data.pop("zipcode", "")
-            if isinstance(zipcode, str):
-                zipcode = zipcode.strip()
-            address_values["zip"] = partner_fields["zip"].convert_to_cache(
-                zipcode, ResPartner
-            )
-            extra_form_data.pop("zipcode", None)
-
         return address_values, extra_form_data
 
     def _get_address_errors(
@@ -584,6 +601,9 @@ class CustomerPortal(Controller):
 
         is_commercial_address = self._is_commercial_address(partner_sudo, **kwargs)
 
+        self._add_address_country_state_errors(
+            address_values, partner_sudo, invalid_fields, error_messages
+        )
         self._add_address_partner_mutation_errors(
             address_values,
             partner_sudo,
@@ -609,6 +629,25 @@ class CustomerPortal(Controller):
         )
 
         return invalid_fields, missing_fields, error_messages
+
+    def _add_address_country_state_errors(
+        self, address_values, partner_sudo, invalid_fields, error_messages
+    ):
+        country_id = address_values.get("country_id", partner_sudo.country_id.id)
+        state_id = address_values.get("state_id", partner_sudo.state_id.id)
+        country = request.env["res.country"].browse(country_id).exists()
+        state = request.env["res.country.state"].browse(state_id).exists()
+        if country_id and not country:
+            invalid_fields.add("country_id")
+            error_messages.append(_("Please select a valid country."))
+        if state_id and not state:
+            invalid_fields.add("state_id")
+            error_messages.append(_("Please select a valid state."))
+        elif state and country and state.country_id != country:
+            invalid_fields.add("state_id")
+            error_messages.append(
+                _("The selected state does not belong to the selected country.")
+            )
 
     def _is_commercial_address(self, partner_sudo, **kwargs):
         if partner_sudo:
@@ -718,9 +757,6 @@ class CustomerPortal(Controller):
             else:
                 address_values.pop(commercial_field_name, None)
 
-        if partner_sudo != request.env["res.partner"]._get_current_partner(**kwargs):
-            address_values.pop("company_name", None)
-
     def _add_address_email_format_errors(
         self, address_values, invalid_fields, error_messages
     ):
@@ -740,6 +776,7 @@ class CustomerPortal(Controller):
             address_values.get("vat")
             and hasattr(ResPartnerSudo, "_check_vat")
             and "vat" not in invalid_fields
+            and "country_id" not in invalid_fields
         ):
             partner_dummy = ResPartnerSudo.new(
                 {
@@ -767,7 +804,7 @@ class CustomerPortal(Controller):
         required_field_set = {f for f in required_fields.split(",") if f}
 
         country_id = address_values.get("country_id")
-        country = request.env["res.country"].browse(country_id)
+        country = request.env["res.country"].browse(country_id).exists()
         if address_type == "delivery" or use_delivery_as_billing:
             required_field_set |= self._get_mandatory_delivery_address_fields(country)
         if address_type == "billing" or use_delivery_as_billing:
@@ -814,28 +851,40 @@ class CustomerPortal(Controller):
         ResPartner = request.env["res.partner"]
         for key, new_val in address_values.items():
             if key == "phone":
-                val = partner.phone_ids._primary().number or False
+                val = partner._phone_get_number().number or False
             else:
                 val = ResPartner._fields[key].convert_to_cache(partner[key], ResPartner)
             if new_val != val and (val or new_val):
                 return False
         return True
 
-    def _phone_to_address_values(self, address_values, partner_sudo=None):
+    def _resolve_address_phone_values(self, address_values, partner_sudo=None):
+        """Resolve/create the shared number and select it for this contact.
+
+        Called after address validation; number creation and the ensuing partner
+        write belong to the same request transaction.
+        """
         if "phone" not in address_values:
             return address_values
         values = dict(address_values)
         phone = values.pop("phone")
-        current = partner_sudo.phone_ids._primary() if partner_sudo else None
-        if not phone:
-            values["phone_ids"] = [Command.clear()]
-        elif current:
-            values["phone_ids"] = [
-                Command.unlink(current.id),
-                Command.create({"number": phone, "type": current.type}),
-            ]
-        else:
-            values["phone_ids"] = [Command.create({"number": phone, "type": "mobile"})]
+        partner = (
+            partner_sudo
+            if partner_sudo is not None
+            else request.env["res.partner"].sudo()
+        )
+        current = partner._phone_get_number()
+        if phone == (current.number if current else False):
+            return values
+        number = partner.env["phone.number"].sudo()
+        if phone:
+            number = number.create(
+                {
+                    "number": phone,
+                    "type": current.type if current else "mobile",
+                }
+            )
+        values.update(partner._prepare_phone_replacement_vals(number))
         return values
 
     def _handle_extra_form_data(self, extra_form_data, address_values):
@@ -857,10 +906,7 @@ class CustomerPortal(Controller):
             required_fields = self._get_mandatory_delivery_address_fields(country)
         return {
             "fields": address_fields,
-            "zip_before_city": (
-                "zip" in address_fields
-                and address_fields.index("zip") < address_fields.index("city")
-            ),
+            "zip_before_city": _is_zip_before_city(address_fields),
             "states": [(st.id, st.name, st.code) for st in country.sudo().state_ids],
             "state_required": country.state_required,
             "phone_code": country.phone_code,
@@ -882,11 +928,14 @@ class CustomerPortal(Controller):
             .exists()
         )
         if not address_sudo or not address_sudo._can_be_edited_by_current_customer():
+            _debug.logic("address_archive_refused", reason="not_editable")
             raise Forbidden
 
         if address_sudo == request.env.user.partner_id:
+            _debug.logic("address_archive_refused", reason="main_address")
             raise UserError(_("You cannot archive your main address"))
 
+        _debug.lifecycle("address_archived", partner=address_sudo.id)
         address_sudo.action_archive()
 
     @route(
@@ -925,6 +974,7 @@ class CustomerPortal(Controller):
     def _update_password(self, old, new1, new2):
         for k, v in [("old", old), ("new1", new1), ("new2", new2)]:
             if not v:
+                _debug.logic("password_change_refused", reason="empty", field=k)
                 return {
                     "errors": {
                         "password": {k: _("You cannot leave any password empty.")}
@@ -932,6 +982,7 @@ class CustomerPortal(Controller):
                 }
 
         if new1 != new2:
+            _debug.logic("password_change_refused", reason="mismatch")
             return {
                 "errors": {
                     "password": {
@@ -950,13 +1001,16 @@ class CustomerPortal(Controller):
                 msg = _(
                     "The old password you provided is incorrect, your password was not changed."
                 )
+            _debug.logic("password_change_refused", reason="access_denied")
             return {"errors": {"password": {"old": msg}}}
         except UserError as e:
+            _debug.logic("password_change_refused", reason="user_error")
             return {"errors": {"password": str(e)}}
 
         new_token = request.env.user._get_session_token(request.session.sid)
         request.session.session_token = new_token
 
+        _debug.lifecycle("password_changed", user=request.env.uid)
         return {"success": {"password": True}}
 
     @route(
@@ -976,18 +1030,24 @@ class CustomerPortal(Controller):
         }
 
         if validation != request.env.user.login:
+            _debug.logic(
+                "deactivate_refused", reason="login_mismatch", user=request.env.uid
+            )
             values["errors"] = {"deactivate": "validation"}
         else:
             try:
                 request.env.user._check_credentials(credential, {"interactive": True})
+                _debug.lifecycle("portal_user_deactivated", user=request.env.uid)
                 request.env.user.sudo()._deactivate_portal_user(**post)
                 request.session.logout()
                 return request.redirect(
                     f"/web/login?message={quote(_('Account deleted!'), safe='/:')}"
                 )
             except AccessDenied:
+                _debug.logic("deactivate_refused", reason="bad_password")
                 values["errors"] = {"deactivate": "password"}
             except UserError as e:
+                _debug.logic("deactivate_refused", reason="user_error")
                 values["errors"] = {"deactivate": {"other": str(e)}}
 
         return request.render(
@@ -1003,6 +1063,7 @@ class CustomerPortal(Controller):
                 "ir.attachment", int(attachment_id), access_token=access_token
             )
         except AccessError, MissingError, TypeError, ValueError:
+            _debug.logic("attachment_remove_refused", reason="no_access")
             raise UserError(
                 _(
                     "The attachment does not exist or you do not have the rights to access it."
@@ -1013,6 +1074,12 @@ class CustomerPortal(Controller):
             attachment_sudo.res_model != "mail.compose.message"
             or attachment_sudo.res_id != 0
         ):
+            _debug.logic(
+                "attachment_remove_refused",
+                reason="not_pending",
+                attachment=attachment_sudo.id,
+                model=attachment_sudo.res_model,
+            )
             raise UserError(
                 _(
                     "The attachment %s cannot be removed because it is not in a pending state.",
@@ -1023,6 +1090,11 @@ class CustomerPortal(Controller):
         if attachment_sudo.env["mail.message"].search_count(
             [("attachment_ids", "in", attachment_sudo.ids)], limit=1
         ):
+            _debug.logic(
+                "attachment_remove_refused",
+                reason="linked_to_message",
+                attachment=attachment_sudo.id,
+            )
             raise UserError(
                 _(
                     "The attachment %s cannot be removed because it is linked to a message.",
@@ -1030,12 +1102,19 @@ class CustomerPortal(Controller):
                 )
             )
 
+        _debug.lifecycle("attachment_removed", attachment=attachment_sudo.id)
         return attachment_sudo.unlink()
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         document = request.env[model_name].browse(document_id)
         document_sudo = document.with_user(SUPERUSER_ID).exists()
         if not document_sudo:
+            _debug.logic(
+                "document_access",
+                verdict="missing",
+                model=model_name,
+                record=document_id,
+            )
             raise MissingError(_("This document does not exist."))
         try:
             document.check_access("read")
@@ -1051,7 +1130,20 @@ class CustomerPortal(Controller):
                 or not stored_token
                 or not consteq(stored_token, access_token)
             ):
+                _debug.logic(
+                    "document_access",
+                    verdict="refused",
+                    model=model_name,
+                    record=document_id,
+                    token_supplied=bool(access_token),
+                )
                 raise
+            _debug.logic(
+                "document_access",
+                verdict="by_token",
+                model=model_name,
+                record=document_id,
+            )
         return document_sudo
 
     def _get_page_view_values(
@@ -1091,19 +1183,32 @@ class CustomerPortal(Controller):
 
     def _show_report(self, model, report_type, report_ref, download=False):
         if report_type not in ("html", "pdf", "text"):
+            _debug.logic(
+                "report_refused", reason="bad_type", report_type=str(report_type)
+            )
             raise UserError(_("Invalid report type: %s", report_type))
 
         ReportAction = request.env["ir.actions.report"].sudo()
 
         if "company_id" in model._fields:
             if len(model.company_id) > 1:
+                _debug.logic(
+                    "report_refused", reason="multi_company", model=model._name
+                )
                 raise UserError(_("Multi company reports are not supported."))
             ReportAction = ReportAction.with_company(model.company_id)
 
         method_name = f"_render_qweb_{report_type}"
-        report = getattr(ReportAction, method_name)(
-            report_ref, list(model.ids), data={"report_type": report_type}
-        )[0]
+        with _debug.perf(
+            "portal_report_rendered",
+            cr=request.env.cr,
+            report=report_ref,
+            report_type=report_type,
+            records=len(model),
+        ):
+            report = getattr(ReportAction, method_name)(
+                report_ref, list(model.ids), data={"report_type": report_type}
+            )[0]
         headers = self._get_http_headers(model, report_type, report, download)
         return request.prepare_response(report, headers=list(headers.items()))
 

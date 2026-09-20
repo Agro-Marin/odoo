@@ -27,7 +27,7 @@ class TestSaleStockMultiCompany(TestSaleCommon, ValuationReconciliationTestCommo
 
         cls.env.user.group_ids |= cls.env.ref("stock.group_stock_user")
         cls.env.user.group_ids |= cls.env.ref("stock.group_stock_multi_locations")
-        cls.env.user.group_ids |= cls.env.ref("sales_team.group_sale_salesman")
+        cls.env.user.group_ids |= cls.env.ref("sale.group_sale_salesman")
 
         cls.env.user.with_company(
             cls.company_data["company"]
@@ -233,7 +233,7 @@ class TestSaleStockMultiCompany(TestSaleCommon, ValuationReconciliationTestCommo
         self.assertEqual(
             [
                 (rec["product_name"], rec["lot_id"])
-                for rec in invoice._get_invoiced_lot_values()
+                for rec in invoice._prepare_invoice_lot_rows()
             ],
             [(self.product_a.name, sn.id)],
         )

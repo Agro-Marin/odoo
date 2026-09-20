@@ -6,28 +6,37 @@ import "./_models.js";
 import { FETCH_DATA_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, makeStore, Store as BaseStore } from "@mail/core/common/record";
 import { attClassObjectToString, prettifyMessageText } from "@mail/utils/common/format";
+import {
+    initLocalStorageMirror,
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+    startLocalStorageMirror,
+} from "@mail/utils/common/local_storage";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { colorScheme } from "@web/core/color_scheme";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { makeModelLog } from "@web/core/utils/asset_log";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 import { session } from "@web/session";
 
-const log = makeModelLog("store");
+const debugLog = makeLogger("mail.store");
 
 /** @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention */
 const pyToJsModels = {
     "discuss.channel": "Thread",
     "mixin.mail.thread": "Thread",
 };
+
+const PUSH_NOTIFICATION_DISMISSED_LS = "mail.user_setting.push_notification_dismissed";
 
 const addFieldsByPyModel = {
     "discuss.channel": { model: "discuss.channel" },
@@ -58,6 +67,10 @@ export class Store extends BaseStore {
         return addFieldsByPyModel[pyOrJsModelName];
     }
 
+    /** @type {Object<string, string|null>} */
+    localStorageValues;
+    /** @type {Map<string, Set<(newValue: string|null) => void>>} */
+    _localStorageSubscribers;
     FETCH_LIMIT = 30;
     DEFAULT_AVATAR = "/mail/static/src/img/smiley/avatar.jpg";
     isReady = new Deferred();
@@ -65,6 +78,18 @@ export class Store extends BaseStore {
     self_guest = fields.One("mail.guest");
     get self() {
         return this.self_partner || this.self_guest;
+    }
+    get selfUser() {
+        return this.self_partner?.main_user_id;
+    }
+    get selfIsInternalUser() {
+        return Boolean(this.self_partner?.isInternalUser);
+    }
+    get selfIsAdmin() {
+        return Boolean(this.selfUser?.is_admin);
+    }
+    get selfUsesInbox() {
+        return this.selfUser?.notification_type === "inbox";
     }
     allChannels = fields.Many("Thread", {
         inverse: "storeAsAllChannels",
@@ -133,22 +158,16 @@ export class Store extends BaseStore {
         /** @this {import("models").Store} */
         compute() {
             return (
-                browser.localStorage.getItem(
-                    "mail.user_setting.push_notification_dismissed",
-                ) === "true"
+                readLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS) ===
+                "true"
             );
         },
         /** @this {import("models").Store} */
         onUpdate() {
             if (this.isNotificationPermissionDismissed) {
-                browser.localStorage.setItem(
-                    "mail.user_setting.push_notification_dismissed",
-                    "true",
-                );
+                setLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS, "true");
             } else {
-                browser.localStorage.removeItem(
-                    "mail.user_setting.push_notification_dismissed",
-                );
+                removeLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS);
             }
         },
     });
@@ -211,14 +230,30 @@ export class Store extends BaseStore {
         try {
             return await mutex.exec(async () => {
                 let res;
+                const endPost = debugLog.perf("message post");
+                debugLog.logic("doMessagePost", () => ({
+                    mutexKey,
+                    tmp: tmpMessage?.id,
+                }));
                 try {
                     res = await rpc("/mail/message/post", params, { silent: true });
+                    endPost({ thread: mutexKey });
                 } catch (err) {
+                    endPost({ thread: mutexKey, failed: true });
+                    debugLog.logic("doMessagePost failed", () => ({
+                        mutexKey,
+                        retryOffered: Boolean(tmpMessage),
+                        message: err?.message,
+                    }));
                     if (!tmpMessage) {
                         throw err;
                     }
                     console.warn("Failed to post message, retry offered", err);
                     tmpMessage.postFailRedo = async () => {
+                        debugLog.logic("doMessagePost retry", () => ({
+                            mutexKey,
+                            tmp: tmpMessage.id,
+                        }));
                         tmpMessage.postFailRedo = undefined;
                         const thread = tmpMessage.thread;
                         thread.messages.delete(tmpMessage);
@@ -259,10 +294,20 @@ export class Store extends BaseStore {
                     queuedName === name && queuedRequest._autoResolve,
             );
             if (queued) {
+                debugLog.logic("fetchStoreData merged into queued request", () => ({
+                    name,
+                }));
                 queued[1] = merge(queued[1], params);
                 return queued[2]._resultDef;
             }
         }
+        debugLog.pipeline("fetchStoreData queue", () => ({
+            name,
+            requestData,
+            readonly,
+            silent,
+            queued: this.fetchParams.length + 1,
+        }));
         const dataRequest =
             /** @type {typeof import("./data_response_model").DataResponse} */ (
                 this.Models.DataResponse
@@ -277,10 +322,9 @@ export class Store extends BaseStore {
 
     async initialize() {
         if (this._initializePromise) {
-            log("initialize:memoized");
             return this._initializePromise;
         }
-        log("initialize:first-call");
+        const endInit = debugLog.perf("initialize");
         this._initializePromise = (async () => {
             for (;;) {
                 try {
@@ -292,14 +336,18 @@ export class Store extends BaseStore {
                     break;
                 } catch (error) {
                     if (!(error instanceof ConnectionLostError)) {
+                        debugLog.logic("initialize failed", () => ({
+                            message: error?.message,
+                        }));
                         this._initializePromise = undefined;
                         throw error;
                     }
-                    log("initialize:connection-lost, waiting for the bus");
+                    debugLog.logic("initialize waiting for bus reconnect");
                     await this._busReconnected();
                 }
             }
             this.isReady.resolve();
+            endInit({ fetched: this._getInitialFetchNames() });
         })();
         return this._initializePromise;
     }
@@ -330,8 +378,13 @@ export class Store extends BaseStore {
             ),
             fetch: () => {
                 if (["fetching", "fetched"].includes(r.status)) {
+                    debugLog.logic("cachedFetchData hit", () => ({
+                        name,
+                        status: r.status,
+                    }));
                     return def;
                 }
+                debugLog.pipeline("cachedFetchData fetch", () => ({ name }));
                 r.status = "fetching";
                 invalidatedWhileFetching = false;
                 def = new Deferred();
@@ -355,6 +408,10 @@ export class Store extends BaseStore {
                 return def;
             },
             invalidate: () => {
+                debugLog.logic("cachedFetchData invalidate", () => ({
+                    name,
+                    status: r.status,
+                }));
                 if (r.status === "fetching") {
                     invalidatedWhileFetching = true;
                 } else {
@@ -367,13 +424,13 @@ export class Store extends BaseStore {
 
     _fetchStoreDataDebounced() {
         const fetchParams = this.fetchParams;
-        if (log.active()) {
-            log(
-                "fetchStoreData:batch",
-                this.fetchReadonly ? "/mail/data" : "/mail/action",
-                fetchParams.map(([name]) => name),
-            );
-        }
+        const endFetch = debugLog.perf(
+            this.fetchReadonly ? "/mail/data" : "/mail/action",
+        );
+        debugLog.pipeline("fetchStoreData", () => ({
+            names: fetchParams.map(([name]) => name),
+            readonly: this.fetchReadonly,
+        }));
         this._fetchStoreDataRpc(
             fetchParams.map(([name, params, dataRequest]) => {
                 if (dataRequest._autoResolve) {
@@ -389,6 +446,10 @@ export class Store extends BaseStore {
         ).then(
             (data) => {
                 let insertError;
+                endFetch({
+                    requests: fetchParams.length,
+                    models: Object.keys(data || {}),
+                });
                 try {
                     this.insert(data);
                 } catch (error) {
@@ -404,6 +465,10 @@ export class Store extends BaseStore {
                         dataRequest._resolve = true;
                         continue;
                     } else {
+                        debugLog.logic("fetchStoreData request unresolved", () => ({
+                            name,
+                            requestId: dataRequest.id,
+                        }));
                         dataRequest._resultDef.reject(
                             new Error(
                                 `Data request "${name}" (id ${dataRequest.id}) was not resolved by the server response. The server route probably lacks a "resolve_data_request()" call.`,
@@ -417,6 +482,7 @@ export class Store extends BaseStore {
                 }
             },
             (error) => {
+                endFetch({ requests: fetchParams.length, failed: true });
                 for (const [, , dataRequest] of fetchParams) {
                     dataRequest._resultDef.reject(error);
                     if (dataRequest.exists()) {
@@ -444,6 +510,7 @@ export class Store extends BaseStore {
 
     setup() {
         super.setup();
+        initLocalStorageMirror(this);
         this._prevLastMessageId = null;
         this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
@@ -466,9 +533,14 @@ export class Store extends BaseStore {
                 try {
                     isTabFocused = parent.document.hasFocus();
                 } catch {}
-                const isInbox =
-                    this.store.self_partner?.main_user_id?.notification_type ===
-                        "inbox" && model !== "discuss.channel";
+                const isInbox = this.store.selfUsesInbox && model !== "discuss.channel";
+                debugLog.logic("serviceWorker notification-display-request", () => ({
+                    model,
+                    res_id,
+                    isTabFocused,
+                    isDisplayed: thread?.isDisplayed,
+                    isInbox,
+                }));
                 if ((isTabFocused && thread?.isDisplayed) || isInbox) {
                     (
                         ev.source ?? browser.navigator.serviceWorker.controller
@@ -490,6 +562,7 @@ export class Store extends BaseStore {
 
     /** @param {{model: string, res_id: number}} payload */
     onPushNotificationDisplayed(payload) {
+        debugLog.logic("onPushNotificationDisplayed", () => payload);
         if (["mixin.mail.thread", "discuss.channel"].includes(payload.model)) {
             this.env.services["mail.out_of_focus"]._playSound();
         }
@@ -504,9 +577,15 @@ export class Store extends BaseStore {
     async getChat({ userId, partnerId }) {
         const partner = await this.getPartner({ userId, partnerId });
         if (!partner) {
+            debugLog.logic("getChat no partner", () => ({ userId, partnerId }));
             return;
         }
         let chat = partner.searchChat();
+        debugLog.logic("getChat", () => ({
+            partnerId: partner.id,
+            localChat: chat?.localId,
+            pinned: chat?.self_member_id?.is_pinned,
+        }));
         if (!chat?.self_member_id?.is_pinned) {
             chat = await this.joinChat(partner.id);
         }
@@ -558,6 +637,7 @@ export class Store extends BaseStore {
                 .insert({ id: userId })
                 .fetchPartner();
             if (!partner) {
+                debugLog.logic("getPartner user without partner", () => ({ userId }));
                 this.env.services.notification.add(
                     _t("You can only chat with existing users."),
                     {
@@ -580,6 +660,9 @@ export class Store extends BaseStore {
                     },
                 );
                 if (!userId) {
+                    debugLog.logic("getPartner partner without user", () => ({
+                        partnerId,
+                    }));
                     this.env.services.notification.add(
                         _t(
                             "You can only chat with partners that have a dedicated user.",
@@ -602,6 +685,7 @@ export class Store extends BaseStore {
      * @returns {Promise<import("models").Thread>}
      */
     async joinChat(id, forceOpen = false) {
+        debugLog.logic("joinChat", () => ({ partnerId: id, forceOpen }));
         const { channel } = await this.fetchStoreData(
             "/discuss/get_or_create_chat",
             { partners_to: [id] },
@@ -625,6 +709,7 @@ export class Store extends BaseStore {
      * @param {string} document.model
      */
     openDocument({ id, model }) {
+        debugLog.logic("openDocument", () => ({ id, model }));
         this.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_model: model,
@@ -648,6 +733,7 @@ export class Store extends BaseStore {
      * @param {true|false|undefined} is_notification
      */
     async searchMessagesInThread(searchTerm, thread, before, is_notification) {
+        const endSearch = debugLog.perf("searchMessagesInThread");
         const { count, count_is_capped, data, messages } = await rpc(
             thread.getFetchRoute(),
             {
@@ -659,6 +745,7 @@ export class Store extends BaseStore {
                 },
             },
         );
+        endSearch({ thread: thread.localId, count, results: messages.length });
         this.insert(data);
         return {
             count,
@@ -678,9 +765,17 @@ export const storeService = {
      * @returns {import("models").Store}
      */
     start(env, services) {
+        const endStart = debugLog.perf("service start");
         const store = makeStore(env);
+        startLocalStorageMirror(store);
         store.insert(session.storeData);
+        debugLog.lifecycle("service start", () => ({
+            sessionModels: Object.keys(session.storeData || {}),
+        }));
         services.bus_service.addEventListener("BUS:RECONNECT", () => {
+            debugLog.lifecycle("bus reconnected", () => ({
+                threadFetchAttempted: store._threadFetchAttempted.size,
+            }));
             store._threadFetchAttempted.clear();
         });
         store.self_guest ??= /** @type {typeof store.self_guest} */ (
@@ -690,6 +785,7 @@ export const storeService = {
             /** @type {unknown} */ ({})
         );
         store.onStarted();
+        endStart();
         return store;
     },
 };

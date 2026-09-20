@@ -8,23 +8,33 @@ class SlideSlidePartner(models.Model):
     _rec_name = "partner_id"
 
     slide_id = fields.Many2one(
-        "slide.slide", string="Content", ondelete="cascade", index=True, required=True
+        comodel_name="slide.slide",
+        string="Content",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
     slide_category = fields.Selection(related="slide_id.slide_category")
-    channel_id = fields.Many2one(
-        "slide.channel",
-        string="Channel",
+    channel_id = fields.Many2one(  # noqa: E8529  One2many inverse, cascading FK
+        comodel_name="slide.channel",
         related="slide_id.channel_id",
+        string="Channel",
         store=True,
         index=True,
         ondelete="cascade",
     )
     partner_id = fields.Many2one(
-        "res.partner", index=True, required=True, ondelete="cascade"
+        comodel_name="res.partner",
+        index=True,
+        required=True,
+        ondelete="cascade",
     )
-    vote = fields.Integer("Vote", default=0)
-    completed = fields.Boolean("Completed")
-    quiz_attempts_count = fields.Integer("Quiz attempts count", default=0)
+    vote = fields.Integer(default=0)
+    completed = fields.Boolean()
+    quiz_attempts_count = fields.Integer(
+        string="Quiz attempts count",
+        default=0,
+    )
 
     _slide_partner_uniq = models.Constraint(
         "unique(slide_id, partner_id)",
@@ -55,6 +65,19 @@ class SlideSlidePartner(models.Model):
         if slides_completion_to_recompute:
             slides_completion_to_recompute._recompute_completion()
 
+        return res
+
+    def unlink(self):
+        channel_ids = self.channel_id.ids
+        partner_ids = self.partner_id.ids
+        res = super().unlink()
+        self.env["slide.channel.partner"].search(
+            [
+                ("channel_id", "in", channel_ids),
+                ("partner_id", "in", partner_ids),
+                ("member_status", "not in", ("completed", "invited")),
+            ]
+        )._recompute_completion()
         return res
 
     def _recompute_completion(self):

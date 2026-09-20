@@ -1,14 +1,18 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockStorageCategory(models.Model):
     _name = "stock.storage.category"
     _description = "Storage Category"
     _order = "name"
 
-    name = fields.Char(string="Storage Category", required=True)
+    name = fields.Char(
+        string="Storage Category",
+        required=True,
+    )
     max_weight = fields.Float(
-        string="Max Weight",
         digits="Stock Weight",
         help="Maximum weight the locations of this storage category can hold. "
         "Leave 0 for no weight limit.",
@@ -34,16 +38,17 @@ class StockStorageCategory(models.Model):
             ("same", "If all products are same"),
             ("mixed", "Allow mixed products"),
         ],
-        required=True,
         default="mixed",
+        required=True,
     )
     location_ids = fields.One2many(
         comodel_name="stock.location",
         inverse_name="storage_category_id",
     )
-    company_id = fields.Many2one(comodel_name="res.company", string="Company")
+    company_id = fields.Many2one(comodel_name="res.company")
     weight_uom_name = fields.Char(
-        string="Weight unit", compute="_compute_weight_uom_name"
+        string="Weight unit",
+        compute="_compute_weight_uom_name",
     )
 
     _positive_max_weight = models.Constraint(
@@ -68,6 +73,12 @@ class StockStorageCategory(models.Model):
 
     def _inverse_storage_capacity_ids(self):
         for storage_category in self:
+            dbg.lifecycle.debug(
+                "[storage_category:%s] capacities: %d product, %d package",
+                storage_category.id,
+                len(storage_category.product_capacity_ids),
+                len(storage_category.package_capacity_ids),
+            )
             storage_category.capacity_ids = (
                 storage_category.product_capacity_ids
                 | storage_category.package_capacity_ids
@@ -89,34 +100,30 @@ class StockStorageCategoryCapacity(models.Model):
 
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
-        check_company=True,
-        domain=(
-            "[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
-            " [('id', '=', context.get('default_product_id', False))] if context.get('default_product_id') else"
-            " [('is_storable', '=', True)]"
-        ),
-        ondelete="cascade",
         index="btree_not_null",
+        domain="[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
+        " [('id', '=', context.get('default_product_id', False))] if context.get('default_product_id') else"
+        " [('is_storable', '=', True)]",
+        ondelete="cascade",
+        check_company=True,
     )
     package_type_id = fields.Many2one(
         comodel_name="stock.package.type",
-        string="Package Type",
-        check_company=True,
-        ondelete="cascade",
         index="btree_not_null",
+        ondelete="cascade",
+        check_company=True,
     )
-    quantity = fields.Float(string="Quantity", required=True)
+    quantity = fields.Float(required=True)
     product_uom_id = fields.Many2one(related="product_id.uom_id")
     company_id = fields.Many2one(
-        related="storage_category_id.company_id",
         comodel_name="res.company",
+        related="storage_category_id.company_id",
         string="Company",
     )
 
@@ -128,11 +135,11 @@ class StockStorageCategoryCapacity(models.Model):
         "CHECK((product_id IS NULL) != (package_type_id IS NULL))",
         "A storage capacity rule must concern either a product or a package type, but not both.",
     )
-    _unique_product = models.Constraint(
-        "UNIQUE(product_id, storage_category_id)",
+    _unique_product = models.UniqueIndex(
+        "(product_id, storage_category_id) WHERE product_id IS NOT NULL",
         "Multiple capacity rules for one product.",
     )
-    _unique_package_type = models.Constraint(
-        "UNIQUE(package_type_id, storage_category_id)",
+    _unique_package_type = models.UniqueIndex(
+        "(package_type_id, storage_category_id) WHERE package_type_id IS NOT NULL",
         "Multiple capacity rules for one package type.",
     )

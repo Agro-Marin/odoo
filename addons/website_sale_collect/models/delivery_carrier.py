@@ -2,8 +2,11 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.website_sale_collect import utils
+
+_debug = DebugLog(__name__)
 
 
 class DeliveryCarrier(models.Model):
@@ -13,7 +16,10 @@ class DeliveryCarrier(models.Model):
         selection_add=[("in_store", "Pick up in store")],
         ondelete={"in_store": "set default"},
     )
-    warehouse_ids = fields.Many2many(string="Stores", comodel_name="stock.warehouse")
+    warehouse_ids = fields.Many2many(
+        comodel_name="stock.warehouse",
+        string="Stores",
+    )
 
     @api.constrains("delivery_type", "is_published", "warehouse_ids")
     def _check_in_store_dm_has_warehouses_when_published(self):
@@ -26,6 +32,7 @@ class DeliveryCarrier(models.Model):
                 )
             )
         ):
+            _debug.logic("in_store_carrier_refused", reason="provider", carriers=self)
             raise ValidationError(
                 _(
                     "The delivery method must have at least one warehouse to be published."
@@ -54,7 +61,6 @@ class DeliveryCarrier(models.Model):
                 vals["integration_level"] = "rate"
                 vals["allow_cash_on_delivery"] = False
 
-                # Set the default warehouses and publish if one is found.
                 if "company_id" in vals:
                     company_id = vals.get("company_id")
                 else:
@@ -64,7 +70,7 @@ class DeliveryCarrier(models.Model):
                         .company_id.id
                         or self.env.company.id
                     )
-                warehouses = self.env["stock.warehouse"].search(
+                warehouses = self.env["stock.warehouse"].search(  # noqa: E8507 - one lookup per created carrier, on its own company
                     [("company_id", "in", company_id)]
                 )
                 vals.update(
@@ -81,17 +87,7 @@ class DeliveryCarrier(models.Model):
             vals["allow_cash_on_delivery"] = False
         return super().write(vals)
 
-    # === BUSINESS METHODS ===#
-
     def _in_store_get_close_locations(self, partner_address, product_id=None):
-        """Get the formatted close pickup locations sorted by distance to the partner address.
-
-        :param res.partner partner_address: The address to use to sort the pickup locations.
-        :param str product_id: The product whose product page was used to open the location
-                               selector, if any, as a `product.product` id.
-        :return: The sorted and formatted close pickup locations.
-        :rtype: list[dict]
-        """
         try:
             product_id = product_id and int(product_id)
         except ValueError:
@@ -99,24 +95,21 @@ class DeliveryCarrier(models.Model):
         else:
             product = self.env["product.product"].browse(product_id)
 
-        partner_address.geo_localize()  # Calculate coordinates.
+        partner_address.geo_localize()
 
         pickup_locations = []
         order_sudo = request.cart
+        self.warehouse_ids._update_missing_coordinates()
         for wh in self.warehouse_ids:
             pickup_location_values = wh._prepare_pickup_location_data()
-            if (
-                not pickup_location_values
-            ):  # Ignore warehouses with badly configured addresses.
+            if not pickup_location_values:
                 continue
 
-            # Prepare the stock data based on either the product or the order.
-            if product:  # Called from the product page.
+            if product:
                 in_store_stock_data = utils.format_product_stock_values(product, wh.id)
-            else:  # Called from the checkout page.
+            else:
                 in_store_stock_data = {"in_stock": order_sudo._is_in_stock(wh.id)}
 
-            # Calculate the distance between the partner address and the warehouse location.
             pickup_location_values.update(
                 {
                     "additional_data": {"in_store_stock_data": in_store_stock_data},

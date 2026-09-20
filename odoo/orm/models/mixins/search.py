@@ -4,7 +4,8 @@ import typing
 from typing import Self
 
 from odoo.exceptions import UserError
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.debug_log import DebugLog
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import ormcache
 
 from ... import decorators as api
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 
 def _is_unset_name(value: typing.Any) -> bool:
@@ -39,9 +41,18 @@ class SearchMixin(_ModelStubs):
 
         query = self._search(domain, limit=limit)
         count = len(query)
+        _debug.pipeline(
+            "search.count",
+            model=self._name,
+            count=count,
+            limit=limit,
+            uid=self.env.uid,
+        )
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record("search", self._name, count, frozenset())
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
+                "search", self._name, count, frozenset()
+            )
 
         prof.stop()
         prof.report(
@@ -52,8 +63,10 @@ class SearchMixin(_ModelStubs):
             limit,
             count,
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("search", self._name, count, prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "search", self._name, count, prof.elapsed
+            )
 
         return count
 
@@ -87,6 +100,12 @@ class SearchMixin(_ModelStubs):
         prof.mark("search")
 
         if query.is_empty():
+            _debug.logic(
+                "search.empty_query",
+                model=self._name,
+                fields=len(field_names) if field_names else 0,
+                limit=limit,
+            )
             if not self.env.su:
                 self._get_fields_to_fetch(field_names)
             prof.stop("fields")
@@ -96,10 +115,14 @@ class SearchMixin(_ModelStubs):
                 self._name,
                 str(domain)[:200],
             )
-            if prof.agg and (p := self.env.transaction._orm_profiler):
-                p.record("search", self._name, 0, prof.elapsed)
-            if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-                tracker.record("search", self._name, 0, frozenset(field_names or ()))
+            if prof.agg and self.env.transaction.observers:
+                self.env.transaction.observe_timing(
+                    "search", self._name, 0, prof.elapsed
+                )
+            if self.env.transaction.observers:
+                self.env.transaction.observe_operation(
+                    "search", self._name, 0, frozenset(field_names or ())
+                )
             return self.browse()
 
         fields_to_fetch = self._get_fields_to_fetch(field_names)
@@ -107,8 +130,8 @@ class SearchMixin(_ModelStubs):
 
         result = self._fetch_query(query, fields_to_fetch)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record(
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
                 "search", self._name, len(result), frozenset(field_names or ())
             )
 
@@ -122,16 +145,22 @@ class SearchMixin(_ModelStubs):
             limit,
             len(result),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("search", self._name, len(result), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "search", self._name, len(result), prof.elapsed
+            )
 
         return result
 
     @api.model
+    def _get_rec_names_search_fields(self) -> list[str]:
+        if self._rec_names_search:
+            return list(self._rec_names_search)
+        return [self._rec_name] if self._rec_name else []
+
+    @api.model
     def _search_display_name(self, operator: str, value: typing.Any) -> DomainType:
-        search_fnames = self._rec_names_search or (
-            [self._rec_name] if self._rec_name else []
-        )
+        search_fnames = self._get_rec_names_search_fields()
         if search_fnames:
             usable = [
                 fname
@@ -154,9 +183,21 @@ class SearchMixin(_ModelStubs):
                     [f for f in search_fnames if f not in usable],
                     self._name,
                 )
+                _debug.logic(
+                    "search.display_name_cyclic_dropped",
+                    model=self._name,
+                    entries=len(search_fnames),
+                    usable=len(usable),
+                )
             search_fnames = usable
         if not search_fnames:
             return self._search_display_name_unsearchable(operator, value)
+        _debug.logic(
+            "search.display_name",
+            model=self._name,
+            operator=operator,
+            fields=search_fnames,
+        )
         if operator.endswith("like") and not value and "=" not in operator:
             return (
                 Domain.FALSE if operator in Domain.NEGATIVE_OPERATORS else Domain.TRUE
@@ -171,6 +212,13 @@ class SearchMixin(_ModelStubs):
             values = list(value) if isinstance(value, COLLECTION_TYPES) else [value]
             match_values = [v for v in values if not _is_unset_name(v)]
             if len(match_values) != len(values):
+                _debug.logic(
+                    "search.display_name_unset_values",
+                    model=self._name,
+                    operator=operator,
+                    values=len(values),
+                    unset=len(values) - len(match_values),
+                )
                 parts = [self._search_display_name_unset(search_fnames, negative)]
                 if match_values:
                     parts.insert(
@@ -205,6 +253,13 @@ class SearchMixin(_ModelStubs):
                 with contextlib.suppress(ValueError, TypeError):
                     typed_value = field.convert_to_write(value, self)
                     domains.append([(field_name, operator, typed_value)])
+        _debug.logic(
+            "search.display_name.match_domain",
+            model=self._name,
+            operator=operator,
+            search_fields=list(search_fnames),
+            branches=len(domains),
+        )
         return aggregator(domains)
 
     @api.model
@@ -218,15 +273,18 @@ class SearchMixin(_ModelStubs):
         while pending:
             model_name = pending.pop()
             if model_name == self._name:
+                _debug.logic(
+                    "search.rec_names_search_cyclic",
+                    model=self._name,
+                    field=field_name,
+                    visited=len(seen),
+                )
                 return True
             if model_name in seen or model_name not in self.env:
                 continue
             seen.add(model_name)
             comodel = self.env[model_name]
-            entries = comodel._rec_names_search or (
-                [comodel._rec_name] if comodel._rec_name else []
-            )
-            for entry in entries:
+            for entry in comodel._get_rec_names_search_fields():
                 try:
                     next_field = comodel._get_rec_names_search_field(entry)
                 except KeyError, ValueError:
@@ -255,6 +313,12 @@ class SearchMixin(_ModelStubs):
         self, operator: str, value: typing.Any
     ) -> DomainType:
         field = self._fields["display_name"]
+        _debug.logic(
+            "search.display_name_unsearchable",
+            model=self._name,
+            operator=operator,
+            column=field.is_column,
+        )
         if field.is_column:
             return Domain(field.name, operator, value)
         _logger.warning(
@@ -298,6 +362,13 @@ class SearchMixin(_ModelStubs):
     ) -> list[tuple[int, str]]:
         domain = Domain("display_name", operator, name) & Domain(domain or Domain.TRUE)
         records = self.search_fetch(domain, ["display_name"], limit=limit)
+        _debug.perf.count(
+            "search.name_search",
+            model=self._name,
+            operator=operator,
+            limit=limit,
+            results=len(records),
+        )
         return [(record.id, record.display_name or "") for record in records.sudo()]
 
     @api.model
@@ -312,7 +383,7 @@ class SearchMixin(_ModelStubs):
         **read_kwargs,
     ) -> list[ValuesType]:
         if not fields:
-            fields = list(self.fields_get(attributes=()))
+            fields = self._get_fields_default_read()
         records = self.search_fetch(
             domain or [], fields, offset=offset, limit=limit, order=order
         )
@@ -322,10 +393,24 @@ class SearchMixin(_ModelStubs):
             del context["active_test"]
             records = records.with_context(context)
 
+        _debug.pipeline(
+            "search.read",
+            model=self._name,
+            records=len(records),
+            fields=len(fields),
+            limit=limit,
+            offset=offset,
+        )
         return records._read_format(fnames=fields, **read_kwargs)
 
     @api.private
     def lock_for_update(self, *, allow_referencing: bool = False) -> None:
+        _debug.pipeline(
+            "search.lock_for_update",
+            model=self._name,
+            records=len(self),
+            allow_referencing=allow_referencing,
+        )
         self.env.backend.lock_for_update(self, allow_referencing=allow_referencing)
 
     @api.private

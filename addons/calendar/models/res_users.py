@@ -11,7 +11,7 @@ class ResUsers(models.Model):
     _inherit = "res.users"
 
     calendar_default_privacy = fields.Selection(
-        [
+        selection=[
             ("public", "Public by default"),
             ("private", "Private by default"),
             ("confidential", "Internal users only"),
@@ -25,30 +25,14 @@ class ResUsers(models.Model):
         return self._get_calendar_event_resources()[self]
 
     def _get_calendar_event_resources(self):
-        """Resolve people in one query, preferring their own company to shared resources."""
-        resources = (
-            self.env["resource.resource"]
-            .sudo()
-            .search_fetch(
-                [("user_id", "in", self.ids)],
-                order="id",
-            )
-        )
-        by_user = resources.grouped("user_id")
-        return {
-            user: by_user.get(user, resources.browse())
-            .filtered(
-                lambda resource, user=user: (
-                    not resource.company_id or resource.company_id == user.company_id
-                )
-            )
-            .sorted(
-                key=lambda resource, user=user: resource.company_id != user.company_id
-            )[:1]
-            for user in self
-        }
+        """Resolve people through their party, one query per company represented."""
+        resources = {}
+        for company, users in self.grouped("company_id").items():
+            by_partner = users.partner_id._get_calendar_event_resources(company)
+            resources.update({user: by_partner[user.partner_id] for user in users})
+        return resources
 
-    def _ensure_calendar_event_resource(self):
+    def _get_or_create_calendar_event_resource(self):
         self.check_singleton()
         self.env.cr.execute(
             SQL(
@@ -99,7 +83,7 @@ class ResUsers(models.Model):
         return partner_ids
 
     @api.model
-    def _default_user_calendar_default_privacy(self):
+    def _get_user_calendar_default_privacy(self):
         return (
             self.env["ir.config_parameter"]
             .sudo()
@@ -108,7 +92,7 @@ class ResUsers(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        default_privacy = self._default_user_calendar_default_privacy()
+        default_privacy = self._get_user_calendar_default_privacy()
         for vals_dict in vals_list:
             if not vals_dict.get("calendar_default_privacy"):
                 vals_dict.update(calendar_default_privacy=default_privacy)
@@ -139,7 +123,7 @@ class ResUsers(models.Model):
             not user.sudo().res_users_settings_id.calendar_default_privacy
             for user in self
         ):
-            fallback_default_privacy = self._default_user_calendar_default_privacy()
+            fallback_default_privacy = self._get_user_calendar_default_privacy()
 
         for user in self:
             user.calendar_default_privacy = (

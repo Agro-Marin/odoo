@@ -74,15 +74,15 @@
         <field name="name">web.js.error.list</field>
         <field name="model">web.js.error</field>
         <field name="arch" type="xml">
-            <list string="JS Errors" create="false" delete="false" edit="false">
+            <list string="JS Errors" create="false" edit="false" delete="false">
                 <field name="recorded_at" />
                 <field
                     name="kind"
                     decoration-danger="kind in ['service_start', 'asset_load_error']" />
                 <field
                     name="phase"
-                    decoration-warning="phase == 'pre_boot'"
-                    optional="show" />
+                    optional="show"
+                    decoration-warning="phase == 'pre_boot'" />
                 <field name="message" />
                 <field name="cause" optional="show" />
                 <field name="url" optional="hide" />

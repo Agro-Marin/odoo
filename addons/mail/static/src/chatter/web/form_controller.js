@@ -1,11 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 import { EventBus, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
+
+const log = makeLogger("mail.chatter.form");
 FormController.props = {
     ...FormController.props,
     fullComposerBus: { type: EventBus, optional: true },
@@ -30,6 +33,11 @@ patch(FormController.prototype, {
         const isSameThread =
             this.model.root?.resId === nextConfiguration.resId &&
             this.model.root?.resModel === nextConfiguration.resModel;
+        log.pipeline("onWillLoadRoot", () => ({
+            resModel: nextConfiguration.resModel,
+            resId: nextConfiguration.resId,
+            isSameThread,
+        }));
         if (isSameThread) {
             this.env.chatter.fetchThreadData = true;
         }
@@ -57,6 +65,9 @@ patch(FormController.prototype, {
                 parseInt(/** @type {HTMLElement} */ (element).dataset.oeId),
             );
             if (partnerIds.length) {
+                log.logic("mentioned partners linked on save", () => ({
+                    partnerIds,
+                }));
                 changes.partner_ids ??= [];
                 if (
                     changes.partner_ids[0] &&

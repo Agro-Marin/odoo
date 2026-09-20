@@ -3,6 +3,8 @@
 
 import { Component, onWillRender, onWillUpdateProps, useState } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";
 import {
     clampDate,
@@ -68,14 +70,13 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {number} number
  */
 
+const log = makeLogger("web.components.datetime_picker");
+
 /** @param {DateTime} date */
 const getStartOfDecade = (date) => Math.floor(date.year / 10) * 10;
 
 /** @param {DateTime} date */
 const getStartOfCentury = (date) => Math.floor(date.year / 100) * 100;
-
-/** @param {DateTime} date */
-const getStartOfWeek = (date) => getStartOfLocalWeek(date);
 
 /**
  * @param {number} min
@@ -145,7 +146,7 @@ const PRECISION_LEVELS = new Map()
             /** @type {WeekItem[]} */
             const weeks = [];
 
-            let startOfNextWeek = getStartOfWeek(monthRange[0]);
+            let startOfNextWeek = getStartOfLocalWeek(monthRange[0]);
             for (let w = 0; w < WEEKS_PER_MONTH; w++) {
                 const weekDayItems = [];
                 for (let d = 0; d < DAYS_PER_WEEK; d++) {
@@ -302,6 +303,7 @@ export class DateTimePicker extends Component {
         onToggleRange: { type: Function, optional: true },
         range: { type: Boolean, optional: true },
         rounding: { type: Number, optional: true },
+        tz: { type: String, optional: true },
         showRangeToggler: { type: Boolean, optional: true },
         slots: {
             type: Object,
@@ -360,6 +362,7 @@ export class DateTimePicker extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         /** @type {PrecisionLevel[]} */
         this.allowedPrecisionLevels = [];
         /** @type {Item[]} */
@@ -452,6 +455,10 @@ export class DateTimePicker extends Component {
             !this._gridKey ||
             gridKey.some((value, index) => value !== this._gridKey[index])
         ) {
+            log.logic("rebuildGrid", () => ({
+                precision: this.state.precision,
+                focusDate: focusDate?.toISODate(),
+            }));
             this._gridKey = gridKey;
             this.title = precision.getTitle(focusDate);
             this._grid = precision.getItems(focusDate, {
@@ -544,7 +551,6 @@ export class DateTimePicker extends Component {
             isSelected: isInRange(this.selectedRange, range),
             isSelectStart: false,
             isSelectEnd: false,
-            isHighlighted: isInRange(this.state.hoveredDate, range),
         };
 
         if (this.props.range) {
@@ -581,6 +587,13 @@ export class DateTimePicker extends Component {
             const values = [];
             values[props.focusedDateIndex] = timeValues[props.focusedDateIndex];
             return values;
+        }
+    }
+
+    /** @param {DateItem | null} item */
+    onDateHover(item) {
+        if (this.props.range) {
+            this.state.hoveredDate = item ? item.range[0] : null;
         }
     }
 
@@ -631,8 +644,18 @@ export class DateTimePicker extends Component {
             });
         }
         if (!isInRange(result[valueIndex], [this.minDate, this.maxDate])) {
+            log.logic("selectIfValid rejected", () => ({
+                value: String(result[valueIndex]),
+                valueIndex,
+                unit,
+            }));
             return false;
         }
+        log.logic("select", () => ({
+            value: String(result[valueIndex]),
+            valueIndex,
+            unit,
+        }));
         this.props.onSelect(result.length === 2 ? result : result[0], unit);
         return true;
     }

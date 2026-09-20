@@ -9,12 +9,12 @@
             <field name="arch" type="xml">
                 <xpath expr="//filter[@name='my_updates']" position="after">
                     <filter
-                        string="My Team's Updates"
                         name="my_team_updates"
+                        string="My Team's Updates"
                         domain="[('user_id.employee_id.parent_id.user_id', '=', uid)]" />
                     <filter
-                        string="My Department's Updates"
                         name="my_department_updates"
+                        string="My Department's Updates"
                         domain="[('user_id.employee_id.member_of_department', '=', True)]" />
                 </xpath>
             </field>

@@ -8,6 +8,7 @@ from psycopg.types.json import Jsonb
 
 from odoo import api, models
 from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401 - re-exported downstream
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate
@@ -16,12 +17,14 @@ if TYPE_CHECKING:
     from odoo.db.cursor import BaseCursor
 
 _lt = LazyTranslate(__name__)
+_debug = DebugLog(__name__)
 
 ACCESS_MODES = ("read", "write", "create", "unlink")
 
 
 def check_access_mode(mode: str) -> None:
     if mode not in ACCESS_MODES:
+        _debug.logic("access_mode.rejected", mode=mode)
         raise ValueError(
             f"Invalid access mode {mode!r}: expected one of {ACCESS_MODES}."
         )
@@ -32,12 +35,8 @@ def access_mode_columns(alias: str) -> dict[str, SQL]:
 
 
 def unloaded_module_scope(env: Any) -> tuple[int, str | None] | None:
-    # The module whose data or demo files are being converted counts as loaded:
-    # its own access rows and rules exist, and a `uid=` record in those files acts
-    # on its models. loaded_modules only grows while loading, so its size keys a
-    # cached answer to the set it was computed against.
     registry = env.registry
-    if not registry._init:
+    if registry.ready:
         return None
     return len(registry.loaded_modules), env.context.get("install_module")
 
@@ -45,10 +44,18 @@ def unloaded_module_scope(env: Any) -> tuple[int, str | None] | None:
 def unloaded_module_clause(env: Any, model: str, alias: str) -> SQL:
     registry = env.registry
     loaded_modules = list(registry.loaded_modules)
-    if not registry._init or not loaded_modules:
+    if registry.ready or not loaded_modules:
+        _debug.logic(
+            "unloaded_module_clause.skipped",
+            model=model,
+            reason="ready" if registry.ready else "no_modules",
+        )
         return SQL("")
     if install_module := env.context.get("install_module"):
         loaded_modules.append(install_module)
+    _debug.logic(
+        "unloaded_module_clause.applied", model=model, modules=len(loaded_modules)
+    )
     return SQL(
         """AND NOT EXISTS (
                 SELECT 1 FROM ir_model_data d
@@ -96,15 +103,22 @@ def prepare_compute(
     filename = f"<compute {origin}>"
 
     def compute(self: models.BaseModel) -> None:
-        safe_eval(text, SAFE_EVAL_BASE | {"self": self}, mode="exec", filename=filename)
+        with _debug.perf("manual_compute", cr=self.env.cr, origin=origin, records=self):
+            safe_eval(
+                text, SAFE_EVAL_BASE | {"self": self}, mode="exec", filename=filename
+            )
 
     dep_names = [name.strip() for name in deps.split(",")] if deps else []
     dep_names = [name for name in dep_names if name]
+    _debug.lifecycle("compute_prepared", origin=origin, depends=len(dep_names))
     return api.depends(*dep_names)(compute)
 
 
 def mark_modified(records: models.BaseModel, fnames: list[str]) -> None:
     field_objs = [records._fields[fname] for fname in fnames]
+    _debug.lifecycle(
+        "mark_modified", model=records._name, records=len(records), fields=fnames
+    )
     with records.env.protecting(field_objs, records):
         records.modified(fnames)
 
@@ -115,6 +129,12 @@ def compute_modules(records: models.BaseModel) -> None:
     )
     installed_names = set(installed.mapped("name"))
     xml_ids = records._get_external_ids()
+    _debug.perf.count(
+        "compute_modules",
+        model=records._name,
+        records=len(records),
+        installed=len(installed_names),
+    )
     for record in records:
         module_names = {xml_id.split(".")[0] for xml_id in xml_ids[record.id]}
         record.modules = ", ".join(sorted(installed_names & module_names))
@@ -127,12 +147,19 @@ def reload_schema(
 ) -> None:
     env.flush_all()
     registry = env.registry
-    registry._setup_models__(env.cr, setup_models)
+    with _debug.perf("reload_schema_setup", cr=env.cr, models=len(setup_models)):
+        registry.setup_models(env.cr, setup_models)
     if init_models:
         affected_models = registry.get_descendants(init_models, "_inherits")
-        registry.init_models(
-            env.cr, affected_models, dict(env.context, update_custom_fields=True)
-        )
+        with _debug.perf(
+            "reload_schema_init",
+            cr=env.cr,
+            models=len(init_models),
+            affected=len(affected_models),
+        ):
+            registry.init_models(
+                env.cr, affected_models, dict(env.context, update_custom_fields=True)
+            )
 
 
 def _model_slug(model_name: str) -> str:
@@ -166,6 +193,7 @@ def query_insert(
     if not rows:
         return []
     cols = list(rows[0])
+    _debug.perf.count("query_insert", table=table, rows=len(rows), columns=len(cols))
     return cr.copy_from(
         table,
         cols,
@@ -184,6 +212,7 @@ def query_update(
         if key not in selector_set
     ]
     if not assignments:
+        _debug.logic("query_update.rejected", table=table, reason="no_assignments")
         raise ValueError(
             f"query_update: no columns to update on {table!r}; every key in "
             f"{list(values)} is a selector ({selectors}), so the SET clause "
@@ -198,13 +227,16 @@ def query_update(
         ),
     )
     cr.execute(query)
-    return [row[0] for row in cr.fetchall()]
+    ids = [row[0] for row in cr.fetchall()]
+    _debug.perf.count("query_update", table=table, rows=len(ids))
+    return ids
 
 
 def select_en(
     model: models.BaseModel, fnames: list[str], model_names: list[str]
 ) -> list[tuple[Any, ...]]:
     if not model_names:
+        _debug.logic("select_en.skipped", model=model._name, reason="no_models")
         return []
     cols = SQL(", ").join(
         (
@@ -220,7 +252,11 @@ def select_en(
         SQL.identifier(model._table),
         list(model_names),
     )
-    return model.env.execute_query(query)
+    rows = model.env.execute_query(query)
+    _debug.perf.count(
+        "select_en", model=model._name, models=len(model_names), rows=len(rows)
+    )
+    return rows
 
 
 def _prepare_upsert_query(
@@ -301,13 +337,21 @@ def upsert_en(
     conflict: list[str],
 ) -> list[int]:
     if not rows:
+        _debug.logic("upsert_en.skipped", model=model._name, reason="no_rows")
         return []
     if not fnames:
+        _debug.logic("upsert_en.rejected", model=model._name, reason="no_fnames")
         raise ValueError("upsert_en: fnames must not be empty")
 
     fields = model._fields
 
     if bad := [c for c in conflict if fields[c].translate]:
+        _debug.logic(
+            "upsert_en.rejected",
+            model=model._name,
+            reason="translated_conflict",
+            columns=len(bad),
+        )
         raise ValueError(
             f"upsert_en: conflict columns cannot be translated fields (got {bad}); "
             "the RETURNING/reorder logic assumes scalar, hashable keys."
@@ -316,6 +360,13 @@ def upsert_en(
     conflict_indices = [fnames.index(c) for c in conflict]
     keys = [tuple(row[i] for i in conflict_indices) for row in rows]
     if len(set(keys)) != len(keys):
+        _debug.logic(
+            "upsert_en.rejected",
+            model=model._name,
+            reason="duplicate_keys",
+            rows=len(keys),
+            distinct=len(set(keys)),
+        )
         raise ValueError(
             f"upsert_en: rows are not unique on conflict columns {conflict}; "
             "MERGE cannot resolve duplicate source keys."
@@ -336,9 +387,17 @@ def upsert_en(
     comma = SQL(", ").join
     batch_size = 65000 // len(fnames) or 1
     key_to_id = {}
-    for batch in batched(values, batch_size, strict=False):
-        query = _prepare_upsert_query(model, fnames, conflict, comma(batch))
-        for result_row in model.env.execute_query(query):
-            key_to_id[result_row[1:]] = result_row[0]
+    with _debug.perf(
+        "upsert_en",
+        cr=model.env.cr,
+        model=model._name,
+        rows=len(rows),
+        columns=len(fnames),
+        batch_size=batch_size,
+    ):
+        for batch in batched(values, batch_size, strict=False):
+            query = _prepare_upsert_query(model, fnames, conflict, comma(batch))
+            for result_row in model.env.execute_query(query):
+                key_to_id[result_row[1:]] = result_row[0]
 
     return [key_to_id[key] for key in keys]

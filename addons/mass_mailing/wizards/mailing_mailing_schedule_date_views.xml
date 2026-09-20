@@ -17,15 +17,15 @@
                 </group>
                 <footer>
                     <button
-                        string="Schedule"
                         name="action_schedule_date"
                         type="object"
+                        string="Schedule"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard "
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

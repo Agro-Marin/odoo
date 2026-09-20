@@ -12,7 +12,22 @@ from odoo.libs.documents import extension_for, mimetype_for
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
 
+from ..tools import debug_log as dbg
+
 JSON_MIMETYPE = mimetype_for("json")
+
+
+def _get_profiles(profile: str, purpose: str):
+    try:
+        profile_ids = [int(p) for p in profile.split(",")]
+    except ValueError, AttributeError:
+        dbg.logic.debug("[profile:%s] %s: unparsable ids -> 404", profile, purpose)
+        raise request.prepare_not_found_error() from None
+    profiles = request.env["ir.profile"].browse(profile_ids).exists()
+    if not profiles:
+        dbg.logic.debug("[profile:%s] %s: no such profiles -> 404", profile, purpose)
+        raise request.prepare_not_found_error()
+    return profiles
 
 
 class Profiling(Controller):
@@ -28,12 +43,21 @@ class Profiling(Controller):
         else:
             collectors = ["sql", "traces_async"]
         profile = profile and profile != "0"
+        dbg.lifecycle.debug(
+            "[profiling] set: %s enable=%s collectors=%s params=%s",
+            dbg.req(),
+            bool(profile),
+            collectors,
+            dbg.keys(params),
+        )
         try:
             state = request.env["ir.profile"].set_profiling(
                 profile, collectors=collectors, params=params
             )
+            dbg.logic.debug("[profiling] set: state keys=%s", dbg.keys(state))
             return Response(json_dumps(state), mimetype="application/json")
         except UserError as e:
+            dbg.logic.debug("[profiling] set: refused (%s)", e)
             return Response(response=f"error: {e}", status=500, mimetype="text/plain")
 
     @route(
@@ -48,17 +72,27 @@ class Profiling(Controller):
     def speedscope(
         self, profile: str, action: str | bool = False, **kwargs
     ) -> Response:
-        try:
-            profile_ids = [int(p) for p in profile.split(",")]
-        except ValueError, AttributeError:
-            raise request.prepare_not_found_error() from None
-        profiles = request.env["ir.profile"].browse(profile_ids).exists()
-        profile_str = profile
-        if not profiles:
-            raise request.prepare_not_found_error()
+        dbg.lifecycle.debug(
+            "[profile:%s] speedscope: %s action=%s params=%s",
+            profile,
+            dbg.req(),
+            action,
+            dbg.keys(kwargs),
+        )
+        profiles = _get_profiles(profile, "speedscope")
         params = kwargs or profiles._prepare_profile_params_default()
-        speedscope_result = profiles._generate_speedscope(
-            profiles._parse_params(params)
+        dbg.logic.debug(
+            "[profile:%s] speedscope: %s params, %s",
+            profile,
+            "explicit" if kwargs else "default",
+            dbg.rec(profiles),
+        )
+        with dbg.timer(request.env, "[profile:%s] generate speedscope", profile):
+            speedscope_result = profiles._generate_speedscope(
+                profiles._parse_params(params)
+            )
+        dbg.performance.debug(
+            "[profile:%s] speedscope: %d bytes", profile, len(speedscope_result)
         )
         if action == "speedscope_download_json":
             headers = [
@@ -67,7 +101,7 @@ class Profiling(Controller):
                 (
                     "Content-Disposition",
                     prepare_content_disposition_header(
-                        f"profile_{profile_str}.{extension_for(JSON_MIMETYPE)}"
+                        f"profile_{profile}.{extension_for(JSON_MIMETYPE)}"
                     ),
                 ),
             ]
@@ -82,10 +116,11 @@ class Profiling(Controller):
                 "https://cdn.jsdelivr.net/npm/speedscope@1.13.0/dist/release/",
             ),
         }
-        response = request.render("web.view_speedscope_index", context)
+        with dbg.timer(request.env, "[profile:%s] render speedscope index", profile):
+            response = request.render("web.view_speedscope_index", context)
         if action == "speedscope_download_html":
             response.headers["Content-Disposition"] = (
-                prepare_content_disposition_header(f"profile_{profile_str}.html")
+                prepare_content_disposition_header(f"profile_{profile}.html")
             )
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["Content-Type"] = "text/html"
@@ -103,20 +138,28 @@ class Profiling(Controller):
     def profile_config(
         self, profile: str, action: str | bool = False, **kwargs
     ) -> Response:
-        profile_str = profile
-        try:
-            profile_ids = [int(p) for p in profile_str.split(",")]
-        except ValueError, AttributeError:
-            raise request.prepare_not_found_error() from None
-        profiles = request.env["ir.profile"].browse(profile_ids).exists()
-        if not profiles:
-            raise request.prepare_not_found_error()
+        dbg.lifecycle.debug(
+            "[profile:%s] config: %s action=%s params=%s",
+            profile,
+            dbg.req(),
+            action,
+            dbg.keys(kwargs),
+        )
+        profiles = _get_profiles(profile, "config")
 
         if action == "memory_open":
-            memory_profile = profiles._generate_memory_profile(
-                profiles._parse_params(kwargs)
-            )
+            with dbg.timer(
+                request.env, "[profile:%s] generate memory profile", profile
+            ):
+                memory_profile = profiles._generate_memory_profile(
+                    profiles._parse_params(kwargs)
+                )
             encoded_memory_profile = json_dumps_bytes(memory_profile)
+            dbg.performance.debug(
+                "[profile:%s] memory profile: %d bytes",
+                profile,
+                len(encoded_memory_profile),
+            )
             context = {
                 "profile": profiles,
                 "memory_graph": base64.b64encode(encoded_memory_profile).decode(
@@ -127,7 +170,7 @@ class Profiling(Controller):
 
         context = {
             "default_params": profiles._prepare_profile_params_default(),
-            "profile_str": profile_str,
+            "profile_str": profile,
             "profiles": profiles,
         }
         return request.render("web.config_speedscope_index", context)

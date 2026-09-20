@@ -7,14 +7,14 @@
         <field name="arch" type="xml">
             <list
                 string="Working Time"
-                editable="bottom"
-                default_order="sequence, week_type, dayofweek, hour_from">
+                default_order="sequence, week_type, dayofweek, hour_from"
+                editable="bottom">
                 <field name="sequence" widget="handle" />
                 <field name="display_type" column_invisible="True" />
                 <field
                     name="display_name"
-                    width="1"
                     string=" "
+                    width="1"
                     invisible="display_type != 'line_section'" />
                 <field name="name" invisible="display_type == 'line_section'" />
                 <field name="dayofweek" />
@@ -32,7 +32,7 @@
                     widget="float_time"
                     column_invisible="parent.duration_based" />
                 <field name="duration_days" optional="show" readonly="1" />
-                <field name="week_type" readonly="1" force_save="1" optional="hide" />
+                <field name="week_type" optional="hide" force_save="1" readonly="1" />
             </list>
         </field>
     </record>

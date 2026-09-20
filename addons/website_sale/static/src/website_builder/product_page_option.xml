@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website_sale.ProductPageOption">
-    <!-- Dummy element to allow styling this specific option container -->
     <div class="d-none o_wsale_product_page_options"/>
 
     <BuilderRow label.translate="Page Width">
@@ -105,7 +104,6 @@
         </BuilderButtonGroup>
     </BuilderRow>
 
-    <!-- Image config -->
     <t t-if="!this.isActiveItem('opt_product_page_image_width_hide')">
         <div class="o_wsale_panel_section_title ps-2 pt-2 pb-1 fw-bold">Images</div>
         <hr class="mx-2 mt-0 mb-2"/>
@@ -121,7 +119,7 @@
 	        <BuilderButton id="'o_wsale_add_extra_images'" className="'btn-success-color-hover'" action="'productAddExtraImage'">Add More</BuilderButton>
 	        <BuilderButton id="'o_wsale_clear_extra_images'" className="'btn-danger-color-hover'" action="'productRemoveAllExtraImages'">Remove All</BuilderButton>
 	    </BuilderRow>
-        <div class="pb-2"/> <!-- Spacer -->
+        <div class="pb-2"/>
     </t>
 
     <t t-if="domState.multipleImages and !this.isActiveItem('opt_product_page_image_width_hide')">
@@ -140,18 +138,16 @@
 	        </BuilderSelect>
 	    </BuilderRow>
     </t>
-    <!-- Carousel config -->
     <t
         t-if="domState.hasCarousel and domState.hasImages and domState.multipleImages and !this.isActiveItem('opt_product_page_image_width_hide')"
     >
 	    <BuilderRow label.translate="Thumbnails" level="1">
 	        <BuilderButtonGroup action="'websiteConfig'" id="'o_wsale_thumbnail_pos'">
-	            <BuilderButton className="'fa-solid fa-left-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_left'] }" title="Left"></BuilderButton>
-	            <BuilderButton className="'fa-solid fa-down-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_bottom'] }" title="Bottom"></BuilderButton>
+	            <BuilderButton className="'fa-solid fa-left-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_left'] }" title.translate="Left"></BuilderButton>
+	            <BuilderButton className="'fa-solid fa-down-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_bottom'] }" title.translate="Bottom"></BuilderButton>
 	        </BuilderButtonGroup>
 	    </BuilderRow>
     </t>
-    <!-- Grid config -->
     <t
         t-if="domState.isGrid"
     >
@@ -336,13 +332,13 @@
         />
         <t t-set="CtaBoxedViews" t-value="['website_sale.cta_wrapper_boxed']"/>
         <BuilderSelect action="'websiteConfig'" id="'o_wsale_product_cta_style'">
-            <BuilderSelectItem id="cta_default_opt" actionParam="{ views: [] }">
+            <BuilderSelectItem id="'cta_default_opt'" actionParam="{ views: [] }">
                 <em>Default</em>
             </BuilderSelectItem>
-            <BuilderSelectItem id="cta_boxed_opt" actionParam="{ views: CtaBoxedViews }">
+            <BuilderSelectItem id="'cta_boxed_opt'" actionParam="{ views: CtaBoxedViews }">
                 Boxed
             </BuilderSelectItem>
-            <BuilderSelectItem id="cta_large_opt" actionParam="{ views: CtaLargeViews }">
+            <BuilderSelectItem id="'cta_large_opt'" actionParam="{ views: CtaLargeViews }">
                 Large
             </BuilderSelectItem>
         </BuilderSelect>
@@ -363,7 +359,6 @@
         </BuilderButton>
     </BuilderRow>
     <BuilderRow id="'o_we_actions_opt'" label.translate="Actions">
-        <!-- Filled by other modules -->
     </BuilderRow>
     <BuilderRow label.translate="Separators">
         <BuilderCheckbox

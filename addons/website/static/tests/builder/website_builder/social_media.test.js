@@ -69,7 +69,6 @@ test("reorder social medias", async () => {
     await contains("div[data-action-id='editSocialMediaLink'] input").fill("/first");
     await contains("button[data-action-id='addSocialMediaLink']").click();
 
-    // we don't know the order for the ones received from the server
     expect("tr [data-action-param='facebook'] input").toHaveValue(
         "https://fb.com/odoo",
     );
@@ -227,7 +226,6 @@ test("reorder social medias", async () => {
 
     await contains(".o-snippets-top-actions button.fa-undo").click();
 
-    // fb link not in the dom should stay just after x link
     expect("tr:nth-child(1) input[type=text]").toHaveValue("https://x.com/odoo");
     expect("tr:nth-child(1) input[type=checkbox]").toBeChecked();
     expect("tr:nth-child(2) input[type=text]").toHaveValue("https://fb.com/odoo");
@@ -303,7 +301,6 @@ test("Edit share icon", async () => {
         await waitForEndOfOperation();
     };
     await setupWebsiteBuilderWithSnippet("s_text_image", { loadIframeBundles: true });
-    // Add a dummy snippet so that the page is dirty
     await dragAndDropSnippet("s_inline_text");
     await dragAndDropSnippet("s_share");
     await contains(":iframe .s_share a i").dblclick();

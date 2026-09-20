@@ -1,7 +1,8 @@
+from odoo.exceptions import UserError
 from odoo.tests import HttpCase, new_test_user, tagged
 from odoo.tests.common import TransactionCase
 
-from odoo.addons.hr_skills.controllers.main import EMPLOYEE_IDS_RE
+from odoo.addons.hr_skills.controllers.main import EMPLOYEE_IDS_RE, HrEmployeeCV
 
 
 @tagged("post_install", "-at_install")
@@ -17,6 +18,17 @@ class TestEmployeeIdsPattern(TransactionCase):
     def test_a_repeated_query_parameter_is_not_a_string(self):
         with self.assertRaises(TypeError):
             EMPLOYEE_IDS_RE.match(["1", "2"])
+
+    def test_only_a_hex_color_reaches_the_report_styles(self):
+        self.assertEqual(HrEmployeeCV._css_color("#1a2B3c"), "#1a2B3c")
+        for rejected in (
+            "red",
+            "#fff",
+            "#123456;background:url(/web/session/logout)",
+            ["#123456"],
+            None,
+        ):
+            self.assertEqual(HrEmployeeCV._css_color(rejected), "#666666", rejected)
 
     def test_the_rejected_shapes_are_the_ones_that_used_to_reach_int(self):
         for crashing in ("1|2", "1,,2", "", ",", "1,", "1 2", "1;2", "a"):
@@ -82,3 +94,78 @@ class TestPrintedCvAccess(HttpCase):
             self._print("cv.plain", self.plain_employee.id).status_code, 200
         )
         self.assertEqual(self._print("cv.plain", self.hr_employee.id).status_code, 404)
+
+
+@tagged("post_install", "-at_install")
+class TestPrintResumeWizard(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.plain_user = new_test_user(
+            cls.env, login="wizard.plain", groups="base.group_user"
+        )
+        cls.plain_employee, cls.colleague = cls.env["hr.employee"].create(
+            [
+                {"name": "Wizard self", "user_id": cls.plain_user.id},
+                {"name": "Wizard colleague"},
+            ]
+        )
+        skill_type = cls.env["hr.skill.type"].create({"name": "Wizard skills"})
+        level = cls.env["hr.skill.level"].create(
+            {"name": "Some", "skill_type_id": skill_type.id, "level_progress": 40}
+        )
+        skill = cls.env["hr.skill"].create(
+            {"name": "Juggling", "skill_type_id": skill_type.id}
+        )
+        cls.env["hr.employee.skill"].create(
+            {
+                "employee_id": cls.plain_employee.id,
+                "skill_id": skill.id,
+                "skill_level_id": level.id,
+                "skill_type_id": skill_type.id,
+            }
+        )
+
+    def _wizard(self, employees, **values):
+        return (
+            self.env["hr.employee.cv.wizard"]
+            .with_user(self.plain_user)
+            .create({"employee_ids": employees.ids, **values})
+        )
+
+    def test_a_plain_employee_opens_the_wizard_on_themself(self):
+        wizard = self._wizard(self.plain_employee)
+        self.assertTrue(wizard.can_show_skills)
+        self.assertIn(
+            f"employee_ids={self.plain_employee.id}", wizard.action_validate()["url"]
+        )
+
+    def test_a_plain_employee_cannot_print_a_colleague(self):
+        with self.assertRaises(UserError):
+            self._wizard(self.colleague).action_validate()
+
+    def test_an_unticked_section_is_left_out_of_the_url(self):
+        url = self._wizard(
+            self.plain_employee, show_skills=False, show_others=False
+        ).action_validate()["url"]
+        self.assertIn("show_contact=1", url)
+        self.assertNotIn("show_skills", url)
+        self.assertNotIn("show_others", url)
+
+    def test_every_employee_is_offered_the_resume_as_a_window_action(self):
+        bindings = (
+            self.env["ir.actions.actions"]
+            .with_user(self.plain_user)
+            .get_bindings("hr.employee")
+        )
+        resume = [
+            action
+            for action in bindings.get("report", [])
+            if action["id"] == self.env.ref("hr_skills.action_hr_employee_cv_wizard").id
+        ]
+        self.assertEqual(len(resume), 1)
+
+    def test_the_department_history_is_a_window_action_on_the_department(self):
+        action = self.env.ref("hr_skills.action_hr_employee_skill_log_department")
+        self.assertEqual(action.binding_model_id.model, "hr.department")
+        self.assertIn("active_id", action.domain)

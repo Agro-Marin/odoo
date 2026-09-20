@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="documents_access_log_view_list" model="ir.ui.view">
@@ -9,10 +10,10 @@
                 of anything. -->
             <list
                 string="Access Log"
+                default_order="access_date desc"
                 create="false"
                 edit="false"
-                delete="false"
-                default_order="access_date desc">
+                delete="false">
                 <field name="access_date" />
                 <field name="document_id" />
                 <field name="partner_id" />
@@ -74,13 +75,5 @@
                 answer who took a copy of what, and when.</p>
         </field>
     </record>
-
-    <menuitem
-        id="menu_documents_access_log"
-        name="Access Log"
-        parent="document.Config"
-        action="documents_access_log_action"
-        sequence="60"
-        groups="document.group_documents_manager" />
 
 </odoo>

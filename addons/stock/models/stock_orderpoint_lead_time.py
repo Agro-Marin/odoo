@@ -6,81 +6,9 @@ from dateutil import relativedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
-
-_LEAD_TIME_STATS_QUERY = """
-WITH RECURSIVE receipt AS (
-    SELECT DISTINCT
-        sp.id,
-        sp.backorder_id,
-        sp.create_date,
-        sp.date_done
-    FROM stock_picking sp
-    JOIN stock_picking_type spt ON sp.picking_type_id = spt.id
-    JOIN stock_move sm ON sm.picking_id = sp.id
-    WHERE sp.state = 'done'
-      AND sm.state = 'done'
-      AND sp.date_done IS NOT NULL
-      AND sp.date_done >= %s
-      AND spt.code = 'incoming'
-      AND sm.product_id = ANY(%s)
-      AND sm.location_dest_id IN (
-          SELECT id FROM stock_location
-          WHERE parent_path LIKE %s
-      )
-),
-chain AS (
-    SELECT r.id AS receipt_id, r.backorder_id, r.create_date
-    FROM receipt r
-    UNION ALL
-    SELECT c.receipt_id, sp.backorder_id, sp.create_date
-    FROM chain c
-    JOIN stock_picking sp ON sp.id = c.backorder_id
-),
-ordered AS (
-    SELECT receipt_id, create_date AS ordered_date
-    FROM chain
-    WHERE backorder_id IS NULL
-      AND create_date IS NOT NULL
-),
-receipts AS (
-    SELECT DISTINCT ON (sm.product_id, r.id)
-        sm.product_id,
-        r.date_done,
-        EXTRACT(EPOCH FROM (r.date_done - o.ordered_date)) / 86400.0
-            AS lead_time_days
-    FROM stock_move sm
-    JOIN receipt r ON sm.picking_id = r.id
-    JOIN ordered o ON o.receipt_id = r.id
-    WHERE sm.state = 'done'
-      AND r.date_done - o.ordered_date >= interval '1 hour'
-      AND sm.product_id = ANY(%s)
-      AND sm.location_dest_id IN (
-          SELECT id FROM stock_location
-          WHERE parent_path LIKE %s
-      )
-    ORDER BY sm.product_id, r.id
-),
-ranked_receipts AS (
-    SELECT
-        product_id,
-        lead_time_days,
-        ROW_NUMBER() OVER (
-            PARTITION BY product_id
-            ORDER BY date_done DESC
-        ) AS rn
-    FROM receipts
-)
-SELECT
-    product_id,
-    COALESCE(AVG(lead_time_days), 0),
-    COALESCE(STDDEV_POP(lead_time_days), 0),
-    COUNT(*)
-FROM ranked_receipts
-WHERE rn <= %s
-GROUP BY product_id
-"""
-
 
 _LEAD_TIME_STATS_QUERY = """
 WITH RECURSIVE receipt AS (
@@ -172,6 +100,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         "product_id.seller_ids.delay",
         "company_id.horizon_days",
     )
+    @dbg.timed
     def _compute_deadline_date(self):
         canonical = self._with_canonical_horizon()
         critical_orderpoints = canonical.filtered(
@@ -179,6 +108,11 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         )
         critical_orderpoints.deadline_date = fields.Date.today()
         orderpoints_to_compute = canonical - critical_orderpoints
+        dbg.logic.debug(
+            "_compute_deadline_date: critical %s, timeline for %s",
+            dbg.rec(critical_orderpoints),
+            dbg.rec(orderpoints_to_compute),
+        )
         if not orderpoints_to_compute:
             return
 
@@ -238,6 +172,12 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             moves_by_product[product.id].append(
                 (location.parent_path or "", out_date.date(), -out_qty),
             )
+        dbg.performance.debug(
+            "_read_pending_moves_by_product until %s: %d products, %d timeline rows",
+            horizon_date,
+            len(moves_by_product),
+            sum(len(rows) for rows in moves_by_product.values()),
+        )
         return moves_by_product
 
     def _get_deadline_from_timeline(self, timeline, horizon_date):
@@ -255,6 +195,14 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 < 0
             ):
                 deadline = move_date - relativedelta.relativedelta(days=self.lead_days)
+                dbg.logic.debug(
+                    "[orderpoint:%s] below min on %s (%s), deadline %s (horizon %s)",
+                    self.id,
+                    move_date,
+                    qty_on_hand_at_date,
+                    deadline,
+                    horizon_date,
+                )
                 return deadline if deadline < horizon_date else False
         return False
 
@@ -270,6 +218,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             orderpoint.actual_lead_time_stddev = stddev
             orderpoint.lead_time_sample_count = count
 
+    @dbg.timed
     def _read_lead_time_stats(self):
         self.env["stock.move"].flush_model()
         self.env["stock.picking"].flush_model()
@@ -306,6 +255,11 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                     max(stddev_lt, 0.0),
                     count,
                 )
+        dbg.performance.debug(
+            "_read_lead_time_stats: %d warehouses queried, %d (product, warehouse) rows",
+            len(wh_orderpoints),
+            len(result_map),
+        )
         return result_map
 
     @api.depends(
@@ -319,7 +273,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
-        values_by_orderpoint = orderpoints_to_compute._get_lead_days_values_map()
+        values_by_orderpoint = orderpoints_to_compute._prepare_lead_time_params_map()
         for orderpoint in orderpoints_to_compute.with_context(
             bypass_delay_description=True,
         ):
@@ -337,6 +291,13 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 )
             )
             orderpoint.lead_days = lead_days["total_delay"]
+            dbg.logic.debug(
+                "[orderpoint:%s] lead days %s, horizon %s -> %s",
+                orderpoint.id,
+                lead_days["total_delay"],
+                lead_days["horizon_time"],
+                orderpoint.lead_horizon_date,
+            )
         excluded = self - orderpoints_to_compute
         excluded.lead_horizon_date = False
         excluded.lead_days = 0.0

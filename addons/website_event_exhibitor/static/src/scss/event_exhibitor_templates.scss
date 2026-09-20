@@ -1,8 +1,4 @@
 .o_wesponsor_index {
-    /*
-     * COMMON
-     */
-
     .o_wesponsor_gradient {
         background-image: linear-gradient(120deg, #875a7b, darken(#875a7b, 10%));
         opacity: 0.8;
@@ -12,11 +8,6 @@
         cursor: pointer;
     }
 
-    /*
-     * MAIN PAGE: LIST
-     */
-
-    // Sponsor card
     .o_wesponsor_card {
         .card-body {
             padding: 1rem;
@@ -47,7 +38,6 @@
             background-position: center;
         }
 
-        // Display connect block on hover on large devices only
         .o_wesponsor_connect_button {
             z-index: 1;
             position: absolute !important;
@@ -78,10 +68,6 @@
         }
     }
 
-    /*
-     * EXHIBITOR PAGE
-     */
-
     .o_wevent_online_page_container {
         .o_wesponsor_exhibitor_aside {
             .o_wesponsor_sponsor_name {
@@ -95,7 +81,6 @@
                 object-position: top;
             }
 
-            // Ribbon color (FIXME)
             .ribbon_Gold {
                 background-color: #e3aa24 !important;
             }
@@ -114,7 +99,6 @@
 .editor_enable {
     .o_wesponsor_index {
         .o_wesponsor_exhibitor_main_empty_website_descr_warning {
-            /** Hide warning in edition mode */
             display: none;
         }
     }

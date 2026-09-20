@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { showAddFontDialog } from "./add_font_dialog.js";
+
+const log = makeLogger("website.builder.plugin.website_font");
 
 /**
  * @typedef { Object } WebsiteFontShared
@@ -11,14 +14,19 @@ import { showAddFontDialog } from "./add_font_dialog.js";
  * @property { WebsiteFontPlugin['deleteFont'] } deleteFont
  */
 
-// TODO Website-specific
 class WebsiteFontPlugin extends Plugin {
     static id = "websiteFont";
     static shared = ["addFont", "deleteFont"];
     static dependencies = ["savePlugin", "builderFont", "customizeWebsite"];
 
     async addFont(variable) {
+        const endFontsData = log.perf("addFont getFontsData", { variable });
         const fontsData = await this.dependencies.builderFont.getFontsData();
+        endFontsData();
+        log.lifecycle("addFont open AddFontDialog", () => ({
+            variable,
+            allFonts: fontsData.allFonts?.length,
+        }));
         showAddFontDialog(
             this.services.dialog,
             fontsData,
@@ -48,32 +56,41 @@ class WebsiteFontPlugin extends Plugin {
         } else {
             values["uploaded-local-fonts"] = "null";
         }
+        log.pipeline("customizeFonts", () => ({
+            values: Object.keys(values),
+            googleFonts: googleFonts.length,
+            googleLocalFonts: googleLocalFonts.length,
+            uploadedLocalFonts: uploadedLocalFonts.length,
+        }));
+        const endFontsCusto = log.perf("customizeFonts makeSCSSCusto");
         await this.dependencies.customizeWebsite.makeSCSSCusto(
             "/website/static/src/scss/options/user_values.scss",
             values,
         );
+        endFontsCusto();
         this.dependencies.builderFont.getFontsCache().invalidate();
-        // TODO reloadEditor: true
-        await this.dependencies.savePlugin.save(/* not in translation */);
+        const endFontsSave = log.perf("customizeFonts save");
+        await this.dependencies.savePlugin.save();
+        endFontsSave();
     }
     async deleteFont(font) {
+        const endDeleteFontsData = log.perf("deleteFont getFontsData");
         const { googleFonts, googleLocalFonts, uploadedLocalFonts } =
             await this.dependencies.builderFont.getFontsData();
+        endDeleteFontsData();
         const values = {};
 
-        // Remove Google font
         const fontIndex = font.indexForType;
         const localFont = font.type;
         let fontName;
+        log.logic("deleteFont", () => ({ type: localFont, fontIndex }));
         if (localFont === "uploaded") {
             const font = uploadedLocalFonts[fontIndex].split(":");
-            // Remove double quotes
             fontName = font[0].substring(1, font[0].length - 1);
             values["delete-font-attachment-id"] = font[1];
             uploadedLocalFonts.splice(fontIndex, 1);
         } else if (localFont === "google") {
             const googleFont = googleLocalFonts[fontIndex].split(":");
-            // Remove double quotes
             fontName = googleFont[0].substring(1, googleFont[0].length - 1);
             values["delete-font-attachment-id"] = googleFont[1];
             googleLocalFonts.splice(fontIndex, 1);
@@ -82,22 +99,24 @@ class WebsiteFontPlugin extends Plugin {
             googleFonts.splice(fontIndex, 1);
         }
 
-        // Adapt font variable indexes to the removal
         const style = getHtmlStyle(this.document);
         this.getResource("fontCssVariables").forEach((variable) => {
             const value = getCSSVariableValue(variable, style);
             if (value.substring(1, value.length - 1) === fontName) {
-                // If an element is using the google font being removed, reset
-                // it to the theme default.
                 values[variable] = "null";
             }
         });
+        log.pipeline("deleteFont reset variables", () => ({
+            fontName,
+            variables: Object.keys(values),
+        }));
         await this.customizeFonts({
             values: values,
             googleFonts: googleFonts,
             googleLocalFonts: googleLocalFonts,
             uploadedLocalFonts: uploadedLocalFonts,
         });
+        log.pipeline("deleteFont reloadEditor", () => ({ fontName }));
         this.config.reloadEditor();
     }
 }

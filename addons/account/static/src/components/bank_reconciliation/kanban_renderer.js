@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { onWillDestroy, onWillStart, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { formatMonetary } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -15,6 +17,8 @@ import { BankRecQuickCreate } from "./quick_create/quick_create.js";
 import { BankRecStatementLine } from "./statement_line/statement_line.js";
 import { BankRecStatementSummary } from "./statement_summary/statement_summary.js";
 
+const log = makeLogger("account.bank_rec.renderer");
+
 export class BankRecKanbanRenderer extends KanbanRenderer {
     static template = "account.BankRecKanbanRenderer";
     static components = {
@@ -26,6 +30,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     };
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.action = useService("action");
         this.orm = useService("orm");

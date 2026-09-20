@@ -7,12 +7,14 @@ from odoo import api, fields, models
 from odoo.db import FunctionStatus
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.tools import SQL
 
 _logger = logging.getLogger("odoo.addons.base.partner.merge")
+_debug = DebugLog(__name__)
 
-SIMILAR_NAME_PAIRS_PER_GROUP = 200
+SIMILAR_NAME_PAIR_BATCH = 5000
 
 
 class BasePartnerMergeLine(models.TransientModel):
@@ -21,9 +23,12 @@ class BasePartnerMergeLine(models.TransientModel):
     _description = "Merge Partner Line"
     _order = "min_id asc"
 
-    wizard_id = fields.Many2one("base.partner.merge.automatic.wizard", "Wizard")
-    min_id = fields.Integer("MinID")
-    aggr_ids = fields.Char("Ids", required=True)
+    wizard_id = fields.Many2one(comodel_name="base.partner.merge.automatic.wizard")
+    min_id = fields.Integer(string="MinID")
+    aggr_ids = fields.Char(
+        string="Ids",
+        required=True,
+    )
 
 
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
@@ -44,43 +49,55 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 res["dst_partner_id"] = self._get_ordered_partner(active_ids)[-1].id
         return res
 
-    group_by_email = fields.Boolean("Email")
-    group_by_name = fields.Boolean("Name")
-    group_by_is_company = fields.Boolean("Is Company")
-    group_by_vat = fields.Boolean("VAT")
-    group_by_parent_id = fields.Boolean("Parent Company")
+    group_by_email = fields.Boolean(string="Email")
+    group_by_name = fields.Boolean(string="Name")
+    group_by_is_company = fields.Boolean(string="Is Company")
+    group_by_vat = fields.Boolean(string="VAT")
+    group_by_parent_id = fields.Boolean(string="Parent Company")
     match_similar_names = fields.Boolean(
-        "Similar Names",
+        string="Similar Names",
         help="Also group contacts whose names differ slightly, such as "
         "'Acme Corp' and 'ACME Corporation'. The exact criteria above can only "
         "match names that are already identical.",
     )
 
     state = fields.Selection(
-        [
+        selection=[
             ("option", "Option"),
             ("selection", "Selection"),
             ("finished", "Finished"),
         ],
+        default="option",
         readonly=True,
         required=True,
-        string="State",
-        default="option",
     )
 
-    number_group = fields.Integer("Group of Contacts", readonly=True)
-    current_line_id = fields.Many2one("base.partner.merge.line", string="Current Line")
-    line_ids = fields.One2many("base.partner.merge.line", "wizard_id", string="Lines")
+    number_group = fields.Integer(
+        string="Group of Contacts",
+        readonly=True,
+    )
+    current_line_id = fields.Many2one(comodel_name="base.partner.merge.line")
+    line_ids = fields.One2many(
+        comodel_name="base.partner.merge.line",
+        inverse_name="wizard_id",
+        string="Lines",
+    )
     partner_ids = fields.Many2many(
-        "res.partner", string="Contacts", context={"active_test": False}
+        comodel_name="res.partner",
+        string="Contacts",
+        context={"active_test": False},
     )
-    dst_partner_id = fields.Many2one("res.partner", string="Destination Contact")
+    dst_partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Destination Contact",
+    )
 
-    exclude_contact = fields.Boolean("A user associated to the contact")
-    exclude_journal_item = fields.Boolean("Journal Items associated to the contact")
-    maximum_group = fields.Integer("Maximum of Group of Contacts")
+    exclude_contact = fields.Boolean(string="A user associated to the contact")
+    exclude_journal_item = fields.Boolean(
+        string="Journal Items associated to the contact"
+    )
+    maximum_group = fields.Integer(string="Maximum of Group of Contacts")
     absorb_source_values = fields.Boolean(
-        "Absorb Source Values",
         default=True,
         help="Fill the destination's empty fields from the contacts merged into "
         "it. Turn it off to keep the destination's own identity, which is what a "
@@ -111,12 +128,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _update_reference_fields(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        additional_update_records = [
-            {"model": "calendar.event", "field_model": "res_model"}
-        ]
-        self._update_reference_fields_generic(
-            "res.partner", src_partners, dst_partner, additional_update_records
-        )
+        self._update_reference_fields_generic("res.partner", src_partners, dst_partner)
 
     def _get_fields_summable(self) -> list[str]:
         return []
@@ -148,6 +160,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     parent_id,
                     dst_partner.id,
                 )
+                _debug.logic(
+                    "merge_parent_skipped", partner=dst_partner.id, parent=parent_id
+                )
         return deferred_values
 
     @api.model
@@ -156,6 +171,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     ) -> None:
         all_src_accounts = src_partners.bank_ids
 
+        absorbed = 0  # debuglog
         for src_account in all_src_accounts:
             duplicate_account = dst_partner.bank_ids.filtered(
                 lambda a, src_account=src_account: (
@@ -170,15 +186,28 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     "res.partner.bank", src_account, duplicate_account
                 )
                 src_account.sudo().unlink()
+                absorbed += 1  # debuglog
             else:
                 src_account.sudo().write({"partner_id": dst_partner.id})
+        _debug.pipeline(
+            "merge_bank_accounts",
+            dst=dst_partner.id,
+            accounts=len(all_src_accounts),
+            absorbed=absorbed,
+        )
 
     @api.model
     def _merge_phone_numbers(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
         src_partners = src_partners.with_context(active_test=False)
+        # Capture the choice before unlinking source relations clears their preferences.
+        preferred = (
+            dst_partner.preferred_phone_id
+            or src_partners.mapped("preferred_phone_id")[:1]
+        )
         numbers = src_partners.phone_ids.sudo()
+        _debug.pipeline("merge_phone_numbers", dst=dst_partner.id, numbers=len(numbers))
         if numbers:
             numbers.write(
                 {
@@ -188,6 +217,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     ]
                 }
             )
+
+        if preferred and dst_partner.preferred_phone_id != preferred:
+            dst_partner.preferred_phone_id = preferred
 
     @api.model
     def _merge_identifiers(
@@ -208,6 +240,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 clash = identifier_type.id in held_types
             if clash:
                 src_identifier.sudo().unlink()
+                _debug.logic(
+                    "merge_identifier_dropped",
+                    dst=dst_partner.id,
+                    type=identifier_type.code,
+                )
             else:
                 src_identifier.sudo().write({"partner_id": dst_partner.id})
                 held_types.add(identifier_type.id)
@@ -258,6 +295,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             dst_partner = ordered_partners[-1]
             src_partners = ordered_partners[:-1]
         _logger.info("dst_partner: %s", dst_partner.id)
+        _debug.pipeline(
+            "merge",
+            destination=dst_partner.id,
+            sources=src_partners.ids,
+            absorb=self._is_source_absorbed_on_merge(),
+            extra_checks=extra_checks,
+        )
 
         if dst_partner.company_id:
             partner_ids.mapped("user_ids").sudo().write(
@@ -273,8 +317,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             self._merge_bank_accounts(src_partners, dst_partner)
         self._merge_identifiers(src_partners, dst_partner)
 
-        self._update_foreign_keys(src_partners, dst_partner)
-        self._update_reference_fields(src_partners, dst_partner)
+        with _debug.perf(
+            "merge_repoint",
+            cr=self.env.cr,
+            destination=dst_partner.id,
+            sources=len(src_partners),
+        ):
+            self._update_foreign_keys(src_partners, dst_partner)
+            self._update_reference_fields(src_partners, dst_partner)
         if self._is_source_absorbed_on_merge():
             deferred_values = self._update_values(src_partners, dst_partner)
 
@@ -301,6 +351,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         dst_partner = self._get_ordered_partner(partner_ids)[-1]
         src_partners = [pid for pid in partner_ids if pid != dst_partner.id]
         chunk = self._MERGE_SIZE_LIMIT - 1
+        _debug.pipeline(
+            "merge_duplicate_group",
+            dst=dst_partner.id,
+            sources=len(src_partners),
+            chunks=-(-len(src_partners) // chunk),
+        )
         for start in range(0, len(src_partners), chunk):
             self._merge(
                 src_partners[start : start + chunk] + [dst_partner.id],
@@ -353,7 +409,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _get_similar_name_threshold(self) -> float:
         return self.env["res.partner"]._get_similar_name_threshold()
 
-    def _get_similar_name_pairs(self, limit: int) -> list[tuple[int, int]]:
+    def _get_similar_name_pairs(
+        self, limit: int, after: tuple[int, int] = (0, 0)
+    ) -> list[tuple[int, int]]:
         registry = self.env.registry
         if not registry.has_trigram:
             raise UserError(
@@ -386,14 +444,21 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                AND right_partner.active
                AND left_partner.complete_name IS NOT NULL
                AND right_partner.complete_name IS NOT NULL
+               AND (left_partner.id, right_partner.id) > (%s, %s)
+             ORDER BY left_partner.id, right_partner.id
              LIMIT %s
             """,
             left,
             right,
+            after[0],
+            after[1],
             limit,
         )
-        self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
-        return self.env.cr.fetchall()
+        with _debug.perf("similar_name_pairs", cr=self.env.cr, limit=limit) as span:
+            self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
+            pairs = self.env.cr.fetchall()
+            span.set(pairs=len(pairs))
+        return pairs
 
     def _get_recall_threshold(self) -> float:
         return self.env["res.partner"]._get_similar_name_recall_threshold()
@@ -401,17 +466,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _get_similar_name_groups(
         self, maximum_group: int = 100
     ) -> list[tuple[int, list[int]]]:
-        limit = (maximum_group or 100) * SIMILAR_NAME_PAIRS_PER_GROUP
-        pairs = self._get_similar_name_pairs(limit)
-        if not pairs:
-            return []
-
         threshold = self._get_similar_name_threshold()
-        involved = {pid for pair in pairs for pid in pair}
-        partners = self.env["res.partner"].browse(involved)
-        partners.fetch(["complete_name"])
-        names = {p.id: (p.complete_name or "").lower() for p in partners}
-
+        names: dict[int, str] = {}
         root: dict[int, int] = {}
 
         def find(node: int) -> int:
@@ -420,29 +476,66 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 node = root[node]
             return node
 
-        for left_id, right_id in pairs:
-            left_name, right_name = names.get(left_id), names.get(right_id)
-            if not left_name or not right_name:
-                continue
-            shortest, longest = name_length_band(len(left_name), threshold)
-            if not shortest <= len(right_name) <= longest:
-                continue
-            if similarity_ratio(left_name, right_name) < threshold:
-                continue
-            left_root, right_root = find(left_id), find(right_id)
-            if left_root != right_root:
-                root[max(left_root, right_root)] = min(left_root, right_root)
+        def clusters() -> dict[int, list[int]]:
+            members: dict[int, list[int]] = {}
+            for node in root:
+                members.setdefault(find(node), []).append(node)
+            return members
 
-        clusters: dict[int, list[int]] = {}
-        for node in root:
-            clusters.setdefault(find(node), []).append(node)
+        after = (0, 0)
+        boundary: int | None = None
+        pair_count = 0
+        while True:
+            pairs = self._get_similar_name_pairs(SIMILAR_NAME_PAIR_BATCH, after)
+            pair_count += len(pairs)
+            unnamed = {pid for pair in pairs for pid in pair} - names.keys()
+            if unnamed:
+                partners = self.env["res.partner"].browse(unnamed)
+                partners.fetch(["complete_name"])
+                names.update((p.id, (p.complete_name or "").lower()) for p in partners)
+            for left_id, right_id in pairs:
+                left_name, right_name = names.get(left_id), names.get(right_id)
+                if not left_name or not right_name:
+                    continue
+                shortest, longest = name_length_band(len(left_name), threshold)
+                if not shortest <= len(right_name) <= longest:
+                    continue
+                if similarity_ratio(left_name, right_name) < threshold:
+                    continue
+                left_root, right_root = find(left_id), find(right_id)
+                if left_root != right_root:
+                    root[max(left_root, right_root)] = min(left_root, right_root)
+            if len(pairs) < SIMILAR_NAME_PAIR_BATCH:
+                boundary = None
+                break
+            after = pairs[-1]
+            boundary = after[0]
+            if (
+                maximum_group
+                and sum(
+                    1
+                    for members in clusters().values()
+                    if len(members) >= 2 and max(members) < boundary
+                )
+                >= maximum_group
+            ):
+                break
 
         groups = [
             (min(members), sorted(members))
-            for members in clusters.values()
-            if len(members) >= 2
+            for members in clusters().values()
+            if len(members) >= 2 and (boundary is None or max(members) < boundary)
         ]
         groups.sort()
+        _debug.pipeline(
+            "similar_name_groups",
+            pairs=pair_count,
+            partners=len(names),
+            threshold=threshold,
+            groups=len(groups),
+            maximum_group=maximum_group,
+            exhausted=boundary is None,
+        )
         return groups[:maximum_group] if maximum_group else groups
 
     @api.model
@@ -455,7 +548,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         ]
 
     @api.model
-    def _compute_selected_groupby(self) -> list[str]:
+    def _get_selected_groupby(self) -> list[str]:
         groups = self._get_selected_groupby_fields()
 
         if not groups:
@@ -589,16 +682,25 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
 
         _logger.info("counter: %s", counter)
+        _debug.pipeline(
+            "merge_lines",
+            groups=len(groups),
+            candidates=len(all_ids),
+            accessible=len(accessible_set),
+            lines=counter,
+            exclusion_models=sorted(model_mapping),
+        )
 
     def action_start_manual_process(self) -> dict[str, Any]:
         self.check_singleton()
         groups: list[tuple[int, list[int]]] = []
 
         if self._get_selected_groupby_fields() or not self.match_similar_names:
-            exact_fields = self._compute_selected_groupby()
+            exact_fields = self._get_selected_groupby()
             query = self._generate_query(exact_fields, self.maximum_group)
             self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query
             groups.extend(self.env.cr.fetchall())
+            _debug.pipeline("exact_groups", fields=exact_fields, groups=len(groups))
 
         if self.match_similar_names:
             groups.extend(self._get_similar_name_groups(self.maximum_group))
@@ -611,6 +713,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.action_start_manual_process()
         self.env.invalidate_all()
 
+        _debug.pipeline("automatic_merge", wizard=self.id, lines=len(self.line_ids))
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
@@ -655,6 +758,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         self._create_merge_lines_from_query(query)
 
+        _debug.pipeline("parent_migration", wizard=self.id, lines=len(self.line_ids))
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
@@ -671,6 +775,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             WHERE
                 parent_id = id
         """)
+        _debug.lifecycle("self_parents_cleared", rows=self.env.cr.rowcount)
 
         return {
             "type": "ir.actions.act_window",

@@ -6,7 +6,10 @@ import {
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { isBlock } from "@html_editor/utils/blocks";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.spacing_option");
 
 class SpacingOptionPlugin extends Plugin {
     static id = "SpacingOption";
@@ -24,7 +27,6 @@ class SpacingOptionPlugin extends Plugin {
      * @param {import("@html_editor/core/history_plugin").HistoryMutationRecord} record
      */
     isMutationRecordSavable(record) {
-        // Do not consider the grid preview in the history.
         if (record.type === "childList") {
             const node = (record.addedTrees[0] || record.removedTrees[0]).node;
             if (node.matches && node.matches(".o_we_grid_preview") && isBlock(node)) {
@@ -46,10 +48,16 @@ class SpacingOptionPlugin extends Plugin {
     }
 
     onCloned({ cloneEl }) {
+        log.pipeline("onCloned remove grid previews", () => ({
+            count: cloneEl.querySelectorAll(".o_we_grid_preview").length,
+        }));
         this.removeGridPreviews(cloneEl);
     }
 
     cleanForSave({ root }) {
+        log.pipeline("cleanForSave remove grid previews", () => ({
+            count: root.querySelectorAll(".o_we_grid_preview").length,
+        }));
         this.removeGridPreviews(root);
     }
 }
@@ -59,14 +67,15 @@ registry.category("website-plugins").add(SpacingOptionPlugin.id, SpacingOptionPl
 export class SetGridSpacingAction extends StyleAction {
     static id = "setGridSpacing";
     apply({ editingElement: rowEl }) {
-        // Remove the grid preview if any.
         let gridPreviewEl = rowEl.querySelector(".o_we_grid_preview");
         if (gridPreviewEl) {
+            log.logic("SetGridSpacingAction apply: replacing pending grid preview");
             gridPreviewEl.remove();
         }
-        // Apply the style action on the grid gaps.
+        log.pipeline("SetGridSpacingAction apply", () => ({
+            className: rowEl.className,
+        }));
         super.apply(...arguments);
-        // Add an animated grid preview.
         gridPreviewEl = addBackgroundGrid(rowEl, 0);
         gridPreviewEl.classList.add("o_we_grid_preview");
         setElementToMaxZindex(gridPreviewEl, rowEl);

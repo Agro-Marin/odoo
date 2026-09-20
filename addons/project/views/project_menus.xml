@@ -130,28 +130,28 @@
             <menuitem
                 id="menu_project_tags_act"
                 name="Tags"
-                sequence="20"
-                action="project_tags_action" />
+                action="project_tags_action"
+                sequence="20" />
             <menuitem
                 id="menu_project_task_lost_reason_act"
                 name="Lost Reasons"
-                sequence="70"
-                action="project_task_lost_reason_action" />
+                action="project_task_lost_reason_action"
+                sequence="70" />
             <menuitem
                 id="menu_project_config_roles"
                 name="Project Roles"
-                sequence="40"
-                action="resource.resource_role_action" />
+                action="resource.resource_role_action"
+                sequence="40" />
             <menuitem
                 id="menu_project_config_activity_type"
                 name="Activity Types"
-                sequence="50"
-                action="mail_activity_type_action_config_project_types" />
+                action="mail_activity_type_action_config_project_types"
+                sequence="50" />
             <menuitem
                 id="menu_project_config_activity_plan"
                 name="Activity Plans"
-                sequence="60"
-                action="mail_activity_plan_action_config_project_task_plan" />
+                action="mail_activity_plan_action_config_project_task_plan"
+                sequence="60" />
         </menuitem>
     </menuitem>
 

@@ -36,7 +36,6 @@
             applyTo="'.s_ecomm_categories_showcase_block'"/>
     </BuilderRow>
 
-    <!-- TODO maybe use CompositeAction -->
     <BuilderRow label.translate="Space Out">
         <BuilderCheckbox
             id="'spacing_opt'"

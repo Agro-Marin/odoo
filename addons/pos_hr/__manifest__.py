@@ -1,5 +1,6 @@
 {
     "name": "POS - HR",
+    "version": "1.1",
     "category": "Sales/Point of Sale",
     "summary": "Link module between Point of Sale and HR",
     "description": """
@@ -32,6 +33,5 @@ The actual till still requires one user but an unlimited number of employees can
             "pos_hr/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

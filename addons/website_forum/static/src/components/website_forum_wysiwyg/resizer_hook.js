@@ -4,7 +4,7 @@ import { useExternalListener, useRef } from "@odoo/owl";
 /**
  * @param {string} targetRefName
  * @param {number} [minHeight]
- * @returns {Function} event listener for t-on-mousedown
+ * @returns {Function}
  */
 export function useResizer(targetRefName, minHeight = 100) {
     const targetRef = useRef(targetRefName);

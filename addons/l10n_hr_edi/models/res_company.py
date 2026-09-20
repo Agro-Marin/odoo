@@ -20,18 +20,26 @@ _logger = logging.getLogger(__name__)
 
 class ResCompany(models.Model):
     _inherit = "res.company"
+    _CREDENTIAL_FIELDS = {
+        "l10n_hr_mer_password": "l10n_hr_mer_password",
+    }
 
     l10n_hr_mer_username = fields.Char(
-        "MojEracun username", groups="account.group_account_manager"
+        string="MojEracun username",
+        groups="account.group_account_manager",
     )
     l10n_hr_mer_password = fields.Char(
-        "MojEracun password", groups="account.group_account_manager"
+        string="MojEracun password",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        groups="account.group_account_manager",
     )
     l10n_hr_mer_company_ident = fields.Char(
-        "MojEracun CompanyId", groups="account.group_account_manager"
+        string="MojEracun CompanyId",
+        groups="account.group_account_manager",
     )
     l10n_hr_mer_software_ident = fields.Char(
-        "MojEracun SoftwareId",
+        string="MojEracun SoftwareId",
         default="Saodoo-001",
         help="Default SoftwareID for Odoo is 'Saodoo-001'",
     )
@@ -41,10 +49,10 @@ class ResCompany(models.Model):
             ("active", "Active"),
         ],
         string="MojEracun connection status",
-        required=True,
-        default="inactive",
         compute="_compute_l10n_hr_mojeracun_state",
+        default="inactive",
         store=True,
+        required=True,
     )
     l10n_hr_mer_connection_mode = fields.Selection(
         selection=[
@@ -58,10 +66,10 @@ class ResCompany(models.Model):
     l10n_hr_mer_purchase_journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="eracun Purchase Journal",
-        domain=[("type", "=", "purchase")],
         compute="_compute_l10n_hr_mer_purchase_journal_id",
         store=True,
         readonly=False,
+        domain=[("type", "=", "purchase")],
     )
 
     # -------------------------------------------------------------------------
@@ -92,7 +100,7 @@ class ResCompany(models.Model):
                 not company.l10n_hr_mer_purchase_journal_id
                 and company.l10n_hr_mer_connection_state == "active"
             ):
-                company.l10n_hr_mer_purchase_journal_id = self.env[
+                company.l10n_hr_mer_purchase_journal_id = self.env[  # noqa: E8507 - one lookup per company, on its own journals
                     "account.journal"
                 ].search(
                     [
@@ -143,7 +151,7 @@ class ResCompany(models.Model):
             [("l10n_hr_mer_connection_state", "=", "active")]
         )
         for company in edi_user_companies:
-            company._l10n_hr_mer_fetch_document_status_company(from_cron=True)
+            company._l10n_hr_mer_update_document_status_company(from_cron=True)
 
     def _cron_mer_archive_signed_xmls(self):
         edi_user_companies = self.search(
@@ -269,7 +277,7 @@ class ResCompany(models.Model):
             need_retrigger = need_retrigger or len(documents) > job_count
             documents = documents[:job_count]
 
-            existing_documents = self.env["l10n_hr_edi.addendum"].search(
+            existing_documents = self.env["l10n_hr_edi.addendum"].search(  # noqa: E8507 - one query per company of the cron, over the fetched documents
                 [
                     (
                         "mer_document_eid",
@@ -402,7 +410,7 @@ class ResCompany(models.Model):
         # Return the documents that were successfully imported
         return imported_documents
 
-    def _l10n_hr_mer_fetch_document_status_company(self, from_cron=False):
+    def _l10n_hr_mer_update_document_status_company(self, from_cron=False):
         """
         Fetch and update the status of up to 20000 documents belonging to a company on MojEracun.
         """
@@ -465,7 +473,7 @@ class ResCompany(models.Model):
                                 ),
                             }
                         )
-                addendums = self.env["l10n_hr_edi.addendum"].search(
+                addendums = self.env["l10n_hr_edi.addendum"].search(  # noqa: E8507 - one query per company of the cron, over the fetched documents
                     [
                         ("mer_document_eid", "in", list(documents.keys())),
                         ("move_id.company_id", "=", company.id),

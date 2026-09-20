@@ -3,10 +3,13 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { Component, xml } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
 import { DiscussNotificationSettingsClientAction } from "./discuss_notification_settings_client_action.js";
+
+const log = makeLogger("mail.settings");
 
 class NotificationDialog extends Component {
     static props = ["close?"];
@@ -31,6 +34,7 @@ export class NotificationSettings extends Component {
 
     /** @param {number} minutes */
     setMute(minutes) {
+        log.logic("setMute", () => ({ thread: this.props.thread?.localId, minutes }));
         this.store.settings.setMuteDuration(minutes, this.props.thread);
         this.props.close?.();
     }

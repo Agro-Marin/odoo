@@ -18,7 +18,7 @@ from odoo.http import (
     Session,
     root,
 )
-from odoo.http.session import _session_identifier_re
+from odoo.http._session_store import _session_identifier_re
 from odoo.tests import get_db_name, tagged
 from odoo.tools import config, mute_logger, reset_cached_properties
 
@@ -46,10 +46,12 @@ class TestHttpSession(TestHttpBase):
         self.db_url_open("/test_http/greeting").raise_for_status()
         self.assertEqual(session.debug, "")
         self.db_url_open("/test_http/greeting?debug=1").raise_for_status()
+        session = root.session_store.get(session.sid)
         self.assertEqual(session.debug, "1")
         self.db_url_open("/test_http/greeting").raise_for_status()
         self.assertEqual(session.debug, "1")
         self.db_url_open("/test_http/greeting?debug=").raise_for_status()
+        session = root.session_store.get(session.sid)
         self.assertEqual(session.debug, "")
 
     def test_session01_default_session(self):
@@ -63,12 +65,13 @@ class TestHttpSession(TestHttpBase):
                 raise AssertionError(msg) from exc
 
     def test_session02_csrf_token_persists_session(self):
-        self.assertFalse(odoo.http.root.session_store.store)
+        self.assertEqual(len(odoo.http.root.session_store), 0)
         res = self.db_url_open("/test_http/csrf-token")
         res.raise_for_status()
         self.assertTrue(res.text.strip(), "the GET should issue a CSRF token")
-        self.assertTrue(
-            odoo.http.root.session_store.store,
+        self.assertGreater(
+            len(odoo.http.root.session_store),
+            0,
             "issuing a CSRF token should persist the anonymous session",
         )
 
@@ -88,26 +91,25 @@ class TestHttpSession(TestHttpBase):
         )
 
     @mute_logger("odoo.http")
-    def test_session02b_failing_request_still_saves_the_session(self):
-        self.assertFalse(odoo.http.root.session_store.store)
+    def test_session02b_failing_request_discards_session_mutations(self):
+        self.assertEqual(len(odoo.http.root.session_store), 0)
         res = self.db_url_open("/test_http/session_then_error")
         self.assertEqual(res.status_code, 422)
-        self.assertTrue(
-            odoo.http.root.session_store.store,
-            "the session written before the failure must have been persisted",
+        self.assertEqual(
+            len(odoo.http.root.session_store),
+            0,
+            "session mutations from the rolled-back handler must be discarded",
         )
-        self.assertIn(
+        self.assertNotIn(
             "session_id",
             res.cookies,
-            "the error response must carry the session cookie",
+            "a discarded session must not be published in the error response",
         )
-        stored = next(iter(odoo.http.root.session_store.store.values()))
-        self.assertEqual(stored.get("gate_address"), "P3X-984")
 
     def test_session02c_untouched_anonymous_session_sets_no_cookie(self):
         res = self.db_url_open("/test_http/greeting")
         res.raise_for_status()
-        self.assertFalse(odoo.http.root.session_store.store)
+        self.assertEqual(len(odoo.http.root.session_store), 0)
         self.assertNotIn("session_id", res.cookies)
 
     @mute_logger("odoo.http", "odoo.http.application")
@@ -124,9 +126,9 @@ class TestHttpSession(TestHttpBase):
         self.assertNotEqual(
             new_sid, old_sid, "the authenticated sid must not survive expiry"
         )
-        store = odoo.http.root.session_store.store
+        store = odoo.http.root.session_store
         self.assertNotIn(old_sid, store, "the old session file must be gone")
-        self.assertIsNone(store[new_sid].uid, "the rotated session is logged out")
+        self.assertIsNone(store.get(new_sid).uid, "the rotated session is logged out")
 
     @mute_logger("odoo.http", "odoo.http.application")
     def test_session02e_jsonrpc_expiry_must_not_log_out(self):
@@ -141,9 +143,9 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["error"]["code"], 100)
 
-        store = odoo.http.root.session_store.store
+        store = odoo.http.root.session_store
         self.assertIn(old_sid, store, "jsonrpc expiry must leave the session alone")
-        self.assertEqual(store[old_sid].uid, session.uid, "still authenticated")
+        self.assertEqual(store.get(old_sid).uid, session.uid, "still authenticated")
 
     def test_session03_logout_15_0_geoip(self):
         session = self.authenticate(None, None)
@@ -151,7 +153,7 @@ class TestHttpSession(TestHttpBase):
         session["geoip"] = {}
         odoo.http.root.session_store.save(session)
 
-        with self.assertLogs("odoo.http.request_class", level="WARNING") as (
+        with self.assertLogs("odoo.http._session_lifecycle", level="WARNING") as (
             _,
             warnings,
         ):
@@ -160,10 +162,10 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(
             warnings,
             [
-                "WARNING:odoo.http.request_class:Logged into database 'idontexist', but dbfilter rejects it; logging session out.",
+                "WARNING:odoo.http._session_lifecycle:Logged into database 'idontexist', but dbfilter rejects it; logging session out.",
             ],
         )
-        self.assertFalse(session["db"])
+        self.assertTrue(root.session_store.get(session.sid).is_new)
         self.assertEqual(res.status_code, 303)
         self.assertURLEqual(res.headers.get("Location"), "/web/database/selector")
 
@@ -395,7 +397,9 @@ class TestHttpSession(TestHttpBase):
             r"^WARNING:odoo.http.routing:<function odoo\.addons\.\w+\.controllers\.\w+\.logout> "
             r"called ignoring args \{'(session_id', 'debug|debug', 'session_id)'\}$",
         )
-        self.assertEqual(admin_session.debug, "1")
+        logged_out = root.session_store.get(self.opener.cookies["session_id"])
+        self.assertEqual(logged_out.debug, "1")
+        self.assertTrue(root.session_store.get(admin_session.sid).is_new)
 
     def test_session11_items_accessibility(self):
         session = self.authenticate("admin", "admin")
@@ -513,13 +517,13 @@ class TestSessionStore(HttpCaseWithUserDemo):
             "adminCantSetupThisValueLikeANormalPerson",
         )
 
-        with self.assertLogs("odoo.http.helpers", level="WARNING") as logs:
+        with self.assertLogs("odoo.http._session_lifecycle", level="WARNING") as logs:
             self.assertEqual(
                 odoo.http.get_session_max_inactivity(self.env), SESSION_LIFETIME
             )
             self.assertEqual(
                 logs.output[0],
-                "WARNING:odoo.http.helpers:Invalid value for 'sessions.max_inactivity_seconds', using default value.",
+                "WARNING:odoo.http._session_lifecycle:Invalid value for 'sessions.max_inactivity_seconds', using default value.",
             )
 
     @mute_logger("odoo.http")
@@ -604,10 +608,10 @@ class TestSessionStore(HttpCaseWithUserDemo):
 
         with (
             patch(
-                "odoo.libs._vendor.sessions.pathlib.Path.replace",
+                "odoo.http._session_store.Path.replace",
                 side_effect=OSError("synthetic rename failure"),
             ),
-            self.assertLogs("odoo.libs._vendor.sessions", level="WARNING") as logs,
+            self.assertLogs("odoo.http._session_store", level="WARNING") as logs,
             self.assertRaises(OSError),
         ):
             odoo.http.root.session_store.save(session)

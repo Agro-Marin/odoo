@@ -1,5 +1,8 @@
 from odoo import fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProjectTask(models.Model):
@@ -7,13 +10,14 @@ class ProjectTask(models.Model):
     _inherit = "project.task"
 
     leave_types_count = fields.Integer(
-        compute="_compute_leave_types_count", string="Time Off Types Count"
+        string="Time Off Types Count",
+        compute="_compute_leave_types_count",
     )
     is_timeoff_task = fields.Boolean(
-        "Is Time off Task",
+        string="Is Time off Task",
+        export_string_translation=False,
         compute="_compute_is_timeoff_task",
         search="_search_is_timeoff_task",
-        export_string_translation=False,
         groups="hr_timesheet.group_hr_timesheet_user",
     )
 
@@ -31,6 +35,11 @@ class ProjectTask(models.Model):
         timesheet_count_per_task = {
             timesheet_task.id: count for timesheet_task, count in timesheet_read_group
         }
+        _debug.perf.count(
+            "timeoff_task_leave_types",
+            tasks=self,
+            tasks_with_timeoff_timesheets=len(timesheet_count_per_task),
+        )
         for task in self:
             task.leave_types_count = timesheet_count_per_task.get(task.id, 0)
 
@@ -41,11 +50,20 @@ class ProjectTask(models.Model):
                 or task.company_id.leave_timesheet_task_id == task
             )
         )
+        _debug.logic(
+            "timeoff_task_verdict",
+            tasks=self,
+            timeoff=timeoff_tasks,
+            company_leave_task=self.env.company.leave_timesheet_task_id,
+        )
         timeoff_tasks.is_timeoff_task = True
         (self - timeoff_tasks).is_timeoff_task = False
 
     def _search_is_timeoff_task(self, operator, value):
         if operator != "in":
+            _debug.logic(
+                "timeoff_task_search_unsupported", operator=operator, value=value
+            )
             return NotImplemented
 
         timeoff_tasks_ids = {
@@ -67,4 +85,9 @@ class ProjectTask(models.Model):
         if self.env.company.leave_timesheet_task_id:
             timeoff_tasks_ids.add(self.env.company.leave_timesheet_task_id.id)
 
+        _debug.pipeline(
+            "timeoff_task_search_resolved",
+            tasks=len(timeoff_tasks_ids),
+            company=self.env.company,
+        )
         return Domain("id", "in", tuple(timeoff_tasks_ids))

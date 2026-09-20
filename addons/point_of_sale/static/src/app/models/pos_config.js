@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { getImageDataUrl } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { imageUrl } from "@web/core/utils/urls";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
 import { Base } from "./related_models/index.js";
 const CONSOLE_COLOR = "#F5B427";
+const log = makeLogger("pos.config");
 
 export class PosConfig extends Base {
     static pythonModel = "pos.config";
@@ -70,11 +72,14 @@ export class PosConfig extends Base {
     }
 
     async cacheReceiptLogo() {
+        const endCache = log.perf("cacheReceiptLogo");
         try {
             this.uiState.receiptLogoDataUrl = await getImageDataUrl(
                 this.receiptCompanyLogoUrl,
             );
+            endCache({ bytes: this.uiState.receiptLogoDataUrl?.length });
         } catch (error) {
+            endCache({ failed: true });
             logPosMessage(
                 "PosConfig",
                 "cacheReceiptLogo",
@@ -104,6 +109,11 @@ export class PosConfig extends Base {
         if (this.pricelist_id) {
             available_pricelists.add(this.pricelist_id);
         }
+        log.logic("availablePricelists", () => ({
+            config: this.id,
+            count: available_pricelists.size,
+            default: this.pricelist_id?.id,
+        }));
         return Array.from(available_pricelists);
     }
 }

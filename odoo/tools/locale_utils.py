@@ -6,6 +6,8 @@ from operator import itemgetter
 
 import babel
 
+from odoo.libs.debug_log import DebugLog
+
 from .files import file_open
 
 if typing.TYPE_CHECKING:
@@ -17,6 +19,7 @@ else:
     LangData = typing.Any
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_iso_codes(lang: str) -> str:
@@ -42,25 +45,44 @@ def _read_lang_csv() -> tuple[tuple[str, str], ...]:
 def get_languages() -> list[tuple[str, str]]:
     try:
         return list(_read_lang_csv())
-    except Exception:
+    except Exception as exc:
         _logger.exception("Could not read res.lang.csv")
+        _debug.logic("locale.lang_csv_unreadable", error=type(exc).__name__)
         return [("en_US", "English")]
 
 
+def _company_lang(env: Environment) -> str | None:
+    if "res.users" not in env.registry:
+        return None
+    try:
+        return env.user.with_context(lang="en_US").company_id.partner_id.lang
+    except AttributeError:
+        # a DB-free registry whose user or company stub carries no partner
+        return None
+
+
 def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
-    langs = [code for code, _ in env["res.lang"].get_installed()]
+    locale = env.registry.locale
+    langs = locale.installed_langs(env)
     lang = "en_US" if "en_US" in langs else langs[0]
+    source = "default"  # debuglog
     if lang_code and lang_code in langs:
         lang = lang_code
+        source = "argument"  # debuglog
     elif (context_lang := env.context.get("lang")) in langs:
         lang = context_lang
-    elif (
-        company_lang := env.user.with_context(  # type: ignore[attr-defined]
-            lang="en_US"
-        ).company_id.partner_id.lang
-    ) in langs:
+        source = "context"  # debuglog
+    elif (company_lang := _company_lang(env)) in langs:
         lang = company_lang
-    return env["res.lang"]._get_data(code=lang)
+        source = "company"  # debuglog
+    _debug.logic(
+        "locale.lang_chosen",
+        lang=lang,
+        source=source,
+        requested=lang_code,
+        installed=len(langs),
+    )
+    return locale.lang_data(env, lang)
 
 
 @functools.cache
@@ -71,6 +93,9 @@ def babel_locale_parse(lang_code: str | None) -> babel.Locale:
         except Exception:  # noqa: S110  an unknown lang_code falls through to Locale.default() below
             pass
     try:
-        return babel.Locale.default()
+        locale = babel.Locale.default()
+        _debug.logic("locale.babel_defaulted", requested=lang_code, locale=str(locale))
+        return locale
     except Exception:
+        _debug.logic("locale.babel_fallback_en_US", requested=lang_code)
         return babel.Locale.parse("en_US")

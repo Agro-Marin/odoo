@@ -11,12 +11,16 @@ class EventLeadRequest(models.Model):
     _REGISTRATIONS_BATCH_SIZE = 200
 
     event_id = fields.Many2one(
-        "event.event", required=True, string="Event", ondelete="cascade"
+        comodel_name="event.event",
+        required=True,
+        ondelete="cascade",
     )
-    event_lead_rule_ids = fields.Many2many("event.lead.rule", string="Lead Rules")
+    event_lead_rule_ids = fields.Many2many(
+        comodel_name="event.lead.rule",
+        string="Lead Rules",
+    )
     processed_registration_id = fields.Integer(
-        "Processed Registration",
-        help="The ID of the last processed event.registration, used to know where to resume.",
+        help="The ID of the last processed event.registration, used to know where to resume."
     )
 
     _uniq_event = models.Constraint(
@@ -34,7 +38,7 @@ class EventLeadRequest(models.Model):
         generate_requests = self.env["event.lead.request"].search([], limit=job_limit)
         fulfilled_requests = self.env["event.lead.request"]
         for generate_request in generate_requests:
-            registrations_to_process = self.env["event.registration"].search(
+            registrations_to_process = self.env["event.registration"].search(  # noqa: E8507 - one batch of registrations per request
                 [
                     ("event_id", "=", generate_request.event_id.id),
                     ("state", "not in", ["draft", "cancel"]),

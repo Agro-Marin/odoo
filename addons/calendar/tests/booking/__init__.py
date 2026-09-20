@@ -11,7 +11,7 @@ from . import test_controller_security
 from . import test_event_notification
 from . import test_manage_leaves
 from . import test_performance
-from . import test_res_partner
+from . import test_booking_res_partner
 from . import test_slot_end_hour_on_create
 
 from . import test_survey_questions

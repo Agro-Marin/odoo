@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from ... import decorators as api
 from ._model_stubs import _ModelStubs
+
+_debug = DebugLog(__name__)
 
 
 class _DisplayNameMixin(_ModelStubs):
@@ -19,6 +22,12 @@ class _DisplayNameMixin(_ModelStubs):
         )
     )
     def _compute_display_name(self) -> None:
+        _debug.pipeline(
+            "display_name.computed",
+            model=self._name,
+            records=len(self),
+            rec_name=self._rec_name,
+        )
         if self._rec_name:
             convert = self._fields[self._rec_name].convert_to_display_name
             for record in self:
@@ -37,4 +46,10 @@ class _DisplayNameMixin(_ModelStubs):
                 )
             )
         record = self.create({self._rec_name: name})
+        _debug.lifecycle(
+            "display_name.name_create",
+            model=self._name,
+            record=record.id,
+            rec_name=self._rec_name,
+        )
         return record.id, record.display_name or ""

@@ -15,7 +15,7 @@ class TestLivechatChatbotUICommon(
         super().setUp()
         self.env["im_livechat.channel"].search(
             [("id", "!=", self.livechat_channel.id)]
-        ).unlink()  # delete other channels to avoid them messing with the URL rules
+        ).unlink()
 
         self.livechat_channel.write(
             {
@@ -115,8 +115,6 @@ class TestLivechatChatbotUI(TestLivechatChatbotUICommon):
         expected_messages = [
             ("Hello! I'm a bot!", operator, False),
             ("I help lost visitors find their way.", operator, False),
-            # next message would normally have 'self.step_dispatch_buy_software' as answer
-            # but it's wiped when restarting the script
             ("How can I help you?", operator, False),
             ("I'd like to buy the software", False, False),
             ("Can you give us your email please?", operator, False),
@@ -180,13 +178,10 @@ class TestLivechatChatbotUI(TestLivechatChatbotUICommon):
         ]
 
         self.assertEqual(len(conversation_messages), len(expected_messages))
-        # "invited" notification is not taken into account in unread counter contribution.
         self.assertEqual(
             len(conversation_messages) - 1, operator_member.message_unread_counter
         )
 
-        # check that the whole conversation is correctly saved
-        # including welcome steps: see chatbot.script#_post_welcome_steps
         for conversation_message, expected_message in zip(
             conversation_messages, expected_messages, strict=True
         ):

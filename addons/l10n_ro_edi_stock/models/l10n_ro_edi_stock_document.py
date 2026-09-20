@@ -17,10 +17,12 @@ class L10nRoEdiStockDocument(models.Model):
         selection_add=DOCUMENT_STATES,
         ondelete={k: "cascade" for k, v in DOCUMENT_STATES},
     )
-    message = fields.Char(string="Message", copy=False)
+    message = fields.Char(copy=False)
     l10n_ro_edi_stock_uit = fields.Char(
-        help="UIT of this eTransport document.", copy=False
+        copy=False,
+        help="UIT of this eTransport document.",
     )
     l10n_ro_edi_stock_load_id = fields.Char(
-        help="Id of this document used for interacting with the anaf api.", copy=False
+        copy=False,
+        help="Id of this document used for interacting with the anaf api.",
     )

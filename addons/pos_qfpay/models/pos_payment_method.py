@@ -10,24 +10,36 @@ from odoo.exceptions import AccessDenied, UserError
 
 class PosPaymentMethod(models.Model):
     _inherit = "pos.payment.method"
+    _CREDENTIAL_FIELDS = {
+        "qfpay_pos_key": "qfpay_pos_key",
+        "qfpay_notification_key": "qfpay_notification_key",
+    }
 
     def _selection_payment_terminals(self):
         return super()._selection_payment_terminals() + [("qfpay", "QFPay")]
 
-    qfpay_terminal_ip_address = fields.Char("QFPay Terminal IP Address", copy=False)
+    qfpay_terminal_ip_address = fields.Char(
+        string="QFPay Terminal IP Address",
+        copy=False,
+    )
     qfpay_pos_key = fields.Char(
-        "QFPay POS Key", copy=False, groups="point_of_sale.group_pos_manager"
+        string="QFPay POS Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        groups="point_of_sale.group_pos_manager",
     )
     qfpay_notification_key = fields.Char(
         string="QFPay Notification Key",
-        copy=False,
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         groups="point_of_sale.group_pos_manager",
     )
     qfpay_latest_response = fields.Char(
-        copy=False, groups="point_of_sale.group_pos_manager"
+        copy=False,
+        groups="point_of_sale.group_pos_manager",
     )
     qfpay_payment_type = fields.Selection(
-        [
+        selection=[
             ("card_payment", "Visa/Mastercard"),
             ("wx", "WeChat Pay"),
             ("alipay", "Alipay"),
@@ -38,7 +50,7 @@ class PosPaymentMethod(models.Model):
             ("unionpay_card", "Unionpay Card"),
             ("amex_card", "American Express Card"),
         ],
-        "QFPay Payment Type",
+        string="QFPay Payment Type",
         copy=False,
     )
 

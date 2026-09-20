@@ -5,6 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from ..tools.reservation import RemovalStrategy
 
 _logger = logging.getLogger(__name__)
@@ -37,51 +38,46 @@ class StockQuant(models.Model):
     _description = "Quants"
     _rec_name = "product_id"
     _rec_names_search = ["location_id", "lot_id", "package_id", "owner_id"]
+    _search_visibility_fields = ()
 
     location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Location",
+        index=True,
         required=True,
-        bypass_search_access=True,
         domain=lambda self: self._domain_location_id(),
         ondelete="restrict",
-        index=True,
+        bypass_search_access=True,
     )
-    company_id = fields.Many2one(
+    company_id = fields.Many2one(  # noqa: E8529  index (product_id, location_id, lot_id, package_id, owner_id, company_id)
         related="location_id.company_id",
         string="Company",
         store=True,
         readonly=True,
     )
     warehouse_id = fields.Many2one(
-        related="location_id.warehouse_id",
         comodel_name="stock.warehouse",
+        related="location_id.warehouse_id",
     )
-    storage_category_id = fields.Many2one(
-        related="location_id.storage_category_id",
-    )
+    storage_category_id = fields.Many2one(related="location_id.storage_category_id")
     cyclic_inventory_frequency = fields.Integer(
         related="location_id.cyclic_inventory_frequency"
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
-        check_company=True,
         domain=lambda self: self._domain_product_id(),
         ondelete="restrict",
+        check_company=True,
     )
     product_tmpl_id = fields.Many2one(
-        related="product_id.product_tmpl_id",
         comodel_name="product.template",
+        related="product_id.product_tmpl_id",
         string="Product Template",
     )
-    is_favorite = fields.Boolean(
-        related="product_tmpl_id.is_favorite",
-    )
+    is_favorite = fields.Boolean(related="product_tmpl_id.is_favorite")
     product_uom_id = fields.Many2one(
-        related="product_id.uom_id",
         comodel_name="uom.uom",
+        related="product_id.uom_id",
         string="Unit",
         readonly=True,
     )
@@ -89,16 +85,14 @@ class StockQuant(models.Model):
         related="product_id.tracking",
         readonly=True,
     )
-    product_categ_id = fields.Many2one(
-        related="product_tmpl_id.categ_id",
-    )
+    product_categ_id = fields.Many2one(related="product_tmpl_id.categ_id")
     lot_id = fields.Many2one(
         comodel_name="stock.lot",
         string="Lot/Serial Number",
-        check_company=True,
+        index=True,
         domain=lambda self: self._domain_lot_id(),
         ondelete="restrict",
-        index=True,
+        check_company=True,
     )
     lot_properties = fields.Properties(
         related="lot_id.lot_properties",
@@ -112,52 +106,49 @@ class StockQuant(models.Model):
     )
     package_id = fields.Many2one(
         comodel_name="stock.package",
-        string="Package",
-        check_company=True,
+        index=True,
         domain="['|', ('location_id', '=', location_id), '&', ('location_id', '=', False), ('quant_ids', '=', False)]",
         ondelete="restrict",
-        index=True,
+        check_company=True,
         help="The package containing this quant",
     )
     owner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Owner",
-        check_company=True,
         index="btree_not_null",
+        check_company=True,
         help="This is the owner of the quant",
     )
+    # No `digits`: these hold a quantity normalised into the product's unit,
+    # which nobody chose, so "Product Unit" precision would re-grid it and
+    # store a 2 g receipt of a kilogram product as 0.00 (c348d72fecfe).
     quantity = fields.Float(
         min_display_digits="Product Unit",
-        string="Quantity",
-        required=True,
         default=0.0,
         readonly=True,
+        required=True,
         help="Quantity of products in this quant, in the default unit of measure of the product",
     )
     reserved_quantity = fields.Float(
         min_display_digits="Product Unit",
-        string="Reserved Quantity",
-        required=True,
         default=0.0,
         readonly=True,
+        required=True,
         help="Quantity of reserved products in this quant, in the default unit of measure of the product",
     )
     available_quantity = fields.Float(
         min_display_digits="Product Unit",
-        string="Available Quantity",
         compute="_compute_available_quantity",
         help="On hand quantity which hasn't been reserved on a transfer, in the default unit of measure of the product",
     )
     in_date = fields.Datetime(
         string="Incoming Date",
-        required=True,
         default=fields.Datetime.now,
         readonly=True,
+        required=True,
     )
     on_hand = fields.Boolean(
-        string="On Hand",
-        store=False,
         search="_search_on_hand",
+        store=False,
     )
     date_last_movement = fields.Datetime(
         string="Last Movement",
@@ -250,7 +241,7 @@ class StockQuant(models.Model):
                 )
             )
 
-    @api.constrains("lot_id")
+    @api.constrains("lot_id", "product_id")
     def _check_lot_id(self):
         for quant in self:
             if quant.lot_id.product_id and quant.lot_id.product_id != quant.product_id:
@@ -375,8 +366,16 @@ class StockQuant(models.Model):
                         recommended_location = None
         return message, recommended_location
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.quant.create: %d vals, keys=%s, inventory_mode=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+            self._is_inventory_mode(),
+        )
+
         def _add_to_cache(quant):
             if "quants_cache" in self.env.context:
                 self.env.context["quants_cache"][
@@ -411,6 +410,12 @@ class StockQuant(models.Model):
                         )
                     )
                 counted_by_quant[quant.id] = index
+                dbg.logic.debug(
+                    "create: inventory vals %d -> quant %s (created=%s)",
+                    index,
+                    quant.id,
+                    created,
+                )
                 if created:
                     _add_to_cache(quant)
                 results[index] = quant
@@ -422,6 +427,9 @@ class StockQuant(models.Model):
                 plain_vals.append((index, vals))
         if plain_vals:
             plain_records = super().create([vals for _index, vals in plain_vals])
+            dbg.lifecycle.debug(
+                "stock.quant.create: created %s", dbg.rec(plain_records)
+            )
             for (index, _vals), quant in zip(plain_vals, plain_records, strict=True):
                 _add_to_cache(quant)
                 results[index] = quant
@@ -429,13 +437,21 @@ class StockQuant(models.Model):
                 plain_records.filtered("company_id")._check_company()
         return self.env["stock.quant"].concat(*results)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.quant.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         forbidden_fields = set(self._get_forbidden_fields_write())
         if self._is_inventory_mode() and forbidden_fields.intersection(vals):
             if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
                 raise UserError(
                     _("Quant's editing is restricted, you can't do this operation.")
                 )
+            dbg.logic.debug(
+                "write: inventory mode drops forbidden keys %s",
+                sorted(forbidden_fields.intersection(vals)),
+            )
             vals = {
                 name: value
                 for name, value in vals.items()
@@ -457,6 +473,10 @@ class StockQuant(models.Model):
                         "Quants are auto-deleted when appropriate. If you must manually delete them, please ask a stock manager to do it."
                     )
                 )
+            dbg.lifecycle.debug(
+                "manual unlink of %s by a stock manager: zeroing through inventory",
+                dbg.rec(self),
+            )
             self = self.with_context(inventory_mode=True)
             self.inventory_quantity = 0
             self._apply_inventory()

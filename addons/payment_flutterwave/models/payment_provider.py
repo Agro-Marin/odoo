@@ -11,27 +11,30 @@ _logger = get_payment_logger(__name__)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "flutterwave_secret_key": "flutterwave_secret_key",
+        "flutterwave_webhook_secret": "flutterwave_webhook_secret",
+    }
 
     code = fields.Selection(
         selection_add=[("flutterwave", "Flutterwave")],
         ondelete={"flutterwave": "set default"},
     )
     flutterwave_public_key = fields.Char(
-        string="Flutterwave Public Key",
-        help="The key solely used to identify the account with Flutterwave.",
-        required_if_provider="flutterwave",
         copy=False,
+        required_if_provider="flutterwave",
+        help="The key solely used to identify the account with Flutterwave.",
     )
     flutterwave_secret_key = fields.Char(
-        string="Flutterwave Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="flutterwave",
-        copy=False,
         groups="base.group_system",
     )
     flutterwave_webhook_secret = fields.Char(
-        string="Flutterwave Webhook Secret",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="flutterwave",
-        copy=False,
         groups="base.group_system",
     )
 

@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountCashRounding(models.Model):
     _name = "account.cash.rounding"
@@ -24,6 +26,11 @@ class AccountCashRounding(models.Model):
             limit=1,
         )
         if open_session:
+            dbg.logic.debug(
+                "cash rounding %s change refused by open %s",
+                dbg.rec(self),
+                dbg.rec(open_session),
+            )
             raise ValidationError(
                 _(
                     "You are not allowed to change the cash rounding configuration while a pos session using it is already opened."

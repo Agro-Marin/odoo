@@ -23,13 +23,8 @@ class Rating(http.Controller):
     def action_view_rating(self, token, rate, **kwargs):
         if rate not in (RATING_HAPPY_VALUE, RATING_NEUTRAL_VALUE, RATING_UNHAPPY_VALUE):
             raise ValueError(
-                _(
-                    "Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)",
-                    rating_unhappy=RATING_UNHAPPY_VALUE,
-                    rating_neutral=RATING_NEUTRAL_VALUE,
-                    rating_happy=RATING_HAPPY_VALUE,
-                    rate=rate,
-                )
+                f"Incorrect rating: should be {RATING_UNHAPPY_VALUE}, "
+                f"{RATING_NEUTRAL_VALUE} or {RATING_HAPPY_VALUE} (received {rate})"
             )
 
         # This route used to allow sending a rating with a GET, the
@@ -81,13 +76,8 @@ class Rating(http.Controller):
                 RATING_UNHAPPY_VALUE,
             ):
                 raise ValueError(
-                    _(
-                        "Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %(rating_happy)d (received %(rate)d)",
-                        rating_unhappy=RATING_UNHAPPY_VALUE,
-                        rating_neutral=RATING_NEUTRAL_VALUE,
-                        rating_happy=RATING_HAPPY_VALUE,
-                        rate=rate,
-                    )
+                    f"Incorrect rating: should be {RATING_UNHAPPY_VALUE}, "
+                    f"{RATING_NEUTRAL_VALUE} or {RATING_HAPPY_VALUE} (received {rate})"
                 )
             record_sudo.rating_apply(
                 rate,

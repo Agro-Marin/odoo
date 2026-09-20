@@ -1,12 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 
+const log = makeLogger("website.interaction.carousel.edit");
+
 export class CarouselEdit extends Interaction {
     static selector = "section > .carousel";
-    // Prevent enabling the carousel overlay when clicking on the carousel
-    // controls (indeed we want it to change the carousel slide then enable
-    // the slide overlay) + See "CarouselItem" option.
     dynamicContent = {
         ".carousel-control-prev, .carousel-control-next, .carousel-indicators": {
             "t-on-click": this.throttled(this.onControlClick),
@@ -21,16 +21,11 @@ export class CarouselEdit extends Interaction {
     };
 
     /**
-     * Slides the carousel when clicking on the carousel controls. This handler
-     * allows to put the sliding in the mutex, to avoid race conditions.
-     *
      * @param {Event} ev
      */
     async onControlClick(ev) {
-        // Activate the active slide.
         this.el.querySelector(".carousel-item.active").click();
 
-        // Compute to which slide the carousel will slide.
         const controlEl = ev.currentTarget;
         let direction;
         if (controlEl.classList.contains("carousel-control-prev")) {
@@ -43,13 +38,20 @@ export class CarouselEdit extends Interaction {
                 !indicatorEl.matches(".carousel-indicators > *") ||
                 indicatorEl.classList.contains("active")
             ) {
+                log.logic("CarouselEdit onControlClick: ignored indicator", () => ({
+                    tagName: indicatorEl.tagName,
+                    className: indicatorEl.className,
+                }));
                 return;
             }
             direction = [...controlEl.children].indexOf(indicatorEl);
         }
 
-        // Slide the carousel
         const applySpec = { editingElement: this.el, params: { direction: direction } };
+        log.logic("CarouselEdit onControlClick: slide", () => ({
+            direction,
+            canApply: !!this.services["website_edit"].applyAction,
+        }));
 
         if (this.services["website_edit"].applyAction) {
             this.services["website_edit"].applyAction("slideCarousel", applySpec);
@@ -58,8 +60,8 @@ export class CarouselEdit extends Interaction {
 
     destroy() {
         const editTranslations = this.services.website_edit.isEditingTranslations();
+        log.lifecycle("CarouselEdit destroy", () => ({ editTranslations }));
         if (!editTranslations) {
-            // Restore the carousel controls.
             const indicatorEls = this.el.querySelectorAll(".carousel-indicators > *");
             indicatorEls.forEach((indicatorEl, i) =>
                 indicatorEl.setAttribute("data-bs-slide-to", i),

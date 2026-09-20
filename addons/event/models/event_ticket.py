@@ -25,18 +25,28 @@ class EventEventTicket(models.Model):
         return res
 
     # description
-    event_type_id = fields.Many2one(ondelete="set null", required=False)
-    event_id = fields.Many2one(
-        "event.event", string="Event", ondelete="cascade", required=True, index=True
+    event_type_id = fields.Many2one(
+        required=False,
+        ondelete="set null",
     )
-    company_id = fields.Many2one("res.company", related="event_id.company_id")
+    event_id = fields.Many2one(
+        comodel_name="event.event",
+        index=True,
+        required=True,
+        ondelete="cascade",
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        related="event_id.company_id",
+    )
     # sale
     start_sale_datetime = fields.Datetime(string="Registration Start")
     end_sale_datetime = fields.Datetime(string="Registration End")
     is_launched = fields.Boolean(
-        string="Are sales launched", compute="_compute_is_launched"
+        string="Are sales launched",
+        compute="_compute_is_launched",
     )
-    is_expired = fields.Boolean(string="Is Expired", compute="_compute_is_expired")
+    is_expired = fields.Boolean(compute="_compute_is_expired")
     sale_available = fields.Boolean(
         string="Is Available",
         compute="_compute_sale_available",
@@ -44,20 +54,30 @@ class EventEventTicket(models.Model):
         help="Whether it is possible to sell these tickets",
     )
     registration_ids = fields.One2many(
-        "event.registration", "event_ticket_id", string="Registrations"
+        comodel_name="event.registration",
+        inverse_name="event_ticket_id",
+        string="Registrations",
     )
     # seats
     seats_reserved = fields.Integer(
-        string="Reserved Seats", compute="_compute_seats", store=False
+        string="Reserved Seats",
+        compute="_compute_seats",
+        store=False,
     )
     seats_available = fields.Integer(
-        string="Available Seats", compute="_compute_seats", store=False
+        string="Available Seats",
+        compute="_compute_seats",
+        store=False,
     )
     seats_used = fields.Integer(
-        string="Used Seats", compute="_compute_seats", store=False
+        string="Used Seats",
+        compute="_compute_seats",
+        store=False,
     )
     seats_taken = fields.Integer(
-        string="Taken Seats", compute="_compute_seats", store=False
+        string="Taken Seats",
+        compute="_compute_seats",
+        store=False,
     )
     limit_max_per_order = fields.Integer(
         string="Limit per Order",
@@ -65,12 +85,12 @@ class EventEventTicket(models.Model):
         help="Maximum of this product per order.\nSet to 0 to ignore this rule",
     )
     is_sold_out = fields.Boolean(
-        "Sold Out",
+        string="Sold Out",
         compute="_compute_is_sold_out",
         help="Whether seats are not available for this ticket.",
     )
     # reports
-    color = fields.Char("Color", default="#875A7B")
+    color = fields.Char(default="#875A7B")
 
     @api.depends("end_sale_datetime", "event_id.date_tz")
     def _compute_is_expired(self):

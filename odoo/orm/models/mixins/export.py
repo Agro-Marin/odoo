@@ -1,23 +1,26 @@
 import collections
 import logging
 import typing
-import uuid
 from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import UserError
-from odoo.tools import SQL, groupby, unique
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import groupby, unique
 from odoo.tools.translate import _
 
 from ..._recordset import is_recordset
+from ...fields.temporal import Datetime
 from ...parsing import fix_import_export_id_paths
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
+    from datetime import datetime
 
 
 class ExportMixin(_ModelStubs):
@@ -42,56 +45,14 @@ class ExportMixin(_ModelStubs):
                 )
             )
 
-        modname = "__export__"
-
-        cr = self.env.cr
-        cr.execute(
-            SQL(
-                """
-            SELECT res_id, module, name
-            FROM ir_model_data
-            WHERE model = %s AND res_id = ANY(%s)
-            ORDER BY id
-        """,
-                self._name,
-                list(self.ids),
-            )
+        xids = self.env.registry.xmlids.get_or_create_for_records(self, "__export__")
+        _debug.pipeline(
+            "export.xmlids_resolved",
+            model=self._name,
+            records=len(self),
+            xmlids=len(xids),
         )
-        xids: dict[int, tuple[str, str]] = {}
-        for res_id, module, name in cr.fetchall():
-            xids.setdefault(res_id, (module, name))
-
-        def to_xid(record_id):
-            module, name = xids[record_id]
-            return f"{module}.{name}" if module else name
-
-        missing = self.filtered(lambda r: r.id not in xids)
-        if not missing:
-            return ((record, to_xid(record.id)) for record in self)
-
-        xids.update(
-            (
-                r.id,
-                (
-                    modname,
-                    f"{r._table}_{r.id}_{uuid.uuid4().hex[:8]}",
-                ),
-            )
-            for r in missing
-        )
-        fields = ["module", "model", "name", "res_id"]
-
-        cr.copy_from(
-            "ir_model_data",
-            fields,
-            [
-                (modname, record._name, xids[record.id][1], record.id)
-                for record in missing
-            ],
-        )
-        self.env["ir.model.data"].invalidate_model(fields)
-
-        return ((record, to_xid(record.id)) for record in self)
+        return ((record, xids[record.id]) for record in self)
 
     def _export_get_cell_value(self, record, name, cache_properties):
         if "." in name:
@@ -106,6 +67,17 @@ class ExportMixin(_ModelStubs):
             field_type = field.type
             value = record[name]
         return field, field_type, value
+
+    @staticmethod
+    def _export_convert_cell(field, field_type, value, record):
+        if field.is_properties and field_type == "datetime" and value:
+            # a property is stored as the client stores it, in UTC; export it
+            # in the user's timezone exactly like a datetime column, so the
+            # sheet reads the same and re-imports through the same converter
+            utc = typing.cast("datetime", Datetime.to_datetime(value))
+            localized = Datetime.context_timestamp(record, utc)
+            return Datetime.to_datetime(Datetime.to_string(localized))
+        return field.convert_to_export(value, record)
 
     def _export_get_many2many_cell(self, value, fields2, index_fallback):
         index = None
@@ -168,7 +140,9 @@ class ExportMixin(_ModelStubs):
                     )
 
                     if not is_recordset(value):
-                        current[i] = field.convert_to_export(value, record)
+                        current[i] = self._export_convert_cell(
+                            field, field_type, value, record
+                        )
 
                     elif import_compatible and field_type == "reference":
                         current[i] = f"{value._name},{value.id}"
@@ -201,6 +175,14 @@ class ExportMixin(_ModelStubs):
 
         if _is_toplevel_call:
             self.env.cr.cache.pop("export_properties_cache", None)
+            _debug.pipeline(
+                "export.rows",
+                model=self._name,
+                records=len(self),
+                fields=len(fields),
+                rows=len(lines),
+                import_compatible=import_compatible,
+            )
 
         return lines
 
@@ -256,6 +238,13 @@ class ExportMixin(_ModelStubs):
         )
 
         fnames = list(unique(fname.split(".")[0] for fname in fnames_by_path))
+        _debug.pipeline(
+            "export.prefetch",
+            model=records._name,
+            records=len(records),
+            fields=len(fnames),
+            paths=len(fnames_by_path),
+        )
         records.fetch(fnames)
         for fname in fnames:
             field = records._fields[fname]
@@ -303,6 +292,13 @@ class ExportMixin(_ModelStubs):
                 if isinstance(cell, tuple):
                     bymodels[cell[0]].add(cell[1])
                     xidmap[cell].append((i, j))
+        _debug.perf.count(
+            "export.xids_to_resolve",
+            model=self._name,
+            models=len(bymodels),
+            cells=len(xidmap),
+            rows=len(lines),
+        )
         for model, ids in bymodels.items():
             for record, xid in self.env[model].browse(ids)._get_or_create_xml_ids():
                 for i, j in xidmap.pop((record._name, record.id)):
@@ -317,10 +313,25 @@ class ExportMixin(_ModelStubs):
         if not (
             self.env.is_admin() or self.env.user.has_group("base.group_allow_export")
         ):
+            _debug.logic(
+                "export.denied",
+                model=self._name,
+                uid=self.env.uid,
+                records=len(self),
+            )
             raise UserError(
                 _(
                     "You don't have the rights to export data. Please contact an Administrator."
                 )
             )
         field_paths = [fix_import_export_id_paths(f) for f in fields_to_export]
-        return {"datas": self._export_rows(field_paths)}
+        with _debug.perf(
+            "export.data",
+            cr=self.env.cr,
+            model=self._name,
+            records=len(self),
+            fields=len(field_paths),
+        ) as span:
+            rows = self._export_rows(field_paths)
+            span.set(rows=len(rows))
+        return {"datas": rows}

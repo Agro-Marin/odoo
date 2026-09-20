@@ -41,5 +41,4 @@ real applications. """,
             "test_mail_full/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
 }

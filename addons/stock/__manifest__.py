@@ -1,6 +1,6 @@
 {
     "name": "Inventory",
-    "version": "1.17",
+    "version": "1.18",
     "category": "Supply Chain/Inventory",
     "sequence": 25,
     "summary": "Manage your stock and logistics activities",
@@ -112,7 +112,6 @@
             "stock/static/tests/*.test.js",
         ],
     },
-    "installable": True,
     "application": True,
     "pre_init_hook": "pre_init_hook",
     "uninstall_hook": "uninstall_hook",

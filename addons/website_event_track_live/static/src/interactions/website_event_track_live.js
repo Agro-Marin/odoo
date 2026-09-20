@@ -110,12 +110,6 @@ class WebsiteEventTrackLive extends Interaction {
         };
     }
 
-    /**
-     * If a new suggestion has been found, a cover containing a replay button
-     * as well as a suggestion will automatically be placed over the Youtube
-     * player when the video ends (in non-full screen mode). If no suggestion
-     * has been found, the cover will only contain a replay button.
-     */
     showSuggestion() {
         if (!this.outro) {
             if (this.nextSuggestion) {

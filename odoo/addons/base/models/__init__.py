@@ -19,6 +19,7 @@ from . import ir_ui_view_name_manager
 from . import ir_asset_paths
 from . import ir_asset
 
+from . import mixin_table_inheritance_root
 from . import ir_actions_actions
 from . import ir_actions_path
 from . import ir_actions_act_window_view
@@ -28,6 +29,7 @@ from . import ir_actions_act_url
 from . import ir_actions_client
 from . import ir_actions_todo
 from . import ir_actions_server
+from . import ir_actions_server_history
 from . import ir_actions_embedded
 from . import ir_actions_report
 
@@ -35,18 +37,21 @@ from . import ir_attachment_storage
 from . import ir_attachment
 from . import ir_attachment_assets
 from . import ir_binary
+from . import ir_egress
 
+from . import mixin_recurrence_interval
+from . import mixin_recurrence_anchored
+from . import mixin_recurrence_rule
+from . import mixin_recurrence_occurrence
 from . import ir_cron
 from . import ir_job
 from . import ir_autovacuum
 
 from . import ir_filters
 from . import ir_default
-from . import ir_exports
 from . import ir_rule
 from . import ir_config_parameter
 
-from . import ir_mail_server
 
 from . import ir_fields
 
@@ -70,13 +75,13 @@ from . import ir_demo_failure
 
 from . import properties_base_definition
 from . import mixin_properties_base_definition
-from . import report_layout
 from . import report_paperformat
 
 from . import ir_profile
 from . import mixin_image
 from . import mixin_avatar
 from . import mixin_catalog
+from . import mixin_lifecycle
 from . import mixin_merge
 from . import mixin_favorite
 from . import mixin_user_favorite
@@ -96,6 +101,13 @@ from . import phone_number
 from . import res_partner
 from . import res_partner_identifier
 from . import res_partner_identifier_type
+
+# After res_partner: mixin.recurrence.rrule takes its timezone selection
+# from _selection_timezones, so importing it earlier evaluates res_partner
+# before the mixins it inherits are registered. The other recurrence mixins
+# are imported before ir_cron, which inherits the interval one.
+from . import mixin_recurrence_rrule
+
 
 from . import res_bank
 from . import res_config

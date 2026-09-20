@@ -14,6 +14,5 @@
     "data": [
         "views/res_users_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

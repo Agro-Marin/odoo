@@ -27,6 +27,8 @@ def _inotify_fds():
 def _make_watcher(tmp_path, monkeypatch):
     root = tmp_path / "addons"
     (root / "mod" / "static").mkdir(parents=True)
+    # Only a subtree that holds Python is armed; the root and `mod` make two.
+    (root / "mod" / "__init__.py").write_text("")
     monkeypatch.setattr(
         _watcher.FSWatcherBase, "get_watch_paths", staticmethod(lambda: [str(root)])
     )
@@ -40,7 +42,7 @@ class TestInotifyDescriptorLifecycle:
         before = _inotify_fds()
         watcher = _make_watcher(tmp_path, monkeypatch)
         retained_tree = watcher.watcher
-        descriptors = watcher.internals.get_descriptors()
+        descriptors = watcher.watcher.descriptors()
         watcher.stop()
         assert _inotify_fds() == before
         for fd in descriptors:
@@ -54,15 +56,22 @@ class TestInotifyDescriptorLifecycle:
     def test_failed_construction_closes_descriptors_before_traceback_dies(
         self, tmp_path, monkeypatch
     ):
+        from odoo.libs import inotify
+
         before = _inotify_fds()
         descriptors = []
+        armed = []
+        real_add_watch = inotify.Inotify.add_watch
 
-        def fail_after_arming(tree, paths):
-            tree._load_tree(paths[0])
-            descriptors.extend(_watcher._InotifyInternals(tree).get_descriptors())
-            raise RuntimeError("failure after allocating watches")
+        def fail_after_arming(self, path, mask):
+            wd = real_add_watch(self, path, mask)
+            armed.append(wd)
+            descriptors.extend(self.descriptors())
+            if len(armed) == 2:
+                raise RuntimeError("failure after allocating watches")
+            return wd
 
-        monkeypatch.setattr(_watcher.InotifyTrees, "_load_trees", fail_after_arming)
+        monkeypatch.setattr(inotify.Inotify, "add_watch", fail_after_arming)
         with pytest.raises(RuntimeError, match="failure after allocating") as retained:
             _make_watcher(tmp_path, monkeypatch)
         assert retained.value.__traceback__ is not None
@@ -91,14 +100,11 @@ class TestInotifyDescriptorLifecycle:
         watcher.start()
         watcher.stop()
         assert watcher.watcher is None
-        assert watcher.internals is None, (
-            "internals still holds _trees, which is what kept the fd alive"
-        )
 
     def test_the_descriptors_carry_cloexec(self, tmp_path, monkeypatch):
         watcher = _make_watcher(tmp_path, monkeypatch)
         try:
-            fds = watcher.internals.get_descriptors()
+            fds = watcher.watcher.descriptors()
             assert fds
             for fd in fds:
                 assert os.get_inheritable(fd) is False, (
@@ -160,3 +166,68 @@ class TestReloadDoesNotAccumulateDescriptors:
                 f"a reload generation inherited leaked inotify descriptors: {line!r}\n"
                 f"{proc.stdout}"
             )
+
+
+def _watched_paths(watcher):
+    return set(watcher.watcher.watched)
+
+
+class TestOnlyDirectoriesThatCanChangeAreWatched:
+    """A --dev=reload server asked for ~25k watches over the five addon roots,
+    ~15k of them __pycache__ (which reports its own .pyc writes), .git, i18n
+    and static; a box's watch budget is shared with every editor on it."""
+
+    @pytest.fixture
+    def tree(self, tmp_path):
+        root = tmp_path / "addons"
+        for name in (
+            "mod/models",
+            "mod/models/__pycache__",
+            "mod/static/src",
+            "mod/i18n",
+            "mod/.git/objects",
+            "mod/static/lib/node_modules/x",
+            "mod/tests",
+            "mod/views",
+        ):
+            (root / name).mkdir(parents=True)
+        for name in ("mod/__init__.py", "mod/models/a.py", "mod/tests/test_a.py"):
+            (root / name).write_text("")
+        (root / "mod/views/v.xml").write_text("")
+        return root
+
+    def _arm(self, tree, monkeypatch, dev_mode):
+        from odoo.service import settings as server_settings
+
+        monkeypatch.setattr(
+            _watcher.FSWatcherBase,
+            "get_watch_paths",
+            staticmethod(lambda: [str(tree)]),
+        )
+        with server_settings.override(dev_mode=dev_mode, workers=0):
+            watcher = _watcher.FSWatcherInotify()
+            try:
+                return {
+                    Path(p).relative_to(tree).as_posix()
+                    for p in _watched_paths(watcher)
+                }
+            finally:
+                watcher._release_watcher()
+
+    def test_reload_alone_skips_static_pycache_git_i18n_and_views(
+        self, tree, monkeypatch
+    ):
+        assert self._arm(tree, monkeypatch, ("reload",)) == {
+            ".",
+            "mod",
+            "mod/models",
+            "mod/tests",
+        }
+
+    def test_assets_keeps_static_but_not_its_node_modules(self, tree, monkeypatch):
+        watched = self._arm(tree, monkeypatch, ("reload", "assets"))
+        assert "mod/static/src" in watched
+        assert "mod/static/lib" in watched
+        assert "mod/static/lib/node_modules" not in watched
+        assert "mod/models/__pycache__" not in watched
+        assert "mod/views" in watched

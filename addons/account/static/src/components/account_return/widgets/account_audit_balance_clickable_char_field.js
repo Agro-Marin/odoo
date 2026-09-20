@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
-import { exprToBoolean } from "@web/core/utils/format/strings";
 
 export class AccountAuditClickableCharField extends CharField {
     static template = "account.AccountAuditClickableCharField";

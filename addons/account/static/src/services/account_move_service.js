@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("account.move");
 
 export class AccountMoveService {
     constructor(env, services) {
@@ -29,6 +32,7 @@ export class AccountMoveService {
     }
 
     async downloadPdf(accountMoveId, target = "download") {
+        log.logic("downloadPdf", () => ({ accountMoveId, target }));
         const downloadAction = await this.orm.call(
             "account.move",
             "action_invoice_download_pdf",
@@ -39,6 +43,7 @@ export class AccountMoveService {
 
     /** @param {{resModel: string, resId: number, context?: Object, */
     openBusinessDoc({ resModel, resId, context, onClose }) {
+        log.logic("openBusinessDoc", () => ({ resModel, resId }));
         return this.action.doActionButton({
             type: "object",
             name: "action_view_business_doc",

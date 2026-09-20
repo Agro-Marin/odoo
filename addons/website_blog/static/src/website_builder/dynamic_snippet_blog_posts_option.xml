@@ -19,7 +19,6 @@
         </BuilderRow>
     </xpath>
     <xpath expr="//BuilderRow[*[@id=&quot;'template_opt'&quot;]]" position="after">
-        <!-- TODO noWidgetRefresh="true" => refreshInteraction="false" ? -->
         <BuilderRow label.translate="Picture Size" preview="false" t-if="showPictureSizeOption()">
             <BuilderButtonGroup id="'picture_size_opt'">
                 <BuilderButton label.translate="Smaller" title.translate="Smaller picture" classAction="'s_blog_posts_post_picture_size_small'"/>
@@ -41,7 +40,6 @@
         <BuilderRow label.translate="New Tag" preview="false" t-if="!!showNewTagOption()">
             <BuilderCheckbox id="'new_opt'" action="'customizeTemplate'" actionParam="'blog_posts_post_new_active'"/>
         </BuilderRow>
-        <!-- TODO noWidgetRefresh="true" => refreshInteraction="false" ? -->
         <BuilderRow label.translate="Hover Effect" t-if="!!showHoverEffectOption()">
             <BuilderSelect>
                 <BuilderSelectItem classAction="''">None</BuilderSelectItem>

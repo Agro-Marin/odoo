@@ -12,10 +12,22 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    l10n_ke_cu_datetime = fields.Datetime(string="CU Signing Date and Time", copy=False)
-    l10n_ke_cu_serial_number = fields.Char(string="CU Serial Number", copy=False)
-    l10n_ke_cu_invoice_number = fields.Char(string="CU Invoice Number", copy=False)
-    l10n_ke_cu_qrcode = fields.Char(string="CU QR Code", copy=False)
+    l10n_ke_cu_datetime = fields.Datetime(
+        string="CU Signing Date and Time",
+        copy=False,
+    )
+    l10n_ke_cu_serial_number = fields.Char(
+        string="CU Serial Number",
+        copy=False,
+    )
+    l10n_ke_cu_invoice_number = fields.Char(
+        string="CU Invoice Number",
+        copy=False,
+    )
+    l10n_ke_cu_qrcode = fields.Char(
+        string="CU QR Code",
+        copy=False,
+    )
     l10n_ke_cu_show_send_button = fields.Boolean(
         string="Show Send to Tremol button",
         compute="_compute_l10n_ke_cu_show_send_button",
@@ -58,7 +70,7 @@ class AccountMove(models.Model):
     # CHECKS
     # -------------------------------------------------------------------------
 
-    def _l10n_ke_validate_move(self):
+    def _l10n_ke_get_move_errors(self):
         """Returns list of errors related to misconfigurations per move
 
         Find misconfigurations on the move, the lines of the move, and the
@@ -395,7 +407,7 @@ class AccountMove(models.Model):
                 )
             )
         # Check the configuration of the invoice
-        errors = self._l10n_ke_validate_move()
+        errors = self._l10n_ke_get_move_errors()
         if errors:
             error_msg = ""
             for move, error_list in errors:

@@ -3,10 +3,14 @@
 
     <data noupdate="1">
         <record id="base.user_demo" model="res.users">
-            <field name="group_ids" eval="[(3, ref('event.group_event_manager'))]" />
+            <field
+                name="group_ids"
+                eval="[Command.unlink(ref('event.group_event_manager'))]" />
         </record>
         <record id="base.default_user_group" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('event.group_event_manager'))]" />
+            <field
+                name="implied_ids"
+                eval="[Command.link(ref('event.group_event_manager'))]" />
         </record>
     </data>
 
@@ -28,7 +32,7 @@
         <field name="stage_id" ref="event_stage_booked" />
         <field
             name="tag_ids"
-            eval="[(4, ref('event.event_tag_category_1_tag_1')), (4, ref('event.event_tag_category_2_tag_1'))]" />
+            eval="[Command.link(ref('event.event_tag_category_1_tag_1')), Command.link(ref('event.event_tag_category_2_tag_1'))]" />
         <field name="ticket_instructions" type="html">
             <div class="text-center fw-bold py-3">Important ticket information</div>
             <ul>
@@ -39,7 +43,7 @@
         </field>
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event_0_ticket_0" model="event.event.ticket">
@@ -100,10 +104,10 @@
         <field name="kanban_state">blocked</field>
         <field
             name="tag_ids"
-            eval="[(4, ref('event.event_tag_category_1_tag_4')), (4, ref('event.event_tag_category_2_tag_3'))]" />
+            eval="[Command.link(ref('event.event_tag_category_1_tag_4')), Command.link(ref('event.event_tag_category_2_tag_3'))]" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="message_event_1_0" model="mail.message">
@@ -169,10 +173,10 @@
         <field name="stage_id" ref="event_stage_booked" />
         <field
             name="tag_ids"
-            eval="[(4, ref('event.event_tag_category_1_tag_4')), (4, ref('event.event_tag_category_2_tag_1'))]" />
+            eval="[Command.link(ref('event.event_tag_category_1_tag_4')), Command.link(ref('event.event_tag_category_2_tag_1'))]" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event_2_ticket_1" model="event.event.ticket">
@@ -229,10 +233,10 @@
         <field name="stage_id" ref="event_stage_announced" />
         <field
             name="tag_ids"
-            eval="[(4, ref('event.event_tag_category_1_tag_3')), (4, ref('event.event_tag_category_2_tag_2'))]" />
+            eval="[Command.link(ref('event.event_tag_category_1_tag_3')), Command.link(ref('event.event_tag_category_2_tag_2'))]" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event_3_ticket_0" model="event.event.ticket">
@@ -293,10 +297,10 @@
         <field name="kanban_state">done</field>
         <field
             name="tag_ids"
-            eval="[(4, ref('event.event_tag_category_1_tag_4')), (4, ref('event.event_tag_category_2_tag_1'))]" />
+            eval="[Command.link(ref('event.event_tag_category_1_tag_4')), Command.link(ref('event.event_tag_category_2_tag_1'))]" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event_4_ticket_0" model="event.event.ticket">
@@ -334,10 +338,10 @@
         <field name="address_id" ref="event.res_partner_location_1" />
         <field
             name="tag_ids"
-            eval="[(6, 0, [ref('event.event_tag_category_1_tag_2'), ref('event.event_tag_category_2_tag_3')])]" />
+            eval="[Command.set([ref('event.event_tag_category_1_tag_2'), ref('event.event_tag_category_2_tag_3')])]" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event.event_6" model="event.event">
@@ -353,7 +357,7 @@
         <field name="address_id" ref="event.res_partner_location_1" />
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event.event_7" model="event.event">
@@ -369,7 +373,9 @@
             name="date_end"
             eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 15:00:00')" />
         <field name="address_id" eval="False" />
-        <field name="tag_ids" eval="[(4, ref('event.event_tag_category_3_tag_1'))]" />
+        <field
+            name="tag_ids"
+            eval="[Command.link(ref('event.event_tag_category_3_tag_1'))]" />
         <field name="description" type="html">
             <div class="oe_structure">
                 <h5>The finest OpenWood furnitures are coming to your house in a brand new collection</h5>
@@ -386,7 +392,7 @@
         </field>
         <field
             name="question_ids"
-            eval="[             (4, ref('event.event_question_name')),             (4, ref('event.event_question_email')),             (4, ref('event.event_question_phone'))]" />
+            eval="[Command.link(ref('event.event_question_name')), Command.link(ref('event.event_question_email')), Command.link(ref('event.event_question_phone'))]" />
     </record>
 
     <record id="event_7_ticket_1" model="event.event.ticket">

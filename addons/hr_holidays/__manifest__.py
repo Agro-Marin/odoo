@@ -1,6 +1,6 @@
 {
     "name": "Time Off",
-    "version": "1.9",
+    "version": "1.14",
     "category": "Human Resources/Time Off",
     "sequence": 85,
     "summary": "Allocate time off and follow leave requests",
@@ -57,7 +57,7 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
         "reports/hr_leave_report_calendar.xml",
         "reports/hr_leave_employee_type_report.xml",
         "views/hr_views.xml",
-        "views/hr_holidays_views.xml",
+        "views/hr_holidays_menus.xml",
     ],
     "demo": [
         "demo/hr_holidays_demo.xml",
@@ -72,6 +72,10 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
         ],
         "mail.assets_public": [
             "hr_holidays/static/src/core/common/**/*",
+            "hr_holidays/static/src/store_service_patch.js",
+        ],
+        "mail.assets_discuss_core_common": [
+            "hr_holidays/static/src/store_service_patch.js",
         ],
         "web.assets_unit_tests": [
             "hr_holidays/static/tests/**/*",
@@ -84,6 +88,5 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
             "/hr_holidays/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

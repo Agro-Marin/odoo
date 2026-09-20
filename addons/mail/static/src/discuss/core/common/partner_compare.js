@@ -46,7 +46,7 @@ partnerCompareRegistry.add(
      * @returns {number|undefined}
      */
     (p1, p2, { thread, context: { memberPartnerIds } }) => {
-        if (thread?.model === "discuss.channel") {
+        if (thread?.isChannelKind) {
             const isMember1 = memberPartnerIds.has(p1.id);
             const isMember2 = memberPartnerIds.has(p2.id);
             if (isMember1 && !isMember2) {

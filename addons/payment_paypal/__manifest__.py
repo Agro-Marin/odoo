@@ -1,10 +1,9 @@
 {
     "name": "Payment Provider: Paypal",
-    "version": "2.0",
+    "version": "2.1",
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "An American payment provider for online payments all over the world.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

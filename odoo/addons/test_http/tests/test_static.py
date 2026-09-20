@@ -127,6 +127,7 @@ class TestHttpStatic(TestHttpStaticCommon):
     def test_static01_debug_assets(self):
         session = self.authenticate(None, None)
         session.debug = "assets"
+        http.root.session_store.save(session)
 
         res = self.assertDownloadGizeh("/test_http/static/src/img/gizeh.png")
         self.assertCacheControl(res, "no-cache, max-age=0")
@@ -134,6 +135,7 @@ class TestHttpStatic(TestHttpStaticCommon):
     def test_static02_not_found(self):
         session = self.authenticate(None, None)
         session.db = None
+        http.root.session_store.save(session)
         res = self.nodb_url_open("/test_http/static/i-dont-exist")
         self.assertEqual(res.status_code, 404)
 

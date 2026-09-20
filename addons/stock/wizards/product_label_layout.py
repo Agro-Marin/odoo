@@ -4,6 +4,8 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.tools.misc import file_open
 
+from ..tools import debug_log as dbg
+
 
 class ProductLabelLayout(models.TransientModel):
     _inherit = "product.label.layout"
@@ -17,8 +19,8 @@ class ProductLabelLayout(models.TransientModel):
     move_quantity = fields.Selection(
         selection=[("move", "Operation Quantities"), ("custom", "Custom")],
         string="Quantity to print",
-        required=True,
         default="custom",
+        required=True,
     )
     print_format = fields.Selection(
         selection_add=[("zpl", "ZPL Labels"), ("zplxprice", "ZPL Labels with price")],
@@ -32,8 +34,8 @@ class ProductLabelLayout(models.TransientModel):
             ("jewelry", 'Jewelry (2.20" x 0.50")'),
         ],
         string="ZPL Template",
-        required=True,
         default="normal",
+        required=True,
     )
     zpl_preview = fields.Image(
         string="ZPL Preview",
@@ -82,4 +84,11 @@ class ProductLabelLayout(models.TransientModel):
                 p: int(q) for p, q in quantities.items() if q
             }
             data["custom_barcodes"] = custom_barcodes
+        dbg.logic.debug(
+            "product label layout: format %s move_quantity %s -> report %s, %d products",
+            self.print_format,
+            self.move_quantity,
+            xml_id,
+            len(data.get("quantity_by_product") or ()),
+        )
         return xml_id, data

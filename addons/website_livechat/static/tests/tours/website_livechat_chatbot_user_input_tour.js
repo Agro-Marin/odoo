@@ -32,7 +32,6 @@ registry
             {
                 trigger: ".o-livechat-root:shadow .o-mail-Composer-input",
                 async run(helpers) {
-                    // We wait for the request to complete to ensure the final user input is persisted in the database before moving forward.
                     let requestId;
                     rpcBus.addEventListener(
                         "RPC:REQUEST",

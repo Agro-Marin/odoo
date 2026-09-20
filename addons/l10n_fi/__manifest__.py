@@ -36,7 +36,6 @@ Set the payment reference type from the Sales Journal.
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "auto_install": [
         "account",
     ],

@@ -1,11 +1,15 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     dropship_picking_count = fields.Integer(
-        "Dropship Count", compute="_compute_outgoing_transfer_counts"
+        string="Dropship Count",
+        compute="_compute_outgoing_transfer_counts",
     )
 
     @api.depends("picking_ids.is_dropship")
@@ -16,7 +20,7 @@ class SaleOrder(models.Model):
             order.count_transfer_outgoing -= dropship_count
             order.dropship_picking_count = dropship_count
 
-    def action_view_delivery(self):
+    def action_view_picking(self):
         return self._get_action_view_picking(
             self.picking_ids.filtered(lambda p: not p.is_dropship)
         )
@@ -31,6 +35,7 @@ class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     def _compute_is_mto(self):
+        _debug.perf.count("dropship_mto_compute", lines=self)
         super()._compute_is_mto()
         for line in self:
             if not line.display_qty_widget or line.is_mto:
@@ -39,16 +44,12 @@ class SaleOrderLine(models.Model):
                 line.product_id.route_ids + line.product_id.categ_id.total_route_ids
             )
             for pull_rule in product_routes.mapped("rule_ids"):
-                if (
-                    pull_rule.picking_type_id.sudo().default_location_src_id.usage
-                    == "supplier"
-                    and pull_rule.picking_type_id.sudo().default_location_dest_id.usage
-                    == "customer"
-                ):
+                if pull_rule.picking_type_id.sudo().code == "dropship":
                     line.is_mto = True
                     break
 
     def _get_procurement_qty(self, previous_product_qty=False):
+        _debug.logic("dropship_procurement_qty", lines=self)
         purchase_lines_sudo = self.sudo().purchase_line_ids
         if (
             any(
@@ -59,7 +60,7 @@ class SaleOrderLine(models.Model):
         ):
             qty = 0.0
             for po_line in purchase_lines_sudo.filtered(lambda r: r.state != "cancel"):
-                qty += po_line.product_uom_id._compute_quantity(
+                qty += po_line.product_uom_id._get_quantity_in_unit(
                     po_line.product_qty, self.product_uom_id, rounding_method="HALF-UP"
                 )
             return qty
@@ -81,8 +82,7 @@ class SaleOrderLine(models.Model):
         dropship_operation = self.env["stock.picking.type"].search(
             [
                 ("company_id", "=", res["company_id"]),
-                ("default_location_src_id.usage", "=", "supplier"),
-                ("default_location_dest_id.usage", "=", "customer"),
+                ("code", "=", "dropship"),
             ],
             limit=1,
             order="sequence",

@@ -1,4 +1,5 @@
 // @ts-check
+import { registerImStatusDecoration } from "@mail/core/common/presence_status";
 import { describe, expect, test } from "@odoo/hoot";
 import { leave, runAllTimers } from "@odoo/hoot-dom";
 import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
@@ -372,6 +373,9 @@ test("Compacted chat hub shows badge with amount of hidden chats with important 
     await start();
     await contains(".o-mail-ChatBubble", { count: 8 });
     await contains(".o-mail-ChatBubble", { text: "+13" });
+    await contains(".o-mail-ChatHub-hiddenBtn .o-mail-ChatHub-hiddenBtnCounter", {
+        text: "2",
+    });
     await click(".o-mail-ChatHub-hiddenBtn");
     await contains(".o-mail-ChatBubble i.fa-solid.fa-comments");
     await contains(".o-mail-ChatBubble .o-discuss-badge", { text: "9" });
@@ -389,6 +393,36 @@ test("Show IM status", async () => {
     await contains(
         ".o-mail-ChatBubble .fa-circle.text-success[aria-label='User is online']",
     );
+});
+
+test("A decorated offline status hides the dot, as a plain offline one does", async () => {
+    // hr_homeworking writes `home_offline` and hr_holidays `leave_offline` into
+    // im_status; a comparison against the literal "offline" reads either as
+    // reachable and shows the dot for someone who is not there.
+    registerImStatusDecoration("testbubble_offline", "offline");
+    const pyEnv = await startServer();
+    const { channelId } = createChatWith(pyEnv, {
+        name: "Demo User",
+        user: false,
+        partner: { im_status: "testbubble_offline" },
+    });
+    setupChatHub({ folded: [channelId] });
+    await start();
+    await contains(".o-mail-ChatBubble");
+    await contains(".o-mail-ChatBubble-status", { count: 0 });
+});
+
+test("A decorated reachable status still shows the dot", async () => {
+    registerImStatusDecoration("testbubble_online", "online");
+    const pyEnv = await startServer();
+    const { channelId } = createChatWith(pyEnv, {
+        name: "Demo User",
+        user: false,
+        partner: { im_status: "testbubble_online" },
+    });
+    setupChatHub({ folded: [channelId] });
+    await start();
+    await contains(".o-mail-ChatBubble-status");
 });
 
 test("Attachment-only message preview shows file name", async () => {

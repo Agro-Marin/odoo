@@ -19,10 +19,10 @@
                     <div>
                         <widget
                             name="documentation_link"
-                            path="/applications/websites/website/optimize/unsplash.html#generate-an-unsplash-access-key"
-                            label=" Generate an Access Key"
                             icon="oi oi-arrow-right"
-                            class="oe_link" />
+                            class="oe_link"
+                            label=" Generate an Access Key"
+                            path="/applications/websites/website/optimize/unsplash.html#generate-an-unsplash-access-key" />
                     </div>
                 </div>
             </div>

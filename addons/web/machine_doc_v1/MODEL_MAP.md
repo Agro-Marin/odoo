@@ -78,7 +78,7 @@ Internal helpers for search panel.
 **Key Methods:**
 - `_search_panel_get_field_image(field_name, ...)` — Returns `{value: {count, display_name}}` dict for filter options.
 - `_search_panel_rollup_counters_global(values_range, parent_name)` — Aggregate child counts to parent for hierarchical filters.
-- `_search_panel_sanitize_parent_hierarchy(records, parent_name, ids)` — Filter to maximal ancestor-closed subset.
+- `_search_panel_filter_parent_hierarchy(records, parent_name, ids)` — Filter to maximal ancestor-closed subset.
 
 ## Session and UI Bootstrap
 
@@ -215,6 +215,18 @@ Per-user embedded action configuration storage.
 
 ## Document Layout and Branding
 
+### models/ir_actions_report.py — IrActionsReport (`_inherit = 'ir.actions.report'`)
+
+The PDF half of the report action. `base` declares the action type, its bindings and the HTML and text renders; this inherit adds everything that needs `web`'s layouts or WeasyPrint: `_get_layout()` (`web.minimal_layout`), the paperformat `@page` CSS, `OdooURLFetcher` (serves `/web/assets`, `/static`, `/web/image` and `/report/barcode` URLs in-process, refuses the rest through `ir.egress`), `WeasyPrintEngine` (per-database font and parsed-CSS cache, incremental merge above `report.weasyprint_native_merge_max`, tolerant-font retry, PDF/A and XMP through `data["__pdf_options__"]`), the article split with saved-attachment reuse, `_render_qweb_pdf` / `_render_html_to_pdf` / `_render_html_to_image`, and the `report_action` override that sends an admin with no company layout to `web.action_base_document_layout_configurator`. Moved here from `base` at web 2.3; `base` alone renders no PDF and never could, since the shell it poured every body into is `web.minimal_layout`.
+
+**Module-level:** `PDF_OPTIONS_DATA_KEY`, `OdooURLFetcher`, `WeasyPrintEngine`, `_weasy_state` (process-wide shared state; `clear_for_tests()`).
+
+### models/report_layout.py — ReportLayout (`_name = 'report.layout'`)
+
+The catalogue of external layouts the document-layout wizard offers: one row per `web.external_layout_*` view with its preview image and PDF. Records in `data/report_layout.xml`. Moved here from `base` at web 2.3.
+
+**Fields:** `view_id` (Many2one `ir.ui.view`, required, cascade), `image` / `pdf` (Char — preview asset URLs), `sequence` (Integer, default 50), `name` (Char).
+
 ### models/base_document_layout.py — BaseDocumentLayout (`_name`, TransientModel)
 
 Transient wizard for live-preview report customization (colors, fonts, logos).
@@ -241,10 +253,10 @@ Transient wizard for live-preview report customization (colors, fonts, logos).
 
 Auto-regenerate report stylesheet on style changes, and hold the company's default home menu layout.
 
-**Fields:** `report_theme_id` (Many2one `report.theme`, defaults to `web.report_theme_modern`); `homemenu_default_config` (Json): the home menu layout a user of the company sees until they save one of their own, the same `{version, order, pinned, hidden}` shape as `res.users.settings.homemenu_config`. Surfaced in `session_info` and written from the home menu's edit mode by an admin ("Set as company default"); a user's own layout replaces it whole, never merges with it.
+**Fields:** `external_report_layout_id` (Many2one `ir.ui.view` — the `report.layout` view poured around every external report), `font` (Selection), `primary_color` / `secondary_color` (Char), `layout_background` (Selection) and `layout_background_image` (Binary) — the document-layout block, moved here from `base` at web 2.3 because nothing in `base` reads it; `report_theme_id` (Many2one `report.theme`, defaults to `web.report_theme_modern`); `homemenu_default_config` (Json): the home menu layout a user of the company sees until they save one of their own, the same `{version, order, pinned, hidden}` shape as `res.users.settings.homemenu_config`. Surfaced in `session_info` and written from the home menu's edit mode by an admin ("Set as company default"); a user's own layout replaces it whole, never merges with it.
 
 **Key Methods:**
-- `create(vals_list)` / `write(vals)` — Triggers `_update_asset_style()` if style fields change (font, colors, layout). `create` uses `@api.model_create_multi` (takes list of dicts).
+- `create(vals_list)` / `write(vals)` — Triggers `_update_asset_style()` if style fields change (font, colors, layout); `write` also clears the registry's `assets` cache, which used to be `base`'s job when it held the fields. `create` uses `@api.model_create_multi` (takes list of dicts).
 - `_get_asset_style_b64()` — Renders `web.styles_company_report` QWeb template, returns base64 CSS.
 - `_update_asset_style()` — Updates `web.asset_styles_company_report` attachment if content changed.
 
@@ -267,6 +279,18 @@ Model is **defined upstream in `base`**; web only extends it. The `ir.model.acce
 
 **Key Methods:**
 - `get_properties_base_definition(model_name, field_name)` — `@api.model`. ACL-checked retrieval of property field definitions. Returns the `web_search_read` result **dict** (`{"length", "records"}`) on `properties.base.definition` — annotated `-> dict[str, Any]`; a singular dict, not a list.
+
+## Export Presets
+
+### models/ir_exports.py — IrExports (`_name = 'ir.exports'`), IrExportsLine (`_name = 'ir.exports.line'`)
+
+Saved export field lists, read and written by the export dialog through
+`controllers/export.py`. Moved here from `base` at web 2.2: `base` never read
+them, and the two access rows (`base.group_allow_export`) are the only security.
+
+**Fields:**
+- `ir.exports`: `name` (Char), `resource` (Char, indexed), `export_fields` (One2many → ir.exports.line, `copy=True`)
+- `ir.exports.line`: `name` (Char), `export_id` (Many2one → ir.exports, cascade)
 
 ## Config
 
@@ -423,10 +447,13 @@ Quick lookup — file → model → primary role:
 | `ir_model.py` | ir.model | Model schema introspection |
 | `ir_qweb_fields.py` | ir.qweb.field.image + ir.qweb.field.image_url | QWeb image rendering (2 classes: `IrQwebFieldImage`, `IrQwebFieldImage_Url`) |
 | `ir_asset.py` | ir.asset | HOOT `&module_scope=` bundle narrowing |
+| `ir_exports.py` | ir.exports + ir.exports.line | Export dialog presets (saved field lists) |
 | `res_users.py` | res.users | User search priority, bootstrap hook |
 | `home_menu_badge.py` | home.menu.badge | App launcher tile counts (abstract; addons extend `_get_badges`) |
 | `res_users_settings.py` | res.users.settings | UI density, embedded actions |
 | `res_users_settings_embedded_action.py` | res.users.settings.embedded.action | Per-user action config storage |
+| `ir_actions_report.py` | ir.actions.report | PDF engine, layouts, attachments (the action type is base's) |
+| `report_layout.py` | report.layout | External layout catalogue |
 | `base_document_layout.py` | base.document.layout | Report layout wizard |
 | `res_company.py` | res.company | Report style auto-regeneration |
 | `report_theme.py` | report.theme | Report layout theme records |

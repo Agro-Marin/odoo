@@ -12,7 +12,7 @@ test("buildEditableInteractions concrete", async () => {
     }
     const BaseEdit = (I) =>
         class extends I {
-            stuff() {} // don't
+            stuff() {}
         };
     class Specific extends Base {
         otherStuff() {
@@ -47,7 +47,7 @@ test("buildEditableInteractions abstract", async () => {
     }
     const AbstractBaseEdit = (I) =>
         class extends I {
-            stuff() {} // don't
+            stuff() {}
         };
     class AbstractIntermediate extends AbstractBase {
         moreStuff() {

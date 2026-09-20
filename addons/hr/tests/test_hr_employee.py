@@ -139,6 +139,7 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(employee.tz, _tz)
 
     def test_employee_timezone(self):
+        schedule_zone = self.res_users_hr_officer.company_id.resource_calendar_id.tz
         self.res_users_hr_officer.tz = "Africa/Cairo"
         Employee = self.env["hr.employee"].with_user(self.res_users_hr_officer)
         employee_form = Form(Employee)
@@ -147,13 +148,13 @@ class TestHrEmployee(TestHrCommon):
         employee_form.work_email = "yoahm@example.com"
         employee = employee_form.save()
 
-        self.assertEqual(employee.tz, self.res_users_hr_officer.tz)
+        self.assertEqual(employee.tz, schedule_zone)
 
         self.res_users_hr_officer.tz = "Europe/Brussels"
-        self.assertEqual(self.res_users_hr_officer.tz, employee.tz)
+        self.assertEqual(employee.tz, schedule_zone)
 
         employee.tz = "Europe/London"
-        self.assertEqual(self.res_users_hr_officer.tz, employee.tz)
+        self.assertEqual(self.res_users_hr_officer.tz, "Europe/Brussels")
 
         with self.assertRaises(ValidationError):
             employee.tz = False
@@ -186,7 +187,7 @@ class TestHrEmployee(TestHrCommon):
         employee.name = "Raoul Grosbedon"
         self.assertEqual(self.res_users_hr_officer.name, "Raoul Grosbedon")
         self.assertEqual(employee.work_email, self.res_users_hr_officer.email)
-        self.assertEqual(employee.tz, self.res_users_hr_officer.tz)
+        self.assertEqual(employee.tz, _tz)
 
     def test_employee_computed_from_user(self):
         self.res_users_hr_officer.name = "Raoul Grosbedon"
@@ -395,11 +396,17 @@ class TestHrEmployee(TestHrCommon):
             ]
         )
         employee_A.user_id = False
+        with mute_logger("odoo.db"), self.assertRaises(UniqueViolation):
+            with self.cr.savepoint():
+                employee_B.user_id = user.id
+                employee_B.flush_recordset()
+        employee_A.partner_id = self.env["res.partner"].create(
+            {"name": "Employee A", "email": "employee_A@example.com"}
+        )
         employee_B.user_id = user.id
         employee_B.work_email = "new_email@example.com"
         self.assertEqual(employee_A.work_email, "employee_A@example.com")
         self.assertEqual(employee_B.work_email, "new_email@example.com")
-        self.assertTrue(employee_A.partner_id)
         self.assertNotEqual(employee_A.partner_id, user.partner_id)
         self.assertEqual(employee_B.partner_id, user.partner_id)
 
@@ -541,15 +548,13 @@ class TestHrEmployee(TestHrCommon):
         self.assertFalse(employee.user_id)
         user._compute_employee_id()
         user.action_create_employee()
-        self.assertTrue(
-            len(user.employee_ids) == 1,
-            "Test user should have exactly one employee associated with it",
+        self.assertEqual(
+            user.employee_ids,
+            employee,
+            "Creating the user's employee links the one their contact already has",
         )
-        self.assertTrue(employee.partner_id)
-        self.assertNotEqual(employee.partner_id, user.partner_id)
-        new_employee = user.employee_ids
-        self.assertEqual(new_employee.partner_id, user.partner_id)
-        self.assertEqual(new_employee.user_id, user)
+        self.assertEqual(employee.partner_id, user.partner_id)
+        self.assertEqual(employee.user_id, user)
 
     def test_change_user_on_employee_multi_company(self):
         company_A = self.env["res.company"].create({"name": "company_A"})
@@ -584,13 +589,7 @@ class TestHrEmployee(TestHrCommon):
             company_B
         )._compute_employees_count()
         self.assertEqual(partner.employees_count, 2)
-        new_employee_A = self.env["hr.employee"].create(
-            {
-                "name": "new_employee_A",
-                "user_id": user.id,
-                "company_id": company_A.id,
-            }
-        )
+        employee_A.user_id = user
         with (
             mute_logger("odoo.db"),
             self.assertRaises(UniqueViolation),
@@ -603,9 +602,9 @@ class TestHrEmployee(TestHrCommon):
                     "company_id": company_B.id,
                 }
             )
-        self.assertEqual(user.with_company(company_A).employee_id, new_employee_A)
+        self.assertEqual(user.with_company(company_A).employee_id, employee_A)
         self.assertEqual(user.with_company(company_B).employee_id, employee_B)
-        self.assertEqual(partner.employee_ids, employee_B + new_employee_A)
+        self.assertEqual(partner.employee_ids, employee_B + employee_A)
 
     def test_avatar(self):
         employee_georgette = self.env["hr.employee"].create(

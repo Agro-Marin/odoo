@@ -24,7 +24,9 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     signup_type = fields.Char(
-        string="Signup Token Type", copy=False, groups="base.group_erp_manager"
+        string="Signup Token Type",
+        copy=False,
+        groups="base.group_erp_manager",
     )
 
     def _get_signup_url(self):
@@ -127,9 +129,7 @@ class ResPartner(models.Model):
         return True
 
     @api.model
-    def _signup_retrieve_partner(
-        self, token, check_validity=False, raise_exception=False
-    ):
+    def _get_signup_partner(self, token, check_validity=False, raise_exception=False):
         """find the partner corresponding to a token, and possibly check its validity
 
         :param token: the token to resolve
@@ -145,7 +145,7 @@ class ResPartner(models.Model):
         return partner
 
     @api.model
-    def _signup_retrieve_info(self, token):
+    def _resolve_signup_info(self, token):
         """retrieve the user info about the token
 
         :rtype: dict | None

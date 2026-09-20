@@ -12,9 +12,7 @@ patch(Message.prototype, {
     },
 
     get quickActionCount() {
-        return this.props.thread?.channel_type === "livechat"
-            ? 3
-            : super.quickActionCount;
+        return this.props.thread?.isLivechat ? 3 : super.quickActionCount;
     },
 
     /**

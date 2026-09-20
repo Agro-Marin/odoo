@@ -22,15 +22,15 @@
                 </small>
                 <footer>
                     <button
-                        string="Save"
                         name="action_save"
                         type="object"
+                        string="Save"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn btn-default"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

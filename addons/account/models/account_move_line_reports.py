@@ -1,7 +1,10 @@
 from odoo import _, api, fields, models
 from odoo.db.schema import get_table_columns
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query
+
+_debug = DebugLog(__name__)
 
 
 class AccountMoveLine(models.Model):
@@ -13,7 +16,6 @@ class AccountMoveLine(models.Model):
     )
 
     analytic_coverage = fields.Float(
-        string="Analytic Coverage",
         compute="_compute_analytic_coverage",
         groups="analytic.group_analytic_accounting",
     )
@@ -26,6 +28,7 @@ class AccountMoveLine(models.Model):
             )
 
     @api.constrains("tax_ids", "tax_tag_ids")
+    @_debug.perf.timed
     def _check_taxes_on_closing_entries(self):
         for aml in self:
             if aml.move_id.closing_return_id and (aml.tax_ids or aml.tax_tag_ids):
@@ -62,6 +65,7 @@ class AccountMoveLine(models.Model):
         return attachment_id
 
     @api.model
+    @_debug.perf.timed
     def _prepare_aml_shadowing_for_report(
         self, change_equivalence_dict, prefix_fields=False, prefix_fields_to_insert=True
     ):
@@ -93,7 +97,7 @@ class AccountMoveLine(models.Model):
                 if getattr(line_field, "translate", False):
                     typecast = SQL("jsonb")
                 else:
-                    typecast = SQL(line_field.column_type[0])
+                    typecast = SQL(line_field.column_type[0])  # noqa: E8501  a field class's declared column type, not input
 
                 fields_to_insert.append(
                     SQL(
@@ -103,6 +107,15 @@ class AccountMoveLine(models.Model):
                     )
                 )
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "aml_shadowing_columns",
+                stored=len(stored_fields),
+                substituted=sum(
+                    1 for fname in stored_fields if fname in change_equivalence_dict
+                ),
+                prefixed=prefix_fields_to_insert,
+            )
         return (
             SQL(", ").join(
                 SQL.identifier("account_move_line", fname)
@@ -121,6 +134,7 @@ class AccountMoveLine(models.Model):
     ) -> SQL:
         if fname == "analytic_coverage":
             plan_id = self.env.context.get("selected_analytic_plan")
+            _debug.logic("analytic_coverage_sql", plan_id=plan_id, alias=alias)
             if not plan_id:
                 return SQL("0.0")
 
@@ -145,8 +159,11 @@ class AccountMoveLine(models.Model):
 
         return super()._field_to_sql(alias, fname, query)
 
+    @api.depends("analytic_distribution", "distribution_analytic_account_ids")
+    @_debug.perf.timed
     def _compute_analytic_coverage(self):
         plan_id = self.env.context.get("selected_analytic_plan")
+        _debug.logic("analytic_coverage_plan", lines=self, plan_id=plan_id)
 
         if not plan_id:
             self.analytic_coverage = 0.0

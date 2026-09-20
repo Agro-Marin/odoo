@@ -3,9 +3,18 @@
 
 import { useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useOwnedActiveElement } from "@web/core/utils/active_element_scope";
-import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
+import {
+    getActiveElement,
+    getDeepActiveElement,
+    getTabableElements,
+    isFocusable,
+} from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { describeNode } from "@web/ui/describe_node";
+
+const log = makeLogger("web.ui.focus");
 
 /**
  * @param {HTMLElement} el
@@ -31,14 +40,14 @@ function trapFocus(e) {
     }
     switch (hotkey) {
         case "tab":
-            if (document.activeElement === lastTabableEl) {
+            if (getDeepActiveElement(el) === lastTabableEl) {
                 firstTabableEl?.focus();
                 e.preventDefault();
                 e.stopPropagation();
             }
             break;
         case "shift+tab":
-            if (document.activeElement === firstTabableEl) {
+            if (getDeepActiveElement(el) === firstTabableEl) {
                 lastTabableEl?.focus();
                 e.preventDefault();
                 e.stopPropagation();
@@ -61,38 +70,58 @@ export function useActiveElement(refName) {
             if (el) {
                 const [firstTabableEl] = getFirstAndLastTabableElements(el);
                 const takesFocus = Boolean(firstTabableEl) || isFocusable(el);
-                const oldActiveElement = document.activeElement;
+                const oldActiveElement =
+                    getDeepActiveElement(el) ?? getDeepActiveElement(el.ownerDocument);
                 scope.el = el;
                 uiService.activateElement(el);
 
                 el.addEventListener("keydown", trapFocus);
 
+                let focused = "kept";
                 if (firstTabableEl) {
-                    if (!el.contains(document.activeElement)) {
+                    if (!el.contains(getActiveElement(el))) {
                         firstTabableEl.focus();
+                        focused = "firstTabable";
                     }
-                } else if (isFocusable(el) && el !== document.activeElement) {
+                } else if (isFocusable(el) && el !== getActiveElement(el)) {
                     el.focus();
+                    focused = "self";
                 }
+                log.logic("activate", () => ({
+                    el: describeNode(el),
+                    takesFocus,
+                    focused,
+                    from: describeNode(oldActiveElement),
+                }));
                 return () => {
                     scope.el = null;
                     uiService.deactivateElement(el);
                     el.removeEventListener("keydown", trapFocus);
 
+                    let restored = "none";
                     if (
                         takesFocus &&
-                        (el.contains(document.activeElement) ||
-                            document.activeElement === document.body)
+                        (el.contains(getActiveElement(el)) ||
+                            getActiveElement(el) === el.ownerDocument.body)
                     ) {
                         if (oldActiveElement?.isConnected) {
                             /** @type {HTMLElement} */ (oldActiveElement).focus();
+                            restored = "previous";
                         } else {
                             const [firstTabableEl] = getFirstAndLastTabableElements(
                                 /** @type {HTMLElement} */ (uiService.activeElement),
                             );
                             firstTabableEl?.focus();
+                            restored = firstTabableEl
+                                ? "activeFirstTabable"
+                                : "nothing";
                         }
                     }
+                    log.logic("deactivate", () => ({
+                        el: describeNode(el),
+                        restored,
+                        to: describeNode(getDeepActiveElement(el.ownerDocument)),
+                    }));
                 };
             }
         },

@@ -46,7 +46,6 @@
             "website_slides_survey/static/src/scss/website_slides_survey_result.scss",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

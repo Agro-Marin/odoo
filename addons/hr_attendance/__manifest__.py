@@ -1,6 +1,6 @@
 {
     "name": "Attendances",
-    "version": "2.1",
+    "version": "2.4",
     "category": "Human Resources/Attendances",
     "sequence": 240,
     "summary": "Track employee attendance",
@@ -32,6 +32,7 @@ actions(Check in/Check out) performed by them.
         "views/res_config_settings_views.xml",
         "views/hr_attendance_kiosk_templates.xml",
         "views/hr_attendance_overtime_rule_views.xml",
+        "views/hr_attendance_menus.xml",
     ],
     "demo": [
         "demo/hr_attendance_demo.xml",
@@ -113,7 +114,6 @@ actions(Check in/Check out) performed by them.
             ],
         },
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "post_init_hook",
     "uninstall_hook": "uninstall_hook",

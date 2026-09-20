@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillRender, useEffect } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -32,6 +34,8 @@ const DISABLED_MOVE_DOWN_ITEM_TOOLTIP = _t(
     "Some lines of the next section can be on the next page, display them to unlock the action.",
 );
 
+const log = makeLogger("account.section_and_note");
+
 export class SectionAndNoteListRenderer extends ListRenderer {
     static template = "account.SectionAndNoteListRenderer";
     static recordRowTemplate = "account.SectionAndNoteListRenderer.RecordRow";
@@ -45,6 +49,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     /** @override */
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.titleField = "name";
         this.priceColumns = [...this.props.aggregatedFields, "price_unit"];

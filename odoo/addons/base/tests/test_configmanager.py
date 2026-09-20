@@ -149,6 +149,8 @@ class TestConfigManager(TransactionCase):
                 "db_discard_on_return": False,
                 "db_session_gucs": "jit=off,work_mem=16MB",
                 "db_healthcheck_grace": 1.0,
+                "db_idle_in_transaction_timeout": 0.0,
+                "db_replica_write_pin": 2.0,
                 "db_leak_detection": 0.0,
                 "db_template": "template0",
                 "db_replica_max_lag": 0.0,
@@ -173,6 +175,8 @@ class TestConfigManager(TransactionCase):
                 "unaccent": False,
                 "geoip_city_db": "/usr/share/GeoIP/GeoLite2-City.mmdb",
                 "geoip_country_db": "/usr/share/GeoIP/GeoLite2-Country.mmdb",
+                "http_session_store": "filesystem",
+                "http_session_db": "",
                 "workers": 0,
                 "limit_memory_soft": 2048 * 1024 * 1024,
                 "limit_memory_soft_gevent": None,
@@ -279,6 +283,8 @@ class TestConfigManager(TransactionCase):
                 "db_discard_on_return": False,
                 "db_session_gucs": "jit=off,work_mem=16MB",
                 "db_healthcheck_grace": 1.0,
+                "db_idle_in_transaction_timeout": 0.0,
+                "db_replica_write_pin": 2.0,
                 "db_leak_detection": 0.0,
                 "db_app_name": "odoo-{pid}",
                 "load_language": "fr_FR",
@@ -296,6 +302,8 @@ class TestConfigManager(TransactionCase):
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
+                "http_session_store": "memory",
+                "http_session_db": "sessions_db",
                 "workers": 92,
                 "limit_memory_soft": 1048576,
                 "limit_memory_soft_gevent": 1048577,
@@ -308,10 +316,17 @@ class TestConfigManager(TransactionCase):
                 "limit_request": 100,
             }
         )
+        # /tmp/odoo may exist on a shared machine: then it is skipped as an
+        # invalid addons directory rather than a missing one
+        addons_reason = (
+            "invalid addons directory"
+            if Path("/tmp/odoo").is_dir()
+            else "no such directory"
+        )
         self.assertEqual(
             capture.output,
             [
-                "WARNING:odoo.tools.config:option addons_path, no such directory '/tmp/odoo', skipped",
+                f"WARNING:odoo.tools.config:option addons_path, {addons_reason} '/tmp/odoo', skipped",
                 "WARNING:odoo.tools.config:option upgrade_path, no such directory '/tmp/upgrade', skipped",
                 "WARNING:odoo.tools.config:option pre_upgrade_scripts, no such file '/tmp/pre-custom.py', skipped",
             ],
@@ -463,6 +478,8 @@ class TestConfigManager(TransactionCase):
                 "db_discard_on_return": False,
                 "db_session_gucs": "jit=off,work_mem=16MB",
                 "db_healthcheck_grace": 1.0,
+                "db_idle_in_transaction_timeout": 0.0,
+                "db_replica_write_pin": 2.0,
                 "db_leak_detection": 0.0,
                 "db_replica_max_lag": 0.0,
                 "db_replica_host": None,
@@ -472,6 +489,8 @@ class TestConfigManager(TransactionCase):
                 "db_replica_user": None,
                 "db_app_name": "odoo-{pid}",
                 "geoip_country_db": "/usr/share/GeoIP/GeoLite2-Country.mmdb",
+                "http_session_store": "filesystem",
+                "http_session_db": "",
                 "from_filter": "",
                 "gevent_port": 8072,
                 "smtp_ssl_certificate_filename": "",
@@ -643,6 +662,8 @@ class TestConfigManager(TransactionCase):
                 "db_discard_on_return": False,
                 "db_session_gucs": "jit=off,work_mem=16MB",
                 "db_healthcheck_grace": 1.0,
+                "db_idle_in_transaction_timeout": 0.0,
+                "db_replica_write_pin": 2.0,
                 "db_leak_detection": 0.0,
                 "db_app_name": "myapp{pid}",
                 "load_language": "fr_FR",
@@ -660,6 +681,8 @@ class TestConfigManager(TransactionCase):
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
+                "http_session_store": "memory",
+                "http_session_db": "sessions_db",
                 "workers": 92,
                 "limit_memory_soft": 1048576,
                 "limit_memory_soft_gevent": 1048577,
@@ -779,6 +802,8 @@ class TestConfigManager(TransactionCase):
                 "db_discard_on_return": False,
                 "db_session_gucs": "jit=off,work_mem=16MB",
                 "db_healthcheck_grace": 1.0,
+                "db_idle_in_transaction_timeout": 0.0,
+                "db_replica_write_pin": 2.0,
                 "db_leak_detection": 0.0,
                 "db_app_name": "envapp",
                 "load_language": None,
@@ -795,6 +820,8 @@ class TestConfigManager(TransactionCase):
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
+                "http_session_store": "memory",
+                "http_session_db": "sessions_db",
                 "workers": 92,
                 "limit_memory_soft": 1048576,
                 "limit_memory_soft_gevent": 1048577,

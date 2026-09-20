@@ -2,7 +2,10 @@ from dataclasses import dataclass
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, date_utils
+
+_debug = DebugLog(__name__)
 
 CURRENCY_TABLE_COLUMNS = (
     "company_id",
@@ -28,7 +31,6 @@ class ResCurrency(models.Model):
     _inherit = ["res.currency", "mixin.fiscal.country.codes"]
 
     display_rounding_warning = fields.Boolean(
-        string="Display Rounding Warning",
         compute="_compute_display_rounding_warning",
         help="The warning informs a rounding factor change might be dangerous on res.currency's form view.",
     )
@@ -40,7 +42,9 @@ class ResCurrency(models.Model):
                 record._origin.rounding != record.rounding
             )
 
+    @_debug.perf.timed
     def write(self, vals):
+        _debug.lifecycle("write", records=self, fields=sorted(vals))
         if "rounding" in vals:
             new_decimal_places = self._decimal_places_for_rounding(vals["rounding"])
             for record in self:
@@ -48,6 +52,11 @@ class ResCurrency(models.Model):
                     new_decimal_places < record.decimal_places
                     and record._has_accounting_entries()
                 ):
+                    _debug.logic(
+                        "rounding_reduction_rejected",
+                        currency=record,
+                        decimal_places=new_decimal_places,
+                    )
                     raise UserError(
                         _(
                             "You cannot reduce the number of decimal places of a currency which has already been used to make accounting entries."
@@ -75,7 +84,7 @@ class ResCurrency(models.Model):
         )
 
     def _get_simple_currency_table(self, companies) -> SQL:
-        if self._check_currency_table_monocurrency(companies):
+        if self._is_currency_table_monocurrency(companies):
             return self._get_monocurrency_currency_table_sql(companies)
 
         self._create_currency_table(
@@ -83,7 +92,8 @@ class ResCurrency(models.Model):
         )
         return SQL("account_currency_table")
 
-    def _check_currency_table_monocurrency(self, companies):
+    @_debug.perf.timed
+    def _is_currency_table_monocurrency(self, companies):
         return len(companies.currency_id) == 1
 
     def _currency_table_rate_types(self, use_cta_rates):
@@ -111,6 +121,7 @@ class ResCurrency(models.Model):
             ),
         )
 
+    @_debug.perf.timed
     def _create_currency_table(self, companies, date_periods, use_cta_rates=False):
         main_company = self.env.company
         domestic_currency_companies = companies.filtered(
@@ -176,12 +187,20 @@ class ResCurrency(models.Model):
                 query=currency_table_build_query,
             )
         )
+        _debug.perf.count("currency_table_rows_inserted", rows=cr.rowcount)
         cr.execute(
             SQL(
                 "CREATE INDEX account_currency_table_index ON account_currency_table (company_id, rate_type, date_from, date_next)"
             )
         )
         cr.execute(SQL("ANALYZE account_currency_table"))
+        _debug.pipeline(
+            "currency_table_built",
+            companies=companies,
+            periods=len(date_periods),
+            cta=use_cta_rates,
+            builders=len(table_builders),
+        )
 
     def _get_table_builder_domestic_currency(self, companies, use_cta_rates) -> SQL:
         return SQL(
@@ -191,6 +210,7 @@ class ResCurrency(models.Model):
             ),
         )
 
+    @_debug.perf.timed
     def _get_table_builder_current(
         self,
         scope: CurrencyTableScope,
@@ -223,6 +243,7 @@ class ResCurrency(models.Model):
             main_company_unit_factor=main_company_unit_factor,
         )
 
+    @_debug.perf.timed
     def _get_table_builder_historical(
         self,
         scope: CurrencyTableScope,
@@ -230,6 +251,12 @@ class ResCurrency(models.Model):
         main_company_unit_factor,
         date_exclude,
     ) -> SQL:
+        _debug.logic(
+            "historical_rates_window",
+            date_to=date_to,
+            date_exclude=date_exclude,
+            exclusion_applied=bool(date_exclude),
+        )
         return SQL(
             """
                 SELECT
@@ -259,6 +286,7 @@ class ResCurrency(models.Model):
             else SQL(),
         )
 
+    @_debug.perf.timed
     def _get_table_builder_average(
         self,
         scope: CurrencyTableScope,
@@ -267,6 +295,13 @@ class ResCurrency(models.Model):
         date_to,
         main_company_unit_factor,
     ) -> SQL:
+        _debug.logic(
+            "average_rates_window",
+            period_key=period_key,
+            date_from=date_from,
+            date_to=date_to,
+            date_from_defaulted=not date_from,
+        )
         if not date_from:
             date_from = date_utils.start_of(fields.Date.from_string(date_to), "year")
 

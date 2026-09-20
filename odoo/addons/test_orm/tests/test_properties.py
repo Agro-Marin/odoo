@@ -598,7 +598,13 @@ class PropertiesCase(TestPropertiesMixin):
         ]
 
         self.env.invalidate_all()
-        with self.assertQueryCount(5), self.assertQueries(expected_queries):
+        # the first read above verified the partner: the cursor remembers the
+        # pair, so the existence statement does not run again
+        exists_query = expected_queries[3]
+        with (
+            self.assertQueryCount(4),
+            self.assertQueries([q for q in expected_queries if q is not exists_query]),
+        ):
             self.message_1.read(["attributes"])
 
         discussions = [self.discussion_1, self.discussion_2]
@@ -632,8 +638,51 @@ class PropertiesCase(TestPropertiesMixin):
 
         partners[:20].unlink()
         self.env.invalidate_all()
+        # the unlink discards the verified pairs of its model: verified again
         with self.assertQueryCount(5):
             values = messages.read(["attributes"])
+        self.assertEqual(
+            sorted(value["attributes"][0]["value"] for value in values[:20]),
+            [False] * 20,
+        )
+
+    def test_a_property_read_record_by_record_verifies_the_siblings_at_once(self):
+        partners = self.env["test_orm.partner"].create(
+            [{"name": f"Batch {i}"} for i in range(30)]
+        )
+        messages = self.env["test_orm.message"].create(
+            [
+                {
+                    "name": f"Batch message {i}",
+                    "discussion": self.discussion_1.id,
+                    "author": self.user.id,
+                    "attributes": [
+                        {
+                            "name": "partner_id",
+                            "type": "many2one",
+                            "comodel": "test_orm.partner",
+                            "value": partner.id,
+                            "definition_changed": True,
+                        },
+                        {"name": "size", "type": "integer", "value": i},
+                    ],
+                }
+                for i, partner in enumerate(partners)
+            ]
+        )
+        self.env.invalidate_all()
+        # the column, the messages, the discussion, one existence check over
+        # the prefetch set, the partners' names: not one statement per record
+        with self.assertQueryCount(5):
+            sizes = [message.attributes["size"] for message in messages]
+            peers = [message.attributes["partner_id"] for message in messages]
+        self.assertEqual(sizes, list(range(30)))
+        self.assertEqual(peers, list(partners))
+        partners[:5].unlink()
+        self.env.invalidate_all()
+        peers = [message.attributes["partner_id"] for message in messages]
+        self.assertEqual(peers[:5], [self.env["test_orm.partner"]] * 5)
+        self.assertEqual(peers[5:], list(partners[5:]))
 
     @mute_logger("odoo.fields")
     def test_properties_field_delete(self):
@@ -1215,7 +1264,7 @@ class PropertiesCase(TestPropertiesMixin):
         ]
 
         self.partner.unlink()
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(2):
             self.assertIs(
                 self.message_2.read(["attributes"])[0]["attributes"][0].get("value"),
                 None,
@@ -1229,7 +1278,7 @@ class PropertiesCase(TestPropertiesMixin):
         ]
         self.partner_2.unlink()
 
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(1):
             value = self.message_2.read(["attributes"])
             value = value[0]["attributes"]
             self.assertFalse(value[1]["value"])
@@ -1706,7 +1755,7 @@ class PropertiesCase(TestPropertiesMixin):
         def id_name_pairs(records):
             return list(zip(records._ids, records.mapped("display_name"), strict=False))
 
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(3):
             self.message_1.attributes = [
                 {
                     "name": "moderator_partner_ids",
@@ -1728,12 +1777,12 @@ class PropertiesCase(TestPropertiesMixin):
         self.assertIsInstance(hash(self.message_1.attributes), int)
 
         partners[:5].unlink()
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(2):
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
             self.assertEqual(attributes[0]["value"], id_name_pairs(partners[5:10]))
 
         partners[5].unlink()
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(2):
             properties = self.message_1.read(["attributes"])[0]["attributes"]
         self.assertEqual(properties[0]["value"], id_name_pairs(partners[6:10]))
 
@@ -2023,7 +2072,7 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.assertEqual(message.attributes, {"state": "draft"})
 
-        cached_value = self.env._core.get_value(
+        cached_value = self.env.core.get_value(
             message._fields["attributes"], message.id
         )
         self.assertEqual(cached_value, {"state": "draft"})
@@ -2454,7 +2503,7 @@ class PropertiesCase(TestPropertiesMixin):
         messages = self.message_1 | self.message_2 | self.message_3
         self.env.invalidate_all()
 
-        with self.assertQueryCount(9):
+        with self.assertQueryCount(5):
             messages[0]["attributes"]["many2many"]
             messages[1]["attributes"]["many2many"]
 
@@ -2524,8 +2573,9 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             [("attributes.mychar", "ilike", "test")],
         )
         self.assertEqual(messages, self.message_1 | self.message_2)
-        messages = self.env["test_orm.message"].search(
-            [("attributes.mychar", "not ilike", "test")]
+        messages = self._search(
+            self.env["test_orm.message"],
+            [("attributes.mychar", "not ilike", "test")],
         )
         self.assertEqual(messages, self.message_3)
         messages = self._search(
@@ -2593,6 +2643,60 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             self.env["test_orm.message"], [("attributes.mychar", "!=", False)]
         )
         self.assertEqual(messages, self.message_1)
+
+    def test_properties_field_search_unset_values(self):
+        # an unset property is stored as json false; ->> renders it as the
+        # text 'false' and jsonb orders a boolean above every number
+        self.messages.discussion = self.discussion_1
+        self.message_1.attributes = [
+            {
+                "name": "mychar",
+                "type": "char",
+                "value": "false",
+                "definition_changed": True,
+            },
+            {
+                "name": "myint",
+                "type": "integer",
+                "value": 3,
+                "definition_changed": True,
+            },
+        ]
+        self.message_2.attributes = {"mychar": False, "myint": 0}
+        self.message_3.attributes = {"mychar": False, "myint": False}
+        Message = self.env["test_orm.message"]
+
+        for domain, expected in [
+            ([("attributes.mychar", "ilike", "als")], self.message_1),
+            ([("attributes.mychar", "like", "a")], self.message_1),
+            ([("attributes.mychar", "=", "false")], self.message_1),
+            ([("attributes.mychar", "!=", "false")], self.message_2 | self.message_3),
+            ([("attributes.mychar", "<", "g")], self.message_1),
+            ([("attributes.mychar", ">=", "")], self.message_1),
+            ([("attributes.myint", "=", 0)], self.message_2),
+            ([("attributes.myint", "=", False)], self.message_3),
+            ([("attributes.myint", "in", [0, 3])], self.message_1 | self.message_2),
+            ([("attributes.myint", "!=", 3)], self.message_2 | self.message_3),
+            ([("attributes.myint", "!=", 7)], self.messages),
+            ([("attributes.myint", ">", 2)], self.message_1),
+            ([("attributes.myint", ">", -1)], self.message_1 | self.message_2),
+            ([("attributes.myint", "<=", 0)], self.message_2),
+        ]:
+            with self.subTest(domain=domain):
+                self.assertEqual(self._search(Message, domain), expected)
+
+        self.env.cr.execute(
+            "UPDATE test_orm_message SET attributes = NULL WHERE id = %s",
+            [self.message_3.id],
+        )
+        self.assertEqual(
+            self._search(Message, [("attributes.mychar", "!=", "false")]),
+            self.message_2 | self.message_3,
+        )
+        self.assertEqual(
+            self._search(Message, [("attributes.myint", "=", False)]),
+            self.message_3,
+        )
 
     def test_properties_field_search_float(self):
         self.message_1.attributes = [
@@ -3185,7 +3289,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.message_3.attributes = {"mychar": "boum"}
 
         Model = self.env["test_orm.message"]
-        with self.assertQueryCount(9):
+        with self.assertQueryCount(7):
             result = Model.web_read_group(
                 domain=[],
                 aggregates=["__count"],
@@ -4231,7 +4335,7 @@ class PropertiesFilteredDomainParityCase(
 
         domain = [("attributes.mypartner", "not in", [self.partner.id])]
         self.assertEqual(
-            self.messages.filtered_domain(domain),
+            self._search(Message, domain),
             self.message_2 | self.message_3,
         )
 
@@ -4563,3 +4667,72 @@ class PropertiesDefinitionColumnNamedDefinitionCase(TransactionCase):
             "the definition is stored and reachable; an empty dict here means the "
             "SQL alias shadowed the column again",
         )
+
+
+class TestPropertiesBaseDefinitionReadPaths(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.Definition = self.env["properties.base.definition"].sudo()
+        self.Model = self.env["test_orm.emailmessage"]
+        field = self.env["ir.model.fields"].sudo()._get(self.Model._name, "properties")
+        self.Definition.search([("properties_field_id", "=", field.id)]).unlink()
+
+    def _definition_id(self):
+        return self.Definition._get_definition_id_for_property_field(
+            self.Model._name, "properties"
+        )
+
+    def test_unlink_forgets_the_cached_definition(self):
+        self.assertIsNone(self._definition_id())
+
+    def test_reading_the_definition_never_creates_it(self):
+        before = self.Definition.search_count([])
+
+        self.assertFalse(
+            self.Model.search([("properties_base_definition_id", "!=", False)])
+        )
+        self.Model.fields_get(["properties_base_definition_id"])
+        self.Model._read_group([], groupby=["properties_base_definition_id"])
+
+        self.assertEqual(self.Definition.search_count([]), before)
+        self.assertIsNone(self._definition_id())
+
+    def test_the_search_method_answers_both_operators(self):
+        record = self.Model.create({})
+        definition_id = self._definition_id()
+        Model = self.Model.with_context(active_test=False)
+        self.assertIn(
+            record,
+            Model.search([("properties_base_definition_id", "=", definition_id)]),
+        )
+        self.assertNotIn(
+            record,
+            Model.search([("properties_base_definition_id", "!=", definition_id)]),
+        )
+        self.assertNotIn(
+            record, Model.search([("properties_base_definition_id", "=", False)])
+        )
+        self.assertIn(
+            record, Model.search([("properties_base_definition_id", "!=", False)])
+        )
+
+    def test_creating_a_record_attaches_a_definition(self):
+        record = self.Model.create({})
+        definition_id = self._definition_id()
+        self.assertTrue(definition_id)
+        self.assertEqual(record.properties_base_definition_id.id, definition_id)
+        self.assertIn(
+            record,
+            self.Model.search([("properties_base_definition_id", "=", definition_id)]),
+        )
+
+    def test_grouping_by_the_definition_groups_every_record_under_it(self):
+        records = self.Model.create([{}, {}])
+        definition = records.properties_base_definition_id
+        self.assertEqual(len(definition), 1)
+        groups = self.Model.with_context(active_test=False)._read_group(
+            [("id", "in", records.ids)],
+            groupby=["properties_base_definition_id"],
+            aggregates=["__count"],
+        )
+        self.assertEqual(groups, [(definition, 2)])

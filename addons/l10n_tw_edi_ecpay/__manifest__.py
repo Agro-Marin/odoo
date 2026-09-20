@@ -1,6 +1,6 @@
 {
     "name": "Taiwan - E-invoicing",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Accounting/Localizations/EDI",
     "summary": "E-invoicing using ECpay",
     "description": """
@@ -15,6 +15,7 @@
     "depends": [
         "l10n_tw",
         "account_vat",
+        "integration",
     ],
     "countries": [
         "tw",
@@ -28,6 +29,5 @@
         "views/l10n_tw_edi_invoice_cancel_view.xml",
         "views/l10n_tw_edi_invoice_print_view.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

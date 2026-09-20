@@ -2,10 +2,13 @@ from markupsafe import Markup
 
 from odoo import _, api, models
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import format_amount, format_date
 from odoo.tools.mail import email_re, email_split, generate_tracking_message_id
 
 from odoo.addons.mail.models.mixin_mail_gateway import RouteVerdict
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
@@ -15,6 +18,7 @@ class AccountMove(models.Model):
         return ["&", ("move_type", "=", "out_invoice"), ("state", "=", "posted")]
 
     @api.model
+    @_debug.perf.timed
     def _routing_check_route(self, message, message_dict, route, raise_exception=True):
         if route[0] == "account.move" and len(message_dict["attachments"]) < 1:
             company_id = (route[2] or {}).get("company_id", self.env.company.id)
@@ -43,12 +47,18 @@ class AccountMove(models.Model):
                 references=f"{message_dict['message_id']} {generate_tracking_message_id('loop-detection-bounce-email')}",
                 reply_to=reply_to_journal_company,
             )
+            _debug.logic(
+                "mail_route_refused",
+                company=company_id,
+                reason="no_attachments",
+            )
             return RouteVerdict.REFUSED
         return super()._routing_check_route(
             message, message_dict, route, raise_exception=raise_exception
         )
 
     @api.model
+    @_debug.perf.timed
     def message_new(self, msg_dict, custom_values=None):
         custom_values = custom_values or {}
         if custom_values.get("move_type", "entry") not in (
@@ -117,12 +127,22 @@ class AccountMove(models.Model):
         )
         move = super(AccountMove, move_ctx).message_new(msg_dict, custom_values=values)
         self.env.add_to_compute(move._fields["name"], move)
+        _debug.pipeline(
+            "alias_created_mail",
+            move=move,
+            type=custom_values.get("move_type", "entry"),
+            journal=custom_values.get("journal_id"),
+            company=company,
+            partner=values["partner_id"],
+            from_=values["invoice_source_email"],
+        )
 
         return move
 
     def _attachment_fields_to_clear(self):
         return super()._attachment_fields_to_clear() + ["message_main_attachment_id"]
 
+    @_debug.perf.timed
     def _message_post_after_hook_from_alias(
         self, new_message, message_values, valid_files_data, extra_files_data
     ):
@@ -130,6 +150,13 @@ class AccountMove(models.Model):
             valid_files_data
         ) or [[]]
         invoices = self
+        _debug.pipeline(
+            "alias_file",
+            move=self,
+            valid_files_data_count=len(valid_files_data),
+            extra_files_data_count=len(extra_files_data),
+            file_data_groups_count=len(file_data_groups),
+        )
         if len(file_data_groups) > 1:
             create_vals = [
                 self.copy_data()[0].copy()
@@ -175,11 +202,25 @@ class AccountMove(models.Model):
             if file_data_group:
                 invoice._extend_with_attachments(file_data_group, new=True)
 
+        invoices._message_post_from_alias_done()
+
         return res
 
+    def _message_post_from_alias_done(self):
+        return
+
+    @_debug.perf.timed
     def _message_post_after_hook(self, new_message, message_values):
         attachments = new_message.attachment_ids
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "attachment_import_gate",
+                move=self,
+                attachments=len(attachments),
+                message_type=new_message.message_type,
+                disabled=bool(self.env.context.get("disable_attachment_import")),
+            )
         if (
             not attachments
             or new_message.message_type not in {"email", "comment"}
@@ -202,6 +243,14 @@ class AccountMove(models.Model):
             else:
                 extra_files_data.append(file_data)
 
+        _debug.pipeline(
+            "attachments_classified",
+            move=self,
+            files=len(files_data),
+            valid=len(valid_files_data),
+            extra=len(extra_files_data),
+            from_alias=bool(self.env.context.get("from_alias")),
+        )
         if self.env.context.get("from_alias"):
             return self._message_post_after_hook_from_alias(
                 new_message, message_values, valid_files_data, extra_files_data
@@ -215,6 +264,11 @@ class AccountMove(models.Model):
         if self.env.user.active and self.env.user._is_internal():
             self._extend_with_attachments(files_data)
 
+        _debug.pipeline(
+            "attachments_relinked",
+            move=self,
+            attachments=attachment_records,
+        )
         new_message.attachment_ids = [Command.set(attachment_records.ids)]
         message_values["attachment_ids"] = [
             Command.link(attachment.id) for attachment in attachment_records
@@ -231,6 +285,11 @@ class AccountMove(models.Model):
         self.check_singleton()
 
         if not self.is_invoice(include_receipts=True):
+            _debug.logic(
+                "track_subtype_non_invoice",
+                move=self,
+                state_changed="state" in init_values,
+            )
             if self.origin_payment_id and "state" in init_values:
                 self.origin_payment_id._message_track(
                     ["state"], {self.origin_payment_id.id: init_values}
@@ -238,12 +297,14 @@ class AccountMove(models.Model):
             return super()._track_subtype(init_values)
 
         if "payment_state" in init_values and self.payment_state == "paid":
+            _debug.logic("track_subtype_paid", move=self)
             return self.env.ref("account.mt_invoice_paid")
         elif (
             "state" in init_values
             and self.state == "posted"
             and self.is_sale_document(include_receipts=True)
         ):
+            _debug.logic("track_subtype_validated", move=self)
             return self.env.ref("account.mt_invoice_validated")
         return super()._track_subtype(init_values)
 
@@ -259,6 +320,7 @@ class AccountMove(models.Model):
             "in_receipt": _("Purchase Receipt Created"),
         }[self.move_type]
 
+    @_debug.perf.timed
     def _notify_by_email_prepare_rendering_context(
         self,
         message,
@@ -285,6 +347,13 @@ class AccountMove(models.Model):
             else record.display_name
         ]
         if self.is_invoice(include_receipts=True):
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "email_subtitle_due_shown",
+                    move=self,
+                    due=bool(self.invoice_date_due)
+                    and self.payment_state not in ("in_payment", "paid"),
+                )
             if self.invoice_date_due and self.payment_state not in (
                 "in_payment",
                 "paid",

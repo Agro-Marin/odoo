@@ -16,6 +16,7 @@ import {
     unique,
 } from "@web/core/utils/collections/arrays";
 import { deepCopy, isObject, pick } from "@web/core/utils/collections/objects";
+import { elementToIR } from "@web/views/ir/view_ir";
 
 import * as fields from "./mock_fields.js";
 import { MockServer } from "./mock_server.js";
@@ -946,6 +947,7 @@ function parseView(model, params) {
     }
     return {
         arch: processedArch,
+        ir: elementToIR(/** @type {Element} */ (doc)),
         model: model._name,
         models: getViewFields(model, /** @type {ViewType} */ (viewType), relatedModels),
         type: viewType,
@@ -2085,7 +2087,7 @@ export class Model extends Array {
 
     /**
      * @param {[number | false, string][]} views
-     * @param {{ load_filters?: boolean }} [options]
+     * @param {{ load_filters?: boolean, arch?: boolean }} [options]
      */
     get_views(views, options) {
         const kwargs = getKwArgs(arguments, "views", "options");
@@ -2110,6 +2112,9 @@ export class Model extends Array {
                 }
             }
             delete result[viewType].models;
+            if (options.arch === false) {
+                delete result[viewType].arch;
+            }
         }
 
         for (const [modelName, value] of Object.entries(modelFields)) {

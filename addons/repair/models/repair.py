@@ -3,6 +3,7 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 from odoo.tools.misc import format_date, unique
 
@@ -12,6 +13,9 @@ MAP_REPAIR_TO_PICKING_LOCATIONS = {
     "parts_location_id": "default_remove_location_dest_id",
     "recycle_location_id": "default_recycle_location_dest_id",
 }
+
+
+_debug = DebugLog(__name__)
 
 
 class RepairOrder(models.Model):
@@ -31,23 +35,22 @@ class RepairOrder(models.Model):
 
     # Common Fields
     name = fields.Char(
-        "Repair Reference",
+        string="Repair Reference",
         default="New",
         index="trigram",
         copy=False,
-        required=True,
         readonly=True,
+        required=True,
     )
     company_id = fields.Many2one(
-        "res.company",
-        "Company",
+        comodel_name="res.company",
+        default=lambda self: self.env.company,
+        index=True,
         readonly=True,
         required=True,
-        index=True,
-        default=lambda self: self.env.company,
     )
     state = fields.Selection(
-        [
+        selection=[
             ("draft", "New"),
             ("confirmed", "Confirmed"),
             ("under_repair", "Under Repair"),
@@ -55,11 +58,11 @@ class RepairOrder(models.Model):
             ("cancel", "Cancelled"),
         ],
         string="Status",
-        copy=False,
         default="draft",
+        index=True,
+        copy=False,
         readonly=True,
         tracking=True,
-        index=True,
         help="* The 'New' status is used when a user is encoding a new and unconfirmed repair order.\n"
         "* The 'Confirmed' status is used when a user confirms the repair order.\n"
         "* The 'Under Repair' status is used when the repair is ongoing.\n"
@@ -67,83 +70,88 @@ class RepairOrder(models.Model):
         "* The 'Cancelled' status is used when user cancel repair order.",
     )
     priority = fields.Selection(
-        [("0", "Normal"), ("1", "Urgent")], default="0", string="Priority"
+        selection=[("0", "Normal"), ("1", "Urgent")],
+        default="0",
     )
     partner_id = fields.Many2one(
-        "res.partner",
-        "Customer",
-        index=True,
-        check_company=True,
-        change_default=True,
+        comodel_name="res.partner",
+        string="Customer",
         compute="_compute_partner_id",
-        readonly=False,
+        change_default=True,
         store=True,
+        index=True,
+        readonly=False,
+        check_company=True,
         help="Choose partner for whom the order will be invoiced and delivered. You can find a partner by its Name, TIN, Email or Internal Reference.",
     )
     user_id = fields.Many2one(
-        "res.users",
+        comodel_name="res.users",
         string="Responsible",
         default=lambda self: self.env.user,
         check_company=True,
     )
 
     # Specific Fields
-    internal_notes = fields.Html("Internal Notes")
-    tag_ids = fields.Many2many("repair.tags", string="Tags")
+    internal_notes = fields.Html()
+    tag_ids = fields.Many2many(
+        comodel_name="repair.tags",
+        string="Tags",
+    )
     under_warranty = fields.Boolean(
-        "Under Warranty",
-        help="If ticked, the sales price will be set to 0 for all products transferred from the repair order.",
+        help="If ticked, the sales price will be set to 0 for all products transferred from the repair order."
     )
     schedule_date = fields.Datetime(
-        "Scheduled Date",
+        string="Scheduled Date",
         default=fields.Datetime.now,
         index=True,
-        required=True,
         copy=False,
+        required=True,
     )
     repair_properties = fields.Properties(
-        "Properties",
         definition="picking_type_id.repair_properties_definition",
+        string="Properties",
         copy=True,
     )
 
     # Product To Repair
-    move_id = (
-        fields.Many2one(  # Generated in 'action_repair_done', needed for traceability
-            "stock.move",
-            "Inventory Move",
-            copy=False,
-            readonly=True,
-            tracking=True,
-            check_company=True,
-        )
+    move_id = fields.Many2one(
+        # Generated in 'action_repair_done', needed for traceability
+        comodel_name="stock.move",
+        string="Inventory Move",
+        copy=False,
+        readonly=True,
+        check_company=True,
+        tracking=True,
     )
     product_id = fields.Many2one(
-        "product.product",
+        comodel_name="product.product",
         string="Product to Repair",
         domain="[('type', '=', 'consu'), '|', ('company_id', '=', company_id), ('company_id', '=', False), '|', ('id', 'in', picking_product_ids), ('id', '=?', picking_product_id)]",
         check_company=True,
     )
     product_qty = fields.Float(
-        "Product Quantity",
-        compute="_compute_product_qty",
-        readonly=False,
-        store=True,
+        string="Product Quantity",
         digits="Product Unit",
-    )
-    allowed_uom_ids = fields.Many2many("uom.uom", compute="_compute_allowed_uom_ids")
-    product_uom_id = fields.Many2one(
-        "uom.uom",
-        "Unit",
-        domain="[('id', 'in', allowed_uom_ids)]",
-        compute="_compute_product_uom_id",
+        compute="_compute_product_qty",
         store=True,
-        precompute=True,
         readonly=False,
+    )
+    allowed_uom_ids = fields.Many2many(
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
+    )
+    product_uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Unit",
+        compute="_compute_product_uom_id",
+        precompute=True,
+        store=True,
+        readonly=False,
+        domain="[('id', 'in', allowed_uom_ids)]",
     )
     lot_id = fields.Many2one(
-        "stock.lot",
-        "Lot/Serial",
+        comodel_name="stock.lot",
+        string="Lot/Serial",
         compute="_compute_lot_id",
         store=True,
         domain="[('id', 'in', allowed_lot_ids)]",
@@ -151,114 +159,110 @@ class RepairOrder(models.Model):
         help="Products repaired are all belonging to this lot",
     )
     tracking = fields.Selection(
-        string="Product Tracking", related="product_id.tracking", readonly=False
+        related="product_id.tracking",
+        string="Product Tracking",
+        readonly=False,
     )
 
     # Picking & Locations
     picking_type_id = fields.Many2one(
-        "stock.picking.type",
-        "Operation Type",
+        comodel_name="stock.picking.type",
+        string="Operation Type",
+        compute="_compute_picking_type_id",
+        precompute=True,
+        store=True,
+        index=True,
         copy=True,
         readonly=False,
-        compute="_compute_picking_type_id",
-        store=True,
-        domain="[('code', '=', 'repair_operation'), ('company_id', '=', company_id)]",
         required=True,
-        precompute=True,
+        domain="[('code', '=', 'repair_operation'), ('company_id', '=', company_id)]",
         check_company=True,
-        index=True,
     )
     reference_ids = fields.Many2many(
-        "stock.reference",
-        "stock_reference_repair_rel",
-        "repair_id",
-        "reference_id",
+        comodel_name="stock.reference",
+        relation="stock_reference_repair_rel",
+        column1="repair_id",
+        column2="reference_id",
         string="References",
         copy=False,
     )
     location_id = fields.Many2one(
-        "stock.location",
-        "Component Source Location",
+        comodel_name="stock.location",
+        string="Component Source Location",
         compute="_compute_location_id",
+        precompute=True,
         store=True,
+        index=True,
         readonly=False,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the components of product to repair is located.",
     )
     product_location_src_id = fields.Many2one(
-        "stock.location",
-        "Product Source Location",
+        comodel_name="stock.location",
+        string="Product Source Location",
         compute="_compute_product_location_src_id",
+        precompute=True,
         store=True,
+        index=True,
         readonly=False,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the product to repair is located.",
     )
     product_location_dest_id = fields.Many2one(
-        "stock.location",
-        "Product Destination Location",
+        comodel_name="stock.location",
+        string="Product Destination Location",
         compute="_compute_product_location_dest_id",
+        precompute=True,
         store=True,
+        index=True,
         readonly=False,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the repaired product is located.",
     )
     location_dest_id = fields.Many2one(
-        "stock.location",
-        "Added Parts Destination Location",
+        comodel_name="stock.location",
         related="picking_type_id.default_location_dest_id",
+        string="Added Parts Destination Location",
         depends=["picking_type_id"],
-        store=True,
         readonly=True,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the repaired product is located.",
     )
     parts_location_id = fields.Many2one(
-        "stock.location",
-        "Removed Parts Destination Location",
+        comodel_name="stock.location",
         related="picking_type_id.default_remove_location_dest_id",
+        string="Removed Parts Destination Location",
         depends=["picking_type_id"],
-        store=True,
         readonly=True,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the repair parts are located.",
     )
     recycle_location_id = fields.Many2one(
-        "stock.location",
-        "Recycled Parts Destination Location",
+        comodel_name="stock.location",
+        string="Recycled Parts Destination Location",
         compute="_compute_recycle_location_id",
+        precompute=True,
         store=True,
+        index=True,
         readonly=False,
         required=True,
-        precompute=True,
-        index=True,
         check_company=True,
         help="This is the location where the repair parts are located.",
     )
 
     # Parts
     move_ids = fields.One2many(
-        "stock.move",
-        "repair_id",
-        "Parts",
-        check_company=True,
+        comodel_name="stock.move",
+        inverse_name="repair_id",
+        string="Parts",
         copy=True,
         domain=[("repair_line_type", "!=", False)],
+        check_company=True,
     )  # Once RO switch to state done, a binded move is created for the "Product to repair" (move_id), this move appears in 'move_ids' if not filtered
     parts_availability = fields.Char(
         string="Component Status",
@@ -266,37 +270,40 @@ class RepairOrder(models.Model):
         help="Latest parts availability status for this RO. If green, then the RO's readiness status is ready.",
     )
     parts_availability_state = fields.Selection(
-        [("available", "Available"), ("expected", "Expected"), ("late", "Late")],
+        selection=[
+            ("available", "Available"),
+            ("expected", "Expected"),
+            ("late", "Late"),
+        ],
         compute="_compute_parts_availability_and_state",
     )
     is_parts_available = fields.Boolean(
-        "All Parts are available",
+        string="All Parts are available",
+        compute="_compute_availability_boolean",
         default=False,
         store=True,
-        compute="_compute_availability_boolean",
     )
     is_parts_late = fields.Boolean(
-        "Any Part is late",
+        string="Any Part is late",
+        compute="_compute_availability_boolean",
         default=False,
         store=True,
-        compute="_compute_availability_boolean",
     )
 
     # Sale Order Binding
     sale_order_id = fields.Many2one(
-        "sale.order",
-        "Sale Order",
-        check_company=True,
-        readonly=True,
+        comodel_name="sale.order",
         index="btree_not_null",
         copy=False,
+        readonly=True,
+        check_company=True,
         help="Sale Order from which the Repair Order comes from.",
     )
     sale_order_line_id = fields.Many2one(
-        "sale.order.line",
-        check_company=True,
-        readonly=True,
+        comodel_name="sale.order.line",
         copy=False,
+        readonly=True,
+        check_company=True,
         help="Sale Order Line from which the Repair Order comes from.",
     )
     repair_request = fields.Text(
@@ -307,28 +314,32 @@ class RepairOrder(models.Model):
 
     # Return Binding
     picking_id = fields.Many2one(
-        "stock.picking",
-        "Transfer",
-        check_company=True,
+        comodel_name="stock.picking",
+        string="Transfer",
         index="btree_not_null",
-        domain="[('return_id', '!=', False), ('product_id', '=?', product_id)]",
         copy=False,
+        domain="[('return_id', '!=', False), ('product_id', '=?', product_id)]",
+        check_company=True,
         help="Transfer from which the product to be repaired is picked",
     )
     picking_product_ids = fields.One2many(
-        "product.product", compute="_compute_picking_product_ids"
+        comodel_name="product.product",
+        compute="_compute_picking_product_ids",
     )
     picking_product_id = fields.Many2one(related="picking_id.product_id")
-    allowed_lot_ids = fields.One2many("stock.lot", compute="_compute_allowed_lot_ids")
+    allowed_lot_ids = fields.One2many(
+        comodel_name="stock.lot",
+        compute="_compute_allowed_lot_ids",
+    )
     # UI Fields
     has_uncomplete_moves = fields.Boolean(compute="_compute_has_uncomplete_moves")
     unreserve_visible = fields.Boolean(
-        "Allowed to Unreserve Production",
+        string="Allowed to Unreserve Production",
         compute="_compute_reservation_visibility",
         help="Technical field to check when we can unreserve",
     )
     reserve_visible = fields.Boolean(
-        "Allowed to Reserve Production",
+        string="Allowed to Reserve Production",
         compute="_compute_reservation_visibility",
         help="Technical field to check when we can reserve quantities",
     )
@@ -405,7 +416,7 @@ class RepairOrder(models.Model):
             domain = Domain("product_id", "=", repair.product_id.id)
             if repair.picking_id:
                 domain &= Domain("id", "in", repair.picking_id.move_ids.lot_ids.ids)
-            repair.allowed_lot_ids = self.env["stock.lot"].search(domain)
+            repair.allowed_lot_ids = self.env["stock.lot"].search(domain)  # noqa: E8507 - one query per repair: the lots are scoped to its own product and picking
 
     @api.depends("product_id", "product_id.uom_id")
     def _compute_product_uom_id(self):
@@ -469,6 +480,7 @@ class RepairOrder(models.Model):
         "move_ids.date_planned_forecast",
     )
     def _compute_parts_availability_and_state(self):
+        _debug.perf.count("repair_parts_availability_compute", repairs=self)
         repairs = self.filtered(lambda ro: ro.state in ("confirmed", "under_repair"))
         repairs.parts_availability_state = "available"
         repairs.parts_availability = _("Available")
@@ -595,6 +607,7 @@ class RepairOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        _debug.lifecycle("repair_create", count=len(vals_list))
         for vals in vals_list:
             if not vals.get("name") or vals["name"] == "New":
                 picking_type = self._picking_type_for_create(vals)
@@ -614,6 +627,7 @@ class RepairOrder(models.Model):
 
     @api.model
     def _picking_type_for_create(self, vals):
+        _debug.logic("repair_picking_type_for_create", repairs=self)
         defaults = self.default_get(["picking_type_id", "company_id", "user_id"])
         if picking_type_id := vals.get(
             "picking_type_id", defaults.get("picking_type_id")
@@ -627,6 +641,7 @@ class RepairOrder(models.Model):
         ).picking_type_id
 
     def write(self, vals):
+        _debug.lifecycle("repair_write", repairs=self, fields=len(vals))
         moves_to_reassign = self.env["stock.move"]
         if vals.get("picking_type_id"):
             picking_type = self.env["stock.picking.type"].browse(
@@ -661,10 +676,12 @@ class RepairOrder(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_confirmed(self):
+        _debug.logic("repair_unlink_guard", repairs=self)
         repairs_to_cancel = self.filtered(lambda ro: ro.state != "cancel")
         repairs_to_cancel.action_repair_cancel()
 
     def action_generate_serial(self):
+        _debug.lifecycle("repair_serial_generate", repairs=self)
         self.check_singleton()
         Lot = self.env["stock.lot"]
         self.lot_id = Lot.create(
@@ -672,9 +689,11 @@ class RepairOrder(models.Model):
         )
 
     def action_assign(self):
+        _debug.pipeline("repair_assign", repairs=self)
         return self.move_ids._action_assign()
 
     def action_create_sale_order(self):
+        _debug.pipeline("repair_sale_order_create", repairs=self)
         if any(repair.sale_order_id for repair in self):
             concerned_ro = self.filtered("sale_order_id")
             ref_str = "\n".join(ro.name for ro in concerned_ro)
@@ -710,6 +729,7 @@ class RepairOrder(models.Model):
         return self.action_view_sale_order()
 
     def action_repair_cancel(self):
+        _debug.lifecycle("repair_cancel", repairs=self)
         if any(repair.state == "done" for repair in self):
             raise UserError(
                 _("You cannot cancel a Repair Order that's already been completed")
@@ -723,6 +743,7 @@ class RepairOrder(models.Model):
         return self.write({"state": "cancel"})
 
     def action_repair_cancel_draft(self):
+        _debug.lifecycle("repair_back_to_draft", repairs=self)
         if self.filtered(lambda repair: repair.state != "cancel"):
             self.action_repair_cancel()
         sale_line_to_update = self.move_ids.sale_line_id.filtered(
@@ -742,6 +763,7 @@ class RepairOrder(models.Model):
         @return: True
         """
 
+        _debug.pipeline("repair_done_enter", repairs=self)
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         product_move_vals = []
 
@@ -851,6 +873,7 @@ class RepairOrder(models.Model):
         """Checks before action_repair_done.
         @return: True
         """
+        _debug.lifecycle("repair_end", repairs=self)
         if self.filtered(lambda repair: repair.state != "under_repair"):
             raise UserError(
                 _("Repair must be under repair in order to end reparation.")
@@ -866,16 +889,19 @@ class RepairOrder(models.Model):
 
     def action_repair_start(self):
         """Writes repair order state to 'Under Repair'"""
+        _debug.lifecycle("repair_start", repairs=self)
         if self.filtered(lambda repair: repair.state != "confirmed"):
             self._action_repair_confirm()
         return self.write({"state": "under_repair"})
 
     def action_unreserve(self):
+        _debug.lifecycle("repair_unreserve", repairs=self)
         return self.move_ids.filtered(
             lambda m: m.state in ("assigned", "partially_available")
         )._unreserve()
 
     def action_validate(self):
+        _debug.pipeline("repair_validate_enter", repairs=self)
         self.check_singleton()
         if self.filtered(
             lambda repair: any(m.product_uom_qty < 0 for m in repair.move_ids)
@@ -908,7 +934,7 @@ class RepairOrder(models.Model):
             )
             .mapped("quantity")
         )
-        repair_qty = self.product_uom_id._compute_quantity(
+        repair_qty = self.product_uom_id._get_quantity_in_unit(
             self.product_qty, self.product_id.uom_id
         )
         for available_qty in [available_qty_owner, available_qty_noown]:
@@ -955,6 +981,7 @@ class RepairOrder(models.Model):
         @param *arg: Arguments
         @return: True
         """
+        _debug.pipeline("repair_confirm_enter", repairs=self)
         repairs_to_confirm = self.filtered(lambda repair: repair.state == "draft")
         repairs_to_confirm._check_company()
         repairs_to_confirm.move_ids._check_company()
@@ -1015,6 +1042,7 @@ class RepairOrder(models.Model):
         return picking_type_by_company_user
 
     def _update_sale_order_line_price(self):
+        _debug.pipeline("repair_sale_line_price_update", repairs=self)
         for repair in self:
             add_moves = repair.move_ids.filtered(
                 lambda m: m.repair_line_type == "add" and m.sale_line_id
@@ -1038,8 +1066,8 @@ class RepairOrder(models.Model):
         ]
         return res
 
-    def _default_order_line_values(self, child_field=False):
-        default_data = super()._default_order_line_values(child_field)
+    def _get_order_line_values(self, child_field=False):
+        default_data = super()._get_order_line_values(child_field)
         new_default_data = self.env["stock.move"]._get_product_catalog_lines_data(
             parent_record=self
         )

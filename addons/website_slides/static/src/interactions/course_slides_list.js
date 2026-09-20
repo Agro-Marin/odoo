@@ -12,11 +12,6 @@ export class CourseSlidesList extends CoursePage {
         this.bindSortable();
     }
 
-    /**
-     * Bind the sortable service to both
-     * - course sections
-     * - course slides
-     */
     bindSortable() {
         const sortableBaseParam = {
             clone: false,
@@ -58,10 +53,6 @@ export class CourseSlidesList extends CoursePage {
         this.registerCleanup(() => slideSortable.cleanup());
     }
 
-    /**
-     * This method will check that a section is empty/not empty when the slides
-     * are reordered and show/hide the "Empty category" placeholder.
-     */
     checkForEmptySections() {
         for (const categoryEl of this.el.querySelectorAll(
             ".o_wslides_slide_list_category",
@@ -88,8 +79,6 @@ export class CourseSlidesList extends CoursePage {
     }
 
     /**
-     * Collects all slide IDs in their current DOM order.
-     *
      * @returns {number[]}
      */
     getSlides() {
@@ -107,13 +96,6 @@ export class CourseSlidesList extends CoursePage {
         this.checkForEmptySections();
     }
 
-    /**
-     * Change links href to fullscreen mode for SEO.
-     *
-     * Specifications demand that links are generated (xml) without the
-     * "fullscreen" parameter for SEO purposes. This method then adds the
-     * parameter as soon as the page is loaded.
-     */
     updateHref() {
         for (const linkEl of this.el.querySelectorAll(
             ".o_wslides_js_slides_list_slide_link",

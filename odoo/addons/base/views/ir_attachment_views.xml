@@ -7,14 +7,14 @@
             <search string="Attachments">
                 <field
                     name="name"
-                    filter_domain="[('name','ilike',self)]"
-                    string="Attachment" />
+                    string="Attachment"
+                    filter_domain="[('name','ilike',self)]" />
                 <field name="create_date" />
                 <filter
                     name="my_documents_filter"
                     string="My Document(s)"
-                    domain="[('create_uid','=',uid)]"
-                    help="Filter on my documents" />
+                    help="Filter on my documents"
+                    domain="[('create_uid','=',uid)]" />
                 <filter
                     name="url_filter"
                     string="URL"
@@ -32,18 +32,18 @@
                         string="Owner"
                         context="{'group_by':'create_uid'}" />
                     <filter
-                        string="Type"
                         name="type"
+                        string="Type"
                         context="{'group_by':'type'}"
                         groups="base.group_no_one" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by':'company_id'}"
                         groups="base.group_multi_company" />
                     <filter
-                        string="Creation Date"
                         name="creation_month"
+                        string="Creation Date"
                         context="{'group_by':'create_date'}" />
                 </group>
             </search>
@@ -79,13 +79,13 @@
                     <group>
                         <group class="w-100">
                             <field name="type" />
-                            <label for="datas" class="mt-1" invisible="type == 'url'" />
+                            <label for="datas" invisible="type == 'url'" class="mt-1" />
                             <field
                                 name="datas"
                                 nolabel="1"
-                                class="w-100"
                                 filename="name"
-                                invisible="type == 'url'" />
+                                invisible="type == 'url'"
+                                class="w-100" />
                             <field
                                 name="url"
                                 widget="url"
@@ -99,8 +99,8 @@
                             <field name="res_name" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company" />
                             <field name="public" />
                         </group>
                         <group
@@ -115,14 +115,14 @@
                         <group
                             name="description_group"
                             string="Description"
-                            groups="base.group_no_one"
-                            colspan="4">
+                            colspan="4"
+                            groups="base.group_no_one">
                             <field name="description" nolabel="1" />
                         </group>
                         <group
-                            groups="base.group_no_one"
                             string="Indexed Content"
-                            colspan="4">
+                            colspan="4"
+                            groups="base.group_no_one">
                             <field name="index_content" nolabel="1" />
                         </group>
                     </group>

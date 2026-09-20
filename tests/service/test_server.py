@@ -1,34 +1,32 @@
 import contextlib
 import errno
 import fcntl
-import http.server
-import itertools
 import logging
 import os
 import signal
 import socket
 import threading
 import time
-from collections import deque
-from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import psutil
 import psycopg
 import pytest
-import werkzeug.serving
 
 from odoo.service import (
     _base_server,
     _limits,
     _prefork,
     _process_state,
+    _reload,
     _threaded,
 )
 from odoo.service import settings as server_settings
-from odoo.service import wsgi as _wsgi
 from odoo.tools import SQL
+
+from .conftest import build_worker, common_server, threaded_server
+from .conftest import websocket_server as build_websocket_server
 
 
 @pytest.fixture(scope="module")
@@ -45,20 +43,10 @@ def stamp_rpc_model_method(monkeypatch, value=""):
 
 
 @pytest.fixture
-def multi():
-    m = MagicMock()
-    pipes = [os.pipe(), os.pipe()]
-    m.open_pipe.side_effect = list(pipes)
-    m.timeout = 60
-    m.cron_timeout = None
-    m.limit_request = 100
-    m.socket = None
-    m.beat = 4
-    yield m
-    for r, w in pipes:
-        for fd in (r, w):
-            with contextlib.suppress(OSError):
-                os.close(fd)
+def multi(worker_multi):
+    worker_multi.cron_timeout = None
+    worker_multi.limit_request = 100
+    return worker_multi
 
 
 @pytest.fixture
@@ -76,22 +64,8 @@ def worker_cron(srv, multi):
 
 @pytest.fixture
 def prefork_server(srv):
-    obj = object.__new__(srv.PreforkServer)
-    obj.queue = deque()
-    obj.population = 4
-    obj.logger = MagicMock()
-    obj.workers = {}
-    obj.long_polling_pid = None
-    obj.long_polling_popen = None
-    obj.long_polling_spawn_time = 0.0
-    obj._consecutive_fast_deaths = 0
-    obj._respawn_not_before = 0.0
-    obj._drain_procs = {}
-    obj._killed_workers = {}
-    obj.workers_http = {}
-    obj.workers_cron = {}
-    obj.workers_job = {}
-    return obj
+    with server_settings.override(workers=4):
+        return srv.PreforkServer(None)
 
 
 class TestEmptyPipe:
@@ -129,10 +103,11 @@ class TestEmptyPipe:
             os.close(w)
 
 
-class TestEventServerWatchdogSurvivesErrors:
+class TestWebsocketServerWatchdogSurvivesErrors:
     def test_transient_failure_does_not_retire_the_watchdog(self, srv):
-        server = srv.EventServer.__new__(srv.EventServer)
-        server.logger = logging.getLogger("test.evented.watchdog")
+        server = build_websocket_server(
+            logger=logging.getLogger("test.evented.watchdog")
+        )
         calls = []
 
         def flaky():
@@ -196,46 +171,6 @@ class TestPreforkServerProcessSignals:
         assert prefork_server.population == 4
 
 
-class TestPreforkForkAndReloadNoSocket:
-    def test_reload_without_socket_reaches_reexec(self, prefork_server):
-        prefork_server.socket = None
-        seen = {}
-
-        def fake_reexec(*a, **k):
-            seen["env"] = dict(os.environ)
-            raise SystemExit("reexec-sentinel")
-
-        with (
-            patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec_server", fake_reexec),
-            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
-        ):
-            with pytest.raises(SystemExit, match="reexec-sentinel"):
-                prefork_server.fork_and_reload()
-        assert "env" in seen
-        assert "ODOO_HTTP_SOCKET_FD" not in seen["env"]
-
-    def test_reload_with_socket_hands_off_fd(self, prefork_server):
-        sock = MagicMock()
-        sock.fileno.return_value = 7
-        prefork_server.socket = sock
-        seen = {}
-
-        def fake_reexec(*a, **k):
-            seen["env"] = dict(os.environ)
-            raise SystemExit
-
-        with (
-            patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec_server", fake_reexec),
-            patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
-            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
-        ):
-            with pytest.raises(SystemExit):
-                prefork_server.fork_and_reload()
-        assert seen["env"].get("ODOO_HTTP_SOCKET_FD") == "7"
-
-
 class TestCronListenerConnect:
     def _mock_db(self, *, in_recovery: bool):
         conn = MagicMock()
@@ -297,6 +232,8 @@ class TestCronListenerConnect:
 class TestWorkerCronSleepWatchdog:
     def _select_timeout(self, worker_cron):
         worker_cron.db_queue.clear()
+        worker_cron.schedule._list_databases = list
+        worker_cron.schedule.get_due_databases([])
         with (
             patch("odoo.service._worker.time.sleep"),
             patch("odoo.service._worker.empty_pipe"),
@@ -312,14 +249,14 @@ class TestWorkerCronSleepWatchdog:
     def test_idle_sleep_uncapped_when_watchdog_disabled(self, worker_cron):
         worker_cron.watchdog_timeout = None
         timeout = self._select_timeout(worker_cron)
-        assert timeout >= 60, timeout
+        assert 59 <= timeout <= 60, timeout
 
     def test_default_watchdog_does_not_shorten_idle_sleep_below_interval(
         self, worker_cron
     ):
         worker_cron.watchdog_timeout = 120
         timeout = self._select_timeout(worker_cron)
-        assert timeout >= 60, timeout
+        assert 59 <= timeout <= 60, timeout
 
 
 class TestWorkerCronProcessWorkReconnect:
@@ -584,8 +521,8 @@ class TestWorkerStopReleasesResources:
         bare_worker.stop()
         bare_worker._selector.close.assert_called_once_with()
 
-    def test_stop_before_start_does_not_raise(self, srv):
-        w = object.__new__(srv.Worker)
+    def test_stop_before_start_does_not_raise(self, srv, multi):
+        w = build_worker(srv.Worker, multi)
         w.stop()
 
     def test_cron_worker_closes_the_selector_and_the_cursor_only(self, worker_cron):
@@ -677,16 +614,14 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
 
 
 @pytest.fixture
-def bare_worker(srv):
-    w = object.__new__(srv.Worker)
-    w.ppid = os.getppid()
-    w.pid = os.getpid()
-    w.alive = True
-    w.request_count = 0
-    w.request_max = 100
-    w.logger = MagicMock()
-    w._process_handle = MagicMock()
-    return w
+def bare_worker(srv, multi):
+    return build_worker(
+        srv.Worker,
+        multi,
+        ppid=os.getppid(),
+        pid=os.getpid(),
+        _process_handle=MagicMock(),
+    )
 
 
 class TestWorkerCheckLimits:
@@ -770,9 +705,10 @@ class TestIdleRegistryEvictionRunsOnEveryPulse:
         evict.assert_called_once_with()
 
     def test_threaded_check_limits_sweeps(self, srv):
-        ts = object.__new__(srv.ThreadedServer)
+        ts = threaded_server()
         ts.logger = MagicMock()
         ts.limits_reached_threads = set()
+        ts._overrun_start_times = {}
         ts.limit_reached_time = None
         with (
             patch.object(
@@ -784,13 +720,10 @@ class TestIdleRegistryEvictionRunsOnEveryPulse:
         evict.assert_called_once_with()
 
     def test_evented_check_limits_sweeps(self, srv):
-        es = object.__new__(srv.EventServer)
-        es.logger = MagicMock()
-        es.ppid = os.getppid()
-        es.pid = os.getpid()
+        es = build_websocket_server()
         with (
             patch.object(
-                srv.EventServer, "get_memory_over_soft_limit", return_value=None
+                srv.WebsocketServer, "get_memory_over_soft_limit", return_value=None
             ),
             patch("odoo.service._threaded.Registry._evict_idle_registries") as evict,
         ):
@@ -799,22 +732,16 @@ class TestIdleRegistryEvictionRunsOnEveryPulse:
 
 
 class TestWorkerRunFaultExit:
-    def _make_worker(self, srv):
-        w = object.__new__(srv.Worker)
-        w.alive = True
-        w.pid = os.getpid()
-        w.request_count = 0
-        w.watchdog_pipe = (0, 0)
-        w.multi = MagicMock()
-        w.logger = MagicMock()
+    def _make_worker(self, srv, multi):
+        w = build_worker(srv.Worker, multi, pid=os.getpid())
         w.start = MagicMock()
         w.stop = MagicMock()
         w.check_limits = MagicMock()
         w.sleep = MagicMock()
         return w
 
-    def test_work_fault_propagates_as_systemexit_1(self, srv):
-        w = self._make_worker(srv)
+    def test_work_fault_propagates_as_systemexit_1(self, srv, multi):
+        w = self._make_worker(srv, multi)
         w.process_work = MagicMock(side_effect=ValueError("boom"))
         with pytest.raises(SystemExit) as exc_info:
             w.run()
@@ -823,8 +750,8 @@ class TestWorkerRunFaultExit:
         logged = " ".join(str(c) for c in w.logger.info.call_args_list)
         assert "Exiting cleanly" not in logged, "crash mislabeled as clean exit"
 
-    def test_clean_exit_returns_none_and_logs(self, srv):
-        w = self._make_worker(srv)
+    def test_clean_exit_returns_none_and_logs(self, srv, multi):
+        w = self._make_worker(srv, multi)
 
         def stop_loop():
             w.alive = False
@@ -850,8 +777,7 @@ class TestCommonServerCallbacks:
         assert cb in _base_server._on_stop_hooks
 
     def test_stop_calls_all_registered_callbacks(self, srv):
-        server = object.__new__(srv.CommonServer)
-        server.logger = MagicMock()
+        server = common_server()
         cb1, cb2 = MagicMock(), MagicMock()
         _base_server._on_stop_hooks.extend([cb1, cb2])
         server.stop()
@@ -859,8 +785,7 @@ class TestCommonServerCallbacks:
         cb2.assert_called_once()
 
     def test_stop_continues_after_callback_exception(self, srv):
-        server = object.__new__(srv.CommonServer)
-        server.logger = MagicMock()
+        server = common_server()
         cb1 = MagicMock(side_effect=RuntimeError("boom"))
         cb1.__name__ = "cb1"
         cb2 = MagicMock()
@@ -872,8 +797,7 @@ class TestCommonServerCallbacks:
     def test_stop_survives_partial_hook_without_name(self, srv):
         import functools
 
-        server = object.__new__(srv.CommonServer)
-        server.logger = MagicMock()
+        server = common_server()
 
         def _boom(_tag):
             raise RuntimeError("cleanup failed")
@@ -966,6 +890,49 @@ class TestLongPollingPopenReconciliation:
         )
 
 
+class TestWorkerExitsAreCountedByOutcome:
+    @staticmethod
+    def _exit(prefork_server, pid, status, *, ready=True, killed=False, age_s=60.0):
+        w = MagicMock()
+        w.__class__.__name__ = "WorkerHTTP"
+        w.spawn_time = time.monotonic() - age_s
+        w.ready = ready
+        if killed:
+            prefork_server._killed_workers[pid] = w
+        else:
+            prefork_server.workers[pid] = w
+        prefork_server._record_worker_exit(pid, status)
+
+    @pytest.mark.parametrize(
+        ("status", "kwargs", "outcome"),
+        [
+            (0, {}, "clean"),
+            (3 << 8, {}, "crash"),
+            (signal.SIGSEGV, {}, "crash"),
+            (signal.SIGTERM, {}, "terminated"),
+            (signal.SIGKILL, {"killed": True, "ready": True}, "timeout"),
+            (signal.SIGKILL, {"killed": True, "ready": False}, "crash"),
+        ],
+    )
+    def test_each_exit_lands_in_one_bucket(
+        self, prefork_server, status, kwargs, outcome
+    ):
+        self._exit(prefork_server, 100, status, **kwargs)
+        counts = prefork_server._get_census()["worker_exits"]
+        assert counts[outcome] == 1
+        assert sum(counts.values()) == 1
+
+    def test_the_count_survives_the_healthy_lifetime_short_cut(self, prefork_server):
+        self._exit(prefork_server, 1, 1 << 8, age_s=0.0)
+        self._exit(prefork_server, 2, 1 << 8, age_s=600.0)
+        assert prefork_server._get_census()["worker_exits"]["crash"] == 2
+
+    def test_a_generation_exit_is_not_a_worker_exit(self, prefork_server):
+        prefork_server.handoff.replacement = MagicMock(pid=777)
+        prefork_server._record_worker_exit(777, 0)
+        assert sum(prefork_server._get_census()["worker_exits"].values()) == 0
+
+
 class TestPreforkRespawnBackoff:
     @staticmethod
     def _worker(prefork_server, pid, *, age_s):
@@ -979,97 +946,136 @@ class TestPreforkRespawnBackoff:
         self._worker(prefork_server, 1234, age_s=0.0)
         before = time.monotonic()
         prefork_server._record_worker_exit(1234, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 1
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before > before
         self._worker(prefork_server, 1235, age_s=0.0)
         prefork_server._record_worker_exit(1235, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 2
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 2
 
     def test_backoff_capped(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 20
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 20
         self._worker(prefork_server, 1, age_s=0.0)
         t = time.monotonic()
         prefork_server._record_worker_exit(1, 1 << 8)
         assert (
-            prefork_server._respawn_not_before - t
+            prefork_server._get_respawn_hold("WorkerHTTP").not_before - t
             <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
         )
 
     def test_healthy_exit_clears_throttle(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 3
-        prefork_server._respawn_not_before = time.monotonic() + 100
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 3
+        prefork_server._get_respawn_hold("WorkerHTTP").not_before = (
+            time.monotonic() + 100
+        )
         self._worker(
             prefork_server, 42, age_s=_prefork.WORKER_MIN_HEALTHY_LIFETIME_S + 5
         )
         prefork_server._record_worker_exit(42, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 0
-        assert prefork_server._respawn_not_before == 0.0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before == 0.0
 
     def test_clean_young_exit_neither_arms_nor_clears(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 2
-        prefork_server._respawn_not_before = 555.0
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 2
+        prefork_server._get_respawn_hold("WorkerHTTP").not_before = 555.0
         self._worker(prefork_server, 7, age_s=1.0)
         prefork_server._record_worker_exit(7, 0)
-        assert prefork_server._consecutive_fast_deaths == 2
-        assert prefork_server._respawn_not_before == 555.0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 2
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before == 555.0
 
     def test_external_sigkill_young_worker_arms_backoff(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 0
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 0
         before = time.monotonic()
         self._worker(prefork_server, 8, age_s=1.0)
         prefork_server._record_worker_exit(8, signal.SIGKILL)
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 1
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before > before
+
+    def test_the_watchdogs_sigkill_of_a_ready_worker_is_not_a_crash(
+        self, prefork_server
+    ):
+        """Measured 2026-09-15 with --limit-time-real 3 and a 20 s request:
+        the timed-out worker's SIGKILL armed the back-off, and the next
+        request found no worker at all for the length of it."""
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 0
+        w = self._worker(prefork_server, 9, age_s=1.0)
+        w.ready = True
+        with patch.object(_prefork.os, "kill"):
+            prefork_server.kill_worker(9, signal.SIGKILL)
+        assert 9 in prefork_server._killed_workers
+        prefork_server._record_worker_exit(9, signal.SIGKILL)
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before == 0.0
+        assert 9 not in prefork_server._killed_workers
+        w.close.assert_called_once()
 
     def test_sigterm_killed_young_worker_not_counted(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 0
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 0
         self._worker(prefork_server, 81, age_s=1.0)
         prefork_server._record_worker_exit(81, signal.SIGTERM)
-        assert prefork_server._consecutive_fast_deaths == 0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 0
 
     def test_segfault_young_worker_arms_backoff(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 0
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 0
         before = time.monotonic()
         self._worker(prefork_server, 82, age_s=0.0)
         prefork_server._record_worker_exit(82, signal.SIGSEGV)
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 1
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before > before
 
     def test_unknown_pid_ignored(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 1
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 1
         prefork_server._record_worker_exit(99999, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 1
 
     def test_long_polling_young_crash_arms_backoff(self, prefork_server):
         prefork_server.long_polling_pid = 4321
         prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
         before = time.monotonic()
         prefork_server._record_worker_exit(4321, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert (
+            prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).fast_deaths
+            == 1
+        )
+        assert (
+            prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).not_before
+            > before
+        )
 
     def test_long_polling_clean_young_exit_neither_arms_nor_clears(
         self, prefork_server
     ):
-        prefork_server._consecutive_fast_deaths = 2
+        prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).fast_deaths = 2
         prefork_server.long_polling_pid = 4321
         prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
         prefork_server._record_worker_exit(4321, 0)
-        assert prefork_server._consecutive_fast_deaths == 2
+        assert (
+            prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).fast_deaths
+            == 2
+        )
 
     def test_long_polling_healthy_lifetime_clears_throttle(self, prefork_server):
-        prefork_server._consecutive_fast_deaths = 3
-        prefork_server._respawn_not_before = time.monotonic() + 100
+        prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).fast_deaths = 3
+        prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).not_before = (
+            time.monotonic() + 100
+        )
         prefork_server.long_polling_pid = 4321
         prefork_server.long_polling_spawn_time = (
             time.monotonic() - _prefork.WORKER_MIN_HEALTHY_LIFETIME_S - 5
         )
         prefork_server._record_worker_exit(4321, 1 << 8)
-        assert prefork_server._consecutive_fast_deaths == 0
-        assert prefork_server._respawn_not_before == 0.0
+        assert (
+            prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).fast_deaths
+            == 0
+        )
+        assert (
+            prefork_server._get_respawn_hold(_prefork.LONG_POLLING_KIND).not_before
+            == 0.0
+        )
 
     def test_spawn_missing_workers_skips_during_backoff(self, prefork_server):
-        prefork_server._respawn_not_before = time.monotonic() + 100
+        prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before = (
+            time.monotonic() + 100
+        )
         prefork_server.spawn_worker = MagicMock()
         prefork_server.spawn_long_polling_process = MagicMock()
         prefork_server.spawn_missing_workers()
@@ -1088,29 +1094,35 @@ class TestPreforkRespawnBackoff:
         assert result is None
         fake_worker.close.assert_called_once()
         assert prefork_server.workers == {}
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).fast_deaths == 1
+        assert prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before > before
 
     def test_repeated_fork_failures_grow_the_backoff(self, prefork_server, monkeypatch):
         prefork_server.generation = 0
         klass = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
         prefork_server.spawn_worker(klass, {})
-        first_hold = prefork_server._respawn_not_before - time.monotonic()
+        first_hold = (
+            prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before
+            - time.monotonic()
+        )
         prefork_server.spawn_worker(klass, {})
-        second_hold = prefork_server._respawn_not_before - time.monotonic()
-        assert prefork_server._consecutive_fast_deaths == 2
+        second_hold = (
+            prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before
+            - time.monotonic()
+        )
+        assert prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).fast_deaths == 2
         assert second_hold > first_hold
 
     def test_fork_failure_hold_is_capped(self, prefork_server, monkeypatch):
         prefork_server.generation = 0
-        prefork_server._consecutive_fast_deaths = 20
+        prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).fast_deaths = 20
         klass = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
         t = time.monotonic()
         prefork_server.spawn_worker(klass, {})
         assert (
-            prefork_server._respawn_not_before - t
+            prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before - t
             <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
         )
 
@@ -1126,8 +1138,84 @@ class TestPreforkRespawnBackoff:
         before = time.monotonic()
         prefork_server.spawn_long_polling_process()
         assert prefork_server.long_polling_pid is None
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > before
+        assert prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).fast_deaths == 1
+        assert prefork_server._get_respawn_hold(_prefork.SPAWN_HOLD).not_before > before
+
+
+class TestTheWebsocketPortIsTheMastersToo:
+    def test_the_evented_child_is_handed_the_masters_listener(
+        self, prefork_server, monkeypatch
+    ):
+        prefork_server.long_polling_pid = None
+        prefork_server.websocket_socket = MagicMock(fileno=lambda: 42)
+        popen = MagicMock(return_value=MagicMock(pid=555))
+        monkeypatch.setattr(_prefork.subprocess, "Popen", popen)
+        prefork_server.spawn_long_polling_process()
+        kwargs = popen.call_args.kwargs
+        assert kwargs["pass_fds"] == [42]
+        assert kwargs["env"]["ODOO_HTTP_SOCKET_FD"] == "42", (
+            "the child adopts it as its own http listener, under the name every "
+            "ThreadedHTTPServer looks for"
+        )
+        assert "ODOO_HTTP_SOCKET_FD" not in os.environ
+
+    def test_the_reload_candidate_is_handed_both_listeners(
+        self, prefork_server, monkeypatch
+    ):
+        prefork_server.socket = MagicMock(fileno=lambda: 7)
+        prefork_server.websocket_socket = MagicMock(fileno=lambda: 8)
+        popen = MagicMock()
+        monkeypatch.setattr(_reload.subprocess, "Popen", popen)
+        monkeypatch.setattr(_reload, "stripped_sys_argv", lambda: ["odoo-bin"])
+        prefork_server.handoff._spawn_candidate(9)
+        kwargs = popen.call_args.kwargs
+        assert sorted(kwargs["pass_fds"]) == [7, 8, 9]
+        assert kwargs["env"]["ODOO_HTTP_SOCKET_FD"] == "7"
+        assert kwargs["env"]["ODOO_WEBSOCKET_SOCKET_FD"] == "8"
+
+    @pytest.mark.parametrize(
+        "inherited_listener", [(socket.AF_INET, ("127.0.0.1", 0))], indirect=True
+    )
+    def test_a_two_socket_unit_hands_the_master_the_websocket_port(
+        self, prefork_server, inherited_listener, monkeypatch
+    ):
+        expected = inherited_listener.getsockname()
+        saved_fd4 = os.dup(4)
+        try:
+            os.dup2(inherited_listener.fileno(), 4, inheritable=True)
+            prefork_server.interface, prefork_server.port = "127.0.0.1", 0
+            prefork_server.open_pipe = MagicMock(return_value=(0, 0))
+            with (
+                server_settings.override(
+                    http_enable=True,
+                    http_socket_activation=False,
+                    websocket_socket_activation=True,
+                    gevent_port=0,
+                ),
+                patch.object(signal, "signal"),
+            ):
+                prefork_server.start()
+            try:
+                assert prefork_server.websocket_socket.getsockname() == expected
+                assert not os.get_inheritable(4)
+            finally:
+                prefork_server.websocket_socket.detach()
+                prefork_server.socket.close()
+        finally:
+            os.dup2(saved_fd4, 4)
+            os.close(saved_fd4)
+
+    def test_stop_closes_both_listeners(self, prefork_server):
+        prefork_server.socket = MagicMock()
+        prefork_server.websocket_socket = MagicMock()
+        with (
+            patch.object(_prefork.CommonServer, "stop"),
+            patch.object(prefork_server, "stop_workers_gracefully"),
+            patch.object(prefork_server, "_close_watchdog_selector"),
+        ):
+            prefork_server.stop()
+        prefork_server.socket.close.assert_called_once_with()
+        prefork_server.websocket_socket.close.assert_called_once_with()
 
 
 class TestPreforkGracefulStopEscalation:
@@ -1150,7 +1238,7 @@ class TestPreforkGracefulStopEscalation:
 
         prefork_server.reap_exited_workers = MagicMock(side_effect=fake_zombie)
         monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append((pid, sig)))
-        monkeypatch.setattr(_prefork, "GRACEFUL_STOP_TIMEOUT_S", 0.0)
+        monkeypatch.setattr(_limits, "GRACEFUL_STOP_TIMEOUT_S", 0.0)
 
         prefork_server.stop_workers_gracefully()
 
@@ -1160,18 +1248,16 @@ class TestPreforkGracefulStopEscalation:
     def test_stop_timeout_env_override(self, monkeypatch):
         logger = MagicMock()
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "300")
-        assert _prefork._get_graceful_stop_timeout(logger) == 300.0
+        assert _limits.get_graceful_stop_timeout(logger) == 300.0
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "0")
-        assert _prefork._get_graceful_stop_timeout(logger) == 1.0
+        assert _limits.get_graceful_stop_timeout(logger) == 1.0
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "garbage")
         assert (
-            _prefork._get_graceful_stop_timeout(logger)
-            == _prefork.GRACEFUL_STOP_TIMEOUT_S
+            _limits.get_graceful_stop_timeout(logger) == _limits.GRACEFUL_STOP_TIMEOUT_S
         )
         monkeypatch.delenv("ODOO_GRACEFUL_STOP_TIMEOUT")
         assert (
-            _prefork._get_graceful_stop_timeout(logger)
-            == _prefork.GRACEFUL_STOP_TIMEOUT_S
+            _limits.get_graceful_stop_timeout(logger) == _limits.GRACEFUL_STOP_TIMEOUT_S
         )
 
 
@@ -1378,582 +1464,16 @@ class TestPreforkWorkerKill:
 
 
 @pytest.fixture
-def log_handler(srv, monkeypatch):
-    h = object.__new__(srv.CommonRequestHandler)
-    h.path = "/web/test"
-    h.command = "GET"
-    h.request_version = "HTTP/1.1"
-    h.requestline = "GET /web/test HTTP/1.1"
-    h.log = MagicMock()
-    stamp_rpc_model_method(monkeypatch)
-    return h
-
-
-class TestLoggingBaseWSGIServerMixIn:
-    @staticmethod
-    def _server():
-        return object.__new__(_wsgi.LoggingBaseWSGIServerMixIn)
-
-    def test_a_client_hangup_is_not_logged(self, caplog):
-        import logging
-
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=BrokenPipeError()):
-                self._server().handle_error(None, ("127.0.0.1", 51234))
-        assert caplog.records == [], (
-            f"a disconnected client produced log output: {caplog.records!r}"
-        )
-
-    def test_any_other_exception_is_logged_with_its_traceback(self, caplog):
-        import logging
-
-        boom = ValueError("handler blew up")
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=boom):
-                self._server().handle_error(None, ("10.0.0.7", 4242))
-
-        errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
-        assert errors, "a handler exception produced no ERROR record"
-        assert errors[0].exc_info is not None, (
-            "logged without exc_info, so the traceback — the only thing that "
-            "says WHERE the handler failed — is gone"
-        )
-        assert "10.0.0.7" in str(errors[0].args), (
-            "the record does not name the client the request came from"
-        )
-
-    def test_no_exception_in_flight_still_logs(self, caplog):
-        import logging
-
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=None):
-                self._server().handle_error(None, ("127.0.0.1", 1))
-        assert any(r.levelno >= logging.ERROR for r in caplog.records)
-
-
-class TestBaseWSGIServerNoBind:
-    def test_it_does_not_leave_a_socket_bound(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        assert server.socket.fileno() == -1, (
-            "the constructor left a bound socket open; the prefork worker is "
-            "supposed to serve the master's inherited one"
-        )
-
-    def test_server_bind_takes_no_port(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        assert (server.server_name, server.server_port) == ("127.0.0.1", 0)
-
-    def test_server_activate_does_not_listen(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        server.server_activate()
-
-    def test_it_carries_the_logging_mixin(self, srv):
-        assert issubclass(srv.BaseWSGIServerNoBind, srv.LoggingBaseWSGIServerMixIn)
-
-
-class TestCommonRequestHandlerLogError:
-    def test_timeout_logs_at_debug(self, log_handler):
-        with patch("odoo.service.wsgi._logger") as mock_logger:
-            log_handler.log_error("Request timed out: %r", "socket")
-        mock_logger.debug.assert_called_once()
-
-    def test_other_error_calls_super(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._logger"),
-            patch.object(
-                werkzeug.serving.WSGIRequestHandler, "log_error"
-            ) as mock_super,
-        ):
-            log_handler.log_error("Some other error: %s", "detail")
-        mock_super.assert_called_once()
-
-
-class TestCommonRequestHandlerSendHeader:
-    @pytest.fixture
-    def handler(self, srv):
-        h = object.__new__(srv.CommonRequestHandler)
-        h._sent_date_header = None
-        h._sent_server_header = None
-        return h
-
-    def _send(self, handler, pairs):
-        sent: list[tuple[str, str]] = []
-        with patch.object(
-            werkzeug.serving.WSGIRequestHandler,
-            "send_header",
-            lambda self, k, v: sent.append((k, v)),
-        ):
-            for k, v in pairs:
-                handler.send_header(k, v)
-        return sent
-
-    def test_identical_date_sent_once(self, handler):
-        d = "Thu, 01 Jan 2026 00:00:00 GMT"
-        sent = self._send(handler, [("Date", d), ("Date", d)])
-        assert sent == [("Date", d)]
-
-    def test_same_instant_different_format_sent_once(self, handler):
-        sent = self._send(
-            handler,
-            [
-                ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                ("Date", "Thu, 01 Jan 2026 00:00:00 -0000"),
-            ],
-        )
-        assert sent == [("Date", "Thu, 01 Jan 2026 00:00:00 GMT")]
-
-    def test_naive_date_five_seconds_apart_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger") as log:
-            sent = self._send(
-                handler,
-                [
-                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                    ("Date", "Thu, 01 Jan 2026 00:00:05 -0000"),
-                ],
-            )
-        assert len(sent) == 2
-        log.warning.assert_called_once()
-
-    def test_malformed_second_date_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger") as log:
-            sent = self._send(
-                handler,
-                [
-                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                    ("Date", "not-a-real-date"),
-                ],
-            )
-        assert len(sent) == 2
-        log.warning.assert_called_once()
-
-    def test_malformed_first_date_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger"):
-            sent = self._send(
-                handler,
-                [("Date", "garbage"), ("Date", "Thu, 01 Jan 2026 00:00:00 GMT")],
-            )
-        assert len(sent) == 2
-
-    def test_duplicate_server_header_sent_once(self, handler):
-        sent = self._send(handler, [("Server", "odoo"), ("Server", "odoo")])
-        assert sent == [("Server", "odoo")]
-
-    def test_case_insensitive_date_keyword(self, handler):
-        d = "Thu, 01 Jan 2026 00:00:00 GMT"
-        sent = self._send(handler, [("date", d), ("DATE", d)])
-        assert len(sent) == 1
-
-
-class TestParseHttpDate:
-    def test_gmt_is_aware(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
-        assert dt is not None and dt.tzinfo is not None
-
-    def test_minus_zero_zero_zero_zero_normalised_to_aware(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
-        assert dt is not None and dt.tzinfo is not None
-
-    def test_garbage_returns_none(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        assert _parse_http_date("definitely not a date") is None
-
-    def test_two_forms_of_same_instant_are_equal(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        a = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
-        b = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
-        assert a == b
-
-
-class TestCommonRequestHandlerLogRequest:
-    def _captured_styles(self, log_handler, code):
-        captured = []
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
-            patch(
-                "odoo.service.wsgi._ansi_style",
-                side_effect=lambda msg, *styles: captured.append(styles) or msg,
-            ),
-        ):
-            log_handler.log_request(code, 0)
-        return captured
-
-    def test_200_no_ansi_styling(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
-            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
-        ):
-            log_handler.log_request(200, 0)
-        mock_ansi.assert_not_called()
-
-    def test_304_styled_cyan_not_green(self, log_handler):
-        styles = self._captured_styles(log_handler, 304)
-        assert ("cyan",) in styles
-        assert ("green",) not in styles
-
-    def test_301_styled_green(self, log_handler):
-        styles = self._captured_styles(log_handler, 301)
-        assert ("green",) in styles
-
-    def test_404_styled_yellow(self, log_handler):
-        styles = self._captured_styles(log_handler, 404)
-        assert ("yellow",) in styles
-
-    def test_500_styled_bold_magenta(self, log_handler):
-        styles = self._captured_styles(log_handler, 500)
-        assert ("bold", "magenta") in styles
-
-
-class TestCommonRequestHandlerLogRequestNoTTY:
-    def test_no_ansi_calls_when_disabled(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=False),
-            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
-        ):
-            for code in (101, 200, 301, 304, 404, 500):
-                log_handler.log_request(code, 0)
-        mock_ansi.assert_not_called()
-
-    def test_a_werkzeug_without_ansi_style_degrades_to_plain_text(self):
-        import importlib
-
-        from odoo.service import wsgi as wsgi_mod
-
-        with patch.object(werkzeug.serving, "_ansi_style", create=False):
-            del werkzeug.serving._ansi_style
-            try:
-                reloaded = importlib.reload(wsgi_mod)
-                with patch.object(reloaded, "_is_ansi_enabled", return_value=True):
-                    assert (
-                        reloaded._style_if_ansi_enabled("GET /x", "bold", "red")
-                        == "GET /x"
-                    )
-            finally:
-                importlib.reload(wsgi_mod)
-        assert hasattr(werkzeug.serving, "_ansi_style")
-
-    def test_bad_requestline_falls_back_to_requestline(self, srv, monkeypatch):
-        h = object.__new__(srv.CommonRequestHandler)
-        h.requestline = "GARBAGE_LINE"
-        h.log = MagicMock()
-        stamp_rpc_model_method(monkeypatch)
-        h.log_request(200, 0)
-        logged_msg = str(h.log.call_args)
-        assert "GARBAGE_LINE" in logged_msg
-
-
-class TestCommonRequestHandlerLogRequestControlChars:
-    ESC = "\x1b"
-
-    def _logged_msg(self, handler):
-        return handler.log.call_args.args[2]
-
-    def test_control_chars_in_path_are_escaped(self, log_handler):
-        log_handler.path = f"/web/login{self.ESC}[2Jspoof"
-        log_handler.requestline = "GET /web/login HTTP/1.1"
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            log_handler.log_request(404, 0)
-        assert self.ESC not in self._logged_msg(log_handler)
-        assert "\\x1b" in self._logged_msg(log_handler)
-
-    def test_control_chars_in_rpc_fragment_are_escaped(self, log_handler, monkeypatch):
-        stamp_rpc_model_method(monkeypatch, f"res.users.read{self.ESC}[31mINJECT")
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            log_handler.log_request(200, 0)
-        msg = self._logged_msg(log_handler)
-        assert self.ESC not in msg
-        assert "INJECT" in msg
-
-    def test_control_chars_escaped_in_bad_requestline_fallback(self, srv, monkeypatch):
-        h = object.__new__(srv.CommonRequestHandler)
-        h.requestline = f"GARBAGE{self.ESC}[2K"
-        h.log = MagicMock()
-        stamp_rpc_model_method(monkeypatch)
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            h.log_request(200, 0)
-        assert self.ESC not in h.log.call_args.args[1]
-
-
-@pytest.fixture
-def request_handler(srv):
-    h = object.__new__(srv.RequestHandler)
-    h.headers = MagicMock()
-    h.close_connection = False
-    h.rfile = MagicMock()
-    h.wfile = MagicMock()
-    return h
-
-
-class TestRequestHandlerWebSocket:
-    def test_websocket_connection_close_is_suppressed(self, request_handler):
-        request_handler.headers.get.return_value = "websocket"
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            request_handler.send_header("Connection", "close")
-        mock_send.assert_not_called()
-        assert request_handler.close_connection is True
-
-    def test_non_websocket_connection_close_forwarded(self, request_handler):
-        request_handler.headers.get.return_value = None
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            request_handler.send_header("Connection", "close")
-        mock_send.assert_called_once_with("Connection", "close")
-        assert request_handler.close_connection is False
-
-    def test_end_headers_websocket_replaces_streams(self, request_handler):
-        request_handler.headers.get.return_value = "websocket"
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            request_handler.end_headers()
-        assert isinstance(request_handler.rfile, BytesIO)
-        assert isinstance(request_handler.wfile, BytesIO)
-
-    def test_end_headers_non_websocket_leaves_streams_unchanged(self, request_handler):
-        request_handler.headers.get.return_value = None
-        original_rfile = request_handler.rfile
-        original_wfile = request_handler.wfile
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            request_handler.end_headers()
-        assert request_handler.rfile is original_rfile
-        assert request_handler.wfile is original_wfile
-
-
-class TestRequestHandlerBeforeHeadersParsed:
-    @pytest.fixture
-    def unparsed_handler(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h._sent_date_header = None
-        h._sent_server_header = None
-        h.close_connection = False
-        h.rfile = MagicMock()
-        h.wfile = MagicMock()
-        assert not hasattr(h, "headers"), "fixture must reproduce the unset state"
-        return h
-
-    def test_send_header_does_not_raise_and_forwards(self, unparsed_handler):
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            unparsed_handler.send_header("Server", "Werkzeug")
-            unparsed_handler.send_header("Connection", "close")
-        assert mock_send.call_args_list == [
-            call("Server", "Werkzeug"),
-            call("Connection", "close"),
-        ]
-        assert unparsed_handler.close_connection is False
-
-    def test_end_headers_does_not_raise_and_keeps_streams(self, unparsed_handler):
-        original_rfile = unparsed_handler.rfile
-        original_wfile = unparsed_handler.wfile
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            unparsed_handler.end_headers()
-        assert unparsed_handler.rfile is original_rfile
-        assert unparsed_handler.wfile is original_wfile
-
-    def test_helper_reports_no_upgrade_when_headers_missing(self, unparsed_handler):
-        assert unparsed_handler._is_websocket_upgrade() is False
-
-
-class TestRequestHandlerSocketTimeout:
-    @pytest.mark.parametrize("test_enable", [False, True])
-    def test_timeout_reaches_the_connection(self, test_enable, monkeypatch):
-        from odoo.service.wsgi import RequestHandler
-
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "2.5")
-        thread = threading.current_thread()
-        original_name = thread.name
-        connection, peer = socket.socketpair()
-        with connection, peer:
-            handler = object.__new__(RequestHandler)
-            handler.request = connection
-            try:
-                with server_settings.override(test_enable=test_enable, dev_mode=[]):
-                    handler.setup()
-                assert connection.gettimeout() == (5 if test_enable else 2.5)
-            finally:
-                thread.name = original_name
-                handler.finish()
-
-    @pytest.fixture
-    def wsgi_mod(self):
-        import odoo.service.wsgi as mod
-
-        return mod
-
-    def _handler(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        return h
-
-    def _setup_with(self, wsgi_mod, handler, test_enable):
-        cfg = {"test_enable": test_enable, "dev_mode": []}
-        me = threading.current_thread()
-        original_name = me.name
-        try:
-            with (
-                server_settings.override(**cfg),
-                patch.object(werkzeug.serving.WSGIRequestHandler, "setup"),
-            ):
-                handler.setup()
-        finally:
-            me.name = original_name
-
-    def test_timeout_is_armed_outside_test_mode(self, srv, wsgi_mod):
-        h = self._handler(srv)
-        self._setup_with(wsgi_mod, h, test_enable=False)
-        h.connection.settimeout.assert_called_once_with(
-            wsgi_mod.get_http_socket_timeout()
-        )
-
-    def test_test_mode_keeps_the_longer_preconnect_grace(self, srv, wsgi_mod):
-        h = self._handler(srv)
-        self._setup_with(wsgi_mod, h, test_enable=True)
-        assert h.connection.settimeout.call_args.args[0] >= 5
-
-    def test_prefork_and_threaded_share_one_knob(
-        self, srv, wsgi_mod, multi, monkeypatch
-    ):
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "7.5")
-        worker = srv.WorkerHTTP(multi)
-        try:
-            assert worker.sock_timeout == wsgi_mod.get_http_socket_timeout() == 7.5
-        finally:
-            worker.close()
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [("0", 0.1), ("-3", 0.1), ("not-a-number", 2.0), ("30", 30.0)],
-    )
-    def test_env_override_is_clamped_and_degrades_safely(
-        self, wsgi_mod, monkeypatch, raw, expected
-    ):
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", raw)
-        assert wsgi_mod.get_http_socket_timeout() == expected
-
-    def test_upgrade_clears_the_deadline_for_the_websocket_loop(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        h.request = MagicMock()
-        h.server = MagicMock(spec=[])
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            h.send_response(101)
-        h.connection.settimeout.assert_called_once_with(None)
-
-    def test_non_upgrade_response_keeps_the_deadline(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        h.request = MagicMock()
-        h.server = MagicMock(spec=[])
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            h.send_response(200)
-        h.connection.settimeout.assert_not_called()
-
-
-@pytest.fixture
-def threaded_server(srv):
-    import weakref
-
-    s = object.__new__(srv.ThreadedWSGIServerReloadable)
-    s.max_http_threads = 4
-    s.http_threads_sem = MagicMock()
-    s._sem_released_requests = weakref.WeakSet()
-    return s
-
-
-class TestThreadedWSGIServerAutoLimit:
-    def test_auto_limit_subtracts_cron_and_job_threads(self, srv, monkeypatch):
-        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-
-        cfg = {"db_maxconn": 20, "max_cron_threads": 2, "job_workers": 4}
-        with (
-            server_settings.override(**cfg),
-            patch.object(
-                werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
-            ),
-        ):
-            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
-        assert s.max_http_threads == (20 - 2 - 4) // 2
-
-    def test_auto_limit_floors_at_one(self, srv, monkeypatch):
-        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-
-        cfg = {"db_maxconn": 5, "max_cron_threads": 2, "job_workers": 4}
-        with (
-            server_settings.override(**cfg),
-            patch.object(
-                werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
-            ),
-        ):
-            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
-        assert s.max_http_threads == 1
-
-
-class TestThreadedWSGIServerSemaphore:
-    def test_semaphore_full_skips_processing(self, threaded_server):
-        threaded_server.http_threads_sem.acquire.return_value = False
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_not_called()
-
-    def test_semaphore_acquired_calls_super(self, threaded_server):
-        threaded_server.http_threads_sem.acquire.return_value = True
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_called_once()
-
-    def test_no_semaphore_calls_super_directly(self, threaded_server):
-        threaded_server.max_http_threads = None
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_called_once()
-
-    def test_shutdown_releases_semaphore(self, threaded_server):
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-        threaded_server.http_threads_sem.release.assert_called_once()
-
-    def test_shutdown_no_semaphore_skips_release(self, threaded_server):
-        threaded_server.max_http_threads = None
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-        threaded_server.http_threads_sem.release.assert_not_called()
-
-    def test_shutdown_idempotent_for_same_request(self, threaded_server):
-        request = MagicMock()
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(request)
-            threaded_server.shutdown_request(request)
-        threaded_server.http_threads_sem.release.assert_called_once()
-
-    def test_shutdown_distinct_requests_release_independently(self, threaded_server):
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-            threaded_server.shutdown_request(MagicMock())
-            threaded_server.shutdown_request(MagicMock())
-        assert threaded_server.http_threads_sem.release.call_count == 3
-
-
-@pytest.fixture
 def tserver(srv):
-    s = object.__new__(srv.ThreadedServer)
-    s.limits_reached_threads = set()
-    s.limit_reached_time = None
-    s.logger = MagicMock()
+    s = threaded_server()
     s._process_handle = MagicMock()
     return s
+
+
+@pytest.fixture
+def no_db_cancel():
+    with patch("odoo.service._threaded.db.cancel_queries_of", return_value=1) as c:
+        yield c
 
 
 class TestThreadedServerProcessLimit:
@@ -2001,18 +1521,63 @@ class TestThreadedServerProcessLimit:
         assert tserver.limit_reached_time is None
         assert not tserver.limits_reached_threads
 
-    def test_thread_real_time_exceeded_adds_thread(self, tserver):
+    def test_thread_real_time_exceeded_cancels_then_adds_thread(
+        self, tserver, no_db_cancel
+    ):
+        """The first verdict cancels the thread's queries; only a thread still
+        on the same work at the next pass asks for the reload."""
         mock_thread = MagicMock()
         mock_thread.daemon = False
         mock_thread.type = "http"
+        mock_thread.name = "odoo.service.http.request.1"
         mock_thread.start_time = time.monotonic() - 9999
         mock_thread.is_alive.return_value = True
 
         with self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]):
             tserver.check_limits()
+            no_db_cancel.assert_called_once_with("odoo.service.http.request.1")
+            assert mock_thread not in tserver.limits_reached_threads
+            assert tserver.limit_reached_time is None
+            tserver.check_limits()
+        assert no_db_cancel.call_count == 1
+        assert mock_thread in tserver.limits_reached_threads
+        assert tserver.limit_reached_time is not None
+
+    def test_a_cancelled_thread_that_moves_on_is_not_reloaded_for(
+        self, tserver, no_db_cancel
+    ):
+        mock_thread = MagicMock()
+        mock_thread.type = "cron"
+        mock_thread.name = "odoo.service.cron.cron0"
+        mock_thread.start_time = time.monotonic() - 9999
+        mock_thread.is_alive.return_value = True
+        cfg = {"limit_time_real": 3600, "limit_time_real_cron": 60}
+        with self._env(config_override=cfg, threads=[mock_thread]):
+            tserver.check_limits()
+            mock_thread.start_time = time.monotonic()  # the next sweep
+            tserver.check_limits()
+        assert mock_thread not in tserver.limits_reached_threads
+        assert not tserver._cancelled_overruns
+        assert no_db_cancel.call_count == 1
+
+    def test_a_failed_cancel_still_reloads_on_the_next_pass(self, tserver):
+        mock_thread = MagicMock()
+        mock_thread.type = "http"
+        mock_thread.name = "odoo.service.http.request.2"
+        mock_thread.start_time = time.monotonic() - 9999
+        mock_thread.is_alive.return_value = True
+        with (
+            self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]),
+            patch(
+                "odoo.service._threaded.db.cancel_queries_of",
+                side_effect=RuntimeError("pool gone"),
+            ),
+        ):
+            tserver.check_limits()
+            tserver.check_limits()
         assert mock_thread in tserver.limits_reached_threads
 
-    def test_cron_thread_uses_cron_time_limit(self, tserver):
+    def test_cron_thread_uses_cron_time_limit(self, tserver, no_db_cancel):
         mock_thread = MagicMock()
         mock_thread.daemon = False
         mock_thread.type = "cron"
@@ -2023,6 +1588,7 @@ class TestThreadedServerProcessLimit:
             config_override={"limit_time_real": 3600, "limit_time_real_cron": 60},
             threads=[mock_thread],
         ):
+            tserver.check_limits()
             tserver.check_limits()
         assert mock_thread in tserver.limits_reached_threads
 
@@ -2053,7 +1619,7 @@ class TestThreadedServerProcessLimit:
             tserver.check_limits()
         assert dead not in tserver.limits_reached_threads
 
-    def test_limit_reached_time_set_and_cleared(self, tserver):
+    def test_limit_reached_time_set_and_cleared(self, tserver, no_db_cancel):
         mock_thread = MagicMock()
         mock_thread.daemon = False
         mock_thread.type = "http"
@@ -2061,6 +1627,7 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         with self._env(config_override={"limit_time_real": 60}, threads=[mock_thread]):
+            tserver.check_limits()
             tserver.check_limits()
         assert tserver.limit_reached_time is not None
 
@@ -2116,19 +1683,22 @@ def inherited_listener(request):
 
 
 def _adopt_inherited_fd(fd, *, via_env, interface):
-    server = object.__new__(_prefork.PreforkServer)
+    server = _prefork.PreforkServer(None)
     server.logger = MagicMock()
     server.interface, server.port, server.population = interface, 0, 2
     server.open_pipe = MagicMock(return_value=(0, 0))
     env = {"ODOO_HTTP_SOCKET_FD": str(fd)} if via_env else {}
     with (
-        server_settings.override(http_enable=True, http_socket_activation=not via_env),
+        server_settings.override(
+            http_enable=True, http_socket_activation=not via_env, gevent_port=0
+        ),
         patch.object(signal, "signal"),
         patch.dict(os.environ, env, clear=False),
     ):
         if not via_env:
             os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
         server.start()
+    server.websocket_socket.close()
     return server.socket
 
 
@@ -2179,91 +1749,6 @@ class TestInheritedListenSocketKeepsItsFamily:
             adopted.detach()
 
 
-class TestForkAndReloadTimeout:
-    def test_fork_and_reload_returns_true_on_sighup(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.socket.fileno.return_value = 99
-
-        with (
-            patch.object(os, "fork", return_value=0),
-            patch.object(_prefork.fcntl, "fcntl", return_value=0),
-            patch.object(signal, "signal") as mock_sig,
-            patch.object(time, "monotonic", side_effect=itertools.count(0.0, 0.1)),
-            patch.object(time, "sleep"),
-        ):
-            handlers = {}
-
-            def capture_handler(sig, handler):
-                handlers[sig] = handler
-
-            mock_sig.side_effect = capture_handler
-
-            def fire_handler_on_install(sig, handler):
-                handlers[sig] = handler
-                if sig == signal.SIGHUP:
-                    handler(sig, None)
-
-            mock_sig.side_effect = fire_handler_on_install
-
-            result = ps.fork_and_reload()
-
-        assert result is True
-
-    def test_fork_and_reload_returns_false_on_timeout(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.socket.fileno.return_value = 99
-
-        times = itertools.chain([0.0], itertools.count(70.0, 0.1))
-
-        with (
-            patch.object(os, "fork", return_value=0),
-            patch.object(_prefork.fcntl, "fcntl", return_value=0),
-            patch.object(signal, "signal"),
-            patch.object(time, "monotonic", side_effect=lambda: next(times)),
-            patch.object(time, "sleep"),
-        ):
-            result = ps.fork_and_reload()
-
-        assert result is False
-        ps.logger.error.assert_called()
-
-    def test_stop_preserves_old_workers_when_reload_fails(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.workers = {}
-
-        with (
-            patch.object(ps, "fork_and_reload", return_value=False) as mock_fr,
-            patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(_process_state, "server_phoenix", True),
-        ):
-            ps.stop()
-
-        mock_fr.assert_called_once()
-        mock_swg.assert_not_called()
-        ps.logger.error.assert_called()
-
-    def test_stop_shuts_down_workers_when_reload_succeeds(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.workers = {}
-
-        with (
-            patch.object(ps, "fork_and_reload", return_value=True),
-            patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(_process_state, "server_phoenix", True),
-        ):
-            ps.stop()
-
-        mock_swg.assert_called_once()
-
-
 class TestOnStopFuncsModuleLevel:
     @pytest.fixture(autouse=True)
     def _restore(self, srv):
@@ -2290,8 +1775,7 @@ class TestOnStopFuncsModuleLevel:
         srv.CommonServer.register_on_stop_hook(cb)
         assert len(_base_server._on_stop_hooks) == before + 1
 
-        instance = object.__new__(srv.CommonServer)
-        instance.logger = MagicMock()
+        instance = common_server()
         instance.stop()
         cb.assert_called_once()
 
@@ -2344,18 +1828,18 @@ class TestMemoryLogStrings:
         assert "RSS" in message
         assert "irtual" not in message and "VMS" not in message
 
-    def test_event_server_process_limits_reports_RSS(self, event_server):
-        event_server.ppid = os.getppid()
-        event_server._process_handle = MagicMock()
+    def test_event_server_process_limits_reports_RSS(self, websocket_server):
+        websocket_server.ppid = os.getppid()
+        websocket_server._process_handle = MagicMock()
         cfg = {"limit_memory_soft_gevent": 100, "limit_memory_soft": 0}
         with (
             server_settings.override(**cfg),
             patch("odoo.service._limits.get_memory_rss", return_value=500),
             patch.object(_threaded.os, "kill"),
         ):
-            event_server.check_limits()
+            websocket_server.check_limits()
 
-        message = self._only_message(event_server.logger)
+        message = self._only_message(websocket_server.logger)
         assert "RSS" in message
         assert "irtual" not in message and "VMS" not in message
 
@@ -2375,18 +1859,14 @@ class TestMemoryLogStrings:
 
 
 @pytest.fixture
-def event_server(srv):
-    obj = object.__new__(srv.EventServer)
-    obj.interface = "127.0.0.1"
-    obj.port = 0
-    obj.app = MagicMock()
-    obj.logger = MagicMock()
+def websocket_server(srv):
+    obj = build_websocket_server(port=0)
     obj.httpd = None
     obj.pid = os.getpid()
     return obj
 
 
-class TestEventServerGracefulStop:
+class TestWebsocketServerGracefulStop:
     @pytest.fixture(autouse=True)
     def _restore_callbacks(self, srv):
         original = list(_base_server._on_stop_hooks)
@@ -2394,18 +1874,18 @@ class TestEventServerGracefulStop:
         _base_server._on_stop_hooks[:] = original
 
     @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
-    def test_quit_handler_raises_keyboard_interrupt(self, event_server, sig):
+    def test_quit_handler_raises_keyboard_interrupt(self, websocket_server, sig):
         with pytest.raises(KeyboardInterrupt):
-            event_server._quit_signal_handler(sig, None)
+            websocket_server._quit_signal_handler(sig, None)
 
     @pytest.mark.skipif(os.name != "posix", reason="POSIX signal handlers")
-    def test_start_installs_sigint_and_sigterm(self, event_server):
+    def test_start_installs_sigint_and_sigterm(self, websocket_server):
         with (
             patch.object(signal, "signal") as mock_signal,
-            patch.object(werkzeug.serving, "make_server", return_value=MagicMock()),
+            patch.object(_threaded, "ThreadedHTTPServer", return_value=MagicMock()),
             patch.object(threading, "Thread"),
         ):
-            event_server.start()
+            websocket_server.start()
 
         wired = {
             c.args[0]: c.args[1]
@@ -2414,61 +1894,95 @@ class TestEventServerGracefulStop:
         }
         assert signal.SIGINT in wired, "SIGINT handler not installed"
         assert signal.SIGTERM in wired, "SIGTERM handler not installed"
-        assert wired[signal.SIGINT] == event_server._quit_signal_handler
-        assert wired[signal.SIGTERM] == event_server._quit_signal_handler
+        assert wired[signal.SIGINT] == websocket_server._quit_signal_handler
+        assert wired[signal.SIGTERM] == websocket_server._quit_signal_handler
 
-    def test_stop_tolerates_unstarted_httpd_and_runs_hooks(self, srv, event_server):
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX signal handlers")
+    def test_the_watchdog_starts_only_once_the_server_is_serving(
+        self, websocket_server
+    ):
+        """Measured 2026-09-15 under a memory limit the process was already
+        over at boot: the watchdog's SIGTERM landed while `start()` was still
+        creating the HTTP server, the KeyboardInterrupt escaped `run()` as an
+        uncaught traceback, and the master counted the evented child as
+        crashed by signal and backed off -- HTTP workers included."""
+        order = []
+        httpd = MagicMock()
+        httpd.serve_forever.side_effect = lambda: order.append("serve")
+
+        class _Thread:
+            def __init__(self, **kwargs):
+                self.target = kwargs["target"]
+
+            def start(self):
+                order.append(("watchdog", self.target.__name__))
+
+        with (
+            patch.object(signal, "signal"),
+            patch.object(
+                _threaded,
+                "ThreadedHTTPServer",
+                side_effect=lambda *a, **k: (order.append("httpd"), httpd)[1],
+            ),
+            patch.object(threading, "Thread", _Thread),
+        ):
+            websocket_server.start()
+        assert order == ["httpd", ("watchdog", "run_watchdog"), "serve"]
+        assert websocket_server.httpd is httpd
+
+    def test_stop_tolerates_unstarted_httpd_and_runs_hooks(self, srv, websocket_server):
         sentinel = MagicMock()
         sentinel.__name__ = "sentinel"
         srv.CommonServer.register_on_stop_hook(sentinel)
-        event_server.httpd = None
-        event_server.stop()
+        websocket_server.httpd = None
+        websocket_server.stop()
         sentinel.assert_called_once()
 
-    def test_run_runs_stop_even_when_start_raises(self, srv, event_server):
+    def test_run_runs_stop_even_when_start_raises(self, srv, websocket_server):
         sentinel = MagicMock()
         sentinel.__name__ = "sentinel"
         srv.CommonServer.register_on_stop_hook(sentinel)
-        event_server.httpd = MagicMock()
-        with patch.object(event_server, "start", side_effect=RuntimeError("boom")):
+        websocket_server.httpd = MagicMock()
+        with patch.object(websocket_server, "start", side_effect=RuntimeError("boom")):
             with pytest.raises(RuntimeError, match="boom"):
-                event_server.run()
+                websocket_server.run()
         sentinel.assert_called_once()
-        event_server.httpd.server_close.assert_called_once()
-        event_server.httpd.shutdown.assert_not_called()
+        websocket_server.httpd.server_close.assert_called_once()
+        websocket_server.httpd.shutdown.assert_not_called()
 
-    def test_stop_completes_if_serve_forever_never_started(self, event_server):
-        event_server.httpd = werkzeug.serving.make_server(
-            "127.0.0.1", 0, lambda e, s: [], threaded=True
+    def test_stop_completes_if_serve_forever_never_started(self, websocket_server):
+        websocket_server.httpd = _threaded.ThreadedHTTPServer(
+            "127.0.0.1", 0, lambda e, s: []
         )
         try:
             done = threading.Event()
             threading.Thread(
-                target=lambda: (event_server.stop(), done.set()), daemon=True
+                target=lambda: (websocket_server.stop(), done.set()), daemon=True
             ).start()
             assert done.wait(5), (
                 "stop() hung on a never-started serve loop (shutdown deadlock)"
             )
         finally:
-            event_server.httpd.server_close()
+            websocket_server.httpd.server_close()
 
-    def test_stop_after_completed_serve_loop_double_close_ok(self, event_server):
-        event_server.httpd = werkzeug.serving.make_server(
-            "127.0.0.1", 0, lambda e, s: [], threaded=True
+    def test_stop_after_completed_serve_loop_double_close_ok(self, websocket_server):
+        websocket_server.httpd = _threaded.ThreadedHTTPServer(
+            "127.0.0.1", 0, lambda e, s: []
         )
-        t = threading.Thread(target=event_server.httpd.serve_forever, daemon=True)
+        t = threading.Thread(target=websocket_server.httpd.serve_forever, daemon=True)
         t.start()
-        event_server.httpd.shutdown()
+        websocket_server.httpd.shutdown()
         t.join(5)
         assert not t.is_alive()
-        event_server.stop()
+        websocket_server.stop()
 
 
 class TestProcessLimitRealTimeLog:
     def test_overrun_logs_fractional_seconds(self, srv):
-        ts = object.__new__(srv.ThreadedServer)
+        ts = threaded_server()
         ts.logger = MagicMock()
         ts.limits_reached_threads = set()
+        ts._overrun_start_times = {}
         ts.limit_reached_time = None
         ts._process_handle = MagicMock()
 
@@ -2497,75 +2011,6 @@ class TestProcessLimitRealTimeLog:
         assert "12.7" in rendered, f"fractional seconds must survive; got {rendered!r}"
 
 
-class _FakeConnection:
-    def shutdown(self, how):
-        pass
-
-    def close(self):
-        pass
-
-
-@pytest.fixture
-def bounded_server(srv):
-    import weakref
-
-    obj = object.__new__(srv.ThreadedWSGIServerReloadable)
-    obj.max_http_threads = 1
-    obj.http_threads_sem = threading.Semaphore(1)
-    obj._sem_released_requests = weakref.WeakSet()
-    return obj
-
-
-class TestHttpSlotReleaseOnWebsocketUpgrade:
-    def test_upgrade_releases_slot_early(self, bounded_server):
-        conn = _FakeConnection()
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        bounded_server.release_upgraded_request_slot(conn)
-        assert bounded_server.http_threads_sem.acquire(blocking=False), (
-            "the upgraded connection's slot must be free for the next request"
-        )
-
-    def test_shutdown_after_upgrade_does_not_double_release(self, bounded_server):
-        conn = _FakeConnection()
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        bounded_server.release_upgraded_request_slot(conn)
-        bounded_server.shutdown_request(conn)
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        assert not bounded_server.http_threads_sem.acquire(blocking=False), (
-            "a double release would inflate the bound beyond max_http_threads"
-        )
-
-    def test_release_is_noop_without_bound(self, srv):
-        obj = object.__new__(srv.ThreadedWSGIServerReloadable)
-        obj.max_http_threads = 0
-        obj.release_upgraded_request_slot(_FakeConnection())
-
-    def test_send_response_101_triggers_release(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = MagicMock()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(101)
-        handler.server.release_upgraded_request_slot.assert_called_once_with(
-            handler.request
-        )
-
-    def test_send_response_200_does_not_release(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = MagicMock()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(200)
-        handler.server.release_upgraded_request_slot.assert_not_called()
-
-    def test_send_response_101_survives_server_without_semaphore(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = object()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(101)
-
-
 class _StopHarness(BaseException):
     pass
 
@@ -2573,7 +2018,7 @@ class _StopHarness(BaseException):
 @pytest.fixture
 def listen_server(srv, monkeypatch):
     monkeypatch.setattr(threading.current_thread(), "start_time", None, raising=False)
-    s = object.__new__(srv.ThreadedServer)
+    s = threaded_server()
     s.logger = MagicMock()
     return s
 
@@ -2598,7 +2043,11 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
     ):
         with pytest.raises(_StopHarness):
             listen_server._run_listener_thread(
-                0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
+                0,
+                channel="cron_trigger",
+                process_jobs=process_jobs,
+                label="cron",
+                max_age=0,
             )
         calls["full_scans"] = db_list.call_count
     return calls
@@ -2665,19 +2114,17 @@ class TestListenThreadDoesNotSwallowUnwinds:
         _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
 
 
-class TestPreforkPhoenixStopTerminatesSurvivors:
+class TestPreforkStopTerminatesSurvivors:
     @pytest.fixture
     def phoenix_server(self, prefork_server):
         prefork_server.socket = None
         prefork_server.workers = {4242: MagicMock()}
-        prefork_server._drain_procs = {4242: MagicMock(is_running=lambda: True)}
         return prefork_server
 
     def test_survivor_is_sigtermed_after_cut_short_reload_drain(
         self, srv, phoenix_server, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
         )
@@ -2696,7 +2143,6 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
 
     def test_fully_drained_reload_kills_nothing(self, srv, phoenix_server, monkeypatch):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
 
         def drained(self):
             self.workers.clear()
@@ -2714,7 +2160,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         assert killed == []
 
 
-class TestPreforkPhoenixStopRunsOnStopHooks:
+class TestPreforkStopRunsOnStopHooks:
     @pytest.fixture
     def hooked(self, srv, monkeypatch):
         from odoo.service import _base_server
@@ -2726,14 +2172,12 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     def _phoenix(self, prefork_server):
         prefork_server.socket = None
         prefork_server.workers = {}
-        prefork_server._drain_procs = {}
         return prefork_server
 
     def test_successful_reload_runs_the_hooks(
         self, srv, prefork_server, hooked, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
         )
@@ -2749,7 +2193,6 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
         self, srv, prefork_server, hooked, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: False)
 
         self._phoenix(prefork_server).stop()
 
@@ -2801,7 +2244,11 @@ class TestListenThreadFirstPassIsImmediate:
         ):
             with pytest.raises(_StopHarness):
                 listen_server._run_listener_thread(
-                    0, channel="cron_trigger", process_jobs=MagicMock(), label="cron"
+                    0,
+                    channel="cron_trigger",
+                    process_jobs=MagicMock(),
+                    label="cron",
+                    max_age=0,
                 )
         return seen
 
@@ -2847,7 +2294,11 @@ class TestListenThreadFirstPassIsImmediate:
         ):
             with pytest.raises(_StopHarness):
                 listen_server._run_listener_thread(
-                    0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
+                    0,
+                    channel="cron_trigger",
+                    process_jobs=process_jobs,
+                    label="cron",
+                    max_age=0,
                 )
         process_jobs.assert_called_once_with("db1")
 
@@ -2909,6 +2360,8 @@ class TestWorkerCpuLimitHandoff:
         joined = []
 
         class _T:
+            name = "workthread"
+
             def start(self):
                 pass
 
@@ -2919,7 +2372,7 @@ class TestWorkerCpuLimitHandoff:
                 order.append(("join", timeout))
 
             def is_alive(self):
-                return False
+                return not joined
 
         with (
             patch.object(srv.Worker, "start", lambda self: None),
@@ -2937,6 +2390,42 @@ class TestWorkerCpuLimitHandoff:
         ].index("stop"), "joined after stop() closed resources"
         assert ("stop", False) in order, "self.alive was not cleared before stop()"
 
+    def test_a_second_sigxcpu_during_the_grace_join_is_not_a_crash(self, srv, multi):
+        """Linux re-sends SIGXCPU every second past the soft limit.  Measured
+        2026-09-15: the second one escaped `run()` as an uncaught error, the
+        worker exited 1, and the master held the respawn as a crash."""
+        w = srv.Worker(multi)
+        w.pid = os.getpid()
+        w.logger = MagicMock()
+        installed = []
+
+        class _T:
+            def start(self):
+                pass
+
+            def join(self, timeout=None):
+                if timeout is None:
+                    raise srv.CpuTimeLimitExceeded("cpu")
+                # A SIGXCPU landing during the grace join raises again unless
+                # the handler was disarmed first.
+                assert signal.getsignal(signal.SIGXCPU) is signal.SIG_IGN
+
+            def is_alive(self):
+                return False
+
+        previous = signal.getsignal(signal.SIGXCPU)
+        try:
+            with (
+                patch.object(srv.Worker, "start", lambda self: None),
+                patch.object(srv.Worker, "stop", lambda self: installed.append("stop")),
+                patch("odoo.service._worker.threading.Thread", lambda **kw: _T()),
+                server_settings.override(limit_time_cpu=1),
+            ):
+                assert w.run() is None
+        finally:
+            signal.signal(signal.SIGXCPU, previous)
+        assert installed == ["stop"]
+
 
 class TestTheStartupLineNamesTheSocketItActuallyGot:
     """Three ways to get a listening socket, three different things to say.
@@ -2949,22 +2438,26 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
 
     @staticmethod
     def _start(*, env, socket_activation):
-        server = object.__new__(_prefork.PreforkServer)
+        server = _prefork.PreforkServer(None)
         server.logger = MagicMock()
         server.interface, server.port, server.population = "127.0.0.1", 0, 1
         server.open_pipe = MagicMock(return_value=(0, 0))
-        server._remove_stale_censuses = MagicMock()
+        server._census = MagicMock()
         with (
             server_settings.override(
-                http_enable=True, http_socket_activation=socket_activation
+                http_enable=True,
+                http_socket_activation=socket_activation,
+                gevent_port=0,
             ),
             patch.object(signal, "signal"),
             patch.object(_prefork.socket, "socket") as mock_sock,
-            patch.dict(os.environ, env, clear=False),
+            patch.object(_prefork, "adopt_activated_socket", return_value=MagicMock()),
+            patch.object(
+                _prefork,
+                "take_inherited_socket",
+                return_value=MagicMock() if env else None,
+            ),
         ):
-            if "ODOO_HTTP_SOCKET_FD" not in env:
-                os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
-            server._set_socket_cloexec = MagicMock()
             server.start()
         said = " ".join(str(c.args[0]) for c in server.logger.info.call_args_list)
         return said, mock_sock
@@ -2986,8 +2479,13 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
         assert "running on %s:%s" not in said
 
 
-class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
+class TestAWatchdogKillOfAWorkerThatNeverGotReadyIsACrash:
     """`crashed_by_signal` is written for SIGKILL and was unreachable.
+
+    Refined 2026-09-15: the kill counts only when the worker never reported
+    ready -- a hang at boot.  A ready worker the watchdog kills over one long
+    request is a policy the master applied, and `TestPreforkRespawnBackoff`
+    pins that it does not damp the respawn.
 
     `kill_timed_out_workers` SIGKILLs a worker that stopped pinging, and
     `kill_worker` pops it so the watchdog cannot kill the same pid twice. But
@@ -3006,9 +2504,11 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     @staticmethod
     def _young_worker(server, pid):
         worker = MagicMock()
+        worker.__class__.__name__ = "WorkerHTTP"
         worker.spawn_time = time.monotonic() - 1.0
         worker.watchdog_timeout = 1
         worker.watchdog_time = time.monotonic() - 10
+        worker.ready = False  # hung before its work thread ever started
         server.workers[pid] = worker
         return worker
 
@@ -3018,8 +2518,8 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
             prefork_server.kill_timed_out_workers()
         assert 4242 not in prefork_server.workers, "the pop still has to happen"
         prefork_server._record_worker_exit(4242, signal.SIGKILL)
-        assert prefork_server._consecutive_fast_deaths == 1
-        assert prefork_server._respawn_not_before > 0, (
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 1
+        assert prefork_server._get_respawn_hold("WorkerHTTP").not_before > 0, (
             "a worker the watchdog killed young must damp the respawn, which "
             "is the loop the back-off exists for"
         )
@@ -3027,11 +2527,11 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     def test_a_worker_that_lived_long_enough_resets_it(self, prefork_server):
         worker = self._young_worker(prefork_server, 4243)
         worker.spawn_time = time.monotonic() - 600
-        prefork_server._consecutive_fast_deaths = 3
+        prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths = 3
         with patch.object(_prefork.os, "kill"):
             prefork_server.kill_timed_out_workers()
         prefork_server._record_worker_exit(4243, signal.SIGKILL)
-        assert prefork_server._consecutive_fast_deaths == 0
+        assert prefork_server._get_respawn_hold("WorkerHTTP").fast_deaths == 0
 
     def test_the_record_does_not_outlive_the_reap(self, prefork_server):
         self._young_worker(prefork_server, 4244)
@@ -3040,3 +2540,41 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
         assert prefork_server._killed_workers
         prefork_server._record_worker_exit(4244, signal.SIGKILL)
         assert not prefork_server._killed_workers, "kept a worker after its reap"
+
+
+class TestTheMasterNamesWhatATimedOutWorkerWasDoing:
+    def test_a_titled_worker_is_read_from_proc(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            _prefork.Path,
+            "read_bytes",
+            lambda self: b"odoo: WorkerHTTP 4242 GET /web/report/pdf\x00",
+        )
+        assert (
+            _prefork._read_process_title(4242) == "WorkerHTTP 4242 GET /web/report/pdf"
+        )
+
+    def test_a_plain_argv_says_nothing(self, monkeypatch):
+        monkeypatch.setattr(
+            _prefork.Path,
+            "read_bytes",
+            lambda self: b"python\x00odoo-bin\x00-c\x00x.conf",
+        )
+        assert _prefork._read_process_title(4242) == ""
+
+    def test_a_vanished_process_says_nothing(self):
+        assert _prefork._read_process_title(2**22 + 12345) == ""
+
+    def test_the_timeout_line_carries_it(self, prefork_server, monkeypatch):
+        worker = MagicMock()
+        worker.__class__.__name__ = "WorkerHTTP"
+        worker.watchdog_timeout = 1
+        worker.watchdog_time = time.monotonic() - 10
+        prefork_server.workers[4242] = worker
+        prefork_server.logger = MagicMock()
+        monkeypatch.setattr(
+            _prefork, "_read_process_title", lambda pid: "WorkerHTTP 4242 POST /x"
+        )
+        with patch.object(_prefork.os, "kill"):
+            prefork_server.kill_timed_out_workers()
+        said = str(prefork_server.logger.error.call_args)
+        assert "while WorkerHTTP 4242 POST /x" in said

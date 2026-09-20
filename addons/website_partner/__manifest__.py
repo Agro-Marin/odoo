@@ -19,5 +19,4 @@ This is a base module. It holds website-related stuff for Contact model (res.par
     "demo": [
         "demo/website_partner_demo.xml",
     ],
-    "installable": True,
 }

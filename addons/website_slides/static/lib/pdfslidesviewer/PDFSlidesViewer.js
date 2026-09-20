@@ -1,10 +1,3 @@
-/**
-    Homemade helper for browsing PDF document from page to page.
-    This is hightly inspired from https://github.com/mozilla/pdf.js/blob/master/examples/learning/prevnext.html
-    This lib requires PDF JS. It simply uses PDFjs and its promises.
-    DOC : http://mozilla.github.io/pdf.js/api/draft/api.js.html
-*/
-
 // !!!!!!!!! use globalThis.pdfjsLib and not pdfjsLib
 
 globalThis.PDFSlidesViewer = (function(){
@@ -27,7 +20,7 @@ globalThis.PDFSlidesViewer = (function(){
      * Load the PDF document
      */
     PDFSlidesViewer.prototype.loadDocument = async function() {
-        const file_content = await globalThis.pdfjsLib.getDocument(this.pdf_url).promise;
+        const file_content = await globalThis.pdfjsLib.getDocument({ url: this.pdf_url }).promise;
         this.pdf = file_content;
         this.pdf_page_total = file_content.numPages;
         return file_content;

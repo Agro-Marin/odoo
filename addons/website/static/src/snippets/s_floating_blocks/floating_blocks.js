@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_floating_blocks");
 
 export class FloatingBlocks extends Interaction {
     static selector = ".s_floating_blocks";
@@ -29,7 +32,7 @@ export class FloatingBlocks extends Interaction {
 
         this.boxesEls = this.el.querySelectorAll(".s_floating_blocks_block");
 
-        this.initialGap = 16; // Provide a visual gap by default
+        this.initialGap = 16;
         this.stackingGap = this.initialGap * 0.8;
 
         this.boxesTops = new WeakMap();
@@ -40,6 +43,10 @@ export class FloatingBlocks extends Interaction {
     }
 
     start() {
+        log.lifecycle("start", () => ({
+            blocks: this.boxesEls.length,
+            animated: this.boxesEls.length >= 2,
+        }));
         this.adaptToHeaderChange();
         this.registerCleanup(
             this.services.website_menus.registerCallback(
@@ -48,19 +55,20 @@ export class FloatingBlocks extends Interaction {
         );
 
         if (this.boxesEls.length >= 2) {
-            // The last block does not need to be animated
             this.boxesToAnimate = Array.from(this.boxesEls).slice(0, -1);
 
-            // Calculate the minimal scale based on number of animated cards.
-            // Each card decreases the scale by `this.boxScaleStep`.
             this.minimalScale = Math.max(
                 this.maximalScale -
                     this.boxScaleStep * (this.boxesToAnimate.length - 1),
-                0.7, // Safe-net to ensure we don't go below 0.7 for very large numbers of cards
+                0.7,
             );
 
-            // Calculate scale factors for each card
             this.boxesScaleStep = this.calculateScaleFactors();
+            log.pipeline("start: scale factors computed", () => ({
+                boxesToAnimate: this.boxesToAnimate.length,
+                minimalScale: this.minimalScale,
+                steps: this.boxesScaleStep.length,
+            }));
 
             this.onResize();
             this.onScroll();
@@ -69,10 +77,7 @@ export class FloatingBlocks extends Interaction {
     }
 
     /**
-     * Calculates proportional scale factors for each card and pre-compute
-     * transforms.
-     *
-     * @returns {Array<number>} Array of scale factors
+     * @returns {Array<number>}
      */
     calculateScaleFactors() {
         const boxesLength = this.boxesToAnimate.length;
@@ -81,7 +86,6 @@ export class FloatingBlocks extends Interaction {
             return boxesScaleStep;
         }
 
-        // If only one card to animate, use this.maximalScale
         if (boxesLength === 1) {
             boxesScaleStep.push(this.maximalScale);
             this.boxesScaleProp[0] = `scale3d(${this.maximalScale}, ${this.maximalScale}, ${this.maximalScale})`;
@@ -89,24 +93,18 @@ export class FloatingBlocks extends Interaction {
             return boxesScaleStep;
         }
 
-        // Calculate the step between each card's scale
         const scaleStep = (this.maximalScale - this.minimalScale) / (boxesLength - 1);
 
-        // Assign proportional scale factors and pre-compute transforms
         for (let i = 0; i < boxesLength; i++) {
             const scale = this.minimalScale + scaleStep * i;
             boxesScaleStep.push(scale);
 
-            // Pre-compute the transform string for this scale
             this.boxesScaleProp[i] = `scale3d(${scale}, ${scale}, ${scale})`;
         }
 
         return boxesScaleStep;
     }
 
-    /**
-     * Updates stacking offset of each box.
-     */
     adaptToHeaderChange() {
         let top = this.initialGap;
         for (const el of this.el.ownerDocument.querySelectorAll(
@@ -119,9 +117,6 @@ export class FloatingBlocks extends Interaction {
         });
     }
 
-    /**
-     * Adapts the zoom animation values.
-     */
     updateZoom() {
         const scrollTop = window.scrollY;
         this.boxesToAnimate.forEach((blockEl, i) => {
@@ -132,14 +127,11 @@ export class FloatingBlocks extends Interaction {
     }
 
     /**
-     * Computes a block transform based on given environment values.
-     *
-     * @param {number} blockGap - Gap between the block and its target position
-     * @param {number} index - Index of the block in boxesToAnimate array
-     * @returns {string} CSS transform value
+     * @param {number} blockGap
+     * @param {number} index
+     * @returns {string}
      */
     computeTransform(blockGap, index) {
-        // If block is at or above initial position, use the initial transform
         if (blockGap <= 0) {
             return "scale3d(1, 1, 1)";
         }
@@ -147,22 +139,13 @@ export class FloatingBlocks extends Interaction {
         const targetScale = this.boxesScaleStep[index];
         const scale = Math.max(targetScale, 1 - blockGap * this.snippetScaleFactor);
 
-        // Return pre-computed value if it's close enough to the target scale
         if (Math.abs(scale - targetScale) < 0.001) {
             return this.boxesScaleProp[index];
         }
 
-        // Calculate and return the transform for intermediate values
         return `scale3d(${scale}, ${scale}, ${scale})`;
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    /**
-     * On page resize, updates the animation.
-     */
     onResize() {
         this.viewportHeight = window.innerHeight;
         this.snippetHeight = Math.min(
@@ -171,19 +154,19 @@ export class FloatingBlocks extends Interaction {
         );
         this.snippetOffset = this.el.getBoundingClientRect().y + window.scrollY;
         this.snippetScaleFactor = 1 / (this.snippetHeight * 12);
+        log.pipeline("onResize: geometry recomputed", () => ({
+            viewportHeight: this.viewportHeight,
+            snippetHeight: this.snippetHeight,
+            snippetOffset: this.snippetOffset,
+        }));
 
         this.updateZoom();
     }
 
-    /**
-     * On page scroll, updates the animation.
-     */
     onScroll() {
         this.updateZoom();
     }
     /**
-     * Support Shift+Tab navigation
-     *
      * @param {KeyboardEvent} ev
      */
     onKeydown(ev) {
@@ -206,8 +189,14 @@ export class FloatingBlocks extends Interaction {
         ) {
             return;
         }
-        // Account for `.gap-5` on the container.
         const gap = convertNumericToUnit(3, "rem", "px", getHtmlStyle(document));
+        log.logic(
+            "onShiftTabFocusout: focus left block backwards, scrolling up",
+            () => ({
+                snippetHeight: this.snippetHeight,
+                gap,
+            }),
+        );
         scrollTo(0, window.scrollY - (this.snippetHeight + gap));
     }
 }

@@ -1,10 +1,13 @@
 from typing import Literal
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import (
     email_normalize,
     email_split_and_format,
     parse_contact_from_email,
 )
+
+_debug = DebugLog(__name__)
 
 
 def email_comparison_key(email: str | Literal[False] | None) -> str:
@@ -30,4 +33,10 @@ def dedupe_emails_by_key(
                 and parse_contact_from_email(email)[0]
             ):
                 by_key[key] = email
+    _debug.logic(
+        "emails_deduped",
+        inputs=len(email_inputs),
+        kept=len(by_key),
+        skip_keys=len(skip_keys),
+    )
     return list(by_key.values())

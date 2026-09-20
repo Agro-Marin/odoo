@@ -1,6 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.chat_window");
 /** @typedef {{ thread?: import("models").Thread }} ChatWindowData */
 
 export class ChatWindow extends Record {
@@ -57,6 +60,7 @@ export class ChatWindow extends Record {
     }
 
     /**
+     * @this {import("models").ChatWindow}
      * @param {Object} [options={}]
      * @param {boolean} [options.escape=false]
      * @param {boolean} [options.notifyState=true]
@@ -67,12 +71,14 @@ export class ChatWindow extends Record {
         options.notifyState ??= true;
         const chatHub = this.store.chatHub;
         const indexAsOpened = chatHub.opened.findIndex((w) => w.eq(this));
-        this.store.chatHub.opened.delete(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
-        this.store.chatHub.folded.delete(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
+        log.logic("close", () => ({
+            thread: this.thread?.localId,
+            escape,
+            notifyState: options.notifyState,
+            indexAsOpened,
+        }));
+        this.store.chatHub.opened.delete(this);
+        this.store.chatHub.folded.delete(this);
         if (options.notifyState) {
             this.store.chatHub.save();
         }
@@ -94,22 +100,19 @@ export class ChatWindow extends Record {
         }
     }
 
+    /** @this {import("models").ChatWindow} */
     async fold() {
         await this.store.chatHub.initPromise;
-        this.store.chatHub.opened.delete(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
-        this.store.chatHub.folded.delete(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
-        this.store.chatHub.folded.unshift(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
+        log.logic("fold", () => ({ thread: this.thread?.localId }));
+        this.store.chatHub.opened.delete(this);
+        this.store.chatHub.folded.delete(this);
+        this.store.chatHub.folded.unshift(this);
         this.store.chatHub.save();
         this.bypassCompact = false;
     }
 
     /**
+     * @this {import("models").ChatWindow}
      * @param {Object} [options]
      * @param {boolean} [options.focus=false]
      * @param {boolean} [options.notifyState=true]
@@ -123,28 +126,19 @@ export class ChatWindow extends Record {
         swapOpened = true,
     } = {}) {
         await this.store.chatHub.initPromise;
+        log.logic("open", () => ({
+            thread: this.thread?.localId,
+            focus,
+            notifyState,
+            jumpToNewMessage,
+            swapOpened,
+            alreadyOpened: this.isOpen,
+        }));
         this.store.env.bus.trigger("ChatWindow:will-open");
-        this.store.chatHub.folded.delete(
-            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
-        );
-        if (
-            swapOpened ||
-            !this.store.chatHub.opened.includes(
-                /** @type {import("models").ChatWindow} */ (
-                    /** @type {unknown} */ (this)
-                ),
-            )
-        ) {
-            this.store.chatHub.opened.delete(
-                /** @type {import("models").ChatWindow} */ (
-                    /** @type {unknown} */ (this)
-                ),
-            );
-            this.store.chatHub.opened.unshift(
-                /** @type {import("models").ChatWindow} */ (
-                    /** @type {unknown} */ (this)
-                ),
-            );
+        this.store.chatHub.folded.delete(this);
+        if (swapOpened || !this.store.chatHub.opened.includes(this)) {
+            this.store.chatHub.opened.delete(this);
+            this.store.chatHub.opened.unshift(this);
         }
         if (notifyState) {
             this.store.chatHub.save();

@@ -7,7 +7,7 @@ from lxml import etree
 
 from odoo.tests import tagged
 
-from .lint_case import LintCase, _module_roots
+from .lint_case import LintCase, _module_roots, is_core_path
 
 _logger = logging.getLogger(__name__)
 
@@ -59,11 +59,12 @@ class ButtonTargetLinter(LintCase):
             ".js": cls._scan_js,
         }
         for root in _module_roots():
+            core = is_core_path(root)
             for path in Path(root).rglob("*"):
                 if "__pycache__" in path.parts:
                     continue
                 if scan := scanners.get(path.suffix):
-                    scan(path)
+                    scan(path, core)
         _logger.info(
             "%s method definitions, %s dispatch sites",
             len(cls.defined),
@@ -78,12 +79,12 @@ class ButtonTargetLinter(LintCase):
             return None
 
     @classmethod
-    def _scan_python(cls, path):
+    def _scan_python(cls, path, core):
         source = cls._read(path)
         if source is None:
             return
         cls.defined.update(re.findall(r"\bdef ([A-Za-z_]\w*)", source))
-        if "action_" not in source:
+        if not core or "action_" not in source:
             return
         try:
             tree = ast.parse(source)
@@ -98,7 +99,9 @@ class ButtonTargetLinter(LintCase):
                 cls.dispatches.append((path, node.lineno, node.func.attr, "call"))
 
     @classmethod
-    def _scan_xml(cls, path):
+    def _scan_xml(cls, path, core):
+        if not core:
+            return
         try:
             tree = etree.parse(str(path), _PARSER)
         except etree.XMLSyntaxError, OSError:
@@ -120,9 +123,9 @@ class ButtonTargetLinter(LintCase):
                     )
 
     @classmethod
-    def _scan_js(cls, path):
+    def _scan_js(cls, path, core):
         source = cls._read(path)
-        if source is None or "action_" not in source:
+        if not core or source is None or "action_" not in source:
             return
         for pattern in JS_DISPATCH:
             for match in pattern.finditer(source):

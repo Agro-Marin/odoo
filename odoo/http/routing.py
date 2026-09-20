@@ -5,18 +5,19 @@ import functools
 import inspect
 import logging
 import warnings
-from collections.abc import Callable, Collection, Generator, Iterable
+from collections.abc import Callable, Generator, Iterable
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import werkzeug.routing
 
-from odoo.tools import unique
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import submap
 
-from ._params import get_param_specs
-from .constants import ROUTING_KEYS
-from .controller import Controller, _get_classes_newest_by_identity
+from ._params import ParamSpec, get_param_specs
+from .constants import DEFAULT_ALLOWED_METHODS, ROUTING_KEYS, SAFE_HTTP_METHODS
+from .controller import Controller, _get_controllers
+from .exceptions import ParameterError
 
 if TYPE_CHECKING:
     from ._protocols import Endpoint, HasRouting, RoutedMethod
@@ -25,6 +26,7 @@ from .dispatcher import _dispatchers
 from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _KNOWN_ROUTING_PARAMETERS: set[str] = {
     "auth",
@@ -38,6 +40,7 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
     "max_content_length",
     "readonly",
     "save_session",
+    "statement_timeout",
     "type",
     "typed",
     *ROUTING_KEYS,
@@ -50,6 +53,11 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
 
 def register_routing_parameters(*names: str) -> None:
     _KNOWN_ROUTING_PARAMETERS.update(names)
+    _debug.lifecycle(
+        "http.routing.parameters_registered",
+        added=len(names),
+        known=len(_KNOWN_ROUTING_PARAMETERS),
+    )
 
 
 class RouteDefinitionError(ValueError):
@@ -76,6 +84,7 @@ class LazyCompiledBuilder:
         if fn is None:
             fn = self._compile_builder(self._append_unknown).__get__(self.rule, None)
             self._callable = fn
+            _debug.lifecycle("http.rule.builder_compiled", rule=self.rule.rule)
         return fn(*args, **kwargs)
 
 
@@ -87,8 +96,14 @@ class FasterRule(werkzeug.routing.Rule):
 def prepare_rule_kwargs(endpoint: HasRouting) -> dict[str, Any]:
     routing = dict(submap(endpoint.routing, ROUTING_KEYS))
     methods = routing.get("methods")
-    if methods is not None and "OPTIONS" not in methods:
+    if methods is None:
+        methods = (
+            SAFE_HTTP_METHODS if routing.get("websocket") else DEFAULT_ALLOWED_METHODS
+        )
+    if "OPTIONS" not in methods:
         routing["methods"] = [*methods, "OPTIONS"]
+    else:
+        routing["methods"] = methods
     return routing
 
 
@@ -97,18 +112,26 @@ def prepare_routing_map(
     converters: dict[str, type] | None = None,
 ) -> werkzeug.routing.Map:
     routing_map = werkzeug.routing.Map(strict_slashes=False, converters=converters)
-    for url, endpoint in rules:
-        rule = FasterRule(url, endpoint=endpoint, **prepare_rule_kwargs(endpoint))
-        rule.merge_slashes = False
-        routing_map.add(rule)
+    with _debug.perf("http.routing_map.prepare") as span:
+        for url, endpoint in rules:
+            rule = FasterRule(url, endpoint=endpoint, **prepare_rule_kwargs(endpoint))
+            rule.merge_slashes = False
+            routing_map.add(rule)
+        span.set(rules=len(routing_map._rules))
     return routing_map
 
 
-def _get_endpoint_param_acceptance(
-    endpoint: Callable,
-) -> tuple[bool, frozenset[str], str]:
+class _EndpointSignature(NamedTuple):
+    accepts_var_keyword: bool
+    accepted: frozenset[str]
+    required: frozenset[str]
+    bound_self_name: str
+
+
+def _get_endpoint_signature(endpoint: Callable) -> _EndpointSignature:
     accepts_var_keyword = False
     named: set[str] = set()
+    required: set[str] = set()
     params = list(
         inspect.signature(
             endpoint, annotation_format=annotationlib.Format.FORWARDREF
@@ -123,7 +146,11 @@ def _get_endpoint_param_acceptance(
             inspect.Parameter.KEYWORD_ONLY,
         ):
             named.add(param.name)
-    return accepts_var_keyword, frozenset(named), bound_self_name
+            if param.default is inspect.Parameter.empty:
+                required.add(param.name)
+    return _EndpointSignature(
+        accepts_var_keyword, frozenset(named), frozenset(required), bound_self_name
+    )
 
 
 def _apply_param_specs(endpoint: Endpoint, specs: dict[str, Any] | None) -> None:
@@ -133,10 +160,6 @@ def _apply_param_specs(endpoint: Endpoint, specs: dict[str, Any] | None) -> None
         if specs
         else None
     )
-
-
-def _get_original_endpoint(method: Any) -> Callable:
-    return method.original_endpoint
 
 
 def _check_cors_credentials(who: str, routing: Any) -> None:
@@ -170,6 +193,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 stacklevel=2,
             )
             routing["type"] = "jsonrpc"
+            _debug.logic("http.route.deprecated_type", endpoint=fname, declared="json")
         route_type = routing.get("type", "http")
         if route_type not in _dispatchers:
             raise ValueError(
@@ -183,7 +207,20 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 "%s defined with invalid routing parameter 'method', assuming 'methods'",
                 fname,
             )
-            routing["methods"] = wrong
+            # Honor the "assuming" promise for the typo's most common shape,
+            # a single method string, instead of raising two lines below
+            # about a parameter the author never wrote.
+            routing["methods"] = (wrong,) if isinstance(wrong, str) else wrong
+            _debug.logic("http.route.parameter_typo", endpoint=fname, given="method")
+        methods = routing.get("methods")
+        if methods is not None:
+            if isinstance(methods, str):
+                raise ValueError(
+                    "@route(methods=...) requires a collection of method names"
+                )
+            routing["methods"] = tuple(
+                dict.fromkeys(method.upper() for method in methods)
+            )
         _check_cors_credentials(fname, routing)
         unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
         if unknown:
@@ -194,13 +231,26 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
                 sorted(unknown),
             )
+            _debug.logic(
+                "http.route.unknown_parameters",
+                endpoint=fname,
+                unknown=",".join(sorted(unknown)),
+            )
 
-        accepts_var_keyword, accepted_params, bound_self_name = (
-            _get_endpoint_param_acceptance(endpoint)
+        accepts_var_keyword, accepted_params, required_params, bound_self_name = (
+            _get_endpoint_signature(endpoint)
         )
 
         @functools.wraps(endpoint)
         def route_wrapper(controller_self, /, *args, **params):
+            if not args and not params.keys() >= required_params:
+                missing = sorted(required_params - params.keys())
+                _debug.logic(
+                    "http.route.params_missing",
+                    endpoint=fname,
+                    missing=",".join(missing),
+                )
+                raise ParameterError(f"missing required parameter(s) {missing}")
             if accepts_var_keyword:
                 params_ok = params
                 params_ko = None
@@ -217,6 +267,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 params_ko = params.keys() - accepted_params
             if params_ko:
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
+                _debug.logic(
+                    "http.route.params_ignored",
+                    endpoint=fname,
+                    ignored=",".join(sorted(params_ko)),
+                )
 
             result = endpoint(controller_self, *args, **params_ok)
             if _get_route_type_effective(routing) == "http":
@@ -226,163 +281,102 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         routed = cast("RoutedMethod", route_wrapper)
         routed.original_routing = routing
         routed.original_endpoint = endpoint
+        _debug.lifecycle(
+            "http.route.declared",
+            endpoint=fname,
+            type=route_type,
+            routes=len(routing.get("routes", ())),
+            auth=routing.get("auth"),
+            typed=bool(routing.get("typed")),
+        )
         return route_wrapper
 
     return decorator
 
 
-def _is_from_installed_addon(cls: type, modules: Collection[str]) -> bool:
-    path = cls.__module__.split(".")
-    return path[:2] == ["odoo", "addons"] and path[2] in modules
+class _ResolvedRoute(NamedTuple):
+    routing: dict[str, Any]
+    method: Any
+    param_specs: dict[str, ParamSpec] | None
 
 
-def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
-    result = []
-    for subcls in cls.__subclasses__():
-        if _is_from_installed_addon(subcls, modules):
-            result.extend(_get_leaf_classes(subcls, modules))
-    if not result and _is_from_installed_addon(cls, modules):
-        result.append(cls)
-    return _get_classes_newest_by_identity(result)
-
-
-def _group_controller_trees(
-    trees: Iterable[tuple[type, list[type]]],
-) -> list[tuple[type, list[type]]]:
-    groups: list[list[type]] = []
-    tops: list[type] = []
-    owner: dict[type, int] = {}
-
-    for top_ctrl, leaves in trees:
-        if not leaves:
-            continue
-        hits = sorted({owner[leaf] for leaf in leaves if leaf in owner})
-        if hits:
-            target, *also = hits
-            for other in also:
-                groups[target].extend(groups[other])
-                groups[other] = []
-            groups[target] = _get_classes_newest_by_identity([*groups[target], *leaves])
-        else:
-            target = len(groups)
-            groups.append(list(leaves))
-            tops.append(top_ctrl)
-        for leaf in groups[target]:
-            owner[leaf] = target
-
-    return [(tops[i], group) for i, group in enumerate(groups) if group]
-
-
-def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
-    yield from (ctrl() for ctrl in Controller.children_classes.get("", []))
-
-    highest_controllers = []
-    for module in modules:
-        highest_controllers.extend(Controller.children_classes.get(module, []))
-
-    trees = (
-        (top_ctrl, _get_leaf_classes(top_ctrl, modules))
-        for top_ctrl in highest_controllers
-    )
-
-    for top_ctrl, leaf_controllers in _group_controller_trees(trees):
-        name = top_ctrl.__name__
-        if leaf_controllers != [top_ctrl]:
-            extended_by = ", ".join(
-                bot_ctrl.__name__
-                for bot_ctrl in leaf_controllers
-                if bot_ctrl is not top_ctrl
-            )
-            name += f" (extended by {extended_by})"
-
-        try:
-            Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
-        except TypeError:
-            _logger.error(
-                "Cannot combine the controllers %s: they extend a shared base "
-                "in incompatible orders, so no method resolution order exists "
-                "for them. Their routes are not served. Make the base order "
-                "agree between them. (%s)",
-                ", ".join(f"{c.__module__}.{c.__qualname__}" for c in leaf_controllers),
-                " / ".join(
-                    f"{c.__name__}: {' -> '.join(b.__name__ for b in c.__mro__[:-2])}"
-                    for c in leaf_controllers
-                ),
-            )
-            continue
-        yield Ctrl()
-
-
-def _is_route(ctrl: Controller, method_name: str) -> bool:
-    return any(
-        getattr(getattr(cls, method_name, None), "original_routing", None) is not None
-        for cls in type(ctrl).mro()
-    )
-
-
-def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
-    merged_routing: dict[str, Any] = {"auth": "user", "methods": None, "routes": []}
-    ancestors = [
-        cls
+def _resolve_route(ctrl: Controller, method_name: str) -> _ResolvedRoute | None:
+    definitions = [
+        (cls, getattr(cls, method_name))
         for cls in reversed(type(ctrl).mro())
-        if cls is not Controller and cls is not object
+        if cls is not Controller and cls is not object and method_name in cls.__dict__
     ]
-    defining_cls = None
-    for cls in unique(ancestors):
-        if method_name not in cls.__dict__:
-            continue
-        submethod = getattr(cls, method_name)
+    if not any(hasattr(submethod, "original_routing") for _, submethod in definitions):
+        return None
 
-        if not hasattr(submethod, "original_routing"):
-            _logger.warning(
-                "The endpoint %s is overridden without @route(); skipping this override.",
-                f"{cls.__module__}.{cls.__name__}.{method_name}",
-            )
-            continue
-
-        defining_cls = cls
+    merged_routing: dict[str, Any] = {"auth": "user", "methods": None, "routes": []}
+    decorated: list[tuple[type, Any]] = []
+    for cls, submethod in definitions:
         try:
+            if not hasattr(submethod, "original_routing"):
+                _debug.logic(
+                    "http.route.override_unrouted",
+                    controller=cls.__qualname__,
+                    method=method_name,
+                )
+                e = (
+                    f"{cls.__module__}.{cls.__name__}.{method_name} overrides a "
+                    f"route without @route(). An undecorated override cannot be "
+                    f"served: the URL would answer with whichever body the "
+                    f"framework picked, not the one you wrote. Decorate it "
+                    f"(@route() with no arguments inherits the parent's routing)."
+                )
+                raise RouteDefinitionError(e)
             fragment = _prepare_route_fragment(cls, submethod, merged_routing)
         except RouteDefinitionError as exc:
             _logger.error("%s The route is not served.", exc)
+            _debug.logic(
+                "http.route.skipped", reason="definition_error", method=method_name
+            )
             return None
+        decorated.append((cls, submethod))
         merged_routing.update(fragment)
 
+    owner, implementation = decorated[-1]
     if not merged_routing["routes"]:
-        owner = defining_cls if defining_cls is not None else type(ctrl)
         _logger.warning(
             "%s is a controller endpoint without any route, skipping.",
             f"{owner.__module__}.{owner.__name__}.{method_name}",
         )
+        _debug.logic("http.route.skipped", reason="no_routes", method=method_name)
         return None
 
     _check_cors_credentials(f"{type(ctrl).__name__}.{method_name}", merged_routing)
     merged_routing.setdefault("save_session", merged_routing["auth"] != "bearer")
-    if isinstance(merged_routing.get("methods"), list):
-        merged_routing["methods"] = tuple(merged_routing["methods"])
-    return merged_routing
+
+    specs: dict[str, ParamSpec] | None = None
+    if merged_routing.get("typed"):
+        specs = {}
+        for _cls, submethod in decorated:
+            specs = get_param_specs(submethod.original_endpoint, specs)
+    return _ResolvedRoute(
+        merged_routing, implementation.__get__(ctrl, type(ctrl)), specs
+    )
 
 
 def _generate_routing_rules(
     modules: list[str], nodb_only: bool
 ) -> Generator[tuple[str, Endpoint]]:
+    controllers = endpoints = rules = skipped_nodb = typed = 0  # debuglog
     for ctrl in _get_controllers(modules):
-        for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
-            if not _is_route(ctrl, method_name):
+        controllers += 1  # debuglog
+        for method_name, _member in inspect.getmembers(ctrl, inspect.ismethod):
+            resolved = _resolve_route(ctrl, method_name)
+            if resolved is None:
                 continue
-
-            merged_routing = _merge_routing(ctrl, method_name)
-            if merged_routing is None:
-                continue
+            merged_routing, method, param_specs = resolved
             if nodb_only and merged_routing["auth"] != "none":
+                skipped_nodb += 1  # debuglog
                 continue
 
             frozen_routing = MappingProxyType(merged_routing)
-            param_specs = (
-                get_param_specs(_get_original_endpoint(method))
-                if merged_routing.get("typed")
-                else None
-            )
+            endpoints += 1  # debuglog
+            typed += bool(param_specs)  # debuglog
 
             for url in merged_routing["routes"]:
                 partial = functools.partial(method)
@@ -390,8 +384,18 @@ def _generate_routing_rules(
                 endpoint = cast("Endpoint", partial)
                 endpoint.routing = frozen_routing
                 _apply_param_specs(endpoint, param_specs)
+                rules += 1  # debuglog
 
                 yield (url, endpoint)
+    _debug.pipeline(
+        "http.routing.rules_generated",
+        nodb_only=nodb_only,
+        controllers=controllers,
+        endpoints=endpoints,
+        rules=rules,
+        typed=typed,
+        skipped_nodb=skipped_nodb,
+    )
 
 
 def _prepare_route_fragment(
@@ -403,6 +407,12 @@ def _prepare_route_fragment(
     declared_type = fragment.get("type")
     if declared_type not in (None, routing_type):
         where = f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}"
+        _debug.logic(
+            "http.route.type_conflict",
+            where=where,
+            parent=routing_type,
+            override=declared_type,
+        )
         e = (
             f"{where} overrides a type={routing_type!r} route with "
             f"type={declared_type!r}. One URL has one dispatcher, so the merged "
@@ -428,6 +438,12 @@ def _prepare_route_fragment(
             "readonly" if child_readonly else "read/write",
             "readonly" if parent_readonly else "read/write",
         )
+        _debug.logic(
+            "http.route.readonly_conflict",
+            method=submethod.__name__,
+            parent_readonly=bool(parent_readonly),
+            child_readonly=bool(child_readonly),
+        )
         fragment["readonly"] = False
     return fragment
 
@@ -436,6 +452,7 @@ def fragment_to_query_string(func: Callable) -> Callable:
     @functools.wraps(func)
     def fragment_wrapper(self, *a, **kw):
         if not (kw.keys() - {"debug"}):
+            _debug.logic("http.route.fragment_redirect", endpoint=func.__qualname__)
             return Response("""<!DOCTYPE html>
             <html><head><script>
                 (function () {

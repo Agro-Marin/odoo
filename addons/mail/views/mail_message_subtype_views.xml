@@ -51,8 +51,8 @@
                 <field name="res_model" />
                 <field name="description" />
                 <filter
-                    string="Default"
                     name="filter_default"
+                    string="Default"
                     domain="[('default', '=', True)]" />
             </search>
         </field>

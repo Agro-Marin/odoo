@@ -40,10 +40,7 @@ def comparable(source: bytes) -> list:
 
     tree = etree.parse(BytesIO(source), PARSER)
     root = tree.getroot()
-    prologue: list = [
-        source.lstrip().startswith(b"<?xml"),
-        tree.docinfo.doctype,
-    ]
+    prologue: list = [tree.docinfo.doctype]
     node = root.getprevious()
     while node is not None:
         prologue.append(("#comment" if callable(node.tag) else node.tag, node.text))

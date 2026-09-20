@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_image_gallery");
 
 export class Gallery extends Interaction {
     static selector = ".s_image_gallery:not(.o_slideshow)";
@@ -21,22 +24,21 @@ export class Gallery extends Interaction {
     }
 
     /**
-     * Called when an image is clicked. Opens a dialog to browse all the images
-     * with a bigger size.
-     *
      * @param {Event} ev
      */
     onClickImg(ev) {
         const clickedEl = ev.currentTarget;
         if (this.modalEl || clickedEl.matches("a > img")) {
+            log.logic("onClickImg: ignored", () => ({
+                modalOpen: !!this.modalEl,
+                linkedImage: clickedEl.matches("a > img"),
+            }));
             return;
         }
 
         let imageEls = this.el.querySelectorAll("img");
         const currentImageEl = clickedEl.closest("img");
         const currentImageIndex = [...imageEls].indexOf(currentImageEl);
-        // We need to reset the images to their original source because it might
-        // have been changed by a mouse event (e.g. "hover effect" animation).
         imageEls = [...imageEls].map((el, i) => {
             const cloneEl = el.cloneNode(true);
             cloneEl.src = this.originalSources[i];
@@ -59,6 +61,11 @@ export class Gallery extends Interaction {
                 ? "website.gallery.s_image_gallery_mirror.lightbox"
                 : "website.gallery.slideshow.lightbox";
 
+        const endRender = log.perf("onClickImg render lightbox", () => ({
+            template: lightboxTemplate,
+            images: imageEls.length,
+            index: currentImageIndex,
+        }));
         this.modalEl = renderToElement(lightboxTemplate, {
             images: imageEls,
             index: currentImageIndex,
@@ -67,23 +74,22 @@ export class Gallery extends Interaction {
             ride: !milliseconds ? "false" : "carousel",
             id: uniqueId("slideshow_"),
         });
+        endRender();
 
         this.onModalKeydownBound = this.onModalKeydown.bind(this);
 
         this.modalEl.addEventListener("hidden.bs.modal", () => {
             this.modalEl.classList.add("d-none");
             for (const backdropEl of this.modalEl.querySelectorAll(".modal-backdrop")) {
-                backdropEl.remove(); // bootstrap leaves a modal-backdrop
+                backdropEl.remove();
             }
             const slideshowEl = this.modalEl.querySelector(".modal-body.o_slideshow");
             this.services["public.interactions"].stopInteractions(slideshowEl);
             this.modalEl.removeEventListener("keydown", this.onModalKeydownBound);
-            // Dispose the Bootstrap instance before dropping the node, else
-            // Bootstrap keeps it (and its document-level listeners) in its
-            // internal map for the detached element — a leak per lightbox open.
             modalBS.dispose();
             this.modalEl.remove();
             this.modalEl = undefined;
+            log.lifecycle("lightbox hidden and disposed");
         });
 
         this.modalEl.addEventListener(
@@ -94,6 +100,7 @@ export class Gallery extends Interaction {
                 );
                 this.services["public.interactions"].startInteractions(slideshowEl);
                 this.modalEl.addEventListener("keydown", this.onModalKeydownBound);
+                log.lifecycle("lightbox shown, slideshow interactions started");
             },
             { once: true },
         );
@@ -101,15 +108,14 @@ export class Gallery extends Interaction {
         this.insert(this.modalEl, document.body);
         const modalBS = new Modal(this.modalEl, { keyboard: true, backdrop: true });
         modalBS.show();
+        log.lifecycle("lightbox open requested", () => ({
+            interval: milliseconds,
+        }));
     }
 
     destroy() {
-        // If the interaction is torn down (e.g. entering edit mode) while the
-        // lightbox is still open, ``hidden.bs.modal`` never fires and the
-        // Bootstrap Modal's document/window listeners (ESC, focus-trap, resize)
-        // would leak. Dispose it explicitly; the modal node itself is removed by
-        // insert()'s registered cleanup.
         if (this.modalEl) {
+            log.lifecycle("destroy: disposing open lightbox");
             Modal.getInstance(this.modalEl)?.dispose();
         }
     }
@@ -123,7 +129,6 @@ export class Gallery extends Interaction {
             this.modalEl.querySelector(`.carousel-control-${side}`).click();
         }
         if (ev.key === "Escape") {
-            // If the user is connected as an editor, prevent the backend header from collapsing.
             ev.stopPropagation();
         }
     }

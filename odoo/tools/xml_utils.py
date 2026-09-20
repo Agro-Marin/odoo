@@ -10,6 +10,7 @@ import requests
 from lxml import etree
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.xml import (
     create_xml_node,
     create_xml_node_chain,
@@ -35,6 +36,7 @@ if typing.TYPE_CHECKING:
 type XmlSource = etree._Element | str | bytes
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class odoo_resolver(etree.Resolver):
@@ -47,6 +49,12 @@ class odoo_resolver(etree.Resolver):
         attachment_name = f"{self.prefix}.{url}" if self.prefix else url
         attachment = self.env["ir.attachment"].search(
             [("name", "=", attachment_name)], limit=1
+        )
+        _debug.logic(
+            "xml_utils.xsd_import_resolved",
+            url=url,
+            attachment=attachment_name,
+            found=bool(attachment),
         )
         if attachment:
             return self.resolve_string(attachment.raw, context)
@@ -129,10 +137,26 @@ def _check_with_xsd(
             if not attachment:
                 raise FileNotFoundError
             stream = BytesIO(attachment.raw)
-    xsd_schema = etree.XMLSchema(etree.parse(stream, parser=parser))
+    with _debug.perf(
+        "xml_utils.xsd_compiled",
+        schema=stream if isinstance(stream, str) else None,
+        prefix=prefix,
+    ):
+        xsd_schema = etree.XMLSchema(etree.parse(stream, parser=parser))
     try:
-        xsd_schema.assertValid(tree_or_str)
+        with _debug.perf(
+            "xml_utils.xsd_validated",
+            schema=stream if isinstance(stream, str) else None,
+            root=tree_or_str.tag,
+        ):
+            xsd_schema.assertValid(tree_or_str)
     except etree.DocumentInvalid as xml_errors:
+        _debug.logic(
+            "xml_utils.document_invalid",
+            schema=stream if isinstance(stream, str) else None,
+            root=tree_or_str.tag,
+            errors=len(xml_errors.error_log),
+        )
         raise UserError("\n".join(str(e) for e in xml_errors.error_log)) from xml_errors
 
 
@@ -178,6 +202,12 @@ def cleanup_xml_node(
 
 def _upsert_xsd_attachment(env: Environment, name: str, content: bytes) -> Any:
     fetched_attachment = env["ir.attachment"].search([("name", "=", name)], limit=1)
+    _debug.lifecycle(
+        "xml_utils.xsd_attachment_upserted",
+        name=name,
+        updated=bool(fetched_attachment),
+        size=len(content),
+    )
     if fetched_attachment:
         _logger.info("Updating the content of ir.attachment with name: %s", name)
         fetched_attachment.raw = content
@@ -190,14 +220,23 @@ def _upsert_xsd_attachment(env: Environment, name: str, content: bytes) -> Any:
 def _get_xsd_content(url: str, request_max_timeout: int) -> bytes | None:
     try:
         _logger.info("Fetching file/archive from given URL: %s", url)
-        response = requests.get(url, timeout=request_max_timeout)
+        with _debug.perf(
+            "xml_utils.xsd_fetched", url=url, timeout=request_max_timeout
+        ) as span:
+            response = requests.get(url, timeout=request_max_timeout)
+            span.set(
+                status=getattr(response, "status_code", None),
+                size=len(response.content),
+            )
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         _logger.warning("Request error: %s with the given URL: %s", error, url)
+        _debug.logic("xml_utils.xsd_fetch_failed", url=url, error=type(error).__name__)
         return None
 
     if not response.content:
         _logger.warning("The HTTP response from %s is empty (no content)", url)
+        _debug.logic("xml_utils.xsd_fetch_failed", url=url, error="empty")
         return None
     return response.content
 
@@ -217,6 +256,7 @@ def _load_xsd_archive(
         file_name = file_path.rsplit("/", 1)[-1]
         if xsd_names_filter and file_name not in xsd_names_filter:
             _logger.info("Skipping file with name %s in ZIP archive", file_name)
+            _debug.logic("xml_utils.xsd_archive_member_skipped", file=file_name)
             continue
 
         try:
@@ -234,6 +274,13 @@ def _load_xsd_archive(
         )
         saved_attachments |= _upsert_xsd_attachment(env, prefixed_xsd_name, content)
 
+    _debug.pipeline(
+        "xml_utils.xsd_archive_loaded",
+        prefix=xsd_name_prefix or None,
+        members=len(archive.namelist()),
+        saved=len(saved_attachments),
+        filtered=len(xsd_names_filter or ()),
+    )
     return saved_attachments
 
 
@@ -254,6 +301,13 @@ def load_xsd_files_from_url(
     with contextlib.suppress(zipfile.BadZipFile):
         archive = zipfile.ZipFile(BytesIO(content))
 
+    _debug.logic(
+        "xml_utils.xsd_source",
+        url=url,
+        archive=archive is not None,
+        size=len(content),
+        modified=modify_xsd_content is not None,
+    )
     if archive is not None:
         return _load_xsd_archive(
             env, archive, xsd_name_prefix, xsd_names_filter, modify_xsd_content
@@ -285,6 +339,12 @@ def check_xml_from_attachment(
         _check_with_xsd(xml_content, prefixed_xsd_name, env, prefix)
         _logger.info("XSD validation successful!")
     except FileNotFoundError:
+        _debug.logic(
+            "xml_utils.xsd_unavailable",
+            schema=prefixed_xsd_name,
+            reason="missing",
+            required=required,
+        )
         if required:
             raise FileNotFoundError(
                 f"XSD {prefixed_xsd_name!r} is not available, so the document "
@@ -295,6 +355,12 @@ def check_xml_from_attachment(
             "XSD %r not found; the document was NOT validated", prefixed_xsd_name
         )
     except etree.XMLSchemaParseError as e:
+        _debug.logic(
+            "xml_utils.xsd_unavailable",
+            schema=prefixed_xsd_name,
+            reason="unparsable",
+            required=required,
+        )
         if required:
             raise FileNotFoundError(
                 f"XSD {prefixed_xsd_name!r} could not be parsed, so the "

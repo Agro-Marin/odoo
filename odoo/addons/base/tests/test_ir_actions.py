@@ -703,7 +703,9 @@ ZeroDivisionError: division by zero"""
         bindings = Actions.get_bindings("res.country")
         self.assertItemsEqual(
             bindings.get("action"),
-            self.action.read(["name", "sequence", "binding_view_types"]),
+            self.action.read(
+                ["name", "binding_view_types", "binding_sequence", "binding_icon"]
+            ),
         )
 
         self.action.with_context(self.context).run()
@@ -722,14 +724,16 @@ ZeroDivisionError: division by zero"""
                 "binding_model_id": self.res_country_model.id,
             }
         )
-        self.action2 = self.action.copy({"name": "TestAction2", "sequence": 1})
+        self.action2 = self.action.copy({"name": "TestAction2", "binding_sequence": 1})
 
         bindings = Actions.get_bindings("res.country")
         self.assertEqual(
             [vals.get("name") for vals in bindings["action"]],
             ["TestAction2", "TestAction"],
         )
-        self.assertEqual([vals.get("sequence") for vals in bindings["action"]], [1, 5])
+        self.assertEqual(
+            [vals.get("binding_sequence") for vals in bindings["action"]], [1, 10]
+        )
 
     def test_70_copy_action(self):
         r = self.env["ir.actions.todo"].create(
@@ -876,9 +880,7 @@ ZeroDivisionError: division by zero"""
 
         with patch.object(requests.Session, "post", _patched_post):
             self.action.with_context(self.context).run()
-            with self.assertLogs(
-                "odoo.addons.base.models.ir_actions_server", level="WARNING"
-            ) as log_catcher:
+            with self.assertLogs("odoo.libs.webhook", level="WARNING") as log_catcher:
                 self.env.cr.postcommit.run()
         self.assertTrue(
             any("timed out" in line for line in log_catcher.output),
@@ -898,9 +900,7 @@ ZeroDivisionError: division by zero"""
 
         with patch.object(requests.Session, "post", _patched_post):
             self.action.with_context(self.context).run()
-            with self.assertLogs(
-                "odoo.addons.base.models.ir_actions_server", level="WARNING"
-            ) as log_catcher:
+            with self.assertLogs("odoo.libs.webhook", level="WARNING") as log_catcher:
                 self.env.cr.postcommit.run()
         output = "\n".join(log_catcher.output)
         self.assertIn(self.action.name, output, "the action must be identifiable")
@@ -937,9 +937,10 @@ ZeroDivisionError: division by zero"""
                 "value": "not-an-int",
             }
         )
-        self.assertEqual(self.action._eval_value()[self.action.id], [])
-        run_res = self.action.with_context(self.context).run()
-        self.assertFalse(run_res)
+        with self.assertRaises(UserError):
+            self.action._eval_value()
+        with self.assertRaises(UserError):
+            self.action.with_context(self.context).run()
 
     def test_97_eval_value_m2m_unknown_operation(self):
         self.action.write(
@@ -1121,7 +1122,9 @@ ZeroDivisionError: division by zero"""
         self.assertIn("empty", str(cm.exception).lower())
 
     def test_b5_available_models_not_state_dependent(self):
-        compute = type(self.env["ir.actions.server"])._compute_available_model_ids
+        from odoo.addons.base.models.ir_actions_server import IrActionsServer
+
+        compute = IrActionsServer._compute_available_model_ids
         self.assertNotIn("state", getattr(compute, "_depends", ()))
 
     def test_b6_equation_evaluates_without_sudo_privilege(self):
@@ -1641,7 +1644,7 @@ class TestActionsBindings(common.TransactionCase):
                 "code": "pass",
                 "binding_model_id": self._partner_model_id(),
                 "binding_type": binding_type,
-                "sequence": sequence,
+                "binding_sequence": sequence,
             }
         )
 
@@ -1679,12 +1682,11 @@ class TestActionsBindings(common.TransactionCase):
             "binding_view_types",
             "res_model",
             "group_ids",
-            "sequence",
+            "binding_sequence",
+            "binding_icon",
             "domain",
         }
-        invalidating = self.env[
-            "ir.actions.actions"
-        ]._get_fields_invalidating_when_cached()
+        invalidating = self.env["ir.actions.actions"]._get_fields_read_by_bindings()
         missing = binding_inputs - invalidating
         self.assertFalse(
             missing,
@@ -2038,7 +2040,7 @@ class TestCustomFieldsPostInstall(TestCommonCustomFields):
             "UPDATE ir_model_fields SET name = 'foo' WHERE id = %s", [field.id]
         )
         with self.assertLogs("odoo.registry") as log_catcher:
-            self.env.registry._setup_models__(self.cr, [self.MODEL])
+            self.env.registry.setup_models(self.cr, [self.MODEL])
             self.assertIn(
                 f"The field `{field.name}` is not defined in the `{field.model}` Python class",
                 log_catcher.output[0],

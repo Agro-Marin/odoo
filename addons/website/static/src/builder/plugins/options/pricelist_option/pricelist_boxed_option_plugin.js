@@ -44,8 +44,6 @@ class PriceListBoxedOptionPlugin extends Plugin {
             selector: ".s_pricelist_boxed_item",
             direction: "vertical",
         },
-        // Protect pricelist item, price, and description blocks from being
-        // split/merged by the delete plugin.
         unsplittable_node_predicates: (node) =>
             isElement(node) &&
             node.matches(

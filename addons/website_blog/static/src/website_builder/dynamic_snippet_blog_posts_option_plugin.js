@@ -47,7 +47,6 @@ class DynamicSnippetBlogPostsOptionPlugin extends Plugin {
         return this.blogs;
     }
     async _fetchBlogs() {
-        // TODO put in an utility function
         const websiteDomain = [
             "|",
             ["website_id", "=", false],

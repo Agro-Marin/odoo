@@ -1,6 +1,8 @@
 from collections import ChainMap, defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Sized
 from typing import TYPE_CHECKING, Any
+
+from odoo.libs.debug_log import DebugLog
 
 from ._protocols import FieldKey
 
@@ -9,6 +11,8 @@ if TYPE_CHECKING:
 
 _MISSING = object()
 _REITERABLE = (list, tuple, set, frozenset)
+
+_debug = DebugLog(__name__)
 
 
 class FieldCache[F: FieldKey = FieldKey]:
@@ -86,6 +90,13 @@ class FieldCache[F: FieldKey = FieldKey]:
         for field in list(self._dirty):
             if getattr(field, "model_name", None) == model_name:
                 result[field] = self._dirty.pop(field)
+        if _debug.pipeline.enabled and result:
+            _debug.pipeline(
+                "cache.dirty_popped_for_model",
+                model=model_name,
+                fields=len(result),
+                records=sum(len(ids) for ids in result.values()),
+            )
         return result
 
     def is_any_dirty(self) -> bool:
@@ -123,6 +134,15 @@ class FieldCache[F: FieldKey = FieldKey]:
                 ids = [id_ for id_ in ids if id_ not in dirty]
             elif contexts and type(ids) not in _REITERABLE:
                 ids = tuple(ids)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "cache.field_invalidated",
+                field=str(field),
+                records=len(ids) if isinstance(ids, Sized) else None,
+                whole=ids is None,
+                contexts=len(contexts) if contexts else 0,
+                kept_dirty=len(dirty) if dirty else 0,
+            )
         if field_cache:
             _evict(field_cache, ids, dirty)
         if contexts:
@@ -149,6 +169,14 @@ class FieldCache[F: FieldKey = FieldKey]:
     def invalidate_all(self, *, keep: Callable[[Any], bool] | None = None) -> None:
         if self._on_detach is not None:
             self._on_detach()
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "field_cache.invalidate_all",
+                fields=len(self._data.keys() | self._contexts.keys()),
+                entries=sum(len(values) for values in self._data.values()),
+                dirty_fields=sum(1 for ids in self._dirty.values() if ids),
+                dirty_entries=self.get_dirty_entry_count(),
+            )
         if not self._dirty and keep is None:
             self._data.clear()
             self._contexts.clear()
@@ -174,6 +202,13 @@ class FieldCache[F: FieldKey = FieldKey]:
     def clear(self) -> None:
         if self._on_detach is not None:
             self._on_detach()
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "field_cache.clear",
+                fields=len(self._data.keys() | self._contexts.keys()),
+                dirty_entries=self.get_dirty_entry_count(),
+                patched_fields=len(self._patches),
+            )
         self._data.clear()
         self._contexts.clear()
         self._dirty.clear()

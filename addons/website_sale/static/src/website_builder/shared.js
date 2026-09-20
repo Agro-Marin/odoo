@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
 
-// TODO: need to fetch _selection_product_sorts to remove duplicate data
 export const products_sort_mapping = [
     {
         query: "website_sequence asc",

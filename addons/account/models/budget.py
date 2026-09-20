@@ -4,7 +4,10 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils, float_is_zero, float_round
+
+_debug = DebugLog(__name__)
 
 
 class AccountReportBudget(models.Model):
@@ -12,18 +15,17 @@ class AccountReportBudget(models.Model):
     _description = "Accounting Report Budget"
     _order = "sequence, id"
 
-    sequence = fields.Integer(string="Sequence")
-    name = fields.Char(string="Name", required=True)
+    sequence = fields.Integer()
+    name = fields.Char(required=True)
     item_ids = fields.One2many(
-        string="Items",
         comodel_name="account.report.budget.item",
         inverse_name="budget_id",
+        string="Items",
     )
     company_id = fields.Many2one(
-        string="Company",
         comodel_name="res.company",
-        required=True,
         default=lambda x: x.env.company,
+        required=True,
     )
 
     @api.constrains("name")
@@ -33,12 +35,21 @@ class AccountReportBudget(models.Model):
                 raise ValidationError(_("Please enter a valid budget name."))
 
     @api.model_create_multi
+    @_debug.perf.timed
     def create(self, vals_list):
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                model=self._name,
+                count=len(vals_list),
+                fields=sorted({key for vals in vals_list for key in vals}),
+            )
         for values in vals_list:
             if name := values.get("name"):
                 values["name"] = name.strip()
         return super().create(vals_list)
 
+    @_debug.perf.timed
     def _create_or_update_budget_items(
         self, value_to_set, account_id, rounding, date_from, date_to
     ):
@@ -73,6 +84,15 @@ class AccountReportBudget(models.Model):
         total_amount = sum(existing_budget_items.mapped("amount"))
 
         value_to_compute = value_to_set - total_amount
+        _debug.logic(
+            "budget_delta_computed",
+            budget=self,
+            account_id=account_id,
+            date_from=date_from,
+            date_to=date_to,
+            existing_items=len(existing_budget_items),
+            delta=value_to_compute,
+        )
         if float_is_zero(value_to_compute, precision_digits=rounding):
             # In case the computed amount equals 0, we do an early return as
             # it's not necessary to create new budget item
@@ -119,19 +139,30 @@ class AccountReportBudget(models.Model):
                     )
                 )
 
+        _debug.pipeline(
+            "budget_item_commands_built",
+            budget=self,
+            months=len(start_month_dates),
+            existing_months=len(existing_budget_items_by_date),
+            commands=len(budget_items_commands),
+        )
         if budget_items_commands:
             self.item_ids = budget_items_commands
             # Make sure that the model is flushed before continuing the code and fetching these new items
             self.env["account.report.budget.item"].flush_model()
 
+    @_debug.perf.timed
     def copy_data(self, default=None):
+        _debug.lifecycle("copy_data", records=self)
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", budget.name))
             for budget, vals in zip(self, vals_list, strict=False)
         ]
 
+    @_debug.perf.timed
     def copy(self, default=None):
+        _debug.lifecycle("copy", records=self)
         new_budgets = super().copy(default)
         for old_budget, new_budget in zip(self, new_budgets, strict=False):
             for item in old_budget.item_ids:
@@ -152,18 +183,16 @@ class AccountReportBudgetItem(models.Model):
     _description = "Accounting Report Budget Item"
 
     budget_id = fields.Many2one(
-        string="Budget",
         comodel_name="account.report.budget",
-        required=True,
         index=True,
+        required=True,
         ondelete="cascade",
     )
     account_id = fields.Many2one(
-        string="Account",
         comodel_name="account.account",
-        domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other', 'expense_depreciation', 'expense_direct_cost'))]",
-        required=True,
         index=True,
+        required=True,
+        domain="[('account_type', 'in', ('income', 'income_other', 'expense', 'expense_other', 'expense_depreciation', 'expense_direct_cost'))]",
     )
-    amount = fields.Float(string="Amount", default=0)
+    amount = fields.Float(default=0)
     date = fields.Date(required=True)

@@ -29,6 +29,10 @@ class _IrModelData(models.Model):
     _description = "ir.model.data stub for the unlink flow"
 
     name = fields.Char()
+    module = fields.Char()
+    model = fields.Char()
+    res_id = fields.Integer()
+    noupdate = fields.Boolean()
 
 
 class _IrAttachment(models.Model):
@@ -37,6 +41,8 @@ class _IrAttachment(models.Model):
     _description = "ir.attachment stub for the unlink flow"
 
     name = fields.Char()
+    res_model = fields.Char()
+    res_id = fields.Integer()
 
 
 @pytest.fixture
@@ -57,7 +63,7 @@ def test_unlink_leaves_no_pending_compute_on_the_deleted_ids(env):
     mid.unlink()
 
     field = Node._fields["total"]
-    pending = set(env._core.get_pending_ids(field))
+    pending = set(env.core.get_pending_ids(field))
     assert not (pending & deleted_ids), (
         f"unlink left {pending & deleted_ids} pending for {field} -- the "
         f"trigger walk re-marked the deleted ids after the sweep ran"

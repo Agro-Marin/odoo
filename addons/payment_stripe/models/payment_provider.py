@@ -18,28 +18,35 @@ _logger = get_payment_logger(__name__, const.SENSITIVE_KEYS)
 
 class PaymentProvider(models.Model):
     _inherit = "payment.provider"
+    _CREDENTIAL_FIELDS = {
+        "stripe_secret_key": "stripe_secret_key",
+        "stripe_webhook_secret": "stripe_webhook_secret",
+    }
 
     code = fields.Selection(
-        selection_add=[("stripe", "Stripe")], ondelete={"stripe": "set default"}
+        selection_add=[("stripe", "Stripe")],
+        ondelete={"stripe": "set default"},
     )
     stripe_publishable_key = fields.Char(
         string="Publishable Key",
-        help="The key solely used to identify the account with Stripe",
-        required_if_provider="stripe",
         copy=False,
+        required_if_provider="stripe",
+        help="The key solely used to identify the account with Stripe",
     )
     stripe_secret_key = fields.Char(
         string="Secret Key",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
         required_if_provider="stripe",
-        copy=False,
         groups="base.group_system",
     )
     stripe_webhook_secret = fields.Char(
         string="Webhook Signing Secret",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        groups="base.group_system",
         help="If a webhook is enabled on your Stripe account, this signing secret must be set to "
         "authenticate the messages sent from Stripe to Odoo.",
-        copy=False,
-        groups="base.group_system",
     )
 
     # === COMPUTE METHODS === #
@@ -177,7 +184,7 @@ class PaymentProvider(models.Model):
             action = {"type": "ir.actions.act_window_close"}
         else:
             # Account creation
-            connected_account = self._stripe_fetch_or_create_connected_account()
+            connected_account = self._stripe_get_or_create_connected_account()
 
             # Link generation
             if not menu_id:
@@ -348,7 +355,7 @@ class PaymentProvider(models.Model):
             "publishable_key": self._stripe_get_publishable_key(),
             "currency_name": currency_name,
             "minor_amount": amount
-            and payment_utils.to_minor_currency_units(
+            and payment_utils.major_to_minor_currency_units(
                 amount,
                 currency,
                 arbitrary_decimal_number=const.CURRENCY_DECIMALS.get(currency.name),
@@ -390,7 +397,7 @@ class PaymentProvider(models.Model):
 
     # === BUSINESS METHODS - STRIPE CONNECT ONBOARDING === #
 
-    def _stripe_fetch_or_create_connected_account(self):
+    def _stripe_get_or_create_connected_account(self):
         """Fetch the connected Stripe account and create one if not already done.
 
         Note: This method serves as a hook for modules that would fully implement Stripe Connect.
@@ -452,7 +459,7 @@ class PaymentProvider(models.Model):
         base_url = self.company_id.get_base_url()
         return_url = OnboardingController._onboarding_return_url
         refresh_url = OnboardingController._onboarding_refresh_url
-        return_params = dict(provider_id=self.id, menu_id=menu_id)
+        return_params = {"provider_id": self.id, "menu_id": menu_id}
         refresh_params = dict(**return_params, account_id=connected_account_id)
 
         payload = {

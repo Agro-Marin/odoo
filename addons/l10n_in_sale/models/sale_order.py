@@ -1,14 +1,17 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     l10n_in_reseller_partner_id = fields.Many2one(
-        "res.partner",
+        comodel_name="res.partner",
         string="Reseller",
-        domain="[('vat', '!=', False), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
         readonly=False,
+        domain="[('vat', '!=', False), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
     )
 
     @api.depends("partner_invoice_id")
@@ -60,6 +63,12 @@ class SaleOrder(models.Model):
         for fiscal_position, orders in orders_group_by_fp.items():
             orders.fiscal_position_id = fiscal_position
 
+        _debug.logic(
+            "in_fiscal_positions_from_partner",
+            orders=in_orders,
+            groups=len(orders_group_by_fp),
+            without=orders_without_fiscal or False,
+        )
         if not orders_without_fiscal:
             return
 
@@ -75,6 +84,9 @@ class SaleOrder(models.Model):
                 }
             )
             # Group orders by company to avoid multi-company conflicts
+            _debug.logic(
+                "in_fiscal_position_from_place_of_supply", orders=orders, state=state
+            )
             for company, company_orders in orders.grouped("company_id").items():
                 company_orders.fiscal_position_id = FiscalPosition.with_company(
                     company.id

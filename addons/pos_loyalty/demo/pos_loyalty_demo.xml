@@ -10,7 +10,7 @@
             <field name="applies_on">future</field>
             <field
                 name="pos_config_ids"
-                eval="[(6,0,[ref('point_of_sale.pos_config_main')])]" />
+                eval="[Command.set([ref('point_of_sale.pos_config_main')])]" />
             <field name="portal_visible">True</field>
             <field name="portal_point_name">Coupon point(s)</field>
         </record>
@@ -27,17 +27,17 @@
         <record id="loyalty.3_cabinets_plus_1_free" model="loyalty.program">
             <field
                 name="pos_config_ids"
-                eval="[(6,0,[ref('point_of_sale.pos_config_main')])]" />
+                eval="[Command.set([ref('point_of_sale.pos_config_main')])]" />
         </record>
         <record id="loyalty.10_percent_with_code" model="loyalty.program">
             <field
                 name="pos_config_ids"
-                eval="[(6,0,[ref('point_of_sale.pos_config_main')])]" />
+                eval="[Command.set([ref('point_of_sale.pos_config_main')])]" />
         </record>
         <record id="loyalty.10_percent_coupon" model="loyalty.program">
             <field
                 name="pos_config_ids"
-                eval="[(6,0,[ref('point_of_sale.pos_config_main')])]" />
+                eval="[Command.set([ref('point_of_sale.pos_config_main')])]" />
         </record>
         <function model="loyalty.generate.wizard" name="create">
             <value

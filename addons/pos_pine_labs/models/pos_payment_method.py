@@ -5,25 +5,36 @@ from .pine_labs_pos_request import call_pine_labs
 
 
 class PosPaymentMethod(models.Model):
-    _inherit = "pos.payment.method"
+    _inherit = ["pos.payment.method", "mixin.integration.connected"]
+
+    def _integration_connection_service(self):
+        if self.use_payment_terminal == "pine_labs":
+            return "pos_pine_labs", self.env._("Point of Sale: Pine Labs"), "payment"
+        return super()._integration_connection_service()
+
+    _CREDENTIAL_FIELDS = {
+        "pine_labs_security_token": "pine_labs_security_token",
+    }
 
     pine_labs_merchant = fields.Char(
         string="Pine Labs Merchant ID",
-        help="A merchant id issued directly to the merchant by Pine Labs.",
         copy=False,
+        help="A merchant id issued directly to the merchant by Pine Labs.",
     )
     pine_labs_store = fields.Char(
         string="Pine Labs Store ID",
-        help="A store id issued directly to the merchant by Pine Labs.",
         copy=False,
+        help="A store id issued directly to the merchant by Pine Labs.",
     )
     pine_labs_client = fields.Char(
         string="Pine Labs Client ID",
-        help="A client id issued directly to the merchant by Pine Labs.",
         copy=False,
+        help="A client id issued directly to the merchant by Pine Labs.",
     )
     pine_labs_security_token = fields.Char(
-        string="Pine Labs Security Token",
+        compute="_compute_credential_doors",
+        inverse="_inverse_credential_doors",
+        copy=True,
         help="A security token issued directly to the merchant by Pine Labs.",
     )
     pine_labs_allowed_payment_mode = fields.Selection(
@@ -31,9 +42,7 @@ class PosPaymentMethod(models.Model):
         string="Pine Labs Allowed Payment Modes",
         help="Accepted payment modes by Pine Labs for transactions.",
     )
-    pine_labs_test_mode = fields.Boolean(
-        string="Pine Labs Test Mode", help="Test Pine Labs transaction process."
-    )
+    pine_labs_test_mode = fields.Boolean(help="Test Pine Labs transaction process.")
 
     def _selection_payment_terminals(self):
         return super()._selection_payment_terminals() + [("pine_labs", "Pine Labs")]

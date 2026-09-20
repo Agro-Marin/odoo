@@ -3,7 +3,10 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, frozendict, groupby
+
+_debug = DebugLog(__name__)
 
 
 class AccountTrialBalanceReportHandler(models.AbstractModel):
@@ -23,13 +26,20 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             options["comparison"]["hide_period_order_filter"] = True
 
         # Modify column headers and group structure
-        column_headers, column_groups, columns = self._get_column_values(
+        column_headers, column_groups, columns = self._prepare_trial_balance_columns(
             report, options
         )
 
         options["column_headers"][0] = column_headers
         options["column_groups"].update(column_groups)
         options["columns"] = columns
+        _debug.pipeline(
+            "trial_balance_columns_built",
+            report=report,
+            comparison=bool(options.get("comparison")),
+            column_groups=len(column_groups),
+            columns=len(columns),
+        )
 
         # CTA
         for group_vals in options["column_groups"].values():
@@ -42,7 +52,8 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             ):
                 group_vals["forced_options"]["no_impact_on_currency_table"] = True
 
-    def _get_column_values(self, report, options):
+    @_debug.perf.timed
+    def _prepare_trial_balance_columns(self, report, options):
         """Generate the column headers, column groups and columns of the trial balance report.
 
         :return: a (headers, groups, columns) tuple
@@ -80,10 +91,9 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
         last_column = {}
         nb_columns_per_header = len(original_columns) / len(original_headers)
-        col_number_in_block = 0
         fiscal_year = {}
 
-        for column in original_columns:
+        for col_number_in_block, column in enumerate(original_columns, start=1):
             column_group_values = options["column_groups"][column["column_group_key"]]
             fiscal_year = self.env.company.compute_fiscalyear_dates(
                 fields.Date.to_date(
@@ -93,6 +103,13 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
             # Check for fiscal year change
             if fiscal_year != previous_fiscal_year:
+                _debug.logic(
+                    "fiscal_year_block_split",
+                    report=report,
+                    block_id=block_id,
+                    column_group=column["column_group_key"],
+                    fiscal_year_start=fiscal_year["date_from"],
+                )
                 headers, groups, columns = self._add_end_column(
                     report,
                     options,
@@ -133,7 +150,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 )
 
             # Handle column headers
-            col_number_in_block += 1  # noqa: SIM113
             if col_number_in_block % nb_columns_per_header == 0:
                 headers.append(original_headers.pop(0))
 
@@ -151,6 +167,15 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             fiscal_year,
         )
 
+        _debug.pipeline(
+            "trial_balance_columns_built",
+            report=report,
+            original_columns=len(original_columns),
+            blocks=block_id + 1,
+            headers=len(headers),
+            column_groups=len(groups),
+            columns=len(columns),
+        )
         return headers, groups, columns
 
     def _add_initial_column(
@@ -181,6 +206,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         columns.extend(col)
         return headers, groups, columns
 
+    @_debug.perf.timed
     def _add_end_column(
         self,
         report,
@@ -211,11 +237,19 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             fiscal_year["date_from"],
             "end_balance",
         )
+        _debug.pipeline(
+            "end_column_added",
+            report=report,
+            block_id=block_id,
+            fiscal_year_start=fiscal_year["date_from"],
+            new_columns=len(col),
+        )
         headers.append(header)
         groups.update(group)
         columns.extend(col)
         return headers, groups, columns
 
+    @_debug.perf.timed
     def _create_column(
         self,
         report,
@@ -250,6 +284,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     def _display_single_column_for_initial_and_end_sections(self, options):
         return len(options["column_headers"]) == 1
 
+    @_debug.perf.timed
     def _generate_column_group(
         self, report, options, new_header_name, new_values, create_single_column=True
     ):
@@ -285,6 +320,14 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         )
         new_columns, new_column_groups = report._prepare_columns_from_column_group_vals(
             new_values["forced_options"], new_column_group_vals
+        )
+        _debug.logic(
+            "column_group_shape",
+            report=report,
+            column_type=new_values["forced_options"].get("trial_balance_column_type"),
+            single_balance_column=create_single_column,
+            generated_columns=len(new_columns),
+            column_groups=len(new_column_groups),
         )
 
         if create_single_column:
@@ -322,10 +365,13 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             ],
         }
 
+    @_debug.perf.timed
     def open_unallocated_items_journal_items(self, options, params):
+        _debug.lifecycle("open_unallocated_items_journal_items", records=self)
         report = self.env["account.report"].browse(options["report_id"])
         return report.open_unallocated_items_journal_items(options, params)
 
+    @_debug.perf.timed
     def _report_custom_engine_trial_balance(
         self,
         expressions,
@@ -346,6 +392,15 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         )
         report._check_groupby_fields(current_groupbys)
 
+        _debug.logic(
+            "trial_balance_engine_mode",
+            report=report,
+            column_type=options["trial_balance_column_type"],
+            groupbys=current_groupbys,
+            next_groupby=next_groupby,
+            skipped_initial_balance_amls="id" in current_groupbys
+            and options["trial_balance_column_type"] == "initial_balance",
+        )
         if (
             "id" in current_groupbys
             and options["trial_balance_column_type"] == "initial_balance"
@@ -400,6 +455,15 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 )
 
         next_groupbys = next_groupby.split(",") if next_groupby else []
+        _debug.logic(
+            "trial_balance_extra_domain",
+            report=report,
+            fiscalyear_start=fiscalyear_start,
+            print_search_bar=options.get("export_mode") == "print"
+            and bool(options.get("filter_search_bar")),
+            hierarchy=bool(options.get("hierarchy")),
+            extra_domain_leaves=len(extra_domain),
+        )
         query = report._get_report_query(options, date_scope, domain=extra_domain)
 
         if current_groupbys:
@@ -452,10 +516,20 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
         self.env.cr.execute(sql_query)
         query_results = self.env.cr.dictfetchall()
+        _debug.perf.count("trial_balance_sums_fetched", rows=len(query_results))
 
         disable_expand = bool(
             (not next_groupby or next_groupbys[0] == "id")
             and options["trial_balance_column_type"] == "initial_balance"
+        )
+        _debug.pipeline(
+            "trial_balance_rows_fetched",
+            report=report,
+            column_type=options["trial_balance_column_type"],
+            groupbys=current_groupbys,
+            date_scope=date_scope,
+            rows=len(query_results),
+            disable_expand=disable_expand,
         )
 
         if not current_groupbys:
@@ -486,6 +560,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             for query_result in query_results
         ]
 
+    @_debug.perf.timed
     def _custom_line_postprocessor(self, report, options, lines):
         """Compute the end balance of each column block and horizontal group from the initial
         balance and the period debits and credits of that same block and group.
@@ -522,6 +597,13 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             total_line_id = lines[-1]["id"]
         else:
             total_line_id = lines[0]["id"]
+        _debug.logic(
+            "trial_balance_total_line_located",
+            report=report,
+            lines=len(lines),
+            unaffected_earning_lines=len(unaffected_earning_lines),
+            totals_below_sections=self.env.company.totals_below_sections,
+        )
 
         unaffected_earning_values = defaultdict(
             lambda: {
@@ -586,6 +668,11 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                             end_balance_col["no_format"] = balance
                             end_balance_col["is_zero"] = not bool(balance)
 
+        _debug.logic(
+            "trial_balance_total_line_reordered",
+            report=report,
+            reordered=bool(lines) and not lines[0].get("parent_id"),
+        )
         # Total line
         if lines and not lines[0].get(
             "parent_id"
@@ -612,6 +699,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
         return lines
 
+    @_debug.perf.timed
     def _report_expand_unfoldable_line_with_groupby(
         self,
         line_dict_id,
@@ -623,6 +711,12 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     ):
         """Override the 'account.report' method to hide move lines outside the selected period."""
         report = self.env["account.report"].browse(options["report_id"])
+        _debug.logic(
+            "initial_balance_amls_hidden",
+            report=report,
+            groupby=groupby,
+            hidden=groupby == "id",
+        )
         if groupby != "id":
             return report._report_expand_unfoldable_line_with_groupby(
                 line_dict_id, groupby, options, progress, offset, unfold_all_batch_data
@@ -649,6 +743,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     def _get_fiscalyear_start_date(self, options):
         return options.get("trial_balance_block_fiscalyear_start")
 
+    @_debug.perf.timed
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):
@@ -686,6 +781,12 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 )
             )
             if len(expressions) != len(report_line.expression_ids):
+                _debug.logic(
+                    "unfold_batch_skipped",
+                    report=report,
+                    reason="mixed_engine_expressions",
+                    report_line=report_line_id,
+                )
                 continue
 
             groupby_str = report_line._get_groupby(options)
@@ -748,10 +849,24 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                                 }
                                 for expression in expressions_by_date_scope
                             }
+                _debug.pipeline(
+                    "unfold_batch_level_computed",
+                    report=report,
+                    report_line=report_line_id,
+                    groupby_depth=len(groupbys),
+                    groupby_keys=len(results),
+                )
                 next_groupby = groupbys.pop()
+        _debug.pipeline(
+            "unfold_batch_generated",
+            report=report,
+            groupby_keys=len(results),
+        )
         return results
 
+    @_debug.perf.timed
     def action_audit_cell(self, options, params):
+        _debug.lifecycle("action_audit_cell", records=self)
         report = self.env["account.report"].browse(options["report_id"])
         column_group_forced_options = options["column_groups"][
             params["column_group_key"]
@@ -778,6 +893,23 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         account = self.env["account.account"].browse(account_id)
 
         modified_domain = []
+        if _debug.logic.enabled:
+            _debug.logic(
+                "trial_balance_audit_mode",
+                report=report,
+                column_type=column_group_forced_options["trial_balance_column_type"],
+                account=account,
+                mode="unallocated_earnings"
+                if not account
+                else "fiscal_year_bounded"
+                if column_group_forced_options["trial_balance_column_type"]
+                in ("initial_balance", "end_balance")
+                and (
+                    account.internal_group in ("income", "expense")
+                    or account.account_type == "equity_unaffected"
+                )
+                else "default",
+            )
         if not account:
             # list(...): this domain goes back to the client inside an
             # ir.actions.act_window, and a Domain is not JSON serialisable.

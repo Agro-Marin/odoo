@@ -2,11 +2,33 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
+from ._env import get_env_float
 from .settings import INHERIT_FROM_CRON, current
 
-_logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
+
+GRACEFUL_STOP_TIMEOUT_S = 60.0
+"""How long a stopping server lets in-flight work finish before it escalates.
+
+One bound for both flavours: the prefork master waits this long for SIGINTed
+workers before SIGKILL, and the threaded server waits this long for its busy
+request threads before closing the listener under them.
+"""
+
+
+def get_graceful_stop_timeout(logger: logging.Logger) -> float:
+    return get_env_float(
+        "ODOO_GRACEFUL_STOP_TIMEOUT",
+        GRACEFUL_STOP_TIMEOUT_S,
+        minimum=1.0,
+        logger=logger,
+    )
+
 
 BACKOFF_CEILING_S = 60
 """Longest a reconnect back-off will wait.
@@ -29,35 +51,12 @@ base, and `base=2` is what reproduces this curve exactly.
 """
 
 
-def _is_inherited_from_cron(limit: int) -> bool:
-    return limit <= INHERIT_FROM_CRON
-
-
-def _get_inherited_budget(*keys: str) -> int:
-    settings = current()
-    limit: int = getattr(settings, keys[0])
-    for key in keys[1:]:
-        if not _is_inherited_from_cron(limit):
-            break
-        limit = getattr(settings, key)
-    return limit
-
-
-def get_job_max_age() -> int:
-    return _get_inherited_budget("limit_time_worker_job", "limit_time_worker_cron")
-
-
 def get_cron_real_time_budget() -> float:
-    return max(_get_inherited_budget("limit_time_real_cron", "limit_time_real"), 0)
+    return current().cron_real_time_budget
 
 
 def get_job_real_time_budget() -> float:
-    return max(
-        _get_inherited_budget(
-            "limit_time_real_job", "limit_time_real_cron", "limit_time_real"
-        ),
-        0,
-    )
+    return current().job_real_time_budget
 
 
 def get_memory_rss(process: Any) -> int:
@@ -68,6 +67,12 @@ def get_memory_over_soft_limit(process: Any, soft_limit: int) -> int | None:
     if not soft_limit:
         return None
     memory = get_memory_rss(process)
+    _debug.perf.count(
+        "limits.memory_sampled",
+        rss=memory,
+        soft_limit=soft_limit,
+        over=memory > soft_limit,
+    )
     return memory if memory > soft_limit else None
 
 
@@ -79,13 +84,35 @@ def empty_pipe(fd: int) -> None:
         pass
 
 
+def describe_thread_work(thread: threading.Thread) -> str:
+    # What the operator will want beside the thread name or pid: the request
+    # it is serving (the http layer stamps `url` and `request_id`, the RPC
+    # dispatcher `rpc_model_method`) or the database a cron/job pass is
+    # sweeping.  The limit verdicts are logged from a monitor thread, so the
+    # request id has to travel in the message to join the request's lines.
+    kind = getattr(thread, "type", None)
+    if kind == "http":
+        url = getattr(thread, "url", "")
+        if not url:
+            return ""
+        method = getattr(thread, "rpc_model_method", "")
+        text = f"serving {url} ({method})" if method else f"serving {url}"
+        if request_id := getattr(thread, "request_id", ""):
+            text += f", request {request_id}"
+        return text
+    db_name = getattr(thread, "dbname", None)
+    return f"sweeping {db_name}" if db_name else ""
+
+
 __all__ = (
     "BACKOFF_BASE_S",
     "BACKOFF_CEILING_S",
+    "GRACEFUL_STOP_TIMEOUT_S",
     "INHERIT_FROM_CRON",
+    "describe_thread_work",
     "empty_pipe",
     "get_cron_real_time_budget",
-    "get_job_max_age",
+    "get_graceful_stop_timeout",
     "get_job_real_time_budget",
     "get_memory_over_soft_limit",
     "get_memory_rss",

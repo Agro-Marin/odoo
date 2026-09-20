@@ -1,17 +1,21 @@
 import typing
 
 from odoo.exceptions import AccessError, UserError
-from odoo.tools import SQL, Query, ormcache
+from odoo.libs.debug_log import DebugLog
+from odoo.tools import SQL, Query, get_lang, ormcache
+from odoo.tools.translate import _
 
 from .... import decorators as api
 from ....constants import (
     READ_GROUP_AGGREGATE,
     READ_GROUP_ALL_TIME_GRANULARITY,
     READ_GROUP_NUMBER_GRANULARITY,
+    READ_GROUP_THROUGH_RECORDS,
     READ_GROUP_TIME_GRANULARITY,
     SQL_ORDER_DIR,
     SQL_ORDER_NULLS,
 )
+from ....fields.temporal import Date
 from ....parsing import parse_read_group_spec, regex_order_part_read_group
 from ....primitives import SQL_OPERATORS
 from .._model_stubs import _ModelStubs
@@ -20,10 +24,7 @@ if typing.TYPE_CHECKING:
     from ...._typing import BaseModel
     from ....fields import Field
 
-from odoo.tools import get_lang
-from odoo.tools.translate import _
-
-from ....fields.temporal import _get_sql_timezones_set
+_debug = DebugLog(__name__)
 
 
 class _ReadGroupSQLMixin(_ModelStubs):
@@ -35,8 +36,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 f'Aggregator "sum_currency" only works on currency field for {fname!r}'
             )
 
-        from ....fields.temporal import Date
-
         CurrencyRate = self.env["res.currency.rate"]
         rate_subquery_table = SQL(
             """(SELECT DISTINCT ON (%(currency_field_sql)s) %(currency_field_sql)s, %(rate_field_sql)s
@@ -45,7 +44,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 ORDER BY
                     %(currency_field_sql)s,
                     %(company_field_sql)s,
-                    CASE WHEN %(name_field_sql)s <= %(today)s THEN %(name_field_sql)s END DESC,
+                    CASE WHEN %(name_field_sql)s <= %(today)s THEN %(name_field_sql)s END DESC NULLS LAST,
                     CASE WHEN %(name_field_sql)s > %(today)s THEN %(name_field_sql)s END ASC)
             """,
             currency_field_sql=CurrencyRate._field_to_sql(
@@ -69,11 +68,26 @@ class _ReadGroupSQLMixin(_ModelStubs):
             SQL.identifier(alias_rate, "currency_id"),
         )
         query.add_join("LEFT JOIN", alias_rate, rate_subquery_table, condition)
+        _debug.logic(
+            "read_group.sum_currency_join",
+            model=self._name,
+            field=fname,
+            currency_field=currency_field_name,
+            company=self.env.company.root_id.id,
+        )
 
         return SQL(
             "SUM(%s / COALESCE(%s, 1.0))",
             self._field_to_sql(self._table, fname, query),
             SQL.identifier(alias_rate, "rate"),
+        )
+
+    def _aggregates_through_records(self, field, func: str) -> bool:
+        return (
+            not field.store
+            and not field.related
+            and bool(field.compute)
+            and func in READ_GROUP_THROUGH_RECORDS
         )
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
@@ -96,6 +110,15 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         field = self._fields[fname]
         self._check_field_access(field, "read")
+        if self._aggregates_through_records(field, func):
+            _debug.logic(
+                "read_group.select.through_records",
+                model=self._name,
+                aggregate=aggregate_spec,
+            )
+            return READ_GROUP_AGGREGATE["recordset"](
+                self._table, SQL.identifier(self._table, "id")
+            )
         if func == "sum_currency":
             return self._read_group_select_sum_currency(field, fname, query)
 
@@ -110,6 +133,10 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         sql_field = self._field_to_sql(self._table, fname, query)
+        if field.is_boolean:
+            # a never-written boolean is NULL in the column and False to the
+            # ORM; BOOL_AND, COUNT and ARRAY_AGG would skip or leak the NULL
+            sql_field = SQL("COALESCE(%s, FALSE)", sql_field)
         return READ_GROUP_AGGREGATE[func](self._table, sql_field)
 
     @api.model
@@ -120,9 +147,17 @@ class _ReadGroupSQLMixin(_ModelStubs):
         try:
             query = self._as_query(ordered=False)
             self._read_group_groupby(self._table, groupby, query)
+            groupable = True
         except ValueError, AccessError, NotImplementedError:
-            return False
-        return True
+            groupable = False
+        _debug.perf.count(
+            "read_group.field_groupable_probed",
+            model=self._name,
+            field=field_name,
+            groupable=groupable,
+            su=self.env.su,
+        )
+        return groupable
 
     def _read_group_groupby_many2one_path(
         self,
@@ -200,6 +235,14 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 coquery.subselect(),
             )
         query.add_join("LEFT JOIN", rel_alias, field.relation, condition)
+        _debug.logic(
+            "read_group.m2m_join",
+            model=self._name,
+            field=field.name,
+            relation=field.relation,
+            comodel_filtered=bool(coquery.where_clause),
+            bypass_access=field.bypass_search_access,
+        )
         return SQL.identifier(rel_alias, field.column2)
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
@@ -209,7 +252,37 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         field = self._fields[fname]
         self._check_field_access(field, "read")
+        if field.group_by_field:
+            return self._read_group_groupby(
+                alias, field.group_by_field + groupby_spec[len(fname) :], query
+            )
+        if field.group_by_sql and not seq_fnames and not granularity:
+            _debug.logic(
+                "read_group.groupby",
+                model=self._name,
+                groupby=groupby_spec,
+                field_type=field.type,
+                shape="sql_hook",
+                hook=field.group_by_sql,
+            )
+            return getattr(self, field.group_by_sql)(field, alias, query)
 
+        _debug.logic(
+            "read_group.groupby",
+            model=self._name,
+            groupby=groupby_spec,
+            field_type=field.type,
+            shape="properties"
+            if field.is_properties
+            else "many2one_path"
+            if seq_fnames
+            else "many2many"
+            if field.is_many2many
+            else "temporal"
+            if field.is_temporal
+            else "column",
+            granularity=granularity or None,
+        )
         if field.is_properties:
             sql_expr = self._read_group_groupby_properties(
                 alias, field, seq_fnames or "", query
@@ -267,12 +340,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 f"Granularity specification isn't correct: {granularity!r}"
             )
 
+        prop_type = None
         if field.is_properties:
             definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
             prop_type = definition.get("type")
             if prop_type == "datetime":
                 if tz_name := self.env.context.get("tz"):
-                    if tz_name in _get_sql_timezones_set(self.env):
+                    if tz_name in self.env.backend.timezone_names(self.env):
                         sql_expr = SQL(
                             "timezone(%s, timezone('UTC', %s))",
                             SQL.literal(tz_name),
@@ -306,9 +380,22 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 sql_expr,
             )
 
-        if field.is_date and granularity not in READ_GROUP_NUMBER_GRANULARITY:
+        is_date = field.is_date or (field.is_properties and prop_type == "date")
+        if is_date and granularity not in READ_GROUP_NUMBER_GRANULARITY:
+            # a date property groups by a date, as a Date column does; the
+            # in-memory backend answers the same
             sql_expr = SQL("%s::date", sql_expr)
 
+        _debug.logic(
+            "read_group.groupby_temporal",
+            model=self._name,
+            groupby=groupby_spec,
+            granularity=granularity,
+            tz=self.env.context.get("tz") if field.is_datetime else None,
+            week_start=int(get_lang(self.env).week_start)
+            if granularity == "week"
+            else None,
+        )
         return sql_expr
 
     def _read_group_having(self, having_domain: list, query: Query) -> SQL:
@@ -362,11 +449,14 @@ class _ReadGroupSQLMixin(_ModelStubs):
         groupby_terms: dict[str, SQL],
         orderby_terms: list,
         query: Query,
+        order_field: str | None = None,
     ) -> None:
         query._any_value_orderby = True
         query._collect_order_groupby = True
         try:
-            sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
+            sql_order = self._order_to_sql(
+                f"{order_field or term} {direction} {nulls}", query
+            )
         finally:
             query._any_value_orderby = False
             query._collect_order_groupby = False
@@ -401,6 +491,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
         if not order:
             return SQL.EMPTY
 
+        _debug.logic(
+            "read_group.orderby",
+            model=self._name,
+            order=order,
+            from_groupby=not traverse_many2one,
+            groupby_terms=len(groupby_terms),
+        )
         orderby_terms = []
 
         for order_part in order.split(","):
@@ -427,6 +524,8 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 continue
 
             field = self._fields.get(term)
+            if field and field.group_by_field:
+                field = self._fields[field.group_by_field]
             spec_granularity = parse_read_group_spec(term)[2]
             if (
                 traverse_many2one
@@ -435,7 +534,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 and self.env[field.comodel_name]._order != "id"
             ):
                 self._read_group_orderby_many2one(
-                    term, direction, nulls, groupby_terms, orderby_terms, query
+                    term,
+                    direction,
+                    nulls,
+                    groupby_terms,
+                    orderby_terms,
+                    query,
+                    order_field=field.name,
                 )
 
             elif spec_granularity == "day_of_week":
@@ -540,6 +645,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
         definition = self.get_property_definition(f"{fname}.{property_name}")
         property_type = definition.get("type")
         sql_property = self._field_to_sql(alias, f"{fname}.{property_name}", query)
+        _debug.logic(
+            "read_group.property_groupby",
+            model=self._name,
+            field=fname,
+            property=property_name,
+            type=property_type,
+        )
 
         if property_type in ("tags", "many2many"):
             return self._read_group_property_collection(

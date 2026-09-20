@@ -3,6 +3,9 @@ from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MrpProduction(models.Model):
@@ -10,20 +13,22 @@ class MrpProduction(models.Model):
     _rec_names_search = ["name", "incoming_picking.name"]
 
     move_line_raw_ids = fields.One2many(
-        "stock.move.line",
+        comodel_name="stock.move.line",
         string="Detail Component",
-        readonly=False,
-        inverse="_inverse_move_line_raw_ids",
         compute="_compute_move_line_raw_ids",
+        inverse="_inverse_move_line_raw_ids",
+        readonly=False,
     )
-    subcontracting_has_been_recorded = fields.Boolean("Has been recorded?", copy=False)
+    subcontracting_has_been_recorded = fields.Boolean(
+        string="Has been recorded?",
+        copy=False,
+    )
     subcontractor_id = fields.Many2one(
-        "res.partner",
-        string="Subcontractor",
+        comodel_name="res.partner",
         help="Used to restrict access to the portal user through Record Rules",
     )
     bom_product_ids = fields.Many2many(
-        "product.product",
+        comodel_name="product.product",
         compute="_compute_bom_product_ids",
         help="List of Products used in the BoM, used to filter the list of products in the subcontracting portal view",
     )
@@ -52,7 +57,7 @@ class MrpProduction(models.Model):
                 )
             for product_id, lines in line_by_product.items():
                 qty = sum(
-                    line.product_uom_id._compute_quantity(
+                    line.product_uom_id._get_quantity_in_unit(
                         line.quantity, product_id.uom_id
                     )
                     for line in lines
@@ -72,6 +77,11 @@ class MrpProduction(models.Model):
                 self._get_writeable_fields_portal_user()
             )
             if unauthorized_fields:
+                _debug.logic(
+                    "portal_write_refused",
+                    productions=self,
+                    fields=sorted(unauthorized_fields),
+                )
                 raise AccessError(
                     _(
                         "You cannot write on fields %s in mrp.production.",
@@ -80,6 +90,9 @@ class MrpProduction(models.Model):
                 )
 
         if "date_start" in vals and self.env.context.get("from_subcontract"):
+            _debug.logic(
+                "subcontract_date_backdated", productions=self, by="produce_delay"
+            )
             date_start = fields.Datetime.to_datetime(vals["date_start"])
             date_start_map = {
                 prod: date_start - timedelta(days=prod.bom_id.produce_delay)
@@ -133,6 +146,7 @@ class MrpProduction(models.Model):
 
     def action_merge(self):
         if any(production._get_subcontract_move() for production in self):
+            _debug.logic("merge_refused", reason="subcontracted", productions=self)
             raise ValidationError(
                 _("Subcontracted manufacturing orders cannot be merged.")
             )
@@ -174,7 +188,7 @@ class MrpProduction(models.Model):
                     for origin in raw.move_orig_ids
                     if origin.state != "cancel"
                 )
-                covered[raw.id] = raw.product_id.uom_id._compute_quantity(
+                covered[raw.id] = raw.product_id.uom_id._get_quantity_in_unit(
                     supplied,
                     raw.product_uom_id,
                     rounding_method="HALF-UP",

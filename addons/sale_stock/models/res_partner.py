@@ -2,6 +2,9 @@ from collections import defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartner(models.Model):
@@ -21,6 +24,15 @@ class ResPartner(models.Model):
 
     @api.depends("sale_line_ids")
     def _compute_customer_on_time_rate(self):
+        if not (
+            self.env["sale.order.line"].has_access("read")
+            and self.env["stock.move"].has_access("read")
+        ):
+            # a partner is readable by users who may not read its orders or
+            # moves; the rate over records they cannot see is -1, not an error
+            self.customer_on_time_rate = -1
+            _debug.logic("on_time_rate_unavailable", partners=self, reason="no_access")
+            return
         date_order_days_delta = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -54,16 +66,17 @@ class ResPartner(models.Model):
         )
         order_lines.read(["order_id", "partner_id", "product_uom_qty"], load="")
         order_lines.order_id.read(["date_commitment"], load="")
-        moves.read(["sale_line_id", "date"], load="")
+        moves.read(["sale_line_id", "date", "location_dest_id"], load="")
         moves = moves.filtered(
             lambda m: (
-                m.sale_line_id.order_id.date_commitment
+                m.location_dest_id._is_outgoing()
+                and m.sale_line_id.order_id.date_commitment
                 and m.date.date() <= m.sale_line_id.order_id.date_commitment.date()
             ),
         )
         for move in moves:
             lines_quantity[move.sale_line_id.id] += (
-                move.product_uom_id._compute_quantity(
+                move.product_uom_id._get_quantity_in_unit(
                     move.quantity,
                     move.product_id.uom_id,
                     rounding_method="HALF-UP",
@@ -75,6 +88,13 @@ class ResPartner(models.Model):
             ordered += line.product_uom_qty
             on_time += lines_quantity[line.id]
             partner_dict[line.partner_id] = (on_time, ordered)
+        _debug.perf.count(
+            "customer_on_time_rate",
+            partners=len(self),
+            order_lines=len(order_lines),
+            moves=len(moves),
+            window_days=date_order_days_delta,
+        )
         seen_partner = self.env["res.partner"]
         for partner, numbers in partner_dict.items():
             seen_partner |= partner

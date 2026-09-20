@@ -20,5 +20,4 @@ installed by the test lane and by nobody else.
     "depends": [
         "mixin_report_sql",
     ],
-    "installable": True,
 }

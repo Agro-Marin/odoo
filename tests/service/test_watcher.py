@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shutil
 import time
@@ -95,6 +96,77 @@ class TestFSWatcherBase:
         mock_restart.assert_not_called()
         assert result is None
 
+    def test_a_windows_asset_path_is_recognised_and_invalidated(self, watcher):
+        # On Windows the watchdog backend reports native backslash paths; a
+        # POSIX-only "/static/" check would miss them and --dev=assets would
+        # silently ignore every asset edit there.
+        win_path = r"c:\odoo\addons\web\static\src\x.js"
+        with (
+            patch.object(_watcher.os, "sep", "\\"),
+            patch("odoo.service._watcher.current") as current,
+            patch.object(watcher, "on_asset_file_changed") as on_asset,
+        ):
+            current.return_value.dev_mode = ["assets"]
+            result = watcher.on_file_changed(win_path)
+        on_asset.assert_called_once_with(win_path)
+        assert result is None
+
+
+@pytest.mark.parametrize("phoenix", [False, True])
+def test_prefork_watcher_keeps_accepting_source_edits(tmp_path, phoenix):
+    source = tmp_path / "source.py"
+    source.write_text("value = 1\n")
+    with (
+        server_settings.override(workers=2, dev_mode=("reload",)),
+        patch("odoo.service._process_state.server_phoenix", phoenix),
+        patch.object(_watcher, "restart") as restart,
+    ):
+        watcher = _watcher.FSWatcherBase()
+        assert not watcher.on_file_changed(str(source))
+        source.write_text("value = 2\n")
+        assert not watcher.on_file_changed(str(source))
+    assert restart.call_count == 2
+
+
+@requires_inotify
+def test_failed_watch_thread_start_releases_inotify(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        _watcher.FSWatcherBase, "get_watch_paths", staticmethod(lambda: [str(tmp_path)])
+    )
+    watcher = _watcher.FSWatcherInotify()
+    descriptors = watcher.watcher.descriptors()
+    try:
+        with patch.object(
+            _watcher.threading.Thread,
+            "start",
+            side_effect=RuntimeError("thread exhausted"),
+        ):
+            with pytest.raises(RuntimeError, match="thread exhausted"):
+                watcher.start()
+        assert not watcher.started
+        assert watcher.thread is None
+        for fd in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(fd)
+    finally:
+        # Let the pre-fix control release its never-started thread too.
+        if watcher.thread is not None and watcher.thread.ident is None:
+            watcher.thread = None
+        watcher.stop()
+
+
+def test_watchdog_cleanup_accepts_an_observer_that_never_started(monkeypatch):
+    class Observer(_watcher.threading.Thread):
+        def stop(self):
+            pass
+
+    monkeypatch.setattr(_watcher, "Observer", Observer, raising=False)
+    monkeypatch.setattr(_watcher.FSWatcherBase, "get_watch_paths", staticmethod(list))
+    watcher = _watcher.FSWatcherWatchdog()
+    watcher.stop()
+    assert watcher.observer.ident is None
+    assert not watcher.observer.is_alive()
+
 
 class TestFSWatcherAssetInvalidation:
     @pytest.fixture
@@ -163,7 +235,8 @@ class TestFSWatcherInotifyRewatch:
         w.FSWatcherBase.__init__(obj)
         obj.started = False
         obj.thread = None
-        obj._arm_watcher([str(root)], block_duration_s=0.05)
+        obj.block_duration_s = 0.05
+        obj._arm_watcher([str(root)])
         obj.on_file_changed = seen.append
         obj.start()
         try:
@@ -195,7 +268,7 @@ class TestFSWatcherInotifyRewatch:
         moved = root / "moved_subtree"
         staging.rename(moved)
 
-        watches = lambda: getattr(obj.watcher._i, "_Inotify__watches", {})  # noqa: E731
+        watches = lambda: obj.watcher.watched  # noqa: E731
         assert self._wait_for(lambda: str(moved) in watches()), (
             "subtree root was never watched"
         )
@@ -225,9 +298,9 @@ class TestFSWatcherInotifyRewatch:
         obj, seen, root = watcher
         sub = root / "toggled"
         sub.mkdir()
-        assert self._wait_for(
-            lambda: str(sub) in getattr(obj.watcher._i, "_Inotify__watches", {})
-        ), "directory was never watched on first creation"
+        assert self._wait_for(lambda: str(sub) in obj.watcher.watched), (
+            "directory was never watched on first creation"
+        )
 
         shutil.rmtree(sub)
         sub.mkdir()
@@ -243,33 +316,25 @@ class TestFSWatcherInotifyRewatch:
             f"edit in a recreated directory went unseen; saw {seen}"
         )
 
-    def test_overflow_watch_descriptor_is_mapped(self, watcher):
+    def test_run_resyncs_on_overflow_and_lets_other_faults_out(self):
+        from odoo.libs.inotify import QueueOverflow
         from odoo.service import _watcher as w
 
-        obj, _seen, _root = watcher
-        assert (
-            getattr(obj.watcher._i, "_Inotify__watches_r", {}).get(w.OVERFLOW_WD)
-            == w.OVERFLOW_PATH
-        )
-
-    def test_run_resyncs_on_overflow_and_re_raises_other_terminal_events(self):
-        from odoo.service import _watcher as w
-
-        def _watcher_raising(type_name):
+        def _watcher_raising(exc):
             class _W:
                 def close(self):
                     pass
 
-                def event_gen(self, **kwargs):
-                    raise w.TerminalEventException(type_name, None)
-                    yield  # pragma: no cover - generator marker
+                def read(self, timeout_s):
+                    raise exc
 
             return _W()
 
         obj = w.FSWatcherInotify.__new__(w.FSWatcherInotify)
         w.FSWatcherBase.__init__(obj)
+        obj.block_duration_s = 0.05
         obj.started = True
-        obj.watcher = _watcher_raising("IN_Q_OVERFLOW")
+        obj.watcher = _watcher_raising(QueueOverflow())
         calls = []
 
         def _sync_watches_after_overflow():
@@ -281,8 +346,8 @@ class TestFSWatcherInotifyRewatch:
         assert calls == [1], "overflow did not trigger a resync"
 
         obj.started = True
-        obj.watcher = _watcher_raising("IN_UNMOUNT")
-        with pytest.raises(w.TerminalEventException):
+        obj.watcher = _watcher_raising(RuntimeError("unmounted"))
+        with pytest.raises(RuntimeError, match="unmounted"):
             obj.run()
 
     def test_asset_burst_signals_twice_not_once_per_file(self, watcher):
@@ -489,49 +554,46 @@ class TestWatcherWiring:
         assert watcher.started is False
         assert watcher.thread is None
 
-    def test_the_event_loop_does_not_ask_for_none_events(self, srv):
+    def test_the_event_loop_blocks_for_its_block_duration(self, srv):
         watcher = object.__new__(srv.FSWatcherInotify)
         srv.FSWatcherBase.__init__(watcher)
         watcher.started = True
-        seen = {}
+        watcher.block_duration_s = 0.25
+        seen = []
 
-        def event_gen(**kwargs):
-            seen.update(kwargs)
+        def read(timeout_s):
+            seen.append(timeout_s)
             watcher.started = False
-            return iter(())
+            return []
 
-        watcher.watcher = MagicMock(event_gen=event_gen)
+        watcher.watcher = MagicMock(read=read)
         watcher.run()
 
-        assert seen.get("yield_nones") is False, seen
+        assert seen == [0.25]
 
 
 class TestInotifyWatchDirectory:
     @staticmethod
-    def _watcher(srv, add_results):
+    def _watcher(srv, add_watch):
         w = object.__new__(srv.FSWatcherInotify)
-        tree = MagicMock()
-        tree.add_watch.side_effect = list(add_results)
-        w.watcher = MagicMock(_i=tree, _mask=0o777)
-        w.internals = srv._InotifyInternals(w.watcher)
-        return w, tree
+        w.watcher = MagicMock()
+        w.watcher.add_watch.side_effect = add_watch
+        return w
 
-    def test_a_fresh_directory_is_watched_once(self, srv, tmp_path):
-        w, tree = self._watcher(srv, [7])
+    def test_a_directory_is_watched_with_the_listen_mask(self, srv, tmp_path):
+        w = self._watcher(srv, [7])
         w._watch_directory(tmp_path)
-        assert tree.add_watch.call_count == 1
-        tree.remove_watch.assert_not_called()
-
-    def test_a_stale_descriptor_is_purged_and_re_added(self, srv, tmp_path):
-        w, tree = self._watcher(srv, [None, 7])
-        w._watch_directory(tmp_path)
-        tree.remove_watch.assert_called_once()
-        assert tree.add_watch.call_count == 2
+        w.watcher.add_watch.assert_called_once_with(tmp_path, srv.INOTIFY_LISTEN_EVENTS)
 
     def test_a_failure_to_watch_is_logged_and_swallowed(self, srv, tmp_path, caplog):
         import logging
 
-        w, _tree = self._watcher(srv, [OSError("ENOSPC: inotify limit reached")])
+        w = self._watcher(srv, [OSError("ENOSPC: inotify limit reached")])
         with caplog.at_level(logging.WARNING, logger="odoo.service._watcher"):
             w._watch_directory(tmp_path)
         assert any(r.levelno >= logging.WARNING for r in caplog.records)
+
+    def test_a_released_watcher_ignores_the_request(self, srv, tmp_path):
+        w = object.__new__(srv.FSWatcherInotify)
+        w.watcher = None
+        w._watch_directory(tmp_path)

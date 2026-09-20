@@ -10,11 +10,11 @@
                 <field name="state" position="after">
                     <field
                         name="sale_status"
-                        optional="show"
                         widget="badge"
-                        decoration-success="sale_status == 'sold'"
+                        optional="show"
+                        invisible="not sale_status"
                         decoration-danger="sale_status == 'to_pay'"
-                        invisible="not sale_status" />
+                        decoration-success="sale_status == 'sold'" />
                 </field>
             </field>
         </record>
@@ -37,18 +37,18 @@
                     <widget
                         name="web_ribbon"
                         title="Sold"
-                        bg_color="text-bg-success"
-                        invisible="sale_status != 'sold'" />
+                        invisible="sale_status != 'sold'"
+                        bg_color="text-bg-success" />
                     <widget
                         name="web_ribbon"
                         title="Not Sold"
-                        bg_color="text-bg-info"
-                        invisible="not sale_status or sale_status in ('sold', 'free') or not id" />
+                        invisible="not sale_status or sale_status in ('sold', 'free') or not id"
+                        bg_color="text-bg-info" />
                 </xpath>
                     <group name="utm_link" position="before">
                         <group
-                            string="Transaction"
                             name="transaction"
+                            string="Transaction"
                             groups="base.group_no_one" />
                 </group>
             </field>

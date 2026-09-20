@@ -5,16 +5,16 @@ class SurveyUser_Input(models.Model):
     _inherit = "survey.user_input"
 
     slide_id = fields.Many2one(
-        "slide.slide",
-        "Related course slide",
+        comodel_name="slide.slide",
+        string="Related course slide",
         help="The related course slide when there is no membership information",
     )
     slide_partner_id = fields.Many2one(
-        "slide.slide.partner",
-        "Subscriber information",
-        help="Slide membership information for the logged in user",
+        comodel_name="slide.slide.partner",
+        string="Subscriber information",
         index="btree_not_null",
-    )  # index useful for deletions in comodel
+        help="Slide membership information for the logged in user",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -29,13 +29,6 @@ class SurveyUser_Input(models.Model):
         return res
 
     def _check_for_failed_attempt(self):
-        """If the user fails their last attempt at a course certification,
-        we remove them from the members of the course (and they have to enroll again).
-        They receive an email in the process notifying them of their failure and suggesting
-        they enroll to the course again.
-
-        The purpose is to have a 'certification flow' where the user can re-purchase the
-        certification when they have failed it."""
 
         if self:
             user_inputs = self.search(
@@ -53,7 +46,6 @@ class SurveyUser_Input(models.Model):
                     if user_input.survey_id._has_attempts_left(
                         user_input.partner_id, user_input.email, user_input.invite_token
                     ):
-                        # skip if user still has attempts left
                         continue
 
                     self.env.ref(

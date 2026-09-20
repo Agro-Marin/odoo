@@ -7,7 +7,6 @@ export class WebsiteForumShare extends Interaction {
     static selector = ".website_forum";
 
     start() {
-        // Retrieve stored social data
         if (sessionStorage.getItem("social_share")) {
             const socialData = JSON.parse(sessionStorage.getItem("social_share"));
 

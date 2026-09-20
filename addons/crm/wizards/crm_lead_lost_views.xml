@@ -16,20 +16,20 @@
                     <field
                         name="lost_feedback"
                         placeholder="What went wrong?"
-                        nolabel="1"
-                        colspan="2" />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
                 <footer>
                     <button
                         name="action_lost_reason_apply"
-                        string="Mark as Lost"
                         type="object"
+                        string="Mark as Lost"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -37,7 +37,7 @@
     </record>
 
     <record id="crm_lead_lost_action" model="ir.actions.act_window">
-        <field name="name">Mark Lost</field>
+        <field name="name">Mark Lost…</field>
         <field name="res_model">crm.lead.lost</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="crm_lead_lost_view_form" />

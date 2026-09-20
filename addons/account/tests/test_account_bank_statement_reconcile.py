@@ -6808,9 +6808,6 @@ class TestAccountBankStatement(TestBankRecWidgetCommon):
         )
 
     def test_early_payment_discount_multi_bill_statement(self):
-        early_pay_acc = (  # noqa: F841
-            self.env.company.account_journal_early_pay_discount_gain_account_id
-        )
         self.company_data[
             "default_journal_bank"
         ].outbound_payment_channel_ids.payment_account_id = False

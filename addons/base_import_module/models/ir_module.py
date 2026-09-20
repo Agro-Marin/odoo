@@ -55,7 +55,7 @@ class IrModuleModule(models.Model):
 
     imported = fields.Boolean(string="Imported Module")
     module_type = fields.Selection(
-        [
+        selection=[
             ("official", "Official Apps"),
             ("industries", "Industries"),
         ],
@@ -90,7 +90,7 @@ class IrModuleModule(models.Model):
             for lang in langs:
                 for lang_ in get_base_langs(lang):
                     # Translations for imported data modules only works with imported po files
-                    attachment = IrAttachment.sudo().search(
+                    attachment = IrAttachment.sudo().search(  # noqa: E8507 - one lookup per (module, language) pair
                         [
                             ("name", "=", f"{module}_{lang_}.po"),
                             ("url", "=", f"/{module}/i18n/{lang_}.po"),
@@ -131,7 +131,7 @@ class IrModuleModule(models.Model):
         super()._compute_icon_display()
         IrAttachment = self.env["ir.attachment"]
         for module in self.filtered("imported"):
-            attachment = IrAttachment.sudo().search(
+            attachment = IrAttachment.sudo().search(  # noqa: E8507 - one lookup per imported module, on its own icon attachment
                 [
                     ("url", "=", module.icon),
                     ("type", "=", "binary"),
@@ -155,7 +155,7 @@ class IrModuleModule(models.Model):
             if force_website_id:
                 request.session["force_website_id"] = force_website_id
 
-    def _get_imported_module_vals(self, terp, with_demo):
+    def _prepare_imported_module_vals(self, terp, with_demo):
         values = self.get_values_from_terp(terp)
         try:
             icon_path = terp.get_raw_value("icon") or str(
@@ -409,7 +409,7 @@ class IrModuleModule(models.Model):
                 }
             )
 
-    def _get_manifest_asset_vals(self, module, terp):
+    def _prepare_manifest_asset_vals(self, module, terp):
         IrAsset = self.env["ir.asset"]
         assets_vals = []
         for bundle, commands in terp.get("assets", {}).items():
@@ -438,7 +438,7 @@ class IrModuleModule(models.Model):
 
     def _import_manifest_assets(self, module, terp):
         IrAsset = self.env["ir.asset"]
-        assets_vals = self._get_manifest_asset_vals(module, terp)
+        assets_vals = self._prepare_manifest_asset_vals(module, terp)
 
         existing_assets = {
             asset.name: asset
@@ -497,7 +497,7 @@ class IrModuleModule(models.Model):
             known_mods = self.search([])
             installed_mods = [m.name for m in known_mods if m.state == "installed"]
 
-            values = self._get_imported_module_vals(terp, with_demo)
+            values = self._prepare_imported_module_vals(terp, with_demo)
             self._install_manifest_dependencies(terp, path, known_mods, installed_mods)
             mod, mode = self._upsert_imported_module(
                 module, values, terp, known_mods, force
@@ -834,10 +834,10 @@ class IrModuleModule(models.Model):
     @ormcache("payload")
     def _call_apps(self, payload):
         headers = {"Content-type": "application/json", "Accept": "text/plain"}
-        import requests
-
-        return requests.post(
+        return self.env["ir.egress"].request(
+            "POST",
             f"{APPS_URL}/loempia/listdatamodules",
+            purpose="apps_store",
             data=payload,
             headers=headers,
             timeout=5.0,
@@ -846,11 +846,11 @@ class IrModuleModule(models.Model):
     @api.model
     @ormcache()
     def _get_industry_categories_from_apps(self):
-        import requests
-
         try:
-            resp = requests.post(
+            resp = self.env["ir.egress"].request(
+                "POST",
                 f"{APPS_URL}/loempia/listindustrycategory/{major_version}",
+                purpose="apps_store",
                 json={"params": {}},
                 timeout=5.0,
             )
@@ -873,11 +873,11 @@ class IrModuleModule(models.Model):
         if not self.env.is_admin():
             raise AccessDenied
         module_name = self.env.context.get("module_name")
-        import requests
-
         try:
-            resp = requests.get(
+            resp = self.env["ir.egress"].request(
+                "GET",
                 f"{APPS_URL}/loempia/download/data_app/{module_name}/{major_version}",
+                purpose="apps_store",
                 timeout=5.0,
             )
             resp.raise_for_status()
@@ -1009,7 +1009,7 @@ class IrModuleModule(models.Model):
 
         translations = {}
         for lang_ in get_base_langs(lang):
-            attachment = IrAttachment.sudo().search(
+            attachment = IrAttachment.sudo().search(  # noqa: E8507 - one lookup per base language of the requested one
                 [
                     ("name", "=", f"{module}_{lang_}.po"),
                     ("url", "=", f"/{module}/i18n/{lang_}.po"),

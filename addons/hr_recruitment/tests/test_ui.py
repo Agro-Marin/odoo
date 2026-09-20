@@ -23,6 +23,8 @@ class TestRecruitmentTour(HttpCase):
             }
         )
         job = self.env["hr.job"].create({"name": "Aardvark Wrangler", "sequence": 0})
+        if "is_published" in job._fields:
+            job.is_published = True
         applicant = self.env["hr.applicant"].create(
             {
                 "partner_name": "Tour Applicant",

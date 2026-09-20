@@ -9,7 +9,7 @@
             file="spreadsheet_dashboard_event_sale/data/files/events_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('event.model_event_event'))]" />
+            eval="[Command.link(ref('event.model_event_event'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_event_sale/data/files/events_sample_dashboard.json</field>
         <field

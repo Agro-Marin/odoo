@@ -14,8 +14,8 @@
                     <div class="row mt16">
                         <div class="w-100">
                             <label
-                                string="Project"
                                 for="internal_project_id"
+                                string="Project"
                                 class="col-2 col-lg-3" />
                             <field
                                 name="internal_project_id"
@@ -24,8 +24,8 @@
                         </div>
                         <div class="w-100">
                             <label
-                                string="Task"
                                 for="leave_timesheet_task_id"
+                                string="Task"
                                 class="col-2 col-lg-3" />
                             <field
                                 name="leave_timesheet_task_id"

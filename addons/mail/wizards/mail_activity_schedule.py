@@ -9,6 +9,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import html2plaintext
 from odoo.tools.misc import format_date
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailActivitySchedule(models.TransientModel):
@@ -50,64 +52,74 @@ class MailActivitySchedule(models.TransientModel):
         return res
 
     res_model_id: IrModel = fields.Many2one(
-        "ir.model",
+        comodel_name="ir.model",
         string="Applies to",
         compute="_compute_res_model_id",
-        compute_sudo=True,
-        ondelete="cascade",
         precompute=True,
+        compute_sudo=True,
+        store=True,
         readonly=False,
         required=False,
-        store=True,
+        ondelete="cascade",
     )
-    res_model = fields.Char("Model", readonly=False, required=False)
-    res_ids = fields.Text(
-        "Document IDs",
-        compute="_compute_res_ids",
+    res_model = fields.Char(
+        string="Model",
         readonly=False,
-        store=True,
-        precompute=True,
+        required=False,
     )
-    is_batch_mode = fields.Boolean("Use in batch", compute="_compute_is_batch_mode")
+    res_ids = fields.Text(
+        string="Document IDs",
+        compute="_compute_res_ids",
+        precompute=True,
+        store=True,
+        readonly=False,
+    )
+    is_batch_mode = fields.Boolean(
+        string="Use in batch",
+        compute="_compute_is_batch_mode",
+    )
     company_id: ResCompany = fields.Many2one(
-        "res.company", "Company", compute="_compute_company_id", required=False
+        comodel_name="res.company",
+        compute="_compute_company_id",
+        required=False,
     )
     error = fields.Html(compute="_compute_error_and_warning")
     has_error = fields.Boolean(compute="_compute_error_and_warning")
     warning = fields.Html(compute="_compute_error_and_warning")
     has_warning = fields.Boolean(compute="_compute_error_and_warning")
     plan_available_ids: MailActivityPlan = fields.Many2many(
-        "mail.activity.plan",
+        comodel_name="mail.activity.plan",
         compute="_compute_plan_available_ids",
-        store=True,
         compute_sudo=True,
+        store=True,
     )
     plan_id: MailActivityPlan = fields.Many2one(
-        "mail.activity.plan",
-        domain="[('id', 'in', plan_available_ids)]",
+        comodel_name="mail.activity.plan",
         compute="_compute_plan_id",
         store=True,
         readonly=False,
+        domain="[('id', 'in', plan_available_ids)]",
     )
     plan_has_user_on_demand = fields.Boolean(related="plan_id.has_user_on_demand")
     plan_schedule_line_ids: MailActivityScheduleSummary = fields.One2many(
-        "mail.activity.schedule.line",
-        "activity_schedule_id",
+        comodel_name="mail.activity.schedule.line",
+        inverse_name="activity_schedule_id",
         string="Schedule Lines",
         compute="_compute_plan_schedule_line_ids",
     )
     plan_on_demand_user_id: ResUsers = fields.Many2one(
-        "res.users",
-        "Assigned To",
-        help="Choose assignation for activities with on demand assignation.",
+        comodel_name="res.users",
+        string="Assigned To",
         default=lambda self: self.env.user,
+        help="Choose assignation for activities with on demand assignation.",
     )
     plan_date = fields.Date(
-        "Plan Date", compute="_compute_plan_date", store=True, readonly=False
+        compute="_compute_plan_date",
+        store=True,
+        readonly=False,
     )
     activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type",
-        string="Activity Type",
+        comodel_name="mail.activity.type",
         compute="_compute_activity_type_id",
         store=True,
         readonly=False,
@@ -115,26 +127,36 @@ class MailActivitySchedule(models.TransientModel):
         ondelete="set null",
     )
     activity_category = fields.Selection(
-        related="activity_type_id.category", readonly=True
+        related="activity_type_id.category",
+        readonly=True,
     )
     date_deadline = fields.Date(
-        "Due Date", compute="_compute_date_deadline", readonly=False, store=True
+        string="Due Date",
+        compute="_compute_date_deadline",
+        store=True,
+        readonly=False,
     )
     summary = fields.Char(
-        "Summary", compute="_compute_summary", readonly=False, store=True
+        compute="_compute_summary",
+        store=True,
+        readonly=False,
     )
     note = fields.Html(
-        "Note", compute="_compute_note", readonly=False, store=True, sanitize_style=True
+        sanitize_style=True,
+        compute="_compute_note",
+        store=True,
+        readonly=False,
     )
     activity_user_id: ResUsers = fields.Many2one(
-        "res.users",
-        "Assigned to",
+        comodel_name="res.users",
+        string="Assigned to",
         compute="_compute_activity_user_id",
-        readonly=False,
         store=True,
+        readonly=False,
     )
     chaining_type = fields.Selection(
-        related="activity_type_id.chaining_type", readonly=True
+        related="activity_type_id.chaining_type",
+        readonly=True,
     )
 
     @api.depends("res_model")
@@ -197,6 +219,15 @@ class MailActivitySchedule(models.TransientModel):
             if not scheduler.res_ids and not scheduler.activity_user_id:
                 errors.add(
                     _("Can't schedule activities without either a record or a user.")
+                )
+            if _debug.logic.enabled and (errors or warnings):
+                _debug.logic(
+                    "schedule_complaints",
+                    wizard=scheduler.id,
+                    plan=scheduler.plan_id.id or None,
+                    model=scheduler.res_model or None,
+                    errors=len(errors),
+                    warnings=len(warnings),
                 )
             if errors:
                 error_header = (
@@ -463,6 +494,15 @@ class MailActivitySchedule(models.TransientModel):
                     )
                 )
 
+        _debug.pipeline(
+            "plan_scheduled",
+            wizard=self.id,
+            plan=self.plan_id.id,
+            model=self.res_model,
+            records=len(applied_on),
+            templates=len(templates),
+            groups=len(record_ids_by_group),
+        )
         for (
             template,
             responsible,
@@ -477,18 +517,26 @@ class MailActivitySchedule(models.TransientModel):
                 date_deadline=date_deadline,
             )
 
-        for record in applied_on:
-            body = _(
-                'The plan "%(plan_name)s" has been started', plan_name=self.plan_id.name
-            )
-            if descriptions[record.id]:
-                body += Markup("<ul>%s</ul>") % (
-                    Markup().join(
-                        Markup("<li>%s</li>") % description
-                        for description in descriptions[record.id]
+        started = _(
+            'The plan "%(plan_name)s" has been started', plan_name=self.plan_id.name
+        )
+        applied_on._message_post_values_all(
+            {
+                record.id: {
+                    "body": started
+                    + (
+                        Markup("<ul>%s</ul>")
+                        % Markup().join(
+                            Markup("<li>%s</li>") % description
+                            for description in descriptions[record.id]
+                        )
+                        if descriptions[record.id]
+                        else ""
                     )
-                )
-            record.message_post(body=body)
+                }
+                for record in applied_on
+            }
+        )
 
         if len(applied_on) == 1:
             return {"type": "ir.actions.client", "tag": "soft_reload"}
@@ -528,6 +576,14 @@ class MailActivitySchedule(models.TransientModel):
         if not self.res_model:
             return self._action_schedule_activities_personal()
         self._check_assignee_can_upload()
+        _debug.lifecycle(
+            "activities_scheduled",
+            wizard=self.id,
+            model=self.res_model,
+            activity_type=self.activity_type_id.id,
+            user=self.activity_user_id.id,
+            by="wizard",
+        )
         return self._get_applied_on_records().activity_schedule(
             activity_type_id=self.activity_type_id.id,
             automated=False,
@@ -542,6 +598,13 @@ class MailActivitySchedule(models.TransientModel):
             raise UserError(
                 _("Scheduling personal activities requires an assigned user.")
             )
+        _debug.lifecycle(
+            "activities_scheduled",
+            wizard=self.id,
+            activity_type=self.activity_type_id.id,
+            user=self.activity_user_id.id,
+            by="personal",
+        )
         return self.env["mail.activity"].create(
             {
                 "activity_type_id": self.activity_type_id.id,
@@ -603,6 +666,12 @@ class MailActivitySchedule(models.TransientModel):
             for operation, records in operations.items():
                 records.check_access(operation)
         except AccessError as err:
+            _debug.logic(
+                "assignee_cannot_upload",
+                wizard=self.id,
+                model=model,
+                user=activity_user.id,
+            )
             raise UserError(
                 _(
                     "Selected user '%(user)s' cannot upload documents on model '%(model)s'",

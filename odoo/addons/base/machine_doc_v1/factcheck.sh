@@ -38,13 +38,13 @@ UPDATE=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/odoo/addons/base
 DOCS=("$SCRIPT_DIR"/*.md)
@@ -271,7 +271,7 @@ for label, expected in table.items():
         print(f"BAD|ARCHITECTURE.md File Counts row '{label}' should read {expected}, "
               f"reads {row.group(1) if row else 'nothing'}")
 
-t = inv.totals(inv.scan(mod / "tests"))
+t = inv.totals(inv.read_test_inventory(mod / "tests"))
 pct = round(100 * t["tagged"] / t["files"]) if t["files"] else 0
 for claim, pattern in (
     ("untagged share", rf"^- \*\*{100 - pct}% of test files have no `@tagged` decorator\*\*"),

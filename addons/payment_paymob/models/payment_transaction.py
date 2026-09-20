@@ -13,7 +13,7 @@ class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
     @api.model
-    def _compute_reference(self, provider_code, prefix=None, separator="-", **kwargs):
+    def _get_unique_reference(self, provider_code, prefix=None, separator="-", **kwargs):
         """Override of `payment` to ensure that Paymob references are unique.
 
         :param str provider_code: The code of the provider handling the transaction.
@@ -25,25 +25,25 @@ class PaymentTransaction(models.Model):
         if provider_code == "paymob":
             if not prefix:
                 # If no prefix is provided, it could mean that a module has passed a kwarg intended
-                # for the `_compute_reference_prefix` method, as it is only called if the prefix is
+                # for the `_get_reference_prefix` method, as it is only called if the prefix is
                 # empty. We call it manually here because singularizing the prefix would generate a
                 # default value if it was empty, hence preventing the method from ever being called
                 # and the transaction from receiving a reference named after the related document.
                 prefix = (
-                    self.sudo()._compute_reference_prefix(separator, **kwargs) or None
+                    self.sudo()._get_reference_prefix(separator, **kwargs) or None
                 )
             prefix = payment_utils.singularize_reference_prefix(
                 prefix=prefix, separator=separator
             )
 
-        return super()._compute_reference(
+        return super()._get_unique_reference(
             provider_code, prefix=prefix, separator=separator, **kwargs
         )
 
-    def _get_specific_rendering_values(self, processing_values):
+    def _prepare_redirect_form_values(self, processing_values):
         """Override of `payment` to return Paymob-specific rendering values.
 
-        Note: self.check_singleton() from `_get_processing_values`
+        Note: self.check_singleton() from `_prepare_processing_values`
 
         :param dict processing_values: The generic and specific processing values of the
                                        transaction.
@@ -51,7 +51,7 @@ class PaymentTransaction(models.Model):
         :rtype: dict
         """
         if self.provider_code != "paymob":
-            return super()._get_specific_rendering_values(processing_values)
+            return super()._prepare_redirect_form_values(processing_values)
 
         payload = self._paymob_prepare_payment_request_payload()
         try:
@@ -103,7 +103,7 @@ class PaymentTransaction(models.Model):
 
         return {
             "special_reference": self.reference,
-            "amount": payment_utils.to_minor_currency_units(
+            "amount": payment_utils.major_to_minor_currency_units(
                 self.amount, self.currency_id
             ),
             "currency": self.currency_id.name,
@@ -134,7 +134,9 @@ class PaymentTransaction(models.Model):
             return super()._extract_amount_data(payment_data)
 
         amount_cents = float(payment_data.get("amount_cents"))
-        amount = payment_utils.to_major_currency_units(amount_cents, self.currency_id)
+        amount = payment_utils.minor_to_major_currency_units(
+            amount_cents, self.currency_id
+        )
         currency_code = payment_data.get("currency")
         return {
             "amount": amount,
@@ -164,3 +166,4 @@ class PaymentTransaction(models.Model):
                     msg=message,
                 )
             )
+        return None

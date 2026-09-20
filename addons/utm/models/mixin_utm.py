@@ -14,20 +14,17 @@ class MixinUtm(models.AbstractModel):
     _description = "UTM Mixin"
 
     campaign_id = fields.Many2one(
-        "utm.campaign",
-        "Campaign",
+        comodel_name="utm.campaign",
         index="btree_not_null",
         help="This is a name that helps you keep track of your different campaign efforts, e.g. Fall_Drive, Christmas_Special",
     )
     source_id = fields.Many2one(
-        "utm.source",
-        "Source",
+        comodel_name="utm.source",
         index="btree_not_null",
         help="This is the source of the link, e.g. Search Engine, another domain, or name of email list",
     )
     medium_id = fields.Many2one(
-        "utm.medium",
-        "Medium",
+        comodel_name="utm.medium",
         index="btree_not_null",
         help="This is the method of delivery, e.g. Postcard, Email, or Banner Ad",
     )
@@ -38,7 +35,7 @@ class MixinUtm(models.AbstractModel):
 
         # We ignore UTM for salesmen, except some requests that could be done as superuser_id to bypass access rights.
         if not self.env.is_superuser() and self.env.user.has_group(
-            "sales_team.group_sale_salesman"
+            "sale.group_sale_salesman"
         ):
             return values
 
@@ -140,19 +137,24 @@ class MixinUtm(models.AbstractModel):
         # Avoid conflicting with itself, otherwise each check at update automatically
         # increments counters
         skip_record_ids = self.env.context.get("utm_check_skip_record_ids") or []
-        # Remove potential counter part in each names
-        names_without_counter = {self._split_name_and_count(name)[0] for name in names}
+        # Remove potential counter part in each names, skipping falsy names
+        # (an "ilike" domain on an empty name would match every record)
+        names_without_counter = {
+            self._split_name_and_count(name)[0] for name in names if name
+        }
 
         # Retrieve existing similar names
-        search_domain = Domain.OR(
-            Domain("name", "ilike", name) for name in names_without_counter
-        )
-        if skip_record_ids:
-            search_domain &= Domain("id", "not in", skip_record_ids)
-        existing_names = {
-            vals["name"]
-            for vals in self.env[model_name].search_read(search_domain, ["name"])
-        }
+        existing_names = set()
+        if names_without_counter:
+            search_domain = Domain.OR(
+                Domain("name", "ilike", name) for name in names_without_counter
+            )
+            if skip_record_ids:
+                search_domain &= Domain("id", "not in", skip_record_ids)
+            existing_names = {
+                vals["name"]
+                for vals in self.env[model_name].search_read(search_domain, ["name"])
+            }
 
         # Counter for each names, based on the names list given in argument
         # and the record names in database

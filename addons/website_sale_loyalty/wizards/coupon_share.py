@@ -21,32 +21,42 @@ class CouponShare(models.TransientModel):
             websites = Website.search([])
             return (len(websites) == 1 and websites) or Website
 
-    website_id = fields.Many2one("website", required=True, default=_default_website_id)
+    website_id = fields.Many2one(
+        comodel_name="website",
+        default=_default_website_id,
+        required=True,
+    )
     coupon_id = fields.Many2one(
-        "loyalty.card", domain="[('program_id', '=', program_id)]"
+        comodel_name="loyalty.card",
+        domain="[('program_id', '=', program_id)]",
     )
     program_id = fields.Many2one(
-        "loyalty.program",
+        comodel_name="loyalty.program",
         required=True,
         domain=[
             "|",
-            ("program_type", "=", "coupons"),  # All coupons programs
+            ("program_type", "=", "coupons"),
             "|",
-            ("trigger", "=", "with_code"),  # All programs that require a code
+            ("trigger", "=", "with_code"),
             (
                 "rule_ids.code",
                 "!=",
                 False,
-            ),  # All programs that can not trigger without a code
+            ),
         ],
     )
     program_website_id = fields.Many2one(
-        "website", string="Program Website", related="program_id.website_id"
+        comodel_name="website",
+        related="program_id.website_id",
+        string="Program Website",
     )
 
     promo_code = fields.Char(compute="_compute_promo_code")
     share_link = fields.Char(compute="_compute_share_link")
-    redirect = fields.Char(required=True, default="/shop")
+    redirect = fields.Char(
+        default="/shop",
+        required=True,
+    )
 
     @api.constrains("coupon_id", "program_id")
     def _check_program(self):
@@ -88,7 +98,7 @@ class CouponShare(models.TransientModel):
             )
 
             if record.env.context.get("use_short_link"):
-                tracker = self.env["link.tracker"].search(
+                tracker = self.env["link.tracker"].search(  # noqa: E8507 - a transient wizard: one record
                     [("url", "=", target_url)], limit=1
                 )
                 if not tracker:

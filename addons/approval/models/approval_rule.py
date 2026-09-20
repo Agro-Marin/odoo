@@ -4,10 +4,9 @@ import math
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-_logger = logging.getLogger(__name__)
+from . import approval_trace as trace
 
-_FLOAT_EQ_ABS_TOL = 1e-6
-_FLOAT_EQ_REL_TOL = 1e-9
+_logger = logging.getLogger(__name__)
 
 
 class ApprovalRule(models.Model):
@@ -21,9 +20,9 @@ class ApprovalRule(models.Model):
     sequence = fields.Integer(default=10)
     category_id = fields.Many2one(
         comodel_name="approval.category",
+        index=True,
         required=True,
         ondelete="cascade",
-        index=True,
     )
 
     condition_type = fields.Selection(
@@ -32,17 +31,16 @@ class ApprovalRule(models.Model):
             ("domain", "Source document domain"),
             ("field_selection", "Source document field"),
         ],
-        required=True,
         default="threshold",
+        required=True,
         help="""What this rule tests:
 
         • Numeric threshold: a normalized figure on the request itself
           (amount, quantity, date range, priority). Amounts are converted into
-          the rule's currency before comparison, and overlapping bands of
-          'Replace Approvers' rules are rejected outright.
+          the rule's currency before comparison, and overlapping auto-approve
+          and auto-refuse bands are rejected outright.
         • Source document domain: a domain evaluated against the document the
-          request was raised for. Bands cannot be checked for overlap, so the
-          first match by sequence wins.
+          request was raised for.
         • Source document field: a field on the source document equals a
           value.
 
@@ -51,14 +49,12 @@ class ApprovalRule(models.Model):
         another model, never matches them.""",
     )
     condition_field = fields.Selection(
-        selection=[
-            ("amount", "Amount"),
-            ("quantity", "Quantity"),
-            ("date_range_days", "Date Range (Days)"),
-            ("priority", "Priority"),
-        ],
         help="Request field to evaluate. Required for the 'Numeric threshold' "
-        "condition type and ignored by the others.",
+        "condition type and ignored by the others."
+    )
+    operator = fields.Selection(
+        help="Required for the 'Numeric threshold' condition type and ignored "
+        "by the others."
     )
     subject_model_id = fields.Many2one(
         comodel_name="ir.model",
@@ -88,68 +84,19 @@ class ApprovalRule(models.Model):
         "field's raw value, so a Selection is matched on its stored key and a "
         "Many2one on its id.",
     )
-    operator = fields.Selection(
-        selection=[
-            ("gt", "Greater than"),
-            ("gte", "Greater than or equal"),
-            ("lt", "Less than"),
-            ("lte", "Less than or equal"),
-            ("eq", "Equal to"),
-            ("neq", "Not equal to"),
-            ("between", "Between"),
-        ],
-        string="Comparison",
-        help="Required for the 'Numeric threshold' condition type and ignored "
-        "by the others.",
-    )
-    threshold = fields.Float(
-        help="Numeric threshold to compare against, and the lower bound "
-        "(inclusive) when the comparison is 'Between'. "
-        "For priority: 0=Low, 1=Normal, 2=High, 3=Urgent.",
-    )
-    threshold_max = fields.Float(
-        string="Upper Bound (exclusive)",
-        help="Only for the 'Between' comparison: the upper bound, exclusive. "
-        "0 means unlimited, which is how the highest band is expressed.",
-    )
-
     action_type = fields.Selection(
         selection=[
-            ("add_approver", "Add Approver"),
-            ("set_approvers", "Replace Approvers"),
             ("auto_approve", "Auto-Approve"),
             ("auto_refuse", "Auto-Refuse"),
+            ("condition", "Step Condition"),
         ],
-        default="add_approver",
+        default="condition",
         required=True,
         help="Action to take when condition matches:\n"
-        "• Add Approver: inject additional approvers into the workflow\n"
-        "• Replace Approvers: these approvers instead of the category's, and "
-        "this rule's Minimum Approval instead of the category's. The first "
-        "matching rule by sequence wins. Skipped entirely when the category "
-        "takes its approvers from a security group, which is where this "
-        "differs from Add Approver\n"
         "• Auto-Approve: skip approval entirely (logged in audit trail)\n"
-        "• Auto-Refuse: automatically refuse the request",
-    )
-    approval_minimum = fields.Integer(
-        default=1,
-        help="Only for 'Replace Approvers': the minimum number of approvals "
-        "this band requires, overriding the category's.",
-    )
-    approver_ids = fields.Many2many(
-        comodel_name="res.users",
-        string="Add Approvers",
-        help="Users to add as approvers when condition is met. "
-        "Only used for 'Add Approver' action type.",
-    )
-    approver_required = fields.Boolean(
-        default=True,
-        help="Whether the added approvers are mandatory",
-    )
-    approver_sequence = fields.Integer(
-        default=5,
-        help="Approval order for added approvers (lower = earlier)",
+        "• Auto-Refuse: automatically refuse the request\n"
+        "• Step Condition: nothing by itself; a step of the category applies "
+        "when it matches, or unless it does",
     )
 
     _name_category_uniq = models.Constraint(
@@ -157,7 +104,49 @@ class ApprovalRule(models.Model):
         "Rule name must be unique per category and company.",
     )
 
-    _APPROVER_ACTIONS = ("add_approver", "set_approvers")
+    def _get_reading_steps(self):
+        steps = (
+            self.env["approval.category.step"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    "|",
+                    ("when_rule_ids", "in", self.ids),
+                    ("unless_rule_ids", "in", self.ids),
+                ]
+            )
+        )
+        trace.RULES.event("rules_read_by_steps", rules=self.ids, steps=steps.ids)
+        return steps
+
+    def write(self, vals):
+        if ("active" in vals and not vals["active"]) or (
+            "action_type" in vals and vals["action_type"] != "condition"
+        ):
+            trace.RULES.event(
+                "rule_retirement_checked",
+                rules=self.ids,
+                active=vals.get("active"),
+                action=vals.get("action_type"),
+            )
+            self._check_no_step_reads_it()
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_read_by_a_step(self) -> None:
+        self._check_no_step_reads_it()
+
+    def _check_no_step_reads_it(self) -> None:
+        steps = self._get_reading_steps()
+        if steps:
+            trace.REFUSAL.event("rule_read_by_steps", rules=self.ids, steps=steps.ids)
+            raise ValidationError(
+                self.env._(
+                    "Steps %(steps)s apply by these rules, so the rules must stay "
+                    "active step conditions: change the steps first.",
+                    steps=", ".join(steps.mapped("name")),
+                )
+            )
 
     @api.depends("category_id.company_id")
     def _compute_company_id(self) -> None:
@@ -173,6 +162,12 @@ class ApprovalRule(models.Model):
                 and category_company
                 and rule.company_id != category_company
             ):
+                trace.REFUSAL.event(
+                    "rule_company_not_category_company",
+                    rule=rule.id,
+                    company=rule.company_id.id,
+                    category_company=category_company.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule '%(rule)s' is scoped to %(company)s but its "
@@ -186,136 +181,24 @@ class ApprovalRule(models.Model):
                     ),
                 )
 
-    @api.constrains("approver_ids", "company_id", "category_id")
-    def _check_approvers_in_company(self):
-        for rule in self:
-            company = rule.company_id or rule.category_id.company_id
-            if not company:
-                continue
-            outside = rule.approver_ids.filtered(
-                lambda u, company=company: company not in u.company_ids
-            )
-            if outside:
-                raise ValidationError(
-                    self.env._(
-                        "Rule '%(rule)s' is scoped to %(company)s; these "
-                        "approvers are not members of it: %(users)s.",
-                        users=", ".join(outside.mapped("name")),
-                        company=company.name,
-                        rule=rule.name,
-                    ),
-                )
-
-    @api.constrains("action_type", "approver_ids")
-    def _check_approver_ids_required(self):
-        for rule in self:
-            if rule.action_type in self._APPROVER_ACTIONS and not rule.approver_ids:
-                raise ValidationError(
-                    self.env._(
-                        "Approvers are required when the action is '%(action)s'.",
-                        action=dict(
-                            rule._fields["action_type"]._description_selection(
-                                self.env,
-                            ),
-                        )[rule.action_type],
-                    ),
-                )
-
-    @api.constrains("action_type", "approval_minimum", "approver_ids")
-    def _check_approval_minimum(self):
-        for rule in self:
-            if rule.action_type != "set_approvers":
-                continue
-            if rule.approval_minimum < 1:
-                raise ValidationError(
-                    self.env._("Minimum Approval must be at least 1."),
-                )
-            if rule.approval_minimum > len(rule.approver_ids):
-                raise ValidationError(
-                    self.env._(
-                        "Minimum Approval must not exceed the number of "
-                        "approvers this rule sets (%(count)d).",
-                        count=len(rule.approver_ids),
-                    ),
-                )
-
     @api.constrains("operator", "threshold", "threshold_max")
     def _check_range_bounds(self):
         for rule in self:
             if rule.condition_type != "threshold" or rule.operator != "between":
                 continue
             if rule.threshold_max and rule.threshold_max <= rule.threshold:
+                trace.REFUSAL.event(
+                    "rule_range_inverted",
+                    rule=rule.id,
+                    threshold=rule.threshold,
+                    threshold_max=rule.threshold_max,
+                )
                 raise ValidationError(
                     self.env._(
                         "The upper bound must be greater than the lower one "
                         "(or 0 for unlimited).",
                     ),
                 )
-
-    @api.constrains(
-        "category_id",
-        "company_id",
-        "condition_type",
-        "condition_field",
-        "operator",
-        "threshold",
-        "threshold_max",
-        "action_type",
-        "active",
-    )
-    def _check_replacement_overlap(self):
-        replacements = self.filtered(
-            lambda r: (
-                r.action_type == "set_approvers" and r.condition_type == "threshold"
-            ),
-        )
-        if not replacements:
-            return
-        stored_peers = self.sudo().search(
-            [
-                ("category_id", "in", replacements.category_id.ids),
-                (
-                    "condition_field",
-                    "in",
-                    list(set(replacements.mapped("condition_field"))),
-                ),
-                ("action_type", "=", "set_approvers"),
-                ("condition_type", "=", "threshold"),
-                ("active", "=", True),
-            ],
-        )
-        for rule in replacements:
-            if not rule.active:
-                continue
-            peers = (stored_peers | self).filtered(
-                lambda r, cur=rule: (
-                    r.id != cur.id
-                    and r.category_id == cur.category_id
-                    and r.condition_type == "threshold"
-                    and r.condition_field == cur.condition_field
-                    and r.action_type == "set_approvers"
-                    and r.active
-                ),
-            )
-            for other in peers:
-                if (
-                    rule.company_id
-                    and other.company_id
-                    and rule.company_id != other.company_id
-                ):
-                    continue
-                if rule._condition_overlaps(other):
-                    raise ValidationError(
-                        self.env._(
-                            "'%(rule)s' and '%(other)s' both replace the "
-                            "approvers on %(field)s and can match the same "
-                            "value. Narrow their ranges: which one applied "
-                            "would depend on sequence alone.",
-                            rule=rule.name,
-                            other=other.name,
-                            field=rule.condition_field,
-                        ),
-                    )
 
     @api.constrains(
         "category_id",
@@ -366,6 +249,13 @@ class ApprovalRule(models.Model):
                 ):
                     continue
                 if rule._condition_overlaps(other):
+                    trace.REFUSAL.event(
+                        "auto_action_bands_overlap",
+                        rule=rule.id,
+                        other=other.id,
+                        field=rule.condition_field,
+                        actions=[rule.action_type, other.action_type],
+                    )
                     raise ValidationError(
                         self.env._(
                             "Rule '%(rule)s' (auto-%(rule_action)s) and "
@@ -393,6 +283,11 @@ class ApprovalRule(models.Model):
                 2,
                 3,
             ):
+                trace.REFUSAL.event(
+                    "priority_threshold_out_of_range",
+                    rule=rule.id,
+                    threshold=rule.threshold,
+                )
                 raise ValidationError(
                     self.env._(
                         "Priority threshold must be 0 (Low), 1 (Normal), "
@@ -413,6 +308,12 @@ class ApprovalRule(models.Model):
         for rule in self:
             if rule.condition_type == "threshold":
                 if not rule.condition_field or not rule.operator:
+                    trace.REFUSAL.event(
+                        "threshold_rule_incomplete",
+                        rule=rule.id,
+                        field=rule.condition_field,
+                        operator=rule.operator,
+                    )
                     raise ValidationError(
                         self.env._(
                             "Rule %(name)s compares a numeric threshold, so it "
@@ -423,6 +324,11 @@ class ApprovalRule(models.Model):
                 continue
 
             if not rule.subject_model_id:
+                trace.REFUSAL.event(
+                    "subject_rule_without_model",
+                    rule=rule.id,
+                    kind=rule.condition_type,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule %(name)s reads the source document, so it needs "
@@ -432,6 +338,11 @@ class ApprovalRule(models.Model):
                 )
             model = self.env.get(rule.subject_model_id.model)
             if model is None:
+                trace.REFUSAL.event(
+                    "subject_model_not_in_registry",
+                    rule=rule.id,
+                    model=rule.subject_model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule %(name)s names the model %(model)s, which is not "
@@ -455,6 +366,7 @@ class ApprovalRule(models.Model):
     def _check_subject_field(self, model) -> None:
         self.check_singleton()
         if not self.subject_field:
+            trace.REFUSAL.event("subject_rule_without_field", rule=self.id)
             raise ValidationError(
                 self.env._(
                     "Rule %(name)s compares a source field, so it needs a field name.",
@@ -482,14 +394,31 @@ class ApprovalRule(models.Model):
         self.check_singleton()
         match self.condition_type:
             case "domain":
-                return self._evaluate_domain(request)
+                matches = self._evaluate_domain(request)
+                measured = None
             case "field_selection":
-                return self._evaluate_field_selection(request)
+                matches = self._evaluate_field_selection(request)
+                measured = None
             case _:
-                value = self._get_field_value(request)
-                if value is None:
-                    return False
-                return self._compare(value, self.threshold)
+                measured = self._get_field_value(request)
+                matches = (
+                    False
+                    if measured is None
+                    else self._compare(measured, self.threshold)
+                )
+        trace.RULES.event(
+            "evaluated",
+            rule=self.id,
+            request=request.id,
+            kind=self.condition_type,
+            field=self.condition_field,
+            operator=self.operator,
+            value=measured,
+            threshold=self.threshold,
+            threshold_max=self.threshold_max or None,
+            matches=matches,
+        )
+        return matches
 
     def _get_subject(self, request):
         self.check_singleton()
@@ -497,79 +426,70 @@ class ApprovalRule(models.Model):
             return False
         document = request.get_source_document()
         if not document or document._name != self.subject_model_id.model:
+            trace.RULES.event(
+                "subject_mismatch",
+                rule=self.id,
+                request=request.id,
+                wanted=self.subject_model_id.model,
+                got=document._name if document else None,
+            )
             return False
         return document.exists()
 
     def _evaluate_domain(self, request) -> bool:
         subject = self._get_subject(request)
         if not subject:
+            trace.RULES.event(
+                "domain_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                why="no_subject",
+            )
             return False
         domain = self._parse_domain_or_warn()
         if domain is None:
+            trace.RULES.event(
+                "domain_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                why="unparseable",
+            )
             return False
-        return bool(subject.filtered_domain(domain))
+        matched = bool(subject.filtered_domain(domain))
+        trace.RULES.event(
+            "domain_evaluated",
+            rule=self.id,
+            request=request.id,
+            subject=subject,
+            matched=matched,
+        )
+        return matched
 
     def _evaluate_field_selection(self, request) -> bool:
         subject = self._get_subject(request)
         if not subject or self.subject_field not in subject._fields:
+            trace.RULES.event(
+                "field_selection_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                field=self.subject_field,
+                why="no_subject" if not subject else "field_absent",
+            )
             return False
         value = subject[self.subject_field]
         if hasattr(value, "ids"):
             value = value.id
-        return str(value) == (self.subject_value or "")
-
-    def _get_field_value(self, request) -> float | None:
-        match self.condition_field:
-            case "amount":
-                return self._convert_request_amount(request)
-            case "quantity":
-                return request.quantity
-            case "priority":
-                return int(request.priority)
-            case "date_range_days":
-                if request.date_start and request.date_end:
-                    delta = request.date_end - request.date_start
-                    return delta.total_seconds() / 86400
-                return None
-            case _:
-                return None
-
-    def _compare(self, value: float, threshold: float) -> bool:
-        self.check_singleton()
-        op = self.operator
-        if op == "gt":
-            return value > threshold
-        if op == "gte":
-            return value >= threshold
-        if op == "lt":
-            return value < threshold
-        if op == "lte":
-            return value <= threshold
-        if op == "eq":
-            return math.isclose(
-                value,
-                threshold,
-                rel_tol=_FLOAT_EQ_REL_TOL,
-                abs_tol=_FLOAT_EQ_ABS_TOL,
-            )
-        if op == "neq":
-            return not math.isclose(
-                value,
-                threshold,
-                rel_tol=_FLOAT_EQ_REL_TOL,
-                abs_tol=_FLOAT_EQ_ABS_TOL,
-            )
-        if op == "between":
-            if value < threshold:
-                return False
-            return not (self.threshold_max and value >= self.threshold_max)
-        raise ValidationError(
-            self.env._(
-                "Unknown operator '%(op)s' on approval rule '%(name)s'.",
-                op=op,
-                name=self.name,
-            ),
+        matched = str(value) == (self.subject_value or "")
+        trace.RULES.event(
+            "field_selection_evaluated",
+            rule=self.id,
+            request=request.id,
+            field=self.subject_field,
+            value=str(value),
+            wanted=self.subject_value or "",
+            matched=matched,
         )
+        return matched
 
     def _condition_bounds(self) -> tuple[float, bool, float, bool] | None:
         self.check_singleton()
@@ -596,12 +516,20 @@ class ApprovalRule(models.Model):
         bounds_a = self._condition_bounds()
         bounds_b = other._condition_bounds()
         if bounds_a is None or bounds_b is None:
+            trace.RULES.event(
+                "overlap_assumed",
+                rule=self.id,
+                other=other.id,
+                unbounded=self.id if bounds_a is None else other.id,
+            )
             return True
-        return self._intervals_overlap(bounds_a, bounds_b)
-
-    def _get_approver_tuples(self) -> list[tuple[int, bool, int]]:
-        self.check_singleton()
-        return [
-            (user.id, self.approver_required, self.approver_sequence)
-            for user in self.approver_ids
-        ]
+        overlaps = self._intervals_overlap(bounds_a, bounds_b)
+        trace.RULES.event(
+            "overlap_checked",
+            rule=self.id,
+            other=other.id,
+            bounds=str(bounds_a),
+            other_bounds=str(bounds_b),
+            overlaps=overlaps,
+        )
+        return overlaps

@@ -21,7 +21,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         """Custom transactions render against the process URL and reference."""
         tx = self._create_transaction(flow="direct", reference="RENDER-REF")
 
-        values = tx._get_specific_rendering_values({})
+        values = tx._prepare_redirect_form_values({})
 
         self.assertEqual(values["api_url"], CustomController._process_url)
         self.assertEqual(values["reference"], "RENDER-REF")
@@ -66,7 +66,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
     def test_removal_values_nullify_custom_mode(self):
         """Uninstall cleanup nullifies custom_mode alongside payment's own."""
         self.assertIsNone(
-            self.env["payment.provider"]._get_removal_values()["custom_mode"]
+            self.env["payment.provider"]._prepare_removal_values()["custom_mode"]
         )
 
     def test_custom_mode_required_for_custom_provider(self):
@@ -91,17 +91,22 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         """The ensure hook only recomputes providers lacking a message."""
         self.provider.pending_msg = False
 
-        self.provider._transfer_ensure_pending_msg_is_set()
+        self.provider._transfer_update_missing_pending_msg()
 
         # Without account_payment_provider the delegated recompute is a no-op, so the
         # observable contract here is "selected and delegated without error".
-        self.assertFalse(self.provider.pending_msg)
+        if "account_payment_provider" in self.env.registry.loaded_modules:
+            self.assertTrue(self.provider.pending_msg)
+        else:
+            self.assertFalse(self.provider.pending_msg)
 
     def test_qr_code_degrades_without_account(self):
         """QR-code generation no-ops instead of crashing when `account` isn't
         installed, regardless of whether a bank account is configured."""
         if self.env["ir.module.module"]._get("account").state == "installed":
-            self.skipTest("account installed: prepare_qr_code_base64 would be available")
+            self.skipTest(
+                "account installed: prepare_qr_code_base64 would be available"
+            )
         self.provider.qr_code = True
         tx = self._create_transaction(flow="direct", reference="QR-REF")
 

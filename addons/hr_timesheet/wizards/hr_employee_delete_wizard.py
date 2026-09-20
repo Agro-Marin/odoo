@@ -1,4 +1,7 @@
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class HrEmployeeDeleteWizard(models.TransientModel):
@@ -6,21 +9,19 @@ class HrEmployeeDeleteWizard(models.TransientModel):
     _description = "Employee Delete Wizard"
 
     employee_ids = fields.Many2many(
-        "hr.employee",
+        comodel_name="hr.employee",
         string="Employees",
-        context={"active_test": False},
         export_string_translation=False,
+        context={"active_test": False},
     )
     has_active_employee = fields.Boolean(
-        string="Has Active Employee",
-        compute="_compute_has_active_employee",
         export_string_translation=False,
+        compute="_compute_has_active_employee",
     )
     has_timesheet = fields.Boolean(
-        string="Has Timesheet",
+        export_string_translation=False,
         compute="_compute_has_timesheet",
         compute_sudo=True,
-        export_string_translation=False,
     )
 
     @api.depends("employee_ids")
@@ -45,6 +46,7 @@ class HrEmployeeDeleteWizard(models.TransientModel):
 
     def action_archive(self):
         self.check_singleton()
+        _debug.pipeline("employee_delete_to_departure", employees=self.employee_ids)
         return {
             "name": _("Employee Termination"),
             "type": "ir.actions.act_window",
@@ -60,6 +62,7 @@ class HrEmployeeDeleteWizard(models.TransientModel):
 
     def action_confirm_delete(self):
         self.check_singleton()
+        _debug.lifecycle("employees_deleted", employees=self.employee_ids)
         self.employee_ids.unlink()
         return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "hr.open_view_employee_list_my"

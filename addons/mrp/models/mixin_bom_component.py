@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinBomComponent(models.AbstractModel):
@@ -13,46 +16,39 @@ class MixinBomComponent(models.AbstractModel):
     _bom_child_field = None
 
     product_id = fields.Many2one(
-        "product.product",
-        "Product",
+        comodel_name="product.product",
+        index=True,
         required=True,
         check_company=True,
-        index=True,
     )
     company_id = fields.Many2one(
         related="bom_id.company_id",
-        store=True,
-        index=True,
         readonly=True,
     )
     product_qty = fields.Float(
-        "Quantity",
-        default=1.0,
+        string="Quantity",
         digits="Product Unit",
+        default=1.0,
         required=True,
     )
     product_uom_id = fields.Many2one(
-        "uom.uom",
-        "Unit",
-        required=True,
+        comodel_name="uom.uom",
+        string="Unit",
         compute="_compute_product_uom_id",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
+        required=True,
     )
-    sequence = fields.Integer(
-        "Sequence",
-        help="Gives the sequence order when displaying.",
-    )
+    sequence = fields.Integer(help="Gives the sequence order when displaying.")
     allowed_operation_ids = fields.One2many(
-        "mrp.routing.workcenter",
+        comodel_name="mrp.routing.workcenter",
         related="bom_id.operation_ids",
     )
     operation_id = fields.Many2one(
-        "mrp.routing.workcenter",
-        "Operation",
-        check_company=True,
+        comodel_name="mrp.routing.workcenter",
         domain="[('id', 'in', allowed_operation_ids)]",
+        check_company=True,
     )
 
     _qty_not_negative = models.Constraint(
@@ -74,6 +70,12 @@ class MixinBomComponent(models.AbstractModel):
                 and product_uom
                 and not record.product_uom_id._has_common_reference(product_uom)
             ):
+                _debug.logic(
+                    "bom_component_refused",
+                    reason="uom_category_mismatch",
+                    record=record.id,
+                    model=record._name,
+                )
                 raise ValidationError(record._get_uom_mismatch_message())
 
     def _get_uom_mismatch_message(self):
@@ -93,7 +95,7 @@ class MixinBomComponent(models.AbstractModel):
             **self[0].bom_id._get_product_price_and_data(self[0].product_id),
             "quantity": sum(
                 self.mapped(
-                    lambda line: line.product_uom_id._compute_quantity_report(
+                    lambda line: line.product_uom_id._get_quantity_report(
                         qty=line.product_qty,
                         to_unit=line.product_id.uom_id,
                     )

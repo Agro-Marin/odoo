@@ -258,7 +258,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
         },
         {
             trigger:
-                '[name="sale_line_id"] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa))',
+                '[name="sale_line_id"] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa-spin))',
             content: "Select the Sales Order Item in the autocomplete dropdown.",
             run: "click",
         },
@@ -285,7 +285,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
         },
         {
             trigger:
-                '[name="employee_id"] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa))',
+                '[name="employee_id"] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa-spin))',
             content: "Select the first employee in the autocomplete dropdown",
             run: "click",
         },
@@ -299,7 +299,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
         },
         {
             trigger:
-                "[name=sale_line_id] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa))",
+                "[name=sale_line_id] ul.ui-autocomplete > li:first-child > a:not(:has(i.fa-spin))",
             content: "Select the first Sales Order Item in the autocomplete dropdown.",
             run: "click",
         },
@@ -347,7 +347,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             run: "edit Prepaid",
         },
         {
-            trigger: "ul.ui-autocomplete > li:first-child > a:not(:has(i.fa))",
+            trigger: "ul.ui-autocomplete > li:first-child > a:not(:has(i.fa-spin))",
             content: "Select the first item on the autocomplete dropdown",
             run: "click",
         },
@@ -435,7 +435,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             run: "edit New milestone",
         },
         {
-            trigger: "input[data-field=deadline]",
+            trigger: "input[data-field=date_deadline]",
             content: "Edit new Milestone",
             run: "edit 12/12/2099",
         },

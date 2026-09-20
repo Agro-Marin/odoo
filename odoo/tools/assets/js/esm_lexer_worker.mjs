@@ -26,6 +26,7 @@ rl.on("line", (line) => {
         }
         const starFrom = [];
         const reexportFrom = [];
+        const reexports = [];
         const importRecords = [];
         for (const i of imports) {
             if (i.d >= 0 || !i.n) {
@@ -38,6 +39,13 @@ rl.on("line", (line) => {
                 } else {
                     reexportFrom.push(i.n);
                 }
+                let kind = "named";
+                if (/^\s*export\s*\*/.test(stmt)) {
+                    kind = "star";
+                } else if (/\bdefault\b/.test(stmt)) {
+                    kind = "default";
+                }
+                reexports.push({ n: i.n, kind });
                 continue;
             }
             let kind = "named";
@@ -55,7 +63,11 @@ rl.on("line", (line) => {
         out.hasDefault = hasDefault;
         out.starFrom = starFrom;
         out.reexportFrom = reexportFrom;
+        out.reexports = reexports;
         out.imports = importRecords;
+        // Dependency checks also need literal dynamic imports, without
+        // confusing source-like text in comments or strings with code.
+        out.specifiers = [...new Set(imports.map((i) => i.n).filter(Boolean))];
     } catch (err) {
         out.ok = false;
         out.error = String((err && err.message) || err);

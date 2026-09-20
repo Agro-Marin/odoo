@@ -6,10 +6,14 @@ from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import psycopg.errors
 
+from odoo.exceptions import ConcurrencyError
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from .cursor import BaseCursor
 
 _savepoint_counter = itertools.count()
+_debug = DebugLog(__name__)
 
 
 class SavepointHost(Protocol):
@@ -28,6 +32,12 @@ class Savepoint:
         cr.execute(f'SAVEPOINT "{self.name}"')
         if hasattr(cr, "_savepoint_depth"):
             cr._savepoint_depth += 1
+        _debug.lifecycle(
+            "savepoint.opened",
+            name=self.name,
+            depth=getattr(cr, "_savepoint_depth", None),
+            flushing=self._restores_orm_state,
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -46,9 +56,15 @@ class Savepoint:
 
     def rollback(self) -> None:
         if self.closed:
+            _debug.logic("savepoint.rollback_refused", name=self.name, reason="closed")
             raise RuntimeError(
                 f'Savepoint "{self.name}" is already closed; cannot roll back'
             )
+        _debug.lifecycle(
+            "savepoint.rolled_back",
+            name=self.name,
+            depth=getattr(self._cr, "_savepoint_depth", None),
+        )
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
 
     def _close(self, rollback: bool) -> None:
@@ -60,6 +76,7 @@ class Savepoint:
             self.closed = True
             if hasattr(self._cr, "_savepoint_depth"):
                 self._cr._savepoint_depth -= 1
+            _debug.lifecycle("savepoint.closed", name=self.name, rollback=rollback)
 
 
 class _FlushingSavepoint(Savepoint):
@@ -69,7 +86,13 @@ class _FlushingSavepoint(Savepoint):
         _cr: BaseCursor
 
     def __init__(self, cr: BaseCursor) -> None:
-        cr.flush()
+        with _debug.perf(
+            "savepoint.flush_before_open",
+            cr=cr,
+            db=getattr(cr, "dbname", None),
+            depth=getattr(cr, "_savepoint_depth", None),
+        ):
+            cr.flush()
         self._save_orm_state(cr)
         super().__init__(cr)
 
@@ -83,15 +106,22 @@ class _FlushingSavepoint(Savepoint):
         cr = self._cr
         super().rollback()
         if cr.transaction is not None:
-            self._restore_orm_state(cr)
+            with _debug.perf("savepoint.orm_state_restored", cr=cr, name=self.name):
+                self._restore_orm_state(cr)
 
     def _close(self, rollback: bool) -> None:
         cr = self._cr
         try:
             if not rollback:
-                cr.flush()
-        except Exception:
+                with _debug.perf(
+                    "savepoint.flush_before_release", cr=cr, name=self.name
+                ):
+                    cr.flush()
+        except Exception as e:
             rollback = True
+            _debug.logic(
+                "savepoint.flush_failed", name=self.name, error=type(e).__name__
+            )
             raise
         finally:
             super()._close(rollback)
@@ -105,13 +135,16 @@ def get_or_create_row[T](
     conflict: str,
     flush: bool = True,
 ) -> tuple[T, bool]:
-    from odoo.exceptions import ConcurrencyError
-
     try:
         with cr.savepoint(flush=flush):
-            return insert(), True
+            inserted = insert()
+            _debug.logic("savepoint.get_or_create.inserted", conflict=conflict)
+            return inserted, True
     except psycopg.errors.UniqueViolation:
         existing = find()
+        _debug.logic(
+            "savepoint.get_or_create.conflict", conflict=conflict, found=bool(existing)
+        )
         if not existing:
             raise ConcurrencyError(
                 f"{conflict} was created by a concurrent transaction"

@@ -4,6 +4,7 @@ import time
 
 from odoo import models, tools
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild_policy import EsbuildCircuit
 
@@ -11,6 +12,7 @@ _fallback_log = get_asset_logger("fallback")
 _lock_log = get_asset_logger("lock")
 
 _esbuild_circuit = EsbuildCircuit()
+_debug = DebugLog(__name__)
 
 
 class IrQweb(models.AbstractModel):
@@ -24,24 +26,35 @@ class IrQweb(models.AbstractModel):
         return self.env["ir.config_parameter"].sudo()
 
     def _is_esbuild_fail_closed(self) -> bool:
-        return self._get_esbuild_config().get_param_bool(
-            "web.esbuild.fail_closed",
-            bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"]),
+        default = bool(
+            tools.config["test_enable"] or "assets" in tools.config["dev_mode"]
         )
+        fail_closed = self._get_esbuild_config().get_param_bool(
+            "web.esbuild.fail_closed", default
+        )
+        _debug.logic("esbuild.fail_closed", value=fail_closed, default=default)
+        return fail_closed
 
     def _get_esbuild_bundles_forced_fallback(self) -> set[str]:
         forced_raw = self._get_esbuild_config().get_param(
             "web.esbuild.force_fallback_bundles", ""
         )
-        return {s.strip() for s in forced_raw.split(",") if s.strip()}
+        forced = {s.strip() for s in forced_raw.split(",") if s.strip()}
+        if _debug.logic.enabled and forced:
+            _debug.logic("esbuild.forced_fallback", bundles=sorted(forced))
+        return forced
 
     def _get_esbuild_cooldown_key(self, bundle: str) -> tuple[str, str]:
         return (self.env.cr.dbname, bundle)
 
     def _get_esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
-        return _esbuild_circuit.state(
+        state = _esbuild_circuit.state(
             self._get_esbuild_cooldown_key(bundle), now=time.monotonic()
         )
+        _debug.logic(
+            "esbuild.circuit_state", bundle=bundle, open=state[0], reason=state[1]
+        )
+        return state
 
     def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
         config = self._get_esbuild_config()
@@ -57,6 +70,13 @@ class IrQweb(models.AbstractModel):
                 "web.esbuild.extended_cooldown_s", self._ESBUILD_EXTENDED_COOLDOWN_S
             ),
         )
+        _debug.lifecycle(
+            "esbuild.circuit_opened",
+            bundle=bundle,
+            reason=reason,
+            failures=entry.failures,
+            cooldown_s=entry.expiry - now,
+        )
         log_event(
             _fallback_log,
             logging.WARNING,
@@ -69,6 +89,7 @@ class IrQweb(models.AbstractModel):
 
     def _close_esbuild_circuit(self, bundle: str) -> None:
         if _esbuild_circuit.record_success(self._get_esbuild_cooldown_key(bundle)):
+            _debug.lifecycle("esbuild.circuit_closed", bundle=bundle)
             log_event(
                 _fallback_log,
                 logging.INFO,
@@ -76,17 +97,16 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
             )
 
-    _ESBUILD_LOCK_RETRIES: int = 1
-    _ESBUILD_LOCK_RETRY_SLEEP_S: float = 0.2
-
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
         if self.env.cr.readonly and _module.current_test:
+            _debug.logic("esbuild.lock_cursor", bundle=bundle, mode="test_readonly")
             yield self.env.cr
             return
         try:
             rw_cr = self.env.registry.cursor(readonly=False)
         except Exception:
+            _debug.logic("esbuild.lock_cursor", bundle=bundle, mode="unavailable")
             log_event(
                 _lock_log,
                 logging.WARNING,
@@ -101,39 +121,25 @@ class IrQweb(models.AbstractModel):
             rw_cr.rollback()
             rw_cr.close()
 
-    def _acquire_esbuild_lock(self, bundle: str, cr=None) -> bool:
+    def _acquire_esbuild_lock(self, bundle: str, cr=None) -> None:
+        """Serialize compilation without changing the page's module layout.
+
+        Contention is not a compiler failure: switching just one bundle to
+        unbundled modules can instantiate dependencies a second time on a page
+        whose other bundles have already inlined them.
+        """
         if cr is None:
             cr = self.env.cr
-        config = self._get_esbuild_config()
-        retries = config.get_param_int(
-            "web.esbuild.lock_retries", self._ESBUILD_LOCK_RETRIES
-        )
-        sleep_s = config.get_param_float(
-            "web.esbuild.lock_retry_sleep_s", self._ESBUILD_LOCK_RETRY_SLEEP_S
-        )
-        key = f"esbuild:{bundle}"
-        for attempt in range(retries + 1):
+        started = time.monotonic()
+        log_event(_lock_log, logging.DEBUG, "waiting", bundle=bundle)
+        with _debug.perf("esbuild.lock_wait", cr=cr, bundle=bundle):
             cr.execute(
-                "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
-                (key,),
+                "SELECT pg_advisory_xact_lock(hashtext(%s))", (f"esbuild:{bundle}",)
             )
-            got = cr.fetchone()[0]
-            if got:
-                log_event(
-                    _lock_log,
-                    logging.DEBUG,
-                    "acquired",
-                    bundle=bundle,
-                    attempt=attempt,
-                )
-                return True
-            if attempt < retries:
-                time.sleep(sleep_s)
         log_event(
             _lock_log,
-            logging.INFO,
-            "contention",
+            logging.DEBUG,
+            "acquired",
             bundle=bundle,
-            attempts=retries + 1,
+            wait_s=time.monotonic() - started,
         )
-        return False

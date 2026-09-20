@@ -29,7 +29,9 @@ class TestRegisterSchema(unittest.TestCase):
         schemas = view_validation.registered_schemas()
         for view_type in ("activity", "calendar", "graph", "list", "pivot", "search"):
             self.assertIn(view_type, schemas)
-            self.assertTrue(schemas[view_type].endswith(f"{view_type}_view.rng"))
+            schema = schemas[view_type]
+            assert schema is not None  # assertIn above
+            self.assertTrue(schema.endswith(f"{view_type}_view.rng"))
 
     def test_form_and_kanban_declare_no_schema(self):
         # Not an oversight: both are qweb-based and validated structurally by

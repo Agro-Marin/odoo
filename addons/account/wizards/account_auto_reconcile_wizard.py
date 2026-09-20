@@ -2,8 +2,11 @@ from datetime import date
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
+
+_debug = DebugLog(__name__)
 
 
 class AccountAutoReconcileWizard(models.TransientModel):
@@ -13,24 +16,28 @@ class AccountAutoReconcileWizard(models.TransientModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        required=True,
-        readonly=True,
         default=lambda self: self.env.company,
+        readonly=True,
+        required=True,
     )
     line_ids = fields.Many2many(comodel_name="account.move.line")
     from_date = fields.Date(string="From")
-    to_date = fields.Date(string="To", default=fields.Date.context_today, required=True)
+    to_date = fields.Date(
+        string="To",
+        default=fields.Date.context_today,
+        required=True,
+    )
     account_ids = fields.Many2many(
         comodel_name="account.account",
         string="Accounts",
-        check_company=True,
         domain="[('reconcile', '=', True), ('account_type', '!=', 'off_balance')]",
+        check_company=True,
     )
     partner_ids = fields.Many2many(
         comodel_name="res.partner",
         string="Partners",
-        check_company=True,
         domain="[('company_id', 'in', [False, company_id]), '|', ('parent_id', '=', False), ('is_company', '=', True)]",
+        check_company=True,
     )
     search_mode = fields.Selection(
         selection=[
@@ -38,24 +45,26 @@ class AccountAutoReconcileWizard(models.TransientModel):
             ("zero_balance", "Clear Account"),
         ],
         string="Reconcile",
-        required=True,
         default="one_to_one",
+        required=True,
         help="Reconcile journal items with opposite balance or clear accounts with a zero balance",
     )
 
     @api.model
+    @_debug.perf.timed
     def default_get(self, fields):
+        _debug.lifecycle("default_get", records=self)
         res = super().default_get(fields)
         domain = self.env.context.get("domain")
         if "line_ids" in fields and "line_ids" not in res and domain:
             amls = self.env["account.move.line"].search(domain)
             if amls:
-                res.update(self._get_default_wizard_values(amls))
+                res.update(self._prepare_default_wizard_values(amls))
                 res["line_ids"] = [Command.set(amls.ids)]
         return res
 
     @api.model
-    def _get_default_wizard_values(self, amls):
+    def _prepare_default_wizard_values(self, amls):
         return {
             "account_ids": [Command.set(amls[0].account_id.ids)]
             if all(aml.account_id == amls[0].account_id for aml in amls)
@@ -70,7 +79,7 @@ class AccountAutoReconcileWizard(models.TransientModel):
             "to_date": max(amls.mapped("date")),
         }
 
-    def _get_wizard_values(self):
+    def _prepare_wizard_values(self):
         self.check_singleton()
         return {
             "account_ids": [Command.set(self.account_ids.ids)]
@@ -88,9 +97,12 @@ class AccountAutoReconcileWizard(models.TransientModel):
         self.check_singleton()
         if (
             self.line_ids
-            and self._get_wizard_values()
-            == self._get_default_wizard_values(self.line_ids)
+            and self._prepare_wizard_values()
+            == self._prepare_default_wizard_values(self.line_ids)
         ):
+            _debug.logic(
+                "amls_domain_chosen", autoreconcile=self, mode="selected_lines"
+            )
             domain = [("id", "in", self.line_ids.ids)]
         else:
             domain = [
@@ -108,6 +120,13 @@ class AccountAutoReconcileWizard(models.TransientModel):
                 domain.append(("account_id", "in", self.account_ids.ids))
             if self.partner_ids:
                 domain.append(("partner_id", "in", self.partner_ids.ids))
+            _debug.logic(
+                "amls_domain_chosen",
+                autoreconcile=self,
+                mode="filters",
+                accounts=self.account_ids,
+                partners=self.partner_ids,
+            )
         return domain
 
     def _auto_reconcile_one_to_one(self):
@@ -136,6 +155,12 @@ class AccountAutoReconcileWizard(models.TransientModel):
                 pos_aml + neg_aml
                 for (pos_aml, neg_aml) in zip(positive_amls, negative_amls, strict=True)
             ]
+        _debug.pipeline(
+            "one_to_one",
+            autoreconcile=self,
+            grouped_amls_data_count=len(grouped_amls_data),
+            amls_grouped_by_2_count=len(amls_grouped_by_2),
+        )
         self.env["account.move.line"]._reconcile_plan(amls_grouped_by_2)
         return all_reconciled_amls
 
@@ -151,6 +176,12 @@ class AccountAutoReconcileWizard(models.TransientModel):
         for aml_data in grouped_amls_data:
             all_reconciled_amls += aml_data[-1]
             amls_grouped_together += [aml_data[-1]]
+        _debug.pipeline(
+            "zero_balance",
+            autoreconcile=self,
+            amls_grouped_together_count=len(amls_grouped_together),
+            all_reconciled_amls_count=len(all_reconciled_amls),
+        )
         self.env["account.move.line"]._reconcile_plan(amls_grouped_together)
         return all_reconciled_amls
 
@@ -162,6 +193,13 @@ class AccountAutoReconcileWizard(models.TransientModel):
             reconciled_amls = self._auto_reconcile_one_to_one()
         reconciled_amls_and_related = self.env["account.move.line"].search(
             [("full_reconcile_id", "in", reconciled_amls.full_reconcile_id.ids)]
+        )
+        _debug.pipeline(
+            "auto_reconcile_done",
+            autoreconcile=self,
+            search_mode=self.search_mode,
+            reconciled=reconciled_amls,
+            related=reconciled_amls_and_related,
         )
         if reconciled_amls_and_related:
             return {

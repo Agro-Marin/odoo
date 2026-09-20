@@ -23,7 +23,7 @@ class TestPortal(TestMailFullCommon, TestSMSRecipients):
                 "name": "Test Portal Record",
             }
         )
-        self.record_portal._portal_ensure_token()
+        self.record_portal._portal_get_or_create_token()
 
 
 @tagged("-at_install", "post_install", "portal", "mail_controller")
@@ -407,7 +407,7 @@ class TestPortalFlow(MailCommon, HttpCase):
                 self.assertEqual(res.status_code, 200)
                 self.assertURLEqual(res.url, exp_url)
 
-    @mute_logger("werkzeug")
+    @mute_logger("odoo.service.http.access")
     @users("portal_test")
     def test_portal_access_logged(self):
         """Check portal behavior when accessing mail/view, notably check token
@@ -474,7 +474,7 @@ class TestPortalFlow(MailCommon, HttpCase):
                 self.assertEqual(res.status_code, 200)
                 self.assertURLEqual(res.url, exp_url)
 
-    @mute_logger("werkzeug")
+    @mute_logger("odoo.service.http.access")
     def test_portal_access_not_logged(self):
         """Check customer behavior when accessing mail/view, notably check token
         support and propagation."""
@@ -661,5 +661,5 @@ class TestPortalMixin(TestPortal):
             record_portal.access_url, "/my/test_portal/%s" % record_portal.id
         )
 
-        record_portal._portal_ensure_token()
+        record_portal._portal_get_or_create_token()
         self.assertTrue(record_portal.access_token)

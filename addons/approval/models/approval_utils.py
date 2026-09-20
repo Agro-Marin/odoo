@@ -1,5 +1,16 @@
 from typing import Any
 
+from odoo.exceptions import UserError
+
+from . import approval_trace as trace
+
+
+class ApprovalStepUnstaffed(UserError):
+    def __init__(self, message, step=None, company=None):
+        super().__init__(message)
+        self.step = step
+        self.company = company
+
 
 def is_approval_manager(env) -> bool:
     return env.user._is_approval_manager()
@@ -25,9 +36,12 @@ def boolean_search_domain(
         raise NotImplementedError(f"Unsupported operator {operator!r}")
 
     if wants_true and wants_false:
-        return []
-    if wants_true:
-        return true_domain
-    if wants_false:
-        return false_domain
-    return [("id", "=", False)]
+        branch, domain = "both", []
+    elif wants_true:
+        branch, domain = "true", true_domain
+    elif wants_false:
+        branch, domain = "false", false_domain
+    else:
+        branch, domain = "neither", [("id", "=", False)]
+    trace.SEARCH.event("boolean_domain", operator=operator, value=value, branch=branch)
+    return domain

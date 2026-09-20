@@ -5,6 +5,8 @@ import { Component, onWillStart, onWillUnmount, useEffect, useRef } from "@odoo/
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
@@ -34,6 +36,8 @@ import {
     styleScatterChartData,
 } from "./graph_chart_config.js";
 
+const log = makeLogger("web.view.graph");
+
 export class GraphRenderer extends Component {
     static template = "web.GraphRenderer";
     static components = { Dropdown, DropdownItem, ReportViewMeasures, Widget };
@@ -41,6 +45,7 @@ export class GraphRenderer extends Component {
 
     setup() {
         useRenderCounter("graph.GraphRenderer");
+        useLifecycleLog(log);
         this.model = useReactiveModel(this.props.model);
 
         this.rootRef = useRef("root");

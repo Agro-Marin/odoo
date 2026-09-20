@@ -1,22 +1,24 @@
 /** @odoo-module native */
 import { useDomState } from "@html_builder/core/utils";
 import { onWillStart, useEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.builder.option.dynamic_snippet_hook");
 
 export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain = []) {
     const env = useEnv();
     onWillStart(async () => {
+        const endFetch = log.perf(
+            "useDynamicSnippetOption load filters and templates",
+            () => ({
+                modelNameFilter,
+            }),
+        );
         await fetchDynamicFiltersAndTemplates();
-        // TODO: For now, a snippet is considered in "single mode" only when one
-        // record is selected and at least one "single template" is available
-        // for its model (which requires templates to be already fetched...).
-        // The snippet automatically switches to multi-record templates but with
-        // one item if it has no layouts for single mode. This can be improved
-        // once single templates are added for all dynamic snippet models, and
-        // the selection of one record will be enough.
+        endFetch();
         domState.isSingleMode = dynamicSnippetUtils.isSingleModeSnippet(domState);
     });
     const dynamicFilterTemplates = {};
-    // Common functions to handle dynamic snippets filters & templates...
     const dynamicSnippetUtils = env.editor.shared.dynamicSnippetOption;
     const dynamicFilters = {};
     const domState = useDomState((editingElement) => ({
@@ -28,12 +30,25 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
     }));
 
     async function fetchDynamicFiltersAndTemplates() {
+        const endFilters = log.perf(
+            "useDynamicSnippetOption fetchDynamicFilters",
+            () => ({
+                modelNameFilter,
+                domain: contextualFilterDomain,
+            }),
+        );
         const fetchedDynamicFilters = await dynamicSnippetUtils.fetchDynamicFilters({
             model_name: modelNameFilter,
             search_domain: contextualFilterDomain,
         });
+        endFilters(() => ({ filters: fetchedDynamicFilters.length }));
         if (!fetchedDynamicFilters.length) {
-            // Additional modules are needed for dynamic filters to be defined.
+            log.logic(
+                "useDynamicSnippetOption no dynamic filter, templates not fetched",
+                () => ({
+                    modelNameFilter,
+                }),
+            );
             return;
         }
         const uniqueModelName = new Set();
@@ -41,8 +56,15 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
             dynamicFilters[dynamicFilter.id] = dynamicFilter;
             uniqueModelName.add(dynamicFilter.model_name);
         }
+        const endTemplates = log.perf(
+            "useDynamicSnippetOption fetchDynamicSnippetTemplates",
+            () => ({
+                modelNameFilter,
+            }),
+        );
         const fetchedDynamicFilterTemplates =
             await dynamicSnippetUtils.fetchDynamicSnippetTemplates(modelNameFilter);
+        endTemplates(() => ({ templates: fetchedDynamicFilterTemplates.length }));
         for (const dynamicFilterTemplate of fetchedDynamicFilterTemplates) {
             dynamicFilterTemplates[dynamicFilterTemplate.key] = dynamicFilterTemplate;
         }
@@ -61,6 +83,11 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
             dynamicFilter.defaultTemplate =
                 defaultTemplatePerModel[dynamicFilter.model_name];
         }
+        log.pipeline("useDynamicSnippetOption filters resolved", () => ({
+            filters: fetchedDynamicFilters.length,
+            models: uniqueModelName.size,
+            modelsWithDefaultTemplate: Object.keys(defaultTemplatePerModel).length,
+        }));
     }
     function getFilteredTemplates() {
         if (!Object.values(dynamicFilterTemplates).length) {

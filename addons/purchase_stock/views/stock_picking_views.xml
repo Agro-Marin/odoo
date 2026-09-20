@@ -24,17 +24,17 @@
             <xpath
                 expr="//button[@name='%(stock.act_stock_return_picking)d']"
                 position="attributes">
-                <attribute name="invisible" separator="and" add="not purchase_id" />
+                <attribute name="invisible" add="not purchase_id" separator="and" />
             </xpath>
             <xpath
                 expr="//button[@name='%(stock.act_stock_return_picking)d']"
                 position="after">
                 <button
                     name="action_purchase_matching"
-                    string="Match Purchase"
                     type="object"
-                    invisible="picking_type_code != 'incoming' or state == 'cancel'"
-                    groups="purchase.group_purchase_user" />
+                    string="Match Purchase"
+                    groups="purchase.group_purchase_user"
+                    invisible="picking_type_code != 'incoming' or state == 'cancel'" />
             </xpath>
         </field>
     </record>

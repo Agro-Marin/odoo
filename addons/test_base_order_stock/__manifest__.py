@@ -23,5 +23,4 @@ cleanup, because a model added that way has no ``ir_model`` row.
     "depends": [
         "base_order_stock",
     ],
-    "installable": True,
 }

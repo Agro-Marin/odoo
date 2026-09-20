@@ -1,5 +1,8 @@
 from odoo import Command, api, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_is_zero
+
+_debug = DebugLog(__name__)
 
 
 class AccountBankStatementLine(models.Model):
@@ -31,6 +34,7 @@ class AccountBankStatementLine(models.Model):
         )
         return transaction_currency.round(balance * company_transaction_rate)
 
+    @_debug.perf.timed
     def _apply_early_payment_discount(
         self,
         move_line,
@@ -43,11 +47,20 @@ class AccountBankStatementLine(models.Model):
             move_line.amount_currency - move_line.discount_amount_currency
         )
         total_amount = total_amount_currency = 0.0
-        if move_line.move_id._is_eligible_for_early_payment_discount(
+        eligible = move_line.move_id._is_eligible_for_early_payment_discount(
             transaction_currency, self.date
         ) and self._qualifies_for_early_payment(
             transaction_currency, open_amount_currency, epd_amount_currency
-        ):
+        )
+        _debug.logic(
+            "early_payment_discount_line",
+            stline=self,
+            move_line=move_line,
+            eligible=eligible,
+            open=open_amount_currency,
+            epd=epd_amount_currency,
+        )
+        if eligible:
             if not move_line.currency_id.is_zero(exchange_diff_balance):
                 payment_with_move = self._create_payment_with_move_from_invoice(
                     move_line.move_id
@@ -58,7 +71,7 @@ class AccountBankStatementLine(models.Model):
                     )
                 )
                 epd_lines_vals = [
-                    payment_line_to_add._get_aml_values(
+                    payment_line_to_add._prepare_aml_values(
                         balance=-payment_line_to_add.balance,
                         amount_currency=-payment_line_to_add.amount_currency,
                         reconciled_lines_ids=[Command.set(payment_line_to_add.ids)],
@@ -79,7 +92,7 @@ class AccountBankStatementLine(models.Model):
                     }
                 ]
                 epd_lines_vals = [
-                    move_line._get_aml_values(
+                    move_line._prepare_aml_values(
                         balance=-move_line.amount_residual,
                         amount_currency=-move_line.amount_residual_currency,
                         reconciled_lines_ids=[Command.set(move_line.ids)],
@@ -99,6 +112,7 @@ class AccountBankStatementLine(models.Model):
                     )
         return epd_lines_vals, total_amount, total_amount_currency
 
+    @_debug.perf.timed
     def _get_partial_amounts(
         self, current_balance, move_line, open_amount_currency, open_balance
     ):
@@ -132,6 +146,16 @@ class AccountBankStatementLine(models.Model):
         )
 
         tolerance = self._get_payment_tolerance()
+        if _debug.logic.enabled:
+            _debug.logic(
+                "partial_amount_mode_chosen",
+                stline=self,
+                line=move_line,
+                same_currency=move_line.currency_id == transaction_currency,
+                enough_currency=has_enough_curr_debit or has_enough_curr_credit,
+                enough_company=has_enough_comp_debit or has_enough_comp_credit,
+                tolerance=tolerance,
+            )
         if move_line.currency_id == transaction_currency and (
             has_enough_curr_debit or has_enough_curr_credit
         ):
@@ -234,6 +258,7 @@ class AccountBankStatementLine(models.Model):
             return transaction_currency.compare_amounts(remaining, 0.0) <= 0
         return transaction_currency.compare_amounts(remaining, 0.0) >= 0
 
+    @_debug.perf.timed
     def _set_early_payment_discount_lines(
         self, early_pay_aml_values_list, open_balance
     ):
@@ -247,21 +272,29 @@ class AccountBankStatementLine(models.Model):
         early_payment_values.pop("exchange_lines")
 
         for vals_list in early_payment_values.values():
-            for vals in vals_list:
-                new_lines.append(  # noqa: PERF401
-                    {
-                        "account_id": vals["account_id"],
-                        "date": self.date,
-                        "name": vals["name"],
-                        "partner_id": vals["partner_id"],
-                        "currency_id": vals["currency_id"],
-                        "amount_currency": vals["amount_currency"],
-                        "balance": vals["balance"],
-                        "analytic_distribution": vals.get("analytic_distribution"),
-                        "tax_ids": vals.get("tax_ids", []),
-                        "tax_tag_ids": vals.get("tax_tag_ids", []),
-                        "tax_repartition_line_id": vals.get("tax_repartition_line_id"),
-                        "group_tax_id": vals.get("group_tax_id"),
-                    }
-                )
+            new_lines.extend(
+                {
+                    "account_id": vals["account_id"],
+                    "date": self.date,
+                    "name": vals["name"],
+                    "partner_id": vals["partner_id"],
+                    "currency_id": vals["currency_id"],
+                    "amount_currency": vals["amount_currency"],
+                    "balance": vals["balance"],
+                    "analytic_distribution": vals.get("analytic_distribution"),
+                    "tax_ids": vals.get("tax_ids", []),
+                    "tax_tag_ids": vals.get("tax_tag_ids", []),
+                    "tax_repartition_line_id": vals.get("tax_repartition_line_id"),
+                    "group_tax_id": vals.get("group_tax_id"),
+                }
+                for vals in vals_list
+            )
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "early_payment_lines_built",
+                stline=self,
+                groups=sorted(early_payment_values),
+                lines=len(new_lines),
+                open_balance=open_balance,
+            )
         return new_lines

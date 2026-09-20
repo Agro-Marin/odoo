@@ -22,6 +22,8 @@ import {
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -42,6 +44,8 @@ import { isHTTPSorNakedDomainRedirection } from "./utils.js";
 import { WebsiteSystrayItem } from "./website_systray_item.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
+
+const log = makeLogger("website.builder");
 
 export class WebsiteBuilderClientAction extends Component {
     static template = "website.WebsiteBuilderClientAction";
@@ -70,6 +74,7 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         this.target = null;
         this.orm = useService("orm");
         this.notification = useService("notification");
@@ -86,7 +91,6 @@ export class WebsiteBuilderClientAction extends Component {
         this.cleanups = [];
 
         this.snippetsTemplate = "website.snippets";
-        // Track iframe navigation state
         this.isNavigatingToAnotherPage = null;
 
         useSubEnv({
@@ -108,8 +112,6 @@ export class WebsiteBuilderClientAction extends Component {
         );
 
         onMounted(() => {
-            // You can't wait for rendering because the Builder depends on the
-            // page style synchronously.
             effect(
                 (websiteContext) => {
                     if (status(this.component) === "destroyed") {
@@ -135,10 +137,15 @@ export class WebsiteBuilderClientAction extends Component {
                 )}?path=${encodedPath}`;
                 this.websiteService.currentWebsiteId = websiteId;
             };
+            const endWillStart = log.perf("willStart fetchWebsites+groups");
             const proms = [
                 this.websiteService.fetchWebsites(),
                 this.websiteService.fetchUserGroups(),
             ];
+            log.logic("willStart websiteId source", () => ({
+                fromProps: Boolean(this.websiteId),
+                websiteId: this.websiteId,
+            }));
             if (this.websiteId) {
                 updateWebsiteId(this.websiteId);
                 await Promise.all(proms);
@@ -149,20 +156,20 @@ export class WebsiteBuilderClientAction extends Component {
                 ]);
                 updateWebsiteId(backendWebsiteRepr[0]);
             }
+            endWillStart(() => ({ initialUrl: this.initialUrl }));
         });
         onMounted(() => {
             this.addListeners(document);
             this.addSystrayItems();
             const edition = !!(this.enableEditor || this.editTranslations);
+            log.logic("mounted", () => ({
+                edition,
+                preloadSnippets: !this.ui.isSmall,
+            }));
             if (edition) {
                 this.onEditPage();
             }
             if (!this.ui.isSmall) {
-                // Preload builder and snippets so clicking on "edit" is faster.
-                // Nothing here is load-bearing: every failure only costs the
-                // first click its warm cache, so none of it may reach the page
-                // as an unhandled rejection -- which is also what made this
-                // preload fail tours it has no part in.
                 loadBundle("website.website_builder_assets")
                     .then(() =>
                         this.env.services["html_builder.snippets"]
@@ -179,6 +186,9 @@ export class WebsiteBuilderClientAction extends Component {
             }
         });
         onWillUnmount(() => {
+            log.lifecycle("willUnmount cleanups", () => ({
+                cleanups: this.cleanups.length,
+            }));
             for (const fn of this.cleanups) {
                 fn();
             }
@@ -203,24 +213,13 @@ export class WebsiteBuilderClientAction extends Component {
         );
         useEffect(
             (isEditing) => {
+                log.lifecycle("isEditing effect", { isEditing });
                 document
                     .querySelector("body")
                     .classList.toggle("o_builder_open", isEditing);
                 if (isEditing) {
-                    // Which systray items exist is application state: it
-                    // changes the moment edit mode does, mirroring the
-                    // `addSystrayItems()` on the way out, which was never
-                    // delayed. It used to ride inside the timer below, so for
-                    // 200ms after entering edit mode the systray still offered
-                    // the view-mode website item -- and a caller observing the
-                    // registry saw edit mode with the wrong items in it.
                     websiteSystrayRegistry.remove("website.WebsiteSystrayItem");
                     websiteSystrayRegistry.trigger("EDIT-WEBSITE");
-                    // Only the presentation waits: the navbar animates upwards
-                    // on entering edit mode, and `d-none` would cut the slide
-                    // short. Optional-chained like its sibling below — a fast
-                    // enter/exit clears the body class first, and the compound
-                    // selector then matches nothing.
                     this.navBarTimeout = setTimeout(() => {
                         document
                             .querySelector(".o_builder_open .o_main_navbar")
@@ -238,17 +237,6 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     get testMode() {
-        // Read the server-provided flag (`config["test_enable"]`, see
-        // web/models/ir_http.py) rather than relying solely on the
-        // `website_builder_action_test_mode.js` patch. That patch ships in
-        // `web.assets_tests`, which esbuild bundles self-contained: it inlines
-        // its own copy of this module, so the patch lands on a duplicate class,
-        // and the copy's `registry.add("website_preview", ...)` is dropped by
-        // the registry's first-wins rule. The fallback iframe was therefore
-        // rendered during every tour, and `:iframe` selectors matched two
-        // frames. `session.test_mode` crosses bundle boundaries because it is
-        // data, not a class identity — the same signal html_editor, pos and
-        // im_livechat already use.
         return !!session.test_mode;
     }
 
@@ -268,13 +256,6 @@ export class WebsiteBuilderClientAction extends Component {
             isMobile: this.websiteContext.isMobile,
             config: {
                 initialTarget: this.target,
-                // `||` binds tighter than `?:`, so the parenthesis is what
-                // makes this "the tab that was asked for, else the default for
-                // the mode". Without it the condition was
-                // `(initialTab || translation)`, and `reloadEditor` always
-                // supplies `initialTab: state.activeTab` (builder.js) — a
-                // truthy string every time — so every reload landed on
-                // Customize and the tab it was preserving was discarded.
                 initialTab:
                     this.initialTab || (this.translation ? "customize" : "blocks"),
                 builderSidebar: {
@@ -286,7 +267,6 @@ export class WebsiteBuilderClientAction extends Component {
                             this.state.showSidebar = true;
                         }
                     },
-                    // TODO: remove `toggle` in master
                     toggle: (show) => {
                         this.state.showSidebar = show ?? !this.state.showSidebar;
                     },
@@ -307,6 +287,7 @@ export class WebsiteBuilderClientAction extends Component {
 
     addSystrayItems() {
         if (!websiteSystrayRegistry.contains("website.WebsiteSystrayItem")) {
+            log.lifecycle("addSystrayItems registering WebsiteSystrayItem");
             websiteSystrayRegistry.add(
                 "website.WebsiteSystrayItem",
                 {
@@ -327,28 +308,31 @@ export class WebsiteBuilderClientAction extends Component {
         if (keepUrl) {
             params.forcedURL = this.websiteService.currentLocation;
         }
+        log.logic("onNewPage", () => ({ keepUrl, ...params }));
         this.dialog.add(AddPageDialog, params);
     }
 
     async onEditPage() {
+        log.logic("onEditPage", () => ({
+            iframe: Boolean(this.websiteContent.el),
+            editing: this.state.isEditing,
+        }));
         if (!this.websiteContent.el) {
             await this.iframeLoaded;
         }
         this.websiteContext.showResourceEditor = false;
         this.blockIframe();
 
-        // Wait for navigation to complete if currently navigating
         if (this.isNavigatingToAnotherPage) {
+            log.logic("onEditPage waiting for page navigation");
             await this.isNavigatingToAnotherPage;
         }
 
         await this.loadIframeAndBundles(true);
+        log.pipeline("onEditPage dispatch edit_page");
         window.document.dispatchEvent(
             new CustomEvent("edit_page", {
                 detail: {
-                    // `contentDocument` IS the document; `.document` was always
-                    // undefined (masked only because stopInteractions defaults
-                    // undefined to its own root).
                     iframeDocument: this.websiteContent.el.contentDocument,
                 },
             }),
@@ -360,35 +344,34 @@ export class WebsiteBuilderClientAction extends Component {
      * @param {Boolean} isEditing
      */
     async loadIframeAndBundles(isEditing) {
+        const endLoad = log.perf("loadIframeAndBundles");
         await this.iframeLoaded;
         if (isEditing) {
             await this.publicRootReady;
             await this.loadAssetsEditBundle();
         }
+        endLoad({ isEditing });
     }
 
     async loadAssetsEditBundle() {
-        // at this point, the iframe should be loaded. In a normal user flow, the
-        // iframe had the time to load and start the js, and has an environment
-        // with services. But it could happen (most likely in tours or tests) that
-        // the js is not loaded yet. If we load the assets_inside_builder_iframe bundle
-        // now, and if it comes first, we'll get a crash. So we make sure that we
-        // properly wait for the iframe to be completely ready.
+        const endReady = log.perf("loadAssetsEditBundle waitForIframeReady");
         await this.waitForIframeReady();
+        endReady();
+        const endBundle = log.perf("loadBundle website.assets_inside_builder_iframe");
         await Promise.all([
             loadBundle("website.assets_inside_builder_iframe", {
                 targetDoc: this.websiteContent.el.contentDocument,
             }),
         ]);
+        endBundle();
     }
 
-    /**
-     * This replaces the browser url (/odoo/website...) with
-     * the iframe's url (it is clearer for the user).
-     */
     replaceBrowserUrl() {
         const iframe = this.websiteContent.el;
         if (!iframe || !iframe.contentWindow) {
+            log.logic("replaceBrowserUrl skip: no iframe window", () => ({
+                iframe: Boolean(iframe),
+            }));
             return;
         }
 
@@ -398,11 +381,9 @@ export class WebsiteBuilderClientAction extends Component {
                 window.location.origin,
             )
         ) {
-            // If another domain ends up loading in the iframe (for example,
-            // if the iframe is being redirected and has no initial URL, so it
-            // loads "about:blank"), do not push that into the history
-            // state as that could prevent the user from going back and could
-            // trigger a traceback.
+            log.logic("replaceBrowserUrl cross-origin: fallback to /odoo", () => ({
+                iframeOrigin: iframe.contentWindow.location.origin,
+            }));
             history.replaceState(history.state, document.title, "/odoo");
             return;
         }
@@ -421,20 +402,9 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     onIframeLoad(ev) {
-        // FIX Chrome-only. If you have the backend in a language A but the
-        // website in English only, you can 1) modify a record's (event,
-        // product...) name in language A (say "New Name").
-        // 2) visit the page `/new-name-11` => the server will redirect you to
-        // the English page `/origin-11`, which is the only one existing.
-        // Chrome caches the redirection.
-        // 3) give the same name in English as in language A, try to visit
-        // => the server now wants to access `/new-name-11`
-        // => Chrome uses the cache to redirect `/new-name-11` to `/origin-11`,
-        // => the server tries to redirect to `/new-name-11` => loop.
-        // Chrome injects a "Too many redirects" layout in the iframe, which in
-        // turn raises a CORS error when the app tries to update the iframe.
-        // If we detect that behavior, we reload the iframe with a new query
-        // parameter, so that it's not cached for Chrome.
+        log.lifecycle("onIframeLoad", () => ({
+            url: this.websiteContent.el?.contentWindow?.location?.href,
+        }));
         const iframe = this.websiteContent.el;
         iframe.contentDocument.body.setAttribute("is-ready", "false");
         if (isBrowserChrome() && !iframe.src.includes("iframe_reload")) {
@@ -443,8 +413,6 @@ export class WebsiteBuilderClientAction extends Component {
             } catch (err) {
                 if (err.name === "SecurityError") {
                     ev.stopImmediatePropagation();
-                    // iframe's `src` is the URL used to start the
-                    // website preview, it's not sync'd with iframe navigation.
                     const srcUrl = new URL(iframe.src);
                     const pathUrl = new URL(
                         srcUrl.searchParams.get("path"),
@@ -455,8 +423,9 @@ export class WebsiteBuilderClientAction extends Component {
                         "path",
                         `${pathUrl.pathname}${pathUrl.search}`,
                     );
-                    // We could inject `pathUrl` directly but keep the same
-                    // expected URL format `/website/force/1?path=..`
+                    log.logic("onIframeLoad SecurityError: reloading iframe", () => ({
+                        src: srcUrl.toString(),
+                    }));
                     iframe.src = srcUrl.toString();
                     return;
                 } else {
@@ -465,12 +434,16 @@ export class WebsiteBuilderClientAction extends Component {
             }
         }
         if (this.lastPageURL !== iframe.contentWindow.location.href) {
-            // Hide Ace Editor when moving to another page.
+            log.logic("onIframeLoad page changed: hide resource editor", () => ({
+                from: this.lastPageURL,
+                to: iframe.contentWindow.location.href,
+            }));
             this.websiteService.context.showResourceEditor = false;
         }
         this.websiteService.pageDocument = this.websiteContent.el.contentDocument;
         const url = new URL(this.websiteService.contentWindow.location.href);
         if (url.searchParams.has("edit_translations")) {
+            log.logic("onIframeLoad strip edit_translations param");
             deleteQueryParam(
                 "edit_translations",
                 this.websiteService.contentWindow,
@@ -486,6 +459,10 @@ export class WebsiteBuilderClientAction extends Component {
         this.addWelcomeMessage();
         this.websiteService.hideLoader();
         this.lastPageURL = iframe.contentWindow.location.href;
+        log.pipeline("onIframeLoad done", () => ({
+            url: this.lastPageURL,
+            navigating: Boolean(this.isNavigatingToAnotherPage),
+        }));
 
         if (this.isNavigatingToAnotherPage) {
             this.isNavigatingToAnotherPage.resolve();
@@ -501,18 +478,10 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     setupClickListener() {
-        // The clicks on the iframe are listened, so that links with external
-        // redirections can be opened in the top window.
         this.websiteContent.el.contentDocument.addEventListener("click", (ev) => {
             if (!this.state.isEditing) {
-                // Forward clicks to close backend client action's navbar
-                // dropdowns.
                 this.websiteContent.el.dispatchEvent(new MouseEvent("click", ev));
             } else {
-                // When in edit mode, prevent the default behaviours of clicks
-                // as to avoid DOM changes not handled by the editor.
-                // (Such as clicking on a link that triggers navigating to
-                // another page.)
                 ev.preventDefault();
             }
             const linkEl = ev.target.closest("[href]");
@@ -523,6 +492,7 @@ export class WebsiteBuilderClientAction extends Component {
             const { href, target } = linkEl;
             if (href && target !== "_blank" && !this.state.isEditing) {
                 if (isTopWindowURL(linkEl)) {
+                    log.logic("click: top window navigation", { href });
                     ev.preventDefault();
                     try {
                         browser.location.assign(href);
@@ -536,7 +506,7 @@ export class WebsiteBuilderClientAction extends Component {
                     this.websiteContent.el.contentWindow.location.pathname !==
                     new URL(href).pathname
                 ) {
-                    // This scenario triggers a navigation inside the iframe.
+                    log.logic("click: iframe navigation to another page", { href });
                     this.websiteService.websitePublicEnv = undefined;
 
                     this.isNavigatingToAnotherPage = new Deferred();
@@ -558,16 +528,8 @@ export class WebsiteBuilderClientAction extends Component {
         if (path) {
             const url = new URL(path, window.location.origin);
             if (isTopWindowURL(url)) {
-                // If the client action is initialized with a path that should
-                // not be opened inside the iframe (= something we would want to
-                // open on the top window), we consider that this is not a valid
-                // flow. Instead of trying to open it on the top window, we
-                // initialize the iframe with the website homepage...
                 path = "/";
             } else {
-                // ... otherwise, the path still needs to be normalized (as it
-                // would be if the given path was used as an href of a  <a/>
-                // element).
                 path = url.pathname + url.search;
             }
         } else {
@@ -583,17 +545,18 @@ export class WebsiteBuilderClientAction extends Component {
     waitForIframeReady() {
         return new Promise((resolve) => {
             const doc = this.websiteContent.el.contentDocument;
-            // `hasAttribute` is true even while is-ready="false" (set on each
-            // load before the public root finishes); only "true" means ready.
             if (doc.body.getAttribute("is-ready") === "true") {
+                log.logic("waitForIframeReady already ready");
                 resolve();
             } else {
                 const observer = new MutationObserver(() => {
                     if (doc.body.getAttribute("is-ready") === "true") {
                         observer.disconnect();
+                        log.lifecycle("waitForIframeReady observer disconnected");
                         resolve();
                     }
                 });
+                log.lifecycle("waitForIframeReady observer attached");
                 observer.observe(doc.body, {
                     attributes: true,
                     attributeFilter: ["is-ready"],
@@ -603,10 +566,14 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     async reloadEditor(param = {}) {
+        log.logic("reloadEditor", () => ({
+            initialTab: param.initialTab,
+            url: param.url,
+            target: Boolean(param.target),
+        }));
         this.initialTab = param.initialTab;
         this.target = param.target || null;
         await this.reloadIframe(this.state.isEditing, param.url);
-        // trigger an new instance of the builder menu
         this.state.key++;
     }
 
@@ -614,12 +581,15 @@ export class WebsiteBuilderClientAction extends Component {
         this.initialTab = null;
         this.target = null;
         const isEditing = false;
+        log.lifecycle("reloadIframeAndCloseEditor");
         this.state.isEditing = isEditing;
         this.addSystrayItems();
         await this.reloadIframe(isEditing);
     }
 
     async reloadIframe(isEditing = true, url) {
+        log.pipeline("reloadIframe", () => ({ isEditing, url }));
+        const endReload = log.perf("reloadIframe", () => ({ isEditing, url }));
         this.ui.block();
         this.preparePublicRootReady();
         this.setIframeLoaded();
@@ -636,12 +606,14 @@ export class WebsiteBuilderClientAction extends Component {
             this.websiteContent.el.contentWindow.location.reload();
         }
         await this.loadIframeAndBundles(isEditing);
+        endReload();
         this.ui.unblock();
     }
 
     reloadWebClient() {
         const currentPath = encodeURIComponent(window.location.pathname);
         const websiteId = this.websiteService.currentWebsite.id;
+        log.logic("reloadWebClient redirect", { websiteId, currentPath });
         redirect(
             `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
                 websiteId,
@@ -651,15 +623,24 @@ export class WebsiteBuilderClientAction extends Component {
 
     async installSnippetModule(snippet, beforeInstall) {
         this.dialog.closeAll();
+        const endInstall = log.perf("installSnippetModule", () => ({
+            moduleId: snippet.moduleId,
+            module: snippet.moduleDisplayName,
+        }));
         try {
             this.ui.block();
             await beforeInstall();
             await this.orm.call("ir.module.module", "button_immediate_install", [
                 [parseInt(snippet.moduleId)],
             ]);
+            endInstall();
             this.reloadWebClient();
         } catch (e) {
             if (e instanceof RPCError) {
+                log.logic("installSnippetModule failed: RPCError", () => ({
+                    moduleId: snippet.moduleId,
+                    message: e.message,
+                }));
                 const message = _t(
                     "Could not install module %s",
                     snippet.moduleDisplayName,
@@ -682,6 +663,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.websiteContent.el.contentWindow.addEventListener(
             "PUBLIC-ROOT-READY",
             (event) => {
+                log.lifecycle("PUBLIC-ROOT-READY received");
                 this.websiteService.websitePublicEnv = event.detail.env;
                 deferred.resolve();
             },
@@ -695,6 +677,7 @@ export class WebsiteBuilderClientAction extends Component {
                 "#wrapwrap.homepage #wrap",
             );
             if (wrapEl && !wrapEl.innerHTML.trim()) {
+                log.logic("addWelcomeMessage: empty homepage for restricted editor");
                 this.welcomeMessageEl = renderToElement(
                     "website.homepage_editor_welcome_message",
                 );
@@ -706,9 +689,6 @@ export class WebsiteBuilderClientAction extends Component {
     setIframeLoaded() {
         this.iframeLoaded = new Promise((resolve) => {
             this.resolveIframeLoaded = () => {
-                // Detach any prior registration before re-attaching to the (new)
-                // contentWindow, and tear down on unmount, so listeners don't
-                // accumulate across iframe reloads.
                 this.unregisterHotkeyIframe?.();
                 this.unregisterHotkeyIframe = this.hotkeyService.registerIframe(
                     this.websiteContent.el,
@@ -730,10 +710,11 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     onPageUnload() {
-        // If the iframe is currently displaying an XML file, the body does not
-        // exist, so we do not replace the iframefallback content.
         const websiteDoc = this.websiteContent.el?.contentDocument;
         const fallBackDoc = this.iframefallback.el?.contentDocument;
+        log.lifecycle("onPageUnload", () => ({
+            copyToFallback: Boolean(websiteDoc && fallBackDoc),
+        }));
         if (!this.state.isEditing && websiteDoc && fallBackDoc) {
             fallBackDoc.documentElement.replaceWith(
                 websiteDoc.documentElement.cloneNode(true),
@@ -746,10 +727,12 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     cleanIframeFallback() {
-        // Remove autoplay in all iframes urls so videos are not
         const iframesEl = this.iframefallback.el.contentDocument.querySelectorAll(
             'iframe[src]:not([src=""])',
         );
+        log.pipeline("cleanIframeFallback strip autoplay", () => ({
+            iframes: iframesEl.length,
+        }));
         for (const iframeEl of iframesEl) {
             const url = new URL(iframeEl.src);
             url.searchParams.delete("autoplay");
@@ -758,8 +741,6 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     toggleMobile() {
-        // Adding the mobile class directly, to not wait for the component
-        // re-rendering.
         this.websiteService.context.isMobile = !this.websiteService.context.isMobile;
     }
 
@@ -785,10 +766,6 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     /**
-     * Handles refreshing while the website preview is active.
-     * Makes it possible to stay in the backend after an F5 or CTRL-R keypress.
-     * Cannot be done through the hotkey service due to F5.
-     *
      * @param {KeyboardEvent} ev
      */
     onKeydownRefresh(ev) {
@@ -796,10 +773,11 @@ export class WebsiteBuilderClientAction extends Component {
         if (hotkey !== "control+r" && hotkey !== "f5") {
             return;
         }
-        // The iframe isn't loaded yet: fallback to default refresh.
         if (this.websiteService.contentWindow === undefined) {
+            log.logic("refresh hotkey ignored: no content window", { hotkey });
             return;
         }
+        log.logic("refresh hotkey: redirect to preview", { hotkey });
         ev.preventDefault();
         const path = this.websiteService.contentWindow.location;
         const debugMode = this.env.debug ? `&debug=${this.env.debug}` : "";
@@ -809,11 +787,7 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     /**
-     * Registers listeners on both the main document and the iframe document.
-     * It can mostly be done through the hotkey service, but not all keys are
-     * whitelisted, specifically F5 which we want to override.
-     *
-     * @param {HTMLElement} target - document or iframe document
+     * @param {HTMLElement} target
      */
     addListeners(target) {
         const listener = (ev) => this.onKeydownRefresh(ev);
@@ -831,7 +805,6 @@ export class WebsiteBuilderClientAction extends Component {
 function deleteQueryParam(param, target = window, adaptBrowserUrl = false) {
     const url = new URL(target.location.href);
     url.searchParams.delete(param);
-    // TODO: maybe to use in the action service
     target.history.replaceState(target.history.state, null, url);
     if (adaptBrowserUrl) {
         deleteQueryParam(param);
@@ -839,11 +812,8 @@ function deleteQueryParam(param, target = window, adaptBrowserUrl = false) {
 }
 
 /**
- * Returns true if the url should be opened in the top
- * window.
- *
- * @param host {string} host of the route.
- * @param pathname {string} path of the route.
+ * @param {string} host
+ * @param {string} pathname
  */
 function isTopWindowURL({ host, pathname }) {
     for (const fn of registry.category("isTopWindowURL").getAll()) {

@@ -44,11 +44,11 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     l10n_es_tbai_certificate_id = fields.Many2one(
+        comodel_name="certificate.certificate",
         string="Certificate (TicketBAI)",
+        compute="_compute_l10n_es_tbai_certificate_id",
         store=True,
         readonly=False,
-        comodel_name="certificate.certificate",
-        compute="_compute_l10n_es_tbai_certificate_id",
     )
     l10n_es_tbai_certificate_ids = fields.One2many(
         comodel_name="certificate.certificate",
@@ -58,12 +58,12 @@ class ResCompany(models.Model):
 
     # === TBAI config ===
     l10n_es_tbai_tax_agency = fields.Selection(
-        string="Tax Agency for TBAI",
         selection=[
             ("araba", "Hacienda Foral de Araba"),  # es-vi (region code)
             ("bizkaia", "Hacienda Foral de Bizkaia"),  # es-bi
             ("gipuzkoa", "Hacienda Foral de Gipuzkoa"),  # es-ss
         ],
+        string="Tax Agency for TBAI",
     )
     l10n_es_tbai_license_html = fields.Html(
         string="TicketBAI license",
@@ -74,14 +74,14 @@ class ResCompany(models.Model):
     l10n_es_tbai_chain_sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
         string="TicketBai account.move chain sequence",
-        readonly=True,
         copy=False,
+        readonly=True,
     )
 
     l10n_es_tbai_test_env = fields.Boolean(
         string="TBAI Test Mode",
-        help="Use the test environment for TicketBAI",
         default=True,
+        help="Use the test environment for TicketBAI",
     )
 
     l10n_es_tbai_is_enabled = fields.Boolean(compute="_compute_l10n_es_tbai_is_enabled")
@@ -97,7 +97,7 @@ class ResCompany(models.Model):
     def _compute_l10n_es_tbai_certificate_id(self):
         for company in self:
             if company.country_code == "ES":
-                company.l10n_es_tbai_certificate_id = self.env[
+                company.l10n_es_tbai_certificate_id = self.env[  # noqa: E8507 - one lookup per company, on its own certificates
                     "certificate.certificate"
                 ].search(
                     [

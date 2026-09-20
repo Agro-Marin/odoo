@@ -17,11 +17,14 @@ class AccountMove(models.Model):
 
     l10n_jo_edi_uuid = fields.Char(
         string="Invoice UUID",
-        copy=False,
         compute="_compute_l10n_jo_edi_uuid",
         store=True,
+        copy=False,
     )
-    l10n_jo_edi_qr = fields.Char(string="QR", copy=False)
+    l10n_jo_edi_qr = fields.Char(
+        string="QR",
+        copy=False,
+    )
 
     l10n_jo_edi_is_needed = fields.Boolean(
         compute="_compute_l10n_jo_edi_is_needed",
@@ -30,8 +33,8 @@ class AccountMove(models.Model):
     l10n_jo_edi_state = fields.Selection(
         selection=[("to_send", "To Send"), ("sent", "Sent"), ("demo", "Sent (Demo)")],
         string="JoFotara State",
-        tracking=True,
         copy=False,
+        tracking=True,
     )
     l10n_jo_edi_error = fields.Text(
         string="JoFotara Error",
@@ -46,8 +49,8 @@ class AccountMove(models.Model):
     )
     l10n_jo_edi_xml_attachment_file = fields.Binary(
         string="Jordan E-Invoice XML File",
-        copy=False,
         attachment=True,
+        copy=False,
         help="Jordan: technical field holding the e-invoice XML data.",
     )
     l10n_jo_edi_xml_attachment_id = fields.Many2one(
@@ -67,10 +70,10 @@ class AccountMove(models.Model):
             ("development", "Development Area"),
         ],
         string="Invoice Type",
-        precompute=True,
         compute="_compute_l10n_jo_edi_invoice_type",
-        readonly=False,
+        precompute=True,
         store=True,
+        readonly=False,
         tracking=True,
         help="Invoice Types as per the Income and Sales Tax Department for JoFotara",
     )
@@ -133,7 +136,7 @@ class AccountMove(models.Model):
                 if move.partner_id.is_company or move.partner_id.parent_id
                 else "cash"
             )
-            journal = self.env["account.journal"].search(
+            journal = self.env["account.journal"].search(  # noqa: E8507 - one lookup per move, on its own company and partner type
                 [
                     ("type", "=", expected_type),
                     ("company_id", "=", move.company_id.id),
@@ -146,8 +149,8 @@ class AccountMove(models.Model):
 
     def download_l10n_jo_edi_computed_xml(self):
         if (
-            error_message := self._l10n_jo_validate_config()
-            or self._l10n_jo_validate_fields()
+            error_message := self._l10n_jo_get_config_errors()
+            or self._l10n_jo_get_field_errors()
         ):
             raise ValidationError(
                 _("The following errors have to be fixed in order to create an XML:\n")
@@ -241,7 +244,7 @@ class AccountMove(models.Model):
             return "l10n_jo_edi.report_invoice_document"
         return super()._get_name_invoice_report()
 
-    def _l10n_jo_build_jofotara_headers(self):
+    def _l10n_jo_prepare_jofotara_headers(self):
         self.check_singleton()
         return {
             "Client-Id": self.sudo().company_id.l10n_jo_edi_client_identifier,
@@ -253,8 +256,13 @@ class AccountMove(models.Model):
             return {"EINV_QR": "Demo JoFotara QR"}  # mocked response
 
         try:
-            response = requests.post(
-                JOFOTARA_URL, json=params, headers=headers, timeout=50
+            response = self.env["ir.egress"].request(
+                "POST",
+                JOFOTARA_URL,
+                purpose="l10n_jo_edi",
+                json=params,
+                headers=headers,
+                timeout=50,
             )
         except requests.exceptions.Timeout:
             return {"error": _("Request timeout! Please try again.")}
@@ -273,7 +281,7 @@ class AccountMove(models.Model):
 
     def _submit_to_jofotara(self):
         self.check_singleton()
-        headers = self._l10n_jo_build_jofotara_headers()
+        headers = self._l10n_jo_prepare_jofotara_headers()
         xml_invoice = self.env["account.edi.xml.ubl_21.jo"]._export_invoice(self)[0]
         params = {"invoice": base64.b64encode(xml_invoice).decode()}
         dict_response = self._send_l10n_jo_edi_request(params, headers)
@@ -294,7 +302,7 @@ class AccountMove(models.Model):
     def _l10n_jo_edi_get_xml_attachment_name(self):
         return f"{self.name.replace('/', '_')}_edi.xml"
 
-    def _l10n_jo_validate_config(self):
+    def _l10n_jo_get_config_errors(self):
         error_msgs = []
         if not self.sudo().company_id.l10n_jo_edi_client_identifier:
             error_msgs.append(_("Client ID is missing."))
@@ -313,7 +321,7 @@ class AccountMove(models.Model):
                 "\n".join(error_msgs),
             )
 
-    def _l10n_jo_validate_fields(self):
+    def _l10n_jo_get_field_errors(self):
         def has_non_digit_vat(partner, partner_type, error_msgs):
             if partner.vat and not partner.vat.isdigit():
                 error_msgs.append(
@@ -418,8 +426,8 @@ class AccountMove(models.Model):
         ):
             return None
         if (
-            error_message := self._l10n_jo_validate_config()
-            or self._l10n_jo_validate_fields()
+            error_message := self._l10n_jo_get_config_errors()
+            or self._l10n_jo_get_field_errors()
             or self._submit_to_jofotara()
         ):
             self.l10n_jo_edi_error = error_message

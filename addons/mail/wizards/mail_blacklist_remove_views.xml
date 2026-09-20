@@ -16,14 +16,14 @@
                 <footer>
                     <button
                         name="action_unblacklist_apply"
-                        string="Remove address from blacklist"
                         type="object"
+                        string="Remove address from blacklist"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

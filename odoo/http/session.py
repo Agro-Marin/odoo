@@ -1,213 +1,45 @@
-import base64
 import collections.abc
-import contextlib
-import errno
-import os
-import re
+import copy
+import logging
 import time
-from collections.abc import Iterable, Iterator
-from pathlib import Path
-from stat import S_ISREG
+from collections.abc import Iterator
 from typing import Any
 
-from odoo.libs._vendor import sessions
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps_bytes as _dumps_bytes
+from odoo.libs.json import loads as _loads
 from odoo.tools import get_lang
 
 from ._protocols import get_ir_http
-from .constants import (
-    DEFAULT_LANG,
-    SESSION_DELETION_TIMER,
-    SESSION_LIFETIME,
-    STORED_SESSION_BYTES,
-    prepare_default_session,
-)
+from .constants import DEFAULT_LANG, prepare_default_session
 from .core import request
 
-_SESSION_KEY_LENGTH = 84
-assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
-    f"STORED_SESSION_BYTES ({STORED_SESSION_BYTES}) must be < "
-    f"_SESSION_KEY_LENGTH ({_SESSION_KEY_LENGTH}) for soft rotation to work"
-)
-_base64_urlsafe_re = re.compile(rf"^[A-Za-z0-9_-]{{{_SESSION_KEY_LENGTH}}}$")
-_session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$")
+_logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _TRACE_MAX_ENTRIES = 50
 
-_MTIME_REFRESH_INTERVAL = 24 * 60 * 60
-
-
-def prepare_session_dir(path: str) -> str:
-    try:
-        Path(path).mkdir(0o700, parents=True)
-    except OSError as exc:
-        if exc.errno != errno.EEXIST:
-            raise
-        if not os.access(path, os.W_OK):
-            raise OSError(f"{path}: session directory is not writable") from exc
-    return path
-
-
-class FilesystemSessionStore(sessions.FilesystemSessionStore):
-    def get_session_filename(self, sid: str) -> str:
-        if not self.is_valid_key(sid):
-            raise ValueError(f"Invalid session id {sid!r}")
-        return str(Path(self.path, sid[:2], sid))
-
-    def save(self, session: Session) -> None:
-        dirname = Path(self.get_session_filename(session.sid)).parent
-        if not dirname.is_dir():
-            with contextlib.suppress(OSError):
-                dirname.mkdir(mode=0o0700)
-        super().save(session)
-
-    def new(self) -> Session:
-        session = super().new()
-        session.store = self
-        return session
-
-    def get(self, sid: str) -> Session:
-        session = super().get(sid)
-        session.store = self
-        if not session.is_new:
-            with contextlib.suppress(OSError):
-                path = Path(self.get_session_filename(session.sid))
-                if path.stat().st_mtime < time.time() - _MTIME_REFRESH_INTERVAL:
-                    os.utime(path)
-        return session
-
-    def _remove_sid(self, sid: str) -> None:
-        with contextlib.suppress(OSError, ValueError):
-            Path(self.get_session_filename(sid)).unlink()
-
-    def keep_alive(self, session: Session) -> None:
-        try:
-            os.utime(self.get_session_filename(session.sid))
-        except OSError:
-            self.save(session)
-
-    def remove_old_sessions(self, session: Session) -> None:
-        if "gc_previous_sessions" in session:
-            if session["create_time"] + SESSION_DELETION_TIMER < time.time():
-                self.remove_sessions_for_identifiers(
-                    [session.sid[:STORED_SESSION_BYTES]],
-                    exclude_sid=session.sid,
-                )
-                del session["gc_previous_sessions"]
-                self.save(session)
-
-    def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
-        if soft:
-            static = session.sid[:STORED_SESSION_BYTES]
-            recent_session = self.get(session.sid)
-            if "next_sid" in recent_session:
-                new_sid = recent_session["next_sid"]
-                peer_state = self.get(new_sid)
-                if peer_state.is_new:
-                    if session.is_modified():
-                        self.save(session)
-                    return
-                modified = session.is_modified()
-                for key in ("next_sid", "deletion_time"):
-                    if key in session:
-                        del session[key]
-                for key in ("session_token", "create_time", "gc_previous_sessions"):
-                    if key in peer_state:
-                        session[key] = peer_state[key]
-                session.sid = new_sid
-                if modified:
-                    self.save(session)
-                session.should_rotate = False
-                return
-            next_sid = static + self.generate_key()[STORED_SESSION_BYTES:]
-        else:
-            next_sid = self.generate_key()
-
-        new_token = None
-        if session.uid:
-            if env is None:
-                msg = "Saving an authenticated session requires an environment"
-                raise ValueError(msg)
-            new_token = (
-                env["res.users"].browse(session.uid)._get_session_token(next_sid)
-            )
-
-        old_sid_to_delete = None
-        if soft:
-            session["next_sid"] = next_sid
-            session["deletion_time"] = time.time() + SESSION_DELETION_TIMER
-            self.save(session)
-            session["gc_previous_sessions"] = True
-            session.sid = next_sid
-            del session["deletion_time"]
-            del session["next_sid"]
-        else:
-            old_sid_to_delete = session.sid
-            session.sid = next_sid
-
-        if new_token:
-            session.session_token = new_token
-        session.should_rotate = False
-        session["create_time"] = time.time()
-        self.save(session)
-
-        if old_sid_to_delete is not None:
-            self._remove_sid(old_sid_to_delete)
-
-    def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
-        threshold = time.time() - max_lifetime
-        base_path = Path(self.path)
-        for path in base_path.glob("*/*"):
-            with contextlib.suppress(OSError):
-                st = path.stat()
-                if S_ISREG(st.st_mode) and st.st_mtime < threshold:
-                    path.unlink()
-        for path in base_path.glob(f"*{sessions._fs_transaction_suffix}"):
-            with contextlib.suppress(OSError):
-                st = path.stat()
-                if S_ISREG(st.st_mode) and st.st_mtime < threshold:
-                    path.unlink()
-
-    def generate_key(self, salt: bytes | None = None) -> str:
-        return base64.urlsafe_b64encode(os.urandom(63)).decode("ascii")
-
-    def is_valid_key(self, key: str) -> bool:
-        return _base64_urlsafe_re.match(key) is not None
-
-    def get_missing_session_identifiers(self, identifiers: Iterable[str]) -> set[str]:
-        identifiers = set(identifiers)
-        base = Path(self.path)
-        directories = {str(base / identifier[:2]) for identifier in identifiers}
-        for directory in directories:
-            with (
-                contextlib.suppress(OSError),
-                os.scandir(directory) as session_files,
-            ):
-                identifiers.difference_update(
-                    sf.name[:STORED_SESSION_BYTES] for sf in session_files
-                )
-        return identifiers
-
-    def remove_sessions_for_identifiers(
-        self,
-        identifiers: list[str],
-        exclude_sid: str | None = None,
-    ) -> None:
-        files_to_unlink: list[Path] = []
-        base_path = Path(self.path)
-        for identifier in identifiers:
-            if not _session_identifier_re.match(identifier):
-                msg = "Identifier format incorrect, did you pass in a string instead of a list?"
-                raise ValueError(msg)
-            files_to_unlink.extend((base_path / identifier[:2]).glob(identifier + "*"))
-        for fn in files_to_unlink:
-            if exclude_sid is not None and fn.name == exclude_sid:
-                continue
-            with contextlib.suppress(OSError):
-                fn.unlink()
-
 
 _SESSION_JSON_PRIMITIVES = (str, int, float, bool, type(None))
+
+
+def _merge_session_data(baseline: dict, local: dict, current: dict) -> dict:
+    merged = dict(current)
+    for key in baseline.keys() - local.keys():
+        merged.pop(key, None)
+    for key, value in local.items():
+        if key in baseline and value == baseline[key]:
+            continue
+        before, latest = baseline.get(key), current.get(key)
+        if (
+            isinstance(before, dict)
+            and isinstance(value, dict)
+            and isinstance(latest, dict)
+        ):
+            merged[key] = _merge_session_data(before, value, latest)
+        else:
+            merged[key] = value
+    return merged
 
 
 def _coerce_session_value(value: Any) -> Any:
@@ -238,6 +70,8 @@ class Session(collections.abc.MutableMapping):
         "can_save",
         "is_dirty",
         "is_new",
+        "mtime",
+        "rotation",
         "should_rotate",
         "sid",
         "store",
@@ -249,9 +83,51 @@ class Session(collections.abc.MutableMapping):
         self.is_dirty: bool = False
         self.__baseline: bytes | None = None
         self.is_new: bool = new
+        self.mtime: float | None = None
         self.should_rotate: bool = False
+        self.rotation: tuple[Session, bool] | None = None
         self.sid: str = sid
         self.store: Any = None
+
+    def snapshot(self) -> Session:
+        snapshot = Session(copy.deepcopy(self.__data), self.sid, self.is_new)
+        snapshot.__baseline = self.__baseline
+        snapshot.can_save = self.can_save
+        snapshot.is_dirty = self.is_dirty
+        snapshot.mtime = self.mtime
+        snapshot.should_rotate = self.should_rotate
+        snapshot.store = self.store
+        return snapshot
+
+    def restore(self, snapshot: Session) -> None:
+        self.__data = copy.deepcopy(snapshot.__data)
+        self.__baseline = snapshot.__baseline
+        self.sid = snapshot.sid
+        self.is_new = snapshot.is_new
+        self.is_dirty = snapshot.is_dirty
+        self.mtime = snapshot.mtime
+        self.can_save = snapshot.can_save
+        self.should_rotate = snapshot.should_rotate
+        self.rotation = None
+        _debug.lifecycle(
+            "http.session.restored", sid=self.sid[:8], uid=self.uid, is_new=self.is_new
+        )
+
+    def merge_changes(self, current: Session) -> None:
+        _debug.logic(
+            "http.session.merge",
+            has_baseline=self.__baseline is not None,
+            dirty=self.is_dirty,
+        )
+        if self.__baseline is None:
+            return
+        before = len(self.__data)  # debuglog
+        self.__data = _merge_session_data(
+            _loads(self.__baseline), self.__data, dict(current)
+        )
+        _debug.lifecycle(
+            "http.session.merged", keys_before=before, keys_after=len(self.__data)
+        )
 
     def __getitem__(self, item: str) -> Any:
         return self.__data[item]
@@ -332,7 +208,13 @@ class Session(collections.abc.MutableMapping):
             "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
         }
         env = env(user=None, su=False)
-        auth_info = env["res.users"].authenticate(credential, wsgienv)
+        with _debug.perf(
+            "http.session.authenticate",
+            cr=getattr(env, "cr", None),
+            auth_type=credential.get("type"),
+        ) as span:
+            auth_info = env["res.users"].authenticate(credential, wsgienv)
+            span.set(uid=auth_info["uid"])
         pre_uid = auth_info["uid"]
 
         self.uid = None
@@ -340,12 +222,21 @@ class Session(collections.abc.MutableMapping):
         self["pre_uid"] = pre_uid
 
         user = env["res.users"].browse(pre_uid)
-        if auth_info.get("mfa") == "skip" or not user._get_mfa_url():
+        mfa_required = auth_info.get("mfa") != "skip" and bool(user._get_mfa_url())
+        _debug.logic(
+            "http.session.authenticated",
+            db=env.registry.db_name,
+            uid=pre_uid,
+            mfa_required=mfa_required,
+            auth_type=credential.get("type"),
+        )
+        if not mfa_required:
             self.finalize_login(env)
 
         if request and request.session is self and request.db == env.registry.db_name:
             request.env = env(user=self.uid, context=self.context)
             request.update_context(lang=get_lang(request.env(user=pre_uid)).code)
+            _debug.lifecycle("http.session.request_env_rebound", uid=self.uid)
 
         return auth_info
 
@@ -354,20 +245,30 @@ class Session(collections.abc.MutableMapping):
         uid = self.pop("pre_uid")
 
         env = env(user=uid)
-        user_context = dict(env["res.users"].context_get())
+        with _debug.perf(
+            "http.session.finalize_login", cr=getattr(env, "cr", None), uid=uid
+        ):
+            user_context = dict(env["res.users"].context_get())
 
-        self.should_rotate = True
-        self.update(
-            {
-                "db": env.registry.db_name,
-                "login": login,
-                "uid": uid,
-                "context": user_context,
-                "session_token": env.user._get_session_token(self.sid),
-            }
+            self._require_hard_rotation()
+            self.update(
+                {
+                    "db": env.registry.db_name,
+                    "login": login,
+                    "uid": uid,
+                    "context": user_context,
+                    "session_token": env.user._get_session_token(self.sid),
+                }
+            )
+        _debug.lifecycle(
+            "http.session.login_finalized",
+            db=env.registry.db_name,
+            uid=uid,
+            context_keys=len(user_context),
         )
 
     def logout(self, keep_db: bool = False) -> None:
+        _debug.lifecycle("http.session.logout", uid=self.uid, keep_db=keep_db)
         db = self.db if keep_db else None
         debug = self.debug
         self.clear()
@@ -375,10 +276,28 @@ class Session(collections.abc.MutableMapping):
         context = self.context
         assert context is not None
         context["lang"] = request.get_default_lang() if request else DEFAULT_LANG
-        self.should_rotate = True
+        self._require_hard_rotation()
 
         if request and request.env is not None:
+            _debug.lifecycle("http.session.post_logout_hook", db=request.db)
             get_ir_http(request.env)._post_logout()
+
+    def _require_hard_rotation(self) -> None:
+        self.should_rotate = True
+        _debug.logic(
+            "http.session.hard_rotation_required",
+            staged=self.rotation is not None,
+            staged_soft=self.rotation is not None and self.rotation[1],
+        )
+        if self.rotation is not None:
+            original, soft = self.rotation
+            if soft:
+                # Leave the old family as well as its cookie. A stale request's
+                # family cleanup must not be able to delete the logged-in or
+                # logged-out successor of this authentication transition.
+                self.sid = self.store.generate_key()
+                self.pop("gc_previous_sessions", None)
+            self.rotation = (original, False)
 
     def mark_dirty(self) -> None:
         self.is_dirty = True
@@ -413,6 +332,7 @@ class Session(collections.abc.MutableMapping):
                 if now - trace["last_activity"] >= 3600:
                     trace["last_activity"] = now
                     self.is_dirty = True
+                    _debug.lifecycle("http.session.trace_refreshed", browser=browser)
                     return trace
                 return None
         new_trace = {
@@ -429,7 +349,11 @@ class Session(collections.abc.MutableMapping):
                 key=lambda i: self["_trace"][i]["last_activity"],
             )
             del self["_trace"][oldest_idx]
+            _debug.lifecycle("http.session.trace_evicted", traces=len(self["_trace"]))
         self.is_dirty = True
+        _debug.lifecycle(
+            "http.session.trace_added", browser=browser, traces=len(self["_trace"])
+        )
         return new_trace
 
     def _remove_old_sessions(self) -> None:

@@ -618,15 +618,6 @@ class TestQwebDataSnippet(TransactionCase):
 
 
 class TestQwebPostProcessingAttNames(TransactionCase):
-    """`website` must answer None, and the html converter must then skip nothing.
-
-    `ir.qweb._get_post_processing_att_names()` lets `ir.qweb.field.html` skip
-    elements whose attributes `_post_processing_att` cannot touch. This
-    module's override acts on the tag name, on `class`, on `style` and on the
-    `data-` twins, so no set of attribute names describes it -- answering one
-    would make the converter skip elements this module still needs to see.
-    """
-
     def test_website_declines_to_narrow_the_set(self):
         self.assertIsNone(self.env["ir.qweb"]._get_post_processing_att_names())
 

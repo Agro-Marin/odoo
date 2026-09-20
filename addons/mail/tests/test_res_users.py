@@ -135,7 +135,9 @@ class TestNotifySecurityUpdate(MailCommon):
             subdivisions = [type("_Sub", (), {"name": "Illinois", "iso_code": "IL"})]
 
         geoip = GeoIP("8.8.8.8", None)
-        vars(geoip)["_city_record"] = _Record()
+        record = _Record()
+        vars(geoip)["_city_record"] = record
+        vars(geoip)["_country_record"] = record
         fake_request = MagicMock(geoip=geoip)
         fake_request.httprequest.remote_addr = "8.8.8.8"
         fake_request.httprequest.user_agent.browser = "firefox"

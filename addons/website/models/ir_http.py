@@ -12,13 +12,15 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.http_routing.models import ir_http
-from odoo.addons.portal.controllers.portal import _get_url_with_params
+from odoo.addons.portal.utils import get_url_with_params
 
 logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def sitemap_qs2dom(qs, route, field="name"):
@@ -71,18 +73,54 @@ class IrHttp(models.AbstractModel):
         path, qmark, query = head.partition("?")
         suffix = qmark + query + hash_ + fragment
 
-        if (
-            path
-            and request.env["ir.http"]._get_rewrite_count(request.website_routing)
-            and (
-                len(path) > 1
-                and path.startswith("/")
-                and "/static/" not in path
-                and not path.startswith("/web/")
-            )
-        ):
+        rewrite_count = (
+            request.env["ir.http"]._get_rewrite_count(request.website_routing)
+            if path
+            else 0
+        )
+        eligible = (
+            len(path) > 1
+            and path.startswith("/")
+            and "/static/" not in path
+            and not path.startswith("/web/")
+        )
+        rewriting = bool(path and rewrite_count and eligible)
+        rewritten = path
+        if rewriting:
+            # url_rewrite consults the routing map, not website.rewrite: it
+            # answers `path` unchanged whenever no rule redirects it, which is
+            # the common case even on a website that has rewrites. Comparing is
+            # the only way to tell "the rewriter ran" from "the URL changed".
             rewritten, _ = request.env["ir.http"].url_rewrite(path)
             url_from = rewritten + suffix
+
+        if _debug.logic.enabled and rewritten != path:
+            _debug.logic(
+                "url_for_rewritten",
+                path=path,
+                to=rewritten,
+                website=request.website_routing,
+            )
+        # The four ways of not rewriting are indistinguishable from the caller
+        # and from a log that only speaks on success -- "this website has no
+        # rewrites", "this path is excluded" and "no rule matched it" are
+        # different diagnoses for the same complaint. Guarded because this runs
+        # once per URL in every rendered page.
+        if _debug.logic.enabled and rewritten == path:
+            _debug.logic(
+                "url_for_not_rewritten",
+                path=path,
+                website=request.website_routing,
+                by=(
+                    "empty_path"
+                    if not path
+                    else "no_rewrite_on_website"
+                    if not rewrite_count
+                    else "path_excluded"
+                    if not eligible
+                    else "no_rule_matched"
+                ),
+            )
 
         return super()._url_for(url_from, lang_code)
 
@@ -98,9 +136,16 @@ class IrHttp(models.AbstractModel):
             ("website_id", "=", False),
             ("website_id", "=", website_id),
         ]
-        return {
-            x.url_from: x for x in self.env["website.rewrite"].sudo().search(domain)
-        }
+        # Insert generic rules first so a website-specific rule always wins,
+        # even when the generic rule was created later.
+        with _debug.perf("rewrites_loaded", cr=self.env.cr, website=website_id) as span:
+            rewrites = (
+                self.env["website.rewrite"]
+                .sudo()
+                .search(domain, order="website_id DESC, id")
+            )
+            span.set(rewrites=len(rewrites))
+        return {rewrite.url_from: rewrite for rewrite in rewrites}
 
     def _generate_routing_rules(self, modules):
         if not request:
@@ -119,6 +164,12 @@ class IrHttp(models.AbstractModel):
                 url_to = rewrite.url_to
                 if rewrite.redirect_type == "308":
                     logger.debug("Add rule %s for %s", url_to, website_id)
+                    _debug.pipeline(
+                        "routing_rule_rewritten",
+                        website=website_id,
+                        url=url,
+                        to=url_to,
+                    )
                     yield url_to, endpoint
 
                     if url != url_to:
@@ -142,6 +193,9 @@ class IrHttp(models.AbstractModel):
                         )
                 elif rewrite.redirect_type == "404":
                     logger.debug("Return 404 for %s for website %s", url, website_id)
+                    _debug.pipeline(
+                        "routing_rule_suppressed", website=website_id, url=url
+                    )
                     continue
             else:
                 yield url, endpoint
@@ -163,6 +217,11 @@ class IrHttp(models.AbstractModel):
         )
         if website:
             public_users.append(website._get_cached("user_id"))
+            _debug.logic(
+                "public_users_extended",
+                website=website.id,
+                user=website._get_cached("user_id"),
+            )
         return public_users
 
     @classmethod
@@ -174,19 +233,32 @@ class IrHttp(models.AbstractModel):
                 .get_current_website()
             )
             if website:
+                _debug.logic(
+                    "auth_public",
+                    by="website_user",
+                    website=website.id,
+                    user=website._get_cached("user_id"),
+                )
                 request.update_env(user=website._get_cached("user_id"))
 
         if not request.env.uid:
+            _debug.logic("auth_public", by="super")
             super()._auth_method_public()
 
     @classmethod
     def _register_website_track(cls, response):
         if request.env["ir.http"].is_a_bot():
+            _debug.logic("track_skipped", reason="bot")
             return False
         if (
             getattr(response, "status_code", 0) != 200
             or request.httprequest.headers.get("X-Disable-Tracking") == "1"
         ):
+            _debug.logic(
+                "track_skipped",
+                reason="not_trackable_response",
+                status=getattr(response, "status_code", 0),
+            )
             return False
         template = False
         if hasattr(response, "_cached_page"):
@@ -205,6 +277,9 @@ class IrHttp(models.AbstractModel):
             and not request.env.cr.readonly
             and request.env["ir.ui.view"]._get_cached_template_info(template)["track"]
         ):
+            _debug.lifecycle(
+                "page_tracked", template=template, page=website_page or None
+            )
             request.env["website.visitor"]._handle_webpage_dispatch(website_page)
 
         return False
@@ -216,6 +291,7 @@ class IrHttp(models.AbstractModel):
                 request.env["website"].with_context(lang=None).get_current_website()
             )
             request.website_routing = website.id
+            _debug.logic("routing_website_resolved", website=website.id, path=path)
 
         return super()._match(path)
 
@@ -229,8 +305,14 @@ class IrHttp(models.AbstractModel):
             ):
                 try:
                     if not record.can_access_from_current_website():
+                        _debug.logic(
+                            "argument_refused", reason="other_website", record=record
+                        )
                         raise werkzeug.exceptions.NotFound
                 except AccessError:
+                    _debug.logic(
+                        "argument_refused", reason="access_error", record=record
+                    )
                     raise werkzeug.exceptions.NotFound from None
 
     @classmethod
@@ -240,6 +322,7 @@ class IrHttp(models.AbstractModel):
             request.is_frontend_multilang
             and request.lang == request.env["ir.http"]._get_default_lang()
         ):
+            _debug.logic("edit_translations_disabled", reason="default_lang")
             ctx["edit_translations"] = False
         return ctx
 
@@ -250,6 +333,7 @@ class IrHttp(models.AbstractModel):
         if not request.env.context.get("tz"):
             geoip_tz = request.geoip.location.time_zone
             if geoip_tz:
+                _debug.logic("timezone_from_geoip", tz=geoip_tz)
                 with contextlib.suppress(ZoneInfoNotFoundError):
                     request.update_context(tz=timezone(geoip_tz).key)
 
@@ -265,6 +349,12 @@ class IrHttp(models.AbstractModel):
         else:
             allowed_company_ids = user.company_id.ids
 
+        _debug.pipeline(
+            "frontend_pre_dispatch",
+            website=website.id,
+            user=user.id,
+            companies=allowed_company_ids,
+        )
         request.update_context(
             allowed_company_ids=allowed_company_ids,
             website_id=website.id,
@@ -312,13 +402,21 @@ class IrHttp(models.AbstractModel):
     def _serve_page(cls):
         req_page = request.httprequest.path
         WebsitePage = request.env["website.page"].sudo()
-        page_info = WebsitePage._get_page_info(request)
+        with _debug.perf("page_info", cr=request.env.cr, path=req_page) as span:
+            page_info = WebsitePage._get_page_info(request)
+            span.set(found=bool(page_info))
 
         if page_info and page_info["url"] != req_page:
             logger.info(
                 "Page %r not found, redirecting to existing page %r",
                 req_page,
                 page_info["url"],
+            )
+            _debug.logic(
+                "serve_page",
+                verdict="canonical_redirect",
+                path=req_page,
+                to=page_info["url"],
             )
             return request.redirect(page_info["url"])
 
@@ -330,30 +428,35 @@ class IrHttp(models.AbstractModel):
                 )
             if request.httprequest.query_string:
                 path += "?" + request.httprequest.query_string.decode("utf-8")
+            _debug.logic("serve_page", verdict="trailing_slash", path=req_page, to=path)
             return request.redirect(path, code=301)
 
         if page_info:
+            _debug.logic(
+                "serve_page", verdict="page", path=req_page, page=page_info["id"]
+            )
             return WebsitePage.browse(page_info["id"])._get_response(request)
 
+        _debug.logic("serve_page", verdict="no_page", path=req_page)
         return False
 
     @classmethod
     def _serve_redirect(cls):
         req_page = request.httprequest.path
         req_page_with_qs = request.httprequest.environ["REQUEST_URI"]
+        Rewrite = request.env["website.rewrite"].sudo()
         domain = Domain("redirect_type", "in", ("301", "302")) & Domain(
             "url_from",
             "in",
-            [req_page_with_qs, req_page.rstrip("/"), req_page + "/"],
+            Rewrite._get_redirect_source_urls(req_page, req_page_with_qs),
         )
-        Rewrite = request.env["website.rewrite"].sudo()
         return Rewrite.search(
             domain & Domain("website_id", "=", request.website.id),
-            order="url_from DESC",
+            order="url_from DESC, id",
             limit=1,
         ) or Rewrite.search(
             domain & Domain("website_id", "=", False),
-            order="url_from DESC",
+            order="url_from DESC, id",
             limit=1,
         )
 
@@ -361,6 +464,7 @@ class IrHttp(models.AbstractModel):
     def _serve_fallback(cls):
         parent = super()._serve_fallback()
         if parent:
+            _debug.pipeline("serve_fallback", verdict="super")
             return parent
 
         cls._frontend_pre_dispatch()
@@ -369,15 +473,23 @@ class IrHttp(models.AbstractModel):
         website_page = cls._serve_page()
         if website_page:
             website_page.flatten()
+            _debug.pipeline("serve_fallback", verdict="page")
             return website_page
 
         redirect = cls._serve_redirect()
         if redirect:
+            _debug.pipeline(
+                "serve_fallback",
+                verdict="redirect",
+                code=redirect.redirect_type,
+                to=redirect.url_to,
+            )
             return request.redirect(
-                _get_url_with_params(redirect.url_to, request.params),
+                get_url_with_params(redirect.url_to, request.params),
                 code=redirect.redirect_type,
                 local=False,
             )
+        _debug.pipeline("serve_fallback", verdict="unhandled")
         return None
 
     @classmethod
@@ -408,8 +520,10 @@ class IrHttp(models.AbstractModel):
     def _get_error_template(cls, code, values):
         exception = values.get("exception")
         if cls._is_designer_404(exception):
+            _debug.logic("error_template", code=code, by="designer_404")
             return "website.page_404"
         if cls._is_password_protected_403(exception):
+            _debug.logic("error_template", code=code, by="protected_403")
             return "website.protected_403"
         return super()._get_error_template(code, values)
 
@@ -480,15 +594,21 @@ class IrHttp(models.AbstractModel):
                     request.cookies.get("website_cookies_bar", "{}")
                 )
             except ValueError:
+                _debug.logic("cookie_refused", reason="malformed_cookie")
                 request.future_response.set_cookie("website_cookies_bar", max_age=0)
                 return False
 
             if not isinstance(accepted_cookie_types, dict):
+                _debug.logic("cookie_refused", reason="not_a_mapping")
                 request.future_response.set_cookie("website_cookies_bar", max_age=0)
                 return False
 
             if "optional" in accepted_cookie_types:
+                _debug.logic(
+                    "cookie_decision", accepted=accepted_cookie_types["optional"]
+                )
                 return accepted_cookie_types["optional"]
+            _debug.logic("cookie_refused", reason="not_answered")
             return False
 
         return result

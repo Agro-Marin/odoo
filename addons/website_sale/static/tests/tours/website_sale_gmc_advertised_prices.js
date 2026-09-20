@@ -28,23 +28,23 @@ registry
 registry
     .category("web_tour.tours")
     .add("website_sale_gmc_check_advertised_prices_red_sofa_christmas", {
-        steps: () => check_price("990.0", "€"), // 1000.0 * 1.1 (EUR rate) - 10% discount
+        steps: () => check_price("990.0", "€"),
     });
 
 registry
     .category("web_tour.tours")
     .add("website_sale_gmc_check_advertised_prices_blue_sofa_christmas", {
-        steps: () => check_price("1,188.0", "€"), // 1200.0 * 1.1 (EUR rate) - 10% discount
+        steps: () => check_price("1,188.0", "€"),
     });
 
 registry
     .category("web_tour.tours")
     .add("website_sale_gmc_check_advertised_prices_red_sofa_tax_included", {
-        steps: () => check_price("1,150.0", "$"), // 1000.0 + 15% tax
+        steps: () => check_price("1,150.0", "$"),
     });
 
 registry
     .category("web_tour.tours")
     .add("website_sale_gmc_check_advertised_prices_blue_sofa_tax_included", {
-        steps: () => check_price("1,380.0", "$"), // 1200.0 + 15% tax
+        steps: () => check_price("1,380.0", "$"),
     });

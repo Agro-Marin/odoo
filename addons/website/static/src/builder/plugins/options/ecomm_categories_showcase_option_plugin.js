@@ -8,7 +8,10 @@ import {
 } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.ecomm_categories_showcase_option");
 
 export class EcommCategoriesShowcaseOption extends BaseOptionComponent {
     static template = "website.EcommCategoriesShowcaseOption";
@@ -91,6 +94,7 @@ class BlockCountAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (!wrapper) {
+            log.logic("BlockCountAction apply skipped: no wrapper");
             return;
         }
 
@@ -100,19 +104,25 @@ class BlockCountAction extends BuilderAction {
             count < EcommCategoriesShowcaseOptionPlugin.MIN_BLOCK_COUNT ||
             count > EcommCategoriesShowcaseOptionPlugin.MAX_BLOCK_COUNT
         ) {
+            log.logic("BlockCountAction apply skipped: count out of range", () => ({
+                value,
+                count,
+            }));
             return;
         }
 
         let blocks = wrapper.querySelectorAll(".s_ecomm_categories_showcase_block");
+        log.pipeline("BlockCountAction apply", () => ({
+            from: blocks.length,
+            to: count,
+        }));
 
-        // Remove blocks if needed
         while (blocks.length > count) {
             const blockToRemove = blocks[blocks.length - 1];
             blockToRemove.remove();
             blocks = wrapper.querySelectorAll(".s_ecomm_categories_showcase_block");
         }
 
-        // Add blocks if needed
         while (blocks.length < count) {
             const newBlock = blocks[0].cloneNode(true);
             wrapper.appendChild(newBlock);
@@ -153,6 +163,7 @@ class SpacingToggleAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (!wrapper) {
+            log.logic("SpacingToggleAction apply skipped: no wrapper");
             return;
         }
 
@@ -161,10 +172,13 @@ class SpacingToggleAction extends BuilderAction {
         );
         wrapper.classList.toggle(EcommCategoriesShowcaseOptionPlugin.GAP_CLASS);
 
-        // Set roundness based on new state
         const newRoundness = hasGap
             ? EcommCategoriesShowcaseOptionPlugin.NO_ROUNDNESS
             : EcommCategoriesShowcaseOptionPlugin.DEFAULT_ROUNDNESS;
+        log.logic("SpacingToggleAction apply", () => ({
+            hadGap: hasGap,
+            newRoundness,
+        }));
         EcommCategoriesShowcaseOptionPlugin._updateBlocksRoundness(
             editingElement,
             newRoundness,
@@ -176,6 +190,7 @@ class SpacingToggleAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (wrapper) {
+            log.pipeline("SpacingToggleAction clean");
             wrapper.classList.remove(EcommCategoriesShowcaseOptionPlugin.GAP_CLASS);
             EcommCategoriesShowcaseOptionPlugin._updateBlocksRoundness(
                 editingElement,

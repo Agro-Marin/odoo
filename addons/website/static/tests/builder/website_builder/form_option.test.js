@@ -52,7 +52,6 @@ patch(webModels.IrModel.prototype, {
 defineWebsiteModels();
 
 test("change action of form changes available options", async () => {
-    // reduced version of form_editor_actions
     registry
         .category("website.form_editor_actions")
         .add("apply_job", {
@@ -134,7 +133,6 @@ test("'Author' field's type stays selected when you modify the option list", asy
     expect(".o_popover [data-action-value='author_id']").toHaveClass("active");
     await contains(".hb-row button.o-dropdown-caret:contains('Add')").click();
     await contains(".o_popover .o-hb-select-dropdown-item").click();
-    // check that the author is still marked as selected
     await contains(
         ".hb-row[data-label='Type'] button.o-dropdown-caret:contains('Author')",
     ).click();

@@ -7,19 +7,25 @@ import {
     onWillDestroy,
     onWillRender,
     onWillUpdateProps,
+    status,
     useRef,
     useState,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
 import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
+import { isScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("web.components.autocomplete");
 
 export class AutoComplete extends Component {
     static template = "web.AutoComplete";
@@ -79,6 +85,8 @@ export class AutoComplete extends Component {
     inEdition = false;
     isOptionSelected = false;
     forceValFromProp = false;
+    /** @type {string} */
+    inputValue = "";
 
     dismissed = false;
     ignoreBlur = false;
@@ -100,6 +108,7 @@ export class AutoComplete extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         this.autoCompleteId = uniqueId("autocomplete_");
         this.nextSourceId = 0;
         this.nextOptionId = 0;
@@ -108,12 +117,13 @@ export class AutoComplete extends Component {
 
         this.state = useState({
             open: false,
-            value: this.props.value,
             /** @type {any[]} */
             sources: [],
         });
+        this.inputValue = this.props.value;
 
         this.inputRef = /** @type {any} */ (useForwardRefToParent("input"));
+        onMounted(() => this.setInputValue(this.inputValue));
         this.listRef = useRef("sourcesList");
         if (this.props.autofocus) {
             useAutofocus({ refName: "input" });
@@ -138,6 +148,16 @@ export class AutoComplete extends Component {
                     el.closest(".o-autocomplete--dropdown-item") ?? el
                 ),
             onUpdated: () => this.onNavigationUpdated(),
+            scrollTo: (el) => {
+                if (!this.props.dropdown) {
+                    scrollTo(el);
+                    return;
+                }
+                const menu = this.listRef.el;
+                if (menu && isScrollableY(menu)) {
+                    scrollTo(el, { scrollable: menu });
+                }
+            },
         });
 
         this.setupInputDebounce();
@@ -146,10 +166,14 @@ export class AutoComplete extends Component {
         onWillUpdateProps((nextProps) => {
             if (this.props.value !== nextProps.value || this.forceValFromProp) {
                 this.forceValFromProp = false;
-                if (!this.inEdition) {
+                if (this.inEdition) {
+                    // the value echoes what is being typed: the pending
+                    // processing of that input is what opens the dropdown
+                    this.closeDropdown();
+                } else {
                     this.setInputValue(nextProps.value);
+                    this.close();
                 }
-                this.close();
             }
         });
 
@@ -190,13 +214,14 @@ export class AutoComplete extends Component {
                 target === document ||
                 target === document.documentElement ||
                 target === document.body ||
-                this.root.el?.contains(target)
+                this.root.el?.contains(target) ||
+                this._readAnchorPosition() === this._anchorPosition
             ) {
                 return;
             }
             this.externalClose();
         };
-        onWillDestroy(() => this._removeGlobalListeners());
+        onWillDestroy(() => this.close());
     }
 
     setupPresentation() {
@@ -222,7 +247,7 @@ export class AutoComplete extends Component {
 
     /** @param {string} value */
     setInputValue(value) {
-        this.state.value = value;
+        this.inputValue = value;
         if (this.inputRef.el) {
             this.inputRef.el.value = value;
         }
@@ -303,13 +328,34 @@ export class AutoComplete extends Component {
      * @param {number} [entryDirection]
      */
     open(useInput = false, entryDirection = 0) {
+        if (status(this) === "destroyed") {
+            return Promise.resolve();
+        }
+        log.logic("open", () => ({
+            useInput,
+            entryDirection,
+            wasOpen: this.state.open,
+        }));
         this.state.open = true;
         this.dismissed = false;
+        this._anchorPosition = this._readAnchorPosition();
         this._addGlobalListeners();
         return this.loadSources(useInput, entryDirection);
     }
 
     close() {
+        log.logic("close", () => ({
+            wasOpen: this.state.open,
+            pending: Boolean(this.pendingPromise),
+        }));
+        this.closeDropdown();
+        this.debouncedProcessInput.cancel();
+        this.pendingPromise?.resolve();
+        this.pendingPromise = null;
+        this.loadingPromise = null;
+    }
+
+    closeDropdown() {
         this.state.open = false;
         this.navigator.clearActiveItem();
         this.navigationRev = 0;
@@ -318,11 +364,12 @@ export class AutoComplete extends Component {
             this._entry.applied.resolve();
             this._entry = null;
         }
-        this.debouncedProcessInput.cancel();
-        this.pendingPromise?.resolve();
-        this.pendingPromise = null;
-        this.loadingPromise = null;
         this._removeGlobalListeners();
+    }
+
+    _readAnchorPosition() {
+        const rect = this.inputRef.el?.getBoundingClientRect();
+        return rect ? `${rect.top},${rect.left}` : "";
     }
 
     _addGlobalListeners() {
@@ -357,6 +404,7 @@ export class AutoComplete extends Component {
     async loadSources(useInput, entryDirection = 0) {
         const inputValue = this.inputRef.el?.value.trim() ?? "";
         const request = useInput ? inputValue : null;
+        const end = log.perf("loadSources", () => ({ request, entryDirection }));
         this.state.sources = this.props.sources.map((pSource) =>
             this.makeSource(pSource),
         );
@@ -400,12 +448,14 @@ export class AutoComplete extends Component {
             await this.keepLast.add(Promise.all(proms));
         } catch (error) {
             if (error instanceof SupersededError) {
+                end({ superseded: true });
                 return;
             }
             throw error;
         }
         this._loadedRequest = request;
         this._loadedInputValue = inputValue;
+        end({ options: this.sources.map((source) => source.options.length) });
         await this._enterLoadedOptions(entryDirection);
     }
 
@@ -414,7 +464,7 @@ export class AutoComplete extends Component {
      * @returns {boolean}
      */
     _isSourceCurrent(source) {
-        return this.sources.some((s) => s.id === source.id);
+        return this.state.open && this.sources.some((s) => s.id === source.id);
     }
 
     /** @returns {any | null} */
@@ -497,6 +547,11 @@ export class AutoComplete extends Component {
 
     selectOption(option) {
         this.inEdition = false;
+        log.logic("selectOption", () => ({
+            label: option?.label,
+            unselectable: option?.unselectable,
+            resetOnSelect: this.props.resetOnSelect,
+        }));
         if (!option || option.unselectable) {
             return;
         }
@@ -511,6 +566,12 @@ export class AutoComplete extends Component {
     }
 
     onInputBlur() {
+        log.logic("onInputBlur", () => ({
+            ignoreBlur: this.ignoreBlur,
+            selectOnBlur: this.props.selectOnBlur,
+            dismissed: this.dismissed,
+            loading: Boolean(this.loadingPromise),
+        }));
         if (this.ignoreBlur) {
             this.ignoreBlur = false;
             return;
@@ -536,6 +597,8 @@ export class AutoComplete extends Component {
     onInputClick() {
         if (!this.isOpened && this.props.searchOnInputClick) {
             this.open(this.inputRef.el.value.trim() !== this.props.value.trim());
+        } else if (this.pendingPromise) {
+            this.closeDropdown();
         } else {
             this.close();
         }
@@ -656,11 +719,11 @@ export class AutoComplete extends Component {
             try {
                 await this.loadingPromise;
             } catch {}
-            this.inputRef.el.focus();
+            this.inputRef.el?.focus();
             return;
         }
         this.selectOption(option);
-        this.inputRef.el.focus();
+        this.inputRef.el?.focus();
     }
     onOptionPointerDown(option, ev) {
         if (option.unselectable) {

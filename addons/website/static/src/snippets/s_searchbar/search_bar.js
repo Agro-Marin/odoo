@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_searchbar");
 
 export class SearchBar extends Interaction {
     static selector = ".o_searchbar_form";
@@ -33,7 +36,13 @@ export class SearchBar extends Interaction {
         const orderByEl = this.el.querySelector(".o_search_order_by");
         const form = orderByEl.closest("form");
         this.order = orderByEl.value;
-        this.limit = parseInt(this.inputEl.dataset.limit) || 5;
+        // `|| 5` turned the editor's own "0 results" into 5. The Suggestions
+        // option is a BuilderNumberInput with min="0", and the option panel
+        // hides the display sub-options when it is 0, so 0 is a supported
+        // setting meaning "no autocomplete dropdown" -- which the three
+        // `this.limit` guards below exist to honour and never saw.
+        const configuredLimit = parseInt(this.inputEl.dataset.limit);
+        this.limit = Number.isNaN(configuredLimit) ? 5 : configuredLimit;
         this.wasEmpty = !this.inputEl.value;
         this.linkHasFocus = false;
         if (this.limit) {
@@ -47,7 +56,6 @@ export class SearchBar extends Interaction {
             displayExtraLink:
                 dataset.displayExtraLink && JSON.parse(dataset.displayExtraLink),
             displayDetail: dataset.displayDetail && JSON.parse(dataset.displayDetail),
-            // Make it easy for customization to disable fuzzy matching on specific searchboxes
             allowFuzzy: !(dataset.noFuzzy && JSON.parse(dataset.noFuzzy)),
         };
         for (const fieldEl of form.querySelectorAll("input[type='hidden']")) {
@@ -61,7 +69,6 @@ export class SearchBar extends Interaction {
             for (const keyValue of urlParams.split("&")) {
                 const [key, value] = keyValue.split("=");
                 if (value && key !== "search") {
-                    // Decode URI parameters: revert + to space then decodeURIComponent.
                     this.options[decodeURIComponent(key.replace(/\+/g, "%20"))] =
                         decodeURIComponent(value.replace(/\+/g, "%20"));
                 }
@@ -72,10 +79,15 @@ export class SearchBar extends Interaction {
             const value = decodeURIComponent(pathParts[index]);
             const indexNumber = parseInt(index);
             if (indexNumber > 0 && /-[0-9]+$/.test(value)) {
-                // is sluggish
                 this.options[decodeURIComponent(pathParts[indexNumber - 1])] = value;
             }
         }
+        log.lifecycle("setup", () => ({
+            searchType: this.searchType,
+            limit: this.limit,
+            order: this.order,
+            options: Object.keys(this.options),
+        }));
     }
 
     start() {
@@ -89,10 +101,14 @@ export class SearchBar extends Interaction {
     }
 
     destroy() {
+        log.lifecycle("destroy: closing dropdown");
         this.render(null);
     }
 
     async fetch() {
+        const endFetch = log.perf("fetch autocomplete", () => ({
+            searchType: this.searchType,
+        }));
         const res = await rpc("/website/snippet/autocomplete", {
             search_type: this.searchType,
             term: this.inputEl.value,
@@ -104,6 +120,11 @@ export class SearchBar extends Interaction {
             ),
             options: this.options,
         });
+        endFetch(() => ({
+            results: res.results.length,
+            resultsCount: res.results_count,
+            fuzzy: !!res.fuzzy_search,
+        }));
         const fieldNames = this.getFieldsNames();
         res.results.forEach((record) => {
             for (const fieldName of fieldNames) {
@@ -130,6 +151,11 @@ export class SearchBar extends Interaction {
             if (getTemplate(candidate)) {
                 template = candidate;
             }
+            log.pipeline("render: rendering results", () => ({
+                template,
+                results: results.length,
+                resultsCount: res["results_count"],
+            }));
             this.menuEl = this.renderAt(
                 template,
                 {
@@ -143,6 +169,11 @@ export class SearchBar extends Interaction {
                 this.el,
             )[0];
         }
+        log.logic("render: dropdown state", () => ({
+            open: !!res,
+            limit: this.limit,
+            hadMenu: !!prevMenuEl,
+        }));
         this.hasDropdown = !!res;
         prevMenuEl?.remove();
     }
@@ -160,9 +191,11 @@ export class SearchBar extends Interaction {
 
     async onInput() {
         if (!this.limit) {
+            log.logic("onInput: autocomplete disabled, limit is 0");
             return;
         }
         if (this.searchType === "all" && !this.inputEl.value.trim().length) {
+            log.logic("onInput: empty query on 'all', closing dropdown");
             this.render();
         } else {
             const res = await this.keepLast.add(this.waitFor(this.fetch()));
@@ -201,7 +234,8 @@ export class SearchBar extends Interaction {
                 }
                 break;
             case "Enter":
-                this.limit = 0; // prevent autocomplete
+                log.logic("onKeydown: Enter, disabling autocomplete for submit");
+                this.limit = 0;
                 break;
         }
     }
@@ -211,11 +245,11 @@ export class SearchBar extends Interaction {
      */
     onSearch(ev) {
         if (this.inputEl.value) {
-            // actual search
-            this.limit = 0; // prevent autocomplete
+            log.logic("onSearch: submitting, autocomplete disabled");
+            this.limit = 0;
         } else {
-            // clear button clicked
-            this.render(); // remove existing suggestions
+            log.logic("onSearch: cleared, closing dropdown");
+            this.render();
             ev.preventDefault();
         }
     }

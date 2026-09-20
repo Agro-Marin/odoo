@@ -7,7 +7,7 @@ class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
 
     @template("es_canary_assoc")
-    def _get_es_canary_assoc_template_data(self):
+    def _prepare_es_canary_assoc_template_data(self):
         return {
             "name": _("Canary Islands - PGCE non-profit entities (2008)"),
             "parent": "es_canary_common",
@@ -35,9 +35,11 @@ class AccountChartTemplate(models.AbstractModel):
 
         return res
 
-    @template("es_canary_assoc", "account.asset")
-    def _get_es_canary_assoc_account_asset(self):
-        # account_asset is not auto-installed when l10n_es is installed
-        if "account.asset" not in self.env:
+    @template("es_canary_assoc", "account.depreciation.profile")
+    def _get_es_canary_assoc_account_depreciation_profile(self):
+        # account_depreciation is not auto-installed when l10n_es is installed
+        if "account.depreciation.profile" not in self.env:
             return {}
-        return self._prepare_csv_vals("es_assec", "account.asset", module="l10n_es")
+        return self._prepare_csv_vals(
+            "es_assec", "account.depreciation.profile", module="l10n_es"
+        )

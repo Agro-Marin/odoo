@@ -1,9 +1,13 @@
 from odoo import Command, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
 
+    @_debug.perf.timed
     def _prepare_for_tax_lines_recomputation(self):
         _liquidity_lines, _suspense_lines, other_lines = self._seek_for_lines()
         other_lines = other_lines.filtered(lambda line: not line.reconciled_lines_ids)
@@ -18,6 +22,7 @@ class AccountBankStatementLine(models.Model):
         ]
         return base_lines, tax_lines
 
+    @_debug.perf.timed
     def _create_tax_lines(self, original_base_lines, original_tax_lines, new_lines):
         self.check_singleton()
         liquidity_lines, _suspense_lines, other_lines = self._seek_for_lines()
@@ -34,6 +39,7 @@ class AccountBankStatementLine(models.Model):
             original_base_lines, liquidity_lines, original_tax_lines, other_lines
         )
 
+    @_debug.perf.timed
     def _edit_tax_lines(
         self, original_base_lines, original_tax_lines, edited_line, old_move_line
     ):
@@ -65,8 +71,22 @@ class AccountBankStatementLine(models.Model):
             if base_line["tax_ids"] and not price_unit_modified:
                 edit_base_line["price_unit"] = base_line["price_unit"]
 
+            _debug.logic(
+                "edited_price_unit_resolved",
+                stline=self,
+                line=old_move_line,
+                price_unit_modified=price_unit_modified,
+                has_taxes=bool(base_line["tax_ids"]),
+            )
             base_lines.append(edit_base_line)
 
+        _debug.pipeline(
+            "edited_base_lines_ready",
+            stline=self,
+            base_lines=len(base_lines),
+            tax_lines=len(original_tax_lines),
+            other_lines=len(other_lines),
+        )
         self._post_recompute_tax_lines(
             base_lines, liquidity_lines, original_tax_lines, other_lines
         )
@@ -110,9 +130,11 @@ class AccountBankStatementLine(models.Model):
 
         return original_base_lines, original_tax_lines
 
+    @_debug.perf.timed
     def _post_recompute_tax_lines(
         self, base_lines, liquidity_lines, original_tax_lines, other_lines
     ):
+        _debug.lifecycle("_post_recompute_tax_lines", records=self)
         self.check_singleton()
         AccountTax = self.env["account.tax"]
         AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
@@ -143,13 +165,15 @@ class AccountBankStatementLine(models.Model):
                     Command.set(line.reconciled_lines_ids.ids)
                 ]
             lines_to_delete += line
-            lines_to_add_or_update.append(line._get_aml_values(**line_values))
+            lines_to_add_or_update.append(line._prepare_aml_values(**line_values))
 
         for tax_line_vals in tax_results["tax_lines_to_delete"]:
             lines_to_delete += tax_line_vals["record"]
 
-        for tax_line_vals in tax_results["tax_lines_to_add"]:
-            lines_to_add_or_update.append(self._lines_prepare_tax_line(tax_line_vals))  # noqa: PERF401
+        lines_to_add_or_update.extend(
+            self._lines_prepare_tax_line(tax_line_vals)
+            for tax_line_vals in tax_results["tax_lines_to_add"]
+        )
 
         for tax_line_vals, grouping_key, to_update in tax_results[
             "tax_lines_to_update"
@@ -157,10 +181,20 @@ class AccountBankStatementLine(models.Model):
             lines_to_delete += tax_line_vals["record"]
             new_line_vals = self._lines_prepare_tax_line({**grouping_key, **to_update})
             lines_to_add_or_update.append(
-                tax_line_vals["record"]._get_aml_values(**new_line_vals)
+                tax_line_vals["record"]._prepare_aml_values(**new_line_vals)
             )
 
         lines_to_keep = (liquidity_lines + other_lines) - lines_to_delete
+        _debug.pipeline(
+            "tax_results_applied",
+            stline=self,
+            base_lines_updated=len(tax_results["base_lines_to_update"]),
+            tax_lines_added=len(tax_results["tax_lines_to_add"]),
+            tax_lines_updated=len(tax_results["tax_lines_to_update"]),
+            tax_lines_deleted=len(tax_results["tax_lines_to_delete"]),
+            kept=len(lines_to_keep),
+            written=len(lines_to_add_or_update),
+        )
         self._set_move_line_to_statement_line_move(
             lines_to_keep, lines_to_add_or_update
         )
@@ -195,6 +229,7 @@ class AccountBankStatementLine(models.Model):
             "group_tax_id": tax_line_vals["group_tax_id"],
         }
 
+    @_debug.perf.timed
     def _prepare_base_line_for_taxes_computation(self, line_vals):
         self.check_singleton()
         if not line_vals:
@@ -207,6 +242,13 @@ class AccountBankStatementLine(models.Model):
         is_refund = (tax_type == "sale" and line_vals.balance > 0.0) or (
             tax_type == "purchase" and line_vals.balance < 0.0
         )
+        _debug.logic(
+            "base_line_tax_mode",
+            stline=self,
+            line=line_vals,
+            tax_type=tax_type,
+            is_refund=is_refund,
+        )
 
         return self.env["account.tax"]._prepare_base_line_for_taxes_computation(
             line_vals,
@@ -216,6 +258,7 @@ class AccountBankStatementLine(models.Model):
             special_mode="total_included",
         )
 
+    @_debug.perf.timed
     def _prepare_tax_line_for_taxes_computation(self, line):
         self.check_singleton()
         if not line:

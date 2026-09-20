@@ -11,35 +11,41 @@ class ResUsers(models.Model):
     microsoft_calendar_credential_id = fields.Many2one(
         comodel_name="credential.credential",
         string="Microsoft Credential",
-        ondelete="restrict",
         copy=False,
+        ondelete="restrict",
         groups="base.group_system",
         help="Holds this user's Microsoft OAuth tokens.",
     )
     microsoft_calendar_rtoken = fields.Char(
-        "Microsoft Refresh Token",
-        copy=False,
-        groups="base.group_system",
+        string="Microsoft Refresh Token",
         compute="_compute_microsoft_calendar_tokens",
         inverse="_inverse_microsoft_calendar_rtoken",
-    )
-    microsoft_calendar_token = fields.Char(
-        "Microsoft User token",
         copy=False,
         groups="base.group_system",
+    )
+    microsoft_calendar_token = fields.Char(
+        string="Microsoft User token",
         compute="_compute_microsoft_calendar_tokens",
         inverse="_inverse_microsoft_calendar_token",
+        copy=False,
+        groups="base.group_system",
     )
     microsoft_calendar_token_validity = fields.Datetime(
-        "Microsoft Token Validity", copy=False
+        string="Microsoft Token Validity",
+        copy=False,
     )
 
     @api.depends("microsoft_calendar_credential_id")
     def _compute_microsoft_calendar_tokens(self):
         for user in self:
             credential = user.microsoft_calendar_credential_id.sudo()
-            user.microsoft_calendar_token = credential.oauth_access_token or False
-            user.microsoft_calendar_rtoken = credential.oauth_refresh_token or False
+            tokens = (
+                credential._use_secret_payload("microsoft_account:calendar_tokens")
+                if credential
+                else {}
+            )
+            user.microsoft_calendar_token = tokens.get("oauth_access_token") or False
+            user.microsoft_calendar_rtoken = tokens.get("oauth_refresh_token") or False
 
     def _inverse_microsoft_calendar_token(self):
         for user in self:

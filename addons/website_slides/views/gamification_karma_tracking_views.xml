@@ -11,12 +11,12 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='filter_res_users']" position="after">
                 <filter
-                    string="Course"
                     name="filter_slide_channel"
+                    string="Course"
                     domain="[('origin_ref', 'ilike', 'slide.channel,')]" />
                 <filter
-                    string="Quiz"
                     name="filter_slide_slide"
+                    string="Quiz"
                     domain="[('origin_ref', 'ilike', 'slide.slide,')]" />
             </xpath>
         </field>

@@ -3,12 +3,13 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
+const log = makeLogger("website.builder.plugin.table_of_content_option");
+
 /**
- * Returns the TOC id and the heading id from a header element.
- *
- * @param {HTMLElement} headingEl - A header element of the TOC.
+ * @param {HTMLElement} headingEl
  * @returns {Object}
  */
 function getTocAndHeadingId(headingEl) {
@@ -41,12 +42,10 @@ class TableOfContentOptionPlugin extends Plugin {
             NavbarPositionAction,
         },
         normalize_handlers: this.normalize.bind(this),
-        // Prevent dropping a table of content inside another table of content.
         dropzone_selector: {
             selector: ".s_table_of_content",
             excludeAncestor: ".s_table_of_content",
         },
-        // Only allow moving main parts of the table of content by using arrows.
         is_draggable_handlers: (el) => {
             if (
                 el.matches(
@@ -83,7 +82,7 @@ class TableOfContentOptionPlugin extends Plugin {
         }));
 
         if (tableOfContentMain.children.length === 0) {
-            // Remove the table of content if empty content.
+            log.logic("TableOfContentOptionPlugin remove empty table of content");
             this.dependencies.remove.removeElement(tableOfContent);
             return;
         }
@@ -113,8 +112,6 @@ class TableOfContentOptionPlugin extends Plugin {
             const matchingLinkVisibilityId = matchingLinkEl
                 ? matchingLinkEl.getAttribute("data-visibility-id")
                 : null;
-            // Check if visibilityId matches matchingLinkVisibilityId or both
-            // are null/undefined
             return visibilityId === matchingLinkVisibilityId;
         });
 
@@ -131,6 +128,10 @@ class TableOfContentOptionPlugin extends Plugin {
 
         let duplicateTocId = false;
         if (!tocId || otherTocIds.includes(tocId)) {
+            log.logic("TableOfContentOptionPlugin assign new toc id", () => ({
+                tocId,
+                otherTocIds,
+            }));
             tocId = 1 + Math.max(0, ...otherTocIds);
             duplicateTocId = true;
         }
@@ -138,6 +139,13 @@ class TableOfContentOptionPlugin extends Plugin {
         if (!headingHasChanged && areVisibilityIdsEqual && !duplicateTocId) {
             return;
         }
+        log.pipeline("TableOfContentOptionPlugin rebuild navbar", () => ({
+            headingHasChanged,
+            areVisibilityIdsEqual,
+            duplicateTocId,
+            tocId,
+            headings: currentHeadingItems.length,
+        }));
 
         const headingIds = currentHeadingItems.map(
             ({ el }) => getTocAndHeadingId(el).headingId,
@@ -149,7 +157,6 @@ class TableOfContentOptionPlugin extends Plugin {
         for (const { title, el } of currentHeadingItems) {
             let { headingId } = getTocAndHeadingId(el);
             if (headingId) {
-                // Reset headingId on duplicate.
                 if (uniqueHeadingIds.has(headingId)) {
                     headingId = 0;
                 } else {
@@ -193,6 +200,7 @@ export class NavbarPositionAction extends BuilderAction {
             ".s_table_of_content_main",
         );
         const navbarEl = navbarWrapEl.querySelector(".s_table_of_content_navbar");
+        log.pipeline("NavbarPositionAction apply", () => ({ position }));
 
         if (position === "top" || position === "left") {
             const previousSibling = navbarWrapEl.previousElementSibling;
@@ -230,6 +238,7 @@ export class NavbarPositionAction extends BuilderAction {
             ".s_table_of_content_main",
         );
         const navbarEl = navbarWrapEl.querySelector(".s_table_of_content_navbar");
+        log.pipeline("NavbarPositionAction clean", () => ({ position }));
 
         if (position === "top") {
             navbarWrapEl.classList.remove(

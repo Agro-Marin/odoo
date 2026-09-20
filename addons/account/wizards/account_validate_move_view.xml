@@ -41,17 +41,17 @@
                 </group>
                 <footer>
                     <button
-                        string="Confirm"
                         name="action_post_moves"
                         type="object"
+                        string="Confirm"
                         default_focus="1"
+                        context="{'validate_analytic': True}"
                         class="btn-primary"
-                        data-hotkey="q"
-                        context="{'validate_analytic': True}" />
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -63,10 +63,13 @@
         <field name="model_id" ref="account.model_account_move" />
         <field name="binding_model_id" ref="account.model_account_move" />
         <field name="binding_view_types">list,kanban</field>
+        <field name="binding_icon">fa-solid fa-check</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_invoice'))]" />
         <field name="state">code</field>
         <field
             name="code">action = records.action_post_moves_with_confirmation()</field>
-        <field name="group_ids" eval="[(4, ref('account.group_account_invoice'))]" />
     </record>
 
 </odoo>

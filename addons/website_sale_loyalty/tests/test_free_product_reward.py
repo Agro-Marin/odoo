@@ -34,7 +34,6 @@ class TestFreeProductReward(HttpCaseWithUserPortal, WebsiteSaleCommon):
             ]
         )
 
-        # Disable any other program
         cls.program = cls.env["loyalty.program"].search([]).write({"active": False})
 
         cls.program = cls.env["loyalty.program"].create(
@@ -76,8 +75,6 @@ class TestFreeProductReward(HttpCaseWithUserPortal, WebsiteSaleCommon):
             pass
 
     def test_add_product_to_cart_when_it_exist_as_free_product(self):
-        # This test the flow when we claim a reward in the cart page and then we
-        # want to add the product again
         order = self.empty_cart
         with MockRequest(
             self.website.env, website=self.website, sale_order_id=order.id

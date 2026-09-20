@@ -2567,6 +2567,244 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 "message %s (%s ancestors)" % (message.id, len(per_thread)),
             )
 
+    @users("employee")
+    def test_a_message_without_parent_threads_under_the_last_human_message(self):
+        """On a flat thread, `parent_id` is the newest comment or email at posting
+        time -- not the thread's first message -- and an explicit parent is kept.
+        """
+        record = self.env["mail.test.simple"].create({"name": "Chain"})
+        creation = record.message_ids
+        self.assertEqual(len(creation), 1)
+
+        def post(body, **kwargs):
+            kwargs.setdefault("message_type", "comment")
+            kwargs.setdefault("subtype_xmlid", "mail.mt_comment")
+            return record.message_post(body=body, **kwargs)
+
+        first = post("A")
+        note = post("note", subtype_xmlid="mail.mt_note")
+        second = post("B")
+        explicit = post("C", parent_id=first.id)
+        record.message_notify(body="ping", partner_ids=self.partner_employee_2.ids)
+        record._message_log(body="log")
+        last = post("D")
+
+        self.assertEqual(first.parent_id, creation, "only message so far")
+        self.assertEqual(note.parent_id, first)
+        self.assertEqual(second.parent_id, note, "a note is a comment too")
+        self.assertEqual(explicit.parent_id, first, "an explicit parent is kept")
+        self.assertEqual(
+            last.parent_id,
+            explicit,
+            "neither the user notification nor the log outranks the newest comment",
+        )
+
+        channel = (
+            self.env["discuss.channel"]
+            .sudo()
+            ._create_channel(name="Free", group_id=None)
+        )
+        free = channel.message_post(body="free", message_type="comment")
+        self.assertFalse(free.parent_id, "a channel message without parent stays free")
+
+    def test_a_batch_post_with_per_record_values_equals_single_posts(self):
+        """`values_per_record` gives a batch post what `message_post` takes per
+        record -- recipients, attachments, subject, sender, parent -- and the
+        notifications, followers and message values come out the same as N
+        single posts."""
+        inbox_user = mail_new_test_user(
+            self.env,
+            login="pr_inbox",
+            groups="base.group_user",
+            name="Per Record Inbox",
+            notification_type="inbox",
+        )
+        customers = self.env["res.partner"].create(
+            [
+                {"name": f"Customer {idx}", "email": f"c{idx}@example.com"}
+                for idx in range(3)
+            ]
+        )
+        batch = self.env["mail.test.simple"].create(
+            [{"name": f"Batch {idx}"} for idx in range(3)]
+        )
+        single = self.env["mail.test.simple"].create(
+            [{"name": f"Single {idx}"} for idx in range(3)]
+        )
+        (batch | single).message_subscribe(partner_ids=inbox_user.partner_id.ids)
+        parents = {
+            record.id: record.message_post(body="root", message_type="comment").id
+            for record in batch | single
+        }
+        self.env.flush_all()
+
+        def per_record(record, idx, parent_id):
+            return {
+                "subject": f"Subject {idx}",
+                "partner_ids": customers[idx].ids,
+                "attachments": [(f"file{idx}.txt", b"content")],
+                "email_from": f"sender{idx}@example.com",
+                "parent_id": parent_id,
+                "email_layout_xmlid": "mail.mail_notification_light",
+            }
+
+        with self.mock_mail_gateway():
+            batch_messages = batch._message_post_batch(
+                {record.id: f"<p>Body {idx}</p>" for idx, record in enumerate(batch)},
+                message_type="comment",
+                subtype_id=self.env.ref("mail.mt_comment").id,
+                values_per_record={
+                    record.id: per_record(record, idx, parents[record.id])
+                    for idx, record in enumerate(batch)
+                },
+                notify_per_record={batch[1].id: {"force_email_lang": "en_US"}},
+            )
+            single_messages = self.env["mail.message"]
+            for idx, record in enumerate(single):
+                values = per_record(record, idx, parents[record.id])
+                single_messages += record.message_post(
+                    body=f"<p>Body {idx}</p>",
+                    message_type="comment",
+                    subtype_id=self.env.ref("mail.mt_comment").id,
+                    **values,
+                )
+        self.env.flush_all()
+
+        def shape(message):
+            return {
+                "subject": message.subject,
+                "body": message.body,
+                "partners": sorted(message.partner_ids.mapped("name")),
+                "attachments": sorted(message.attachment_ids.mapped("name")),
+                "email_from": message.email_from,
+                "layout": message.email_layout_xmlid,
+                "parent_is_root": message.parent_id.body == "<p>root</p>",
+                "author": message.author_id.name,
+                "notifications": sorted(
+                    (n.res_partner_id.name, n.notification_type)
+                    for n in message.notification_ids
+                ),
+                "thread_followers": sorted(
+                    self.env[message.model]
+                    .browse(message.res_id)
+                    .message_partner_ids.mapped("name")
+                ),
+            }
+
+        self.assertEqual(
+            [shape(m) for m in batch_messages], [shape(m) for m in single_messages]
+        )
+        for message in batch_messages:
+            self.assertEqual(len(message.notification_ids), 2, "inbox user + customer")
+
+    def test_a_batch_post_refuses_per_record_values_it_cannot_honour(self):
+        record = self.env["mail.test.simple"].create({"name": "Refused"})
+        with self.assertRaises(ValueError):
+            record._message_post_batch(
+                {record.id: "x"}, values_per_record={record.id: {"body": "y"}}
+            )
+        with self.assertRaises(ValueError):
+            record._message_post_batch(
+                {record.id: "x"}, values_per_record={record.id: {"partner_ids": "1"}}
+            )
+        with self.assertRaises(ValueError):
+            record._message_post_batch(
+                {record.id: "x"}, notify_per_record={record.id: {"not_a_flag": 1}}
+            )
+
+    def test_a_posted_message_keeps_its_body_and_thread_pointer_cached(self):
+        """Every post read both right after creation and re-fetched both: the
+        html cache was never primed, and invalidating the thread's message_ids
+        after the insert emptied every message's res_id."""
+        record = self.env["mail.test.simple"].create({"name": "Cached"})
+        message = record.message_post(
+            body=Markup("<p>hello</p>"),
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        with self.assertQueryCount(0):
+            self.assertEqual(message.body, "<p>hello</p>")
+            self.assertEqual(message.res_id, record.id)
+        self.assertEqual(record.message_ids[0], message)
+
+    def test_inbox_notifications_are_flushed_once_per_batch(self):
+        """A batch post writes its inbox notifications once, and pushes one
+        ``mail.message/inbox`` per message and recipient, each carrying that
+        recipient's own view of the message.
+        """
+        inbox_users = self.user_employee | mail_new_test_user(
+            self.env,
+            login="inbox_2",
+            groups="base.group_user",
+            name="Second Inbox",
+            notification_type="inbox",
+        )
+        records = self.env["mail.test.simple"].create(
+            [{"name": f"Inbox {idx}"} for idx in range(3)]
+        )
+        records.message_subscribe(partner_ids=inbox_users.partner_id.ids)
+        self.env.flush_all()
+
+        Notification = type(self.env["mail.notification"])
+        create_origin = Notification.create
+        create_sizes = []
+
+        def _create(model, vals_list):
+            create_sizes.append(len(vals_list))
+            return create_origin(model, vals_list)
+
+        with (
+            patch.object(Notification, "create", autospec=True, side_effect=_create),
+            self.mock_bus(),
+        ):
+            messages = records._message_post_batch(
+                {record.id: f"Body {record.id}" for record in records},
+                message_type="comment",
+                subtype_id=self.env.ref("mail.mt_comment").id,
+            )
+            self.env.flush_all()
+
+        inbox_notifs = (
+            self.env["mail.notification"]
+            .sudo()
+            .search(
+                [
+                    ("mail_message_id", "in", messages.ids),
+                    ("notification_type", "=", "inbox"),
+                ]
+            )
+        )
+        self.assertEqual(len(inbox_notifs), 6, "one per message and recipient")
+        self.assertEqual(create_sizes, [6], "one create call for the whole batch")
+        self.assertEqual(set(inbox_notifs.mapped("mail_message_id")), set(messages))
+        self.assertEqual(
+            set(inbox_notifs.mapped("res_partner_id")), set(inbox_users.partner_id)
+        )
+        for user in inbox_users:
+            channel = [self.env.cr.dbname, "res.partner", user.partner_id.id]
+            inbox_pushes = [
+                payload["payload"]
+                for payload in (
+                    json.loads(notif.message)
+                    for notif in self._new_bus_notifs
+                    if json.loads(notif.channel) == channel
+                )
+                if payload["type"] == "mail.message/inbox"
+            ]
+            self.assertEqual(
+                sorted(push["message_id"] for push in inbox_pushes),
+                sorted(messages.ids),
+                f"one inbox push per message for {user.login}",
+            )
+            for push in inbox_pushes:
+                stored = next(
+                    data
+                    for data in push["store_data"]["mail.message"]
+                    if data["id"] == push["message_id"]
+                )
+                self.assertTrue(stored["needaction"], "seen as unread by its recipient")
+                self.assertIn("thread", stored)
+
     @mute_logger(
         "odoo.addons.mail.models.mail_mail",
         "odoo.addons.mail.models.mixin_mail_thread",

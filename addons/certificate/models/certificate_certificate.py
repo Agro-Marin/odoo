@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from .certificate_key import STR_TO_HASH, _get_formatted_value
+from .certificate_key import STR_TO_HASH, _get_formatted_bytes
 
 
 @lru_cache(maxsize=128)
@@ -17,7 +17,7 @@ def _parse_x509_certificate(pem_bytes):
 
     ``_get_der_certificate_bytes``/``_get_fingerprint_bytes``/
     ``_get_signature_bytes``/``_get_public_key_bytes`` each call
-    ``_load_certificate`` independently; a single signing flow that needs
+    ``_get_parsed_certificate`` independently; a single signing flow that needs
     several of them re-parsed the same certificate from scratch every
     time. The cache key is the certificate's own bytes, so a changed
     ``pem_certificate`` never returns a stale parse.
@@ -27,7 +27,9 @@ def _parse_x509_certificate(pem_bytes):
 
 class CertificateCertificate(models.Model):
     _name = "certificate.certificate"
-    _inherit = ["mixin.encryption"]
+    _inherit = ["mixin.encryption", "mixin.credential.holder"]
+    _credential_holder_field = "certificate_credential_id"
+    _credential_purpose = "certificate:secrets"
     _description = "Certificate"
     _order = "date_end DESC"
     _check_company_auto = True
@@ -43,73 +45,74 @@ class CertificateCertificate(models.Model):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
         default=lambda self: self.env.company,
+        required=True,
         ondelete="cascade",
+    )
+    certificate_credential_id = fields.Many2one(
+        comodel_name="credential.credential",
+        string="Credential",
+        copy=False,
+        ondelete="restrict",
+        groups="base.group_system",
+        help="Holds the session and service secrets modules keep for this certificate.",
     )
     country_code = fields.Char(
         related="company_id.country_code",
         depends=["company_id"],
     )
-    name = fields.Char(string="Name")
+    name = fields.Char()
     active = fields.Boolean(
+        default=True,
         name="Active",
         help="Set active to false to archive the certificate",
-        default=True,
     )
     content = fields.Binary(
         string="Certificate",
-        readonly=False,
-        required=True,
         compute="_compute_content",
         inverse="_inverse_content",
         store=False,
+        readonly=False,
+        required=True,
     )
     content_encrypted = fields.Binary(
         string="Certificate (encrypted)",
         attachment=False,
     )
-    content_plain = fields.Binary(
-        string="Certificate (unencrypted)",
-    )
+    content_plain = fields.Binary(string="Certificate (unencrypted)")
     pkcs12_password = fields.Char(
         string="Certificate Password",
-        help="Password to decrypt the PKS file.",
         compute="_compute_pkcs12_password",
         inverse="_inverse_pkcs12_password",
         store=False,
+        help="Password to decrypt the PKS file.",
     )
     pkcs12_password_encrypted = fields.Binary(
         string="Certificate Password (encrypted)",
         attachment=False,
     )
-    pkcs12_password_plain = fields.Char(
-        string="Certificate Password (unencrypted)",
-    )
+    pkcs12_password_plain = fields.Char(string="Certificate Password (unencrypted)")
     private_key_id = fields.Many2one(
-        string="Private Key",
         comodel_name="certificate.key",
-        check_company=True,
-        domain=[("public", "=", False)],
         compute="_compute_private_key_id",
         store=True,
         readonly=False,
+        domain=[("public", "=", False)],
+        check_company=True,
     )
     public_key_id = fields.Many2one(
-        string="Public Key",
         comodel_name="certificate.key",
-        check_company=True,
         domain=[("public", "=", True)],
+        check_company=True,
         help="""Used to set a public key in case the one self-contained in the certificate is erroneus.
                 When a public key is set this way, it will be used instead of the one in the certificate.
              """,
     )
     scope = fields.Selection(
-        string="Certificate scope",
         selection=[
             ("general", "General"),
         ],
+        string="Certificate scope",
         default="general",
         help="What this certificate may be used for. Every consumer selects on "
         "this field, so a certificate is inert until it is scoped "
@@ -137,21 +140,21 @@ class CertificateCertificate(models.Model):
     )
     serial_number = fields.Char(
         string="Serial number",
-        help="The serial number to add to electronic documents",
         compute="_compute_pem_certificate",
         store=True,
+        help="The serial number to add to electronic documents",
     )
     date_start = fields.Datetime(
         string="Available date",
-        help="The date on which the certificate starts to be valid",
         compute="_compute_pem_certificate",
         store=True,
+        help="The date on which the certificate starts to be valid",
     )
     date_end = fields.Datetime(
         string="Expiration date",
-        help="The date on which the certificate expires",
         compute="_compute_pem_certificate",
         store=True,
+        help="The date on which the certificate expires",
     )
     loading_error = fields.Text(
         string="Loading error",
@@ -259,7 +262,9 @@ class CertificateCertificate(models.Model):
                             encryption_algorithm=serialization.NoEncryption(),
                         )
                     )
-                    key_id = self._get_key_holding(pem_key, certificate.company_id)
+                    key_id = self._get_private_key_by_content(
+                        pem_key, certificate.company_id
+                    )
                     if not key_id:
                         key_id = self.env["certificate.key"].create(
                             {
@@ -391,7 +396,11 @@ class CertificateCertificate(models.Model):
             ("loading_error", "=", ""),
         ]
 
-    def _get_key_holding(self, pem_key, company):
+    def _get_private_key_by_content(self, pem_key, company):
+        """Return a matching private key in the company, including inactive keys.
+
+        :return: ``certificate.key`` singleton, or an empty recordset
+        """
         candidates = (
             self.env["certificate.key"]
             .with_context(active_test=False)
@@ -403,7 +412,11 @@ class CertificateCertificate(models.Model):
             lambda key: key.with_context(bin_size=False).content == pem_key,
         )[:1]
 
-    def _load_certificate(self):
+    def _get_parsed_certificate(self):
+        """Return the parsed X.509 certificate using the byte-keyed parse cache.
+
+        :rtype: cryptography.x509.Certificate
+        """
         self.check_singleton()
         return _parse_x509_certificate(
             base64.b64decode(self.with_context(bin_size=False).pem_certificate)
@@ -411,8 +424,8 @@ class CertificateCertificate(models.Model):
 
     def _get_der_certificate_bytes(self, formatting="encodebytes"):
         self.check_singleton()
-        cert = self._load_certificate()
-        return _get_formatted_value(
+        cert = self._get_parsed_certificate()
+        return _get_formatted_bytes(
             cert.public_bytes(serialization.Encoding.DER), formatting=formatting
         )
 
@@ -420,19 +433,19 @@ class CertificateCertificate(models.Model):
         self, hashing_algorithm="sha256", formatting="encodebytes"
     ):
         self.check_singleton()
-        cert = self._load_certificate()
+        cert = self._get_parsed_certificate()
         if hashing_algorithm not in STR_TO_HASH:
             raise UserError(  # pylint: disable=missing-gettext
                 f"Unsupported hashing algorithm '{hashing_algorithm}'. Currently supported: sha1 and sha256."
             )
-        return _get_formatted_value(
+        return _get_formatted_bytes(
             cert.fingerprint(STR_TO_HASH[hashing_algorithm]), formatting=formatting
         )
 
     def _get_signature_bytes(self, formatting="encodebytes"):
         self.check_singleton()
-        cert = self._load_certificate()
-        return _get_formatted_value(cert.signature, formatting=formatting)
+        cert = self._get_parsed_certificate()
+        return _get_formatted_bytes(cert.signature, formatting=formatting)
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
         self.check_singleton()
@@ -441,7 +454,7 @@ class CertificateCertificate(models.Model):
                 self.public_key_id or self.private_key_id
             )._get_public_key_numbers_bytes(formatting=formatting)
 
-        return self.env["certificate.key"]._numbers_public_key_bytes_with_key(
+        return self.env["certificate.key"]._get_public_key_numbers_bytes_with_key(
             self._get_public_key_bytes(encoding="pem"),
             formatting=formatting,
         )
@@ -454,7 +467,7 @@ class CertificateCertificate(models.Model):
             )
 
         try:
-            public_key = self._load_certificate().public_key()
+            public_key = self._get_parsed_certificate().public_key()
         except ValueError as e:
             raise UserError(
                 _("The public key from the certificate could not be loaded.")
@@ -465,7 +478,7 @@ class CertificateCertificate(models.Model):
             if encoding == "der"
             else serialization.Encoding.PEM
         )
-        return _get_formatted_value(
+        return _get_formatted_bytes(
             public_key.public_bytes(
                 encoding=encoding,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,

@@ -6608,7 +6608,9 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
     def test_auto_post_and_reset_to_draft(self):
         inv1 = self.invoice
         inv1.date = "2026-01-01"
-        inv1.auto_post = "quarterly"
+        inv1.auto_post = "recurring"
+        inv1.repeat_interval = 3
+        inv1.repeat_unit = "month"
 
         def recurrence():
             return self.env["account.move"].search(
@@ -6634,7 +6636,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         inv1.action_draft()
         self.assertRecordValues(recurrence(), [{"date": jan, "state": "draft"}])
 
-        inv1.auto_post = "monthly"
+        inv1.repeat_interval = 1
         post_next_entry()
         post_next_entry()
         self.assertRecordValues(

@@ -4,6 +4,8 @@
 import { Component, onPatched, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { SearchModelEvent } from "@web/core/events";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -47,6 +49,8 @@ function checkColumnQuickCreateExamples(data) {
         );
     }
 }
+
+const log = makeLogger("web.view.kanban");
 
 export class KanbanRenderer extends Component {
     static template = "web.KanbanRenderer";
@@ -101,6 +105,7 @@ export class KanbanRenderer extends Component {
 
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
+        useLifecycleLog(log);
         this.progressBarState = this.props.progressBarState
             ? useState(this.props.progressBarState)
             : undefined;

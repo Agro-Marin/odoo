@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -9,11 +10,9 @@ import { renderToElement } from "@web/core/utils/render";
 import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog.js";
 import { GoogleMapsOption } from "./google_maps_option.js";
 
+const log = makeLogger("website.builder.plugin.google_maps_option");
+
 /**
- * A `google.maps.places.PlaceResult` object.
- * Here listed are only the few properties used here. For a full list, see:
- * {@link https://developers.google.com/maps/documentation/javascript/reference/places-service#PlaceResult}
- *
  * @typedef {Object} Place
  * @property {string} [formatted_address]
  * @property {Object} [geometry]
@@ -22,7 +21,6 @@ import { GoogleMapsOption } from "./google_maps_option.js";
  * @property {function():number} geometry.location.lng
  */
 /**
- * A string defining GPS coordinates in the form "`Latitude`,`Longitude`".
  * @typedef {`${number},${number}`} Coordinates
  */
 /**
@@ -63,7 +61,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             ResetMapColorAction,
             ShowDescriptionAction,
         },
-        // TODO remove when the snippet will have a "Height" option.
         keep_overlay_options: (el) => el.matches(".s_google_map"),
     };
 
@@ -78,22 +75,32 @@ export class GoogleMapsOptionPlugin extends Plugin {
 
         /** @type {Map<HTMLElement, Deferred} */
         this.recentlyDroppedSnippetDeferredInit = new Map();
+        log.lifecycle("GoogleMapsOptionPlugin setup");
     }
 
     async onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(".s_google_map")) {
             const deferredInit = new Deferred();
             this.recentlyDroppedSnippetDeferredInit.set(snippetEl, deferredInit);
+            log.lifecycle("GoogleMapsOptionPlugin map dropped: restart interactions");
             this.dependencies.edit_interaction.restartInteractions(snippetEl);
+            const endInit = log.perf(
+                "GoogleMapsOptionPlugin wait for dropped map init",
+            );
             const initSuccess = await deferredInit;
+            endInit(() => ({ initSuccess }));
             this.recentlyDroppedSnippetDeferredInit.delete(snippetEl);
             if (!initSuccess) {
-                return true; // cancel
+                log.logic("GoogleMapsOptionPlugin map init failed: cancel drop");
+                return true;
             }
         }
     }
 
     failedToInitializeGoogleMaps(editingElement) {
+        log.logic("GoogleMapsOptionPlugin failed to initialize", () => ({
+            pendingDrop: this.recentlyDroppedSnippetDeferredInit.has(editingElement),
+        }));
         this.recentlyDroppedSnippetDeferredInit.get(editingElement)?.resolve(false);
     }
 
@@ -104,10 +111,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
     async initializeGoogleMaps(editingElement, mapsAPI) {
         this.recentlyDroppedSnippetDeferredInit.get(editingElement)?.resolve(true);
         if (mapsAPI) {
+            log.lifecycle("GoogleMapsOptionPlugin maps api available", () => ({
+                hasPlaces: !!mapsAPI.places,
+            }));
             this.mapsAPI = mapsAPI;
             this.placesAPI = mapsAPI.places;
         }
-        // Try to fail early if there is a configuration issue.
         return (
             !!this.placesAPI &&
             !!(await this.getPlace(editingElement, editingElement.dataset.mapGps))
@@ -115,20 +124,28 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Take a set of coordinates and perform a search on them to return a
-     * place's formatted address. If it failed, there must be an issue with the
-     * API so remove the snippet.
-     *
      * @param {Element} editingElement
      * @param {Coordinates} coordinates
      * @returns {Promise<Place | undefined>}
      */
     async getPlace(editingElement, coordinates) {
+        const endSearch = log.perf("GoogleMapsOptionPlugin getPlace", () => ({
+            coordinates,
+        }));
         const place = await this.nearbySearch(coordinates);
+        endSearch(() => ({ found: !!place, error: place?.error }));
         if (place?.error && !this.isGoogleMapsErrorBeingHandled) {
+            log.logic("GoogleMapsOptionPlugin getPlace error", () => ({
+                error: place.error,
+            }));
             this.notifyGMapsError(editingElement);
         } else if (!place && !this.isGoogleMapsErrorBeingHandled) {
-            // Somehow the search failed but Google didn't trigger an error.
+            log.logic(
+                "GoogleMapsOptionPlugin getPlace no place: undo initialize",
+                () => ({
+                    canUndo: !!this.undoInitialize,
+                }),
+            );
             this.undoInitialize?.();
         } else {
             return place;
@@ -136,9 +153,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Commit a place's coordinates and address to the cache and to the editing
-     * element's dataset, then re-render the map to reflect it.
-     *
      * @param {Element} editingElement
      * @param {Place} place
      */
@@ -152,9 +166,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
             const currentMapData = editingElement.dataset;
             const { mapGps, pinAddress } = currentMapData;
             if (mapGps !== coordinates || pinAddress !== place.formatted_address) {
+                log.logic("GoogleMapsOptionPlugin commitPlace: map moved", () => ({
+                    from: mapGps,
+                    to: coordinates,
+                }));
                 editingElement.dataset.mapGps = coordinates;
                 editingElement.dataset.pinAddress = place.formatted_address;
-                // Restart interactions to re-render the map.
                 this.dispatchTo("content_manually_updated_handlers", editingElement);
                 this.dependencies.history.addStep();
             }
@@ -162,29 +179,32 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Open the Google Maps API key dialog to let the user provide or replace
-     * the key, then re-validate the maps depending on it.
-     *
-     * @param {string} [apiKey] the current API key, prefilled in the dialog.
-     * @returns {Promise<boolean>} true if a new API key was written to db.
+     * @param {string} [apiKey]
+     * @returns {Promise<boolean>}
      */
     async configureGMapsAPI(apiKey) {
         this.undoInitialize = this.dependencies.history.makeSavePoint();
         /** @type {number} */
         const websiteId = this.websiteService.currentWebsite.id;
+        log.lifecycle("GoogleMapsOptionPlugin open api key dialog", () => ({
+            hasApiKey: !!apiKey,
+        }));
 
         /** @type {boolean} */
         const didReconfigure = await new Promise((resolve) => {
             let isInvalidated = false;
-            // Open the Google API Key Dialog.
             this.dialog.add(
                 GoogleMapsApiKeyDialog,
                 {
                     originalApiKey: apiKey,
                     onSave: async (newApiKey) => {
+                        const endWrite = log.perf(
+                            "GoogleMapsOptionPlugin write google_maps_api_key",
+                        );
                         await this.orm.write("website", [websiteId], {
                             google_maps_api_key: newApiKey,
                         });
+                        endWrite();
                         this.shouldRefetchApiKey = false;
                         isInvalidated = true;
                     },
@@ -194,6 +214,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 },
             );
         });
+        log.logic("GoogleMapsOptionPlugin api key dialog closed", () => ({
+            didReconfigure,
+        }));
         return didReconfigure;
     }
 
@@ -204,6 +227,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
     async nearbySearch(coordinates) {
         const place = this.gpsMapCache.get(coordinates);
         if (place) {
+            log.logic("GoogleMapsOptionPlugin nearbySearch cache hit", () => ({
+                coordinates,
+            }));
             return place;
         }
 
@@ -215,10 +241,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             );
             placesService.nearbySearch(
                 {
-                    // Do a 'nearbySearch' followed by 'getDetails' to avoid using
-                    // GMaps Geocoder which the user may not have enabled... but
-                    // ideally Geocoder should be used to get the exact location at
-                    // those coordinates and to limit billing query count.
                     location,
                     radius: 1,
                 },
@@ -238,6 +260,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
                                     this.gpsMapCache.set(coordinates, place);
                                     resolve(place);
                                 } else if (GMAPS_CRITICAL_ERRORS.includes(status)) {
+                                    log.logic(
+                                        "GoogleMapsOptionPlugin getDetails critical error",
+                                        () => ({
+                                            status,
+                                        }),
+                                    );
                                     resolve({ error: status });
                                 } else {
                                     resolve();
@@ -245,6 +273,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
                             },
                         );
                     } else if (GMAPS_CRITICAL_ERRORS.includes(status)) {
+                        log.logic(
+                            "GoogleMapsOptionPlugin nearbySearch critical error",
+                            () => ({
+                                status,
+                            }),
+                        );
                         resolve({ error: status });
                     } else {
                         resolve();
@@ -254,20 +288,10 @@ export class GoogleMapsOptionPlugin extends Plugin {
         });
     }
 
-    /**
-     * Indicates to the user there is an error with the google map API and
-     * re-opens the configuration dialog. For good measure, this also removes
-     * the related snippet entirely as this is what is done in case of critical
-     * error.
-     */
     notifyGMapsError(editingElement) {
-        // TODO this should be better to detect all errors. This is random.
-        // When misconfigured (wrong APIs enabled), sometimes Google throws
-        // errors immediately (which then reaches this code), sometimes it
-        // throws them later (which then induces an error log in the console
-        // and random behaviors).
         if (!this.isGoogleMapsErrorBeingHandled) {
             this.isGoogleMapsErrorBeingHandled = true;
+            log.logic("GoogleMapsOptionPlugin maps error: clear api key and restart");
 
             this.notification.add(
                 _t(
@@ -275,7 +299,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 ),
                 { type: "danger", sticky: true },
             );
-            // Try again: invalidate the API key then restart interactions.
             this.orm
                 .write("website", [this.websiteService.currentWebsite.id], {
                     google_maps_api_key: "",
@@ -300,6 +323,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
 export class ResetMapColorAction extends BuilderAction {
     static id = "resetMapColor";
     apply({ editingElement }) {
+        log.pipeline("ResetMapColorAction apply");
         editingElement.dataset.mapColor = "";
     }
 }
@@ -309,9 +333,12 @@ export class ShowDescriptionAction extends BuilderAction {
         return !!editingElement.querySelector(".description");
     }
     apply({ editingElement }) {
+        const endRender = log.perf("ShowDescriptionAction render description");
         editingElement.append(renderToElement("html_builder.GoogleMapsDescription"));
+        endRender();
     }
     clean({ editingElement }) {
+        log.pipeline("ShowDescriptionAction clean");
         editingElement.querySelector(".description").remove();
     }
 }

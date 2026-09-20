@@ -133,3 +133,22 @@ test("ui.isSmall follows a viewport change made after the service was built", as
     await resize({ width: 1366 });
     expect(ui.isSmall).toBe(false);
 });
+
+test("ui.isSmall goes through utils.isSmall, the seam point_of_sale widens to MD", async () => {
+    patchWithCleanup(utils, {
+        isSmall(/** @type {{ size?: number }} */ ui = {}) {
+            return (ui.size ?? utils.getSize()) <= SIZES.MD;
+        },
+    });
+    await resize({ width: 800 });
+    await makeMockEnv(undefined, { makeNew: true });
+    const ui = /** @type {any} */ (getService("ui"));
+    expect(ui.size).toBe(SIZES.MD);
+    expect(ui.isSmall).toBe(true);
+
+    await resize({ width: 1366 });
+    expect(ui.isSmall).toBe(false);
+
+    await resize({ width: 800 });
+    expect(ui.isSmall).toBe(true);
+});

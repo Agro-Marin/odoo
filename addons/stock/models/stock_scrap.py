@@ -3,6 +3,7 @@ from odoo.exceptions import UserError
 from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
@@ -14,24 +15,22 @@ class StockScrap(models.Model):
 
     name = fields.Char(
         string="Reference",
-        required=True,
         default=lambda self: _("New"),
-        readonly=True,
         copy=False,
+        readonly=True,
+        required=True,
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
-        required=True,
         default=lambda self: self.env.company,
+        required=True,
     )
     origin = fields.Char(string="Source Document")
     product_id = fields.Many2one(
         comodel_name="product.product",
-        string="Product",
         required=True,
-        check_company=True,
         domain="[('type', '=', 'consu')]",
+        check_company=True,
     )
     allowed_uom_ids = fields.Many2many(
         comodel_name="uom.uom",
@@ -40,11 +39,11 @@ class StockScrap(models.Model):
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
-        required=True,
         compute="_compute_product_uom_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
+        required=True,
         domain="[('id', 'in', allowed_uom_ids)]",
     )
     tracking = fields.Selection(
@@ -55,46 +54,45 @@ class StockScrap(models.Model):
     lot_id = fields.Many2one(
         comodel_name="stock.lot",
         string="Lot/Serial",
-        check_company=True,
         domain="[('product_id', '=', product_id)]",
+        check_company=True,
     )
     package_id = fields.Many2one(
         comodel_name="stock.package",
-        string="Package",
         check_company=True,
     )
     owner_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Owner",
         check_company=True,
     )
-    move_ids = fields.One2many(comodel_name="stock.move", inverse_name="scrap_id")
+    move_ids = fields.One2many(
+        comodel_name="stock.move",
+        inverse_name="scrap_id",
+    )
     picking_id = fields.Many2one(
         comodel_name="stock.picking",
-        string="Picking",
         check_company=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Source Location",
-        required=True,
         compute="_compute_location_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
-        check_company=True,
+        required=True,
         domain="[('usage', '=', 'internal')]",
+        check_company=True,
     )
     scrap_location_id = fields.Many2one(
         comodel_name="stock.location",
-        string="Scrap Location",
-        required=True,
         compute="_compute_scrap_location_id",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
-        check_company=True,
+        required=True,
         domain="[('usage', '=', 'inventory')]",
+        check_company=True,
         help="Inventory-loss location the scrapped goods are moved to. Any"
         " inventory-loss location qualifies; a company can designate its"
         " dedicated scrap location by tagging it with the external id"
@@ -103,11 +101,11 @@ class StockScrap(models.Model):
     scrap_qty = fields.Float(
         string="Quantity",
         digits="Product Unit",
-        required=True,
-        default=1.0,
         compute="_compute_scrap_qty",
+        default=1.0,
         store=True,
         readonly=False,
+        required=True,
     )
     state = fields.Selection(
         selection=[("draft", "Draft"), ("done", "Done")],
@@ -116,7 +114,10 @@ class StockScrap(models.Model):
         readonly=True,
         tracking=True,
     )
-    date_done = fields.Datetime(string="Date", readonly=True)
+    date_done = fields.Datetime(
+        string="Date",
+        readonly=True,
+    )
     should_replenish = fields.Boolean(
         string="Replenish Quantities",
         help="Trigger replenishment for scrapped products",
@@ -142,7 +143,19 @@ class StockScrap(models.Model):
         for scrap in self:
             scrap.product_uom_id = scrap.product_id.uom_id
 
-    @api.depends("company_id", "picking_id")
+    # `picking_id.state` belongs in this list and is deliberately absent: the
+    # compute reads it, but declaring it made every write of a picking's state
+    # search stock.scrap for dependents, and a kit explosion writes that state
+    # once per move it creates -- measured at 3.67 queries per move against a
+    # guard of 1.0 in mrp. The cost of the staleness it leaves is recorded in
+    # `TestDerivedDefaults`; the cost of curing it this way was a hot path in
+    # another module.
+    @api.depends(
+        "company_id",
+        "picking_id",
+        "picking_id.location_id",
+        "picking_id.location_dest_id",
+    )
     def _compute_location_id(self):
         company_warehouses = self.env["stock.warehouse"].search(
             [("company_id", "in", self.company_id.ids)]
@@ -260,7 +273,9 @@ class StockScrap(models.Model):
             "picking_id": self.picking_id.id,
         }
 
+    @dbg.timed
     def _action_done(self):
+        dbg.pipeline.debug("stock.scrap._action_done on %s", dbg.rec(self))
         self._check_company()
         already_done = self.filtered(lambda s: s.state == "done")
         if already_done:
@@ -275,9 +290,11 @@ class StockScrap(models.Model):
         moves = self.env["stock.move"]
         for scrap in self:
             moves |= scrap._create_scrap_move()
+        dbg.pipeline.debug("scrap -> stock.move._action_done %s", dbg.rec(moves))
         moves.with_context(is_scrap=True)._action_done()
         self.write({"state": "done", "date_done": fields.Datetime.now()})
         for scrap in self.filtered("should_replenish"):
+            dbg.pipeline.debug("[scrap:%s] replenishing %s", scrap.id, scrap.scrap_qty)
             scrap._replenish_scrapped_quantity()
         return True
 
@@ -377,8 +394,15 @@ class StockScrap(models.Model):
             owner_id=self.owner_id.id,
             strict=True,
         ).product_id.qty_available
-        scrap_qty = self.product_uom_id._compute_quantity(
+        scrap_qty = self.product_uom_id._get_quantity_in_unit(
             self.scrap_qty, self.product_id.uom_id
+        )
+        dbg.logic.debug(
+            "[scrap:%s] has_available_qty: available %s vs scrap %s at %s",
+            self.id,
+            available_qty,
+            scrap_qty,
+            self.location_id.id,
         )
         return float_compare(available_qty, scrap_qty, precision_digits=precision) >= 0
 
@@ -396,7 +420,7 @@ class StockScrap(models.Model):
                     "default_product_id": self.product_id.id,
                     "default_location_id": self.location_id.id,
                     "default_scrap_id": self.id,
-                    "default_quantity": self.product_uom_id._compute_quantity(
+                    "default_quantity": self.product_uom_id._get_quantity_in_unit(
                         self.scrap_qty, self.product_id.uom_id
                     ),
                     "default_product_uom_name": self.product_id.uom_name,
@@ -423,9 +447,12 @@ class StockScrapReasonTag(models.Model):
     _description = "Scrap Reason Tag"
     _order = "sequence, id"
 
-    name = fields.Char(string="Name", required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
     sequence = fields.Integer(default=10)
-    color = fields.Char(string="Color", default="#3C3C3C")
+    color = fields.Char(default="#3C3C3C")
 
     _name_src_uniq = name_uniq_index(
         message="Tag name already exists!",

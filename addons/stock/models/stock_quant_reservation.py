@@ -14,6 +14,7 @@ from ..const import (
     get_internal_payload,
     read_internal_payload,
 )
+from ..tools import debug_log as dbg
 from ..tools.reservation import (
     QuantsCache,
     RemovalStrategy,
@@ -24,6 +25,7 @@ from ..tools.reservation import (
 from .stock_quant import CORE_REMOVAL_STRATEGIES
 
 _logger = logging.getLogger(__name__)
+LOCKED_QUANTS_CACHE_KEY = "stock.quant.locked"
 
 
 class StockQuantReservation(models.Model):
@@ -98,6 +100,12 @@ class StockQuantReservation(models.Model):
             else:
                 real_packages.append((package_id, available_qty))
         singles_count = min(singles_count, math.ceil(qty))
+        dbg.logic.debug(
+            "least_packages: qty=%s, %d packages, %d singles",
+            qty,
+            len(real_packages),
+            singles_count,
+        )
 
         if not real_packages:
             return domain
@@ -106,7 +114,9 @@ class StockQuantReservation(models.Model):
             heavier = [pkg for pkg in real_packages if pkg[1] >= 1]
             lighter = [pkg for pkg in real_packages if pkg[1] < 1]
             qty_by_package = heavier + [(None, 1)] * singles_count + lighter
-            taken_packages = get_least_packages(qty_by_package, qty)
+            with dbg.timer(self.env, "get_least_packages(%d)", len(qty_by_package)):
+                taken_packages = get_least_packages(qty_by_package, qty)
+            dbg.logic.debug("least_packages: taken %s", taken_packages)
             return self._get_domain_least_packages(taken_packages, domain)
         except MemoryError:
             _logger.info(
@@ -197,6 +207,20 @@ class StockQuantReservation(models.Model):
     def _filtered_not_expired(self):
         return self
 
+    def _filter_not_blocked(self, quants):
+        # the gather domain's block exclusion, read from the gathering
+        # environment and applied to quants the cache holds under its own
+        excluded = self._get_block_types_excluded()
+        if excluded is None:
+            excluded = self.env[
+                "stock.location"
+            ]._get_block_types_excluded_from_gathering()
+        if not excluded:
+            return quants
+        return quants.filtered(
+            lambda quant: quant.location_id.effective_block_type not in excluded
+        )
+
     def _gather(
         self,
         product_id,
@@ -227,40 +251,70 @@ class StockQuantReservation(models.Model):
         quants_cache = self.env.context.get("quants_cache")
         cache_sort = strategy.resolve_sorted_arguments()
 
-        if (
+        from_cache = (
             quants_cache is not None
-            and strict
             and not strategy.narrows_to_packages
             and cache_sort is not None
             and quants_cache.is_covering(product_id, location_id, lot_id)
             and not self._is_gather_domain_extended(
                 domain, product_id, location_id, lot_id, package_id, owner_id, strict
             )
-        ):
+        )
+        dbg.logic.debug(
+            "_gather product=%s location=%s lot=%s strict=%s strategy=%s cache=%s",
+            product_id.id,
+            location_id.id,
+            lot_id.id if lot_id else None,
+            strict,
+            removal_strategy,
+            "hit" if from_cache else ("miss" if quants_cache is not None else "none"),
+        )
+        if from_cache:
             package_key = package_id.id if package_id else False
             owner_key = owner_id.id if owner_id else False
-            res = self.env["stock.quant"]
-            if lot_id:
+            if strict:
+                res = self.env["stock.quant"]
+                if lot_id:
+                    res |= quants_cache[
+                        product_id.id, location_id.id, lot_id.id, package_key, owner_key
+                    ]
                 res |= quants_cache[
-                    product_id.id, location_id.id, lot_id.id, package_key, owner_key
+                    product_id.id, location_id.id, False, package_key, owner_key
                 ]
-            res |= quants_cache[
-                product_id.id, location_id.id, False, package_key, owner_key
-            ]
-            res = res._filtered_not_expired()
+            else:
+                # the cache holds every quant under the loaded locations: a
+                # non-strict gather reads its subtree from it as the strict
+                # one reads its exact key
+                res = quants_cache.under(
+                    product_id.id,
+                    location_id.parent_path or "",
+                    lot_id.id if lot_id else False,
+                    package_key,
+                    owner_key,
+                )
+            # cached quants carry the environment the cache was built in; the
+            # expiry cutoff lives in the gathering one
+            res = self._filter_not_blocked(
+                res.with_env(self.env)._filtered_not_expired()
+            )
             sort_key, sort_reverse = cache_sort
             res = res.sorted(sort_key, reverse=sort_reverse)
         else:
-            res = self.search(domain, order=strategy.order)
+            with dbg.timer(self.env, "_gather search product=%s", product_id.id):
+                res = self.search(domain, order=strategy.order)
 
         if strategy.sorts_by_location:
             res = res.sorted(lambda q: (q.location_id.complete_name, -q.id))
 
+        dbg.logic.debug("_gather -> %s", dbg.rec(res))
         return res._sorted_tracked_first()
 
     def _is_gather_domain_extended(
         self, domain, product_id, location_id, lot_id, package_id, owner_id, strict
     ):
+        # This class's own definition, not type(self)'s: an override is what is
+        # being detected, so resolving through the registry's MRO would compare
+        # the extended domain with itself and serve the cache to every caller.
         return domain != StockQuantReservation._get_domain_gather(
             self, product_id, location_id, lot_id, package_id, owner_id, strict
         )
@@ -274,6 +328,7 @@ class StockQuantReservation(models.Model):
     def _sorted_tracked_first(self):
         return self.sorted(lambda quant: not quant.lot_id)
 
+    @dbg.timed
     def _get_quants_by_products_locations(
         self, product_ids, location_ids, extra_domain=False, lot_scope=None
     ):
@@ -305,7 +360,15 @@ class StockQuantReservation(models.Model):
             quant_ids = []
             for product, loc, lot, package, owner, quants in needed_quants:
                 res[product.id, loc.id, lot.id, package.id, owner.id] = quants
+                res.set_location_path(loc.id, loc.parent_path)
                 quant_ids.extend(quants.ids)
+            dbg.performance.debug(
+                "quants cache: %d products, %d locations -> %d groups, %d quants",
+                len(product_ids),
+                len(location_ids),
+                len(needed_quants),
+                len(quant_ids),
+            )
             self.env["stock.quant"].browse(quant_ids).fetch(
                 [
                     "quantity",
@@ -325,6 +388,10 @@ class StockQuantReservation(models.Model):
         return (self.location_id, self.lot_id, self.package_id, self.owner_id)
 
     def _lock_one_for_reservation(self, reserved_quantity):
+        # a row this transaction already holds needs neither the lock query
+        # nor a fresh read: nobody else can have written it since, and the
+        # pick is the one the lock query makes -- the first lockable row in
+        # recordset order -- as a row of ours is always lockable
         if not self:
             return self.env["stock.quant"]
         lockable = self
@@ -334,13 +401,36 @@ class StockQuantReservation(models.Model):
             )
             if reserved_rows:
                 lockable = reserved_rows
-        return lockable.try_lock_for_update(allow_referencing=True, limit=1)
+        held = self.env.cr.cache.setdefault(LOCKED_QUANTS_CACHE_KEY, set())
+        first = lockable[:1]
+        if first.id in held:
+            return first
+        quant = lockable.try_lock_for_update(allow_referencing=True, limit=1)
+        if quant:
+            held.update(quant.ids)
+            # the row may have changed before the lock was ours: re-read the
+            # two columns alone, a bare attribute read after the invalidation
+            # would prefetch every column of the row
+            quant.invalidate_recordset(["quantity", "reserved_quantity"])
+            quant.fetch(["quantity", "reserved_quantity"])
+        return quant
 
     def _update_reserved_delta(self, delta):
         quant = self.sudo()._lock_one_for_reservation(delta)
         if quant:
-            quant.invalidate_recordset(["reserved_quantity"])
+            dbg.lifecycle.debug(
+                "[quant:%s] reserved_quantity %s delta %s",
+                quant.id,
+                quant.reserved_quantity,
+                delta,
+            )
             quant.reserved_quantity = max(0, quant.reserved_quantity + delta)
+        else:
+            dbg.logic.debug(
+                "_update_reserved_delta(%s): no lockable quant among %s",
+                delta,
+                dbg.rec(self),
+            )
         return quant
 
     def _get_available_quantity(
@@ -504,10 +594,10 @@ class StockQuantReservation(models.Model):
         precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
 
         if not strict and uom_id and product_id.uom_id != uom_id:
-            quantity_move_uom = product_id.uom_id._compute_quantity(
+            quantity_move_uom = product_id.uom_id._get_quantity_in_unit(
                 quantity, uom_id, rounding_method="DOWN"
             )
-            quantity = uom_id._compute_quantity(
+            quantity = uom_id._get_quantity_in_unit(
                 quantity_move_uom, product_id.uom_id, rounding_method="HALF-UP"
             )
 
@@ -517,6 +607,17 @@ class StockQuantReservation(models.Model):
                 product_id, requested, quantity, precision_digits
             )
 
+        dbg.logic.debug(
+            "_get_reserve_quantity product=%s location=%s requested=%s available=%s "
+            "reservable=%s strict=%s over %d quants",
+            product_id.id,
+            location_id.id,
+            requested,
+            available_quantity,
+            quantity,
+            strict,
+            len(quants),
+        )
         if product_id.uom_id.compare(quantity, 0) <= 0:
             return []
 
@@ -550,6 +651,16 @@ class StockQuantReservation(models.Model):
     ):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
+        dbg.lifecycle.debug(
+            "_update_available_quantity product=%s location=%s lot=%s package=%s "
+            "qty=%s reserved=%s",
+            product_id.id,
+            location_id.id,
+            lot_id.id if lot_id else None,
+            package_id.id if package_id else None,
+            quantity,
+            reserved_quantity,
+        )
         location_id.with_env(self.env)._check_quantity_change_allowed(quantity)
         self = self.sudo()
         self = self.with_context(
@@ -591,7 +702,6 @@ class StockQuantReservation(models.Model):
 
         new_quant = self.env["stock.quant"]
         if quant:
-            quant.invalidate_recordset(["quantity", "reserved_quantity"])
             vals = {}
             if quantity:
                 vals["in_date"] = in_date
@@ -600,8 +710,14 @@ class StockQuantReservation(models.Model):
                 vals["reserved_quantity"] = max(
                     0, quant.reserved_quantity + reserved_quantity
                 )
+            dbg.lifecycle.debug(
+                "[quant:%s] updated: %s (of %d gathered)", quant.id, vals, len(gathered)
+            )
             quant.write(vals)
         else:
+            dbg.lifecycle.debug(
+                "no quant to update among %d gathered, creating one", len(gathered)
+            )
             vals = {
                 "product_id": product_id.id,
                 "location_id": location_id.id,
@@ -657,11 +773,15 @@ class StockQuantReservation(models.Model):
     ):
         return False
 
+    @dbg.timed
     def _run_maintenance_tasks(self):
+        dbg.lifecycle.debug("quant maintenance start on %s", dbg.rec(self))
         self._merge_quants()
         self._sync_reserved_quantities()
         self._remove_zero_quants()
+        dbg.lifecycle.debug("quant maintenance done")
 
+    @dbg.timed
     @api.model
     def _merge_quants(self):
         params = []
@@ -711,6 +831,9 @@ class StockQuantReservation(models.Model):
         try:
             with self.env.cr.savepoint():
                 self.env.cr.execute(query, params)
+                dbg.lifecycle.debug(
+                    "_merge_quants: %s rows deleted", self.env.cr.rowcount
+                )
                 self.env.invalidate_all()
         except Error as e:
             _logger.warning(
@@ -719,6 +842,7 @@ class StockQuantReservation(models.Model):
                 type(e).__name__,
             )
 
+    @dbg.timed
     @api.model
     def _sync_reserved_quantities(self, products=None, locations=None):
         quant_domain = Domain("reserved_quantity", "!=", 0)
@@ -758,6 +882,11 @@ class StockQuantReservation(models.Model):
             (product, location, lot, package, owner): reserved_quantity
             for product, location, lot, package, owner, reserved_quantity in reserved_move_lines
         }
+        dbg.performance.debug(
+            "_sync_reserved_quantities: %d reserved quant groups, %d move line groups",
+            len(reserved_quants),
+            len(reserved_move_lines),
+        )
         for (
             product,
             location,
@@ -771,8 +900,22 @@ class StockQuantReservation(models.Model):
                 (product, location, lot, package, owner), 0
             )
             if location.is_reservation_bypass_required():
+                dbg.logic.debug(
+                    "sync: bypass location %s, releasing %s on %s",
+                    location.id,
+                    reserved_quantity,
+                    dbg.rec(quants),
+                )
                 quants._update_reserved_delta(-reserved_quantity)
             elif product.uom_id.compare(reserved_quantity, ml_reserved_qty) != 0:
+                dbg.logic.debug(
+                    "sync: product %s location %s quant reserved %s vs lines %s on %s",
+                    product.id,
+                    location.id,
+                    reserved_quantity,
+                    ml_reserved_qty,
+                    dbg.rec(quants),
+                )
                 quants._update_reserved_delta(ml_reserved_qty - reserved_quantity)
             if ml_reserved_qty:
                 del reserved_move_lines[(product, location, lot, package, owner)]
@@ -790,6 +933,12 @@ class StockQuantReservation(models.Model):
                 product, location, reserved_quantity, lot, package, owner
             ):
                 continue
+            dbg.logic.debug(
+                "sync: lines reserve %s of product %s at %s with no quant reservation",
+                reserved_quantity,
+                product.id,
+                location.id,
+            )
             self.env["stock.quant"]._update_reserved_quantity(
                 product,
                 location,
@@ -799,6 +948,7 @@ class StockQuantReservation(models.Model):
                 owner_id=owner,
             )
 
+    @dbg.timed
     @api.model
     def _remove_zero_quants(self, products=None, locations=None):
         self.env["stock.quant"].flush_model(
@@ -833,4 +983,5 @@ class StockQuantReservation(models.Model):
         quants = self.env["stock.quant"].browse(
             row[0] for row in self.env.execute_query(query)
         )
+        dbg.lifecycle.debug("_remove_zero_quants: %s", dbg.rec(quants))
         quants.sudo().unlink()

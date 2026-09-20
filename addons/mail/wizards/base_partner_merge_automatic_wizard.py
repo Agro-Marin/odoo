@@ -1,4 +1,7 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
@@ -8,6 +11,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
         super()._log_merge_operation(src_partners, dst_partner)
+        _debug.lifecycle(
+            "merge_logged", destination=dst_partner.id, sources=src_partners.ids
+        )
         dst_partner.message_post(
             body=self.env._(
                 "Merged with the following partners: %s",

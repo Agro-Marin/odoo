@@ -10,8 +10,8 @@
                 <field
                     name="url"
                     widget="RecruitmentCopyClipboardChar"
-                    class="o_website_hr_recruitment_field_CopyClipboardURL"
-                    options="{'displayed_value': 'URL'}" />
+                    options="{'displayed_value': 'URL'}"
+                    class="o_website_hr_recruitment_field_CopyClipboardURL" />
             </xpath>
         </field>
     </record>
@@ -34,8 +34,8 @@
                 <field
                     name="website_id"
                     placeholder="All websites"
-                    options="{'no_create': True}"
                     domain="['|', ('company_id', '=', company_id), ('company_id', '=', False)]"
+                    options="{'no_create': True}"
                     groups="website.group_multi_website" />
             </group>
         </field>
@@ -60,8 +60,8 @@
             <field name="no_of_employee" position="before">
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
-                    optional="hide" />
+                    optional="hide"
+                    groups="website.group_multi_website" />
             </field>
             <xpath expr="//field[@name='alias_id']" position="before">
                 <field name="is_published" string="Published" />

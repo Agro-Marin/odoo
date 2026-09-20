@@ -42,7 +42,6 @@
             "pos_loyalty/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

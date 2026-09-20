@@ -1,16 +1,25 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class HrContractType(models.Model):
     _name = "hr.contract.type"
     _description = "Contract Type"
     _order = "sequence"
 
-    name = fields.Char(required=True, translate=True)
-    code = fields.Char(compute="_compute_code", store=True, readonly=False)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
+    code = fields.Char(
+        compute="_compute_code",
+        store=True,
+        readonly=False,
+    )
     sequence = fields.Integer()
     country_id = fields.Many2one(
-        "res.country",
+        comodel_name="res.country",
         domain=lambda self: [("id", "in", self.env.companies.country_id.ids)],
     )
 
@@ -19,4 +28,9 @@ class HrContractType(models.Model):
         for contract_type in self:
             if contract_type.code:
                 continue
+            dbg.logic.debug(
+                "[contract_type:%s] code defaults to name %r",
+                contract_type.id,
+                contract_type.name,
+            )
             contract_type.code = contract_type.name

@@ -1,14 +1,18 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, onWillDestroy, status, useEffect, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { normalize } from "@web/core/l10n/utils";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.screen.partner_list");
+
 export class PartnerList extends Component {
     static components = { PartnerLine, Dialog, Input };
     static template = "point_of_sale.PartnerList";
@@ -22,6 +26,7 @@ export class PartnerList extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.notification = useService("notification");
@@ -39,23 +44,31 @@ export class PartnerList extends Component {
         });
         this.searchInputRef = null;
         this.loadedPartnerIds = new Set(this.state.initialPartners.map((p) => p.id));
+        this.partnerRequests = new Map();
+        this.exhaustedQueries = new Set();
+        log.lifecycle("setup: partners", () => ({
+            initial: this.state.initialPartners.length,
+            total: this.pos.models["res.partner"].length,
+            current: this.props.partner?.id,
+        }));
         useHotkey("enter", () => this.onEnter(), {
             bypassEditableProtection: true,
         });
         this.onScroll = debounce(this.onScroll.bind(this), 200);
+        onWillDestroy(() => this.onScroll.cancel());
 
         useEffect(
             () => {
-                if (this.state.loading || !this.modalRef.el) {
+                const content = this.modalRef.el?.querySelector(".modal-body");
+                if (!content) {
                     return;
-                } else if (!this.modalContent) {
-                    this.modalContent = this.modalRef.el.querySelector(".modal-body");
                 }
-
-                const scrollMethod = this.onScroll.bind(this);
-                this.modalContent.addEventListener("scroll", scrollMethod);
+                this.modalContent = content;
+                content.addEventListener("scroll", this.onScroll);
                 return () => {
-                    this.modalContent.removeEventListener("scroll", scrollMethod);
+                    content.removeEventListener("scroll", this.onScroll);
+                    this.onScroll.cancel();
+                    this.modalContent = null;
                 };
             },
             () => [this.modalRef.el],
@@ -73,11 +86,18 @@ export class PartnerList extends Component {
         const scrollHeight = this.modalContent.scrollHeight;
 
         if (scrollTop + height >= scrollHeight * 0.8) {
-            this.getNewPartners();
+            log.logic("onScroll: load more", () => ({
+                query: this.state.query,
+                loaded: this.loadedPartnerIds.size,
+            }));
+            this.getNewPartners().catch(() => {
+                log.logic("onScroll: page failed; retry remains available");
+            });
         }
     }
     async editPartner(p = false) {
         const partner = await this.pos.editPartner(p);
+        log.logic("editPartner", () => ({ from: p?.id, result: partner?.id }));
         if (partner) {
             this.clickPartner(partner);
         }
@@ -89,11 +109,33 @@ export class PartnerList extends Component {
         if (!this.state.query) {
             return;
         }
-        const result = await this.searchPartner();
+        const query = this.state.query;
+        let result;
+        try {
+            result = await this.searchPartner();
+        } catch {
+            if (status(this) !== "destroyed" && query === this.state.query) {
+                this.notification.add(_t("Customer search failed. Please try again."), {
+                    type: "warning",
+                });
+            }
+            return;
+        }
+        if (status(this) === "destroyed" || query !== this.state.query) {
+            log.logic("onEnter: stale search ignored", () => ({
+                query,
+                currentQuery: this.state.query,
+            }));
+            return;
+        }
+        log.logic("onEnter: server search", () => ({
+            query: this.state.query,
+            results: result.length,
+        }));
         if (result.length > 0) {
             this.notification.add(
                 _t('%s customer(s) found for "%s".', result.length, this.state.query),
-                3000,
+                { autocloseDelay: 3000 },
             );
         } else {
             this.notification.add(
@@ -115,16 +157,27 @@ export class PartnerList extends Component {
             },
             filter: partnerHasActiveOrders ? "" : "SYNCED",
         };
+        log.pipeline("goToOrders", () => ({
+            partner: partner.id,
+            partnerHasActiveOrders,
+            filter: stateOverride.filter,
+        }));
         this.pos.navigate("TicketScreen", { stateOverride });
     }
 
     getPartners(partners) {
+        const endFilter = log.perf("getPartners");
         const searchWord = normalize(this.state.query?.trim() ?? "");
         const exactMatches = partners.filter((partner) =>
             partner.exactMatch(searchWord),
         );
 
         if (exactMatches.length > 0) {
+            endFilter({
+                searchWord,
+                candidates: partners.length,
+                exact: exactMatches.length,
+            });
             return exactMatches;
         }
         const numberString = searchWord.replace(/[+\s()-]/g, "");
@@ -147,12 +200,19 @@ export class PartnerList extends Component {
                             : (a.name || "").localeCompare(b.name || ""),
                   );
 
+        endFilter({
+            searchWord,
+            candidates: partners.length,
+            isSearchWordNumber,
+            result: availablePartners.length,
+        });
         return availablePartners;
     }
     get isBalanceDisplayed() {
         return false;
     }
     clickPartner(partner) {
+        log.logic("clickPartner", () => ({ partner: partner?.id }));
         this.props.getPayload(partner);
         this.props.close();
     }
@@ -160,13 +220,34 @@ export class PartnerList extends Component {
         const partner = await this.getNewPartners();
         return partner;
     }
-    async getNewPartners() {
-        let domain = [];
-        const offset = this.globalState.offsetBySearch[this.state.query] || 0;
-        if (offset > this.loadedPartnerIds.size) {
-            return [];
+    getNewPartners() {
+        const query = this.state.query;
+        if (this.exhaustedQueries.has(query)) {
+            log.logic("getNewPartners: query exhausted", () => ({ query }));
+            return Promise.resolve([]);
         }
-        if (this.state.query) {
+        if (this.partnerRequests.has(query)) {
+            log.logic("getNewPartners: reuse pending page", () => ({ query }));
+            return this.partnerRequests.get(query);
+        }
+        this.state.loading = true;
+        const request = this.getPartnerPage(query).finally(() => {
+            this.partnerRequests.delete(query);
+            this.state.loading = this.partnerRequests.size > 0;
+        });
+        this.partnerRequests.set(query, request);
+        return request;
+    }
+    async getPartnerPage(query) {
+        let domain = [];
+        const offsets = this.globalState.offsetBySearch;
+        const offset = Object.hasOwn(offsets, query) ? offsets[query] : 0;
+        log.logic("getNewPartners", () => ({
+            query,
+            offset,
+            loaded: this.loadedPartnerIds.size,
+        }));
+        if (query) {
             const search_fields = [
                 "name",
                 "parent_name",
@@ -182,38 +263,46 @@ export class PartnerList extends Component {
             ];
             domain = [
                 ...Array(search_fields.length - 1).fill("|"),
-                ...search_fields.map((field) => [
-                    field,
-                    "ilike",
-                    this.state.query + "%",
-                ]),
+                ...search_fields.map((field) => [field, "ilike", query + "%"]),
             ];
         }
 
+        const endFetch = log.perf("getNewPartners");
         try {
-            this.state.loading = true;
-
             const result = await this.pos.data.callRelated(
                 "res.partner",
                 "get_new_partner",
                 [this.pos.config.id, domain, offset],
             );
 
-            this.globalState.offsetBySearch[this.state.query] =
-                offset + (result["res.partner"].length || 100);
+            const partners = result["res.partner"];
+            this.globalState.offsetBySearch = {
+                ...this.globalState.offsetBySearch,
+                [query]: offset + partners.length,
+            };
+            if (!partners.length) {
+                this.exhaustedQueries.add(query);
+            }
 
-            for (const partner of result["res.partner"]) {
+            let added = 0;
+            for (const partner of partners) {
                 if (!this.loadedPartnerIds.has(partner.id)) {
                     this.loadedPartnerIds.add(partner.id);
                     this.state.loadedPartners.push(partner);
+                    added++;
                 }
             }
 
-            return result["res.partner"];
-        } catch {
-            return [];
-        } finally {
-            this.state.loading = false;
+            endFetch({
+                query,
+                offset,
+                fetched: partners.length,
+                added,
+            });
+            return partners;
+        } catch (error) {
+            endFetch({ query, offset, failed: true });
+            throw error;
         }
     }
 }

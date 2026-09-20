@@ -29,51 +29,57 @@ class Im_LivechatChannel(models.Model):
     def _default_default_message(self):
         return _("How may I help you?")
 
-    name = fields.Char("Channel Name", required=True)
+    name = fields.Char(
+        string="Channel Name",
+        required=True,
+    )
     button_text = fields.Char(
-        "Text of the Button", default=_default_button_text, translate=True
+        string="Text of the Button",
+        translate=True,
+        default=_default_button_text,
     )
     default_message = fields.Char(
-        "Welcome Message",
+        string="Welcome Message",
+        translate=True,
         default=_default_default_message,
         help="This is an automated 'welcome' message that your visitor will see when they initiate a new conversation.",
-        translate=True,
     )
     header_background_color = fields.Char(
         default="#875A7B",
         help="Default background color of the channel header once open",
     )
     title_color = fields.Char(
-        default="#FFFFFF", help="Default title color of the channel once open"
+        default="#FFFFFF",
+        help="Default title color of the channel once open",
     )
     button_background_color = fields.Char(
-        default="#875A7B", help="Default background color of the Livechat button"
+        default="#875A7B",
+        help="Default background color of the Livechat button",
     )
     button_text_color = fields.Char(
-        default="#FFFFFF", help="Default text color of the Livechat button"
+        default="#FFFFFF",
+        help="Default text color of the Livechat button",
     )
     max_sessions_mode = fields.Selection(
-        [("unlimited", "Unlimited"), ("limited", "Limited")],
-        default="unlimited",
+        selection=[("unlimited", "Unlimited"), ("limited", "Limited")],
         string="Sessions per Operator",
+        default="unlimited",
         help="If limited, operators will only handle the selected number of sessions at a time.",
     )
     max_sessions = fields.Integer(
-        default=10,
         string="Maximum Sessions",
+        default=10,
         help="Maximum number of concurrent sessions per operator.",
     )
     block_assignment_during_call = fields.Boolean(
-        "No Chats During Call",
+        string="No Chats During Call",
         help="While on a call, agents will not receive new conversations.",
     )
     review_link = fields.Char(
-        "Review Link",
-        help="Visitors who leave a positive review will be redirected to this optional link.",
+        help="Visitors who leave a positive review will be redirected to this optional link."
     )
 
     web_page = fields.Char(
-        "Web Page",
         compute="_compute_web_page_link",
         store=False,
         readonly=True,
@@ -86,40 +92,51 @@ class Im_LivechatChannel(models.Model):
         readonly=True,
     )
     available_operator_ids = fields.Many2many(
-        "res.users", compute="_compute_available_operator_ids"
+        comodel_name="res.users",
+        compute="_compute_available_operator_ids",
     )
     script_external = fields.Html(
-        "Script (external)",
+        string="Script (external)",
+        sanitize=False,
         compute="_compute_script_external",
         store=False,
         readonly=True,
-        sanitize=False,
     )
     nbr_channel = fields.Integer(
-        "Number of conversation",
+        string="Number of conversation",
         compute="_compute_nbr_channel",
         store=False,
         readonly=True,
     )
 
     user_ids = fields.Many2many(
-        "res.users",
-        "im_livechat_channel_im_user",
-        "channel_id",
-        "user_id",
+        comodel_name="res.users",
+        relation="im_livechat_channel_im_user",
+        column1="channel_id",
+        column2="user_id",
         string="Agents",
         default=_default_user_ids,
     )
-    channel_ids = fields.One2many("discuss.channel", "livechat_channel_id", "Sessions")
-    chatbot_script_count = fields.Integer(
-        string="Number of Chatbot", compute="_compute_chatbot_script_count"
+    channel_ids = fields.One2many(
+        comodel_name="discuss.channel",
+        inverse_name="livechat_channel_id",
+        string="Sessions",
     )
-    rule_ids = fields.One2many("im_livechat.channel.rule", "channel_id", "Rules")
+    chatbot_script_count = fields.Integer(
+        string="Number of Chatbot",
+        compute="_compute_chatbot_script_count",
+    )
+    rule_ids = fields.One2many(
+        comodel_name="im_livechat.channel.rule",
+        inverse_name="channel_id",
+        string="Rules",
+    )
     ongoing_session_count = fields.Integer(
-        "Number of Ongoing Sessions", compute="_compute_ongoing_sessions_count"
+        string="Number of Ongoing Sessions",
+        compute="_compute_ongoing_sessions_count",
     )
     remaining_session_capacity = fields.Integer(
-        "Remaining Session Capacity", compute="_compute_remaining_session_capacity"
+        compute="_compute_remaining_session_capacity"
     )
 
     _max_sessions_mode_greater_than_zero = models.Constraint(
@@ -345,7 +362,7 @@ class Im_LivechatChannel(models.Model):
             action["domain"] = [("id", "in", chatbot_script_ids.ids)]
         return action
 
-    def _get_livechat_discuss_channel_vals(
+    def _prepare_livechat_discuss_channel_vals(
         self,
         /,
         *,
@@ -359,7 +376,7 @@ class Im_LivechatChannel(models.Model):
         last_interest_dt = now - timedelta(seconds=1)
         members_to_add = [
             Command.create(
-                self._get_agent_member_vals(
+                self._prepare_agent_member_vals(
                     last_interest_dt=last_interest_dt,
                     now=now,
                     chatbot_script=chatbot_script,
@@ -413,7 +430,7 @@ class Im_LivechatChannel(models.Model):
             "name": channel_name,
         }
 
-    def _get_agent_member_vals(
+    def _prepare_agent_member_vals(
         self,
         /,
         *,
@@ -581,12 +598,11 @@ class Im_LivechatChannel(models.Model):
                 or previous_operator_status["count"] < 2
                 or not previous_operator_status["in_call"]
             ):
-                previous_operator_user = next(
+                return next(
                     available_user
                     for available_user in users
                     if available_user.partner_id.id == previous_operator_id
                 )
-                return previous_operator_user
 
         agents_failing_buffer = {
             group[0]
@@ -681,56 +697,58 @@ class Im_LivechatChannelRule(models.Model):
     _order = "sequence asc"
 
     regex_url = fields.Char(
-        "URL Regex",
+        string="URL Regex",
         help="Regular expression specifying the web pages this rule will be applied on.",
     )
     action = fields.Selection(
-        [
+        selection=[
             ("display_button", "Show"),
             ("display_button_and_text", "Show with notification"),
             ("auto_popup", "Open automatically"),
             ("hide_button", "Hide"),
         ],
         string="Live Chat Button",
-        required=True,
         default="display_button",
+        required=True,
         help="* 'Show' displays the chat button on the pages.\n"
         "* 'Show with notification' is 'Show' in addition to a floating text just next to the button.\n"
         "* 'Open automatically' displays the button and automatically opens the conversation pane.\n"
         "* 'Hide' hides the chat button on the pages.\n",
     )
     auto_popup_timer = fields.Integer(
-        "Time to Open",
+        string="Time to Open",
         default=0,
         help="Delay (in seconds) to automatically open the conversation window. Note: the selected action must be 'Open automatically' otherwise this parameter will not be taken into account.",
     )
-    chatbot_script_id = fields.Many2one("chatbot.script", string="Chatbot")
+    chatbot_script_id = fields.Many2one(
+        comodel_name="chatbot.script",
+        string="Chatbot",
+    )
     chatbot_enabled_condition = fields.Selection(
-        string="Enable ChatBot",
         selection=[
             ("always", "Always"),
             ("only_if_no_operator", "Only when no operator is available"),
             ("only_if_operator", "Only when an operator is available"),
         ],
-        required=True,
+        string="Enable ChatBot",
         default="always",
+        required=True,
     )
     channel_id = fields.Many2one(
-        "im_livechat.channel",
-        "Channel",
+        comodel_name="im_livechat.channel",
         index="btree_not_null",
         help="The channel of the rule",
     )
     country_ids = fields.Many2many(
-        "res.country",
-        "im_livechat_channel_country_rel",
-        "channel_id",
-        "country_id",
-        "Countries",
+        comodel_name="res.country",
+        relation="im_livechat_channel_country_rel",
+        column1="channel_id",
+        column2="country_id",
+        string="Countries",
         help="The rule will only be applied for these countries. Example: if you select 'Belgium' and 'United States' and that you set the action to 'Hide', the chat button will be hidden on the specified URL from the visitors located in these 2 countries. This feature requires GeoIP installed on your server.",
     )
     sequence = fields.Integer(
-        "Matching order",
+        string="Matching order",
         default=10,
         help="Given the order to find a matching rule. If 2 rules are matching for the given url/country, the one with the lowest sequence will be chosen.",
     )

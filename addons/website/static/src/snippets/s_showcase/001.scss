@@ -1,6 +1,5 @@
 .s_showcase[data-vcss="001"] {
     @include media-breakpoint-up(lg) {
-        // Left-right separator
         .container,
         .container-fluid {
             position: relative;
@@ -14,9 +13,7 @@
                     o-palette-token(--o-gray-200, map-get($grays, "200"));
             }
         }
-        // Features
         .row > div {
-            // Items on left
             &:nth-child(odd) {
                 text-align: right;
 
@@ -30,7 +27,6 @@
                     margin-left: 15px;
                 }
             }
-            // Items on right
             &:nth-child(even) {
                 text-align: left;
 
@@ -43,7 +39,6 @@
     }
 
     .s_showcase_icon {
-        // Make the default margin the one for the left aligned icon, as it's what we want on mobile
         margin-right: 15px;
         @include font-size(36px);
     }

@@ -6,8 +6,8 @@ class ProjectUpdate(models.Model):
     _inherit = "project.update"
 
     @api.model
-    def _get_template_values(self, project):
-        template_values = super()._get_template_values(project)
+    def _prepare_update_rendering_context(self, project):
+        template_values = super()._prepare_update_rendering_context(project)
         profitability_values = template_values.get("profitability")
         if (
             profitability_values
@@ -16,7 +16,7 @@ class ProjectUpdate(models.Model):
         ):
             for section in profitability_values["revenues"]["data"]:
                 all_sols = (
-                    self.env["sale.order.line"]
+                    self.env["sale.order.line"]  # noqa: E8507 - one query per revenue section
                     .sudo()
                     .search(
                         project._get_domain_from_section_id(section["id"]),

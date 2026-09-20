@@ -21,5 +21,4 @@ no customer database carries their tables.
     "data": [
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

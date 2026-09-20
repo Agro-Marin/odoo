@@ -5,6 +5,7 @@ import typing
 from collections.abc import Collection
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.lru import LRU
 from odoo.tools import SQL
 from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.registry")
+_debug = DebugLog(__name__)
 
 
 def get_signaling_table_name(cache_name: str) -> str:
@@ -26,7 +28,15 @@ SIGNALING_TABLES = tuple(
     get_signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
-_SIGNALING_TABLES = SIGNALING_TABLES
+# every request reads the eleven watermarks; the serial's last value answers in
+# one sequence read each, where max(id) planned eleven subselects per call
+_SEQUENCES_QUERY = SQL(
+    "SELECT %s",
+    SQL(", ").join(
+        SQL("coalesce(pg_sequence_last_value(%s::regclass), 0)", f"{table}_id_seq")
+        for table in SIGNALING_TABLES
+    ),
+)
 
 
 class _RegistryCaches:
@@ -47,9 +57,9 @@ class _RegistryCaches:
             lru.clear()
 
 
-def _get_calling_frame() -> typing.Any:
+def _get_calling_frame(depth: int = 3) -> typing.Any:
     frame = inspect.currentframe()
-    for _ in range(3):
+    for _ in range(depth):
         if frame is None:
             return None
         frame = frame.f_back
@@ -77,6 +87,27 @@ class _RegistrySignalingMixin(_RegistryStubs):
     @registry_invalidated.setter
     def registry_invalidated(self, value: bool) -> None:
         self._invalidation_flags.registry = value
+        # a caller flipping the flag by hand says nothing about which models it
+        # changed, so the scope is the whole registry until the flag is cleared
+        self._invalidation_flags.models = None if value else set()
+        if _debug.logic.enabled and value:
+            _debug.logic(
+                "registry.invalidated_by_hand",
+                caller=format_frame(_get_calling_frame(depth=2)),
+            )
+
+    @property
+    def invalidated_model_names(self) -> set[str] | None:
+        if not self.registry_invalidated:
+            return set()
+        return getattr(self._invalidation_flags, "models", None)
+
+    def _note_invalidated_models(self, model_names: Collection[str] | None) -> None:
+        known = self.invalidated_model_names
+        self._invalidation_flags.registry = True
+        self._invalidation_flags.models = (
+            None if model_names is None or known is None else known | set(model_names)
+        )
 
     @property
     def cache_invalidated(self) -> set[str]:
@@ -87,6 +118,14 @@ class _RegistrySignalingMixin(_RegistryStubs):
             return names
 
     @property
+    def cache_invalidation_generation(self) -> dict[str, int]:
+        try:
+            return self._invalidation_flags.cache_generation
+        except AttributeError:
+            generation = self._invalidation_flags.cache_generation = {}
+            return generation
+
+    @property
     def ormcache_lrus(self) -> dict[str, LRU]:
         return self._caches.lrus
 
@@ -94,9 +133,21 @@ class _RegistrySignalingMixin(_RegistryStubs):
         self._caches.clear_group(cache_name)
 
     def _invalidate_cache_groups(self, cache_names: Collection[str]) -> None:
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "registry.cache.invalidate_groups",
+                groups=",".join(cache_names),
+                entries=sum(
+                    len(self._caches.lrus[cache])
+                    for cache_name in cache_names
+                    for cache in CACHES_BY_KEY[cache_name]
+                ),
+            )
+        generation = self.cache_invalidation_generation
         for cache_name in cache_names:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
+            generation[cache_name] = generation.get(cache_name, 0) + 1
 
     def _log_invalidation(self, cache_names: Collection[str], level: int) -> None:
         if not _logger.isEnabledFor(level):
@@ -123,14 +174,18 @@ class _RegistrySignalingMixin(_RegistryStubs):
 
     def _reset_cache_changes(self) -> None:
         if self.cache_invalidated:
+            _debug.logic(
+                "registry.cache.reset_changes", groups=sorted(self.cache_invalidated)
+            )
             for cache_name in self.cache_invalidated:
                 self._clear_cache_group(cache_name)
             self.cache_invalidated.clear()
 
     def _create_missing_signaling_tables(self, cr: BaseCursor) -> None:
-        existing_sig_tables = tuple(sql.get_tables_existing(cr, _SIGNALING_TABLES))
-        for table_name in _SIGNALING_TABLES:
+        existing_sig_tables = tuple(sql.get_tables_existing(cr, SIGNALING_TABLES))
+        for table_name in SIGNALING_TABLES:
             if table_name not in existing_sig_tables:
+                _debug.lifecycle("registry.signaling.table_created", table=table_name)
                 cr.execute(
                     SQL(
                         "CREATE TABLE IF NOT EXISTS %s (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())",
@@ -149,6 +204,11 @@ class _RegistrySignalingMixin(_RegistryStubs):
         self.registry_sequence = db_registry_sequence
         self.cache_sequences.update(db_cache_sequences)
 
+        _debug.lifecycle(
+            "registry.signaling.sequences_loaded",
+            sequence=db_registry_sequence,
+            caches=len(db_cache_sequences),
+        )
         _logger.debug(
             "Multiprocess load registry signaling: [Registry: %s] %s",
             self.registry_sequence,
@@ -156,16 +216,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
         )
 
     def get_sequences(self, cr: BaseCursor) -> tuple[int, dict[str, int]]:
-        signaling_selects = SQL(", ").join(
-            [
-                SQL(
-                    "( SELECT coalesce(max(id), 0) FROM %s)",
-                    SQL.identifier(signaling_table),
-                )
-                for signaling_table in _SIGNALING_TABLES
-            ]
-        )
-        cr.execute(SQL("SELECT %s", signaling_selects))
+        cr.execute(_SEQUENCES_QUERY)
         row = cr.fetchone()
         if row is None:
             raise RuntimeError("No result when reading signaling sequences")
@@ -179,6 +230,12 @@ class _RegistrySignalingMixin(_RegistryStubs):
         for cache_name, cache_sequence in self.cache_sequences.items():
             expected_sequence = db_cache_sequences[cache_name]
             if expected_sequence > cache_sequence:
+                _debug.logic(
+                    "registry.signaling.cache_stale",
+                    cache=cache_name,
+                    local=cache_sequence,
+                    db=expected_sequence,
+                )
                 for cache in CACHES_BY_KEY[cache_name]:
                     if cache not in invalidated:
                         invalidated.append(cache)
@@ -211,7 +268,13 @@ class _RegistrySignalingMixin(_RegistryStubs):
     def _signal_registry_change(self, cr: BaseCursor) -> None:
         _logger.info("Registry changed, signaling through the database")
         cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES RETURNING id")
+        previous = self.registry_sequence  # debuglog
         self.registry_sequence = self._get_signalled_id(cr, self.registry_sequence)
+        _debug.lifecycle(
+            "registry.signaling.registry_signalled",
+            previous=previous,
+            sequence=self.registry_sequence,
+        )
 
     def _signal_cache_changes(self, cr: BaseCursor) -> None:
         _logger.info(

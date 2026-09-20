@@ -35,6 +35,7 @@ Tento modul definuje:
         "views/report_template.xml",
         "views/tax_office_view.xml",
         "security/ir.model.access.csv",
+        "views/l10n_cz_menus.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

@@ -10,48 +10,64 @@ files here carry one, so this README is the only map.
 
 | Module | Contents | Pure? |
 |---|---|---|
-| `__init__.py` | Public API only: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `get_pool_health`, the process `registry`, and `sql_counter` via module `__getattr__` | no |
+| `__init__.py` | Public API only: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `get_pool_health`, `get_replica_health`, `cancel_queries_of`, the process `registry`, and `sql_counter` via module `__getattr__` | no |
 | `endpoints.py` | `EndpointRegistry`: the lazy registry of `ConnectionPool`s keyed `(endpoint, readonly)` and of `ConnectionBudget`s keyed by endpoint, plus the endpoint resolution (`get_endpoint_key`, `get_maxconn_at_endpoint`) both sides of the budget comparison share. Was module state in `__init__.py` | no |
-| `cursor.py` | `BaseCursor` (hooks, flush convergence, savepoint seam) and `Cursor` (the `cr` object: execute/executemany/pipeline, DDL handling, close/commit/rollback guards) | no |
-| `pool.py` | `ConnectionPool` (per-DSN psycopg_pool registry, borrow/give_back, idle-pool reaper, stale-credential eviction, direct maintenance-DB path, `health()`) and `Connection` | no |
+| `cursor.py` | `BaseCursor` (hooks, flush convergence, savepoint seam), `Cursor` (the `cr` object: execute/executemany, DDL handling, the lost-connection replay, close/commit/rollback guards) and `Connection`, the `(pool, dbname, dsn)` record whose `cursor()` builds one — it lives beside the class it instantiates, so `pool.py` never imports `cursor.py` | no |
+| `pool.py` | `ConnectionPool` (per-DSN psycopg_pool registry, borrow/give_back, idle-pool reaper, stale-credential eviction, direct maintenance-DB path, `get_health()`) | no |
 | `probe.py` | `ReachabilityProbe`: is this DSN connectable, and permanently or not — the pre-flight probe, its leader/follower dedup, the `postgres`-side existence check and the per-key proof. Was inlined in `pool.py` | no |
 | `budget.py` | `ConnectionBudget`: the shared `db_maxconn` cap, its permit `Condition` and its saturation counter | yes |
 | `stats.py` | `PoolStats`: borrow-wait histogram, pool churn and probe-outcome counters behind `ConnectionPool.get_health()` | yes |
-| `reaper.py` | `IdlePoolReaper`: which quiet per-DSN pools to close and how often to look (the decision; the pool keeps the locking and teardown) | yes |
+| `reaper.py` | `IdlePoolReaper`: which quiet per-DSN pools to close and how often to look (the decision; the pool keeps the locking and teardown); `trim_idle_to_ceiling` / `close_idle_connections`: the backend ceiling across a `ConnectionPool`'s per-DSN pools, enforced on every return | yes |
 | `leaks.py` | `CheckoutTracker`: which connections are out, since when, from which thread and borrow site | yes |
-| `breaker.py` | `CircuitBreaker`: failure gating with exponential backoff for an optional endpoint (the read replica) | yes |
 | `lag.py` | `ReplicaLagGate` + `LAG_SQL`: sampled apply-lag ceiling that demotes stale reads to the primary | yes |
-| `replica.py` | `ReplicaRouter`: the primary `Connection`, the optional readonly one, the `CircuitBreaker` and the `ReplicaLagGate` composed into one decision — which connection serves a cursor request, and the mode (`ro` / `ro->rw` / `rw`) it decided; `REPLICA_RETRY_TIME`, the breaker's cooldown ceiling; `is_readonly_cursor_enabled`. Was the body of `Registry.cursor` | no |
+| `replica.py` | `ReplicaRouter`: the primary `Connection`, the optional readonly one, the `CircuitBreaker` (`odoo/libs/breaker.py` — Odoo-agnostic, so `libs/`) and the `ReplicaLagGate` composed into one decision — which connection serves a cursor request, and the mode (`ro` / `ro->rw` / `rw`) it decided; `WritePins`, the read-your-writes table; `REPLICA_RETRY_TIME`, the breaker's cooldown ceiling; `is_readonly_cursor_enabled`; `get_replica_health`, every live router's state for the metrics surface. Was the body of `Registry.cursor` | no |
+| `pipeline.py` | `_PipelineMixin`: `cr.pipeline()` — arming on the second statement, the sync-on-demand behind `rowcount`/`description`, the wait accounting, the deferred-error seam at block exit. Its own module because it is the one concern of the cursor with eight attributes of its own; the methods resolve through `Cursor`'s MRO at no per-call cost | no |
 | `bulk.py` | `_BulkAccessMixin`: `copy_from` (COPY, optional binary + pre-generated ids), `execute_values` | no |
 | `savepoint.py` | `Savepoint` / `_FlushingSavepoint` (ORM state restore is injected by `odoo.orm.runtime.savepoint`) | yes |
-| `ddl.py` | DDL keyword detection + client-side param inlining (`$N` is rejected in DDL positions) | yes |
-| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`: PostgreSQL-generic but cursor-coupled, so `db/` rather than `libs/`); and the catalog capability probes `FunctionStatus` / `get_unaccent_status` / `has_trigram`, relocated from `modules/db.py` — reaching them through the module system dragged `odoo.orm.runtime` in behind them. `get_tables_existing` and `TableKind` must admit the same relkinds — a partitioned table (`'p'`) reported as absent makes `_auto_init` issue `CREATE TABLE` over it and the registry fails to load with `DuplicateTable` | no |
-| `dsn.py` | DSN expansion/normalization (pool keys, password fingerprint), connect-error classification | yes |
+| `ddl.py` | Statement-text scanning: `iter_sql_code_ranges`/`get_value_marker_positions` (the `%s` markers outside literals and comments, shared with `bulk`), DDL keyword detection, client-side param inlining (`$N` is rejected in DDL positions) | yes |
+| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`: PostgreSQL-generic but cursor-coupled, so `db/` rather than `libs/`); and the catalog capability probes `FunctionStatus` / `get_unaccent_status` / `has_trigram`, relocated from `modules/db.py` — reaching them through the module system dragged `odoo.orm.runtime` in behind them. `get_tables_existing` asks for `_EXISTING_RELKINDS`, derived from `TableKind` so the two cannot disagree — a partitioned table (`'p'`) reported as absent makes `_auto_init` issue `CREATE TABLE` over it and the registry fails to load with `DuplicateTable` | no |
+| `dsn.py` | DSN expansion/normalization (pool keys, password fingerprint, `_get_key_dbname` — the one reader of a key's database), connect-error classification | yes |
 | `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), the stale-plan marker (`PG_STALE_PLAN_EXCEPTIONS`, `mark_stale_cached_plan`, `is_stale_cached_plan`), `has_reached_server`, `_log_sql_error`'s four log tiers | yes |
-| `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (`register_adapters` and its numeric-to-float loader, prepare tuning, session reset, grace-windowed health check sized by `PoolSettings.healthcheck_grace`) | yes |
+| `lifecycle.py` | What happens to a connection at its three moments: psycopg_pool's `configure` and `check` callbacks, and the session reset `give_back` runs on the returning thread (`register_adapters` and its numeric-to-float loader, the transaction flags set once per connection, prepare tuning, the reset and the liveness probe as libpq simple queries, the grace-windowed health check sized by `PoolSettings.healthcheck_grace`) | yes |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
 | `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `classify_query` (the statement -> (kind, table) classifier those stats key on), `sql_counter` | yes |
-| `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `get_value_marker_positions`, `update_planner_stats` | yes |
-| `settings.py` | `PoolSettings`: the frozen snapshot of every `db_*` option the package reads, `from_config` to build one, and the slot (`current`, `installed`, `override`) through which `odoo.tools.config` supplies it — the one door the option dict has into this package | yes |
+| `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `update_planner_stats` | yes |
+| `settings.py` | `PoolSettings`: the frozen snapshot of every `db_*` option the package reads, `from_config` to build one, and the slot (`current`, `installed`, `override`) through which `odoo.tools.config` supplies it — the one door the option dict has into this package. Every policy the package applies reads the slot, including the router's `replica_max_lag` and `replica_write_pin`: `Registry.init` passes neither, so a `pool_settings.override(...)` reaches a registry built inside it | yes |
 
 “Pure” = importable and testable without a database or the framework. No
 module here imports `odoo.tools`: the `db-imports-only-libs` contract holds the
 package to `odoo.libs`, `odoo.exceptions`, `odoo.release` and the standard
-library.
+library — re-armed in `tests/test_source_pins.py::TestThePackageImportsOnlyWhatItMayDependOn`
+after it went with `tooling/` (2026-09-11); a `TYPE_CHECKING` import is the
+one exception, and the scanner has a control showing it tells the two apart.
 
-> **This table is enforced.** `tooling/architecture/package_index_check.py`
-> fails CI if a module in `odoo/db/` is missing from it, or if it names a module
-> that no longer exists. Add the row in the same commit as the module.
+> **Nothing enforces the rest of this table.** Add the row in the same commit
+> as the module; a stale row is found by reading.
 
 ## Load-bearing invariants (cross-module)
 
-- **The budget bounds checked-out connections, not the server footprint.**
-  Each per-DSN pool separately retains up to `maxconn` *idle* connections for
-  `db_conn_max_idle`, so one process holds up to `maxconn × n_databases`
-  backends — measured: four databases under `db_maxconn = 2` hold four
-  backends, with never more than one checked out at a time. Size PostgreSQL's
-  `max_connections` against that product, not against `db_maxconn`. Everything
-  below is about how the *budget* is keyed and is orthogonal to this.
+- **`db_maxconn` bounds this process's backends against a server, idle
+  ones included.** The budget bounds what is checked out; each per-DSN pool
+  separately retains up to `maxconn` *idle* connections for
+  `db_conn_max_idle`, so without more a host serving many databases held
+  `maxconn × n_databases` backends at rest — measured: four databases under
+  `db_maxconn = 2` held four, with never more than one checked out. Every
+  return now trims (`reaper.trim_idle_to_ceiling`, when the `ConnectionPool`
+  has more than one per-DSN pool; 442 ns for four pools under the ceiling)
+  the oldest idle connections of the least recently borrowed pools until
+  the pools hold no more than `maxconn` in total, never below a pool's
+  `min_size`, through psycopg_pool's own bookkeeping
+  (`tests/contract/test_psycopg_pool_internals.py` pins the four attributes
+  against the installed release). Measured: the same four databases hold
+  two backends after the sequence and two after 2 s of two threads cycling
+  across all four. A working set wider than `maxconn` thrashes —
+  1 475 trims in those 2 s, each a reconnect — and
+  `odoo_pool_connections_trimmed_total` is the counter that says so: raise
+  `db_maxconn`, the ceiling is doing its job. The read/write and read-only
+  `ConnectionPool`s trim independently, so two pools on one server can
+  hold `2 × maxconn` at rest; the budget they share still bounds
+  checkouts. Everything below is about how the *budget* is keyed and is
+  orthogonal to this.
 
 - **One budget per PostgreSQL server**: `db_maxconn` is the cap for a *server*,
   because that is what an operator sizes `max_connections` against, so
@@ -83,8 +99,8 @@ library.
   tree — `logutils.PostgreSQLHandler.emit` calls `db_connect` on every log
   record. Measured at `db_maxconn = 2`: two cursors exhausted the budget, a
   third was correctly refused, a URI cursor to the *same* server opened anyway,
-  and the process held three backends against one server. One `_endpoint_key`
-  now resolves both sides, and it defaults a URI's missing host and port from
+  and the process held three backends against one server. One
+  `get_endpoint_key` now resolves both sides, and it defaults a URI's missing host and port from
   **the config, not the environment**: `db_host`/`db_port` are registered with
   `env_name="PGHOST"`/`"PGPORT"`, so the config has already folded the
   environment in, and asking `os.environ` again is both a second source of
@@ -146,8 +162,8 @@ library.
   its own terms: it costs nothing, the failure it prevents is unrecoverable
   without a restart, and "nothing raises here today" is not a property anyone
   can hold still. Pinned in
-  `tests/test_invariants.py::TestAFailedBorrowNeverKeepsItsPermit`, which
-  asserts structurally that nothing follows the guarded block.
+  `tests/test_invariants.py::TestPermitAccounting`, which walks both paths
+  and asserts the permit is released on every exit.
 - **A saturated pool names its culprits**: every borrow records the connection
   in a `CheckoutTracker` with the holding thread and the borrow site, and every
   return removes it, so what is left is by definition still out. `db_maxconn`
@@ -174,6 +190,27 @@ library.
   resumed **5.1 s** after the outage. One caller probes at a time, or a dead
   replica draws a connection attempt from every request that arrives while it
   is out.
+
+  **A replica borrow never waits out `db_borrow_timeout`.** It has a
+  fallback, so `ReplicaRouter` opens it with `borrow_timeout=REPLICA_BORROW_TIMEOUT`
+  (5 s) and `fail_fast=True`. Measured before that against a refused port:
+  the first read-only request blocked **30.00 s** — the probe files a refused
+  connect as *transient*, which is right for the primary (a restart should be
+  waited out) and hands the whole deadline to `getconn`, which retries a
+  server that is not listening; and the breaker re-probed on every cooldown,
+  so a request stalled 30 s at each half-open attempt. `fail_fast` ends the
+  borrow the moment the probe reports a transient failure, and it also
+  re-probes a *surviving* pool whose proof is gone and which has nothing
+  idle: psycopg_pool keeps counting the connections it cannot open in
+  `pool_size`, so the pool object outlives the outage and, without that,
+  every attempt walked into `getconn` again. Traced through a killable TCP
+  proxy in front of the socket: replica dies → the first borrow costs the 5 s
+  `getconn` deadline (the timeout revokes the proof), every attempt after that
+  falls back in 0.00 s, and the replica serves again on the first half-open
+  attempt after it returns. The one 5 s is the proven-key case, where nothing
+  before `getconn` can know the backend is gone; a replica that dies within
+  `db_healthcheck_grace` of a return hands its dead connection out once
+  unchecked, which is that window's documented trade.
 - **Staleness is bounded, not merely tolerated**: read-only routes are chosen
   because they tolerate stale reads, but "tolerates any amount, unmeasured" is
   not a guarantee. `db_replica_max_lag` (0 = off) demotes reads to the primary
@@ -190,7 +227,16 @@ library.
   `pg_stat_replication` on the primary, which would defeat the point of reading
   elsewhere. A measurement that fails is recorded as healthy — a replica that
   cannot answer is one whose failure the breaker sees anyway, and demoting on
-  a failed *question* would demote on no evidence.
+  a failed *question* would demote on no evidence. **WAL received and not
+  replayed on a standby that has replayed no transaction yet is infinite
+  lag, not zero**: `pg_last_xact_replay_timestamp()` is NULL until the first
+  replayed commit, the `ELSE` arithmetic came out NULL and the `coalesce`
+  called 1.5 s of outstanding WAL "caught up" (measured on a fresh standby
+  with replay paused: receive `F9/7101E310`, replay `F9/71000000`, answer
+  `0`). The query answers `'infinity'` there, the gate demotes on it, the
+  warning says "an unknown amount", and the first replayed commit turns it
+  into a number. Found because the standby contract test, run inside the
+  whole suite, met a standby that had nothing to replay since its start.
 - **The trades this layer makes are countable**: a shared budget that can
   starve itself, and a probe that trades a connect for a fast permanent
   failure, are only defensible if an operator can watch them. **Both borrow
@@ -209,12 +255,14 @@ library.
 - **The pre-flight probe answers a question once**: it converts a permanent
   connect failure into a millisecond error instead of a ~30s `PoolTimeout`, at
   the cost of a full extra connect. A DSN that has connected is recorded in
-  `_reachable_keys`, so a pool *rebuild* (idle reaper, `PoolClosed` race) skips
+  `ReachabilityProbe` as proven, so a pool *rebuild* (idle reaper, `PoolClosed` race) skips
   it — with the default `db_pool_reap_idle` (300s) below `db_conn_max_idle`
   (600s), a quiet database is reaped and rebuilt repeatedly and used to re-probe
   every time. The proof is revoked wherever its premise could have changed:
   `close_database` (Odoo's drop/rename path), stale-credential eviction, and any
-  connect failure.
+  connect failure. `mark_proven` runs on every borrow and looks before it
+  locks: set membership is one atomic read (27 ns against 157 ns with the
+  lock), and a stale miss only takes the lock it would have taken anyway.
 - **Reaping is edge-triggered on a return, so every return triggers it.**
   `_reap_idle_pools_if_due` has no timer, deliberately: a timer is a thread and
   this class already carries `db_pool_workers + 1` of them per database. That
@@ -232,10 +280,51 @@ library.
   plus its scheduler thread is a per-*pool* figure, and this class holds one pool
   per database: measured, 12 databases in one process held 49 threads and 40 held
   161 — 4.0 each — for +135 KB RSS apiece and 0.35% of one core while completely
-  idle. The workers only run `AddConnection` and `ReturnConnection`, and psycopg
-  already runs returns off the caller's thread, so the extra two buy parallelism
-  between returns *of the same database*. The default is 1, which is 2.0 threads
-  per database.
+  idle. The workers now run `AddConnection` only (see the next entry), so the
+  extra two buy parallelism between connection *opens* of the same database.
+  The default is 1, which is 2.0 threads per database.
+- **The session reset runs on the returning thread, and the psycopg pool is
+  built with `reset=None`.** With a `reset=` callback, `putconn` hands every
+  return to the pool's worker and the next `getconn` finds nothing idle — so
+  psycopg_pool *grows* the pool rather than wait for the connection in flight.
+  Measured: a single-threaded open/`SELECT 1`/close loop held **14 backends**,
+  and 8 request threads held **63**, the `maxconn` ceiling, with every return
+  for the database queueing behind one worker thread. `give_back` resets
+  first (`_reset_returned_connection`; a reset that raises discards the
+  connection the way a failed rollback does) and `putconn` then files an idle
+  connection synchronously. Same loops afterwards: **1 backend**, and backends
+  equal to the thread count at 8/16/32 threads, with +20% / +7% / +13% more
+  cycles per second in that loop. Against a running `odoo-bin` (16 and 32
+  client threads of `res.partner.search_count` over JSON-RPC, `pg_stat_activity`
+  sampled every 50 ms) the throughput is unchanged — 282 → 280 req/s, the
+  server is bound elsewhere — and the peak backend count goes **64 → 16** and
+  **64 → 31**: the old shape reached the `maxconn` ceiling with 16 request
+  threads. The one number that goes the other way is the serial loop,
+  **117 → 140 µs per cycle**: the returning thread now waits for the round
+  trip that seven spare backends used to hide.
+- **A pooled connection's transaction flags are set once, and the session
+  reset goes through libpq's simple-query call.** `Cursor.__init__` used to
+  set `isolation_level` and `read_only` on every borrow and `_reset_connection`
+  set both back to `None` on every return: four psycopg setters, 2.5 µs per
+  cursor cycle, to re-establish the same two values. A pooled connection serves
+  one pool for its whole life, so `_configure_connection(conn, readonly=…)`
+  sets them once and `_reset_connection` compares before it sets (50 ns) —
+  only `enforce_readonly()` ever changes one, and the comparison is what puts
+  it back. The reset string itself is sent with `conn.pgconn.exec_`: one
+  simple-query round trip with no BEGIN folded in, so the `autocommit` toggle
+  that bracketed it is gone too, and none of `execute()`'s per-statement
+  machinery runs — **14 µs against 24 µs**, measured. Its `status` is a bare
+  `int`, never the `ExecStatus` member: an identity comparison passed against a
+  fake and failed every live reset (each return discarded the connection and
+  the cycle read 2.2 ms), which is why `tests/test_lifecycle.py`'s fake returns
+  the `int`. The liveness `check` sends the same empty simple query
+  psycopg_pool's own `check_connection` does, minus the `autocommit` toggle it
+  wraps around `execute()` (8 µs against 12.7); a terminated backend answers
+  `FATAL_ERROR` once and raises after, and `_probe_liveness` raises on
+  anything but `EMPTY_QUERY` so the pool discards. Cycle (open, `SELECT 1`,
+  close) before the inline reset below: **160 µs → 134 µs**. The
+  `__init__` guard also no longer re-reads `pool.readonly` for its own debug
+  line — a pool attribute that raised there escaped before `give_back` ran.
 - **A cursor close only discards a DAMAGED connection**: `Cursor._close` asks
   `transaction_status` (`_is_connection_clean`) rather than treating any
   exception from `_rollback` as connection damage — that method also runs
@@ -243,9 +332,9 @@ library.
   to cost a warm pooled connection on top of the error.
 - **One borrow, one deadline**: `db_borrow_timeout` is taken at the top of
   `ConnectionPool.borrow` and every step that can block derives its own timeout
-  from it — the cold path's pre-flight probe (and its `_database_absent`
+  from it — the cold path's pre-flight probe (and its `is_database_absent`
   fallback), the semaphore wait, `getconn`, and the direct maintenance connect.
-  `_libpq_connect_timeout` clamps each libpq connect and returns `0` to mean
+  `get_libpq_connect_timeout` clamps each libpq connect and returns `0` to mean
   *skip this connect*, never a value to pass on: libpq reads `connect_timeout=0`
   as "wait forever", so handing it a shrinking budget would make the tail of a
   deadline unbounded.
@@ -359,6 +448,11 @@ library.
   two of the three defects lived, and costs nothing at all on the success path
   because it is not called; `_statement_done` owns the `finally`, and takes
   `debug` from its caller rather than asking `isEnabledFor` a second time.
+  The remaining copy — the `try/except/finally` that `execute` and
+  `executemany` each wrap around those two — was measured too (2026-09-13):
+  a `_run_statement(run, …)` helper taking a closure, all-positional, read
+  **1518 → 1860 ns** per statement wire-stubbed, +340 ns for the frame and the
+  closure. The two copies stay, and the seam pins hold them to one shape.
 - **`executemany` counts toward arming the pipeline**: `pipeline()` enters
   psycopg's mode on the second *statement*, and the counter was called from
   `execute` alone, so a block made of `executemany` calls never armed. Not
@@ -441,6 +535,17 @@ library.
   caller passing `"42"` for an `int4` column has a bug that text COPY happens
   to hide. `copy_from` instead adds a note to the exception naming binary COPY
   as the reason the value was rejected, so the failure says what to change.
+  **The note is attached around `write_row` and nowhere else**: the `except`
+  that used to add it wrapped the whole COPY block, so a `KeyError` raised by
+  the caller's own row generator arrived explaining psycopg's client-side
+  encoding — traced live, the note was on it. The rows are the caller's; only
+  the encoding is ours.
+
+  **`cr.copy()` refuses pipeline mode the way `copy_from` does**, before
+  `_before_statement` and through the same `_prepare_copy_in_pipeline_error`.
+  Left to psycopg the refusal is the same `NotSupportedError`, but it arrives
+  through the seam and is logged as `bad COPY` with the statement, for a
+  client-side rejection that never reached the wire.
 - **db→ORM dependency is one-directional**: the ORM injects
   `_OrmFlushingSavepoint` (as `BaseCursor._flushing_savepoint_cls`) and the
   `transaction` attribute at import; `cursor.py` guards that a
@@ -453,10 +558,23 @@ library.
   jit=on'` arrived as `work_mem=16MB`/`jit=off`, with nothing in any log.
   `idle_session_timeout` is still applied unconditionally: it is derived from
   `db_conn_max_idle` and is what keeps the server from reaping a connection the
-  pool still considers warm.
+  pool still considers warm. A comma starts the next entry only when a `name=`
+  follows it, so a list-valued GUC (`search_path=public,pg_catalog`) is one entry;
+  `db_session_gucs` used to be split on every comma and could not carry one.
+
+  **`ODOO_FAKETIME_TEST_MODE` pins `search_path=public,pg_catalog` the same way,
+  as a startup `-c` after the operator's options** (`_get_forced_gucs`), for the
+  databases `-d` names. `Cursor.__init__` used to issue `SET search_path` and a
+  `COMMIT` on every cursor — two round trips per cursor in that mode, and a
+  statement in the constructor's window where a failure has no owner. As a
+  startup option it costs nothing per cursor and survives the `RESET ALL` on
+  every return, which a `SET` would not have (it is re-issued only because the
+  constructor runs again). Pinned live in
+  `TestFaketimeSearchPathIsAStartupOption`: `current_schemas(true)` answers
+  `[public, pg_catalog]` on a fresh cursor and after a return, at one statement.
   **Maintenance connections are exempt from `db_session_gucs`, deliberately**,
   and both borrow paths now render options through one `_prepare_connection_options`
-  where `_borrow_directly` passes `session_gucs=False`. They used to build the
+  where `_borrow_directly` passes `session_gucs=None`. They used to build the
   string twice and the direct copy simply never gained `_prepare_session_gucs`, which
   reads like drift — but applying them there "for consistency" is a regression,
   measured: under `db_session_gucs = statement_timeout=50ms` a `CREATE DATABASE
@@ -487,7 +605,13 @@ library.
   impossible. `retrying` has to name `PG_STALE_PLAN_EXCEPTIONS` in its `except`
   explicitly, because `FeatureNotSupported` is **not** an `OperationalError` and
   was never caught at all. Measured, six readers against a writer altering a
-  column they read: **6832 failed requests → 0**.
+  column they read: **6832 failed requests → 0**. A stale plan met by *this*
+  connection came from a schema change this process never saw land — a DBA's
+  `ALTER`, another process's migration, anything outside the registry
+  signal — so the idle siblings hold the same plans and would each burn a
+  retry of their own; `_drain_siblings_after_stale_plan` drains the
+  database's idle connections once per `_STALE_PLAN_DRAIN_INTERVAL` (5 s), so
+  a burst of requests heals the pool once rather than draining it once each.
 - **Pipeline mode does not exempt a statement from the seam**: psycopg does
   not raise where a pipelined statement was issued — it queues the command and
   surfaces the server's error at the next sync, which is `Cursor.pipeline`'s
@@ -546,12 +670,79 @@ library.
   `_log_sql_error` on its pipelined path — which is the drift the envelope
   above exists to prevent, and it left the stale-plan mark off the bulk write
   path that `account_partial_reconcile`, `account_full_reconcile`,
-  `website_sale`, `planning` and `hr_attendance` all reach. It calls the seam
-  now, and `Cursor.pipeline` takes `log_exceptions` and `query` so the block it
-  opens keeps honouring its caller's flag and keeps naming its caller's SQL —
-  psycopg reports *that* a queued command failed and not *which*, so a block of
-  unrelated statements can only say so, while one whose statements share a
-  template should pass it.
+  `website_sale`, `planning` and `hr_attendance` all reach. **It carries no
+  seam of its own now.** Every page it issues goes through `self.execute`,
+  whose `except` is the seam, and a deferred pipelined error surfaces at the
+  exit of the `self.pipeline()` block it opened; the `except` it kept for a
+  while between the two only ever short-circuited on the mark — traced on
+  both paths (pipelined, and `fetch=True` which never pipelines), each logged
+  exactly one `cursor.statement_failed` from its entry point followed by one
+  `cursor.statement_seam_short_circuit` from `execute_values`. `Cursor.pipeline`
+  takes `log_exceptions` and `query` so the block keeps honouring its caller's
+  flag and keeps naming its caller's SQL — psycopg reports *that* a queued
+  command failed and not *which*, so a block of unrelated statements can only
+  say so, while one whose statements share a template should pass it.
+- **A pipeline's server wait is measured where psycopg waits, never inferred
+  from the block's wall time.** In pipeline mode `execute` returns once the
+  command is queued, so a statement's own `delay` is client time and the server
+  work lands in whichever call syncs: the first `fetch*()` after a queued
+  statement (`Cursor._wait_in_pipeline`) or the block exit (`Pipeline.__exit__`).
+  The previous accounting booked `wall − Σ statement delays` as query time,
+  which is right for `execute_values` — a block of nothing but statements — and
+  wrong for every ORM block: `Transaction._flush_as` wraps the whole
+  `flush_model` loop in `cr.pipeline()`, so field conversion and value building
+  were reported as `query_time` in the request log. Measured, 50 ms of
+  `time.sleep` between two pipelined statements read **52.5 ms of query time
+  before and 1.7 ms after**. `_wait_in_pipeline` times the fetches while the
+  mode is entered, an `ExitStack` callback pushed right after
+  `enter_context(self._cnx.pipeline())` — so it runs first on the LIFO exit —
+  stamps when the pipeline's own exit starts, and the block books the sum.
+  `execute_values` over 20 000 rows still accounts for 88% of its wall time;
+  the remainder is the Python that renders 100 batches, and it is client time.
+
+  **`rowcount` and `description` sync on demand for the same reason.** psycopg's
+  `rowcount` reads a field that the pipeline has not filled yet: measured, every
+  statement after the mode arms answered **−1**, and `bool(-1)` is `True`, so an
+  `if cr.rowcount:` in a pipelined path passes for zero rows. `Cursor.rowcount`
+  and `Cursor.description` sync through the public `Pipeline.sync()` of the
+  pipeline the block entered when the cursor has queued a statement since the
+  last sync, and the sync counts as a wait. The condition is the cursor's own
+  `_pipeline_pending` flag, not psycopg's `pgresult`: after a pipelined
+  `executemany(returning=False)` psycopg keeps `pgresult` at `None` even once
+  synced, so that test both missed the sync when it was due and would have
+  re-synced on every later read. What psycopg then reports is psycopg's:
+  measured on the raw cursor, an `executemany` queued behind an *unfetched*
+  SELECT folds that SELECT's row into its count (3 for two inserts) in pipeline
+  mode and not outside it. Pinned in
+  `tests/test_cursor.py::TestPipelineAccountsForTheSyncCost`.
+
+  **How big the over-report was on real work, not on a `sleep`**: a JSON-RPC
+  `res.partner.create` of 300 records, three runs each against the same
+  database, read `query_time` **0.041 / 0.032 / 0.046 s before and 0.029 /
+  0.024 / 0.026 s after** on identical query counts (331 / 320) — about a third
+  of the reported figure, some 12 ms of a ~150 ms request. In-process, the same
+  shape showed 50 pipeline blocks whose wall was 57 ms against 19 ms of
+  statements and 16 ms of measured waits; the difference is the ORM's own value
+  building inside `_flush`, not compute methods — traced with the
+  `recompute` and `db.cursor` channels, 0 of 312 recompute events fell inside
+  an entered block, because `flush_until_converged` recomputes before it
+  flushes.
+- **The libpq health parameters are ones every supported libpq accepts.**
+  `_HEALTH_PARAMS` reaches libpq as keywords on every connect, pooled and
+  direct, and libpq rejects a keyword it does not know outright — not with a
+  warning, with a failed connect. `min_protocol_version` (libpq 18) sat in that
+  dict at its own default of `3.0`: measured, a connect with it and without it
+  both negotiate protocol 30000, so it bought nothing and made the whole layer
+  refuse to connect through any wheel built on libpq 17. The youngest keyword
+  left is `tcp_user_timeout` (libpq 12); `tests/test_utils.py` pins the set.
+- **`execute_values` never asks the server for more than 65 535 bind parameters.**
+  The extended protocol counts them in a uint16, and PostgreSQL refuses the
+  statement outright (`number of parameters must be between 0 and 65535`) —
+  measured on the raw cursor with one column and 65 536 rows. A page closes
+  when the next row — a tuple's width, or one parameter for a scalar row —
+  would push it past the ceiling, decided per row so the rows are walked
+  once and mixed widths pack by what each row binds; the caller's page size
+  is a hint about round trips, not a contract about statements.
 - **A savepoint is never opened inside a pipeline**: a savepoint exists to make
   the next failure recoverable, and in pipeline mode it cannot. PostgreSQL
   discards every queued command after an error until the next sync, and the
@@ -593,6 +784,122 @@ library.
   `_is_connection_clean` before pooling the connection for the same reason
   `_close` does: a constructor that raised after a statement leaves a failed
   transaction behind.
+- **A dropped cursor gives its connection back whatever state the connection is
+  in.** `__del__` used to return early when `_cnx.closed` — inherited from
+  upstream, where a psycopg2 pool counted connection *objects* and a dead one
+  simply fell out of the count. Here the permit and the checkout are released
+  in `give_back` and nowhere else, so the early return leaked both: measured,
+  a cursor whose backend was `pg_terminate_backend`ed and that was then
+  dropped without `close()` left `budget_in_use=1, checked_out=1` after
+  `gc.collect()`, and `maxconn` of those leave every later borrow timing out on
+  "connection budget reached". It now warns in both cases — the cursor was not
+  closed, and that is the bug whichever came first — and on a dead connection
+  skips the rollback (nothing to roll back to) but still hands the connection
+  to `give_back(keep_in_pool=False)`. Pinned against a fake pool in
+  `tests/test_invariants.py` and live in
+  `TestCursorDelReclaimsConnection.test_del_reclaims_the_permit_of_a_dead_connection_too`.
+- **One fact per attribute.** `in_pipeline` is `_pipeline is not None`; the
+  `_pipeline_entered` flag that shadowed it was set and reset in the same two
+  places and existed only to be kept in step. `_backend_pid` is a property
+  over `conn.info.backend_pid` (a libpq call, 115 ns) read by debug lines only,
+  instead of a per-cursor fetch that every cursor paid for. `EndpointRegistry`
+  hands `ConnectionPool` its `settings` and nothing the constructor already
+  reads from them.
+- **A connection lost before the transaction's first statement completed is
+  replayed on a fresh borrow.** Nothing has happened server-side, so the
+  statement is the same request it was: `_replace_lost_connection` gives the
+  dead connection back (`keep_in_pool=False`), borrows another from the same
+  pool, rebuilds the psycopg cursor and re-issues the statement — `execute`
+  and `executemany` both. It is refused once a statement has run
+  (`_transaction_touched`, set by `_statement_done` and cleared with the
+  transaction caches), inside a savepoint, or once psycopg's pipeline has
+  been entered — the block's *second* statement; its first is an ordinary
+  statement on an idle connection, and the ORM's flush opens such a block, so
+  it is replayed like any other first statement (measured: the block's first
+  statement on a killed backend replayed, its third with the pipeline entered
+  propagated). Those transactions have state only the caller can rebuild,
+  and the loss propagates as before. Eligible losses are `OperationalError`s that left the
+  connection closed or never reached the server (a terminated backend, a
+  dead idle connection handed out inside `db_healthcheck_grace`, a broken
+  socket). Measured: a backend killed before the first statement → replayed
+  on a new pid; killed after one → `AdminShutdown` propagates; killed inside
+  a savepoint → propagates; permits and checkouts balanced through all of it.
+  This closes the grace window's one failure mode for the common case — a
+  request's first statement — and leaves `retrying`'s contract untouched.
+  The dead connection goes back **before** the replacement is borrowed: its
+  permit is the one the replacement needs when the budget is spent, and
+  `maxconn=1` is the limit case (measured: replayed in 0.01 s there). A
+  replacement that still cannot be had ends the cursor — its connection is
+  gone and nothing is left to give back — and the loss propagates, not a
+  `PoolError` dressed as a statement error.
+- **A running statement can be cancelled from another thread, and a
+  transaction's statements bounded**: `db.cancel_queries_of(thread_name)`
+  walks every pool's `CheckoutTracker` for that thread's checkouts and calls
+  psycopg's `cancel_safe()` on each — libpq's `PQcancel` from the client
+  side: no borrow (a saturated pool is when this is needed), no
+  `pg_signal_backend` privilege, and it reaches a replica connection. A
+  cancel reaches whoever runs on the backend *now*, and the previous cancel
+  in the walk may have waited `_CANCEL_TIMEOUT` (2 s), long enough for a
+  connection to be returned and borrowed by another request: each cancel
+  re-checks the tracker's owner first and skips a rehomed connection
+  (`pool.cancel_skipped reason=rehomed`); the window left is the cancel
+  call itself.
+  `Cursor.set_statement_timeout(seconds)` remembers the budget on the cursor
+  and arms it as `SET LOCAL statement_timeout` (through the inliner) before
+  the next statement of every transaction: `SET LOCAL` dies at each commit
+  and rollback and is reverted by the rollback of a savepoint it was issued
+  in, so an eager one would have covered a request only until its first
+  `cr.commit()`. Arming does not count as touching the transaction and the
+  lost-connection replay re-arms on the replacement, so a budgeted request
+  keeps the replay window (an eager `SET LOCAL` was the transaction's first
+  statement and spent it). `set_statement_timeout(None)` lifts an armed
+  budget at once (`SET LOCAL statement_timeout = 0`) and is silent when none
+  is armed; `TestCursor.close()` lifts it because the real cursor outlives
+  every test cursor. Both are primitives: the serving tier decides which
+  requests get which budget and cancels on client disconnect. Measured: a
+  10 s `pg_sleep` cancelled in 0.30 s with the cursor usable after
+  `rollback()`; a 0.2 s budget cancelled at 0.20 s in the first
+  transaction, after `rollback()`, after `commit()`, after a savepoint
+  rollback with the budget armed inside it, and on the replacement
+  connection after the backend was terminated before the first statement
+  (`SHOW statement_timeout` = `200ms` in each), and `0` after clearing.
+- **What the replica log lines say, `/web/metrics` says too.**
+  `ReplicaRouter.get_health()` existed and nothing read it: a breaker that
+  had opened, a lag gate that had demoted, were WARNING lines and nothing
+  else. Routers live in ORM registries, which this package does not read,
+  so every router built with a replica joins a module-level `WeakSet` and
+  `db.get_replica_health()` reports each under its primary's database name;
+  `odoo/service/metrics.py` renders them as
+  `odoo_replica_{breaker_closed,breaker_failures,breaker_trips,breaker_cooldown_remaining_seconds,lag_seconds,lagging,write_pins}{database=…}`.
+  Measured: a server started with `--db_replica_port 1`, one page served,
+  `odoo_replica_breaker_closed{database="odoo64_db"} 0`, `failures 2`,
+  `trips 1`, `cooldown_remaining_seconds 1.991`. A collected router leaves
+  the table (weak reference; pinned by a test).
+- **A session reads its own writes, on the primary, for `db_replica_write_pin`
+  seconds.** A replica that has not applied a client's own commit would show
+  that client its write as missing. `ReplicaRouter.cursor(pin_key=…)` routes
+  a read-only request for a pinned key to the primary (`ro->rw`,
+  `reason=pinned`), and every primary cursor handed out with a key — the
+  read-write route, the pinned read, and the breaker-open or lagging
+  fallback — registers `Cursor.on_commit_if_written` (`_primary_cursor`), so
+  a session that writes through a reused cursor refreshes its pin — at
+  commit, one
+  `SELECT txid_current_if_assigned() IS NOT NULL` (an xid is assigned on the
+  first write and never otherwise) says whether the transaction wrote, so a
+  request that only read pins nothing and keeps the replica. The round trip
+  is paid only when an observer is registered and something ran. `WritePins`
+  prunes past 1024 entries. `Registry.cursor(pin_key=…)` passes the key
+  through; the http layer supplies the session id. Measured against the
+  observer: a read-only transaction and an empty one fired nothing, a write
+  fired once.
+- **A transaction left idle is ended by the server, not only reported.**
+  `db_idle_in_transaction_timeout` (0 = off) becomes
+  `idle_in_transaction_session_timeout` in the connection's startup options
+  beside `idle_session_timeout`; a cursor forgotten inside a transaction
+  holds locks, a permit and a backend until then, and the leak detector only
+  says so. Measured at 0.3 s: `SHOW` answered `300ms` on the connection and
+  the next statement after 0.6 s idle raised
+  `IdleInTransactionSessionTimeout`.
 - **A statement that failed still cost a round trip**: `_record_metrics` ran
   after the `try/except`, so every server-side failure counted as zero queries —
   in `sql_log_count`, in the process-wide `sql_counter`, and therefore in
@@ -627,12 +934,12 @@ library.
   against the real keyword list.
 - **A gauge that is rendered as a pair is written as a pair.**
   `ReplicaLagGate.record` set `last_lag` and `_lagging` from one measurement
-  with no lock, and `snapshot` renders them side by side, so an operator could
+  with no lock, and `get_snapshot` renders them side by side, so an operator could
   read a 99 s lag beside `lagging: false`. That is not theoretical on the GIL —
   the two stores are separated by a `max()` and a comparison, and one writer
   against one reader produced exactly that pair within 2 s. `record` and
-  `snapshot` take the lock; `allows()` stays lock-free because it reads one
-  flag and runs per read-only cursor.
+  `get_snapshot` take the lock; `is_replica_usable()` stays lock-free because it
+  reads one flag and runs per read-only cursor.
 
   The leak-report throttle (`CheckoutTracker.acquire_report_interval`) is guarded on
   policy rather than on evidence, and says so: 16 threads released from a
@@ -658,12 +965,12 @@ library.
   in-flight registration), leaving a window where a key proven between them
   started a second probe — a full extra connect on the path whose whole
   purpose is to avoid one. One acquisition answers both.
-- **`allow()` must not read through `closed`.** `CircuitBreaker._lock` is a
-  plain `threading.Lock`, and `allow` read `closed` from inside it, so a
-  `closed` property that took the lock would deadlock every caller —
-  demonstrated, `allow()` hung past a 2 s join. The lock-held path reads
+- **`acquire_attempt()` must not read through `closed`.** `CircuitBreaker._lock`
+  is a plain `threading.Lock`, and `acquire_attempt` read `closed` from inside
+  it, so a `closed` property that took the lock would deadlock every caller —
+  demonstrated, it hung past a 2 s join. The lock-held path reads
   `_open` directly; the property exists for callers outside the lock. The
-  cooldown expression that `cooldown_remaining` and `snapshot` had a copy of
+  cooldown expression that `cooldown_remaining` and `get_snapshot` had a copy of
   each is now `_get_cooldown_remaining_locked`, which does not take the lock
   because both of its callers already hold it.
 - **A bug is not an unavailable database.** `_get_connection_with_retry` ended in
@@ -694,14 +1001,18 @@ library.
   `self.stats.x += 1` at all. `x += 1` on an attribute is a non-atomic
   read-modify-write, so the counters that exist to diagnose concurrency were the
   ones losing increments, and the borrow-wait histogram could drift out of step
-  with the total it summarises because they were separate writes. `snapshot()`
+  with the total it summarises because they were separate writes. `get_snapshot()`
   reads them all under the same lock for the same reason. The pin that used to
   record this counted how many raw sites happened to sit inside the *pool's*
   lock — which guards `_pools`, not the counters, so any protection was
   accidental — and it counted them wrongly besides.
 - **`ConnectionBudget` is a `Condition`, not a `BoundedSemaphore`**: `available`,
   `in_use` and `exhausted` are exact and are read under the lock that hands the
-  permits out. The semaphore version derived them from
+  permits out — and the health view reads the three through one
+  `get_snapshot()`, one acquisition, so `budget_available + budget_in_use`
+  always equals `budget_maxconn` on the page an operator reads; three property
+  reads half a microsecond apart did not promise that (the lag gauge's rule,
+  applied here). The semaphore version derived them from
   `threading.BoundedSemaphore._value`, a private CPython attribute read without
   the semaphore's own lock, on the path that renders `db.get_pool_health()`. A
   `BoundedSemaphore` is itself a `Condition` plus a counter, so this costs the
@@ -713,14 +1024,23 @@ library.
   `_LOCALE_INDEPENDENT_AUTH_MARKERS` keys on `pg_hba.conf`, a filename no
   catalogue translates, and it classifies correctly in English, Spanish, French
   and German. The missing-database case does not depend on text at all — the
-  probe falls back to `_database_absent`, which asks `pg_database`. What remains
+  probe falls back to `is_database_absent`, which asks `pg_database`. What remains
   is an **authentication** failure on a server with translations installed: it
-  is not recognised and costs the full `db_borrow_timeout` (measured, 0.02 s
-  against 30.00 s). There is no client-side fix — `options='-c lc_messages=C'`
-  cannot help, because authentication happens *before* the server processes
-  `options`, verified by pairing a bad password with an invalid GUC and getting
-  the password error. Deployments that care set `lc_messages = C` in
-  `postgresql.conf`.
+  used to be unrecognised and cost the full `db_borrow_timeout` (measured,
+  0.02 s against 30.00 s), and `options='-c lc_messages=C'` cannot help
+  because authentication happens *before* the server processes `options`.
+  **libpq's own account of where the connect died does not go through a
+  catalogue**: the failed `PGconn` rides on psycopg's `OperationalError`
+  (`e.pgconn`), and `needs_password` / `used_password` say whether the server
+  reached the password stage. `needs_password` alone is conclusive. A refused
+  port or a dead host never gets there; a *missing database* is refused
+  **after** the password, which is why `ask_maintenance_db` is consulted first
+  — `absent` wins, and only a maintenance connect that is itself turned away
+  at the password stage (`auth_failed`) makes `used_password` an
+  authentication failure. Measured with every English marker disabled: a
+  wrong password over scram is `InvalidAuthorizationSpecification` in
+  **0.03 s**, a missing database still `InvalidCatalogName`, a refused port
+  still transient.
 - **One mechanism invalidates the catalog cache on a savepoint rollback**: the
   `ROLLBACK TO` detection in `Cursor.execute`. `Savepoint.rollback` used to call
   the hook itself as well; counted per host flavour that call was never the one
@@ -733,9 +1053,50 @@ library.
 - **Password hygiene**: every DSN consumer routes through
   `dsn._expand_conninfo`; pool keys carry only a BLAKE2s fingerprint, and
   `Connection.dsn` strips the secret before logging.
-- **`odoo.evented` guard**: `__init__._get_pool` uses
-  `hasattr(odoo, "evented")` because `odoo.db` is importable without
-  `odoo.init`'s monkeypatches (standalone scripts, tools) — not dead code.
+- **A pool key spells the database as libpq does, `dbname`.** The key used to
+  rename it `database` — a psycopg2-era alias with no reader that wanted it —
+  and every consumer then rebuilt a `dict` from the frozenset to read one
+  field. `_get_key_dbname` walks the key once and is the only reader; nothing
+  else takes a key apart.
+
+## Re-deriving the figures
+
+Every number above came from a measurement, and `tooling/` — which used to
+rerun them — is gone. `odoo/db/tests/bench.py` re-derives the ones that
+matter, on this machine, against a database with `base` installed:
+
+```bash
+PYTHONPATH=odoo p314o19m/bin/python -m odoo.db.tests.bench -c p314o19m.conf -d <db>
+```
+
+Wire-stubbed rows (`execute()`, `fetchone()`, `classify_statement`) measure
+Python only and are the ones to compare across a change to the statement
+path; the round-trip rows move with the host's load, so compare them within
+one run (reset string against `DISCARD ALL`, prepared against unprepared).
+The storm rows print backends held beside cycles per second, which is the
+inline-reset property in one line. Run it before believing a figure and
+after touching the path it describes; a figure here that the bench no longer
+reproduces is stale, not wrong by definition — say which in the entry.
+
+## Tracing (campaign instrumentation, temporary)
+
+Every module carries `_debug = DebugLog(__name__)` (`odoo/libs/debug_log.py`) and logs
+on four channels named `odoo.debug.<channel>.db.<module>` — `logic` (which branch, on what
+input), `perf` (spans with `ms=` and `queries=`, and counters), `pipeline` (hand-offs),
+`lifecycle` (opened / committed / closed / reaped). Off by default; nothing prints at
+`log_level = info`. Enable the whole package on every channel with four handlers,
+`--log-handler odoo.debug.<channel>.db:DEBUG`, one channel with
+`odoo.debug.perf.db:DEBUG`, one module with `odoo.debug.perf.db.schema:DEBUG`.
+
+The lines to start from: `cursor.statement` (one per statement — `head= kind= table= ms=
+rows= ok= in_pipeline=`), `cursor.fetch` (rows returned), `pool.borrow` / `pool.give_back`
+(wait and hold time, backend pid, thread), every `schema.*` verb (a span with `queries=`)
+and catalog probe (its answer), `cursor.pipeline` (statements queued, whether pipeline mode
+was entered, sync cost). Correlate on `db=`, `table=`, `name=sp<n>`, `backend_pid=`.
+`odoo/db/tests` runs green with everything on (`pytest odoo/db/tests --log-level=DEBUG`),
+so a full trace is readable without a database. The sites are removed together when the
+campaign ends; the recipe, the cost figures and the first findings are in
+`agromarin-knowledge/reference/dev/debug-logging-campaign.md` under "Core packages / db".
 
 ## Tests
 
@@ -745,18 +1106,18 @@ library.
   track their checkout and `give_back` releases it before any early exit, the
   leak warning uses its own throttle rather than the reaper's, both borrow paths
   raise the one saturation error and that error names its holders, a password
-  never reaches a pool key, `conninfo_to_dict` has one caller, `_libpq_connect_timeout`
+  never reaches a pool key, `conninfo_to_dict` has one caller, `get_libpq_connect_timeout`
   never returns a value libpq would read as "wait forever", the budget is keyed
   on the resolved endpoint rather than the presence of `db_replica_host`, the
   two schema-cache clears keep their distinct call sites, `_has_schema_changing_statement`
   cannot miss a hidden statement, the `SE` branch that claims `SET` runs no
   regex and `SET` stays out of `_DDL_KEYWORDS`, the lag gauge's pair is
-  written and rendered under one lock while `allows()` stays lock-free, the
+  written and rendered under one lock while `is_replica_usable()` stays lock-free, the
   leak throttle owns a lock that `track`/`release` do not take, the
   saturation error reads its two counters under one acquisition, the probe
   asks proof-and-in-flight in one acquisition and classifies only the
   connect, a bug under `getconn` keeps its type instead of arriving as the
-  `PoolError` four call sites swallow, `allow()` never reads through the `closed` property and the
+  `PoolError` four call sites swallow, `acquire_attempt()` never reads through the `closed` property and the
   cooldown expression exists once, no method or property reached from inside a
   `with self._lock:` block takes that lock itself (checked across
   `ConnectionPool`, `ReachabilityProbe`, `CircuitBreaker` and `ReplicaLagGate`,
@@ -776,21 +1137,60 @@ library.
   takes that mark and every entry point routes through both halves, a URI that
   omits its host defaults to the configured one and does it from the config
   rather than the environment, and `pool.py` contains no raw counter mutation
-  at all. Each was verified to fail when its invariant is violated.
-  Add the check here when you add an invariant above.
+  at all. Added 2026-09-15: a dropped cursor gives its connection back
+  whatever the connection's state, the construction guard asks the pool
+  nothing before it releases, the transaction flags are set once and re-set
+  only when a cursor changed them, the reset and the liveness probe go
+  through libpq with a fake that returns the `int` libpq returns, the psycopg
+  pool is built with `reset=None` and `give_back` reaches the reset, a reset
+  that raises discards, `execute_values` carries no seam of its own and packs
+  pages to the bind ceiling, the replica borrow carries its short deadline and
+  `fail_fast`, a fail-fast borrow ends on a transient probe answer and
+  re-probes a surviving unproven empty pool, `get_tables_existing`'s relkinds
+  derive from `TableKind`, and the two layer contracts (`imports-only-libs`,
+  `resilience-below-connectivity`) are scanned with a control each. Added
+  2026-09-16: the statement budget is armed before the first statement and
+  not when set, survives commit and rollback on the same cursor, does not
+  spend the replay window and is re-armed on the replacement, is re-armed
+  after a savepoint rollback that reverted it and kept across one that did
+  not, is lifted at once when armed or set in a touched transaction and
+  silently otherwise (`test_invariants`, plus the `TestCursor` boundary in
+  `base/tests/test_db_cursor.py`); a cancel walk skips a connection rehomed
+  to another thread (`test_pool`); scalar rows count against the bind
+  ceiling (`test_bulk`); `replica.pinned` never carries the key, a router
+  with a replica reports under its database and leaves the table when
+  collected, and the router's lag ceiling and pin window follow the settings
+  slot unless given (`test_replica`); the backend ceiling trims the least
+  recently borrowed pool first and FIFO within it, counts checked-out
+  connections without trimming them and never goes below `min_size`
+  (`test_reaper`), with the four psycopg_pool attributes it reads pinned
+  against the installed release in `tests/contract/test_psycopg_pool_internals.py`.
+  Each was verified to fail when its invariant is violated.
+  Add the check here when you add an invariant above. One class per invariant:
+  a behavioural check against a fake and the structural one (`co_names`, AST)
+  sit together, with the AST helpers in `tests/_source.py`; `test_source_pins.py`
+  keeps the pins that have no behavioural twin (the lock-discipline scanner, the
+  seam's shape, the schema-cache call sites).
 
-- **Tier 1 (no DB, ms)** — `odoo/db/tests/` via `cd odoo && pytest` from the
-  workspace root (the whole Tier-1 invocation, not this directory alone:
-  `pytest odoo/db/tests` on its own reports **22 failures** that are artefacts of
-  the suite's own `sys.modules` stubs shadowing the real `import odoo.db` a
-  handful of tests perform — they all pass in the full run):
+- **Every DDL verb in `schema.py` is pinned to the statement it emits** —
+  `tests/test_schema_ddl.py` runs each one against a recording cursor that
+  renders the `SQL` it receives and answers scripted rows, so a quoting,
+  escaping or catalog-query change shows up as a diff of the statement, not as
+  a red module install somewhere. A DDL function without a pin there is the
+  omission to fix when touching it.
+- **Tier 2 real-import, no DB (ms)** — `odoo/db/tests/`, run from `odoo/` as
+  `pytest odoo/db/tests` (it is in no `testpaths` and shares the Tier-2
+  invocation of `pytest.ini`, because a handful of its tests reach state in the
+  package `__init__.py` that the Tier-1 stubs replace; measured 2026-09-16,
+  708 passed + 206 subtests named alone). One class, `TestPipelineAccountsForTheSyncCost`,
+  needs a local `createdb` and skips without it:
   pure modules (`ddl`, `dsn`, `errors`, `schema_cache` bookkeeping, `savepoint`
   depth accounting, `bulk`'s argument validation and encoding cost model,
   `utils`' DSN/maintenance-db resolution, `budget`/`stats` accounting, `reaper`
-  policy and throttle, `leaks` checkout bookkeeping, `breaker` backoff schedule,
-  `lag` ceiling and its sampling, `replica` routing — which connection a
+  policy and throttle, `leaks` checkout bookkeeping, `lag` ceiling and its
+  sampling, `replica` routing — which connection a
   cursor request lands on and the mode it reports, against two fake
-  connections — one budget per resolved endpoint in `budget_endpoints`)
+  connections — one budget per resolved endpoint in `test_endpoints`)
   plus the two that only need stand-ins — `pool` (budget clamps and sharing,
   idle-pool reaping, permit accounting, reachability proof, close/drain
   matching, against a fake `psycopg_pool.ConnectionPool`) and `lifecycle`
@@ -818,6 +1218,18 @@ library.
   against `registry().cursor()` failed under `odoo-bin` while the same logic
   passed as a standalone script.
 
+- **A real standby, built and torn down by the test** —
+  `tests/contract/test_replica_standby.py` runs `pg_basebackup -R` against
+  the reachable primary into a temp directory, starts it on a scratch port
+  with its own socket directory, and exercises the router against it:
+  read-only routing lands on the standby, a write there raises
+  `ReadOnlySqlTransaction`, apply lag past the ceiling demotes and catching
+  up restores (replay paused with `pg_wal_replay_pause()` — and waited for,
+  `pg_get_wal_replay_pause_state() = 'paused'`, because the pause is only
+  *requested* and a commit sent before recovery honours it is replayed
+  anyway), a session that wrote reads from the primary for the pin window
+  and one that only read keeps the standby. Skips without `pg_basebackup`.
+  ~4 s; run with `ODOO_CONTRACT_REQUIRE_DEPS=1 pytest tests/contract`.
 - **Integration (live DB)** —
   `odoo/addons/base/tests/test_db_cursor.py` (run with
   `--test-file … --stop-after-init` on a DB with `base` installed): cursor

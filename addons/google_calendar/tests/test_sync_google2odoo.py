@@ -2255,11 +2255,16 @@ class TestSyncGoogle2Odoo(TestSyncGoogle):
         self.env["calendar.recurrence"]._sync_google2odoo(GoogleEvent([values]))
         events = recurrence.calendar_event_ids.sorted("start")
         self.assertEqual(len(events), 2)
-        # Only the event organizer must remain as attendee.
-        self.assertEqual(len(events.mapped("attendee_ids")), 1)
-        self.assertEqual(
-            events.mapped("attendee_ids")[0].partner_id, self.env.user.partner_id
-        )
+        # Only the event organizer must remain as attendee -- on BOTH occurrences.
+        # This asserted one attendee across the two events, and passed because the
+        # generated occurrence had none at all: the organizer here is the test
+        # user, whose partner is archived, and `calendar.event.partner_ids` used
+        # to apply the comodel's active test, so `_apply_recurrence` copied an
+        # event whose attendee set read back empty. Two occurrences, two attendee
+        # records, one organizer, and still no attendee for the mail alias.
+        self.assertEqual(len(events.mapped("attendee_ids")), 2)
+        for event in events:
+            self.assertEqual(event.attendee_ids.partner_id, self.env.user.partner_id)
         self.assertGoogleAPINotCalled()
 
     @patch_api

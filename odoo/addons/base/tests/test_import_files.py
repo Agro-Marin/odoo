@@ -6,7 +6,7 @@ from unittest.mock import patch
 import psycopg
 
 from odoo import Command
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.libs.lru import LRU
 from odoo.tests import TransactionCase, can_import, loaded_demo_data, tagged
 from odoo.tools.misc import file_open
@@ -312,7 +312,7 @@ class TestFieldConverters(TransactionCase):
     def test_m2m_blank_comma_segments_dropped(self):
         tag = self.env["res.partner.tag"].create({"name": "IFLD17 Tag"})
         converter = self.converter._resolve_converter_field(
-            self.env["res.partner"]._fields["tag_ids"], str
+            self.env["res.partner"]._fields["tag_ids"]
         )
         for raw in ("IFLD17 Tag,", ",IFLD17 Tag", "IFLD17 Tag, ", "IFLD17 Tag,,"):
             commands, warnings = converter([{None: raw}])
@@ -563,12 +563,187 @@ class TestFieldConverters(TransactionCase):
             result = self.env["res.partner"].load(["name", "parent_id"], rows)
         self.assertFalse(result["messages"])
         self.assertEqual(len(result["ids"] or []), 6)
-        self.assertEqual(
+        self.assertLessEqual(
             len(calls), 1, f"6 identical references must search once, got {len(calls)}"
         )
         self.assertEqual(
             self.env["res.partner"].browse(result["ids"]).mapped("parent_id"), parent
         )
+
+    def test_references_to_existing_records_do_not_split_the_batch(self):
+        Partner = self.env["res.partner"]
+        Partner.create([{"name": f"IFLD96 parent {i}"} for i in range(40)])
+        self.env.flush_all()
+        PartnerClass = type(Partner)
+        batches = []
+        original = PartnerClass._load_data_list
+
+        def spy(this, data_list, *args, **kwargs):
+            batches.append(len(data_list))
+            return original(this, data_list, *args, **kwargs)
+
+        rows = [[f"IFLD96 child {i}", f"IFLD96 parent {i}"] for i in range(40)]
+        with patch.object(PartnerClass, "_load_data_list", spy):
+            result = Partner.load(["name", "parent_id"], rows)
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"]), 40)
+        self.assertEqual(
+            batches,
+            [40],
+            "a name that already resolves must not flush the pending batch",
+        )
+
+    def test_a_reference_to_an_earlier_row_of_the_same_import_resolves(self):
+        Partner = self.env["res.partner"]
+        result = Partner.load(
+            ["name", "parent_id"],
+            [["IFLD96 first", ""], ["IFLD96 second", "IFLD96 first"]],
+        )
+        self.assertFalse(result["messages"])
+        first, second = Partner.browse(result["ids"])
+        self.assertEqual(second.parent_id, first)
+
+    def test_existing_names_are_prefetched_in_one_query_per_model(self):
+        Partner = self.env["res.partner"]
+        Partner.create([{"name": f"IFLD97 parent {i}"} for i in range(30)])
+        self.env.flush_all()
+        converter_type = type(self.env["ir.fields.converter"])
+        searches = []
+        original = converter_type._get_ref_from_name
+
+        def spy(this, field, value):
+            searches.append(value)
+            return original(this, field, value)
+
+        rows = [[f"IFLD97 child {i}", f"IFLD97 parent {i}"] for i in range(30)]
+        with patch.object(converter_type, "_get_ref_from_name", spy):
+            result = Partner.load(["name", "parent_id"], rows)
+        self.assertFalse(result["messages"])
+        self.assertEqual(
+            searches, [], "every existing name must come from the prefetch"
+        )
+        parents = Partner.browse(result["ids"]).mapped("parent_id.name")
+        self.assertEqual(parents, [f"IFLD97 parent {i}" for i in range(30)])
+
+    def test_prefetch_attributes_a_match_on_a_secondary_name_field(self):
+        Partner = self.env["res.partner"]
+        self.assertIn("email", Partner._get_rec_names_search_fields())
+        target = Partner.create({"name": "IFLD97 By Mail", "email": "ifld97@x.test"})
+        other = Partner.create({"name": "IFLD97 Other", "email": "ifld97b@x.test"})
+        self.env.flush_all()
+        result = Partner.load(
+            ["name", "parent_id"],
+            [["IFLD97 c1", "ifld97@x.test"], ["IFLD97 c2", "ifld97b@x.test"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(
+            Partner.browse(result["ids"]).mapped("parent_id"), target + other
+        )
+
+    def test_prefetch_keeps_the_multiple_matches_warning(self):
+        Partner = self.env["res.partner"]
+        Partner.create([{"name": "IFLD97 Twin"}, {"name": "IFLD97 Twin"}])
+        Partner.create({"name": "IFLD97 Single"})
+        self.env.flush_all()
+        result = Partner.load(
+            ["name", "parent_id"],
+            [["IFLD97 c1", "IFLD97 Twin"], ["IFLD97 c2", "IFLD97 Single"]],
+        )
+        self.assertTrue(result["ids"])
+        warnings = [m for m in result["messages"] if m["type"] == "warning"]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("2 matches", warnings[0]["message"])
+
+    def test_database_ids_and_external_ids_are_prefetched(self):
+        Partner = self.env["res.partner"]
+        parents = Partner.create([{"name": f"IFLD98 parent {i}"} for i in range(20)])
+        self.env["ir.model.data"].create(
+            [
+                {
+                    "module": "__import__",
+                    "name": f"ifld98_parent_{i}",
+                    "model": "res.partner",
+                    "res_id": parent.id,
+                }
+                for i, parent in enumerate(parents)
+            ]
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        converter_type = type(self.env["ir.fields.converter"])
+        misses = []
+        original_dbid = converter_type._get_ref_from_dbid
+        original_xmlid = converter_type._get_ref_from_xmlid
+
+        def spy_dbid(this, field, value):
+            misses.append((".id", value))
+            return original_dbid(this, field, value)
+
+        def spy_xmlid(this, field, value):
+            misses.append(("id", value))
+            return original_xmlid(this, field, value)
+
+        with (
+            patch.object(converter_type, "_get_ref_from_dbid", spy_dbid),
+            patch.object(converter_type, "_get_ref_from_xmlid", spy_xmlid),
+        ):
+            by_dbid = Partner.load(
+                ["name", "parent_id/.id"],
+                [[f"IFLD98 a{i}", str(parent.id)] for i, parent in enumerate(parents)],
+            )
+            by_xmlid = Partner.load(
+                ["name", "parent_id/id"],
+                [[f"IFLD98 b{i}", f"__import__.ifld98_parent_{i}"] for i in range(20)],
+            )
+            by_bare_xmlid = Partner.load(
+                ["name", "parent_id/id"],
+                [[f"IFLD98 c{i}", f"ifld98_parent_{i}"] for i in range(20)],
+            )
+        for result in (by_dbid, by_xmlid, by_bare_xmlid):
+            self.assertFalse(result["messages"])
+            self.assertEqual(Partner.browse(result["ids"]).mapped("parent_id"), parents)
+        self.assertEqual(misses, [], "every reference must come from the prefetch")
+
+    def test_a_prefetched_external_id_of_another_model_is_still_a_mismatch_error(self):
+        Partner = self.env["res.partner"]
+        lang = self.env["res.lang"].search([], limit=1)
+        self.env["ir.model.data"].create(
+            [
+                {
+                    "module": "base",
+                    "name": "ifld98_lang",
+                    "model": "res.lang",
+                    "res_id": lang.id,
+                },
+                {
+                    "module": "base",
+                    "name": "ifld98_lang2",
+                    "model": "res.lang",
+                    "res_id": lang.id,
+                },
+            ]
+        )
+        self.env.flush_all()
+        result = Partner.load(
+            ["name", "parent_id/id"],
+            [["IFLD98 x", "base.ifld98_lang"], ["IFLD98 y", "base.ifld98_lang2"]],
+        )
+        self.assertFalse(result["ids"])
+        self.assertIn("res.lang", result["messages"][0]["message"])
+
+    def test_a_pending_namesake_still_yields_the_multiple_matches_warning(self):
+        Partner = self.env["res.partner"]
+        Partner.create({"name": "IFLD100 Twin"})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        result = Partner.load(
+            ["name", "parent_id"],
+            [["IFLD100 Twin", ""], ["IFLD100 child", "IFLD100 Twin"]],
+        )
+        warnings = [m for m in result["messages"] if m["type"] == "warning"]
+        self.assertEqual(len(warnings), 1, "the row this import creates is a match too")
+        self.assertIn("2 matches", warnings[0]["message"])
+        self.assertEqual(len(result["ids"]), 2)
 
     def test_reference_miss_is_not_cached(self):
         converter = self.converter.with_context(
@@ -1052,9 +1227,9 @@ class TestFieldConverters(TransactionCase):
         converter_type = type(self.converter)
         original = converter_type._get_converter_record
 
-        def spy(this, model, fromtype=str):
+        def spy(this, model):
             calls.append(model._name)
-            return original(this, model, fromtype)
+            return original(this, model)
 
         rows = [[f"IFLD49 P{i}", f"IFLD49 C{i}"] for i in range(25)]
         with patch.object(converter_type, "_get_converter_record", spy):
@@ -1074,6 +1249,171 @@ class TestFieldConverters(TransactionCase):
                 self.env["res.partner"]._fields["child_ids"], ["notadict"]
             )
         self.assertNotIn("has no attribute", str(cm.exception.args[0]))
+
+    def test_unsupported_field_type_empty_cell_is_not_written(self):
+        Definition = self.env["properties.base.definition"]
+        field = Definition._fields["properties_definition"]
+        self.assertIsNone(self.converter._resolve_converter_field(field))
+        convert = self.converter._get_converter_record(Definition)
+        logged = []
+        result = convert({"properties_definition": ""}, lambda f, exc: logged.append(f))
+        self.assertEqual(
+            result, {}, "an empty cell of an unsupported column must not write False"
+        )
+        self.assertEqual(logged, ["properties_definition"])
+
+    def test_property_datetime_and_date_go_through_the_column_converters(self):
+        self._define_partner_properties(
+            [
+                {"name": "pdt", "type": "datetime", "string": "PDT"},
+                {"name": "pd", "type": "date", "string": "PD"},
+            ]
+        )
+        model = self.env["res.partner"].with_context(
+            import_file=True, tz="America/Mexico_City"
+        )
+        result = model.load(
+            ["name", "properties.pdt"], [["IFLD95 dt", "2026-01-15 10:00:00"]]
+        )
+        self.assertFalse(result["messages"])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT properties FROM res_partner WHERE id = %s", [result["ids"][0]]
+        )
+        self.assertEqual(
+            self.env.cr.fetchone()[0]["pdt"],
+            "2026-01-15 16:00:00",
+            "a naive datetime property is localized like a datetime column",
+        )
+        result = model.load(["name", "properties.pd"], [["IFLD95 bad", "2026-13-45"]])
+        self.assertFalse(result["ids"])
+        [message] = result["messages"]
+        self.assertIn("valid date", message["message"])
+        self.assertIn("PD", message["message"])
+
+    def test_a_datetime_property_round_trips_through_export_and_import(self):
+        self._define_partner_properties(
+            [{"name": "pdt", "type": "datetime", "string": "PDT"}]
+        )
+        Partner = self.env["res.partner"].with_context(tz="America/Mexico_City")
+        source = Partner.create(
+            {"name": "IFLD95 rt", "properties": {"pdt": "2026-01-15 16:00:00"}}
+        )
+        [row] = source.export_data(["name", "properties.pdt"])["datas"]
+        self.assertEqual(
+            str(row[1]),
+            "2026-01-15 10:00:00",
+            "a datetime property exports in the user's timezone like a column",
+        )
+        result = Partner.with_context(import_file=True).load(
+            ["name", "properties.pdt"], [["IFLD95 rt copy", str(row[1])]]
+        )
+        self.assertFalse(result["messages"])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT properties FROM res_partner WHERE id = %s", [result["ids"][0]]
+        )
+        self.assertEqual(self.env.cr.fetchone()[0]["pdt"], "2026-01-15 16:00:00")
+
+    def test_property_tags_are_split_like_a_many2many_column(self):
+        self._define_partner_properties(
+            [
+                {
+                    "name": "pt",
+                    "type": "tags",
+                    "string": "PT",
+                    "tags": [["a", "Alpha", 1], ["b", "Beta", 2]],
+                }
+            ]
+        )
+        model = self.env["res.partner"].with_context(import_file=True)
+        result = model.load(
+            ["name", "properties.pt"], [["IFLD95 tags", "Alpha, beta,"]]
+        )
+        self.assertFalse(result["messages"])
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT properties FROM res_partner WHERE id = %s", [result["ids"][0]]
+        )
+        self.assertEqual(self.env.cr.fetchone()[0]["pt"], ["a", "b"])
+
+    def test_property_selection_matches_labels_case_insensitively(self):
+        payload = [
+            {
+                "name": "sel",
+                "type": "selection",
+                "string": "Sel",
+                "selection": [["a", "Alpha"]],
+                "value": "ALPHA ",
+            }
+        ]
+        converted, _w = self.converter._str_to_properties(self.flds["bool"], payload)
+        self.assertEqual(converted[0]["value"], "a")
+
+    def test_property_choice_value_outranks_another_items_label(self):
+        payload = [
+            {
+                "name": "sel",
+                "type": "selection",
+                "string": "Sel",
+                "selection": [["pending", "Sent"], ["sent", "Delivered"]],
+                "value": "SENT",
+            }
+        ]
+        converted, _w = self.converter._str_to_properties(self.flds["bool"], payload)
+        self.assertEqual(converted[0]["value"], "sent")
+
+    def test_a_model_overriding_name_search_is_not_batched(self):
+        Country = self.env["res.country"]
+        self.assertFalse(self.converter._is_name_prefetchable(Country))
+        self.assertTrue(self.converter._is_name_prefetchable(self.env["res.partner"]))
+        mx = Country.search([("code", "=", "MX")], limit=1)
+        result = self.env["res.partner"].load(
+            ["name", "country_id"], [["IFLD99 a", "MX"], ["IFLD99 b", "MX"]]
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(
+            self.env["res.partner"].browse(result["ids"]).mapped("country_id"), mx
+        )
+
+    def test_a_property_error_names_the_property(self):
+        payload = [{"name": "n", "type": "integer", "string": "Count", "value": "x"}]
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_properties(self.flds["bool"], payload)
+        self.assertIn("%(field)s/Count", cm.exception.args[0])
+
+    def test_a_user_error_in_a_lookup_is_reported_not_hidden(self):
+        PartnerClass = type(self.env["res.partner"])
+        with patch.object(
+            PartnerClass,
+            "name_search",
+            side_effect=AccessError("IFLD95 no read on partners"),
+        ):
+            result = (
+                self.env["res.partner"]
+                .with_context(import_file=True)
+                .load(["name", "parent_id"], [["IFLD95 child", "Some Parent"]])
+            )
+        self.assertFalse(result["ids"])
+        [message] = result["messages"]
+        self.assertIn("IFLD95 no read on partners", message["message"])
+        self.assertNotIn("server logs", message["message"])
+
+    def test_o2m_child_with_a_blank_database_id_creates_nothing(self):
+        commands, warnings = self.converter._str_to_one2many(
+            self.env["res.partner"]._fields["child_ids"], [{".id": "0"}]
+        )
+        self.assertEqual(commands, [])
+        self.assertFalse(warnings)
+
+    def test_non_text_numbers_are_a_clean_error(self):
+        partner_fields = self.env["res.partner"]._fields
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_integer(partner_fields["color"], [1, 2])
+        self.assertIn("integer", cm.exception.args[0])
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_float(partner_fields["partner_latitude"], {"a": 1})
+        self.assertIn("number", cm.exception.args[0])
 
 
 @tagged("post_install", "-at_install")
@@ -1144,9 +1484,13 @@ class TestSelectionIndexPrecedence(TransactionCase):
         field = self.env["res.partner"]._fields["type"]
         cache = self.converter._get_transaction_cache()
         lang = self.converter.env.lang
-        cache[("selection", field.model_name, field.name, lang)] = (selection, {})
         cache.pop(("selection_index", field.model_name, field.name, lang), None)
-        return self.converter._get_selection_index(field)
+        with patch.object(
+            type(self.converter),
+            "_get_selection_and_labels",
+            lambda _self, _field: (selection, {}),
+        ):
+            return self.converter._get_selection_index(field)
 
     def test_a_value_is_never_shadowed_by_another_items_label(self):
         index = self._index_for([("pending", "Sent"), ("sent", "Delivered")])

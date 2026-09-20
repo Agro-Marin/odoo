@@ -7,23 +7,22 @@ class PaymentRefundWizard(models.TransientModel):
     _description = "Payment Refund Wizard"
 
     payment_id = fields.Many2one(
-        string="Payment",
         comodel_name="account.payment",
-        readonly=True,
         default=lambda self: self.env.context.get("active_id"),
+        readonly=True,
     )
     transaction_id = fields.Many2one(
-        string="Payment Transaction", related="payment_id.transaction_id"
+        related="payment_id.transaction_id",
+        string="Payment Transaction",
     )
     payment_amount = fields.Monetary(
-        string="Payment Amount", related="payment_id.amount"
+        related="payment_id.amount",
+        string="Payment Amount",
     )
-    refunded_amount = fields.Monetary(
-        string="Refunded Amount", compute="_compute_refunded_amount"
-    )
+    refunded_amount = fields.Monetary(compute="_compute_refunded_amount")
     amount_available_for_refund = fields.Monetary(
-        string="Maximum Refund Allowed",
         related="payment_id.amount_available_for_refund",
+        string="Maximum Refund Allowed",
     )
     amount_to_refund = fields.Monetary(
         string="Refund Amount",
@@ -32,19 +31,21 @@ class PaymentRefundWizard(models.TransientModel):
         readonly=False,
     )
     currency_id = fields.Many2one(
-        string="Currency", related="transaction_id.currency_id"
+        related="transaction_id.currency_id",
+        string="Currency",
     )
     support_refund = fields.Selection(
-        string="Refund",
         selection=[
             ("none", "Unsupported"),
             ("full_only", "Full Only"),
             ("partial", "Partial"),
         ],
+        string="Refund",
         compute="_compute_support_refund",
     )
     has_pending_refund = fields.Boolean(
-        string="Has a pending refund", compute="_compute_has_pending_refund"
+        string="Has a pending refund",
+        compute="_compute_has_pending_refund",
     )
 
     @api.constrains("amount_to_refund")
@@ -92,7 +93,7 @@ class PaymentRefundWizard(models.TransientModel):
     @api.depends("payment_id")  # To always trigger the compute
     def _compute_has_pending_refund(self):
         for wizard in self:
-            pending_refunds_count = self.env["payment.transaction"].search_count(
+            pending_refunds_count = self.env["payment.transaction"].search_count(  # noqa: E8507 - a transient wizard: one record
                 [
                     ("source_transaction_id", "=", wizard.payment_id.transaction_id.id),
                     ("operation", "=", "refund"),

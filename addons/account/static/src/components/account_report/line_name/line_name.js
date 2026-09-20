@@ -1,10 +1,8 @@
 /** @odoo-module native */
+import { parseLineId } from "@account/js/util";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
-import { Component, useState, useRef, useEffect } from "@odoo/owl";
-
-import { parseLineId } from "@account/js/util";
-
 import { RelationalModel } from "@web/model/relational_model";
 
 import { AccountReturnSelectionBadge } from "../../account_return/widgets/account_return_selection_badge.js";
@@ -43,8 +41,9 @@ export class AccountReportLineName extends Component {
             if (
                 this.accountStatus.record &&
                 this.props.line.account_status.id === this.accountStatus.record.resId
-            )
+            ) {
                 return;
+            }
 
             const fields = {
                 status: {
@@ -146,11 +145,17 @@ export class AccountReportLineName extends Component {
     get lineNameClasses() {
         let classes = "text";
 
-        if (this.props.line.unfoldable) classes += " unfoldable";
+        if (this.props.line.unfoldable) {
+            classes += " unfoldable";
+        }
 
-        if (this.props.line.is_draft) classes += " draft";
+        if (this.props.line.is_draft) {
+            classes += " draft";
+        }
 
-        if (this.props.line.class) classes += ` ${this.props.line.class}`;
+        if (this.props.line.class) {
+            classes += ` ${this.props.line.class}`;
+        }
 
         return classes;
     }
@@ -208,10 +213,13 @@ export class AccountReportLineName extends Component {
     // Fold / Unfold
     // -----------------------------------------------------------------------------------------------------------------
     toggleFoldable() {
-        if (this.props.line.unfoldable)
-            if (this.props.line.unfolded)
+        if (this.props.line.unfoldable) {
+            if (this.props.line.unfolded) {
                 this.controller.foldLine(this.props.lineIndex);
-            else this.controller.unfoldLine(this.props.lineIndex);
+            } else {
+                this.controller.unfoldLine(this.props.lineIndex);
+            }
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------

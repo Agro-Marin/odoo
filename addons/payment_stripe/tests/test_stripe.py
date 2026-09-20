@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import urlencode as url_encode
 
+from odoo.exceptions import ValidationError
+from odoo.http import request
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 from odoo.tools.urls import urljoin as url_join
@@ -32,7 +34,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
             ),
             mute_logger("odoo.addons.payment.models.payment_transaction"),
         ):
-            processing_values = tx._get_processing_values()
+            processing_values = tx._prepare_processing_values()
 
         self.assertEqual(processing_values["client_secret"], dummy_client_secret)
 
@@ -93,6 +95,55 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         ):
             self._make_json_request(url, data=self.payment_data)
         self.assertEqual(tx.state, "done")
+
+    @mute_logger("odoo.addons.payment_stripe.controllers.main")
+    def test_an_admitted_webhook_is_recorded_on_the_providers_receiver(self):
+        self._create_transaction("redirect")
+        url = self._build_url(StripeController._webhook_url)
+        with patch(
+            "odoo.addons.payment_stripe.controllers.main.StripeController._check_signature"
+        ):
+            self._make_json_request(url, data=self.payment_data)
+        receiver = self.env["integration.receiver"].search(
+            [("res_model", "=", "payment.provider"), ("res_id", "=", self.stripe.id)]
+        )
+        self.assertEqual(receiver.auth_type, "caller_check")
+        exchange = self.env["integration.exchange"].search(
+            [("channel_id", "=", f"integration.receiver,{receiver.id}")]
+        )
+        self.assertEqual(len(exchange), 1)
+        self.assertEqual(exchange.direction, "inbound")
+
+    @mute_logger(
+        "odoo.addons.payment_stripe.controllers.main",
+        "odoo.addons.integration.models.integration_receiver",
+        "odoo.addons.integration.models.mixin_inbound_gate",
+        "odoo.http",
+    )
+    def test_a_webhook_with_a_bad_signature_is_refused_and_logged(self):
+        tx = self._create_transaction("redirect")
+        url = self._build_url(StripeController._webhook_url)
+        Receiver = type(self.env["integration.receiver"])
+        store_verdict = Receiver._store_inbound_verdict
+        verdicts = []
+
+        def spy(receiver, outcome, *args, **kwargs):
+            verdicts.append(
+                (receiver.res_id, outcome, receiver.env.cr is not request.env.cr)
+            )
+            return store_verdict(receiver, outcome, *args, **kwargs)
+
+        with patch.object(Receiver, "_store_inbound_verdict", spy):
+            response = self._make_json_request(url, data=self.payment_data)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertNotEqual(tx.state, "done")
+        self.assertEqual(
+            verdicts,
+            [(self.stripe.id, "unauthenticated", True)],
+            "the refusal is stored on its own cursor, which the request's "
+            "rollback does not discard",
+        )
 
     def test_validate_amount_succeeds_for_special_currencies(self):
         for currency_code in const.CURRENCY_DECIMALS:
@@ -212,6 +263,35 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
             res = self._make_http_get_request(url, params={"reference": tx.reference})
             self.assertTrue(res.ok, msg=res.content.decode())
 
+    @mute_logger("odoo.addons.payment_stripe.controllers.main")
+    def test_return_url_client_secret_stays_out_of_the_access_log(self):
+        tx = self._create_transaction(
+            "direct", amount=0, operation="validation", tokenize=True
+        )
+        url = self._build_url(StripeController._return_url)
+        secret = "seti_123_secret_ReturnUrlSecret987"
+        PaymentProvider = self.env.registry["payment.provider"]
+        with (
+            patch.object(StripeController, "_check_signature"),
+            patch.object(
+                PaymentProvider, "_send_api_request", self._mock_setup_intent_request
+            ),
+            self.assertLogs("odoo.service.http.access", "INFO") as capture,
+        ):
+            res = self._make_http_get_request(
+                url,
+                params={
+                    "reference": tx.reference,
+                    "setup_intent": "seti_123",
+                    "setup_intent_client_secret": secret,
+                },
+            )
+            self.assertTrue(res.ok, msg=res.content.decode())
+        log = "\n".join(capture.output)
+        self.assertIn(StripeController._return_url, log)
+        self.assertNotIn(secret, log)
+        self.assertIn("setup_intent_client_secret=[REDACTED]", log)
+
     def test_onboarding_action_redirect_to_url(self):
         """Test that the action generate and return an URL when the provider is disabled."""
         if country := self.env["res.country"].search(
@@ -226,7 +306,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         with (
             patch.object(
                 type(self.env["payment.provider"]),
-                "_stripe_fetch_or_create_connected_account",
+                "_stripe_get_or_create_connected_account",
                 return_value={"id": "dummy"},
             ),
             patch.object(
@@ -253,7 +333,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
             ) as mock,
             patch.object(
                 self.env.registry["payment.provider"],
-                "_stripe_fetch_or_create_connected_account",
+                "_stripe_get_or_create_connected_account",
                 return_value={"id": "dummy"},
             ),
         ):
@@ -266,6 +346,47 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
                     mapped_country_company
                 ).action_start_onboarding("dummy")
             self.assertEqual(mock.call_count, len(const.COUNTRY_MAPPING))
+
+    def test_the_secrets_live_in_the_providers_credential(self):
+        self.stripe.write(
+            {"stripe_secret_key": "sk_vault", "stripe_webhook_secret": "wh"}
+        )
+        self.stripe.stripe_webhook_secret = "wh_rotated"
+        self.stripe.invalidate_recordset()
+
+        credential = self.stripe.provider_credential_id
+        self.assertTrue(credential)
+        self.assertFalse(self.stripe._fields["stripe_secret_key"].store)
+        self.assertEqual(
+            (self.stripe.stripe_secret_key, self.stripe.stripe_webhook_secret),
+            ("sk_vault", "wh_rotated"),
+        )
+        self.assertEqual(
+            credential.sudo()._use_secret_payload("payment:provider"),
+            {"stripe_secret_key": "sk_vault", "stripe_webhook_secret": "wh_rotated"},
+        )
+
+    def test_clearing_every_secret_unlinks_the_credential(self):
+        self.stripe.write(
+            {"stripe_secret_key": "sk_vault", "stripe_webhook_secret": "wh"}
+        )
+        credential = self.stripe.provider_credential_id
+
+        self.stripe.write(
+            {
+                "state": "disabled",
+                "stripe_secret_key": False,
+                "stripe_webhook_secret": False,
+            }
+        )
+
+        self.assertFalse(self.stripe.provider_credential_id)
+        self.assertFalse(credential.exists())
+
+    def test_a_required_secret_is_still_required_once_it_is_a_door(self):
+        self.stripe.write({"state": "test", "stripe_secret_key": "sk_vault"})
+        with self.assertRaises(ValidationError):
+            self.stripe.stripe_secret_key = False
 
     def test_only_create_webhook_if_not_already_done(self):
         """Test that a webhook is created only if the webhook secret is not already set."""

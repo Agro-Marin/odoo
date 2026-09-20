@@ -5,8 +5,11 @@ import { ActivityMailTemplate } from "@mail/core/web/activity_mail_template";
 import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
 import { computeDelay } from "@mail/utils/common/dates";
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.activity");
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity
@@ -98,6 +101,7 @@ export class ActivityListPopoverItem extends Component {
     }
 
     async unlink() {
+        log.logic("unlink", () => ({ activityId: this.props.activity.id }));
         await this.env.services.orm.unlink("mail.activity", [this.props.activity.id]);
         this.props.activity.remove();
         this.props.onActivityChanged?.();

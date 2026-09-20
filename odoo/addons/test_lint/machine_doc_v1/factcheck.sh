@@ -12,13 +12,13 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MOD="$(dirname "$SCRIPT_DIR")"                    # <repo>/odoo/addons/test_lint
 REPO="$(cd "$MOD/../../.." && pwd)"
@@ -44,10 +44,10 @@ for f in "$MOD"/tests/_checker_*.py; do
     assert_doc_cites "$(basename "$f")" "checker $(basename "$f")"
 done
 
-# Every rule the registry declares is named by the map.
-rules="$("$PY" "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py")"
+# Every rule either registry declares is named by the map.
+rules="$("$PY" "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py" "$MOD/tests/_xml_rules.py")"
 if [ -z "$rules" ]; then
-    bad "could not read any rule out of _rules.py"
+    bad "could not read any rule out of _rules.py or _xml_rules.py"
 fi
 for rule in $rules; do
     assert_doc_cites "$rule" "rule $rule"
@@ -56,18 +56,20 @@ done
 # The two halves, the fixers and their invariants.
 assert_file "$MOD/tests/_rules.py" "the rule registry"
 assert_file "$MOD/tests/_py_scan.py" "the scan engine"
+assert_file "$MOD/tests/_xml_rules.py" "the XML rule registry"
+assert_file "$MOD/tests/_xml_scan.py" "the XML scan engine"
 assert_file "$MOD/tests/_xml_identity.py" "the document-identity module"
 assert_file "$MOD/tests/_xml_sweep.py" "the shared fixer sweep"
 assert_doc_cites "is_faithful" "the order-preserving invariant"
 assert_doc_cites "preserves_content" "the order-insensitive invariant"
 
-# The floors are in the ratchet, and at least one lint_* baseline exists there.
-assert_file "$REPO/tooling/ratchet/ratchet.py" "the ratchet tool"
-if ls "$REPO"/tooling/ratchet/baselines/lint_*.json >/dev/null 2>&1; then
-    ok
-else
-    bad "no lint_* baseline in tooling/ratchet/baselines/"
-fi
+assert_file "$MOD/tests/floors.json" "the lint floors"
+
+# Every gate still floored above zero is named in the doc, so a reader knows
+# which readings are debt and which are hard zeros.
+for gate in $(python3 -c "import json; print(' '.join(k for k, v in json.load(open('$MOD/tests/floors.json')).items() if v))"); do
+    assert_doc_cites "$gate" "floored gate $gate"
+done
 
 # No floor may live in Python any more: assert_ratchet must refuse an integer.
 if grep -q "raise TypeError" "$MOD/tests/lint_case.py"; then

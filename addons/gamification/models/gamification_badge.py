@@ -20,108 +20,117 @@ class GamificationBadge(models.Model):
     _description = "Gamification Badge"
     _inherit = ["mixin.mail.thread", "mixin.image"]
 
-    name = fields.Char("Badge", required=True, translate=True)
-    active = fields.Boolean("Active", default=True)
-    description = fields.Html("Description", translate=True, sanitize_attributes=False)
+    name = fields.Char(
+        string="Badge",
+        translate=True,
+        required=True,
+    )
+    active = fields.Boolean(default=True)
+    description = fields.Html(
+        translate=True,
+        sanitize_attributes=False,
+    )
     level = fields.Selection(
-        [("bronze", "Bronze"), ("silver", "Silver"), ("gold", "Gold")],
+        selection=[("bronze", "Bronze"), ("silver", "Silver"), ("gold", "Gold")],
         string="Forum Badge Level",
         default="bronze",
     )
 
     rule_auth = fields.Selection(
-        [
+        selection=[
             ("everyone", "Everyone"),
             ("users", "A selected list of users"),
             ("having", "People having some badges"),
             ("nobody", "No one, assigned through challenges"),
         ],
-        default="everyone",
         string="Allowance to Grant",
-        help="Who can grant this badge",
+        default="everyone",
         required=True,
+        help="Who can grant this badge",
     )
     rule_auth_user_ids = fields.Many2many(
-        "res.users",
-        "rel_badge_auth_users",
+        comodel_name="res.users",
+        relation="rel_badge_auth_users",
         string="Authorized Users",
         help="Only these people can give this badge",
     )
     rule_auth_badge_ids = fields.Many2many(
-        "gamification.badge",
-        "gamification_badge_rule_badge_rel",
-        "badge1_id",
-        "badge2_id",
+        comodel_name="gamification.badge",
+        relation="gamification_badge_rule_badge_rel",
+        column1="badge1_id",
+        column2="badge2_id",
         string="Required Badges",
         help="Only the people having these badges can give this badge",
     )
 
     rule_max = fields.Boolean(
-        "Monthly Limited Sending",
+        string="Monthly Limited Sending",
         help="Check to set a monthly limit per person of sending this badge",
     )
     rule_max_number = fields.Integer(
-        "Limitation Number",
+        string="Limitation Number",
         help="The maximum number of time this badge can be sent per month per person.",
     )
     challenge_ids = fields.One2many(
-        "gamification.challenge", "reward_id", string="Reward of Challenges"
+        comodel_name="gamification.challenge",
+        inverse_name="reward_id",
+        string="Reward of Challenges",
     )
 
     goal_definition_ids = fields.Many2many(
-        "gamification.goal.definition",
-        "badge_unlocked_definition_rel",
+        comodel_name="gamification.goal.definition",
+        relation="badge_unlocked_definition_rel",
         string="Rewarded by",
         help="The users that have succeeded these goals will receive automatically the badge.",
     )
 
     owner_ids = fields.One2many(
-        "gamification.badge.user",
-        "badge_id",
+        comodel_name="gamification.badge.user",
+        inverse_name="badge_id",
         string="Owners",
         help="The list of instances of this badge granted to users",
     )
 
     granted_count = fields.Integer(
-        "Total",
+        string="Total",
         compute="_compute_owner_stats",
         help="The number of time this badge has been received.",
     )
     granted_users_count = fields.Integer(
-        "Number of users",
+        string="Number of users",
         compute="_compute_owner_stats",
         help="The number of time this badge has been received by unique users.",
     )
     unique_owner_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         string="Unique Owners",
         compute="_compute_owner_stats",
         help="The list of unique users having received this badge.",
     )
 
     stat_this_month = fields.Integer(
-        "Monthly total",
+        string="Monthly total",
         compute="_compute_owner_stats",
         help="The number of time this badge has been received this month.",
     )
     stat_my = fields.Integer(
-        "My Total",
+        string="My Total",
         compute="_compute_owner_stats",
         help="The number of time the current user has received this badge.",
     )
     stat_my_this_month = fields.Integer(
-        "My Monthly Total",
+        string="My Monthly Total",
         compute="_compute_owner_stats",
         help="The number of time the current user has received this badge this month.",
     )
     stat_my_monthly_sending = fields.Integer(
-        "My Monthly Sending Total",
+        string="My Monthly Sending Total",
         compute="_compute_owner_stats",
         help="The number of time the current user has sent this badge this month.",
     )
 
     remaining_sending = fields.Integer(
-        "Remaining Sending Allowed",
+        string="Remaining Sending Allowed",
         compute="_compute_remaining_sending",
         help="If a maximum is set",
     )

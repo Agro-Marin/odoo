@@ -13,8 +13,8 @@ class ProductTemplate(models.Model):
         ],
         string="Control Policy",
         compute="_compute_bill_policy",
-        store=True,
         precompute=True,
+        store=True,
         readonly=False,
         help="On ordered quantities: Control bills based on ordered quantities.\n"
         "On received quantities: Control bills based on received quantities.",
@@ -26,6 +26,7 @@ class ProductTemplate(models.Model):
         compute="_compute_purchased_product_qty",
     )
 
+    @api.depends("product_variant_ids.purchased_product_qty", "uom_id")
     def _compute_purchased_product_qty(self):
         for template in self.with_context(active_test=False):
             template.purchased_product_qty = template.uom_id.round(

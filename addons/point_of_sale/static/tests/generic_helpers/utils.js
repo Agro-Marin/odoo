@@ -1,13 +1,13 @@
 /* global posmodel */
 
-import { triggerEvent } from "@web/../tests/helpers/utils";
-
 /**
  * @param {string[]} chars keys to emit, e.g. [..."0100100", "Enter"]
  */
 function simulateBarCode(chars) {
     for (const char of chars) {
-        triggerEvent(document.body, undefined, "keydown", { key: char });
+        document.body.dispatchEvent(
+            new KeyboardEvent("keydown", { key: char, bubbles: true, cancelable: true }),
+        );
     }
 }
 

@@ -8,15 +8,13 @@ class PosOrderLine(models.Model):
         help="Whether this line is part of a reward or not."
     )
     reward_id = fields.Many2one(
-        "loyalty.reward",
-        "Reward",
+        comodel_name="loyalty.reward",
+        index="btree_not_null",
         ondelete="restrict",
         help="The reward associated with this line.",
-        index="btree_not_null",
     )
     coupon_id = fields.Many2one(
-        "loyalty.card",
-        "Coupon",
+        comodel_name="loyalty.card",
         ondelete="restrict",
         help="The coupon used to claim that reward.",
     )

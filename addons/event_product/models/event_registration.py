@@ -5,17 +5,16 @@ class EventRegistration(models.Model):
     _inherit = "event.registration"
 
     sale_status = fields.Selection(
-        string="Sale Status",
         selection=[
             ("to_pay", "Not Sold"),
             ("sold", "Sold"),
             ("free", "Free"),
         ],
         compute="_compute_registration_status",
+        precompute=True,
         compute_sudo=True,
         store=True,
         readonly=True,
-        precompute=True,
     )
 
     def _has_order(self):

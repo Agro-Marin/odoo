@@ -1,5 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+
 import { RAW_SYMBOL } from "./utils.js";
+const log = makeLogger("pos.models.backlink");
 
 export class BackLinkIndex {
     constructor(store, relation, inverseField, onMembershipChange) {
@@ -12,10 +15,15 @@ export class BackLinkIndex {
         this.seqByChild = new Map();
         this.nextSeq = 0;
 
+        const endBuild = log.perf(`build ${relation}.${inverseField}`);
         for (const child of store.getRecordsMap(relation, "id").values()) {
             this._seqOf(child.id);
             this._attach(child);
         }
+        endBuild({
+            children: this.seqByChild.size,
+            parents: this.byParent.size,
+        });
     }
 
     get(parentId) {
@@ -28,6 +36,11 @@ export class BackLinkIndex {
             this._seqOf(id);
             changed = this._reindex(id) || changed;
         }
+        log.lifecycle("onCreate", () => ({
+            index: `${this.relation}.${this.inverseField}`,
+            ids: ids?.length ?? 0,
+            changed,
+        }));
         if (changed) {
             this.onMembershipChange();
         }

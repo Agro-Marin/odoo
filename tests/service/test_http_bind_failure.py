@@ -5,16 +5,16 @@ import pytest
 
 from odoo.service import _threaded
 
+from .conftest import threaded_server
+
 
 def failing_bind():
-    return patch.object(
-        _threaded, "ThreadedWSGIServerReloadable", side_effect=SystemExit(1)
-    )
+    return patch.object(_threaded, "ThreadedHTTPServer", side_effect=SystemExit(1))
 
 
 @pytest.fixture
 def server():
-    srv = _threaded.ThreadedServer.__new__(_threaded.ThreadedServer)
+    srv = threaded_server()
     srv.logger = logging.getLogger("odoo.service.server.ThreadedServer")
     srv.interface = "0.0.0.0"
     srv.port = 8069
@@ -71,7 +71,7 @@ class TestSuccessfulSpawnIsUnchanged:
     def test_httpd_is_stored_and_served(self, server, caplog):
         httpd = MagicMock()
         with (
-            patch.object(_threaded, "ThreadedWSGIServerReloadable", return_value=httpd),
+            patch.object(_threaded, "ThreadedHTTPServer", return_value=httpd),
             patch.object(_threaded.threading, "Thread") as thread,
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
         ):

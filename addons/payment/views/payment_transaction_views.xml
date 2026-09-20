@@ -8,24 +8,24 @@
             <form string="Payment Transactions" create="false" edit="false">
                 <header>
                     <button
-                        type="object"
                         name="action_capture"
-                        invisible="state != 'authorized'"
+                        type="object"
                         string="Capture Transaction"
+                        invisible="state != 'authorized'"
                         class="oe_highlight" />
                     <button
-                        type="object"
                         name="action_void"
-                        invisible="state != 'authorized'"
+                        type="object"
                         string="Void Transaction"
-                        confirm="Are you sure you want to void the authorized transaction? This action can't be undone." />
+                        confirm="Are you sure you want to void the authorized transaction? This action can't be undone."
+                        invisible="state != 'authorized'" />
                     <button
+                        name="action_post_process"
+                        type="object"
                         string="Post-process"
                         help="Run the post-processing step for this transaction."
-                        type="object"
-                        name="action_post_process"
-                        invisible="is_post_processed"
-                        groups="base.group_no_one" />
+                        groups="base.group_no_one"
+                        invisible="is_post_processed" />
                     <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
@@ -33,13 +33,13 @@
                         <button
                             name="action_view_refunds"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-money"
-                            invisible="refunds_count == 0">
+                            invisible="refunds_count == 0"
+                            class="oe_stat_button">
                             <field
                                 name="refunds_count"
-                                widget="statinfo"
-                                string="Refunds" />
+                                string="Refunds"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <group>
@@ -81,8 +81,8 @@
                                 <field
                                     name="partner_state_id"
                                     placeholder="State"
-                                    class="o_address_state"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    class="o_address_state" />
                                 <field
                                     name="partner_zip"
                                     placeholder="ZIP"
@@ -90,8 +90,8 @@
                                 <field
                                     name="partner_country_id"
                                     placeholder="Country"
-                                    class="o_address_country"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    class="o_address_country" />
                             </div>
                             <field name="partner_email" widget="email" />
                             <field name="partner_phone" widget="phone" />
@@ -105,7 +105,7 @@
                         name="child_transaction_ids"
                         invisible="not child_transaction_ids" />
                     <group string="Message" invisible="not state_message">
-                        <field colspan="2" name="state_message" nolabel="1" />
+                        <field name="state_message" colspan="2" nolabel="1" />
                     </group>
                 </sheet>
             </form>
@@ -129,8 +129,8 @@
                 <field name="state" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
                 <field name="is_live" optional="hide" />
             </list>
         </field>
@@ -140,7 +140,7 @@
         <field name="name">payment.transaction.kanban</field>
         <field name="model">payment.transaction</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" create="false">
+            <kanban create="false" class="o_kanban_mobile">
                 <field name="currency_id" />
                 <templates>
                     <t t-name="card">
@@ -165,29 +165,29 @@
                 <field name="partner_id" />
                 <field name="partner_name" />
                 <filter
-                    string="Production Environment"
                     name="live_transactions"
+                    string="Production Environment"
                     domain="[('is_live', '=', True)]" />
                 <group>
                     <filter
-                        string="Provider"
                         name="provider_id"
+                        string="Provider"
                         context="{'group_by': 'provider_id'}" />
                     <filter
-                        string="Partner"
                         name="partner_id"
+                        string="Partner"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Status"
                         name="state"
+                        string="Status"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Production Environment"
                         name="is_live"
+                        string="Production Environment"
                         context="{'group_by': 'is_live'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -211,7 +211,7 @@
         <field name="model">payment.transaction</field>
         <field name="arch" type="xml">
             <pivot string="Payment Transactions" display_quantity="1">
-                <field name="create_date" interval="month" type="row" />
+                <field name="create_date" type="row" interval="month" />
                 <field name="state" type="col" />
                 <field name="amount" type="measure" />
             </pivot>

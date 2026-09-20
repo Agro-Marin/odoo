@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import annotationlib
+import inspect
 import logging
 import re
 import typing
 from typing import Any, NamedTuple
 
-from ._params import ParamSpec, get_param_specs
+from odoo.libs.debug_log import DebugLog
+
+from ._params import ParamSpec, _get_spec, get_param_specs
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 OPENAPI_VERSION = "3.1.0"
 
@@ -73,7 +78,9 @@ class RouteInfo(NamedTuple):
 
 def _get_route_param_specs(route: RouteInfo) -> dict[str, ParamSpec]:
     if route.param_specs is not None:
+        _debug.logic("http.openapi.param_specs", rule=route.rule, source="endpoint")
         return route.param_specs
+    _debug.logic("http.openapi.param_specs", rule=route.rule, source="introspected")
     return get_param_specs(route.handler)
 
 
@@ -84,13 +91,85 @@ def _prepare_schema_nullable(schema: dict[str, Any]) -> dict[str, Any]:
     return schema
 
 
+def _prepare_object_schema(fields: dict[str, ParamSpec]) -> dict[str, Any]:
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {name: param_spec_to_schema(s) for name, s in fields.items()},
+        "additionalProperties": False,
+    }
+    required = [name for name, s in fields.items() if s.required]
+    if required:
+        schema["required"] = required
+    return schema
+
+
+def _apply_constraints(schema: dict[str, Any], spec: ParamSpec) -> dict[str, Any]:
+    constraints = spec.constraints
+    if constraints is None:
+        return schema
+    if constraints.choices is not None:
+        schema = dict(_PRIMITIVE_SCHEMA.get(type(constraints.choices[0]), {}))
+        schema["enum"] = list(constraints.choices)
+    if constraints.ge is not None:
+        schema["minimum"] = constraints.ge
+    if constraints.le is not None:
+        schema["maximum"] = constraints.le
+    if constraints.pattern is not None:
+        schema["pattern"] = constraints.pattern
+    return schema
+
+
 def param_spec_to_schema(spec: ParamSpec) -> dict[str, Any]:
-    if spec.target is list:
-        item = _PRIMITIVE_SCHEMA.get(spec.item) if spec.item else None
-        schema: dict[str, Any] = {"type": "array", "items": dict(item) if item else {}}
+    if spec.variants is not None:
+        one_of = [param_spec_to_schema(v) for v in spec.variants.values()]
+        if spec.allow_none:
+            # OpenAPI 3.1 dropped the 3.0 `nullable` keyword; null is a
+            # oneOf variant (the discriminator only applies to the objects).
+            one_of.append({"type": "null"})
+        return {
+            "oneOf": one_of,
+            "discriminator": {"propertyName": spec.discriminator},
+        }
+    if spec.fields is not None:
+        schema = _prepare_object_schema(spec.fields)
+    elif spec.constraints is not None:
+        schema = _apply_constraints(dict(_PRIMITIVE_SCHEMA.get(spec.target, {})), spec)
+    elif spec.target is list:
+        if spec.item_fields is not None:
+            items: dict[str, Any] = _prepare_object_schema(spec.item_fields)
+        else:
+            item = _PRIMITIVE_SCHEMA.get(spec.item) if spec.item else None
+            items = dict(item) if item else {}
+        schema = {"type": "array", "items": items}
     else:
         schema = dict(_PRIMITIVE_SCHEMA.get(spec.target, {}))
     return _prepare_schema_nullable(schema) if spec.allow_none else schema
+
+
+def get_response_schema(handler: typing.Callable) -> dict[str, Any] | None:
+    try:
+        annotation = inspect.signature(
+            handler, annotation_format=annotationlib.Format.FORWARDREF
+        ).return_annotation
+    except TypeError, ValueError:
+        return None
+    if annotation is inspect.Signature.empty or annotation is None:
+        return None
+    if isinstance(annotation, str):
+        try:
+            annotation = eval(annotation, getattr(handler, "__globals__", None))  # noqa: S307  the route author's own return annotation, resolved against their module
+        except Exception as exc:
+            _debug.logic(
+                "http.openapi.return_annotation_unresolved",
+                handler=getattr(handler, "__qualname__", None),
+                error=type(exc).__name__,
+            )
+            return None
+    origin = typing.get_origin(annotation)
+    if annotation is dict or origin is dict:
+        return {"type": "object"}
+    spec = _get_spec(annotation, True)
+    return None if spec is None else param_spec_to_schema(spec)
 
 
 def _prepare_path_template_and_params(rule: str) -> tuple[str, list[dict[str, Any]]]:
@@ -159,15 +238,29 @@ def prepare_openapi_operation(
             if name not in path_param_names
         }
         if route_type == "http":
-            parameters += [
-                {
-                    "name": name,
-                    "in": "query",
-                    "required": spec.required,
-                    "schema": param_spec_to_schema(spec),
-                }
-                for name, spec in specs.items()
-            ]
+            for name, spec in specs.items():
+                if spec.fields is not None or spec.variants is not None:
+                    # The http dispatcher hands the handler query/form
+                    # strings and object coercion rejects any non-dict, so
+                    # an object-shaped query parameter as documented can
+                    # never be satisfied; leave it out rather than lie.
+                    _logger.warning(
+                        "OpenAPI: %r declares object-shaped parameter %r on a "
+                        "type='http' route; the http dispatcher only delivers "
+                        "strings, so the documented shape could never be "
+                        "satisfied. Parameter omitted from the document.",
+                        route.rule,
+                        name,
+                    )
+                    continue
+                parameters.append(
+                    {
+                        "name": name,
+                        "in": "query",
+                        "required": spec.required,
+                        "schema": param_spec_to_schema(spec),
+                    }
+                )
         elif specs:
             required = [name for name, spec in specs.items() if spec.required]
             body: dict[str, Any] = {
@@ -181,10 +274,26 @@ def prepare_openapi_operation(
             operation["requestBody"] = {
                 "content": {"application/json": {"schema": body}}
             }
-        if route_type != "jsonrpc":
-            operation["responses"]["400"] = {
-                "description": "Invalid request parameters"
+        operation["responses"]["400"] = {"description": "Invalid request parameters"}
+
+    if route_type in ("jsonrpc", "json2"):
+        # A JSON route always answers JSON; without a return annotation the
+        # body is any JSON value, which {} states truthfully.
+        result_schema = get_response_schema(route.handler)
+        if result_schema is None:
+            result_schema = {}
+        if route_type == "jsonrpc":
+            result_schema = {
+                "type": "object",
+                "properties": {
+                    "jsonrpc": {"type": "string", "const": "2.0"},
+                    "id": {"type": ["integer", "string", "null"]},
+                    "result": result_schema,
+                },
             }
+        operation["responses"]["200"]["content"] = {
+            "application/json": {"schema": result_schema}
+        }
 
     if parameters:
         operation["parameters"] = parameters
@@ -197,6 +306,16 @@ def prepare_openapi_operation(
     elif auth in ("public", "none"):
         operation["security"] = []
 
+    _debug.pipeline(
+        "http.openapi.operation",
+        id=operation["operationId"],
+        method=method,
+        type=route_type,
+        typed=bool(route.routing.get("typed")),
+        parameters=len(parameters),
+        body="requestBody" in operation,
+        auth=auth,
+    )
     return operation
 
 
@@ -214,42 +333,64 @@ def prepare_openapi_document(
 
     claimed_by: dict[tuple[str, str], str] = {}
 
-    for route in routes:
-        if typed_only and not route.routing.get("typed"):
-            continue
-        template, path_params = _prepare_path_template_and_params(route.rule)
+    seen = skipped = 0  # debuglog
+    with _debug.perf("http.openapi.document", typed_only=typed_only) as span:
+        for route in routes:
+            seen += 1  # debuglog
+            if typed_only and not route.routing.get("typed"):
+                skipped += 1  # debuglog
+                continue
+            template, path_params = _prepare_path_template_and_params(route.rule)
 
-        repeated = {p["name"] for p in path_params}
-        if len(repeated) != len(path_params):
-            _logger.warning(
-                "OpenAPI: %r repeats a path parameter name and cannot be "
-                "described; werkzeug will also refuse to build a URL for it.",
-                route.rule,
-            )
-            continue
-
-        path_item = paths.setdefault(template, {})
-        for method in sorted(_get_methods_effective(route)):
-            verb = method.lower()
-            if verb in path_item:
+            repeated = {p["name"] for p in path_params}
+            if len(repeated) != len(path_params):
                 _logger.warning(
-                    "OpenAPI: %s %s is already described by %r; %r renders to "
-                    "the same path template and cannot be documented too.",
-                    method,
-                    template,
-                    claimed_by.get((template, verb)),
+                    "OpenAPI: %r repeats a path parameter name and cannot be "
+                    "described; werkzeug will also refuse to build a URL for it.",
                     route.rule,
                 )
+                _debug.logic(
+                    "http.openapi.route_skipped",
+                    reason="repeated_param",
+                    rule=route.rule,
+                )
                 continue
-            claimed_by[template, verb] = route.rule
-            path_item[verb] = prepare_openapi_operation(
-                route,
-                method,
-                template,
-                path_params,
-                security_schemes,
-                used_operation_ids,
-            )
+
+            path_item = paths.setdefault(template, {})
+            for method in sorted(_get_methods_effective(route)):
+                verb = method.lower()
+                if verb in path_item:
+                    _logger.warning(
+                        "OpenAPI: %s %s is already described by %r; %r renders to "
+                        "the same path template and cannot be documented too.",
+                        method,
+                        template,
+                        claimed_by.get((template, verb)),
+                        route.rule,
+                    )
+                    _debug.logic(
+                        "http.openapi.route_skipped",
+                        reason="already_described",
+                        rule=route.rule,
+                        method=method,
+                    )
+                    continue
+                claimed_by[template, verb] = route.rule
+                path_item[verb] = prepare_openapi_operation(
+                    route,
+                    method,
+                    template,
+                    path_params,
+                    security_schemes,
+                    used_operation_ids,
+                )
+        span.set(
+            routes=seen,
+            skipped_untyped=skipped,
+            paths=len(paths),
+            operations=len(used_operation_ids),
+            security_schemes=len(security_schemes),
+        )
 
     document: dict[str, Any] = {
         "openapi": OPENAPI_VERSION,

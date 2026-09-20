@@ -79,23 +79,32 @@ LINE_FIELDS = [
 class PosOrder(models.Model):
     _inherit = "pos.order"
 
-    l10n_fr_hash = fields.Char(string="Inalteralbility Hash", readonly=True, copy=False)
+    l10n_fr_hash = fields.Char(
+        string="Inalteralbility Hash",
+        copy=False,
+        readonly=True,
+    )
     l10n_fr_secure_sequence_number = fields.Integer(
-        string="Inalteralbility No Gap Sequence #", readonly=True, copy=False
+        string="Inalteralbility No Gap Sequence #",
+        copy=False,
+        readonly=True,
     )
     l10n_fr_string_to_hash = fields.Char(
-        compute="_compute_string_to_hash", readonly=True, store=False
+        compute="_compute_string_to_hash",
+        store=False,
+        readonly=True,
     )
     previous_order_id = fields.Many2one(
-        "pos.order",
-        string="Previous Order",
-        readonly=True,
+        comodel_name="pos.order",
         compute="_compute_previous_order_id",
         store=True,
         copy=False,
+        readonly=True,
     )
     pos_version = fields.Char(
-        help="Version of Odoo that created the order", readonly=True, copy=False
+        copy=False,
+        readonly=True,
+        help="Version of Odoo that created the order",
     )
 
     @api.depends("l10n_fr_secure_sequence_number")
@@ -112,7 +121,7 @@ class PosOrder(models.Model):
                 for o in orders
                 if o.l10n_fr_secure_sequence_number > 1
             ]
-            prev_orders = self.search(
+            prev_orders = self.search(  # noqa: E8507 - one query per company; orders sharing one were merged above
                 [
                     ("state", "in", ["paid", "done"]),
                     ("company_id", "=", company_id),
@@ -137,7 +146,7 @@ class PosOrder(models.Model):
         """Returns the hash to write on pos orders when they get posted"""
         self.check_singleton()
         # build and return the hash
-        computed_hash = self._compute_hash(
+        computed_hash = self._get_hash(
             self.previous_order_id.l10n_fr_hash if self.previous_order_id else ""
         )
         _logger.info(
@@ -149,7 +158,7 @@ class PosOrder(models.Model):
         )
         return computed_hash
 
-    def _compute_hash(self, previous_hash):
+    def _get_hash(self, previous_hash):
         """Computes the hash of the record given as self, based on the hash
         of the previous record in the company's securisation sequence given as parameter"""
         self.check_singleton()
@@ -190,7 +199,7 @@ class PosOrder(models.Model):
                 if ids:
                     # Use search() to get IDs sorted by _order the same way Odoo ORM does for relational fields
                     sorted_relational_ids[model_name] = (
-                        self.env[model_name].search([("id", "in", list(ids))]).ids
+                        self.env[model_name].search([("id", "in", list(ids))]).ids  # noqa: E8507 - one query per relational model, to sort the ids
                     )
 
             return sorted_relational_ids

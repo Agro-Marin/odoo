@@ -14,7 +14,9 @@ class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
 
     @api.model
-    def _compute_reference(self, provider_code, prefix=None, separator="-", **kwargs):
+    def _get_unique_reference(
+        self, provider_code, prefix=None, separator="-", **kwargs
+    ):
         """Override of `payment` to ensure that AsiaPay requirements for references are satisfied.
 
         AsiaPay requirements for references are as follows:
@@ -31,24 +33,24 @@ class PaymentTransaction(models.Model):
         :rtype: str
         """
         if provider_code != "asiapay":
-            return super()._compute_reference(provider_code, prefix=prefix, **kwargs)
+            return super()._get_unique_reference(provider_code, prefix=prefix, **kwargs)
 
         if not prefix:
             # If no prefix is provided, it could mean that a module has passed a kwarg intended for
-            # the `_compute_reference_prefix` method, as it is only called if the prefix is empty.
+            # the `_get_reference_prefix` method, as it is only called if the prefix is empty.
             # We call it manually here because singularizing the prefix would generate a default
             # value if it was empty, hence preventing the method from ever being called and the
             # transaction from received a reference named after the related document.
-            prefix = self.sudo()._compute_reference_prefix(separator, **kwargs) or None
+            prefix = self.sudo()._get_reference_prefix(separator, **kwargs) or None
         prefix = payment_utils.singularize_reference_prefix(
             prefix=prefix, max_length=35
         )
-        return super()._compute_reference(provider_code, prefix=prefix, **kwargs)
+        return super()._get_unique_reference(provider_code, prefix=prefix, **kwargs)
 
-    def _get_specific_rendering_values(self, processing_values):
+    def _prepare_redirect_form_values(self, processing_values):
         """Override of `payment` to return AsiaPay-specific rendering values.
 
-        Note: self.check_singleton() from `_get_processing_values`.
+        Note: self.check_singleton() from `_prepare_processing_values`.
 
         :param dict processing_values: The generic and specific processing values of the
                                        transaction.
@@ -75,7 +77,7 @@ class PaymentTransaction(models.Model):
             return language_code_
 
         if self.provider_code != "asiapay":
-            return super()._get_specific_rendering_values(processing_values)
+            return super()._prepare_redirect_form_values(processing_values)
 
         base_url = self.provider_id.get_base_url()
         # The lang is taken from the context rather than from the partner because it is not required
@@ -98,7 +100,7 @@ class PaymentTransaction(models.Model):
         }
         rendering_values.update(
             {
-                "secure_hash": self.provider_id._asiapay_calculate_signature(
+                "secure_hash": self.provider_id._get_asiapay_signature(
                     rendering_values, incoming=False
                 ),
                 "api_url": self.provider_id._asiapay_get_api_url(),
@@ -168,3 +170,4 @@ class PaymentTransaction(models.Model):
                 self.reference,
             )
             self._set_error(_("Unknown success code: %s", success_code))
+        return None

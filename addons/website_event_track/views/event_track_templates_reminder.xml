@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Options
-        * reminder_light: no text displayed
-        * reminder_small: text displayed as small
-        * light_theme: bell is white/gold if set; otherwse bell is gray / white
-    -->
     <template id="track_widget_reminder">
         <t
             t-set="_btn_style"

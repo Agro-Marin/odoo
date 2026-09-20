@@ -9,25 +9,25 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_invoice"
+                    type="object"
                     icon="fa-regular fa-pen-to-square"
-                    invisible="invoice_count == 0">
+                    invisible="invoice_count == 0"
+                    class="oe_stat_button">
                     <field
-                        string="Customer Invoices"
                         name="invoice_count"
+                        string="Customer Invoices"
                         widget="statinfo" />
                 </button>
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_vendor_bill"
+                    type="object"
                     icon="fa-regular fa-file-lines"
-                    invisible="vendor_bill_count == 0">
+                    invisible="vendor_bill_count == 0"
+                    class="oe_stat_button">
                     <field
-                        string="Vendor Bills"
                         name="vendor_bill_count"
+                        string="Vendor Bills"
                         widget="statinfo" />
                 </button>
             </div>

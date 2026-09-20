@@ -21,18 +21,15 @@ class TestWebsiteSequence(BaseCommon):
 
         ProductTemplate = cls.env["product.template"]
         product_templates = ProductTemplate.search([])
-        # if stock is installed we can't archive since there is orderpoints
         if "orderpoint_ids" in cls.env["product.product"]:
             product_templates.mapped("product_variant_ids.orderpoint_ids").write(
                 {"active": False}
             )
-        # if pos loyalty is installed we can't archive since there are loyalty rules and rewards
         if "loyalty.program" in cls.env:
             programs = cls.env["loyalty.program"].search([])
             programs.active = False
             programs.coupon_ids.unlink()
             programs.unlink()
-        # The "Service on Timesheet" product cannot be archived nor deleted via ORM
         if time_product := cls.env.ref(
             "sale_timesheet.time_product", raise_if_not_found=False
         ):
@@ -80,11 +77,6 @@ class TestWebsiteSequence(BaseCommon):
         )
 
     def assertProductOrdering(self, products, order):
-        """Assert `products` are sorted by `order`.
-
-        :param records products: The products or product templates to check.
-        :param str order: Expect ordering, in the same format as used by `search`.
-        """
         expected = self.get_sorted_products(order, products=products)
         self.assertSequenceEqual(
             products, expected, f"Products should be ordered on '{order}'"
@@ -95,24 +87,19 @@ class TestWebsiteSequence(BaseCommon):
         self.assertProductOrdering(
             self.p1 + self.p2 + self.p3 + self.p4, sequence_order
         )
-        # 100:1, 180:2, 225:3, 250:4
         self.p2.set_sequence_down()
-        # 100:1, 180:3, 225:2, 250:4
         self.assertProductOrdering(
             self.p1 + self.p3 + self.p2 + self.p4, sequence_order
         )
         self.p4.set_sequence_up()
-        # 100:1, 180:3, 225:4, 250:2
         self.assertProductOrdering(
             self.p1 + self.p3 + self.p4 + self.p2, sequence_order
         )
         self.p2.set_sequence_top()
-        # 95:2, 100:1, 180:3, 225:4
         self.assertProductOrdering(
             self.p2 + self.p1 + self.p3 + self.p4, sequence_order
         )
         self.p1.set_sequence_bottom()
-        # 95:2, 180:3, 225:4, 230:1
         self.assertProductOrdering(
             self.p2 + self.p3 + self.p4 + self.p1, sequence_order
         )
@@ -125,7 +112,6 @@ class TestWebsiteSequence(BaseCommon):
 
         self.p2.website_sequence = 1
         self.p3.set_sequence_top()
-        # -4:3, 1:2, 225:4, 230:1
         self.assertEqual(
             self.p3.website_sequence, -4, "`website_sequence` should go below 0"
         )
@@ -150,13 +136,11 @@ class TestWebsiteSequence(BaseCommon):
                 publish_date += delta
                 with freeze_time(publish_date):
                     product.website_publish_button()
-                    product.flush_recordset()  # force computations
+                    product.flush_recordset()
 
         newest_arrival_order = self.get_product_sort_mapping("Newest Arrivals")
 
         toggle_publish(self.product_tmpls)
-        # Products were published sequentially,
-        # so first product is "oldest" arrival & last product is "newest" arrival
         target = self.product_tmpls[::-1]
         self.assertTrue(all(self.product_tmpls.mapped("is_published")))
         self.assertProductOrdering(target, newest_arrival_order)

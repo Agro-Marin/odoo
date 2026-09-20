@@ -8,7 +8,10 @@ class L10n_Es_Edi_FacturaeAc_Role_Type(models.Model):
     _description = "Administrative Center Role Type"
 
     code = fields.Char(required=True)
-    name = fields.Char(required=True, translate=True)
+    name = fields.Char(
+        translate=True,
+        required=True,
+    )
 
 
 class ResPartner(models.Model):
@@ -19,11 +22,13 @@ class ResPartner(models.Model):
     )
     type = fields.Selection(selection_add=[("facturae_ac", "FACe Center"), ("other",)])
     l10n_es_edi_facturae_ac_center_code = fields.Char(
-        string="Code", size=10, help="Code of the issuing department."
+        string="Code",
+        size=10,
+        help="Code of the issuing department.",
     )
     l10n_es_edi_facturae_ac_role_type_ids = fields.Many2many(
-        string="Roles",
         comodel_name="l10n_es_edi_facturae.ac_role_type",
+        string="Roles",
         help="It indicates the role played by the Operational Point defined as a Workplace/Department.\n"
         "These functions are:\n"
         "- Receiver: Workplace associated to the recipient's tax identification number where the invoice will be received.\n"

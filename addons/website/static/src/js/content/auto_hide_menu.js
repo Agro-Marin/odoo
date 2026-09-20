@@ -1,71 +1,32 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Dropdown } from "@web/libs/bootstrap";
-// TODO: this code should probably be converted into an interaction. At the
-// moment, the `data-bs-auto-close` attribute of the dropdown is set both by
-// the code in this file and by the `website.dropdown_edit` interaction. Because
-// of a timing issue (`editor_enable` being set too late), at the moment both
-// this code and the interaction are needed to ensure the correct behaviour in
-// any possible case. See commit message for more details.
+
+const log = makeLogger("website.content.auto_hide_menu");
 
 const BREAKPOINT_SIZES = { sm: "575", md: "767", lg: "991", xl: "1199", xxl: "1399" };
 
-// Runtime channel for the page editor's history guard, published by
-// `website_edit_service.js` while the builder is open (see `EDIT_HOOKS` there).
-//
-// It has to be a property of the shared `window` rather than an imported
-// symbol, because the two files are in different asset bundles and neither a
-// module import nor a shared registry can bridge them:
-//
-// - This file ships in `web.assets_frontend_minimal`, which esbuild builds with
-//   `--bundle`. An export consumed only by another bundle is dead code inside
-//   its own, so tree-shaking removes it -- which is exactly what happened to
-//   the previous `setupIgnoreDOMMutations` export: the consumer's import
-//   resolved to `undefined` and threw "is not a function", breaking editor
-//   start-up.
-// - The import map cannot redirect the specifier to a copy that kept the
-//   export: by the time the builder bundle is lazily loaded into the iframe,
-//   the specifier is already resolved, and the browser drops a conflicting
-//   later rule ("An import map rule for specifier '...' was removed").
-// - `@web/core/registry` is not a way out either: `frontend_minimal` inlines
-//   its own copy of the registry, so the two bundles hold different instances.
-//
-// The window is the one thing both bundles provably share: same document, same
-// browsing context, no module identity involved.
 const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
 
-/**
- * Run `fn` without the page editor recording its DOM mutations as user edits.
- *
- * The "more" dropdown this file builds is a layout artefact, not content, so
- * while the builder is open its mutations must not enter the edit history.
- * Outside the builder there is no hook and `fn` simply runs.
- */
 function withoutEditorTracking(fn) {
     const ignoreDOMMutations = window[EDIT_HOOKS_KEY]?.ignoreDOMMutations;
     return ignoreDOMMutations ? ignoreDOMMutations(fn) : fn();
 }
 
 /**
- * Creates an automatic 'more' dropdown-menu for a set of navbar items.
- *
  * @param {HTMLElement} el
  * @param {Object} [options]
- * @param {string} [options.unfoldable='none'] selector for items that do not
- * need to be added to dropdown-menu.
- * @param {Array} [options.images=[]] images to wait for before menu update.
- * @param {Array} [options.loadingStyleClasses=[]] list of CSS classes to add while
- * updating the menu.
- * @param {function} [options.autoClose] returns a value that represents the
- * "auto-close" behaviour of the dropdown (e.g. used to prevent auto-closing in
- * "edit" mode).
+ * @param {string} [options.unfoldable='none']
+ * @param {Array} [options.images=[]]
+ * @param {Array} [options.loadingStyleClasses=[]]
+ * @param {function} [options.autoClose]
  */
 async function autoHideMenu(el, options) {
     if (!el) {
+        log.logic("skip: no menu element");
         return;
     }
     const navbar = el.closest(".navbar");
-    // Get breakpoint related information from the navbar to correctly handle
-    // the "auto-hide" on mobile menu.
     const [breakpoint = "md"] = navbar
         ? Object.keys(BREAKPOINT_SIZES).filter((suffix) =>
               navbar.classList.contains(`navbar-expand-${suffix}`),
@@ -88,23 +49,32 @@ async function autoHideMenu(el, options) {
     );
 
     const isUserNavbar = el.parentElement.classList.contains("o_main_navbar");
+    log.lifecycle("autoHideMenu start", () => ({
+        breakpoint,
+        isNoHamburgerMenu,
+        isUserNavbar,
+        images: options.images.length,
+    }));
     const dropdownSubMenuClasses = ["show", "border-0", "position-static"];
     const dropdownToggleClasses = ["h-auto", "py-2", "text-secondary"];
-    const autoMarginLeftRegex = /\bm[sx]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/; // grep: ms-auto mx-auto
-    const autoMarginRightRegex = /\bm[ex]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/; // grep: me-auto mx-auto
+    const autoMarginLeftRegex = /\bm[sx]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/;
+    const autoMarginRightRegex = /\bm[ex]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/;
     let extraItemsToggle = null;
     const afterFontsloading = new Promise((resolve) => {
         if (document.fonts) {
             document.fonts.ready.then(resolve);
         } else {
-            // IE: don't wait more than max .15s.
             setTimeout(resolve, 150);
         }
     });
     afterFontsloading.then(_adapt);
 
     if (options.images.length) {
+        const endImages = log.perf("wait for menu images", () => ({
+            images: options.images.length,
+        }));
         await _afterImagesLoading(options.images);
+        endImages();
         _adapt();
     }
 
@@ -119,8 +89,6 @@ async function autoHideMenu(el, options) {
             refreshId = null;
         }
     };
-    // This should throttle the `_adapt()` method to the browser's refresh
-    // rate. The first menu adaptation is always executed immediately.
     const throttleAdapt = () => {
         if (refreshId === null) {
             refreshId = window.requestAnimationFrame(onRefresh);
@@ -136,12 +104,14 @@ async function autoHideMenu(el, options) {
     }
     observer.observe(el.parentElement);
     observer.observe(navbar);
+    log.lifecycle("resize observer attached", () => ({
+        observed: el.parentElement.children.length + 2,
+    }));
 
     function _restore() {
         if (!extraItemsToggle) {
             return;
         }
-        // Move extra menu items from dropdown-menu to menu element in the same order.
         [...extraItemsToggle.querySelector(".dropdown-menu").children].forEach(
             (item) => {
                 if (!isUserNavbar) {
@@ -177,23 +147,22 @@ async function autoHideMenu(el, options) {
     }
 
     function __adapt() {
+        const endAdapt = log.perf("adapt");
         if (options.loadingStyleClasses.length) {
             el.classList.add(...options.loadingStyleClasses);
         }
-        // The goal here is to get the state of the extra menu dropdown if it is
-        // there, which will be restored after the menu adaptation.
         const extraMenuEl = _getExtraMenuEl();
         wasExtraMenuOpenBefore = extraMenuEl && extraMenuEl.classList.contains("show");
         ({ anchorNode, anchorOffset, focusNode, focusOffset } = docSelection);
         _restore();
 
-        // Ignore invisible/toggleable top menu element & small viewports.
         if (
             !el.getClientRects().length ||
             el.closest(".show") ||
             (window.matchMedia(`(max-width: ${minSize}px)`).matches &&
                 !isNoHamburgerMenu)
         ) {
+            endAdapt(() => ({ folded: 0, reason: "hidden, open or hamburger width" }));
             return _endAutoMoreMenu();
         }
 
@@ -226,8 +195,8 @@ async function autoHideMenu(el, options) {
                 0,
             );
         }
-        // Ignore if there is no overflow.
         if (maxWidth - menuItemsWidth >= -0.001) {
+            endAdapt(() => ({ folded: 0, items: nbItems, maxWidth, menuItemsWidth }));
             return _endAutoMoreMenu();
         }
 
@@ -271,6 +240,11 @@ async function autoHideMenu(el, options) {
             }
             dropdownMenu.appendChild(el);
         });
+        endAdapt(() => ({
+            folded: extraItems.length,
+            items: items.length,
+            maxWidth,
+        }));
         _endAutoMoreMenu();
     }
 
@@ -297,7 +271,6 @@ async function autoHideMenu(el, options) {
         ) {
             outerWidth += parseFloat(style.marginRight);
         }
-        // Would be NaN for invisible elements for example
         return isNaN(outerWidth) ? 0 : outerWidth;
     }
 
@@ -342,8 +315,6 @@ async function autoHideMenu(el, options) {
             }
             return new Promise(function (resolve, reject) {
                 if (!image.width) {
-                    // The purpose of the 'o_menu_image_placeholder' class is to add a default
-                    // size to non loaded images (on the first update) to prevent flickering.
                     image.classList.add("o_menu_image_placeholder");
                 }
                 image.addEventListener("load", () => {
@@ -381,17 +352,12 @@ async function autoHideMenu(el, options) {
     }
 }
 
-/**
- * Auto adapt the header layout so that elements are not wrapped on a new line.
- */
 document.addEventListener("DOMContentLoaded", async () => {
     const header = document.querySelector("header#top");
     if (header) {
         const topMenu = header.querySelector(".top_menu");
-        // Guard: a `header#top` may exist without a `.top_menu` child (e.g.
-        // custom/minimal frontend headers). Bail out early — there is no menu
-        // to auto-hide and no `o_menu_loading` class to clear in that case.
         if (!topMenu) {
+            log.logic("skip: header has no .top_menu");
             return;
         }
         const unfoldable =
@@ -400,6 +366,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             !topMenu.querySelector(`:scope > :not(${unfoldable})`) ||
             header.classList.contains("o_no_autohide_menu")
         ) {
+            log.logic("skip: nothing foldable or o_no_autohide_menu", () => ({
+                noAutohide: header.classList.contains("o_no_autohide_menu"),
+            }));
             topMenu.classList.remove("o_menu_loading");
             return;
         }
@@ -418,10 +387,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             unfoldable: unfoldable,
             images: images,
             loadingStyleClasses: ["o_menu_loading"],
-            // The "auto-hide" menu is closed when clicking inside the extra
-            // menu items. The goal here is to prevent this default behaviour
-            // on "edit" mode to allow correct editing of extra menu items, mega
-            // menu content...
             autoClose: () => !document.body.classList.contains("editor_enable"),
         });
     }

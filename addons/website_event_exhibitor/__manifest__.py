@@ -42,5 +42,4 @@
             "website_event_exhibitor/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
 }

@@ -6,7 +6,7 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="website_sale.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="website_tax_inclusion_setting" position="inside">
+            <setting position="inside" id="website_tax_inclusion_setting">
                 <div
                     invisible="country_code != &quot;AR&quot; or show_line_subtotals_tax_selection != &quot;tax_included&quot;">
                     <field name="l10n_ar_website_sale_show_both_prices" />

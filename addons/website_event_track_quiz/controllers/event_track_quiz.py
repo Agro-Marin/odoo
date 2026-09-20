@@ -2,14 +2,14 @@ from werkzeug.exceptions import Forbidden
 
 from odoo import http
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.website_event_track.controllers.event_track import EventTrackController
 
+_debug = DebugLog(__name__)
+
 
 class WebsiteEventTrackQuiz(EventTrackController):
-    # QUIZZES IN PAGE
-    # ----------------------------------------------------------
-
     @http.route("/event_track/quiz/submit", type="jsonrpc", auth="public", website=True)
     def event_track_quiz_submit(self, event_id, track_id, answer_ids):
         track = self._get_track(track_id)
@@ -19,7 +19,6 @@ class WebsiteEventTrackQuiz(EventTrackController):
         if event_track_visitor.quiz_completed:
             return {"error": "track_quiz_done"}
 
-        # fetch as sudo because questions / answers may not be freely available to public
         answers_details = self._get_quiz_answers_details(track_sudo, answer_ids)
         if answers_details.get("error"):
             return answers_details
@@ -48,14 +47,11 @@ class WebsiteEventTrackQuiz(EventTrackController):
     @http.route("/event_track/quiz/reset", type="jsonrpc", auth="public", website=True)
     def quiz_reset(self, event_id, track_id):
         track = self._get_track(track_id)
-        # When the 'unlimited tries' option is disabled and the user is not
-        # identifed as an event manager, we do not allow the user to reset
-        # the quiz. The event managers will always be able to reset the quiz
-        # even if the option is disabled (for testing purposes).
         if (
             not request.env.user.has_group("event.group_event_manager")
             and not track.sudo().quiz_id.repeatable
         ):
+            _debug.logic("quiz_refused", reason="not_repeatable", track=track.id)
             raise Forbidden
 
         event_track_visitor = track._get_event_track_visitors(force_create=True)

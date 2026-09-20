@@ -5,6 +5,7 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.view_validation import IGNORED_IN_EXPRESSION
 
@@ -14,38 +15,51 @@ _ALLOWED_DOMAIN_NAMES = frozenset(IGNORED_IN_EXPRESSION) | {
 }
 
 
+_debug = DebugLog(__name__)
+
+
 class IrFilters(models.Model):
     _name = "ir.filters"
     _description = "Filters"
     _order = "model_id, name, id desc"
 
-    name = fields.Char(string="Filter Name", required=True)
+    name = fields.Char(
+        string="Filter Name",
+        required=True,
+    )
     active = fields.Boolean(default=True)
     model_id = fields.Selection(
         selection="_selection_models",
-        string="Model",
         required=True,
     )
     user_ids = fields.Many2many(
-        "res.users",
+        comodel_name="res.users",
         string="Users",
         ondelete="cascade",
         help="The users the filter is shared with. If empty, the filter is shared with all users.",
     )
-    domain = fields.Text(default="[]", required=True)
-    context = fields.Text(default="{}", required=True)
-    sort = fields.Char(default="[]", required=True)
+    domain = fields.Text(
+        default="[]",
+        required=True,
+    )
+    context = fields.Text(
+        default="{}",
+        required=True,
+    )
+    sort = fields.Char(
+        default="[]",
+        required=True,
+    )
     is_default = fields.Boolean(string="Default Filter")
     action_id = fields.Many2one(
-        "ir.actions.actions",
-        string="Action",
+        comodel_name="ir.actions.actions",
         ondelete="cascade",
         help="The menu action this filter applies to. When left empty the filter applies to all menus for this model.",
     )
     embedded_action_id = fields.Many2one(
-        "ir.embedded.actions",
-        ondelete="cascade",
+        comodel_name="ir.embedded.actions",
         index="btree_not_null",
+        ondelete="cascade",
         help="The embedded action this filter is applied to",
     )
     embedded_parent_res_id = fields.Integer(
@@ -79,8 +93,16 @@ class IrFilters(models.Model):
     def create_filter(self, vals: dict[str, Any]) -> Self:
         embedded_action_id = vals.get("embedded_action_id")
         if not embedded_action_id and "embedded_parent_res_id" in vals:
+            _debug.logic("create_filter_parent_dropped", reason="no_embedded_action")
             del vals["embedded_parent_res_id"]
         self._check_serialized_vals(vals)
+        _debug.lifecycle(
+            "create_filter",
+            model=vals.get("model_id"),
+            action=vals.get("action_id"),
+            embedded_action=embedded_action_id,
+            uid=self.env.uid,
+        )
         return self.create(vals)
 
     @api.model
@@ -92,10 +114,13 @@ class IrFilters(models.Model):
                 lang,
             )
         )
-        return self.env.cr.fetchall()
+        rows = self.env.cr.fetchall()
+        _debug.perf.count("selection_models_read", lang=lang, models=len(rows))
+        return rows
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
+        _debug.lifecycle("copy_data", filters=self.ids)
         for vals in vals_list:
             if vals.get("embedded_parent_res_id") == 0:
                 del vals["embedded_parent_res_id"]
@@ -108,6 +133,7 @@ class IrFilters(models.Model):
         try:
             return ast.literal_eval(self.domain)
         except (ValueError, SyntaxError) as e:
+            _debug.logic("domain_unevaluable", filter=self.id, error=type(e).__name__)
             raise ValueError(f"Invalid domain: {self.domain}") from e
 
     @api.model
@@ -133,6 +159,12 @@ class IrFilters(models.Model):
             else ("embedded_parent_res_id", "in", [0, False])
         )
 
+        _debug.logic(
+            "action_domain",
+            action=action_id,
+            embedded=embedded_action_id,
+            parent_res_id=embedded_parent_res_id,
+        )
         return [
             action_condition,
             embedded_condition,
@@ -150,6 +182,13 @@ class IrFilters(models.Model):
         user_context = self.env["res.users"].context_get()
         action_domain = self._get_domain_for_action(
             action_id, embedded_action_id, embedded_parent_res_id
+        )
+        _debug.logic(
+            "get_filters",
+            model=model,
+            action=action_id,
+            embedded_action=embedded_action_id,
+            uid=self.env.uid,
         )
         return self.with_context(user_context).search_read(
             action_domain
@@ -171,6 +210,12 @@ class IrFilters(models.Model):
 
     @api.model
     def _check_serialized_vals(self, vals: dict[str, Any]) -> None:
+        _debug.pipeline(
+            "serialized_vals_checked",
+            fields=[
+                f for f in ("domain", "context", "sort") if vals.get(f) is not None
+            ],
+        )
         self._check_domain_expression(vals.get("domain"))
         self._check_context_expression(vals.get("context"))
         self._check_sort_expression(vals.get("sort"))
@@ -180,6 +225,7 @@ class IrFilters(models.Model):
         if raw is None or isinstance(raw, dict):
             return
         if not isinstance(raw, str):
+            _debug.logic("context_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="context", type="dict"
@@ -188,12 +234,16 @@ class IrFilters(models.Model):
         try:
             parsed = ast.literal_eval(raw)
         except (ValueError, SyntaxError) as e:
+            _debug.logic(
+                "context_rejected", reason="unparsable", error=type(e).__name__
+            )
             raise ValidationError(
                 self.env._(
                     "Invalid filter %(field)s: %(error)s", field="context", error=e
                 )
             ) from e
         if not isinstance(parsed, dict):
+            _debug.logic("context_rejected", reason="not_dict")
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="context", type="dict"
@@ -207,6 +257,7 @@ class IrFilters(models.Model):
         if isinstance(raw, (list, tuple)):
             parsed = list(raw)
         elif not isinstance(raw, str):
+            _debug.logic("sort_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="sort", type="list"
@@ -216,12 +267,14 @@ class IrFilters(models.Model):
             try:
                 parsed = json.loads(raw)
             except json.JSONDecodeError as e:
+                _debug.logic("sort_rejected", reason="unparsable")
                 raise ValidationError(
                     self.env._(
                         "Invalid filter %(field)s: %(error)s", field="sort", error=e
                     )
                 ) from e
             if not isinstance(parsed, list):
+                _debug.logic("sort_rejected", reason="not_list")
                 raise ValidationError(
                     self.env._(
                         "Filter %(field)s must be a %(type)s.",
@@ -230,6 +283,7 @@ class IrFilters(models.Model):
                     )
                 )
         if not all(isinstance(item, str) for item in parsed):
+            _debug.logic("sort_rejected", reason="non_string_item", items=len(parsed))
             raise ValidationError(self.env._("Filter sort must be a list of strings."))
 
     @api.model
@@ -237,6 +291,7 @@ class IrFilters(models.Model):
         if raw is None or isinstance(raw, (list, tuple)):
             return
         if not isinstance(raw, str):
+            _debug.logic("domain_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="domain", type="list"
@@ -245,12 +300,14 @@ class IrFilters(models.Model):
         try:
             tree = ast.parse(raw, mode="eval")
         except (ValueError, SyntaxError) as e:
+            _debug.logic("domain_rejected", reason="unparsable", error=type(e).__name__)
             raise ValidationError(
                 self.env._(
                     "Invalid filter %(field)s: %(error)s", field="domain", error=e
                 )
             ) from e
         if not isinstance(tree.body, (ast.List, ast.Tuple)):
+            _debug.logic("domain_rejected", reason="not_list")
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="domain", type="list"
@@ -262,6 +319,7 @@ class IrFilters(models.Model):
             if isinstance(node, ast.Name) and node.id not in _ALLOWED_DOMAIN_NAMES
         }
         if rejected:
+            _debug.logic("domain_names_rejected", names=sorted(rejected))
             raise ValidationError(
                 self.env._(
                     "Invalid filter domain: forbidden name(s) %(names)s.",

@@ -17,7 +17,6 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
         cls.leave_type = cls.env["hr.leave.type"].create(
             {
                 "name": "Test",
-                "time_type": "leave",
                 "requires_allocation": True,
                 "allocation_validation_type": "no_validation",
             }
@@ -30,7 +29,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                 {
                     "name": "Test Accrual Plan With Accrual Validity",
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -42,8 +41,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": 3,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -70,7 +69,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -82,8 +81,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -148,7 +147,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -160,8 +159,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -227,7 +226,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -239,8 +238,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -270,8 +269,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                             },
@@ -349,7 +348,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -361,8 +360,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -428,8 +427,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                     "added_value": 10,
                                     "added_value_type": "day",
                                     "frequency": "yearly",
-                                    "yearly_day": 1,
-                                    "yearly_month": "1",
+                                    "repeat_day": "1",
+                                    "repeat_month": "1",
                                     "cap_accrued_time": False,
                                     "action_with_unused_accruals": "all",
                                     "carryover_options": "limited",
@@ -482,7 +481,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "9",
                     "level_ids": [
                         (
@@ -494,8 +493,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": 3,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -558,7 +557,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -570,8 +569,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -650,7 +649,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                     "name": "Test Accrual Plan",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 31,
+                    "carryover_day": "31",
                     "carryover_month": "12",
                     "level_ids": [
                         (
@@ -662,8 +661,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": number_of_accrued_days,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -737,7 +736,7 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                 {
                     "name": "Test Accrual Plan",
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -749,8 +748,8 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
                                 "added_value": 3,
                                 "added_value_type": "day",
                                 "frequency": "yearly",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -803,6 +802,55 @@ class TestExpiringLeaves(HttpCase, TestHrHolidaysCommon):
 
         self.assertEqual(
             allocation_data[logged_in_emp][0][1]["closest_allocation_remaining"], 3
+        )
+
+    @users("enguerran")
+    def test_carried_over_expiration_is_read_at_the_target_date(self):
+        """The projection is built for ``target_date``; every field read back
+        off it must be read in that same context. ``leaves_taken`` is
+        ``depends_context("default_date_from")``, so a read outside it answers
+        for today instead -- and a leave between today and the target date is
+        then counted as still to come, leaving the carried-over days reading
+        unconsumed.
+        """
+        logged_in_emp = self.env.user.employee_id
+        with freeze_time("2023-01-01"):
+            self.env["hr.leave.allocation"].sudo().create(
+                {
+                    "date_from": "2023-01-01",
+                    "allocation_type": "accrual",
+                    "accrual_plan_id": self.accrual_plan_with_accrual_validity.id,
+                    "holiday_status_id": self.leave_type.id,
+                    "employee_id": logged_in_emp.id,
+                    "number_of_days": 0,
+                }
+            )
+
+        with freeze_time("2024-04-01"):
+            self.env["hr.leave.allocation"].with_user(
+                self.user_hruser
+            )._update_accrual()
+            leave = self.env["hr.leave"].create(
+                {
+                    "name": "leave",
+                    "employee_id": logged_in_emp.id,
+                    "holiday_status_id": self.leave_type.id,
+                    "request_date_from": "2024-04-03",
+                    "request_date_to": "2024-04-04",
+                }
+            )
+            leave.sudo().action_approve()
+
+            target_date = date(2024, 5, 1)
+            allocation_data = self.leave_type.get_allocation_data(
+                logged_in_emp, target_date
+            )
+
+        self.assertEqual(
+            allocation_data[logged_in_emp][0][1]["closest_allocation_remaining"],
+            1,
+            "the two days taken on 3-4 April are behind the 1 May target date, "
+            "so only one of the three carried-over days is still to expire",
         )
 
     @users("enguerran")

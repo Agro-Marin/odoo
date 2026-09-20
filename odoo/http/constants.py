@@ -1,6 +1,10 @@
 import time
 from collections.abc import Iterable
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 CORS_MAX_AGE = 60 * 60 * 24
 
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
@@ -19,18 +23,24 @@ static tree accepts.
 def prepare_allow_header(methods: Iterable[str] | None = None) -> str:
     if methods is None:
         methods = DEFAULT_ALLOWED_METHODS
-    return ", ".join(dict.fromkeys([*methods, "OPTIONS"]))
+    normalized = dict.fromkeys(method.upper() for method in methods)
+    if "GET" in normalized:
+        normalized.setdefault("HEAD", None)
+    normalized.setdefault("OPTIONS", None)
+    return ", ".join(normalized)
 
-
-CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")
 
 CORS_DEFAULT_ALLOWED_HEADERS = (
     "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range"
 )
 """What a preflight allows when the client names no `Access-Control-Request-Headers`.
 
-A route narrows this with `@route(cors_allow_headers=...)`; without one the
-preflight echoes whatever the client asked for and this is only the fallback.
+This list is NOT a ceiling. Without `@route(cors_allow_headers=...)` the
+preflight deliberately echoes whatever headers the client asked for — the
+origin was already vetted before any of this is emitted, so restricting header
+names would add friction without adding a boundary. The list above only
+answers a preflight that asks for nothing. A route that needs a real
+allow-list declares one with `cors_allow_headers=`.
 """
 
 REJECTED_HTTP_METHODS = ("TRACE",)
@@ -54,6 +64,10 @@ def prepare_default_session() -> dict[str, object]:
 
 
 DEFAULT_MAX_CONTENT_LENGTH = 128 * 1024 * 1024
+
+DEFAULT_MAX_FORM_MEMORY_SIZE = 10 * 1024 * 1024
+
+DEFAULT_MAX_FORM_PARTS = 10_000
 
 WILDCARD_CORS_CREDENTIALS_WARNING = """\
 Refusing to send credentials to the wildcard origin for path %r
@@ -89,26 +103,27 @@ for more details.
   passing the `csrf=False` parameter to the `route` decorator.
 """
 
-NOT_FOUND_NODB = """\
+_NODB_NOT_FOUND = (
+    "No database is selected and the requested URL was not found in the "
+    "server-wide controllers."
+)
+
+NOT_FOUND_NODB_TEXT = (
+    f"{_NODB_NOT_FOUND} Verify the hostname, or name a database with the "
+    "X-Odoo-Database header."
+)
+
+NOT_FOUND_NODB = f"""\
 <!DOCTYPE html>
 <title>404 Not Found</title>
 <h1>Not Found</h1>
-<p>No database is selected and the requested URL was not found in the server-wide controllers.</p>
+<p>{_NODB_NOT_FOUND}</p>
 <p>Please verify the hostname, <a href=/web/login>login</a> and try again.</p>
 
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
-
-NOT_FOUND_NODB_TEXT = (
-    "No database is selected and the requested URL was not found in the "
-    "server-wide controllers. Verify the hostname, or name a database with "
-    "the X-Odoo-Database header."
-)
-"""What ``NOT_FOUND_NODB`` says, for a client that cannot render HTML.
-
-The two must stay in step: `_serve_nodb` picks between them by the inferred
-dispatcher, so a JSON client gets this and a browser gets the page.
-"""
+"""The same answer for a browser: `_serve_nodb` picks between the two by the
+inferred dispatcher."""
 
 
 SELECT_DB_PATHS: set[str] = set()
@@ -125,6 +140,11 @@ def register_select_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
     SELECT_DB_PATHS.update(paths)
     SELECT_DB_PATH_PREFIXES = tuple(
         dict.fromkeys((*SELECT_DB_PATH_PREFIXES, *prefixes))
+    )
+    _debug.lifecycle(
+        "http.select_db_paths.registered",
+        paths=len(SELECT_DB_PATHS),
+        prefixes=len(SELECT_DB_PATH_PREFIXES),
     )
 
 
@@ -157,6 +177,10 @@ SESSION_ROTATION_EXCLUDED_PATHS: set[str] = set()
 
 def register_session_rotation_excluded_paths(*paths: str) -> None:
     SESSION_ROTATION_EXCLUDED_PATHS.update(paths)
+    _debug.lifecycle(
+        "http.session_rotation_excluded_paths.registered",
+        paths=len(SESSION_ROTATION_EXCLUDED_PATHS),
+    )
 
 
 STORED_SESSION_BYTES = 42

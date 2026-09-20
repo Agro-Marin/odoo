@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { formatDate, parseDate } from "@web/core/l10n/dates";
-import { Component, useState, onWillStart } from "@odoo/owl";
-import { standardWidgetProps } from "@web/views/widgets";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { standardWidgetProps } from "@web/views/widgets";
+
 import { DateTime } from "luxon";
 export class AccountReturnDashboardList extends Component {
     static template = "account.account_return_dashboard_list";

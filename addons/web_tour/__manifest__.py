@@ -15,6 +15,7 @@ Odoo Web tours.
     "data": [
         "security/ir.model.access.csv",
         "views/tour_views.xml",
+        "views/web_tour_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [
@@ -54,7 +55,12 @@ Odoo Web tours.
             ),
             "web_tour/static/tests/*.test.js",
         ],
-        "web.assets_tests": [],
+        "web.assets_tests": [
+            (
+                "include",
+                "web_tour.automatic",
+            ),
+        ],
         "web_tour._common": [
             "web/static/lib/hoot-dom/**/*",
             "web_tour/static/src/js/tour_step.js",

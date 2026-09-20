@@ -1,7 +1,9 @@
 from odoo import api, fields, models
-from odoo.api import DomainType, ValuesType
+from odoo.api import DomainType
 from odoo.fields import Domain
 from odoo.tools import SQL
+
+from ..tools import debug_log as dbg
 
 
 class ProjectTags(models.Model):
@@ -10,74 +12,27 @@ class ProjectTags(models.Model):
     _inherit = ["mixin.tag"]
 
     is_strategic = fields.Boolean(
-        "Strategic Objective",
+        string="Strategic Objective",
         help="Mark this tag as representing a strategic objective for portfolio alignment.",
     )
     project_ids = fields.Many2many(
-        "project.project",
-        "project_project_project_tags_rel",
+        comodel_name="project.project",
+        relation="project_project_project_tags_rel",
         string="Projects",
         export_string_translation=False,
     )
     task_ids = fields.Many2many(
-        "project.task", string="Tasks", export_string_translation=False
+        comodel_name="project.task",
+        string="Tasks",
+        export_string_translation=False,
     )
-
-    @api.model
-    def formatted_read_group(
-        self,
-        domain: list,
-        groupby: tuple | list = (),
-        aggregates: tuple | list = (),
-        having: tuple | list = (),
-        offset: int = 0,
-        limit: int | None = None,
-        order: str | None = None,
-    ) -> list[dict]:
-        if "project_id" in self.env.context:
-            tag_ids = [id_ for id_, _label in self.name_search(limit=None)]
-            domain = Domain.AND([domain, [("id", "in", tag_ids)]])
-        return super().formatted_read_group(
-            domain,
-            groupby,
-            aggregates,
-            having=having,
-            offset=offset,
-            limit=limit,
-            order=order,
-        )
-
-    @api.model
-    def search_read(
-        self,
-        domain: DomainType | None = None,
-        fields: list[str] | None = None,
-        offset: int = 0,
-        limit: int | None = None,
-        order: str | None = None,
-    ) -> list[ValuesType]:
-        if "project_id" in self.env.context:
-            tag_ids = [id_ for id_, _label in self.name_search(limit=None)]
-            domain = Domain.AND([domain, [("id", "in", tag_ids)]])
-            return self.sort_tags_by_ids(
-                super().search_read(
-                    domain=domain, fields=fields, offset=offset, limit=limit
-                ),
-                tag_ids,
-            )
-        return super().search_read(
-            domain=domain,
-            fields=fields,
-            offset=offset,
-            limit=limit,
-            order=order,
-        )
 
     @api.model
     def sort_tags_by_ids(self, tag_list: list[dict], id_order: list[int]) -> list[dict]:
         tags_by_id = {tag["id"]: tag for tag in tag_list}
         return [tags_by_id[id] for id in id_order if id in tags_by_id]
 
+    @dbg.timed
     @api.model
     def name_search(
         self,
@@ -113,17 +68,31 @@ class ProjectTags(models.Model):
                 ["display_name"],
                 limit=limit,
             )
+        project_tag_count = len(tags)
         if len(tags) < limit:
             tags += self.search_fetch(
                 Domain("id", "not in", tags.ids) & domain,
                 ["display_name"],
                 limit=limit - len(tags),
             )
+        dbg.logic.debug(
+            "project.tags.name_search %r project=%s: %d project tags first, %d total",
+            name,
+            self.env.context.get("project_id"),
+            project_tag_count,
+            len(tags),
+        )
         return [(tag.id, tag.display_name) for tag in tags.sudo()]
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
         existing_tag = self.search([("name", "=ilike", name.strip())], limit=1)
         if existing_tag:
+            dbg.logic.debug(
+                "project.tags.name_create %r: reusing existing tag %s",
+                name,
+                existing_tag.id,
+            )
             return existing_tag.id, existing_tag.display_name
+        dbg.lifecycle.debug("project.tags.name_create %r: creating", name)
         return super().name_create(name)

@@ -77,11 +77,11 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | Path | Contents | Map |
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
-| `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 863 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `models/` | 28 `.py` — ORM extensions (27 model files: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
+| `static/src/` | 873 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 786 `.js` (incl. 722 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
-| `tests/` | 62 Python test files (`test_*.py`) | `TEST_TAGS.md` |
+| `static/tests/` | 812 `.js` (incl. 746 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `tests/` | 68 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
@@ -94,14 +94,14 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | Backend entry points: `main.js`, `start.js` (`env.js`, `session.js`, `module_loader.js`, `service_worker.js` sit at `src/` root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 188 JS |
+| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 193 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
-| **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
-| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 179 JS |
-| **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 97 JS |
-| **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 38 JS |
-| **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 51 JS |
+| **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 47 JS |
+| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 129 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 180 JS |
+| **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 96 JS |
+| **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 40 JS |
+| **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 52 JS |
 | **Public** | `public/` | Public (anonymous) page features; all run on `public.interactions`. Frontend app boot is `public/public_boot.js` (+ `public_boot_instance.js`, kept out of the test bundles via a `remove` directive); early-boot `lazyloader.js` / `minimal_dom.js` also live here. | 17 JS |
 | **Vendored-in-src** | `libs/` | FontAwesome 7 icon CSS/webfonts + its JS glue, and `popper_compat.js` — vendored inside `src/` (unlike `static/lib/`) | 2 JS |
 
@@ -117,69 +117,69 @@ the files behind it are private and may be renamed, split, or moved without
 touching a consumer. `@web/ui/dialog` is the face, `ui/dialog/dialog_service.js`
 is an internal.
 
-Enforced by `tooling/architecture/`: `js_face_boundary.py` (no import reaches
-past a face into a fronted directory), `js_component_face.py` (which directories
+Was enforced by the architecture gates of the tooling tree, deleted in `7b0f58cb517f`, so these rules are now stated rather than checked: js_face_boundary.py (no import reaches
+past a face into a fronted directory), js_component_face.py (which directories
 under `components/` must HAVE one — a face is discovered rather than declared, so
-the boundary gate says nothing about that), `js_component_data_access.py`
+the boundary gate says nothing about that), js_component_data_access.py
 (no component acquires data at runtime — the pinned sites can only shrink;
-so the debt cannot be paid once and re-spent), `js_public_surface.py` (the pinned surface
-in `public_surface_web.txt` can only shrink), `js_layer_cohesion.py`,
-`js_import_resolution.py`, `js_private_access.py`, `js_cycle_check.py`,
-`js_self_bridge.py` (no module resolves itself through the loader — a generated
+so the debt cannot be paid once and re-spent), js_public_surface.py (the pinned surface
+in `public_surface_web.txt` can only shrink), js_layer_cohesion.py,
+js_import_resolution.py, js_private_access.py, js_cycle_check.py,
+js_self_bridge.py (no module resolves itself through the loader — a generated
 ESM bridge written over its own source exports only `undefined`, and every
 name-based and graph-based gate above stays green on it),
-`js_shadow_root.py` (every shadow root is attached through `attachShadowRoot`,
+js_shadow_root.py (every shadow root is attached through `attachShadowRoot`,
 which marks its host: there is no `:has-shadow-root` selector and no event on
 attach, so an unmarked host is one that `getTabableElements` and every other
 root-crossing helper steps over in silence),
-`js_suite_parity.py` (every source directory has a matching test directory),
-`js_context_narrowing.py` (a `Pick<>` over a context bag names exactly what its
+js_suite_parity.py (every source directory has a matching test directory),
+js_context_narrowing.py (a `Pick<>` over a context bag names exactly what its
 file reaches — over-declaring is invisible to tsc, so a consumer otherwise keeps
 claiming a dependency it dropped) and
-`js_function_length.py`, `js_class_length.py` (the mass a per-function budget
+js_function_length.py, js_class_length.py (the mass a per-function budget
 cannot see: `flow_editor.js` carries a 1,267-line component over 63 methods and
-not one of them is a `jsfunclen` offender), `js_unreached_assertions.py` (an
+not one of them is a `jsfunclen` offender), js_unreached_assertions.py (an
 assertion inside a callback the test never proves ran, which is
-`js_vacuous_assertions.py`'s defect one level down: that gate catches an
+js_vacuous_assertions.py's defect one level down: that gate catches an
 assertion that cannot fail, this one an assertion that may never execute),
-`js_layer_check.py` (the Feature-Sliced layering above),
-`js_registry_layering.py` (the same contract for dependencies mediated by a
-registry rather than an import), `js_deployment_layers.py` (which bundle a module
-may be reached from), `js_extension_surface.py` (the methods downstream
-subclasses override, and the members they `patch()`), `js_forced_render.py` (core
+js_layer_check.py (the Feature-Sliced layering above),
+js_registry_layering.py (the same contract for dependencies mediated by a
+registry rather than an import), js_deployment_layers.py (which bundle a module
+may be reached from), js_extension_surface.py (the methods downstream
+subclasses override, and the members they `patch()`), js_forced_render.py (core
 must not sweep a subtree with `render(true)` — a forced render hides reads that
-subscribe to nothing), `js_patch_blind_facade.py` (a service's own callers go
-through its facade), `js_service_shape.py` (a service hands back an instance,
-not a literal), `js_class_length.py` (the mass a per-function budget cannot see:
-a class of short methods is invisible to `js_function_length.py`, and the unit is
+subscribe to nothing), js_patch_blind_facade.py (a service's own callers go
+through its facade), js_service_shape.py (a service hands back an instance,
+not a literal), js_class_length.py (the mass a per-function budget cannot see:
+a class of short methods is invisible to js_function_length.py, and the unit is
 excess lines above 400 rather than offender count, so splitting one huge class
 into two large ones registers as the improvement it is),
-`js_unreached_assertions.py` (an assertion that may never EXECUTE, one level down
-from the vacuous assertion `js_vacuous_assertions.py` catches: an `expect()`
+js_unreached_assertions.py (an assertion that may never EXECUTE, one level down
+from the vacuous assertion js_vacuous_assertions.py catches: an `expect()`
 inside a handler the test never invokes stays green through the whole life of the
-defect it names) and `js_dead_icon_class.py` (a test naming an icon class that
+defect it names) and js_dead_icon_class.py (a test naming an icon class that
 neither FontAwesome 7 nor any non-test source declares — a one-count assertion on
 a renamed icon reads as a defect in the feature, and a negated one cannot fail).
-Each gate ships an empty-tree refusal test, so a gate
-that scanned nothing fails instead of reporting a pass.
+Each shipped an empty-tree refusal test, so a gate that scanned nothing failed
+instead of reporting a pass; none of them runs now.
 
 ## The contracts this module declares
 
 Four of this addon's widest seams are not imports and not class members, so the
 gates above are blind to every one of them: an object handed across a boundary
-leaves no edge to check. Each is now a declared list in the source, paired with a
-gate that measures who reaches it. `test_web_machine_doc.py` pins that this
-section names every gate scanning `addons/web`, because a map that omits one is
-the failure `doc_symbol_gate.py` exists to prevent, one level up.
+leaves no edge to check. Each is a declared list in the source. The gates that
+measured who reaches each list, and the test that pinned this section against
+them, went with the tooling tree in `7b0f58cb517f`: the lists are now read by
+reviewers, not enforced.
 
-| Contract | Declared in | Gate | What it bounds |
+| Contract | Declared in | Gate (deleted) | What it bounds |
 |---|---|---|---|
-| `env.config` | `views/view_config.js` | `js_env_config_surface.py` | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
-| `archInfo` | `views/arch_info.js` | `js_arch_info_surface.py` | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
-| `props.record` | `fields/field_record_contract.js` | `js_field_record_surface.py` | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
-| `env.services.action` | `webclient/actions/action_service_contract.js` | `js_action_surface.py` | What a consumer may reach on the `ActionManager` instance. Same blindness as the rows above — the instance is handed out by name off `env.services`, so it is neither an import nor a class member. The contract under-declared until the gate existed: four members were classified internal while consumers reached them at 45 call sites. |
-| OWL templates | the component's own `static template` | `js_template_binding.py` | Every name a template calls, against the class that owns it. Neither `tsc` nor `eslint` reads `.xml`, so a template is the one place a member reference has no static check at all — and Owl answers a missing one by destroying the root component. |
-| `SearchModel` / `ListRenderer` mixins | — | `js_mixin_coupling.py` | Two `this`-collaborating compositions, each split this round (`search_properties_mixin.js` / `search_split_domain_mixin.js` out of `SearchModel`; `list_group_rendering.js` out of `ListRenderer`) — max SCC is now 4 units per composition, 12 of 17 edges cyclic; the gate ratchets against the SCCs regrowing rather than asking for further decomposition. |
+| `env.config` | `views/view_config.js` | js_env_config_surface.py | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
+| `archInfo` | `views/arch_info.js` | js_arch_info_surface.py | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
+| `props.record` | `fields/field_record_contract.js` | js_field_record_surface.py | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
+| `env.services.action` | `webclient/actions/action_service_contract.js` | js_action_surface.py | What a consumer may reach on the `ActionManager` instance. Same blindness as the rows above — the instance is handed out by name off `env.services`, so it is neither an import nor a class member. The contract under-declared until the gate existed: four members were classified internal while consumers reached them at 45 call sites. |
+| OWL templates | the component's own `static template` | js_template_binding.py | Every name a template calls, against the class that owns it. Neither `tsc` nor `eslint` reads `.xml`, so a template is the one place a member reference has no static check at all — and Owl answers a missing one by destroying the root component. |
+| `SearchModel` / `ListRenderer` mixins | — | js_mixin_coupling.py | Two `this`-collaborating compositions, each split this round (`search_properties_mixin.js` / `search_split_domain_mixin.js` out of `SearchModel`; `list_group_rendering.js` out of `ListRenderer`) — max SCC is now 4 units per composition, 12 of 17 edges cyclic; the gate ratchets against the SCCs regrowing rather than asking for further decomposition. |
 
 ### `fieldHandle` — a field widget's own field
 
@@ -203,8 +203,8 @@ than argued about, because each fails silently.
 `standardFieldProps` is deliberately unchanged: 155 widgets live across four
 checkouts that cannot be committed atomically, so a widget adopts the handle one
 at a time and the ones that genuinely need the record keep it. Do not restate the
-counts here — `js_field_record_surface.py --json` reports them, and its MEASURED
-block is the copy that cannot rot.
+counts here. The gate that measured them went with the tooling tree in
+`7b0f58cb517f`, so re-measure from the source when a number matters.
 
 ## JavaScript Services
 
@@ -246,17 +246,47 @@ Promise.
 
 **Methods NOT on `orm`**: `nameSearch`, `name_create`, `readGroup` (use `orm.call(model, "name_search", ...)` etc.). `UPDATE_METHODS` constant (create/write/unlink/web_save/web_save_multi/action_archive/action_unarchive) is exported for cache-invalidation consumers AND used inside orm_service itself: it seeds the private `NON_IDEMPOTENT_METHODS` superset (`orm_service.js`, = `UPDATE_METHODS` + `web_resequence` + `name_create`), which `call()` checks to hard-reject `retry`/`dedup`/`cache` on write-class methods (throws before anything reaches the network).
 
-**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = `JSON.stringify({url, params})`. Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults. `{immutable:true}` makes warm hits share a single deep-frozen cached payload (`rpc_cache.js` — `immutable ? deepFreeze : deepCopy`) instead of deep-copying per read; only for consumers that never mutate the result (adopted by `field_service`).
+**`orm.cache({type:"disk"})`** — proxy pattern (`orm_service.js`): `Object.assign(Object.create(this), {_cache: options})`. Every `call()` passes `cache: this._cache` to `rpc()`, where `rpcCache.read(table, key, fetcher, options)` is invoked. **table** = python method name (e.g. `"fields_get"`). **key** = the canonical, property-order-independent JSON identity of the route and captured parameters (`rpc_dedup.js`). Options pass through — `{type:"disk"}` and `{type:"ram"}` both valid; `cache:true` uses defaults. `{immutable:true}` makes warm hits share a single deep-frozen cached payload (`rpc_cache.js` — `immutable ? deepFreeze : deepCopy`) instead of deep-copying per read; only for consumers that never mutate the result (adopted by `field_service`).
 
 **`orm.silent`** — same proxy pattern (`orm_service.js`) adds `_silent:true` to the RPC settings. It suppresses the **loading indicator** (`webclient/loading_indicator/loading_indicator.js`) and the **slow-rpc patience toast** (`core/network/slow_rpc_service.js`) — the only two `RPC:REQUEST`/`RPC:RESPONSE` consumers that check `settings.silent`. **It does NOT suppress error dialogs**: neither `core/errors/error_service.js` nor `components/errors/error_handlers.js` reads `silent`, so a failing `orm.silent` call still opens the normal error dialog. **Composable but not chainable with itself**: `orm.silent.cache({type:"disk"})` works; re-invoking `.silent` or `.cache()` re-creates, doesn't stack.
 
-**`orm.dedup`** — same proxy pattern (`orm_service.js`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Abort semantics are shared: aborting any caller cancels the underlying fetch and rejects every observer with `ConnectionAbortedError`. Never apply to writes.
+**`orm.dedup`** — same proxy pattern (`orm_service.js`) adds `_dedup: true` to subsequent calls. Concurrent callers issuing the same `(url, params)` key share a single in-flight fetch (stampede prevention for **uncached** reads). Redundant when chained onto `.cache(...)` — the cache layer already prevents duplicate fires. Each caller owns its subscription: aborting one rejects that caller with `ConnectionAbortedError`; the underlying fetch is cancelled when its last subscriber detaches. Never apply to writes.
 
 **`orm.retry(options)`** — same proxy pattern (`orm_service.js`) adds `_retry: options` to subsequent calls. Accepts a number (interpreted as retries with default backoff) or a partial config `{retries, baseMs, maxMs}`. Composes with `silent` and `cache`: `orm.silent.cache({type:"disk"}).retry(1).call(...)` is the canonical boot-path-resilient idiom (see `core/field_service.js`, `views/view_service.js`). Caller is responsible for ensuring the call is idempotent — never apply to writes (create/write/unlink/web_save/web_save_multi/web_resequence/name_create).
 
 **Context merging rule** (`orm_service.js`): `fullContext = {...user.context, ...(kwargs.context||{})}`. Spread order means **caller keys win on collision** — `user.context` values can be overridden, though the keys themselves cannot be deleted (omit from caller context to inherit, set to a new value to override).
 
-**rpc.js settings whitelist** (`rpc.js`): `cache, silent, headers, timeout, retry, dedup`. Any other key throws. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
+**rpc.js settings whitelist** (`rpc.js`): `cache, silent, headers, timeout, retry, dedup, signal`. Unknown enumerable own keys throw. `cache` + `retry` compose: cache wraps retry so warm hits skip the retry layer entirely. `timeout` (milliseconds) installs an `AbortSignal.timeout()` that combines with the caller-controlled abort signal via `AbortSignal.any()`. No `credentials`.
+
+RPC interception runs once per logical call, before parameters are serialized.
+The captured JSON value supplies both cache/dedup identity and every transport
+attempt. Stateful getters, `toJSON`, caller mutations during retry backoff, and
+RPC event listeners cannot change a retry's body. `toJSON` receives the real
+`params` property name; omitted parameters remain omitted. Each attempt still
+has a fresh request ID and separate event data. Null or omitted parameters do
+not change a server error into a retryable transport failure.
+Header values and cache/retry option containers are captured before parameter
+serialization too. Mutating caller options cannot change a retry's header
+identity or poison the cache variant chosen for the original call. Each request
+and response event gets its own settings copy; abort signals and callbacks keep
+their identity internally. Synchronous transport setup failures in a retry chain
+reject its promise, including when setup fails inside a backoff timer.
+Supported top-level settings are read by name once, including non-enumerable
+and inherited accessors. If a transport wrapper throws synchronously after
+request notification, the normal failure path still emits the matching response
+and applies transport-error classification and retry policy.
+
+Cached responses with custom headers are isolated by canonical header values in
+RAM, even when disk caching is requested. The transport's forced JSON Content-Type
+does not create a variant. Opaque, never-reused scope IDs keep header values out
+of stored cache keys; the bounded scope index can evict an identity without
+assigning its old cached response to another identity. Header-free requests retain
+disk caching. Synchronous fallback failures follow the normal rejection cleanup,
+so corrected requests can retry and a failed background refresh preserves warm data.
+
+Response envelopes must contain exactly one of `result` or a structured `error`.
+Falsy results are valid. Malformed successful responses are non-retryable
+`InvalidResponseError`s; malformed 5xx responses retain server-overload retry behavior.
 
 **Error class hierarchy** (`rpc.js`):
 - `NetworkError` (base) — all network/RPC failures
@@ -305,8 +335,9 @@ Promise.
 | `enterprise_subscription` | `webclient/home_menu/enterprise_subscription_service.js` | `SubscriptionManager` over `session.expiration_date` / `expiration_reason` / `warning` / `sysadmin_message` (set by `ir_http._get_expiration_info`): drives the `ExpirationPanel` banner and `SysAdminPanel` on the home menu, blocks the UI once `daysLeft <= 0`, and talks to `publisher_warranty.contract` to register or recheck a subscription code |
 | `color_scheme` | `webclient/color_scheme/color_scheme_service.js` | Resolves the active light/dark scheme from the user's `res.users.settings` preference and the `(prefers-color-scheme:dark)` media query; drives the `dark_mode_toggle` systray item |
 | `lazy_session` | `webclient/session_service.js` | Lazy-loaded session info (profile_session, profile_collectors, etc.). Consumed by `profiling` service — refactoring this breaks profiling startup. |
+| `template_compile_cache` | `core/template_compile_cache.js` | OWL's compiled templates cached in the browser (deps: `localization`): the root app's `_compileTemplate` is routed through a content-addressed store of the compiler's output (IndexedDB versioned by the registry hash; key = OWL version / lang / translations hash / template text hash), read once at boot, written behind on a miss; off in dev and test mode. `seed(key, code)` is the seam a server-side compiler would fill. |
 | `multi_company_recovery` | `core/multi_company_recovery_service.js` | Recovers from `AccessError` when the server context carries `suggested_company`. `recoverFromLifecycleError` reloads after activating; `recoverFromSaveError` mutates the model context and activates with `reload:false` to preserve input. Used by FormController's onError paths. |
-| `form_dialog_stack` | `ui/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog`; exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
+| `form_dialog_stack` | `views/form/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog`; exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
 | `result_set_cache_invalidator` | `core/network/result_set_cache_invalidator_service.js` | Emits `CLEAR-CACHES` on `unlink`/`action_archive`/`action_unarchive` and on `action_install_lang` (see `STATE_MANAGEMENT.md`) |
 | `web_vitals` | `core/network/web_vitals/web_vitals_service.js` | Core Web Vitals RUM collection; beacons to `/web/observability/cwv` on pagehide |
 | `connection_recovery` | `core/network/connection_recovery_service.js` | Owns the reconnect notification/poll driven by `lostConnectionHandler`, which lives in `components/errors/error_handlers.js` and only consumes it |
@@ -431,12 +462,10 @@ exports after the loader resolves. See CONVENTIONS.md gotcha #6.
 ### Vendored libraries (`static/lib/`)
 
 **`static/lib/versions.json` is the single source of truth** for what is vendored
-and at which version, and it is machine-checked:
+and at which version.
 
-```bash
-tooling/vendored/check_vendored_libs.py --drift   # re-derives each version from the shipped bytes
-tooling/vendored/check_vendored_libs.py --audit   # OSV advisories against the pinned versions
-```
+It was machine-checked by a drift and advisory checker in the tooling tree,
+deleted in `7b0f58cb517f`; nothing re-derives the versions from the shipped bytes now.
 
 Do not restate versions here — read `versions.json`, and see
 `static/lib/README.md` for the per-library update procedure, the `AgroMarin:`
@@ -456,10 +485,10 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Category | Count |
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
-| Python (models) | 25 (24 model files + `__init__.py`) |
-| Python (tests) | 62 (`test_*.py`; 63 files incl. `__init__.py`) |
-| JavaScript (src) | 863 (861 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 786 (incl. 722 `*.test.js` Hoot suites) |
+| Python (models) | 28 (27 model files + `__init__.py`) |
+| Python (tests) | 68 (`test_*.py`; 69 files incl. `__init__.py`) |
+| JavaScript (src) | 873 (871 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| JavaScript (tests) | 812 (incl. 746 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 293 (14 views + 5 data + 274 OWL templates) |

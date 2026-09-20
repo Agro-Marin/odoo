@@ -9,14 +9,14 @@
             <group name="provider_credentials" position="inside">
                 <group name="iyzico_credentials" invisible="code != 'iyzico'">
                     <field
-                        string="API Key"
                         name="iyzico_key_id"
+                        string="API Key"
                         required="code == 'iyzico' and state != 'disabled'" />
                     <field
-                        string="Secret Key"
                         name="iyzico_key_secret"
-                        required="code == 'iyzico' and state != 'disabled'"
-                        password="True" />
+                        string="Secret Key"
+                        password="True"
+                        required="code == 'iyzico' and state != 'disabled'" />
                 </group>
             </group>
         </field>

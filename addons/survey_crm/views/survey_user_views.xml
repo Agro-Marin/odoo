@@ -11,11 +11,11 @@
                     expr="//button[@name='action_redirect_to_attempts']"
                     position="after">
                     <button
-                        class="oe_stat_button"
+                        name="action_redirect_lead"
+                        type="object"
                         icon="fa-star"
                         invisible="not lead_id"
-                        name="action_redirect_lead"
-                        type="object">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Lead</span>
                         </div>

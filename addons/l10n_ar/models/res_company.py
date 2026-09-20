@@ -18,14 +18,15 @@ class ResCompany(models.Model):
         help="This field is required in order to print the invoice report properly",
     )
     l10n_ar_afip_responsibility_type_id = fields.Many2one(
-        domain="[('code', 'in', [1, 4, 6])]",
         related="partner_id.l10n_ar_afip_responsibility_type_id",
         readonly=False,
+        domain="[('code', 'in', [1, 4, 6])]",
     )
     l10n_ar_company_requires_vat = fields.Boolean(
-        compute="_compute_l10n_ar_company_requires_vat", string="Company Requires Vat?"
+        string="Company Requires Vat?",
+        compute="_compute_l10n_ar_company_requires_vat",
     )
-    l10n_ar_afip_start_date = fields.Date("Activities Start")
+    l10n_ar_afip_start_date = fields.Date(string="Activities Start")
 
     @api.onchange("country_id")
     def onchange_country(self):

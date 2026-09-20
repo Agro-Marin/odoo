@@ -6,13 +6,12 @@ from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 
-from .common import ApprovalCommon, isolate_group_approval_manager
+from .common import ApprovalCommon, isolate_group_approval_manager, record_approval
 
 
 @tagged("post_install", "-at_install")
 class TestCancelFlow(ApprovalCommon):
     def _category(self, **vals):
-        vals.setdefault("has_date", "optional")
         return self._make_category(
             name=f"Cancel Cat {self.id()}",
             approvers=[self.approver_1, self.approver_2],
@@ -75,9 +74,9 @@ class TestCancelFlow(ApprovalCommon):
         )
         request.with_user(self.approver_1).with_context(
             skip_wizard=True,
-            requested_change_field="date",
+            requested_change_field="reason",
         ).action_request_change(approver=approver_row)
-        self.assertEqual(request.pending_change_field, "date")
+        self.assertEqual(request.pending_change_field, "reason")
 
         request.with_user(self.owner_user).action_cancel()
         self.assertFalse(request.pending_change_field)
@@ -119,14 +118,7 @@ class TestResetToDraft(ApprovalCommon):
 
     def test_reset_resyncs_current_category_config(self):
         category, request = self._refused_request()
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": False,
-                "sequence": 20,
-            },
-        )
+        category._add_approver(self.approver_2, sequence=20)
 
         request.with_user(self.manager_user).action_reset_to_draft()
 
@@ -172,7 +164,6 @@ class TestAutoTerminalPaths(ApprovalCommon):
         category = self._make_category(
             name=f"Rule Cat {self.id()}",
             approvers=[self.approver_1],
-            has_amount="required",
         )
         self.env["approval.rule"].create(
             {
@@ -199,7 +190,6 @@ class TestPendingIntegrity(ApprovalCommon):
         category = self._make_category(
             name=f"Lock Cat {self.id()}",
             approvers=[self.approver_1],
-            has_amount="required",
         )
         request = self._prepare_request(category, amount=100)
         with self.assertRaises(ValidationError):
@@ -212,10 +202,10 @@ class TestPendingIntegrity(ApprovalCommon):
         category = self._make_category(
             name=f"Change Cat {self.id()}",
             approvers=[self.approver_1],
-            has_amount="required",
-            has_date="optional",
         )
-        request = self._prepare_request(category, amount=100)
+        request = self._prepare_request(
+            category, amount=100, date=fields.Datetime.now()
+        )
         approver_row = request.approver_ids
         request.with_user(self.approver_1).with_context(
             skip_wizard=True,
@@ -231,13 +221,12 @@ class TestPendingIntegrity(ApprovalCommon):
             name=f"Consent Cat {self.id()}",
             approvers=[self.approver_1],
             consent_approval_hours=4,
-            has_date="optional",
         )
         request = self._prepare_request(category)
         approver_row = request.approver_ids
         request.with_user(self.approver_1).with_context(
             skip_wizard=True,
-            requested_change_field="date",
+            requested_change_field="reason",
         ).action_request_change(approver=approver_row)
         request.date_confirmed = fields.Datetime.now() - timedelta(hours=10)
 
@@ -257,14 +246,7 @@ class TestPendingIntegrity(ApprovalCommon):
         request = self._prepare_request(category)
         self.assertEqual(request.state, "pending")
 
-        self.env["approval.category.approver"].create(
-            {
-                "category_id": category.id,
-                "user_id": self.approver_2.id,
-                "required": False,
-                "sequence": 20,
-            },
-        )
+        category._add_approver(self.approver_2, sequence=20)
         request._sync_approvers()
 
         self.assertEqual(request.state, "pending")
@@ -324,19 +306,15 @@ class TestDelegationPaths(ApprovalCommon):
                 (self.approver_2, True, 20),
                 (self.manager_user, False, 30),
             ],
-            approve_sequentially=True,
+            in_order=True,
         )
         request = self._prepare_request(category)
         rows = request.approver_ids.sorted("sequence")
-        rows[0].sudo().state = "approved"
-        rows[1].sudo().state = "approved"
+        self.assertEqual(rows.mapped("state"), ["pending", "waiting", "waiting"])
+        record_approval(rows[0])
 
-        request.sudo()._update_next_approvers_state(
-            rows[0] | rows[1],
-            "pending",
-            only_next_approver=True,
-        )
-        self.assertEqual(rows[2].state, "pending")
+        request.sudo()._refresh_turn_states()
+        self.assertEqual(rows[1:].mapped("state"), ["pending", "waiting"])
 
 
 @tagged("post_install", "-at_install")
@@ -403,14 +381,14 @@ class TestActionLocking(ApprovalCommon):
         self._assert_locks(request, request.action_reset_to_draft)
 
     def test_action_request_change_inline_locks(self):
-        category = self._make_category(approvers=[self.approver_1], has_date="optional")
+        category = self._make_category(approvers=[self.approver_1])
         request = self._prepare_request(category)
         approver = request.approver_ids[0]
 
         def action():
             request.with_context(
                 skip_wizard=True,
-                requested_change_field="date",
+                requested_change_field="reason",
             ).action_request_change(approver=approver)
 
         self._assert_locks(request, action)
@@ -423,7 +401,7 @@ class TestActionLocking(ApprovalCommon):
         )
         self.assertTrue(approver)
 
-        approver.sudo().write({"state": "approved"})
+        record_approval(approver)
 
         with self.assertRaises(UserError):
             request.sudo().action_approve(approver)
@@ -439,8 +417,8 @@ class TestActionWithdrawMultiRecord(ApprovalCommon):
         ap1 = req1.approver_ids.filtered(lambda a: a.user_id == self.approver_1)
         ap2 = req2.approver_ids.filtered(lambda a: a.user_id == self.approver_1)
 
-        ap1.sudo().write({"state": "approved"})
-        ap2.sudo().write({"state": "approved"})
+        record_approval(ap1)
+        record_approval(ap2)
 
         combined = req1 + req2
         combined.with_user(self.approver_1).action_withdraw()
@@ -511,10 +489,10 @@ class TestApproverRowIntegrity(ApprovalCommon):
     def test_sync_still_reconciles_after_reset(self):
         request = self._refused_two_approver_request()
         category = request.category_id
-        category.approver_ids.filtered(
-            lambda ca: ca.user_id == self.approver_2,
+        category.step_ids.member_ids.filtered(
+            lambda member: member.user_id == self.approver_2,
         ).unlink()
-        category.approval_minimum = 1
+        category.step_ids.minimum = 1
         request.with_user(self.manager_user).action_reset_to_draft()
         self.assertEqual(request.approver_ids.user_id, self.approver_1)
 
@@ -533,8 +511,8 @@ class TestSyncProvenance(ApprovalCommon):
         )
         self.assertTrue(all(request.approver_ids.mapped("source_synced")))
 
-        category.approver_ids.filtered(
-            lambda ca: ca.user_id == self.approver_1,
+        category.step_ids.member_ids.filtered(
+            lambda member: member.user_id == self.approver_1,
         ).unlink()
         request.write({"amount": 200})
 

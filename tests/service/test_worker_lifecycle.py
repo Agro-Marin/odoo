@@ -1,15 +1,20 @@
-import contextlib
 import errno
 import os
 import pathlib
 import resource
+import select
+import selectors
 import socket
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from odoo.service import _cron, _worker
 from odoo.service import settings as server_settings
+
+from .conftest import build_worker
 
 
 def _open_fds() -> set[int]:
@@ -21,24 +26,8 @@ def _open_fds() -> set[int]:
 
 
 @pytest.fixture
-def multi():
-    made = []
-
-    def open_pipe():
-        pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
-        made.append(pipe)
-        return pipe
-
-    m = MagicMock()
-    m.open_pipe.side_effect = open_pipe
-    m.timeout = 60
-    m.beat = 4
-    m.socket = None
-    yield m
-    for pipe in made:
-        for fd in pipe:
-            with contextlib.suppress(OSError):
-                os.close(fd)
+def multi(worker_multi):
+    return worker_multi
 
 
 class TestWorkerConstructionIsAllOrNothing:
@@ -67,8 +56,8 @@ class TestWorkerConstructionIsAllOrNothing:
 
     def test_a_successful_construction_keeps_both_pipes(self, multi):
         worker = _worker.Worker(multi)
-        assert len(set(worker.watchdog_pipe) | set(worker.eintr_pipe)) == 4
-        assert worker.wakeup_fd_r, worker.wakeup_fd_w == worker.eintr_pipe
+        assert len(set(worker.watchdog_pipe) | set(worker.wakeup_pipe)) == 4
+        assert worker.wakeup_pipe[0], worker.wakeup_pipe[1] == worker.wakeup_pipe
         worker.close()
 
     def test_close_releases_every_descriptor_it_took(self, multi):
@@ -186,12 +175,12 @@ class TestWorkerStart:
 
     def test_the_wakeup_fd_is_the_workers_own_eintr_pipe(self, started):
         worker, signal_mod, _, _ = started
-        signal_mod.set_wakeup_fd.assert_called_once_with(worker.wakeup_fd_w)
+        signal_mod.set_wakeup_fd.assert_called_once_with(worker.wakeup_pipe[1])
 
     def test_the_selector_watches_that_pipe(self, started):
         worker, _, selectors_mod, _ = started
         selector = selectors_mod.DefaultSelector.return_value
-        assert selector.register.call_args.args[0] == worker.wakeup_fd_r
+        assert selector.register.call_args.args[0] == worker.wakeup_pipe[0]
 
     def test_a_listening_socket_is_marked_cloexec_and_non_blocking(self, multi):
         sock = socket.socket()
@@ -232,8 +221,7 @@ class TestWorkerStop:
 
 class TestWorkerHttpAcceptErrors:
     def _process(self, multi, exc):
-        worker = object.__new__(_worker.WorkerHTTP)
-        worker.multi = multi
+        worker = build_worker(_worker.WorkerHTTP, multi)
         multi.socket = MagicMock()
         multi.socket.accept.side_effect = exc
         worker.process_request = MagicMock()
@@ -251,14 +239,57 @@ class TestWorkerHttpAcceptErrors:
             worker.process_work()
 
     def test_a_successful_accept_is_handed_on(self, multi):
-        worker = object.__new__(_worker.WorkerHTTP)
-        worker.multi = multi
+        worker = build_worker(_worker.WorkerHTTP, multi)
         client, addr = MagicMock(), ("127.0.0.1", 5555)
         multi.socket = MagicMock()
         multi.socket.accept.return_value = (client, addr)
         worker.process_request = MagicMock()
         worker.process_work()
         worker.process_request.assert_called_once_with(client, addr)
+
+
+class TestAcceptWaitsForTheListenerToBeReadable:
+    """A beat that merely timed out, or a signal on the wakeup pipe, is not a
+    connection.  Before the gate every idle worker called `accept()` once per
+    beat and logged the EAGAIN as a lost race."""
+
+    def _worker(self, multi, ready_fds):
+        worker = build_worker(_worker.WorkerHTTP, multi, wakeup_pipe=(40, 41))
+        worker._selector = MagicMock()
+        worker._selector.select.return_value = [
+            (MagicMock(fd=fd), selectors.EVENT_READ) for fd in ready_fds
+        ]
+        multi.socket = MagicMock()
+        multi.socket.accept.return_value = (MagicMock(), ("127.0.0.1", 1))
+        worker.process_request = MagicMock()
+        return worker
+
+    def test_a_timed_out_beat_does_not_accept(self, multi):
+        worker = self._worker(multi, [])
+        with patch.object(_worker, "empty_pipe"):
+            worker.sleep()
+        worker.process_work()
+        multi.socket.accept.assert_not_called()
+
+    def test_a_wakeup_pipe_wake_does_not_accept(self, multi):
+        worker = self._worker(multi, [40])
+        with patch.object(_worker, "empty_pipe"):
+            worker.sleep()
+        worker.process_work()
+        multi.socket.accept.assert_not_called()
+
+    def test_a_readable_listener_accepts(self, multi):
+        worker = self._worker(multi, [40, 7])
+        with patch.object(_worker, "empty_pipe"):
+            worker.sleep()
+        worker.process_work()
+        multi.socket.accept.assert_called_once()
+        worker.process_request.assert_called_once()
+
+    def test_a_direct_call_still_accepts(self, multi):
+        worker = self._worker(multi, [])
+        worker.process_work()
+        multi.socket.accept.assert_called_once()
 
 
 class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
@@ -303,9 +334,9 @@ class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
         _cron.close_cron_cursor(cursor)
         assert order == []
 
-    def test_worker_stop_releases_through_it(self):
+    def test_worker_stop_releases_through_it(self, multi):
         """The clean-teardown site: this is the one that printed on SIGTERM."""
-        worker = _worker.WorkerCron.__new__(_worker.WorkerCron)
+        worker = build_worker(_worker.WorkerCron, multi)
         cursor, order = self._recording_cursor()
         worker.listener = _cron.CronListener("ch", _cron._logger)
         worker.listener._cursor = cursor
@@ -324,3 +355,149 @@ class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
         ):
             _cron.open_cron_listener("ch", _cron._logger)
         assert order == ["cursor"]
+
+
+class TestTheListeningSocketIsWatchedExclusively:
+    @staticmethod
+    def _epoll_events(epoll_fd, target_fd):
+        text = pathlib.Path(f"/proc/self/fdinfo/{epoll_fd}").read_text(encoding="ascii")
+        for line in text.splitlines():
+            if line.startswith("tfd:") and int(line.split()[1]) == target_fd:
+                return int(line.split()[3], 16)
+        return None
+
+    @pytest.mark.skipif(not hasattr(select, "EPOLLEXCLUSIVE"), reason="Linux only")
+    def test_the_accept_registration_carries_epollexclusive(self):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        selector = selectors.DefaultSelector()
+        try:
+            assert _worker.watch_accept(selector, sock) is True
+            assert sock in {k.fileobj for k in selector.get_map().values()}
+            events = self._epoll_events(selector._selector.fileno(), sock.fileno())
+            assert events is not None and events & select.EPOLLEXCLUSIVE, hex(events)
+            # The selector still resolves readiness to the socket's key.
+            client = socket.create_connection(sock.getsockname())
+            try:
+                ready = selector.select(timeout=1)
+                assert [key.fileobj for key, _ in ready] == [sock]
+            finally:
+                client.close()
+        finally:
+            selector.close()
+            sock.close()
+
+    def test_a_selector_without_epoll_falls_back_to_a_plain_registration(self):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        selector = selectors.PollSelector()
+        try:
+            assert _worker.watch_accept(selector, sock) is False
+            assert sock in {k.fileobj for k in selector.get_map().values()}
+        finally:
+            selector.close()
+            sock.close()
+
+
+class TestTheWorkerCancelsItsOwnOverrun:
+    """The main thread only waited on the work thread; now it is the budget
+    monitor the master used to be, with SIGKILL as the fallback."""
+
+    def _worker(self, multi, budget):
+        worker = build_worker(_worker.WorkerHTTP, multi, pid=4242)
+        worker.watchdog_timeout = budget
+        multi.beat = 0.05
+        return worker
+
+    def _thread(self, alive_for):
+        thread = MagicMock()
+        thread.name = "Worker WorkerHTTP (4242) workthread"
+        thread.start_time = None
+        polls = {"n": 0}
+
+        def is_alive():
+            polls["n"] += 1
+            return polls["n"] <= alive_for
+
+        thread.is_alive.side_effect = is_alive
+        thread.join.side_effect = lambda timeout=None: None
+        return thread
+
+    def test_work_over_budget_is_cancelled_once_and_the_watchdog_fed(self, multi):
+        worker = self._worker(multi, budget=2)
+        thread = self._thread(alive_for=4)
+        thread.start_time = time.monotonic() - 10
+        pings = []
+        multi.ping_pipe.side_effect = pings.append
+        with patch("odoo.db.cancel_queries_of", return_value=2) as cancel:
+            assert worker._supervise_work_thread(thread) is False
+        cancel.assert_called_once_with(thread.name)
+        assert len(pings) == 4, (
+            "the cancel and then the grace feed the master's watchdog"
+        )
+        assert worker.alive
+        message, budget, elapsed, _doing, count, plural = (
+            worker.logger.warning.call_args.args
+        )
+        assert "cancelled %d running quer%s" in message
+        assert (budget, count, plural) == (2, 2, "ies") and elapsed > 9
+
+    def test_work_still_stuck_after_the_grace_ends_the_worker(self, multi):
+        worker = self._worker(multi, budget=2)
+        worker._CANCEL_GRACE_S = 0.0
+        thread = self._thread(alive_for=10)
+        thread.start_time = time.monotonic() - 10
+        with patch("odoo.db.cancel_queries_of", return_value=0):
+            assert worker._supervise_work_thread(thread) is True
+        assert not worker.alive
+        multi.ping_pipe.assert_called_once()
+
+    def test_work_within_budget_is_left_alone(self, multi):
+        worker = self._worker(multi, budget=60)
+        thread = self._thread(alive_for=3)
+        thread.start_time = time.monotonic() - 1
+        with patch("odoo.db.cancel_queries_of") as cancel:
+            worker._supervise_work_thread(thread)
+        cancel.assert_not_called()
+        multi.ping_pipe.assert_not_called()
+
+    def test_no_budget_means_no_monitor(self, multi):
+        worker = self._worker(multi, budget=None)
+        thread = self._thread(alive_for=2)
+        thread.start_time = time.monotonic() - 10_000
+        with patch("odoo.db.cancel_queries_of") as cancel:
+            worker._supervise_work_thread(thread)
+        cancel.assert_not_called()
+
+    def test_a_new_unit_of_work_gets_its_own_verdict(self, multi):
+        worker = self._worker(multi, budget=2)
+        thread = self._thread(alive_for=3)
+        first = time.monotonic() - 10
+        starts = iter([first, first, None])
+        type(thread).start_time = property(lambda self: next(starts, None))
+        with patch("odoo.db.cancel_queries_of", return_value=1) as cancel:
+            worker._supervise_work_thread(thread)
+        assert cancel.call_count == 1
+
+    def test_the_work_loop_stamps_start_time_around_each_unit(self, multi, monkeypatch):
+        monkeypatch.setattr(
+            threading.current_thread(), "start_time", None, raising=False
+        )
+        worker = build_worker(_worker.WorkerHTTP, multi, pid=4242)
+        seen = []
+
+        def work():
+            seen.append(threading.current_thread().start_time is not None)
+            worker.alive = False
+
+        worker.check_limits = MagicMock()
+        worker.sleep = MagicMock()
+        worker.process_work = work
+        worker._runloop_exc = None
+        with patch.object(_worker.signal, "pthread_sigmask"):
+            worker._run_work_loop()
+        assert worker._runloop_exc is None, worker._runloop_exc
+        assert seen == [True]
+        assert threading.current_thread().start_time is None

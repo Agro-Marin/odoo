@@ -28,20 +28,31 @@ class SmsTemplatePreview(models.TransientModel):
             result["resource_ref"] = "%s,%s" % (sms_template.model_id.model, res.id)
         return result
 
-    sms_template_id = fields.Many2one("sms.template", required=True, ondelete="cascade")
-    lang = fields.Selection(_selection_languages, string="Template Preview Language")
-    model_id = fields.Many2one("ir.model", related="sms_template_id.model_id")
-    body = fields.Char("Body", compute="_compute_sms_template_fields")
-    resource_ref = fields.Reference(
-        string="Record reference", selection="_selection_target_model"
+    sms_template_id = fields.Many2one(
+        comodel_name="sms.template",
+        required=True,
+        ondelete="cascade",
     )
-    no_record = fields.Boolean("No Record", compute="_compute_no_record")
+    lang = fields.Selection(
+        selection=_selection_languages,
+        string="Template Preview Language",
+    )
+    model_id = fields.Many2one(
+        comodel_name="ir.model",
+        related="sms_template_id.model_id",
+    )
+    body = fields.Char(compute="_compute_sms_template_fields")
+    resource_ref = fields.Reference(
+        selection="_selection_target_model",
+        string="Record reference",
+    )
+    no_record = fields.Boolean(compute="_compute_no_record")
 
     @api.depends("model_id")
     def _compute_no_record(self):
         for preview in self:
             preview.no_record = (
-                (self.env[preview.model_id.model].search_count([], limit=1) == 0)
+                (self.env[preview.model_id.model].search_count([], limit=1) == 0)  # noqa: E8507 - a transient wizard: one record
                 if preview.model_id
                 else True
             )

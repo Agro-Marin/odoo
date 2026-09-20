@@ -4,7 +4,10 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.accordion_option_plugin");
 
 export class AccordionOption extends BaseOptionComponent {
     static template = "website.AccordionOption";
@@ -39,6 +42,7 @@ export class DefineCustomIconAction extends BuilderAction {
     static dependencies = ["media"];
     async load() {
         let selectedIconClass;
+        log.lifecycle("DefineCustomIconAction open media dialog");
         await new Promise((resolve) => {
             const onClose = this.dependencies.media.openMediaDialog({
                 visibleTabs: ["ICONS"],
@@ -49,10 +53,14 @@ export class DefineCustomIconAction extends BuilderAction {
             });
             onClose.then(resolve);
         });
+        log.logic("DefineCustomIconAction media dialog closed", () => ({
+            selectedIconClass,
+        }));
         return selectedIconClass;
     }
     apply({ editingElement, params, loadResult: customClass }) {
         if (!customClass) {
+            log.logic("DefineCustomIconAction apply skipped: no icon chosen");
             return;
         }
         const isActiveIcon = params.isActiveIcon;
@@ -67,6 +75,11 @@ export class DefineCustomIconAction extends BuilderAction {
             ".o_custom_icon_inactive i",
         );
         const iconsEls = isActiveIcon ? activeIconsEls : inactiveIconsEls;
+        log.pipeline("DefineCustomIconAction apply", () => ({
+            isActiveIcon,
+            customClass,
+            icons: iconsEls.length,
+        }));
         iconsEls.forEach((iconEl) => {
             iconEl.removeAttribute("class");
             iconEl.classList.add(...customClass.split(" "));
@@ -88,6 +101,11 @@ export class CustomAccordionIconAction extends BuilderAction {
             editingElement.dataset.activeCustomIcon || "fa-solid fa-arrow-up";
         const inactiveCustomIcon =
             editingElement.dataset.inactiveCustomIcon || "fa-solid fa-arrow-down";
+        log.pipeline("CustomAccordionIconAction apply", () => ({
+            value,
+            buttons: accordionButtonEls.length,
+            selectIcons: params.selectIcons,
+        }));
         if (value) {
             if (value === "custom") {
                 editingElement.dataset.activeCustomIcon = activeCustomIcon;

@@ -1,6 +1,6 @@
 {
-    "name": "T\u00fcrkiye - Nilvera",
-    "version": "1.0",
+    "name": "Türkiye - Nilvera",
+    "version": "1.1",
     "category": "Accounting/Accounting",
     "description": """
 Base module containing core functionalities required by other Nilvera modules.
@@ -8,6 +8,7 @@ Base module containing core functionalities required by other Nilvera modules.
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
+        "credential",
         "l10n_tr",
     ],
     "data": [

@@ -4,10 +4,8 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
-from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
-
-class TestCategoryFieldDefinitions(EncryptionKeyCase, TransactionCase):
+class TestCategoryFieldDefinitions(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -26,18 +24,26 @@ class TestCategoryFieldDefinitions(EncryptionKeyCase, TransactionCase):
         )
 
     def test_a_category_with_no_definitions_requires_nothing(self):
-        self.assertTrue(self._credential())
+        self.assertTrue(self._credential(password="x"))
+
+    def test_a_credential_without_a_secret_is_unprovisioned_not_invalid(self):
+        self._definition(code="username", name="Username")
+        credential = self._credential()
+        self.assertFalse(credential.is_provisioned)
+        with self.assertRaises(ValidationError) as caught:
+            credential.password = "x"
+        self.assertIn("username", str(caught.exception))
 
     def test_a_required_definition_is_enforced_without_any_python(self):
         self._definition(code="username", name="Username")
         with self.assertRaises(ValidationError) as caught:
-            self._credential()
+            self._credential(password="x")
         self.assertIn("username", str(caught.exception))
 
     def test_the_requirement_names_the_payload_key_not_the_label(self):
         self._definition(code="oauth_client_secret", name="Client Secret")
         with self.assertRaises(ValidationError) as caught:
-            self._credential()
+            self._credential(password="x")
         self.assertIn("oauth_client_secret", str(caught.exception))
 
     def test_a_definition_is_satisfied_from_the_encrypted_payload(self):
@@ -72,7 +78,7 @@ class TestCategoryFieldDefinitions(EncryptionKeyCase, TransactionCase):
             sequence=20,
         )
         with self.assertRaises(ValidationError):
-            self._credential()
+            self._credential(password="x")
 
     def test_the_message_is_generated_when_the_category_states_none(self):
         self._definition(code="username", name="Username")

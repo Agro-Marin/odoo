@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from odoo.api import Environment
 from odoo.libs.asset_log import log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.constants import (
     SCRIPT_EXTENSIONS,
@@ -46,6 +47,8 @@ from .js_pipeline import JsPipeline
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline
 
+_debug = DebugLog(__name__)
+
 
 @functools.cache
 def _check_external_libs_once() -> None:
@@ -60,6 +63,7 @@ def _check_external_libs_once() -> None:
             "external_libs_invalid",
             error=str(exc).replace("\n", " ")[:400],
         )
+        _debug.logic("external_libs_invalid_tolerated", error=type(exc).__name__)
 
 
 class AssetsBundle:
@@ -83,6 +87,7 @@ class AssetsBundle:
             spec for spec in import_map if not EsbuildCompiler.resolves_specifier(spec)
         ]
         if missing_alias:
+            _debug.logic("external_libs_rejected", reason="alias", specs=missing_alias)
             raise ValueError(
                 f"esm.external_libs declares {sorted(missing_alias)} "
                 f"but esbuild has no resolution for them (no per-lib alias, "
@@ -94,6 +99,7 @@ class AssetsBundle:
             if not cls._is_addon_path_present(url.lstrip("/")):
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
+            _debug.logic("external_libs_rejected", reason="file", specs=missing_files)
             raise ValueError(
                 f"esm.external_libs URLs point at files that do not exist "
                 f"on disk: {missing_files}. Browsers would 404 on the "
@@ -103,17 +109,6 @@ class AssetsBundle:
     @staticmethod
     def _url_extension(url: str) -> str:
         return url.partition("#")[0].partition("?")[0].rpartition(".")[2].lower()
-
-    @staticmethod
-    def _is_addon_present(rel: str) -> bool:
-        module = rel.partition("/")[0]
-        if not module:
-            return False
-        try:
-            file_path(module)
-        except ValueError, FileNotFoundError:
-            return False
-        return True
 
     @staticmethod
     def _is_addon_path_present(rel: str) -> bool:
@@ -139,6 +134,13 @@ class AssetsBundle:
                     bundle=self.name,
                     url=url,
                 )
+                _debug.logic("external_asset_skipped", bundle=self.name, ext=ext)
+        _debug.perf.count(
+            "external_assets_matched",
+            bundle=self.name,
+            given=len(external_assets),
+            kept=len(kept),
+        )
         return kept
 
     def _collect_files(self, files: list[BundleFileSpec], css: bool, js: bool) -> None:
@@ -155,7 +157,11 @@ class AssetsBundle:
             if css and (stylesheet_type := self._STYLESHEET_TYPES.get(extension)):
                 self.stylesheets.append(
                     stylesheet_type(
-                        self, **params, rtl=self.rtl, autoprefix=self.autoprefix
+                        self,
+                        **params,
+                        rtl=self.rtl,
+                        autoprefix=self.autoprefix,
+                        split_id=f"{len(self.stylesheets):04x}",
                     )
                 )
             if js and (script_type := self._SCRIPT_TYPES.get(extension)):
@@ -174,6 +180,18 @@ class AssetsBundle:
                     bundle=self.name,
                     url=spec["url"],
                 )
+                _debug.logic(
+                    "bundle_file_skipped", bundle=self.name, extension=extension
+                )
+        _debug.pipeline(
+            "files_collected",
+            bundle=self.name,
+            files=len(files),
+            stylesheets=len(self.stylesheets),
+            javascripts=len(self.javascripts),
+            native_modules=len(self.native_modules),
+            templates=len(self.templates),
+        )
 
     def __init__(
         self,
@@ -189,11 +207,11 @@ class AssetsBundle:
         assets_params: dict[str, Any] | None = None,
         autoprefix: bool = False,
     ) -> None:
+        _check_external_libs_once()
         self.name = name
         self.env = env
         self.javascripts = []
         self.native_modules = []
-        _check_external_libs_once()
         self._is_esm_bundle = name in esm_registry().bundles
         self.templates = []
         self.stylesheets = []
@@ -202,8 +220,6 @@ class AssetsBundle:
         self.rtl = rtl
         self.assets_params = assets_params or {}
         self.autoprefix = autoprefix
-        self.has_css = css
-        self.has_js = js
         self._checksum_cache = {}
         self._native_module_data_cache: dict[bool, NativeModuleData] = {}
         self.is_debug_assets = debug_assets
@@ -212,14 +228,21 @@ class AssetsBundle:
         )
         self._collect_files(files, css, js)
 
-        for index, stylesheet in enumerate(self.stylesheets):
-            stylesheet.id = f"{index:04x}"
-
         self._version_assets = {
             "css": tuple(self.stylesheets),
             "js": tuple(self.javascripts + self.templates + self.native_modules),
         }
 
+        _debug.lifecycle(
+            "bundle_init",
+            bundle=name,
+            esm=self._is_esm_bundle,
+            debug=debug_assets,
+            rtl=rtl,
+            css=css,
+            js=js,
+            external=len(self.external_assets),
+        )
         log_event(
             _bundle_log,
             logging.DEBUG,
@@ -253,16 +276,25 @@ class AssetsBundle:
     def get_links(self) -> list[str]:
         response = []
 
-        if self.has_css and self.stylesheets:
+        if self.has_css_content:
             response.append(self.get_link("css"))
 
-        if self.has_js and self.has_js_content:
+        if self.has_js_content:
             response.append(self.get_link("js"))
 
+        _debug.pipeline(
+            "links",
+            bundle=self.name,
+            external=len(self.external_assets),
+            links=len(response),
+        )
         return self.external_assets + response
 
     def get_native_module_data(self, with_bridges: bool = True) -> NativeModuleData:
         if with_bridges not in self._native_module_data_cache:
+            _debug.perf.count(
+                "native_module_data_miss", bundle=self.name, bridges=with_bridges
+            )
             self._native_module_data_cache[with_bridges] = self._native_module_data(
                 with_bridges
             )
@@ -298,6 +330,9 @@ class AssetsBundle:
                     previous=prior,
                     replaced_with=url,
                 )
+                _debug.logic(
+                    "import_map_spec_collision", bundle=self.name, spec=spec, kind=kind
+                )
             import_map[spec] = url
 
         for asset in self.native_modules:
@@ -314,6 +349,14 @@ class AssetsBundle:
             self._bridges._prepare_native_to_legacy_bridge(set(import_map))
             if with_bridges
             else {}
+        )
+        _debug.pipeline(
+            "native_module_data",
+            bundle=self.name,
+            modules=len(self.native_modules),
+            specs=len(import_map),
+            preload=len(preload_urls),
+            bridges=len(bridge_import_map),
         )
         log_event(
             _bundle_log,
@@ -336,24 +379,44 @@ class AssetsBundle:
         EsbuildCompiler.invalidate_addon_scan_cache()
         invalidate_esm_registry()
         _check_external_libs_once.cache_clear()
+        _debug.lifecycle("addon_scan_cache_invalidated")
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list, list]:
         return EsbuildCompiler._get_esbuild_addon_flags(odoo_root)
 
     def _prepare_esbuild_compiler(
-        self, exported_specs: Collection[str] | None = None
+        self,
+        exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
+        excluded_specs: Collection[str] = (),
     ) -> EsbuildCompiler:
         registry = esm_registry()
+        native_modules = self.native_modules
+        if excluded_specs:
+            native_modules = [
+                asset
+                for asset in native_modules
+                if asset.module_path not in excluded_specs
+            ]
+        _debug.logic(
+            "esbuild_compiler_prepared",
+            bundle=self.name,
+            modules=len(native_modules),
+            legacy=len(self.javascripts),
+            included=self.name in registry.import_map_included_bundles,
+            standalone=self.name in registry.standalone_bundles,
+        )
         return EsbuildCompiler(
             self.name,
-            self.native_modules,
+            native_modules,
             self.javascripts,
             import_map_included=self.name in registry.import_map_included_bundles,
             skip_legacy_test_imports=self.name in registry.import_map_includes,
             standalone=self.name in registry.standalone_bundles,
             addon_flags_provider=self._get_esbuild_addon_flags,
             exported_specs=exported_specs,
+            registered_reach=registered_reach,
         )
 
     def esbuild_native_bundle(
@@ -364,23 +427,40 @@ class AssetsBundle:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
         exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
+        excluded_specs: Collection[str] = (),
     ) -> EsbuildResult:
-        return self._prepare_esbuild_compiler(exported_specs).compile(
-            timeout_s=timeout_s,
-            target=target,
-            source_maps=source_maps,
-            dynamic_child_specs=dynamic_child_specs,
-            secondary_parent_stubs=secondary_parent_stubs,
-        )
+        with _debug.perf(
+            "esbuild_native_bundle",
+            bundle=self.name,
+            modules=len(self.native_modules),
+            dynamic_children=len(dynamic_child_specs or ()),
+            stubs=len(secondary_parent_stubs or ()),
+            excluded=len(excluded_specs),
+            exported=len(exported_specs or ()),
+        ) as span:
+            result = self._prepare_esbuild_compiler(
+                exported_specs, registered_reach, excluded_specs
+            ).compile(
+                timeout_s=timeout_s,
+                target=target,
+                source_maps=source_maps,
+                dynamic_child_specs=dynamic_child_specs,
+                secondary_parent_stubs=secondary_parent_stubs,
+            )
+            span.set(compiled=bool(result.code), bytes=len(result.code or ""))
+        return result
 
     @functools.cached_property
     def _bridges(self) -> BridgeShimManager:
         return BridgeShimManager(self.env, self.name, self.native_modules)
 
+    def _extension(self, asset_type: str) -> str:
+        return asset_type if self.is_debug_assets else f"min.{asset_type}"
+
     def get_link(self, asset_type: str) -> str:
         unique = self.get_version(asset_type) if not self.is_debug_assets else "debug"
-        extension = asset_type if self.is_debug_assets else f"min.{asset_type}"
-        return self.get_asset_url(unique=unique, extension=extension)
+        return self.get_asset_url(unique=unique, extension=self._extension(asset_type))
 
     def get_version(self, asset_type: str) -> str:
         return self.get_checksum(asset_type)[0:7]
@@ -388,6 +468,9 @@ class AssetsBundle:
     def get_checksum(self, asset_type: str) -> str:
         if asset_type not in self._checksum_cache:
             if asset_type not in self._version_assets:
+                _debug.logic(
+                    "checksum_rejected", bundle=self.name, asset_type=asset_type
+                )
                 raise ValueError(f"Asset type {asset_type} not known")
             h = hashlib.sha256()
             h.update(_pipeline_fingerprint().encode())
@@ -396,6 +479,12 @@ class AssetsBundle:
                 h.update(asset.unique_descriptor.encode())
                 h.update(b"\x00")
             self._checksum_cache[asset_type] = h.hexdigest()
+            _debug.perf.count(
+                "checksum_computed",
+                bundle=self.name,
+                asset_type=asset_type,
+                assets=len(self._version_assets[asset_type]),
+            )
         return self._checksum_cache[asset_type]
 
     @functools.cached_property
@@ -427,6 +516,7 @@ class AssetsBundle:
                 asset._filename,
                 asset.last_modified,
             )
+        _debug.logic("module_js_classified_inline", bundle=self.name, url=asset.url)
         return asset.is_native or is_odoo_module(asset.url or "", asset.raw_content)
 
     @functools.cached_property
@@ -437,41 +527,72 @@ class AssetsBundle:
     def _xml(self) -> XmlTemplatePipeline:
         return XmlTemplatePipeline(self)
 
+    def _stored_or_built(
+        self, asset_type: str, build: Callable[[str], IrAttachment]
+    ) -> IrAttachment:
+        extension = self._extension(asset_type)
+        stored = self.get_attachments(extension)
+        _debug.logic(
+            f"{asset_type}_attachment",
+            bundle=self.name,
+            minified=not self.is_debug_assets,
+            hit=bool(stored),
+        )
+        return stored[0] if stored else build(extension)
+
     def js(self) -> IrAttachment:
         if not self.has_js_content:
+            _debug.logic("js_attachment", bundle=self.name, reason="no_content")
             return self._no_attachment()
-        is_minified = not self.is_debug_assets
-        extension = "min.js" if is_minified else "js"
-        js_attachment = self.get_attachments(extension)
+        return self._stored_or_built("js", self._build_js)
 
-        if not js_attachment:
+    def _build_js(self, extension: str) -> IrAttachment:
+        with _debug.perf(
+            "js_build",
+            cr=self.env.cr,
+            bundle=self.name,
+            minified=not self.is_debug_assets,
+            assets=len(self.javascripts),
+        ):
             template_bundle = (
                 self._xml.legacy_template_iife() if self._has_legacy_templates else ""
             )
-            if is_minified:
-                content_bundle = self._js.minified_bundle(template_bundle)
-                js_attachment = self.save_attachment(extension, content_bundle)
-            else:
-                js_attachment = self.js_with_sourcemap(template_bundle=template_bundle)
-
-        return js_attachment[0]
+            if self.is_debug_assets:
+                return self.js_with_sourcemap(template_bundle=template_bundle)
+            return self.save_attachment(
+                extension, self._js.minified_bundle(template_bundle)
+            )
 
     def _save_with_sourcemap(
         self,
         extension: str,
         body_builder: Callable[[SourceMapGenerator, str], str],
     ) -> IrAttachment:
-        map_attachment = self.get_attachments(
-            f"{extension}.map"
-        ) or self.save_attachment(f"{extension}.map", "")
+        map_extension = f"{extension}.map"
+        # the map's url is a function of the version, so it is known before
+        # the map exists and no placeholder row has to be written to learn it
+        map_url = self._store.get_versioned_url(map_extension)
         generator = SourceMapGenerator(
             source_root=_sourcemap_source_root(self.get_asset_url("debug", extension)),
         )
-        content_bundle = body_builder(generator, map_attachment.url)
+        with _debug.perf(
+            "sourcemap_build", cr=self.env.cr, bundle=self.name, extension=extension
+        ) as span:
+            content_bundle = body_builder(generator, map_url)
+            span.set(bytes=len(content_bundle))
         attachment = self.save_attachment(extension, content_bundle)
 
         generator.file = attachment.url
-        map_attachment.write({"raw": generator.get_content()})
+        map_attachment = self.save_attachment(
+            map_extension, generator.get_content().decode()
+        )
+        _debug.lifecycle(
+            "sourcemap_saved",
+            bundle=self.name,
+            extension=extension,
+            attachment=attachment.id,
+            map=map_attachment.id,
+        )
 
         return attachment
 
@@ -489,35 +610,48 @@ class AssetsBundle:
     def generate_esm_template_bundle(self, use_import=True) -> str:
         return self._xml.generate_esm_template_bundle(use_import)
 
-    @classmethod
-    def _render_css_error_banner(
-        cls, css_errors: Sequence[str], previous_css: str
-    ) -> str:
-        return CssPipeline._render_css_error_banner(css_errors, previous_css)
-
     def css(self) -> IrAttachment:
         if not self.has_css_content:
+            _debug.logic("css_attachment", bundle=self.name, reason="no_content")
             return self._no_attachment()
-        is_minified = not self.is_debug_assets
-        extension = "min.css" if is_minified else "css"
-        attachments = self.get_attachments(extension)
-        if attachments:
-            return attachments[0]
+        return self._stored_or_built("css", self._build_css)
 
-        css = self.preprocess_css()
+    def _build_css(self, extension: str) -> IrAttachment:
+        with _debug.perf(
+            "css_build",
+            cr=self.env.cr,
+            bundle=self.name,
+            minified=not self.is_debug_assets,
+            stylesheets=len(self.stylesheets),
+            rtl=self.rtl,
+        ) as span:
+            css = self.preprocess_css()
+            span.set(errors=len(self.css_errors))
         if self.css_errors:
             previous_attachment = self.get_attachments(extension, ignore_version=True)
             previous_css = (
                 previous_attachment.raw.decode() if previous_attachment else ""
             )
-            banner = self._render_css_error_banner(self.css_errors, previous_css)
+            _debug.logic(
+                "css_error_banner",
+                bundle=self.name,
+                errors=len(self.css_errors),
+                previous=bool(previous_attachment),
+            )
+            banner = self._css._render_css_error_banner(self.css_errors, previous_css)
             return self.save_attachment(extension, banner)
 
         import_rules, css = self._css.hoist_import_rules(css)
+        _debug.pipeline(
+            "css_import_rules_hoisted",
+            bundle=self.name,
+            imports=len(import_rules),
+            bytes=len(css),
+        )
 
-        if is_minified:
-            return self.save_attachment(extension, "\n".join(import_rules + [css]))
-        return self.css_with_sourcemap("\n".join(import_rules))
+        if self.is_debug_assets:
+            return self.css_with_sourcemap("\n".join(import_rules))
+        return self.save_attachment(extension, "\n".join(import_rules + [css]))
 
     def css_with_sourcemap(self, content_import_rules: str) -> IrAttachment:
         return self._save_with_sourcemap(

@@ -7,6 +7,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { getFieldCodec } from "@web/core/field_codec";
 import { localization } from "@web/core/l10n/localization";
 import { download } from "@web/core/network/download";
@@ -39,6 +41,8 @@ class PivotDropdown extends Dropdown {
     }
 }
 
+const log = makeLogger("web.view.pivot");
+
 export class PivotRenderer extends Component {
     static template = "web.PivotRenderer";
     static components = {
@@ -54,6 +58,7 @@ export class PivotRenderer extends Component {
 
     setup() {
         useRenderCounter("pivot.PivotRenderer");
+        useLifecycleLog(log);
         this.actionService = useAction();
         this.notification = useService("notification");
         this.model = useReactiveModel(this.props.model);
@@ -123,7 +128,7 @@ export class PivotRenderer extends Component {
      * @returns {number}
      */
     getPadding(cell) {
-        return 5 + cell.indent * 30;
+        return 5 + cell.indent * (this.env.isSmall ? 5 : 30);
     }
     /**
      * @private

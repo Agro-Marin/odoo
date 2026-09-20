@@ -1,3 +1,4 @@
+from . import test_access_propagation
 from . import test_attachment_access
 from . import test_attachment_split
 from . import test_controllers
@@ -6,6 +7,7 @@ from . import test_document_attachment_link
 from . import test_document_audit_round3_wizards
 from . import test_document_chatter
 from . import test_document_common
+from . import test_document_dangling_link
 from . import test_document_document
 from . import test_document_document_folder
 from . import test_document_download
@@ -33,4 +35,6 @@ from . import test_link_to_record
 from . import test_mail_activity
 from . import test_mail_gateway
 from . import test_tools
+from . import test_mixin_documents_contract
+from . import test_wizard_isolation
 from .tours import *

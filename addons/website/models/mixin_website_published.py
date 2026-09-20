@@ -13,22 +13,23 @@ class MixinWebsitePublished(models.AbstractModel):
     _description = "Website Published Mixin"
 
     website_published = fields.Boolean(
-        "Visible on current website", related="is_published", readonly=False
+        related="is_published",
+        string="Visible on current website",
+        readonly=False,
     )
     is_published = fields.Boolean(
-        "Is Published",
-        copy=False,
         default=lambda self: self._default_is_published(),
         index=True,
+        copy=False,
     )
-    can_publish = fields.Boolean("Can Publish", compute="_compute_can_publish")
+    can_publish = fields.Boolean(compute="_compute_can_publish")
     website_url = fields.Char(
-        "Website URL",
+        string="Website URL",
         compute="_compute_website_url",
         help="The full relative URL to access the document through the website.",
     )
     website_absolute_url = fields.Char(
-        "Website Absolute URL",
+        string="Website Absolute URL",
         compute="_compute_website_absolute_url",
         help="The full absolute URL to access the document through the website.",
     )
@@ -78,14 +79,9 @@ class MixinWebsitePublished(models.AbstractModel):
 
     @api.depends_context("uid")
     def _compute_can_publish(self):
+        modifiable = self.env["website"].get_current_website()._filter_modifiable(self)
         for record in self:
-            try:
-                self.env["website"].get_current_website()._check_access_to_modify(
-                    record
-                )
-                record.can_publish = True
-            except AccessError:
-                record.can_publish = False
+            record.can_publish = record in modifiable
 
     @api.model
     def _get_can_publish_error_message(self):
