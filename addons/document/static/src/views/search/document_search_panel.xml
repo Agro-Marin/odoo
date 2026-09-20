@@ -63,9 +63,6 @@
             <attribute name="class">o_documents_search_panel_editable</attribute>
         </xpath>
         <xpath expr="//div//label//span[hasclass('o_search_panel_counter')]" position="replace"/>
-        <xpath expr="//div//label//span[hasclass('o_search_panel_counter')]" position="attributes">
-            <attribute name="class" add="ms-2 me-3" remove="mx-2" separator=" "/>
-        </xpath>
     </t>
 
     <t t-name="document.SearchPanel.Small" t-inherit="web.SearchPanel.Small" t-inherit-mode="primary"/>
