@@ -67,7 +67,8 @@ class AccountFollowupCustomHandler(models.AbstractModel):
         return list(
             filter(
                 lambda aml: (
-                    aml["date_maturity"] and aml["date_maturity"] < fields.Date.today()
+                    aml["date_maturity"]
+                    and aml["date_maturity"] < fields.Date.context_today(self)
                 ),
                 aml_results,
             )
@@ -78,7 +79,7 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             filter(
                 lambda aml: (
                     not aml["date_maturity"]
-                    or aml["date_maturity"] >= fields.Date.today()
+                    or aml["date_maturity"] >= fields.Date.context_today(self)
                 ),
                 aml_results,
             )

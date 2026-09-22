@@ -151,3 +151,4 @@ from . import test_followup_report
 from . import test_kpi_provider_reports
 from . import test_export_mime_type
 from . import test_spreadsheet_agreement
+from . import test_business_dates_timezone
