@@ -73,6 +73,7 @@ class AccountReturnCheckTemplate(models.Model):
             ("account.move", "Journal Entry"),
             ("account.bank.statement.line", "Bank Statement Line"),
             ("account.payment", "Payments"),
+            ("account.account", "Accounts"),
         ]
     )
     domain = fields.Char()

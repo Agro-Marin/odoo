@@ -2223,7 +2223,16 @@ class AccountReturn(models.Model):
                         note=template.description,
                     )
 
-            if template.type == "check" and template.model:
+            if template.type == "check" and template.model == "account.account":
+                # An account is not an entry to count: it is something a person
+                # reviews, and the audit already tracks how far that got. So the
+                # check reports the state of the accounts it covers instead of
+                # asking whether any record matches.
+                vals_dict["result"] = self._get_audited_accounts_status(
+                    self._parse_accounts_domain(template.domain)
+                )
+
+            elif template.type == "check" and template.model:
                 ir_model = self.env["ir.model"]._get(template.model)
                 model = self.env[template.model]
                 domain = []
@@ -2271,6 +2280,50 @@ class AccountReturn(models.Model):
 
         _debug.pipeline("template_checks_built", tax_return=self, checks=len(vals_list))
         return vals_list
+
+    def _parse_accounts_domain(self, domain_str):
+        """Domain of an account-based check, evaluated as cheaply as it allows.
+
+        Almost every one of these is a plain literal on `account_type`. The few
+        that name a company account need the check evaluation context, and that
+        context builds a full set of trial-balance options -- too much to pay on
+        every template when only one of them asks for it.
+        """
+        if not domain_str:
+            return []
+        try:
+            return ast.literal_eval(domain_str)
+        except ValueError:
+            check = self.env["account.return.check"].new({"return_id": self.id})
+            return check._parse_expression(
+                domain_str, check._prepare_evaluation_context()
+            )
+
+    def _get_audited_accounts_status(self, accounts_domain):
+        """Least advanced review status among the audited accounts of a domain.
+
+        anomaly > todo > reviewed > supervised: a check covering a set of
+        accounts is only as far along as the account nobody has looked at yet.
+        An account carrying no status has no entries to review, which is as good
+        as reviewed -- the same reading the audit itself uses when it seeds them.
+        """
+        self.check_singleton()
+        status_priority = {"anomaly": 0, "todo": 1, "reviewed": 2, "supervised": 3}
+        account_status = self.env["account.audit.account.status"].search(
+            [
+                ("audit_id", "=", self.id),
+                (
+                    "account_id",
+                    "in",
+                    self.env["account.account"]._search(accounts_domain),
+                ),
+            ]
+        )
+        return min(
+            (status.status or "reviewed" for status in account_status),
+            key=lambda status: status_priority[status],
+            default="reviewed",
+        )
 
     @_debug.perf.timed
     def _run_checks(self, check_codes_to_ignore):
