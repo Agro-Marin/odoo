@@ -153,3 +153,4 @@ from . import test_export_mime_type
 from . import test_spreadsheet_agreement
 from . import test_business_dates_timezone
 from . import test_account_based_checks
+from . import test_horizontal_group_ledger

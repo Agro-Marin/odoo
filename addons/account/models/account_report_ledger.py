@@ -2131,12 +2131,25 @@ class AccountReport(models.Model):
             query.add_where(SQL("budget_id = %s", options["compute_budget"]))
 
     def _init_options_horizontal_groups(self, options, previous_options):
+        # The shipped "Ledger" group only says something when the columns it
+        # would create can actually differ: either journals are grouped into
+        # ledgers, or more than one company is being reported on. Offered
+        # otherwise it promises a breakdown that renders as a single column.
+        ledger_group = self.env.ref(
+            "account.horizontal_group_ledger", raise_if_not_found=False
+        )
+        ledger_is_relevant = bool(self._get_filter_journal_groups(options)) or (
+            len(self.get_report_company_ids(options)) > 1
+        )
+        available_groups = self.horizontal_group_ids.filtered(
+            lambda group: ledger_is_relevant or group != ledger_group
+        )
         options["available_horizontal_groups"] = [
             {
                 "id": horizontal_group.id,
                 "name": horizontal_group.name,
             }
-            for horizontal_group in self.horizontal_group_ids
+            for horizontal_group in available_groups
         ]
         previous_selected = previous_options.get("selected_horizontal_group_id")
         options["selected_horizontal_group_id"] = (

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- noupdate: `Command.clear()` on a re-load orphans the existing rule,
+         and `horizontal_group_id` is NOT NULL. Seed it once. -->
+    <data noupdate="1">
+        <!-- Split report columns by ledger.
+
+             The horizontal-group engine ships complete but empty: the only
+             thing that ever creates a group is a tax unit, an EU construct we
+             have none of, so the filter never renders. This record is what
+             makes the feature reachable for journals grouped into ledgers. -->
+        <record id="horizontal_group_ledger" model="account.report.horizontal.group">
+            <field name="name">Ledger</field>
+            <field
+                name="report_ids"
+                eval="[Command.set([
+                    ref('account.balance_sheet'),
+                    ref('account.profit_and_loss'),
+                    ref('account.cash_flow_report'),
+                ])]" />
+            <field
+                name="rule_ids"
+                eval="[Command.create({
+                    'field_name': 'journal_group_id',
+                    'domain': '[]',
+                })]" />
+        </record>
+    </data>
+</odoo>
