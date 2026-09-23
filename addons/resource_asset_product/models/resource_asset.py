@@ -32,16 +32,19 @@ class ResourceAsset(models.Model):
     log_ids = fields.One2many(
         comodel_name="resource.asset.log",
         inverse_name="asset_id",
+        groups="resource_asset.group_asset_user",
     )
     part_ids = fields.One2many(
         comodel_name="resource.asset.part",
         inverse_name="asset_id",
         string="Parts",
         domain=[("state", "in", ("installed", "removed"))],
+        groups="resource_asset.group_asset_user",
     )
     part_flagged_count = fields.Integer(
         string="Flagged Parts",
         compute="_compute_part_flagged_count",
+        compute_sudo=True,
     )
     log_count = fields.Integer(
         string="Ledger Entries",

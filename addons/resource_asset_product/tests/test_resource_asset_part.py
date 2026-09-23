@@ -152,6 +152,25 @@ class TestResourceAssetPart(TransactionCase):
         self.assertEqual(part.review_state, "cleared")
         self.assertEqual(part.flag_ids.state, "resolved")
 
+    def test_an_employee_reads_the_asset_without_rights_on_its_parts(self):
+        # Every employee may read an asset; its parts and its ledger are the
+        # asset users'. The flag count still comes through, and the two lists
+        # the employee cannot open are left out of the asset instead of
+        # failing the whole read.
+        self._install(datetime(2026, 1, 1))
+        self._install(datetime(2026, 2, 1))
+        employee = new_test_user(
+            self.env, login="parts_employee", groups="base.group_user"
+        )
+        asset = self.asset.with_user(employee)
+
+        self.assertEqual(asset.read(["part_flagged_count"])[0]["part_flagged_count"], 1)
+        self.assertNotIn("part_ids", asset.fields_get())
+        self.assertNotIn("log_ids", asset.fields_get())
+        readable_by_user = self.asset.with_user(self.user).fields_get()
+        self.assertIn("part_ids", readable_by_user)
+        self.assertIn("log_ids", readable_by_user)
+
     def test_only_an_asset_manager_clears_a_flag(self):
         self._install(datetime(2026, 1, 1))
         second = self._install(datetime(2026, 2, 1))
