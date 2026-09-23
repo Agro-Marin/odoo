@@ -648,7 +648,7 @@ class ApprovalBinding(models.Model):
                     "%(record)s needs an approval before %(method)s can run.\n\n"
                     "Ask for approval on the document first.",
                     record=record.display_name,
-                    method=self.method,
+                    method=self.method or self.action_id.name,
                 ),
             )
         trace.BINDING.note(
