@@ -80,7 +80,7 @@ def _app(environ, start_response):
 
 
 @contextmanager
-def _server(app=_app, **env):
+def _server(app=_app, *, serve=True, **env):
     with (
         patch.dict(os.environ, {"ODOO_MAX_HTTP_THREADS": "4", **env}),
         server_settings.override(
@@ -89,13 +89,15 @@ def _server(app=_app, **env):
     ):
         srv = httpd.ThreadedHTTPServer("127.0.0.1", 0, app)
     thread = threading.Thread(target=srv.serve_forever, daemon=True)
-    thread.start()
+    if serve:
+        thread.start()
     try:
         yield srv
     finally:
         srv.shutdown()
         srv.server_close()
-        thread.join(5)
+        if serve:
+            thread.join(5)
 
 
 @pytest.fixture(scope="module")
@@ -1209,9 +1211,18 @@ class TestTheListenerSurvivesAReexec:
         `_update_listening` registered it: `ValueError: Invalid file
         descriptor: -1`, raised inside the serving thread, which pytest
         surfaces only as an unhandled-thread-exception warning.
+
+        The test takes the loop's passes itself, on a server whose loop is not
+        running: `_update_listening` belongs to the serving thread, and a
+        second caller races it on the selector.
         """
-        with _server() as srv, patch.dict(os.environ, {}, clear=False):
+        with (
+            _server(serve=False) as srv,
+            patch.dict(os.environ, {}, clear=False),
+        ):
             os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
+            srv._update_listening()
+            assert srv._listening is True
             srv.bequeath_listener()
             assert srv.socket.fileno() == -1, "the handover detaches it"
             srv._update_listening()
@@ -1221,7 +1232,7 @@ class TestTheListenerSurvivesAReexec:
             )
 
     def test_a_closed_listener_is_not_re_registered_either(self):
-        with _server() as srv:
+        with _server(serve=False) as srv:
             srv._update_listening()
             srv.socket.close()
             srv._listening = False
