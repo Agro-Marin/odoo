@@ -30,9 +30,10 @@ def _pdf(pages=1, lines=10, text="TOTAL 139.86 CFE"):
     return doc.tobytes()
 
 
-def _scan_pdf():
+def _scan_pdf(pages=1):
     doc = pymupdf.open()
-    doc.new_page()
+    for _page in range(pages):
+        doc.new_page()
     return doc.tobytes()
 
 
@@ -65,6 +66,14 @@ class TestDocumentSource(BaseCase):
         self.assertEqual(source.text, "")
         self.assertFalse(source.provides("text"))
         self.assertTrue(source.provides("images"))
+
+    def test_a_two_page_scan_provides_no_text_either(self):
+        # Two empty pages joined by one break spell "--PAGE--", eight
+        # characters: counted as text, they kept OCR off every two-page scan.
+        source = Document(_scan_pdf(pages=2), "application/pdf")
+
+        self.assertEqual(source.text, "")
+        self.assertFalse(source.provides("text"))
 
     def test_it_renders_a_pdf_page_to_png(self):
         source = Document(_scan_pdf(), "application/pdf")

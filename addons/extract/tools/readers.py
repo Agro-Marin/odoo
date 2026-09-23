@@ -67,12 +67,11 @@ class _PdfText(BaseReader):
     yields = (TEXT,)
 
     def read(self, document):
-        text = ""
         try:
             import pymupdf
 
             with pymupdf.open(stream=document.data, filetype="pdf") as doc:
-                text = PAGE_BREAK.join(page.get_text() for page in doc).strip()
+                pages = [page.get_text() for page in doc]
         except Exception as e:
             _logger.debug(
                 "Could not read the text layer of %r: %s",
@@ -80,10 +79,16 @@ class _PdfText(BaseReader):
                 e,
                 exc_info=True,
             )
+            pages = []
         # A handful of characters off a whole PDF is a header, not a text layer,
         # and reporting them would end the search before a reader that renders
-        # the pages ever ran. Answering nothing is what lets one run.
-        return text if len(text) >= OCR_MIN_CHARS else ""
+        # the pages ever ran. Answering nothing is what lets one run. Counted
+        # without the page breaks: a two-page scan has no text at all, yet
+        # joined by one break it spells "--PAGE--", exactly OCR_MIN_CHARS long,
+        # and that alone used to keep its pages from ever being read.
+        if len("".join(pages).strip()) < OCR_MIN_CHARS:
+            return ""
+        return PAGE_BREAK.join(pages).strip()
 
 
 class _XmlText(BaseReader):
