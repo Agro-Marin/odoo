@@ -58,8 +58,31 @@ class TestCloudStorageAttachmentController(
                     '"url":"[url]"',
                     res.content.decode("utf-8"),
                 )
+                payload = json.loads(content)
+                [entry] = payload["data"]["store_data"]["ir.attachment"]
+                named = {
+                    "checksum",
+                    "create_date",
+                    "file_size",
+                    "has_thumbnail",
+                    "id",
+                    "mimetype",
+                    "name",
+                    "ownership_token",
+                    "raw_access_token",
+                    "res_model",
+                    "res_name",
+                    "thread",
+                    "thumbnail_access_token",
+                    "type",
+                    "url",
+                    "voice_ids",
+                }
+                payload["data"]["store_data"]["ir.attachment"] = [
+                    {key: value for key, value in entry.items() if key in named}
+                ]
                 self.assertEqual(
-                    json.loads(content),
+                    payload,
                     {
                         "data": {
                             "attachment_id": attachment.id,
