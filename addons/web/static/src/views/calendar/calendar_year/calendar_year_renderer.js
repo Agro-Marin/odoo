@@ -43,7 +43,7 @@ export class CalendarYearRenderer extends CalendarRendererBase {
         this.months = Info.months();
         this.fcs = {};
         for (const month of this.months) {
-            this.fcs[month] = useFullCalendar(`fullCalendar-${month}`, () =>
+            this.fcs[month] = useFullCalendar(this, `fullCalendar-${month}`, () =>
                 this.getOptionsForMonth(month),
             );
         }

@@ -13,7 +13,6 @@ import {
     onWillRender,
     onWillUnmount,
     onWillUpdateProps,
-    useComponent,
     useExternalListener,
     useRef,
     useState,
@@ -87,7 +86,6 @@ export const DocumentsRendererMixin = (component) =>
                 true,
             );
             this.rightPanelState = useState(this.documentService.rightPanelReactive);
-            this.component = useComponent();
             this.refreshFocus = false;
 
             onWillUnmount(() => this.documentService.stopRightPanelScrollObserver());
@@ -210,7 +208,7 @@ export const DocumentsRendererMixin = (component) =>
              */
             record.load = async () => {
                 await this.env.searchModel._reloadSearchPanel();
-                this.component.render();
+                this.documentService.focusRecord(this.getContainerRecord());
             };
             /**
              * @override skip

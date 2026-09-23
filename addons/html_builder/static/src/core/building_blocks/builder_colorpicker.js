@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 import { ColorSelector } from "@html_editor/main/font/color_selector";
-import { Component, useComponent, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import {
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
@@ -20,8 +20,7 @@ import {
 import { BuilderComponent } from "./builder_component.js";
 
 // TODO replace by useInputBuilderComponent after extracting unit handling
-export function useColorPickerBuilderComponent() {
-    const comp = useComponent();
+export function useColorPickerBuilderComponent(comp) {
     const { getAllActions, callOperation } = getAllActionsAndOperations(comp);
     const getAction = comp.env.editor.shared.builderActions.getAction;
     let selectedTab;
@@ -140,7 +139,7 @@ export class BuilderColorPicker extends Component {
     setup() {
         useBuilderComponent();
         const { state, onApply, onPreview, onPreviewRevert } =
-            useColorPickerBuilderComponent();
+            useColorPickerBuilderComponent(this);
         this.colorButton = useRef("colorButton");
         this.state = state;
         useColorPicker(

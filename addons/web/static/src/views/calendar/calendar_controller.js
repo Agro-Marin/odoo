@@ -106,7 +106,7 @@ export class CalendarController extends Component {
             showSideBar: !this.env.isSmall && sessionShowSidebar !== "false",
         });
 
-        this.chassis = useViewChassis();
+        this.chassis = useViewChassis(this);
         this.searchBarToggler = this.chassis.searchBarToggler;
         this.rootRef = this.chassis.rootRef;
 

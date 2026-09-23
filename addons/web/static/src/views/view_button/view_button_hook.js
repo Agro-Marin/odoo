@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
+import { useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { sharedComponents } from "@web/core/shared_components";
-import { useService } from "@web/core/utils/hooks";
+import { useIsDestroyed, useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 const log = makeLogger("web.view.button");
@@ -78,7 +78,7 @@ function getButtonContext(clickParams, params) {
 /**
  * @param {Object} deps
  * @param {any} deps.action
- * @param {any} deps.comp
+ * @param {() => boolean} deps.isDestroyed
  * @param {any} deps.env
  * @param {ViewButtonsOptions} deps.options
  * @param {Object} click
@@ -88,7 +88,7 @@ function getButtonContext(clickParams, params) {
  * @param {boolean} [click.newWindow]
  */
 async function executeViewButton(
-    { action, comp, env, options },
+    { action, isDestroyed, env, options },
     { clickParams, getResParams, beforeExecute, newWindow },
 ) {
     let _continue = true;
@@ -111,11 +111,7 @@ async function executeViewButton(
         context: params.context || {},
         buttonContext: getButtonContext(clickParams, params),
         onClose: async (onCloseInfo) => {
-            if (
-                !closeDialog &&
-                status(comp) !== "destroyed" &&
-                !onCloseInfo?.noReload
-            ) {
+            if (!closeDialog && !isDestroyed() && !onCloseInfo?.noReload) {
                 await options.reload?.();
             }
         },
@@ -182,9 +178,9 @@ function confirmThenExecute(dialog, clickParams, execute) {
 export function useViewButtons(ref, options = {}) {
     const action = useAction();
     const dialog = useService("dialog");
-    const comp = useComponent();
+    const isDestroyed = useIsDestroyed();
     const env = useEnv();
-    const deps = { action, comp, env, options };
+    const deps = { action, isDestroyed, env, options };
 
     function getEl() {
         if (env.inDialog) {

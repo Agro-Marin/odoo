@@ -33,7 +33,7 @@ export const DocumentsControllerMixin = (component) =>
             this.documentService = useService("document.document");
             this.firstLoadSelectId = this.documentService.initData?.documentId;
             this.uploadFileInputRef = useRef("uploadFileInput");
-            Object.assign(this, useDocumentView(this.documentsViewHelpers()));
+            Object.assign(this, useDocumentView(this, this.documentsViewHelpers()));
             this.documentStates = useState({ previewStore: {} });
             this.rightPanelState = useState(this.documentService.rightPanelReactive);
 

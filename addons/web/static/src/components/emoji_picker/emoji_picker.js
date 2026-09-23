@@ -10,8 +10,8 @@ import {
     onWillStart,
     onWillUnmount,
     reactive,
-    useComponent,
     useEffect,
+    useEnv,
     useExternalListener,
     useRef,
     useState,
@@ -744,12 +744,12 @@ export class EmojiPicker extends Component {
 
 class MobilePickerHost {
     /**
-     * @param {{ PickerComponent: any, component: any, addDialog: Function,
+     * @param {{ PickerComponent: any, env: any, addDialog: Function,
      *   state: { isOpen: boolean }, props: Record<string, any> }} deps
      */
-    constructor({ PickerComponent, component, addDialog, state, props }) {
+    constructor({ PickerComponent, env, addDialog, state, props }) {
         this.PickerComponent = PickerComponent;
-        this.component = component;
+        this.env = env;
         this.addDialog = addDialog;
         this.state = state;
         this.props = props;
@@ -800,7 +800,7 @@ class MobilePickerHost {
         const app = new App(
             PickerMobile,
             /** @type {any} */ (
-                makeAppConfig(this.component.env, {
+                makeAppConfig(this.env, {
                     name: "Popout",
                     props: pickerProps,
                 })
@@ -822,7 +822,6 @@ class MobilePickerHost {
             PickerMobileInDialog,
             pickerProps,
             /** @type {any} */ ({
-                context: this.component,
                 onClose: () => {
                     this.onGone();
                     return def.resolve(false);
@@ -840,7 +839,7 @@ class MobilePickerHost {
  * @param {Record<string, any>} [options]
  */
 export function usePicker(PickerComponent, ref, props, options = {}) {
-    const component = useComponent();
+    const env = useEnv();
     const state = useState({ isOpen: false });
     const ui = useService("ui");
     const addDialog = useOwnedDialogs();
@@ -866,7 +865,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
 
     const mobile = new MobilePickerHost({
         PickerComponent,
-        component,
+        env,
         addDialog,
         state,
         props,

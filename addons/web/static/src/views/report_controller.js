@@ -35,7 +35,7 @@ export class ReportController extends Component {
                 this.modelOptions,
             ),
         );
-        this.chassis = useViewChassis(this.chassisHooks);
+        this.chassis = useViewChassis(this, this.chassisHooks);
         this.searchBarToggler = this.chassis.searchBarToggler;
         this.actionState = useSetupAction({
             rootRef: this.chassis.rootRef,

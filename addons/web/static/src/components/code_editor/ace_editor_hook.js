@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, status, useComponent, useEffect } from "@odoo/owl";
+import { onMounted, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useIsDestroyed } from "@web/core/utils/hooks";
 
 const log = makeLogger("web.components.code_editor");
 
@@ -165,7 +166,7 @@ export class AceEditorController {
  * @returns {AceEditorController}
  */
 export function useAceEditor(params) {
-    const component = useComponent();
+    const isDestroyed = useIsDestroyed();
     const controller = new AceEditorController(params);
 
     useEffect(
@@ -194,7 +195,7 @@ export function useAceEditor(params) {
     if (initialCursorPosition) {
         onMounted(() => {
             browser.requestAnimationFrame(() => {
-                if (status(component) !== "destroyed") {
+                if (!isDestroyed()) {
                     controller.placeCursor(initialCursorPosition);
                 }
             });

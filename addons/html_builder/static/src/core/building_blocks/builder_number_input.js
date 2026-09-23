@@ -55,7 +55,7 @@ export class BuilderNumberInput extends Component {
         this.state = state;
 
         this.inputRef = useChildRef();
-        this.debouncedCommitValue = useInputDebouncedCommit(this.inputRef);
+        this.debouncedCommitValue = useInputDebouncedCommit(this, this.inputRef);
     }
 
     /**

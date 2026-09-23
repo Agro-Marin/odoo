@@ -40,7 +40,7 @@ export class BuilderRange extends Component {
         });
 
         this.inputRef = useRef("inputRef");
-        this.debouncedCommitValue = useInputDebouncedCommit(this.inputRef);
+        this.debouncedCommitValue = useInputDebouncedCommit(this, this.inputRef);
 
         this.commit = commit;
         this.preview = preview;

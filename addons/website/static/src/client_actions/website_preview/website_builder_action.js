@@ -7,7 +7,6 @@ import {
     onWillStart,
     onWillUnmount,
     status,
-    useComponent,
     useEffect,
     useRef,
     useState,
@@ -103,7 +102,6 @@ export class WebsiteBuilderClientAction extends Component {
             is404: false,
         });
         this.websiteContext = useState(this.websiteService.context);
-        this.component = useComponent();
 
         useBus(
             websiteSystrayRegistry,
@@ -114,7 +112,7 @@ export class WebsiteBuilderClientAction extends Component {
         onMounted(() => {
             effect(
                 (websiteContext) => {
-                    if (status(this.component) === "destroyed") {
+                    if (status(this) === "destroyed") {
                         return;
                     }
                     this.toggleIsMobile(websiteContext.isMobile);

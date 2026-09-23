@@ -1,12 +1,11 @@
 /** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
-import { useComponent, useEffect } from "@odoo/owl";
+import { useEffect } from "@odoo/owl";
 import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
 export function usePositionHook(containerRef, document, callback) {
-    const comp = useComponent();
-    const onLayoutGeometryChange = throttleForAnimation(callback.bind(comp));
+    const onLayoutGeometryChange = throttleForAnimation(callback);
     const resizeObserver = new ResizeObserver(onLayoutGeometryChange);
     const cleanups = [];
     const addDomListener = (target, eventName, capture) => {

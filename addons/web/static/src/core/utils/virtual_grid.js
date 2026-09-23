@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect, useExternalListener } from "@odoo/owl";
+import { markRaw, toRaw, useEffect, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -10,7 +10,7 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @typedef VirtualGridParams
  * @property {ReturnType<typeof import("@odoo/owl").useRef>} scrollableRef
  * @property {ScrollPosition} [initialScroll={ left: 0, top: 0 }]
- * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange=() => this.render()]
+ * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange]
  * @property {number} [bufferCoef=1]
  * @property {() => number} [getRowsOffset]
  */
@@ -96,8 +96,25 @@ export function useVirtualGrid({
     bufferCoef,
     getRowsOffset,
 }) {
-    const comp = useComponent();
-    onChange ||= () => comp.render();
+    const visible = useState({
+        /** @type {[number, number] | [] | undefined} */
+        columnsIndexes: undefined,
+        /** @type {[number, number] | [] | undefined} */
+        rowsIndexes: undefined,
+    });
+    /**
+     * @param {"columnsIndexes" | "rowsIndexes"} key
+     * @param {[number, number] | []} indexes
+     * @returns {boolean}
+     */
+    const setVisible = (key, indexes) => {
+        current[key] = indexes;
+        if (shallowEqual(indexes, toRaw(visible)[key])) {
+            return false;
+        }
+        visible[key] = markRaw(indexes);
+        return true;
+    };
 
     /** @type {{ scroll: { left: number, top: number }, computedScroll?: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }} */
     const current = { scroll: { left: 0, top: 0, ...initialScroll } };
@@ -120,18 +137,14 @@ export function useVirtualGrid({
     const throttledCompute = useThrottleForAnimation(() => {
         current.computedScroll = { ...current.scroll };
         const changed = [];
-        const columnsVisibleIndexes = computeColumnsIndexes();
-        if (!shallowEqual(columnsVisibleIndexes, current.columnsIndexes)) {
-            current.columnsIndexes = columnsVisibleIndexes;
+        if (setVisible("columnsIndexes", computeColumnsIndexes())) {
             changed.push("columnsIndexes");
         }
-        const rowsVisibleIndexes = computeRowsIndexes();
-        if (!shallowEqual(rowsVisibleIndexes, current.rowsIndexes)) {
-            current.rowsIndexes = rowsVisibleIndexes;
+        if (setVisible("rowsIndexes", computeRowsIndexes())) {
             changed.push("rowsIndexes");
         }
         if (changed.length) {
-            onChange(pick(current, .../** @type {any} */ (changed)));
+            onChange?.(pick(current, .../** @type {any} */ (changed)));
         }
     });
     const scrollListener = (/** @type {Event} */ ev) => {
@@ -158,22 +171,22 @@ export function useVirtualGrid({
     useExternalListener(window, "resize", () => throttledCompute());
     return {
         get columnsIndexes() {
-            return current.columnsIndexes;
+            return visible.columnsIndexes;
         },
         get rowsIndexes() {
-            return current.rowsIndexes;
+            return visible.rowsIndexes;
         },
         setColumnsWidths(widths) {
             let acc = 0;
             current.summedColumnsWidths = widths.map((w) => (acc += w));
             delete current.columnsIndexes;
-            current.columnsIndexes = computeColumnsIndexes();
+            setVisible("columnsIndexes", computeColumnsIndexes());
         },
         setRowsHeights(heights) {
             let acc = 0;
             current.summedRowsHeights = heights.map((h) => (acc += h));
             delete current.rowsIndexes;
-            current.rowsIndexes = computeRowsIndexes();
+            setVisible("rowsIndexes", computeRowsIndexes());
         },
     };
 }

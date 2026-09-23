@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { status, useComponent } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { useAction } from "@web/core/action_port";
 import { getFieldCodec } from "@web/core/field_codec";
@@ -10,7 +9,7 @@ import { sharedComponents } from "@web/core/shared_components";
 import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { useService } from "@web/core/utils/hooks";
+import { useIsDestroyed, useService } from "@web/core/utils/hooks";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { session } from "@web/session";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
@@ -342,7 +341,7 @@ export function reportViewProps(genericProps, view, buildModelParams, config) {
  * @returns {{ action: any, dialog: any, notification: any, orm: any, uiHooks: any }}
  */
 export function useControllerServices() {
-    const component = useComponent();
+    const isDestroyed = useIsDestroyed();
     const action = useAction();
     const dialog = useService("dialog");
     const notification = useService("notification");
@@ -351,7 +350,7 @@ export function useControllerServices() {
         action,
         dialog,
         notification,
-        isAlive: () => status(component) !== "destroyed",
+        isAlive: () => !isDestroyed(),
     });
     return { action, dialog, notification, orm, uiHooks };
 }

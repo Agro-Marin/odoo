@@ -7,16 +7,14 @@ import {
     onWillStart,
     onWillUpdateProps,
     reactive,
-    status,
     toRaw,
-    useComponent,
     useEffect,
     useEnv,
     useRef,
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useIsDestroyed } from "@web/core/utils/hooks";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
@@ -32,7 +30,7 @@ function isConnectedElement(el) {
 }
 
 export function useDomState(getState, { checkEditingElement = true } = {}) {
-    const component = useComponent();
+    const isDestroyed = useIsDestroyed();
     const env = useEnv();
     const isValid = (el) => (!el && !checkEditingElement) || isConnectedElement(el);
     const handler = async (ev) => {
@@ -51,7 +49,7 @@ export function useDomState(getState, { checkEditingElement = true } = {}) {
                     Object.assign(state, await newStatePromise);
                 }
             } catch (e) {
-                if (!isValid(editingElement) || status(component) === "destroyed") {
+                if (!isValid(editingElement) || isDestroyed()) {
                     return;
                 }
                 throw e;
@@ -506,18 +504,20 @@ export function revertPreview(editor) {
 
 export function useClickableBuilderComponent() {
     useBuilderComponent();
-    const comp = useComponent();
+    const props = useProps();
+    const env = useEnv();
+    const host = { props, env };
     const { getAllActions, callOperation, isApplied } =
-        getAllActionsAndOperations(comp);
-    const getAction = comp.env.editor.shared.builderActions.getAction;
+        getAllActionsAndOperations(host);
+    const getAction = env.editor.shared.builderActions.getAction;
 
     const onReady = usePrepareAction(getAllActions);
     const { reload } = useReloadAction(getAllActions);
 
     const applyOperation =
-        comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+        env.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const inheritedActionIds =
-        comp.props.inheritedActions || comp.env.weContext.inheritedActions || [];
+        props.inheritedActions || env.weContext.inheritedActions || [];
 
     const hasPreview = useHasPreview(getAllActions);
     const operationWithReload = useOperationWithReload(callApply, reload);
@@ -562,7 +562,7 @@ export function useClickableBuilderComponent() {
         },
         revert: () => {
             preventNextPreview = false;
-            revertPreview(comp.env.editor);
+            revertPreview(env.editor);
         },
     };
 
@@ -573,7 +573,7 @@ export function useClickableBuilderComponent() {
     function clean(nextApplySpecs, isPreviewing) {
         const proms = [];
         for (const { actionId, actionParam, actionValue } of getAllActions()) {
-            for (const editingElement of comp.env.getEditingElements()) {
+            for (const editingElement of env.getEditingElements()) {
                 let nextAction;
                 proms.push(
                     getAction(actionId).clean?.({
@@ -581,8 +581,8 @@ export function useClickableBuilderComponent() {
                         editingElement,
                         params: actionParam,
                         value: actionValue,
-                        dependencyManager: comp.env.dependencyManager,
-                        selectableContext: comp.env.selectableContext,
+                        dependencyManager: env.dependencyManager,
+                        selectableContext: env.selectableContext,
                         get nextAction() {
                             nextAction =
                                 nextAction ||
@@ -601,12 +601,9 @@ export function useClickableBuilderComponent() {
     }
 
     async function callApply(applySpecs, isPreviewing) {
-        await comp.env.selectableContext?.cleanSelectedItem(applySpecs, isPreviewing);
+        await env.selectableContext?.cleanSelectedItem(applySpecs, isPreviewing);
         const cleans = inheritedActionIds
-            .map(
-                (actionId) =>
-                    comp.env.dependencyManager.get(actionId).cleanSelectedItem,
-            )
+            .map((actionId) => env.dependencyManager.get(actionId).cleanSelectedItem)
             .filter(Boolean);
         const cleanPromises = [];
         for (const clean of new Set(cleans)) {
@@ -617,7 +614,7 @@ export function useClickableBuilderComponent() {
         const isAlreadyApplied = isApplied();
         for (const applySpec of applySpecs) {
             const hasClean = !!applySpec.clean;
-            const shouldClean = _shouldClean(comp, hasClean, isAlreadyApplied);
+            const shouldClean = _shouldClean(host, hasClean, isAlreadyApplied);
             if (shouldClean) {
                 cleanOrApplyProms.push(
                     applySpec.action.clean({
@@ -626,8 +623,8 @@ export function useClickableBuilderComponent() {
                         params: applySpec.actionParam,
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadOnClean ? applySpec.loadResult : null,
-                        dependencyManager: comp.env.dependencyManager,
-                        selectableContext: comp.env.selectableContext,
+                        dependencyManager: env.dependencyManager,
+                        selectableContext: env.selectableContext,
                     }),
                 );
             } else {
@@ -638,8 +635,8 @@ export function useClickableBuilderComponent() {
                         params: applySpec.actionParam,
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadResult,
-                        dependencyManager: comp.env.dependencyManager,
-                        selectableContext: comp.env.selectableContext,
+                        dependencyManager: env.dependencyManager,
+                        selectableContext: env.selectableContext,
                     }),
                 );
             }
@@ -728,9 +725,11 @@ export function useInputBuilderComponent({
     formatRawValue = (rawValue) => rawValue,
     parseDisplayValue = (displayValue) => displayValue,
 } = {}) {
-    const comp = useComponent();
-    const { getAllActions, callOperation } = getAllActionsAndOperations(comp);
-    const getAction = comp.env.editor.shared.builderActions.getAction;
+    const props = useProps();
+    const env = useEnv();
+    const host = { props, env };
+    const { getAllActions, callOperation } = getAllActionsAndOperations(host);
+    const getAction = env.editor.shared.builderActions.getAction;
     const state = useDomState(getState);
 
     const onReady = usePrepareAction(getAllActions);
@@ -755,7 +754,7 @@ export function useInputBuilderComponent({
                     params: applySpec.actionParam,
                     value: applySpec.actionValue,
                     loadResult: applySpec.loadResult,
-                    dependencyManager: comp.env.dependencyManager,
+                    dependencyManager: env.dependencyManager,
                 }),
             );
         }
@@ -763,7 +762,7 @@ export function useInputBuilderComponent({
     }
 
     const applyOperation =
-        comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+        env.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const operationWithReload = useOperationWithReload(callApply, reload);
     function getState(editingElement) {
         if (!isConnectedElement(editingElement)) {
@@ -782,7 +781,7 @@ export function useInputBuilderComponent({
                 value: actionValue,
             };
         } catch (error) {
-            handleBuilderActionError(error, editingElement, comp);
+            handleBuilderActionError(error, editingElement, host);
         }
     }
 
@@ -901,8 +900,7 @@ export function useVisibilityObserver(contentName, callback) {
     );
 }
 
-export function useInputDebouncedCommit(ref) {
-    const comp = useComponent();
+export function useInputDebouncedCommit(comp, ref) {
     return useDebounced(() => {
         const normalizedDisplayValue = comp.commit(ref.el.value);
         ref.el.value = normalizedDisplayValue;
@@ -1180,7 +1178,7 @@ export class BaseOptionComponent extends Component {
         this.delegateTo = context.delegateTo;
 
         this.isActiveItem = useIsActiveItem();
-        const comp = useComponent();
+        const comp = this;
         const editor = comp.env.editor;
 
         // Give the class its OWN `components` before assigning into it.

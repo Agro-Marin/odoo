@@ -1,14 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    useComponent,
-    useEffect,
-    useEnv,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { Component, useEffect, useEnv, useState, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { ModelEvent } from "@web/core/events";
@@ -23,6 +16,7 @@ import {
     useOwnedDialogs,
     useService,
 } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { Dialog } from "@web/ui/dialog";
 
@@ -344,7 +338,7 @@ function getDialogDeleteAction({ record, activeActions, viewMode }) {
  * @typedef {{
  * activeField: any, activeActions: any, viewMode: string,
  * getList: () => any, updateRecord: Function, saveRecord: Function,
- * isMany2Many: boolean, viewService: any, env: any, component: any,
+ * isMany2Many: boolean, viewService: any, env: any, props: any,
  * addDialog: Function,
  * }} X2ManyDialogContext
  */
@@ -367,7 +361,7 @@ async function openX2ManyRecord(
         viewService: ctx.viewService,
         env: ctx.env,
     });
-    if (!ctx.component.props.record.isInEdition) {
+    if (!ctx.props.record.isInEdition) {
         archInfo = {
             ...archInfo,
             activeActions: { ...archInfo.activeActions, edit: false },
@@ -438,7 +432,7 @@ export function useOpenX2ManyRecord({
         isMany2Many,
         viewService: useService("view"),
         env: useEnv(),
-        component: useComponent(),
+        props: useProps(),
         addDialog: useOwnedDialogs(),
     };
 

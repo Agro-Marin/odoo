@@ -7,8 +7,7 @@ import {
     onWillStart,
     onWillUpdateProps,
     reactive,
-    status,
-    useComponent,
+    useEnv,
     useState,
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
@@ -18,7 +17,8 @@ import { ModelEvent } from "@web/core/events";
 import { featureFlag } from "@web/core/feature_flags";
 import { RPCError } from "@web/core/network/rpc";
 import { Deferred, Race } from "@web/core/utils/concurrency";
-import { useService } from "@web/core/utils/hooks";
+import { useIsDestroyed, useIsMounted, useService } from "@web/core/utils/hooks";
+import { useComponentName, useProps } from "@web/core/utils/owl_bridge";
 import { SignalStore } from "@web/core/utils/reactive";
 
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
@@ -192,26 +192,30 @@ function reloadFromProps(model, props) {
 /**
  * @template {Model} M
  * @param {ModelConstructor<M>} ModelClass
- * @param {(component: import("@odoo/owl").Component) => Object} buildParams
- * @returns {{ component: import("@odoo/owl").Component, model: M }}
+ * @param {(props: Record<string, any>) => Object} buildParams
+ * @returns {{ props: Record<string, any>, env: any, isMounted: () => boolean, model: M }}
  */
 function makeModel(ModelClass, buildParams) {
-    const component = useComponent();
+    const props = useProps();
+    const env = useEnv();
+    const isDestroyed = useIsDestroyed();
+    const isMounted = useIsMounted();
+    const componentName = useComponentName();
     const services = useModelServices(ModelClass);
-    const params = buildParams(component);
-    const isAlive = params?.isAlive || (() => status(component) !== "destroyed");
+    const params = buildParams(props);
+    const isAlive = params?.isAlive || (() => !isDestroyed());
     const model = new ModelClass(
-        /** @type {any} */ (component.env),
+        /** @type {any} */ (env),
         { ...params, isAlive },
         services,
     );
     model.isAlive = isAlive;
     log.lifecycle("makeModel", () => ({
         model: ModelClass.name,
-        component: component.constructor.name,
+        component: componentName,
         services: Object.keys(services),
     }));
-    return { component, model };
+    return { props, env, isMounted, model };
 }
 
 /**
@@ -223,10 +227,10 @@ function makeModel(ModelClass, buildParams) {
  * @returns {M}
  */
 export function useModel(ModelClass, params, options = {}) {
-    const { component, model } = makeModel(ModelClass, () => params);
+    const { props, model } = makeModel(ModelClass, () => params);
     onWillStart(async () => {
         await options.beforeFirstLoad?.();
-        await model.load(getSearchParams(component.props));
+        await model.load(getSearchParams(props));
         model.whenReady.resolve();
     });
     onWillUpdateProps((nextProps) => reloadFromProps(model, nextProps));
@@ -245,15 +249,20 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     if (!(ModelClass.prototype instanceof Model)) {
         throw new Error(`the model class should extend Model`);
     }
-    const { component, model } = makeModel(ModelClass, (comp) => ({
+    const {
+        props: componentProps,
+        env,
+        isMounted,
+        model,
+    } = makeModel(ModelClass, (props) => ({
         ...params,
-        canUseSampleModel: Boolean(comp.props.useSampleModel),
+        canUseSampleModel: Boolean(props.useSampleModel),
     }));
 
-    const globalState = component.props.globalState || {};
-    const localState = component.props.state || {};
+    const globalState = componentProps.globalState || {};
+    const localState = componentProps.state || {};
     let useSampleModel =
-        component.props.useSampleModel &&
+        componentProps.useSampleModel &&
         (!("useSampleModel" in globalState) || globalState.useSampleModel);
     if (useSampleModel && model.hasData === Model.prototype.hasData) {
         console.warn(
@@ -280,8 +289,8 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         if (useSampleModel && !model.hasData()) {
             sampleORM =
                 sampleORM ||
-                makeSampleORM(component.props.resModel, component.props.fields, orm, {
-                    ...component.props.relatedModels,
+                makeSampleORM(componentProps.resModel, componentProps.fields, orm, {
+                    ...componentProps.relatedModels,
                     ...model.getSampleRelatedModels(),
                 });
             model.orm = sampleORM;
@@ -296,18 +305,18 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
             model.useSampleModel = useSampleModel;
         }
         model.whenReady.resolve();
-        if (status(component) === "mounted") {
+        if (isMounted()) {
             model.notify();
         }
     }
     const race = new Race();
     const load = (props) => race.add(_load(props));
     onWillStart(() => {
-        const prom = load(component.props);
+        const prom = load(componentProps);
         if (options.lazy) {
             prom.catch((e) => {
                 if (e instanceof RPCError) {
-                    component.env.config.historyBack();
+                    env.config.historyBack();
                 }
                 throw e;
             });
@@ -322,7 +331,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
 
     useSetupAction({
         getGlobalState() {
-            if (component.props.useSampleModel) {
+            if (componentProps.useSampleModel) {
                 return { useSampleModel };
             }
         },

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useComponent, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useChildRef } from "@web/core/utils/hooks";
@@ -92,8 +92,7 @@ const log = makeLogger("web.view.controller");
  * }} [hooks]
  * @returns {{ searchBarToggler: any, rootRef: any, props: ViewLayoutProps }}
  */
-export function useViewChassis(hooks = {}) {
-    const component = /** @type {any} */ (useComponent());
+export function useViewChassis(component, hooks = {}) {
     useLifecycleLog(log);
     const searchBarToggler = useSearchBarToggler();
     const forwardRootRef = useChildRef();

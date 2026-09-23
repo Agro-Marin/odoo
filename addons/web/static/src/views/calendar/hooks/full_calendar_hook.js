@@ -1,14 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onMounted,
-    onPatched,
-    onWillStart,
-    onWillUnmount,
-    useComponent,
-    useRef,
-} from "@odoo/owl";
+import { onMounted, onPatched, onWillStart, onWillUnmount, useRef } from "@odoo/owl";
 import { DateTime, IANAZone, Settings } from "@web/core/l10n/luxon";
 import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
 import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
@@ -247,8 +240,7 @@ function syncCalendarWithParams(instance, params, component) {
  * @param {Object} paramsOrGetter
  * @returns {{ api: any, el: HTMLElement | null }}
  */
-export function useFullCalendar(refName, paramsOrGetter) {
-    const component = useComponent();
+export function useFullCalendar(component, refName, paramsOrGetter) {
     const ref = useRef(refName);
     let instance = null;
 

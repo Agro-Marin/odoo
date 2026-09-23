@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, onPatched, status, useComponent } from "@odoo/owl";
+import { onMounted, onPatched, toRaw, useState } from "@odoo/owl";
 import { useVirtualGrid } from "@web/core/utils/virtual_grid";
 const DEFAULT_ROW_HEIGHT = 41;
 const DEFAULT_GROUP_ROW_HEIGHT = 37;
@@ -68,10 +68,6 @@ export class ListVirtualization {
     /** @type {number[]} */
     cumHeights = [];
     /** @type {number} */
-    measuredRowHeight = 0;
-    /** @type {number} */
-    measuredGroupRowHeight = 0;
-    /** @type {number} */
     selfRenders = 0;
     /** @type {HTMLElement | null} */
     scroller = null;
@@ -87,19 +83,29 @@ export class ListVirtualization {
      * >} ctx
      * @param {object} params
      * @param {any} params.rootRef
-     * @param {any} params.component
+     * @param {{ rowHeight: number, groupRowHeight: number }} params.measured
      * @param {number} params.threshold
      */
-    constructor(ctx, { rootRef, component, threshold }) {
+    constructor(ctx, { rootRef, measured, threshold }) {
         this.ctx = ctx;
         this.rootRef = rootRef;
-        this.component = component;
+        this.measured = measured;
         this.threshold = threshold;
         /** @type {{ readonly el: HTMLElement | null }} */
         this.scrollableRef = { el: null };
         Object.defineProperty(this.scrollableRef, "el", {
             get: () => this.scroller,
         });
+    }
+
+    /** @returns {number} */
+    get measuredRowHeight() {
+        return this.measured.rowHeight;
+    }
+
+    /** @returns {number} */
+    get measuredGroupRowHeight() {
+        return this.measured.groupRowHeight;
     }
 
     /** @param {any} virtualGrid */
@@ -166,14 +172,13 @@ export class ListVirtualization {
             this.selfRenders = 0;
             return;
         }
-        let changed = false;
+        const next = {};
         const dataRow = el.querySelector(".o_data_row");
         if (dataRow) {
             const rowHeight =
                 quantize(dataRow.getBoundingClientRect().height) || DEFAULT_ROW_HEIGHT;
             if (rowHeight !== this.measuredRowHeight) {
-                this.measuredRowHeight = rowHeight;
-                changed = true;
+                next.rowHeight = rowHeight;
             }
         }
         const groupRow = el.querySelector(".o_group_header");
@@ -182,21 +187,19 @@ export class ListVirtualization {
                 quantize(groupRow.getBoundingClientRect().height) ||
                 DEFAULT_GROUP_ROW_HEIGHT;
             if (groupHeight !== this.measuredGroupRowHeight) {
-                this.measuredGroupRowHeight = groupHeight;
-                changed = true;
+                next.groupRowHeight = groupHeight;
             }
         }
-        if (!changed) {
+        if (!Object.keys(next).length) {
             this.selfRenders = 0;
             return;
         }
         if (this.selfRenders >= MAX_REMEASURE_RENDERS) {
+            Object.assign(toRaw(this.measured), next);
             return;
         }
-        if (status(this.component) !== "destroyed") {
-            this.selfRenders++;
-            this.component.render();
-        }
+        this.selfRenders++;
+        Object.assign(this.measured, next);
     }
 
     /** @param {number} rowIndex */
@@ -324,7 +327,7 @@ export function useListVirtualization(
 ) {
     const virt = new ListVirtualization(ctx, {
         rootRef,
-        component: useComponent(),
+        measured: useState({ rowHeight: 0, groupRowHeight: 0 }),
         threshold,
     });
     virt.setVirtualGrid(

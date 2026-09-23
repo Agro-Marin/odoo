@@ -1,13 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onMounted,
-    useComponent,
-    useEffect,
-    useEnv,
-    useExternalListener,
-} from "@odoo/owl";
+import { onMounted, useEffect, useEnv, useExternalListener } from "@odoo/owl";
 import { useProps } from "@web/core/utils/owl_bridge";
 
 export const scrollSymbol = Symbol("scroll");
@@ -44,11 +38,11 @@ export class CallbackRecorder {
  * @param {Function} callback
  */
 export function useCallbackRecorder(callbackRecorder, callback) {
-    const component = useComponent();
+    const owner = {};
     useEffect(
         () => {
-            callbackRecorder.add(component, callback);
-            return () => callbackRecorder.remove(component);
+            callbackRecorder.add(owner, callback);
+            return () => callbackRecorder.remove(owner);
         },
         () => [],
     );

@@ -94,7 +94,7 @@ export class MultiRecordController extends ViewController {
         super.setupControllerServices();
 
         this.archiveEnabled = computeArchiveEnabled(this.props.fields);
-        this.chassis = useViewChassis({
+        this.chassis = useViewChassis(this, {
             display: () => this.display,
             // list and kanban renderers own their no-content helper
             displayNoContent: () => false,

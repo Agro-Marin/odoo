@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect, useEnv } from "@odoo/owl";
+import { useEffect, useEnv } from "@odoo/owl";
 import { DROPDOWN_GROUP } from "@web/components/dropdown/dropdown_group";
 
 /**
@@ -10,8 +10,11 @@ import { DROPDOWN_GROUP } from "@web/components/dropdown/dropdown_group";
  * @property {boolean} isOpen
  */
 
-/** @returns {DropdownGroupState} */
-export function useDropdownGroup() {
+/**
+ * @param {Record<string, any>} dropdownState
+ * @returns {DropdownGroupState}
+ */
+export function useDropdownGroup(dropdownState) {
     const env = useEnv();
     const /** @type {any} */ envAny = env;
 
@@ -24,11 +27,10 @@ export function useDropdownGroup() {
     };
 
     if (group.isInGroup) {
-        const dropdown = /** @type {any} */ (useComponent());
         useEffect(
             () => {
-                membership.add(dropdown.state);
-                return () => membership.delete(dropdown.state);
+                membership.add(dropdownState);
+                return () => membership.delete(dropdownState);
             },
             () => [],
         );

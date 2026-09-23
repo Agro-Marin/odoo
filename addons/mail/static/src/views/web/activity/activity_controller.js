@@ -31,7 +31,7 @@ export class ActivityController extends Component {
                 this.modelParams,
             ),
         );
-        this.chassis = useViewChassis();
+        this.chassis = useViewChassis(this);
 
         this.dialog = useService("dialog");
         this.action = useService("action");

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect } from "@odoo/owl";
+import { useEffect, useEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
@@ -24,8 +24,7 @@ import { ExportDataDialog } from "@web/views/view_dialogs/export_data_dialog";
  * @param {Function} [params.reload]
  */
 export function useActionLinks({ resModel, reload }) {
-    const component = useComponent();
-    const keepLast = component.env.keepLast;
+    const keepLast = useEnv().keepLast;
 
     const orm = useService("orm");
     const { doAction } = useAction();
@@ -41,8 +40,8 @@ export function useActionLinks({ resModel, reload }) {
 
         if (data.method !== undefined && data.model !== undefined) {
             const options = {};
-            if (data.reloadOnClose) {
-                options.onClose = reload || (() => component.render());
+            if (data.reloadOnClose && reload) {
+                options.onClose = reload;
             }
             const action = await keepLast.add(orm.call(data.model, data.method));
             if (action !== undefined) {

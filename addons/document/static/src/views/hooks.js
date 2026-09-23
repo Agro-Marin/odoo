@@ -7,14 +7,7 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/core/action_hook";
 import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
-import {
-    EventBus,
-    onMounted,
-    useComponent,
-    useEnv,
-    useRef,
-    useSubEnv,
-} from "@odoo/owl";
+import { EventBus, onMounted, useEnv, useRef, useSubEnv } from "@odoo/owl";
 
 export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "lock_uid",
@@ -67,8 +60,7 @@ export function preSuperSetup() {
     }
 }
 
-export function useDocumentView(helpers) {
-    const component = useComponent();
+export function useDocumentView(component, helpers) {
     const props = component.props;
     const root = useRef("root");
     const orm = useService("orm");
@@ -152,9 +144,9 @@ export function useDocumentView(helpers) {
         notification,
         dialogService,
         actionService: action,
-        ...useDocumentsViewFilePreviewer(helpers),
+        ...useDocumentsViewFilePreviewer(component, helpers),
         canUploadInFolder: (folder) => documentService.canUploadInFolder(folder),
-        ...useDocumentsViewFileUpload(),
+        ...useDocumentsViewFileUpload(component),
         ...useEmbeddedAction(),
         hasShareDocuments: () => {
             const folder = env.searchModel.getSelectedFolder();
@@ -238,12 +230,10 @@ export function useDocumentView(helpers) {
     };
 }
 
-function useDocumentsViewFilePreviewer({
-    getSelectedDocumentsElements,
-    setPreviewStore,
-    isRecordPreviewable = () => true,
-}) {
-    const component = useComponent();
+function useDocumentsViewFilePreviewer(
+    component,
+    { getSelectedDocumentsElements, setPreviewStore, isRecordPreviewable = () => true },
+) {
     const env = useEnv();
     const bus = env.documentsView.bus;
     /** @type {import("@document/core/document_service").DocumentService} */
@@ -385,8 +375,7 @@ function useDocumentsViewFilePreviewer({
     };
 }
 
-function useDocumentsViewFileUpload() {
-    const component = useComponent();
+function useDocumentsViewFileUpload(component) {
     const env = useEnv();
     const bus = env.documentsView.bus;
     const notification = useService("notification");

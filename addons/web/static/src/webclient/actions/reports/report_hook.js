@@ -1,24 +1,24 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect } from "@odoo/owl";
+import { useEffect, useEnv } from "@odoo/owl";
 
 /**
  * @param {{ el: HTMLElement | null }} ref
  * @param {string | null} [selector]
  */
 export function useEnrichWithActionLinks(ref, selector = null) {
-    const comp = useComponent();
+    const env = useEnv();
     useEffect(
         (element) => {
             if (!element) {
                 return;
             }
             if (!element.matches("iframe")) {
-                enrich(comp, element, selector);
+                enrich(env, element, selector);
                 return;
             }
-            const onLoad = () => enrich(comp, element, selector, true);
+            const onLoad = () => enrich(env, element, selector, true);
             element.addEventListener("load", onLoad);
             return () => element.removeEventListener("load", onLoad);
         },
@@ -27,12 +27,12 @@ export function useEnrichWithActionLinks(ref, selector = null) {
 }
 
 /**
- * @param {Record<string, any>} component
+ * @param {Record<string, any>} env
  * @param {Element} targetElement
  * @param {string | null} [selector]
  * @param {boolean} [isIFrame]
  */
-export function enrich(component, targetElement, selector, isIFrame = false) {
+export function enrich(env, targetElement, selector, isIFrame = false) {
     const frameDoc = isIFrame
         ? /** @type {HTMLIFrameElement} */ (targetElement).contentDocument
         : null;
@@ -67,8 +67,8 @@ export function enrich(component, targetElement, selector, isIFrame = false) {
                 ev.preventDefault();
                 const viewIdAttr = element.getAttribute("view-id");
                 const viewId = viewIdAttr ? Number(viewIdAttr) : false;
-                // eslint-disable-next-line no-restricted-syntax
-                component.env.services.action.doAction({
+
+                env.services.action.doAction({
                     type: "ir.actions.act_window",
                     view_mode: element.getAttribute("view-type"),
                     res_id: Number(element.getAttribute("res-id")),

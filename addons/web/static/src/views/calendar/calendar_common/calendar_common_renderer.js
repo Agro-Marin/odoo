@@ -120,7 +120,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
 
     setup() {
         this.model = useReactiveModel(this.props.model);
-        this.fc = useFullCalendar("fullCalendar", () => this.options);
+        this.fc = useFullCalendar(this, "fullCalendar", () => this.options);
         this.clickTimeoutId = null;
         this.pendingClickEventId = null;
         this.pendingClick = null;

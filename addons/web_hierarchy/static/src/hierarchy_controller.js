@@ -23,7 +23,7 @@ export class HierarchyController extends Component {
     static template = "web_hierarchy.HierarchyView";
 
     setup() {
-        this.chassis = useViewChassis();
+        this.chassis = useViewChassis(this);
         this.rootRef = this.chassis.rootRef;
         const { parentFieldName, childFieldName } = this.props.archInfo;
         const { activeFields, fields } = extractFieldsFromArchInfo(
