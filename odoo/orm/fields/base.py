@@ -915,7 +915,7 @@ class Field[T](
             record_id = record_ids[0]
             if core.is_protected(self, record_id):
                 self.mark_dirty(records, value)
-                if record_id:
+                if record_id and self.store:
                     records._access_inputs_written((self.name,))
                 return
             if not record_id:
@@ -958,7 +958,9 @@ class Field[T](
     ) -> None:
         recs = _get_recordset_like(records, ids)
         self.mark_dirty(recs, value)
-        if any(ids):
+        # a value derived and not stored changes nothing a rule reads: the
+        # writes of its inputs have reported themselves
+        if self.store and any(ids):
             recs._access_inputs_written((self.name,))
 
     def _update_new(

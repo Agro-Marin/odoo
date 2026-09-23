@@ -7,6 +7,12 @@ class TestOrmScopeTag(models.Model):
 
     name = fields.Char()
     visible = fields.Boolean()
+    label = fields.Char(compute="_compute_label")
+
+    @api.depends("name")
+    def _compute_label(self):
+        for tag in self:
+            tag.label = (tag.name or "").upper()
 
 
 class TestOrmScopeBox(models.Model):

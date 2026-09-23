@@ -123,3 +123,16 @@ class TestComputedX2manyUserScope(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(box.with_user(user).flagged_open_ids, flagged)
+
+    def test_a_derived_value_computed_elsewhere_keeps_the_slot(self):
+        user = new_test_user(self.env, "scope_deriver", groups="base.group_user")
+        box = self.env["test_orm.scope_box"].create({"name": "box"})
+        opened = self.env["test_orm.scope_open"].create({"name": "o", "box_id": box.id})
+        tag = self.env["test_orm.scope_tag"].create({"name": "tag"})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        user_box = box.with_user(user)
+        self.assertEqual(user_box.open_ids, opened)
+        self.assertEqual(tag.with_user(user).label, "TAG")
+        with self.assertQueries([]):
+            self.assertEqual(user_box.open_ids, opened)
