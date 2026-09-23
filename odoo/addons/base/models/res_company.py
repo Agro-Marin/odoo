@@ -300,8 +300,7 @@ class ResCompany(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         vals = dict(self._normalize_vals(vals))
-        for link, link_vals in self._split_config_vals(vals).items():
-            self[link].write(link_vals)
+        config_vals = self._split_config_vals(vals)
         if "parent_id" in vals and any(
             c.parent_id.id != vals["parent_id"] for c in self
         ):
@@ -321,6 +320,8 @@ class ResCompany(models.Model):
 
         _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
+        for link, link_vals in config_vals.items():
+            self[link].write(link_vals)
         invalidation_fields = self._get_cache_invalidation_fields()
         if not invalidation_fields.isdisjoint(vals):
             _debug.lifecycle(
