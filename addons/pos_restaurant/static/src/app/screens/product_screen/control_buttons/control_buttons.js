@@ -9,7 +9,7 @@ patch(ControlButtons.prototype, {
         super.setup(...arguments);
         this.alert = useService("alert");
         this.printer = useService("printer");
-        this.clickPrintBill = useAsyncLockedMethod(this.clickPrintBill);
+        this.clickPrintBill = useAsyncLockedMethod(this.clickPrintBill.bind(this));
     },
     async clickPrintBill() {
         // Need to await to have the result in case of automatic skip screen.

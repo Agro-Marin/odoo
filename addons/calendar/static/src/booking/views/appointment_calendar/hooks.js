@@ -1,12 +1,11 @@
 /** @odoo-module native */
-import { useComponent, useEffect, useEnv, useState } from "@odoo/owl";
+import { useEffect, useEnv, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 
 /**
  * Common code between common and year renderer for our calendar.
  */
-export function useAppointmentRendererHook(getFcElements) {
-    const component = useComponent();
+export function useAppointmentRendererHook(component, getFcElements) {
     const env = useEnv();
     useState(env.calendarState);
 

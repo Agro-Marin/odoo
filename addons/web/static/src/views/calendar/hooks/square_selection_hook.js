@@ -6,7 +6,7 @@ import { useCallbackRecorder } from "@web/core/action_hook";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
 const ROW_SELECTOR = `[role="row"]`;

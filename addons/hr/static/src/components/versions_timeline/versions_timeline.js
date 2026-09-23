@@ -7,7 +7,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import {
     StatusBarField,
     statusBarField,

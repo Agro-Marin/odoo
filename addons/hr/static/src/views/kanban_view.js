@@ -6,7 +6,7 @@ import { KanbanController, kanbanView } from "@web/views/kanban";
 export class EmployeeKanbanController extends KanbanController {
     setup() {
         super.setup();
-        this.archiveEmployee = useArchiveEmployee();
+        this.archiveEmployee = useArchiveEmployee(this);
     }
 
     getStaticActionMenuItems() {

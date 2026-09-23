@@ -73,7 +73,7 @@ export class Call extends Component {
             overlay: false,
         });
         this.store = useService("mail.store");
-        this.callActions = useCallActions({ thread: () => this.channel });
+        this.callActions = useCallActions({ owner: this, thread: () => this.channel });
         onMounted(() => {
             this.resizeObserver = new ResizeObserver(() =>
                 this.arrangeTiles({ remeasure: true }),

@@ -34,7 +34,10 @@ export class DiscussContent extends Component {
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.notification = useService("notification");
-        this.threadActions = useThreadActions({ thread: () => this.thread });
+        this.threadActions = useThreadActions({
+            owner: this,
+            thread: () => this.thread,
+        });
         this.root = useRef("root");
         this.state = useState({ jumpThreadPresent: 0 });
         this.isDiscussContent = true;

@@ -5,7 +5,7 @@ import { onWillDestroy, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 

@@ -136,6 +136,7 @@ export class Message extends Component {
         this.hasTouch = hasTouch;
         this.messageBody = useRef("body");
         this.messageActions = useMessageActions({
+            owner: this,
             message: () => this.message,
             thread: () => this.props.thread,
         });

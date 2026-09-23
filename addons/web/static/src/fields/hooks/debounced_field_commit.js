@@ -3,7 +3,7 @@
 
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { useDebounced } from "@web/core/utils/timing";
 
 /**

@@ -111,13 +111,13 @@ export class ProductScreen extends Component {
         this.sound = useService("mail.sound_effects");
 
         useBarcodeReader({
-            product: this._barcodeProductAction,
-            quantity: this._barcodeProductAction,
-            weight: this._barcodeProductAction,
-            price: this._barcodeProductAction,
-            client: this._barcodePartnerAction,
-            discount: this._barcodeDiscountAction,
-            gs1: this._barcodeGS1Action,
+            product: this._barcodeProductAction.bind(this),
+            quantity: this._barcodeProductAction.bind(this),
+            weight: this._barcodeProductAction.bind(this),
+            price: this._barcodeProductAction.bind(this),
+            client: this._barcodePartnerAction.bind(this),
+            discount: this._barcodeDiscountAction.bind(this),
+            gs1: this._barcodeGS1Action.bind(this),
         });
 
         this.numberBuffer.use({

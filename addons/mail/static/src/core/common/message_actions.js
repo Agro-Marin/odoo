@@ -2,7 +2,7 @@
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
-import { toRaw, useComponent, useState } from "@odoo/owl";
+import { toRaw, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
@@ -293,12 +293,11 @@ class UseMessageActions extends UseActions {
  * @param {Message|(() => Message)} [param0.message]
  * @param {Thread|(() => Thread)} [param0.thread]
  */
-export function useMessageActions({ message, thread } = {}) {
-    const component = useComponent();
+export function useMessageActions({ owner, message, thread } = {}) {
     const transformedActions = messageActionsRegistry.getEntries().map(
         ([id, definition]) =>
             new MessageAction({
-                owner: component,
+                owner,
                 id,
                 definition,
                 message,
@@ -309,7 +308,7 @@ export function useMessageActions({ message, thread } = {}) {
         action.setup();
     }
     const state = useState(
-        new UseMessageActions(component, transformedActions, useService("mail.store")),
+        new UseMessageActions(owner, transformedActions, useService("mail.store")),
     );
     return state;
 }

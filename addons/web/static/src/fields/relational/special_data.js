@@ -13,7 +13,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("web.field.special_data");
 

@@ -62,7 +62,10 @@ export class ChatWindow extends Component {
         });
         this.ui = useService("ui");
         this.contentRef = useRef("content");
-        this.threadActions = useThreadActions({ thread: () => this.thread });
+        this.threadActions = useThreadActions({
+            owner: this,
+            thread: () => this.thread,
+        });
         this.actionsMenuButtonHover = useHover("actionsMenuButton");
         this.parentChannelHover = useHover("parentChannel");
         this.isMobileOS = isMobileOS();

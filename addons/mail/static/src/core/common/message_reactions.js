@@ -18,7 +18,10 @@ export class MessageReactions extends Component {
         this.ui = useService("ui");
         this.addRef = useRef("add");
         this.isMobileOS = isMobileOS();
-        this.messageActions = useMessageActions({ message: () => this.props.message });
+        this.messageActions = useMessageActions({
+            owner: this,
+            message: () => this.props.message,
+        });
         this.emojiPicker = useEmojiPicker(this.addRef, {
             /** @param {string} emoji */
             onSelect: (emoji) => {

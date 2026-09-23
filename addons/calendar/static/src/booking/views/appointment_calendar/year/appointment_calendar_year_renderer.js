@@ -13,7 +13,7 @@ import * as luxon from "luxon";
 patch(AttendeeCalendarYearRenderer.prototype, {
     setup() {
         super.setup(...arguments);
-        const fns = useAppointmentRendererHook(() =>
+        const fns = useAppointmentRendererHook(this, () =>
             Object.values(this.fcs).map((fc) => fc.el),
         );
         Object.assign(this, fns);

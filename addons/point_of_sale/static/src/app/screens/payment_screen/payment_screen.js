@@ -47,7 +47,7 @@ export class PaymentScreen extends Component {
         useRouterParamsChecker();
         this.payment_interface = null;
         this.error = false;
-        this.validateOrder = useAsyncLockedMethod(this.validateOrder);
+        this.validateOrder = useAsyncLockedMethod(this.validateOrder.bind(this));
         onMounted(this.onMounted);
     }
 

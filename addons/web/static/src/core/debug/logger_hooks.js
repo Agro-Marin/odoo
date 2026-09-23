@@ -7,8 +7,8 @@ import {
     onWillDestroy,
     onWillPatch,
     onWillUnmount,
-    useComponent,
 } from "@odoo/owl";
+import { useComponentName, useProps } from "@web/core/utils/owl_bridge";
 
 /** @typedef {import("./debug_logger").DebugLogger} DebugLogger */
 
@@ -24,13 +24,14 @@ import {
  * @param {string} [name]
  */
 export function useLifecycleLog(log, name) {
-    const component = /** @type {any} */ (useComponent());
-    const tag = name || component.constructor.name;
+    const props = useProps();
+    const componentName = useComponentName();
+    const tag = name || componentName;
     const createdAt = performance.now();
     let patches = 0;
     /** @type {import("./debug_logger").PerfEnd} */
     let endPatch = () => 0;
-    log.lifecycle(`${tag} setup`, () => component.props);
+    log.lifecycle(`${tag} setup`, () => props);
     onMounted(() => {
         log.lifecycle(`${tag} mounted`, () => ({
             sinceSetupMs: Number((performance.now() - createdAt).toFixed(2)),
@@ -38,7 +39,7 @@ export function useLifecycleLog(log, name) {
     });
     onWillPatch(() => {
         patches++;
-        log.lifecycle(`${tag} willPatch#${patches}`, () => component.props);
+        log.lifecycle(`${tag} willPatch#${patches}`, () => props);
         endPatch = log.perf(`${tag} patch`, { n: patches });
     });
     onPatched(() => {

@@ -2,7 +2,7 @@
 /** @odoo-module native */
 import { Action, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
-import { useComponent, useState, useSubEnv } from "@odoo/owl";
+import { useState, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -239,18 +239,14 @@ class UseThreadActions extends UseActions {
  * @param {Object} [params0={}]
  * @param {Thread|(() => Thread)} [params0.thread]
  */
-export function useThreadActions({ thread } = {}) {
-    const component = useComponent();
+export function useThreadActions({ owner, thread } = {}) {
     const transformedActions = threadActionsRegistry
         .getEntries()
-        .map(
-            ([id, definition]) =>
-                new ThreadAction({ owner: component, id, definition, thread }),
-        );
+        .map(([id, definition]) => new ThreadAction({ owner, id, definition, thread }));
     for (const action of transformedActions) {
         action.setup();
     }
     return useState(
-        new UseThreadActions(component, transformedActions, useService("mail.store")),
+        new UseThreadActions(owner, transformedActions, useService("mail.store")),
     );
 }

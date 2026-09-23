@@ -63,7 +63,10 @@ export class Meeting extends Component {
                         ?.open(),
             },
         });
-        this.threadActions = useThreadActions({ thread: () => this.thread });
+        this.threadActions = useThreadActions({
+            owner: this,
+            thread: () => this.thread,
+        });
         this.messageHighlight = useMessageScrolling();
         this.messageSearch = useMessageSearch(this.thread);
         useChildSubEnv({

@@ -7,7 +7,7 @@ import { useVoiceRecorder } from "./voice_recorder.js";
 patch(Composer.prototype, {
     setup() {
         super.setup();
-        this.voiceRecorder = useVoiceRecorder();
+        this.voiceRecorder = useVoiceRecorder(this);
     },
     get isSendButtonDisabled() {
         return this.voiceRecorder?.recording || super.isSendButtonDisabled;

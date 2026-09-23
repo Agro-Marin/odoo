@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onMounted,
-    onWillUnmount,
-    status,
-    useComponent,
-    useEffect,
-    useExternalListener,
-} from "@odoo/owl";
+import { onMounted, onWillUnmount, useEffect, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { localization } from "@web/core/l10n/localization";
 import { measure, mutate } from "@web/core/utils/dom/layout_batch";
+import { useIsDestroyed } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 
@@ -540,13 +534,14 @@ export class MagicColumnWidths {
 /**
  * @param {any} tableRef
  * @param {() => any} getState
+ * @param {{ enabled: boolean }} options
  * @returns {MagicColumnWidths}
  */
-export function useMagicColumnWidths(tableRef, getState) {
-    const renderer = useComponent();
+export function useMagicColumnWidths(tableRef, getState, { enabled }) {
     const widths = new MagicColumnWidths(tableRef, getState);
 
-    if (/** @type {any} */ (renderer.constructor).useMagicColumnWidths) {
+    if (enabled) {
+        const isDestroyed = useIsDestroyed();
         useEffect(() =>
             mutate(() => {
                 if (tableRef.el?.isConnected) {
@@ -557,7 +552,7 @@ export function useMagicColumnWidths(tableRef, getState) {
         useExternalListener(window, "resize", () => widths.unsetWidths());
         const debouncedForceColumnWidths = useDebounced(
             () => {
-                if (status(renderer) !== "destroyed") {
+                if (!isDestroyed()) {
                     widths.forceColumnWidths();
                 }
             },

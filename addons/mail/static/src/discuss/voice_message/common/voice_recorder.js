@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
-import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
+import { onWillUnmount, status, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -248,8 +248,7 @@ class VoiceRecorder {
     }
 }
 
-export function useVoiceRecorder() {
-    const component = useComponent();
+export function useVoiceRecorder(component) {
     const state = useState({
         limitWarning: false,
         isActionPending: false,

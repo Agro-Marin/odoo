@@ -128,6 +128,7 @@ export class Composer extends Component {
         this.isIosPwa = isIOS() && isDisplayStandalone();
         this.store = useService("mail.store");
         this.composerActions = useComposerActions({
+            owner: this,
             composer: () => this.props.composer,
         });
         this.EDIT_CLICK_TYPE = EDIT_CLICK_TYPE;
@@ -151,8 +152,8 @@ export class Composer extends Component {
             active: true,
         });
         this.root = useRef("root");
-        this.fullComposer = useFullComposer();
-        this.draft = useComposerDraft();
+        this.fullComposer = useFullComposer(this);
+        this.draft = useComposerDraft(this);
     }
     _setupSelection() {
         this.selection = useSelection({
@@ -174,7 +175,7 @@ export class Composer extends Component {
         });
     }
     _setupInputHandlers() {
-        this.suggestion = useSuggestion();
+        this.suggestion = useSuggestion(this);
         this.markEventHandled = markEventHandled;
         this.onDropFile = this.onDropFile.bind(this);
         this.updateFromEditor = false;

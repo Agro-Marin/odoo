@@ -8,7 +8,7 @@ import {
     useEnv,
     useExternalListener,
 } from "@odoo/owl";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 export const scrollSymbol = Symbol("scroll");
 

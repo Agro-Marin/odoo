@@ -6,7 +6,7 @@ import { ListController, listView } from "@web/views/list";
 export class EmployeeListController extends ListController {
     setup() {
         super.setup();
-        this.archiveEmployee = useArchiveEmployee();
+        this.archiveEmployee = useArchiveEmployee(this);
     }
 
     getStaticActionMenuItems() {

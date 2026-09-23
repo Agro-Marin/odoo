@@ -31,7 +31,7 @@ export class Many2OneAvatarUserField extends Component {
 
     setup() {
         if (this.props.withCommand) {
-            useAssignUserCommand();
+            useAssignUserCommand(this);
         }
     }
 

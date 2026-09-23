@@ -1,10 +1,8 @@
 /** @odoo-module native */
-import { useComponent } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
-export function useArchiveEmployee() {
-    const component = useComponent();
+export function useArchiveEmployee(component) {
     const action = useService("action");
     return (ids) => {
         action.doAction(

@@ -3,7 +3,7 @@
 
 import { onWillRender } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 /**
  * @typedef {Object} RelationalActiveActions

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { notifyEmbeddedActionWarning } from "@document/views/utils";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";

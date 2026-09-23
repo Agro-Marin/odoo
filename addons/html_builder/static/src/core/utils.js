@@ -17,7 +17,7 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
 

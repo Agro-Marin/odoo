@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ParseError } from "@web/core/parse_error";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 

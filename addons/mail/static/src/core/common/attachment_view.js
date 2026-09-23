@@ -14,7 +14,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("mail.attachment_view");
 class AbstractAttachmentView extends Component {

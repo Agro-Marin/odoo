@@ -35,7 +35,7 @@ export class JournalDashboardGraphField extends FieldComponent {
     canvasRef;
 
     setup() {
-        this.canvasRef = useChartCanvas(() => [this.field.value]);
+        this.canvasRef = useChartCanvas(this, () => [this.field.value]);
     }
 
     /** @returns {any[] | null} */

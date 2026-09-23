@@ -1,6 +1,5 @@
 // @ts-check
 /** @odoo-module native */
-import { useComponent } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
@@ -137,8 +136,7 @@ function useUnassignCommands(component, type, options, getCurrentIds, remove) {
         hotkey: "alt+shift+u",
     });
 }
-export function useAssignUserCommand() {
-    const component = useComponent();
+export function useAssignUserCommand(component) {
     const orm = useService("orm");
     const type = component.props.record.fields[component.props.name].type;
     if (component.relation !== "res.users") {

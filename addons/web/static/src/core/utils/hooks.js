@@ -14,7 +14,7 @@ import {
 } from "@odoo/owl";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveElement } from "@web/core/utils/dom/ui";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 /** @typedef {{ readonly el: HTMLElement | null; }} Ref */
 

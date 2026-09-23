@@ -354,15 +354,20 @@ export class ListRenderer extends Component {
 
         this.uiState = useState(this.uiService);
 
-        this.columnWidths = useMagicColumnWidths(this.tableRef, () => ({
-            columns: this.columns,
-            isEditing: this.props.list.isEditing,
-            isEmpty:
-                !this.props.list.records.length || this.props.list.model.useSampleModel,
-            hasSelectors: this.hasSelectors,
-            hasOpenFormViewColumn: this.hasOpenFormViewColumn,
-            hasActionsColumn: this.hasActionsColumn,
-        }));
+        this.columnWidths = useMagicColumnWidths(
+            this.tableRef,
+            () => ({
+                columns: this.columns,
+                isEditing: this.props.list.isEditing,
+                isEmpty:
+                    !this.props.list.records.length ||
+                    this.props.list.model.useSampleModel,
+                hasSelectors: this.hasSelectors,
+                hasOpenFormViewColumn: this.hasOpenFormViewColumn,
+                hasActionsColumn: this.hasActionsColumn,
+            }),
+            { enabled: /** @type {any} */ (this.constructor).useMagicColumnWidths },
+        );
 
         onPatched(() => this.restoreEditionFocus());
         this.isRTL = localization.direction === "rtl";

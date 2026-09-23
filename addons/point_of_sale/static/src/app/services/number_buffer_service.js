@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
-import { EventBus, onWillDestroy, useComponent } from "@odoo/owl";
+import { EventBus, onWillDestroy } from "@odoo/owl";
+import { useComponentName } from "@web/core/utils/owl_bridge";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { parseFloat as oParseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
@@ -52,7 +53,7 @@ class NumberBuffer extends EventBus {
         log.logic("set", () => ({
             val,
             buffer: this.state.buffer,
-            holder: this.component?.constructor?.name,
+            holder: this.componentName,
         }));
         this.trigger("buffer-update", this.state.buffer);
     }
@@ -65,7 +66,7 @@ class NumberBuffer extends EventBus {
         if (this.handler) {
             log.logic("capture: flushing pending keys", () => ({
                 pending: this.eventsBuffer?.length,
-                holder: this.component?.constructor?.name,
+                holder: this.componentName,
             }));
             clearTimeout(this._timeout);
             const handler = this.handler;
@@ -88,19 +89,19 @@ class NumberBuffer extends EventBus {
      * @param {Boolean} config.useWithBarcode
      */
     use(config) {
-        const currentComponent = useComponent();
+        const componentName = useComponentName();
         config = Object.assign(getDefaultConfig(), config);
         // keys still batched for the holder about to be covered were typed for it
         this.capture();
 
         const holder = {
-            component: currentComponent,
+            componentName,
             state: config.state ? config.state : { buffer: "", toStartOver: false },
             config,
         };
         this.bufferHolderStack.push(holder);
         log.lifecycle("use", () => ({
-            component: currentComponent.constructor.name,
+            component: componentName,
             depth: this.bufferHolderStack.length,
             useWithBarcode: config.useWithBarcode,
             triggers: {
@@ -116,7 +117,7 @@ class NumberBuffer extends EventBus {
                 this.bufferHolderStack.splice(indexComponent, 1);
             }
             log.lifecycle("release", () => ({
-                component: currentComponent.constructor.name,
+                component: componentName,
                 depth: this.bufferHolderStack.length,
             }));
             this._setUp();
@@ -141,13 +142,13 @@ class NumberBuffer extends EventBus {
         this.activeHolder = this._currentBufferHolder;
         this.isReset = this.activeHolder?.isReset || false;
         if (!this._currentBufferHolder) {
-            this.component = null;
+            this.componentName = null;
             this.state = {};
             this.config = null;
             return;
         }
-        const { component, state, config } = this._currentBufferHolder;
-        this.component = component;
+        const { componentName, state, config } = this._currentBufferHolder;
+        this.componentName = componentName;
         this.state = state;
         this.config = config;
         this.decimalPoint = config.decimalPoint || this.localization.decimalPoint;
@@ -210,7 +211,7 @@ class NumberBuffer extends EventBus {
                 manualCapture,
                 process,
                 treatedAsBarcode: !process,
-                holder: this.component?.constructor?.name,
+                holder: this.componentName,
             }));
             if (process) {
                 for (const event of events) {
@@ -234,7 +235,7 @@ class NumberBuffer extends EventBus {
         log.logic("handleInput", () => ({
             key,
             buffer: this.state.buffer,
-            holder: this.component?.constructor?.name,
+            holder: this.componentName,
         }));
         if (key === "Enter" && this.config.triggerAtEnter) {
             this.config.triggerAtEnter(this.state);

@@ -30,7 +30,7 @@ const WithUserChatter = (T) =>
         setup() {
             super.setup();
             if (this.props.withCommand) {
-                useAssignUserCommand();
+                useAssignUserCommand(this);
             }
             this.avatarCard = usePopover(AvatarCardPopover);
         }

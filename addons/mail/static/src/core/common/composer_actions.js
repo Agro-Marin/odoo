@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
-import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
+import { toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -61,11 +61,11 @@ export function pickerOnClick(component, action, ev) {
  * @param {() => ComposerPicker} func
  */
 export function pickerSetup(action, func) {
-    const component = useComponent();
-    component.pickerTargetRef = useRef("picker-target");
-    component.quickActionsRef = useRef("quick-actions");
-    component.moreActionsRef = useRef("more-actions");
-    component.extraActionsRef = useRef("extra-actions");
+    const { owner } = action;
+    owner.pickerTargetRef = useRef("picker-target");
+    owner.quickActionsRef = useRef("quick-actions");
+    owner.moreActionsRef = useRef("more-actions");
+    owner.extraActionsRef = useRef("extra-actions");
     action.ref = useRef(action.id);
     action.picker = func();
 }
@@ -266,22 +266,21 @@ class UseComposerActions extends UseActions {
  * @param {Object} [params0={}]
  * @param {Composer|(() => Composer)} [params0.composer]
  */
-export function useComposerActions({ composer } = {}) {
-    const component = useComponent();
+export function useComposerActions({ owner, composer } = {}) {
     const transformedActions = composerActionsRegistry
         .getEntries()
         .map(
             ([id, definition]) =>
-                new ComposerAction({ owner: component, id, definition, composer }),
+                new ComposerAction({ owner, id, definition, composer }),
         );
     for (const action of transformedActions) {
         action.setup();
     }
     const state = useState(
-        new UseComposerActions(component, transformedActions, useService("mail.store")),
+        new UseComposerActions(owner, transformedActions, useService("mail.store")),
     );
-    component.getActivePicker = () => state.activePicker;
-    component.setActivePicker = /** @param {ComposerPicker|null} newActivePicker */ (
+    owner.getActivePicker = () => state.activePicker;
+    owner.setActivePicker = /** @param {ComposerPicker|null} newActivePicker */ (
         newActivePicker,
     ) => (state.activePicker = newActivePicker);
     return state;

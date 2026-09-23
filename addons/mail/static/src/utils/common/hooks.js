@@ -10,7 +10,6 @@ import {
     onWillUnmount,
     onWillUpdateProps,
     toRaw,
-    useComponent,
     useEffect,
     useRef,
     useState,
@@ -23,7 +22,7 @@ import { _t } from "@web/core/translation";
 import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 
 const log = makeLogger("mail.thread.ui");
@@ -34,7 +33,6 @@ const log = makeLogger("mail.thread.ui");
  * @param {boolean|AddEventListenerOptions} [eventParams]
  */
 function useLazyExternalListener(target, eventName, handler, eventParams) {
-    const boundHandler = handler.bind(useComponent());
     /** @type {EventTarget|undefined} */
     let t;
     onMounted(() => {
@@ -42,16 +40,16 @@ function useLazyExternalListener(target, eventName, handler, eventParams) {
         if (!t) {
             return;
         }
-        t.addEventListener(eventName, boundHandler, eventParams);
+        t.addEventListener(eventName, handler, eventParams);
     });
     onPatched(() => {
         const t2 = target();
         if (t !== t2) {
             if (t) {
-                t.removeEventListener(eventName, boundHandler, eventParams);
+                t.removeEventListener(eventName, handler, eventParams);
             }
             if (t2) {
-                t2.addEventListener(eventName, boundHandler, eventParams);
+                t2.addEventListener(eventName, handler, eventParams);
             }
             t = t2;
         }
@@ -60,7 +58,7 @@ function useLazyExternalListener(target, eventName, handler, eventParams) {
         if (!t) {
             return;
         }
-        t.removeEventListener(eventName, boundHandler, eventParams);
+        t.removeEventListener(eventName, handler, eventParams);
     });
 }
 

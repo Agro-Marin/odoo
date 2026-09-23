@@ -1,12 +1,6 @@
 // @ts-check
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    useComponent,
-    useEffect,
-    useExternalListener,
-} from "@odoo/owl";
+import { Component, onMounted, useEffect, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { isHtmlEmpty, isMarkup } from "@web/core/utils/dom/html";
@@ -112,8 +106,7 @@ export class FullComposerRecoveryPopover extends Component {
     }
 }
 
-export function useComposerDraft() {
-    const comp = useComponent();
+export function useComposerDraft(comp) {
     const saveContentDebounced = useDebounced(() => comp.saveContent(), 5000, {
         execBeforeUnmount: true,
     });

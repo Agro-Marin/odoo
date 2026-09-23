@@ -45,7 +45,7 @@ export class ClosePosPopup extends Component {
         this.dialog = useService("dialog");
         this.ui = useService("ui");
         this.state = useState(this.getInitialState());
-        this.confirm = useAsyncLockedMethod(this.confirm);
+        this.confirm = useAsyncLockedMethod(this.confirm.bind(this));
         log.lifecycle("[session:close] opened", () => ({
             session: this.pos.session?.id,
             cashControl: this.pos.config.cash_control,

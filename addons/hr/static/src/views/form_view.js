@@ -6,7 +6,7 @@ import { FormController, formView } from "@web/views/form";
 export class EmployeeFormController extends FormController {
     setup() {
         super.setup();
-        this.archiveEmployee = useArchiveEmployee();
+        this.archiveEmployee = useArchiveEmployee(this);
     }
 
     getStaticActionMenuItems() {

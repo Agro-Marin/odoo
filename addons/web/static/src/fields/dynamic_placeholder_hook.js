@@ -3,7 +3,7 @@
 
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { usePopover } from "@web/ui/popover";
 
 import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";

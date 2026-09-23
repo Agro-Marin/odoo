@@ -8,7 +8,7 @@ import {
     generateSpecialMentionElement,
     generateThreadMentionElement,
 } from "@mail/utils/common/format";
-import { status, useComponent, useEffect, useState } from "@odoo/owl";
+import { status, useEffect, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { ConnectionAbortedError } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
@@ -389,8 +389,8 @@ export class UseSuggestion {
     }
 }
 
-export function useSuggestion() {
-    return new UseSuggestion(useComponent());
+export function useSuggestion(owner) {
+    return new UseSuggestion(owner);
 }
 
 /**

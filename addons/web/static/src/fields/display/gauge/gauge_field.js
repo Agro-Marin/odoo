@@ -34,7 +34,7 @@ export class GaugeField extends FieldComponent {
     canvasRef;
 
     setup() {
-        this.canvasRef = useChartCanvas(() => [
+        this.canvasRef = useChartCanvas(this, () => [
             this.field.value,
             this.props.maxValueField
                 ? this.props.record.data[this.props.maxValueField]

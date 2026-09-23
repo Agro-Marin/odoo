@@ -13,10 +13,20 @@ export function useProps() {
     return new Proxy(Object.create(null), {
         get: (_target, key) => component.props[key],
         has: (_target, key) => key in component.props,
+        set: (_target, key, value) => Reflect.set(component.props, key, value),
+        deleteProperty: (_target, key) => Reflect.deleteProperty(component.props, key),
         ownKeys: () => Reflect.ownKeys(component.props),
         getOwnPropertyDescriptor: (_target, key) => {
             const descriptor = Reflect.getOwnPropertyDescriptor(component.props, key);
             return descriptor && { ...descriptor, configurable: true };
         },
     });
+}
+
+/**
+ * @returns {string}
+ */
+export function useComponentName() {
+    // OWL 2 twin of OWL 3's getComponentScope().componentName
+    return useComponent().constructor.name;
 }

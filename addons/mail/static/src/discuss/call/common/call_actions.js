@@ -2,7 +2,7 @@
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { attClassObjectToString } from "@mail/utils/common/format";
-import { useComponent, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -479,15 +479,11 @@ class UseCallActions extends UseActions {
  * @param {Object} [params0={}]
  * @param {Thread|(() => Thread)} [params0.thread]
  */
-export function useCallActions({ thread } = {}) {
-    const component = useComponent();
+export function useCallActions({ owner, thread } = {}) {
     const transformedActions = callActionsRegistry
         .getEntries()
-        .map(
-            ([id, definition]) =>
-                new CallAction({ owner: component, id, definition, thread }),
-        );
+        .map(([id, definition]) => new CallAction({ owner, id, definition, thread }));
     return useState(
-        new UseCallActions(component, transformedActions, useService("mail.store")),
+        new UseCallActions(owner, transformedActions, useService("mail.store")),
     );
 }

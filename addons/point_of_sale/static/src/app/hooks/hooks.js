@@ -2,11 +2,11 @@
 import {
     onMounted,
     onPatched,
-    useComponent,
     useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
+import { useComponentName } from "@web/core/utils/owl_bridge";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast } from "@web/core/utils/concurrency";
 const log = makeLogger("pos.hooks");
@@ -28,22 +28,21 @@ export function useAutoFocusToLast() {
 }
 
 export function useAsyncLockedMethod(method) {
-    const component = useComponent();
+    const componentName = useComponentName();
+    const methodName = method.name.replace(/^bound /, "") || "anonymous";
     let called = false;
     return async (...args) => {
         if (called) {
             log.logic("useAsyncLockedMethod: call dropped, locked", () => ({
-                component: component.constructor.name,
-                method: method.name,
+                component: componentName,
+                method: methodName,
             }));
             return;
         }
-        const endCall = log.perf(
-            `${component.constructor.name}.${method.name || "anonymous"}`,
-        );
+        const endCall = log.perf(`${componentName}.${methodName}`);
         try {
             called = true;
-            return await method.call(component, ...args);
+            return await method(...args);
         } finally {
             called = false;
             endCall();

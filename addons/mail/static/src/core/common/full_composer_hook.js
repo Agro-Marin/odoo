@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { saveComposerDraft } from "@mail/core/common/composer_draft";
-import { EventBus, toRaw, useComponent, useState } from "@odoo/owl";
+import { EventBus, toRaw, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
@@ -103,8 +103,7 @@ function getFullComposerContext(comp, allRecipients, default_body) {
         ...comp.fullComposerAdditionalContext,
     };
 }
-export function useFullComposer() {
-    const comp = useComponent();
+export function useFullComposer(comp) {
     const state = useState({ isOpen: false });
     let bus = new EventBus();
     /**

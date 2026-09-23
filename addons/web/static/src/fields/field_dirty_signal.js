@@ -3,7 +3,7 @@
 
 import { onWillDestroy } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 
 /** @typedef {{ id: symbol, isDirty: boolean }} FieldDirtyPayload */
 

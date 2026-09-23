@@ -9,7 +9,7 @@ import {
     useRef,
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { useProps } from "@web/core/utils/props";
+import { useProps } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const log = makeLogger("web.components.resizable_panel");
