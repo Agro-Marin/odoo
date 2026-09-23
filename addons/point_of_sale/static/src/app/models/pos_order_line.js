@@ -83,6 +83,12 @@ export class PosOrderline extends PosOrderlineAccounting {
         return this.uuid;
     }
 
+    isInPreparation() {
+        return Boolean(
+            this.order_id?.last_order_preparation_change?.lines?.[this.preparationKey],
+        );
+    }
+
     get quantityStr() {
         return this.quantityStrFor(this.qty);
     }

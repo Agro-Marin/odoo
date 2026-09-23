@@ -47,7 +47,7 @@ export function groupOrderlines(lines) {
     const groupByKey = new Map();
 
     for (const line of lines) {
-        if (!line.isPosGroupable()) {
+        if (!line.isPosGroupable() || line.isInPreparation()) {
             displayed.push(line);
             continue;
         }

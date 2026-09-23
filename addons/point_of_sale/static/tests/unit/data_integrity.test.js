@@ -450,6 +450,28 @@ test("display grouping keeps different configured attributes visible", async () 
     expect(grouped.groupOf.get(grouped.lines[0].uuid).quantity).toBeCloseTo(0.8);
 });
 
+test("display grouping keeps a line sent to preparation on its own row", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrder(store);
+    const line = order.lines[0];
+    const second = store.models["pos.order.line"].create({
+        order_id: order,
+        product_id: line.product_id,
+        price_unit: line.price_unit,
+        qty: 2,
+    });
+    expect(groupOrderlines([line, second]).lines).toHaveLength(1);
+    order.updateLastOrderChange();
+    expect(groupOrderlines([line, second]).lines).toEqual([line, second]);
+    const third = store.models["pos.order.line"].create({
+        order_id: order,
+        product_id: line.product_id,
+        price_unit: line.price_unit,
+        qty: 1,
+    });
+    expect(groupOrderlines([line, second, third]).lines).toEqual([line, second, third]);
+});
+
 test("display grouping keeps distinct lots independently selectable", async () => {
     const store = await setupPosEnv();
     const order = await getFilledOrder(store);
