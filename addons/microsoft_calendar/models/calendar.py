@@ -186,7 +186,10 @@ class CalendarEvent(models.Model):
         )
         after_count = len(
             self.recurrence_id.calendar_event_ids.filtered(
-                lambda e: e.start.date() < parse(new_start).date() and e != self
+                lambda e: (
+                    e.start.date() < fields.Datetime.to_datetime(new_start).date()
+                    and e != self
+                )
             )
         )
         if before_count != after_count:
