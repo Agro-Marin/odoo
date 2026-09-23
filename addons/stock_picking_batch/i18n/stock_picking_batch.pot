@@ -372,6 +372,12 @@ msgid "Choose Type of Labels To Print"
 msgstr ""
 
 #. module: stock_picking_batch
+#. odoo-python
+#: code:addons/stock_picking_batch/wizards/stock_picking_to_batch.py:0
+msgid "Choose the batch transfer to add the transfers to."
+msgstr ""
+
+#. module: stock_picking_batch
 #: model_terms:ir.actions.act_window,help:stock_picking_batch.action_picking_tree_wave
 #: model_terms:ir.actions.act_window,help:stock_picking_batch.stock_picking_batch_action
 msgid "Cluster transfers"
@@ -927,6 +933,12 @@ msgstr ""
 #. module: stock_picking_batch
 #: model_terms:ir.ui.view,arch_db:stock_picking_batch.view_picking_type_form_inherit
 msgid "Select product categories you want to group"
+msgstr ""
+
+#. module: stock_picking_batch
+#. odoo-python
+#: code:addons/stock_picking_batch/wizards/stock_picking_to_batch.py:0
+msgid "Select the transfers to add to a batch."
 msgstr ""
 
 #. module: stock_picking_batch
