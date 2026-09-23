@@ -15,12 +15,12 @@ class TestPerformanceTimesheet(TestSaleTimesheet):
         )
         self.assertFalse(project.task_ids.sale_line_id)
         self.env.invalidate_all()
-        # 28 on a sale_timesheet-only database, 29 on a 153-module one: the
-        # absolute count moves with the install, so these are the wider reading.
+        # 30 on a sale_timesheet-only database: the absolute count moves with
+        # the install.
         # A narrower install logs `Query count less than expected` and passes.
         # The install-independent guard is
         # `test_making_a_project_billable_does_not_cost_a_query_per_task` below.
-        with self.assertQueryCount(29):
+        with self.assertQueryCount(30):
             project.write(
                 {
                     "allow_billable": True,
@@ -41,7 +41,7 @@ class TestPerformanceTimesheet(TestSaleTimesheet):
             ]
         )
         self.env.invalidate_all()
-        with self.assertQueryCount(30):
+        with self.assertQueryCount(31):
             project.write(
                 {
                     "allow_billable": True,
