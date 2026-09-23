@@ -228,8 +228,10 @@ export class OdooClient {
     }
 
     /** GET /json/2 (auth: public) */
-    async getJson2(body?: { subpath?: string | null }): Promise<unknown> {
-        return this.call("GET", `/json/2`, body, false);
+    async getJson2(subpath?: string | null): Promise<unknown> {
+        const path = `/json/2`;
+        const suffix = this.query([["subpath", subpath]]);
+        return this.call("GET", `${path}${suffix}`, undefined, false);
     }
 
     /** PATCH /json/2 (auth: public) */

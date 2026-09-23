@@ -614,23 +614,19 @@
       },
       "get": {
         "operationId": "get_json_2",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "subpath": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "type": "object"
-              }
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subpath",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "content": {
