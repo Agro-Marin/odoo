@@ -5,7 +5,7 @@ from markupsafe import Markup
 
 from odoo import Command
 from odoo.exceptions import AccessError
-from odoo.tests import Form, tagged, users
+from odoo.tests import Form, tagged, users, warmup
 
 from odoo.addons.mail.tests import common
 
@@ -334,6 +334,7 @@ class TestMailRender(TestMailRenderCommon):
             self.assertEqual(rendered, expected)
 
     @users("employee")
+    @warmup
     def test_render_template_inline_template_w_post_process_custom_local_links(self):
         def _mock_get_base_url(recordset):
             return f"http://www.render-object-{recordset._name}-{recordset.id}-{recordset.display_name}.com"
@@ -346,7 +347,7 @@ class TestMailRender(TestMailRenderCommon):
         )
         with (
             patch("odoo.models.Model.get_base_url", new=_mock_get_base_url),
-            self.assertQueryCount(13),
+            self.assertQueryCount(1),
         ):
             self.env["res.partner"].browse(partner_ids).invalidate_recordset(
                 ["name", "display_name"]
