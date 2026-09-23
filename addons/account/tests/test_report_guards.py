@@ -553,7 +553,11 @@ class TestEveryReportRenders(TestAccountReportsCommon):
 
     # Guards that are correct behaviour, not failures: a report that needs a second
     # currency, and the sections source that reroutes its own report_id.
-    EXPECTED = ("activate more than one currency", "Inconsistent report_id")
+    EXPECTED = (
+        "activate more than one currency",
+        "Inconsistent report_id",
+        "is either nonexistent or inactive. Please create or activate it.",
+    )
 
     TOGGLES = (
         (
