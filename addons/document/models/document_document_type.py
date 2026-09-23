@@ -239,6 +239,10 @@ class DocumentDocument(models.Model):
                 "name": self.env._("%(name)s (Renewal)", name=self.name),
                 "renewal_document_id": self.id,
                 "attachment_id": False,
+                # Stored computes are not copied: without these the renewal
+                # loses the record the document belongs to.
+                "res_model": self.res_model,
+                "res_id": self.res_id,
                 "date_issued": today,
                 "date_expiration": today + timedelta(days=validity)
                 if validity
