@@ -17,6 +17,7 @@
         "my",
     ],
     "data": [
+        "security/ir.access.csv",
         "data/res_partner.xml",
         "views/myinvois_document_pos_views.xml",
         "views/pos_order_views.xml",

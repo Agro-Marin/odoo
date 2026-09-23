@@ -1,0 +1,2 @@
+id,name,model_id/id,group_id/id,kind,operation,domain
+access_myinvois_document_pos_user,myinvois.document: a cashier reads the documents of the invoices they print,l10n_my_edi.model_myinvois_document,point_of_sale.group_pos_user,permission,r,
