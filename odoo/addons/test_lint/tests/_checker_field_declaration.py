@@ -299,6 +299,11 @@ def _check_layout(name: str, call: ast.Call) -> Iterator[Violation]:
         )
 
 
+def spelling_violations(name: str, call: ast.Call) -> Iterator[Violation]:
+    yield from _check_positional(name, call)
+    yield from _check_layout(name, call)
+
+
 def _check_dead(name: str, call: ast.Call) -> Iterator[Violation]:
     keys = keywords(call)
     kind = call.func.attr
@@ -385,8 +390,7 @@ def _check_class(node: ast.ClassDef) -> Iterator[Violation]:
         yield from _check_default(name, call)
         yield from _check_selection(name, call)
         yield from _check_hooks(name, call)
-        yield from _check_positional(name, call)
-        yield from _check_layout(name, call)
+        yield from spelling_violations(name, call)
         yield from _check_dead(name, call)
         yield from _check_stored_related(name, call)
 

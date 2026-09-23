@@ -6,8 +6,11 @@ FIELD_ATTRIBUTE_ORDER, one per line once there are two.
 Invariant, checked per file before anything is written: the module's AST with
 every field call normalised (positionals mapped to their keywords, keywords
 sorted by name) is identical before and after. Only the spelling and the order
-of the arguments may change. A declaration the fixer will not touch -- a
-comment inside the parentheses, a `*args` or `**kwargs` -- is reported.
+of the arguments may change, and only in a declaration the checker has a
+field-positional-argument or field-attribute-order finding for. A comment on
+the line of the call stays on the line of the call. A declaration the fixer
+cannot carry -- a comment after the last argument, a `*args` or `**kwargs` --
+is reported.
 """
 
 import argparse
@@ -27,6 +30,7 @@ if __package__:
         canonical_order,
         is_field_call,
         positional_names,
+        spelling_violations,
     )
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -35,6 +39,7 @@ else:
         canonical_order,
         is_field_call,
         positional_names,
+        spelling_violations,
     )
 
 _SKIP_DIRS = ("/tests/", "/_vendor/", "/migrations/", "/upgrades/", "/static/")
@@ -88,6 +93,7 @@ def _render(
     call: ast.Call,
     indent: bytes,
     comments: list[tuple[int, bytes]],
+    after: bytes | None = None,
 ) -> bytes:
     arguments = dict(_arguments(call))
     ordered = canonical_order(list(arguments))
@@ -95,10 +101,15 @@ def _render(
     head = source[func_start:func_end]
     call_start, call_end = _span(lines, call)
     spans = {name: _span(lines, value) for name, value in arguments.items()}
+    call_line_end = source.find(b"\n", func_end)
     # A comment inside an argument's own span stays there with the source
     # slice; one trailing an argument's last line travels with the argument;
-    # one on a line of its own explains the argument that follows it and
-    # travels with that one; one after the last argument has nothing to follow.
+    # one on the line of the call stays on it, because a noqa marker there is
+    # read as the declaration's; one on a line of its own explains the
+    # argument that follows it and travels with that one; one after the last
+    # argument has nothing to follow. `after` trails a call written on one
+    # line, and stays on the line of the call too.
+    opening = after
     trailing: dict[str, bytes] = {}
     leading: dict[str, list[bytes]] = {}
     for offset, text in comments:
@@ -120,6 +131,9 @@ def _render(
                 raise Declined("two comments trailing one argument")
             trailing[owner] = b"  " + text
             continue
+        if line_end == call_line_end:
+            opening = text
+            continue
         following = next(
             (name for name, (start, _end) in spans.items() if start > offset),
             None,
@@ -128,12 +142,15 @@ def _render(
             raise Declined("a comment after the last argument")
         leading.setdefault(following, []).append(text)
     pieces = [name.encode() + b"=" + source[slice(*spans[name])] for name in ordered]
-    if len(pieces) < 2 and not trailing and not leading:
-        return head + b"(" + b", ".join(pieces) + b")"
+    if len(pieces) < 2 and not trailing and not leading and opening is after:
+        suffix = b"  " + after if after is not None else b""
+        return head + b"(" + b", ".join(pieces) + b")" + suffix
     inner = indent + b"    "
     return (
         head
-        + b"(\n"
+        + b"("
+        + (b"  " + opening if opening is not None else b"")
+        + b"\n"
         + b"".join(
             b"".join(inner + c + b"\n" for c in leading.get(n, ()))
             + inner
@@ -189,13 +206,21 @@ def rewrite(path: Path) -> tuple[bytes, bytes, int, list[str]]:
     declined: list[str] = []
     for statement in _declarations(tree):
         call = statement.value
+        if not any(spelling_violations(bound_names(statement)[0], call)):
+            continue
         indent = lines[statement.lineno - 1][: statement.col_offset]
+        start, end = _span(lines, call)
+        after = None
+        if call.lineno == call.end_lineno:
+            for offset, text in comments:
+                if offset >= end and not source[end:offset].strip(b" \t"):
+                    after, end = text, offset + len(text)
+                    break
         try:
-            rendered = _render(source, lines, call, indent, comments)
+            rendered = _render(source, lines, call, indent, comments, after)
         except Declined as reason:
             declined.append(f"{path}:{call.lineno}: {reason}")
             continue
-        start, end = _span(lines, call)
         if source[start:end] != rendered:
             edits.append((start, end, rendered))
     out = source

@@ -948,11 +948,11 @@ class TestSortFieldAttributes(BaseCase):
         after, count, declined = self._rewrite("""
         class M(models.Model):
             a = fields.Char(
-                string="A",
                 required=True,
+                string="A",
                 # nothing follows this
             )
-            b = fields.Char(**COMMON)
+            b = fields.Char("B", **COMMON)
             c = fields.Char(*ARGS, required=True)
         """)
         self.assertEqual(count, 0)
@@ -962,13 +962,58 @@ class TestSortFieldAttributes(BaseCase):
             textwrap.dedent("""
         class M(models.Model):
             a = fields.Char(
-                string="A",
                 required=True,
+                string="A",
                 # nothing follows this
             )
-            b = fields.Char(**COMMON)
+            b = fields.Char("B", **COMMON)
             c = fields.Char(*ARGS, required=True)
         """),
+        )
+
+    def test_a_declaration_without_a_finding_is_left_alone(self):
+        source = """
+        class M(models.Model):
+            journal_id = fields.Many2one(  # noqa: E8529  an index over it
+                comodel_name="account.journal",
+                related="move_id.journal_id",
+                store=True,
+            )
+            code = fields.Char(
+                compute="_compute_code_with_a_name_long_enough_to_wrap"
+            )
+        """
+        after, count, declined = self._rewrite(source)
+        self.assertEqual((count, declined), (0, []))
+        self.assertEqual(after, textwrap.dedent(source))
+
+    def test_a_comment_on_the_line_of_the_call_stays_there(self):
+        after, count, declined = self._rewrite("""
+        class M(models.Model):
+            journal_id = fields.Many2one(  # noqa: E8529  an index over it
+                related="move_id.journal_id",
+                comodel_name="account.journal",
+                store=True,
+            )
+            ref = fields.Char(store=True, related="move_id.ref")  # noqa: E8529  why
+            name = fields.Char("Name")  # the label
+        """)
+        self.assertEqual((count, declined), (3, []))
+        self.assertEqual(
+            after,
+            textwrap.dedent("""
+            class M(models.Model):
+                journal_id = fields.Many2one(  # noqa: E8529  an index over it
+                    comodel_name="account.journal",
+                    related="move_id.journal_id",
+                    store=True,
+                )
+                ref = fields.Char(  # noqa: E8529  why
+                    related="move_id.ref",
+                    store=True,
+                )
+                name = fields.Char(string="Name")  # the label
+            """),
         )
 
     def test_a_canonical_declaration_is_left_alone(self):
