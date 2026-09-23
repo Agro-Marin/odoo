@@ -3011,12 +3011,11 @@ class HrEmployee(models.Model):
         if user.has_group("hr.group_hr_user"):
             employee_fields.append("job_title")
         if len(self) > 0:
-            self.fetch(
-                [
-                    field.field_name if isinstance(field, Store.Attr) else field
-                    for field in employee_fields
-                ]
-            )
+            names = [
+                field.field_name if isinstance(field, Store.Attr) else field
+                for field in employee_fields
+            ]
+            self.fetch([name for name in names if name in self._fields] + ["phone_ids"])
         return employee_fields
 
     def get_bank_account_salary_allocation(self, account_id):

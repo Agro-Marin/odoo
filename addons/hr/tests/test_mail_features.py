@@ -1,8 +1,9 @@
 from odoo import Command
-from odoo.tests.common import tagged
+from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 from odoo.addons.hr.tests.common import TestHrCommon
 from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged("post_install", "-at_install", "mail_flow")
@@ -131,3 +132,29 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
             self.test_employee.partner_id,
             "Matches suggested recipients",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestEmployeeAvatarCard(TransactionCase):
+    def test_the_avatar_card_carries_the_employee_fields(self):
+        department = self.env["hr.department"].create({"name": "Card Department"})
+        user = new_test_user(self.env, login="card_user", groups="base.group_user")
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Card Employee",
+                "user_id": user.id,
+                "department_id": department.id,
+                "work_email": "card@example.com",
+                "phone_ids": [
+                    Command.create({"number": "123456789", "type": "landline"})
+                ],
+            }
+        )
+        partner = user.partner_id.with_user(self.env.ref("base.user_admin"))
+        store = Store()
+        store.add(partner, partner._get_fields_store_avatar_card(store.target))
+        data = store.get_result()
+        card = next(row for row in data["hr.employee"] if row["id"] == employee.id)
+        self.assertEqual(card["department_id"], department.id)
+        self.assertEqual(card["work_email"], "card@example.com")
+        self.assertTrue(card["work_phone"])
