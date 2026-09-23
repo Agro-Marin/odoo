@@ -14,145 +14,129 @@ from odoo.addons.mail.tools.discuss import Store
 @tagged("post_install", "-at_install", "is_query_count")
 class TestDiscussFullPerformance(HttpCase, MailCommon):
     # Queries for _query_count_init_store (in order):
-    #   1: search res_partner (odooot ref exists)
-    #   1: search res_groups (internalUserGroupId ref exists)
-    #   8: odoobot format:
+    #   2: xmlid refs: search res_partner (odoobot), search res_groups (group_user)
+    #   12: odoobot format:
     #       - fetch res_partner (_read_format)
-    #       - search res_users (_compute_presence)
-    #       - search presence (_compute_presence)
-    #       - fetch presence (_compute_presence)
-    #       - _get_on_leave_ids (_compute_presence hr_holidays override)
-    #       - search employee (_compute_presence hr_homeworking override)
-    #       - fetch employee (_compute_presence hr_homeworking override)
+    #       8: _compute_presence:
+    #           - search res_users, search mail_presence, fetch mail_presence
+    #           - _get_on_leave_ids (hr_holidays override)
+    #           - search hr_employee, fetch hr_employee (hr_homeworking override)
+    #           - fetch resource_resource: the employee's own zone decides which
+    #             day's location applies (hr_homeworking _today_by_employee)
+    #           - search hr_employee_location: that day's exceptional location
+    #       - search res_users (_compute_main_user_id)
     #       - fetch res_users (_read_format)
-    #       - fetch hr_employee (res.users _to_store)
-    #   5: settings:
+    #       - search hr_employee (res.users employee_ids)
+    #   6: settings:
     #       - search res_users_settings (_get_or_create_for_user)
     #       - fetch res_users_settings (_format_settings)
-    #       - search res_users_settings_volumes (_format_settings)
     #       - search res_users_settings_embedded_action (_format_settings)
+    #       - search res_users_settings_volumes (_format_settings)
     #       - search res_lang_res_users_settings_rel (_format_settings)
     #       - search im_livechat_expertise_res_users_settings_rel (_format_settings)
     #   2: hasCannedResponses
     #       - fetch res_groups_users_rel
     #       - search mail_canned_response
-    _query_count_init_store = 19
+    _query_count_init_store = 22
     # Queries for _query_count_init_messaging (in order):
-    #   1: insert res_device_log
-    #   3: _search_is_member (for current user, first occurence _search_is_member for chathub given channel ids)
-    #       - fetch res_users
-    #       - search discuss_channel_member
-    #       - fetch discuss_channel
-    #   1. search discuss_channel (chathub given channel ids)
-    #   1: _get_channels_as_member
-    #       - search discuss_channel (member and pinned-member domains, one OR)
+    #   4: SAVEPOINT / RELEASE around each of the two fetch params
+    #       (webclient _process_one_request)
+    #   1: fetch res_users (_get_current_persona)
+    #   1: search discuss_channel (chathub given channel ids)
+    #   1: _get_channels_as_member (member and pinned-member domains, one OR)
     #   2: _init_messaging (discuss)
-    #       - fetch discuss_channel_member (is_self)
+    #       - search discuss_channel_member (is_self)
     #       - _compute_message_unread_counter
     #   3: _init_messaging (mail)
     #       - search bus_bus (_bus_last_id)
     #       - _get_needaction_count (inbox counter)
-    #       - search mail_message (starred counter)
-    #   23: _process_request_for_all (discuss):
-    #       - search discuss_channel (channels_domain)
-    #       22: channel add:
-    #           - read group member (prefetch _compute_self_member_id from _compute_is_member)
-    #           - read group member (_compute_invited_member_ids)
-    #           - search discuss_channel_rtc_session
-    #           - fetch discuss_channel_rtc_session
-    #           - search member (channel_member_ids)
-    #           - fetch discuss_channel_member (manual prefetch)
-    #           10: member _to_store:
-    #               10: partner _to_store:
-    #                   - fetch res_partner (partner _to_store)
-    #                   - fetch res_users (_compute_presence)
-    #                   - search mail_presence (_compute_presence)
-    #                   - fetch mail_presence (_compute_presence)
-    #                   - _get_on_leave_ids (_compute_presence override)
-    #                   - search hr_employee (_compute_presence override)
-    #                   - fetch hr_employee (_compute_presence override)
-    #                   - search hr_employee (res.users._to_store override)
-    #                   - search hr_leave (leave_date_to)
-    #                   - fetch res_users (_compute_main_user_id)
-    #           - search bus_bus (_bus_last_id)
-    #           - search ir_attachment (_compute_avatar_128)
-    #           - count discuss_channel_member (member_count)
-    #           - _compute_message_needaction_stats
-    #           - search discuss_channel_res_groups_rel (group_ids)
-    #           - fetch res_groups (group_public_id)
-    _query_count_init_messaging = 34
-    # Queries for _query_count_discuss_channels (in order):
-    #   1: insert res_device_log
-    #   3: _search_is_member (for current user, first occurence _get_channels_as_member)
-    #       - fetch res_users
-    #       - search discuss_channel_member
-    #       - fetch discuss_channel
-    #   1: _get_channels_as_member
-    #       - search discuss_channel (member and pinned-member domains, one OR)
-    #   36: channel _to_store_defaults:
-    #       - read group member (prefetch _compute_self_member_id from _compute_is_member)
+    #       - search mail_message (starred counter, _get_search_access_rows)
+    #   1: search discuss_channel (channels_domain)
+    #   28: channel add:
+    #       - fetch discuss_channel (_to_store_defaults)
+    #       - read group member (_compute_self_member_id)
     #       - read group member (_compute_invited_member_ids)
-    #       - search discuss_channel_rtc_session
-    #       - fetch discuss_channel_rtc_session
-    #       - search member (channel_member_ids)
-    #       - search member (channel_name_member_ids)
-    #       - fetch discuss_channel_member (manual prefetch)
-    #       18: member _to_store:
-    #           - search im_livechat_channel_member_history (livechat member type)
-    #           - fetch im_livechat_channel_member_history (livechat member type)
-    #           13: partner _to_store:
-    #               - fetch res_partner (partner _to_store)
-    #               - fetch res_users (_compute_presence)
-    #               - search mail_presence (_compute_presence)
-    #               - fetch mail_presence (_compute_presence)
-    #               - _get_on_leave_ids (_compute_presence override)
-    #               - search hr_employee (_compute_presence override)
-    #               - fetch hr_employee (_compute_presence override)
-    #               - search hr_employee (res.users._to_store override)
-    #               - search hr_leave (leave_date_to)
-    #               - search res_users_settings (livechat username)
-    #               - fetch res_users_settings (livechat username)
-    #               - fetch res_users (_compute_main_user_id)
-    #               - fetch res_country (livechat override)
-    #           3: guest _to_store:
-    #               - fetch mail_guest
-    #               - fetch mail_presence (_compute_presence)
-    #               - fetch res_country
-    #       - search bus_bus (_bus_last_id from _to_store_defaults)
-    #       - search ir_attachment (_compute_avatar_128)
+    #       - search, fetch discuss_channel_rtc_session
+    #       - search member (channel_member_ids), fetch member (_prefetch_store_members)
+    #       - fetch res_partner (_prefetch_store_members)
+    #       8: _compute_presence, once for every member's partner:
+    #           - search res_users, search mail_presence, fetch mail_presence
+    #           - _get_on_leave_ids (hr_holidays override)
+    #           - search hr_employee, fetch hr_employee (hr_homeworking override)
+    #           - fetch resource_resource (hr_homeworking employee zone)
+    #           - search hr_employee_location (hr_homeworking exceptional location)
+    #       - search res_users (_compute_main_user_id)
+    #       - search bus_bus (_bus_last_id)
     #       - count discuss_channel_member (member_count)
+    #       - search discuss_channel (_compute_is_editable: the write access
+    #         check evaluates the membership test)
     #       - _compute_message_needaction_stats
+    #       - search discuss_channel (the read access check of the one2many
+    #         read evaluates the same membership test), fetch member
+    #       - search ir_attachment (_compute_avatar_128)
     #       - search discuss_channel_res_groups_rel (group_ids)
-    #       - fetch im_livechat_channel_member_history (requested_by_operator)
-    #       - fetch res_groups (group_ids)
+    #       - search hr_employee (res.users employee_ids)
+    #       - search hr_leave (leave_date_to)
+    #       - fetch res_groups (group_public_id full_name)
+    _query_count_init_messaging = 41
+    # Queries for _query_count_discuss_channels (in order):
+    #   2: SAVEPOINT / RELEASE around the fetch param (webclient _process_one_request)
+    #   1: fetch res_users (_get_current_persona)
+    #   1: _get_channels_as_member (member and pinned-member domains, one OR)
+    #   48: channel _to_store_defaults and _to_store:
+    #       - fetch discuss_channel
+    #       - read group member (_compute_self_member_id)
+    #       - read group member (_compute_invited_member_ids)
+    #       - search, fetch discuss_channel_rtc_session
+    #       - search member (channel_member_ids)
+    #       - search member (_compute_channel_name_member_ids)
+    #       - fetch member, fetch res_partner (_prefetch_store_members)
+    #       8: _compute_presence, once for every member's partner (as above)
+    #       - search res_users (_compute_main_user_id)
+    #       - fetch mail_guest, search mail_presence (guest presence)
+    #       - search bus_bus (_bus_last_id)
+    #       - count discuss_channel_member (member_count)
+    #       - search discuss_channel (_compute_is_editable: the write access
+    #         check evaluates the membership test)
+    #       - _compute_message_needaction_stats
+    #       - search ir_attachment (_compute_avatar_128)
+    #       - search discuss_channel_res_groups_rel (group_ids)
+    #       - search discuss_channel (the read access check of the one2many
+    #         read evaluates the same membership test), fetch member
+    #       - search member (_compute_channel_name_member_ids, computed a
+    #         second time when the store reads it)
+    #       - fetch livechat_expertise_ids, livechat_conversation_tag_ids and read
+    #         the tags
+    #       - search, fetch im_livechat_channel_member_history (agent history)
+    #       - fetch res_groups (group_public_id full_name)
     #       - _compute_message_unread_counter
-    #       - fetch im_livechat_channel
-    #       2: fetch livechat_expertise_ids
-    #       - fetch livechat_conversation_tag_ids
-    #       - read livechat_conversation_tag_ids
+    #       4: employees and leave_date_to of the members' users, in two batches:
+    #          the channel members, then the invited and naming members
+    #       - fetch im_livechat_channel_member_history (livechat member type)
+    #       - search res_groups, search res_users (_compute_is_public)
+    #       - search, fetch res_users_settings (livechat username)
+    #       - fetch res_country (partner), fetch im_livechat_channel,
+    #         fetch res_country (guest)
     #   1: _get_last_messages
-    #   20: message _to_store:
-    #       - search mail_message_schedule
+    #   19: message _to_store:
     #       - fetch mail_message
+    #       - search mail_message_schedule
     #       - search mail_message_res_partner_starred_rel
     #       - search message_attachment_rel
     #       - search mail_link_preview
     #       - search mail_message_res_partner_rel
     #       - search mail_message_reaction
-    #       - search mail_notification
-    #       - search rating_rating
-    #       - fetch mail_notification
-    #       - search mail_message_subtype
+    #       - search mail_notification, fetch mail_notification
+    #       - fetch mail_message_subtype (_is_relevant_for_web_client)
     #       - search discuss_call_history
     #       - fetch mail_message_reaction
     #       - fetch mail_message_subtype
-    #       - fetch partner (_author_to_store)
-    #       - search user (_author_to_store)
-    #       - fetch user (_author_to_store)
+    #       - fetch res_partner, search res_users (_compute_main_user_id),
+    #         fetch res_users (_author_to_store)
     #       - fetch discuss_call_history
     #       - search mail_tracking_value
     #       - _compute_rating_stats
-    _query_count_discuss_channels = 63
+    _query_count_discuss_channels = 72
 
     def setUp(self):
         super().setUp()
@@ -512,11 +496,13 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
             "res.users": self._filter_users_fields(
                 {
                     "id": self.user_root.id,
+                    "partner_id": self.user_root.partner_id.id,
                     "share": False,
                     "employee_ids": [],
                 },
                 {
                     "id": self.users[0].id,
+                    "partner_id": self.users[0].partner_id.id,
                     "is_admin": False,
                     "is_livechat_manager": False,
                     "notification_type": "inbox",
@@ -528,6 +514,11 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 "channel_types_with_seen_infos": sorted(["chat", "group", "livechat"]),
                 "action_discuss_id": xmlid_to_res_id("mail.action_discuss"),
                 "hasCannedResponses": True,
+                **(
+                    {"hasDocumentsUserGroup": False}
+                    if "document.document" in self.env
+                    else {}
+                ),
                 "hasGifPickerFeature": False,
                 "hasLinkPreviewFeature": True,
                 "has_access_livechat": True,
@@ -540,6 +531,10 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 "self_partner": self.users[0].partner_id.id,
                 "settings": {
                     "channel_notifications": False,
+                    "color_scheme": "system",
+                    "density": "default",
+                    "homemenu_config": False,
+                    "homemenu_usage": False,
                     "id": self.env["res.users.settings"]
                     ._get_or_create_for_user(self.users[0])
                     .id,
@@ -635,11 +630,11 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 self._expected_result_for_channel(self.channel_channel_public_2),
                 self._expected_result_for_channel(self.channel_channel_group_1),
                 self._expected_result_for_channel(self.channel_channel_group_2),
-                self._expected_result_for_channel(self.channel_group_1),
                 self._expected_result_for_channel(self.channel_chat_1),
                 self._expected_result_for_channel(self.channel_chat_2),
                 self._expected_result_for_channel(self.channel_chat_3),
                 self._expected_result_for_channel(self.channel_chat_4),
+                self._expected_result_for_channel(self.channel_group_1),
                 self._expected_result_for_channel(self.channel_livechat_1),
                 self._expected_result_for_channel(self.channel_livechat_2),
             ),
@@ -660,8 +655,6 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 self._res_for_member(
                     self.channel_channel_group_2, self.users[0].partner_id
                 ),
-                self._res_for_member(self.channel_group_1, self.users[0].partner_id),
-                self._res_for_member(self.channel_group_1, self.users[12].partner_id),
                 self._res_for_member(self.channel_chat_1, self.users[0].partner_id),
                 self._res_for_member(self.channel_chat_1, self.users[14].partner_id),
                 self._res_for_member(self.channel_chat_2, self.users[0].partner_id),
@@ -670,6 +663,8 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 self._res_for_member(self.channel_chat_3, self.users[2].partner_id),
                 self._res_for_member(self.channel_chat_4, self.users[0].partner_id),
                 self._res_for_member(self.channel_chat_4, self.users[3].partner_id),
+                self._res_for_member(self.channel_group_1, self.users[0].partner_id),
+                self._res_for_member(self.channel_group_1, self.users[12].partner_id),
                 self._res_for_member(self.channel_livechat_1, self.users[0].partner_id),
                 self._res_for_member(self.channel_livechat_1, self.users[1].partner_id),
                 self._res_for_member(self.channel_livechat_2, self.users[0].partner_id),
@@ -738,30 +733,30 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                     also_notification=True,
                 ),
                 self._expected_result_for_persona(self.users[2]),
-                self._expected_result_for_persona(self.users[12]),
                 self._expected_result_for_persona(self.users[14]),
                 self._expected_result_for_persona(self.users[15]),
                 self._expected_result_for_persona(self.users[3]),
+                self._expected_result_for_persona(self.users[12]),
                 self._expected_result_for_persona(self.users[1], also_livechat=True),
                 self._expected_result_for_persona(self.user_root),
             ),
             "res.users": self._filter_users_fields(
                 self._res_for_user(self.users[0]),
-                self._res_for_user(self.users[12]),
                 self._res_for_user(self.users[14]),
                 self._res_for_user(self.users[15]),
                 self._res_for_user(self.users[2]),
                 self._res_for_user(self.users[3]),
+                self._res_for_user(self.users[12]),
                 self._res_for_user(self.user_root),
                 self._res_for_user(self.users[1]),
             ),
             "hr.employee": [
                 self._res_for_employee(self.users[0].employee_ids[0]),
-                self._res_for_employee(self.users[12].employee_ids[0]),
                 self._res_for_employee(self.users[14].employee_ids[0]),
                 self._res_for_employee(self.users[15].employee_ids[0]),
                 self._res_for_employee(self.users[2].employee_ids[0]),
                 self._res_for_employee(self.users[3].employee_ids[0]),
+                self._res_for_employee(self.users[12].employee_ids[0]),
             ],
         }
 
@@ -1659,7 +1654,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 "scheduledDatetime": False,
                 "starred": False,
                 "subject": False,
-                "subtype_id": self.env.ref("mail.mt_note").id,
+                "subtype_id": self.env.ref("mail.mt_comment").id,
                 "trackingValues": [],
                 "write_date": write_date,
             }
@@ -1926,6 +1921,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
 
     def _expected_result_for_thread(self, channel):
         common_data = {
+            "has_mail_thread": True,
             "id": channel.id,
             "model": "discuss.channel",
             "module_icon": "/mail/static/description/icon.png",
@@ -1952,43 +1948,49 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
         if user == self.users[0]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.users[1]:
-            return {"id": user.id, "share": False}
+            return {"id": user.id, "partner_id": user.partner_id.id, "share": False}
         if user == self.users[2]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.users[3]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.users[12]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.users[14]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.users[15]:
             return {
                 "id": user.id,
+                "partner_id": user.partner_id.id,
                 "employee_ids": user.employee_ids.ids,
                 "share": False,
             }
         if user == self.user_root:
-            return {"id": user.id, "share": False}
+            return {"id": user.id, "partner_id": user.partner_id.id, "share": False}
         return {}
 
     def _res_for_employee(self, employee):

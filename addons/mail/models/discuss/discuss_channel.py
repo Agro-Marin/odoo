@@ -2164,31 +2164,19 @@ class DiscussChannel(models.Model):
             | channels_with_all_members.channel_member_ids
             | self.channel_name_member_ids
         )
-        all_members.fetch(
-            [
-                "channel_id",
-                "create_date",
-                "fetched_message_id",
-                "guest_id",
-                "last_seen_dt",
-                "partner_id",
-                "seen_message_id",
-            ]
-        )
+        # every column at once: a store reads more of them than any list here
+        # would name, and a later read of one left out fetches the rest again
+        all_members.fetch()
         partners = all_members.partner_id.sudo()
-        partners.fetch(
-            [
-                "active",
-                "email",
-                "im_status",
-                "is_company",
-                "main_user_id",
-                "name",
-                "write_date",
-            ]
-        )
+        partners.fetch()
+        # a fetch computes nothing, so the presence the member stores read is
+        # computed here once for every partner, not once per relation that
+        # reaches them
+        partners.mapped("im_status")
         partners.main_user_id.fetch(["partner_id", "share"])
-        all_members.guest_id.sudo().fetch(["im_status", "name", "write_date"])
+        guests = all_members.guest_id.sudo()
+        guests.fetch()
+        guests.mapped("im_status")
         _debug.perf.count(
             "store_members_prefetched",
             channels=len(self),
