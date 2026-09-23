@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from odoo.modules.module import get_module_path, load_script
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import SQL
 
@@ -134,3 +135,78 @@ class TestGateSync(TransactionCase):
         )
         document = self.env["approval.test.gated"].create({"name": "Declared again"})
         self.assertTrue(document._is_approval_gate_enforced("action_ship"))
+
+    def test_a_gate_the_registry_creates_enforces(self):
+        declared = self.declared | {("approval.test.gated", "action_bill")}
+
+        self._sync(declared)
+
+        created = self.Gate.search(
+            [
+                ("model_name", "=", "approval.test.gated"),
+                ("operation", "=", "action_bill"),
+            ]
+        )
+        self.assertRecordValues(created, [{"active": True, "enforced": True}])
+        self.assertIn(
+            ("approval.test.gated", "action_bill"),
+            self.env["approval.gate"]._get_enforced_operations(),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestGateEnforcementMigration(TransactionCase):
+    """approval 2.11 turns every gate an older database kept watching into an
+    enforcing one, archived rows included, and says which."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.script = load_script(
+            f"{get_module_path('approval')}/migrations/2.11/post-migrate.py",
+            "approval_2_11_post_migrate",
+        )
+        cls.Gate = cls.env["approval.gate"].with_context(active_test=False)
+
+    def test_every_watching_gate_enforces_after_the_upgrade(self):
+        watching = self.Gate.create(
+            {
+                "model_name": "approval.test.watching",
+                "operation": "action_ship",
+                "enforced": False,
+            }
+        )
+        archived = self.Gate.create(
+            {
+                "model_name": "approval.test.archived",
+                "operation": "action_ship",
+                "enforced": False,
+                "active": False,
+            }
+        )
+        with self.assertLogs(self.script.__name__, "INFO") as logs:
+            self.script.migrate(self.env.cr, "19.0.2.10.4")
+        self.env.invalidate_all()
+
+        self.assertRecordValues(
+            watching | archived,
+            [
+                {"active": True, "enforced": True},
+                {"active": False, "enforced": True},
+            ],
+        )
+        self.assertFalse(self.Gate.search([("enforced", "=", False)]))
+        self.assertIn("approval.test.watching.action_ship", "\n".join(logs.output))
+        self.assertIn("approval.test.archived.action_ship", "\n".join(logs.output))
+
+    def test_a_fresh_install_runs_nothing(self):
+        gate = self.Gate.create(
+            {
+                "model_name": "approval.test.fresh",
+                "operation": "action_ship",
+                "enforced": False,
+            }
+        )
+        self.script.migrate(self.env.cr, None)
+        self.env.invalidate_all()
+        self.assertFalse(gate.enforced)

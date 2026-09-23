@@ -58,17 +58,16 @@
             <p>
                 These rows are not created by hand. A model declares which of its
                 methods are terminal transitions, and the registry keeps one row per
-                declaration; the only thing left to decide is whether each one is
-                enforcing yet.
+                declaration; the only thing left to decide is whether each one
+                enforces, as every gate does from its creation, or only watches.
             </p>
             <p>
-                While a gate is only watching, a call that reaches its operation by a
-                path the gate does not own is recorded and let through. Read Would Be
-                Refused first: it is exactly what enforcing would start refusing, and
-                it is counted per operation so a cheap gate need not wait for an
-                expensive one. A row appears only where the model names a checkpoint
-                for the operation, because that is the only place enforcement can
-                hold a caller who did not come through the gate.
+                An enforcing gate refuses a call that reaches its operation by a path
+                the gate does not own when the document needs an approval it does not
+                hold. A watching gate records that call and lets it through; Would Be
+                Refused counts what it let through. A row appears only where the model
+                names a checkpoint for the operation, because that is the only place
+                enforcement can hold a caller who did not come through the gate.
             </p>
         </field>
     </record>

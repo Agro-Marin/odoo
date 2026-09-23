@@ -56,9 +56,9 @@ class TestLifecycleGate(ApprovalCommon):
             ]
         )
 
-    def test_the_confirmed_state_is_a_gate_with_a_switch(self):
+    def test_the_confirmed_state_is_a_gate_that_enforces_from_the_start(self):
         self.assertEqual(len(self.gate), 1, "the registry declares the row")
-        self.assertFalse(self.gate.enforced)
+        self.assertTrue(self.gate.enforced)
 
     def test_the_button_asks_instead_of_confirming(self):
         document = self._document()
@@ -66,13 +66,13 @@ class TestLifecycleGate(ApprovalCommon):
         self.assertEqual(document.state, "draft")
         self.assertEqual(document.approval_state, "pending")
 
-    def test_writing_the_confirmed_state_is_watched(self):
+    def test_writing_the_confirmed_state_is_watched_while_the_gate_watches(self):
+        self.gate.enforced = False
         document = self._document()
         document.write({"state": "done"})
         self.assertTrue(self._observed(document).would_block)
 
-    def test_writing_the_confirmed_state_is_refused_once_enforced(self):
-        self.gate.enforced = True
+    def test_writing_the_confirmed_state_is_refused(self):
         document = self._document()
         with self.assertRaises(UserError):
             document.write({"state": "done"})
@@ -81,8 +81,7 @@ class TestLifecycleGate(ApprovalCommon):
         self.assertEqual(document.state, "draft")
         self.assertFalse(document.approval_request_id)
 
-    def test_creating_in_the_confirmed_state_is_refused_once_enforced(self):
-        self.gate.enforced = True
+    def test_creating_in_the_confirmed_state_is_refused(self):
         with self.assertRaises(UserError):
             self._document(state="done")
         with self.assertRaises(UserError):
@@ -90,8 +89,7 @@ class TestLifecycleGate(ApprovalCommon):
                 default_state="done"
             ).create(self._values())
 
-    def test_importing_in_the_confirmed_state_is_refused_once_enforced(self):
-        self.gate.enforced = True
+    def test_importing_in_the_confirmed_state_is_refused(self):
         result = (
             self.env["approval.test.lifecycle"]
             .with_user(self.clerk)
@@ -106,14 +104,12 @@ class TestLifecycleGate(ApprovalCommon):
         )
 
     def test_a_document_that_needs_no_approval_confirms_by_any_door(self):
-        self.gate.enforced = True
         document = self._document(test_category_id=False)
         document.write({"state": "done"})
         self.assertEqual(document.state, "done")
         self.assertTrue(self._document(test_category_id=False, state="done"))
 
     def test_the_grant_confirms_through_the_gate(self):
-        self.gate.enforced = True
         document = self._document()
         document.action_confirm()
         document.approval_request_id.with_user(self.approver_1).action_approve()

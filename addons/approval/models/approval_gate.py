@@ -18,8 +18,8 @@ class ApprovalGate(models.Model):
     who decided to gate a method; a gate is declared by the model itself, in
     `_approval_operations`, so nobody creates these -- the registry does. What is
     left for a person to decide is the only field they may write: whether the
-    gate is enforcing yet, which is the decision the observation counts beside it
-    exist to inform.
+    gate enforces, as every gate does from its creation, or only watches, which
+    the observation counts beside it inform.
     """
 
     _name = "approval.gate"
@@ -51,9 +51,10 @@ class ApprovalGate(models.Model):
         "resumes it as it was.",
     )
     enforced = fields.Boolean(
-        help="While off, a call that reaches this operation by a path the gate "
-        "does not own is recorded and let through. Switch it on once the watched "
-        "calls show what refusing them would cost.",
+        default=True,
+        help="On, a call that reaches this operation by a path the gate does not "
+        "own is refused when the document needs an approval it does not hold. "
+        "Off, the gate only watches: the call is recorded and let through.",
     )
     would_block_count = fields.Integer(
         string="Would Be Refused",

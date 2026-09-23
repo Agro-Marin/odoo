@@ -79,7 +79,7 @@ class MixinApproval(models.AbstractModel):
 
     @api.depends_context("uid", "company")
     def _compute_approval_required(self) -> None:
-        cache: dict[tuple, bool] = {}
+        candidates: dict[tuple, Any] = {}
         hits = 0
         required = 0
         for record in self:
@@ -87,17 +87,19 @@ class MixinApproval(models.AbstractModel):
             if "company_id" in record._fields:
                 company_id = record.company_id.id if record.company_id else False
             key = (repr(record._get_domain_approval_category()), company_id)
-            if key in cache:
+            if key in candidates:
                 hits += 1
             else:
-                cache[key] = bool(record._find_approval_category())
-            record.approval_required = cache[key]
-            required += bool(cache[key])
+                candidates[key] = record._get_candidate_approval_categories()
+            record.approval_required = bool(
+                record._find_approval_category(candidates[key])
+            )
+            required += record.approval_required
         trace.MIXIN.event(
             "approval_required",
             record=self,
             n=len(self),
-            searches=len(cache),
+            searches=len(candidates),
             hits=hits,
             required=required,
         )
@@ -645,9 +647,10 @@ class MixinApproval(models.AbstractModel):
             domain + [("company_id", "in", (company_id, False))],
         )
 
-    def _find_approval_category(self) -> "ApprovalCategory":  # noqa: UP037 — see _get_candidate_approval_categories.
+    def _find_approval_category(self, categories=None) -> "ApprovalCategory":  # noqa: UP037 — see _get_candidate_approval_categories.
         self.check_singleton()
-        categories = self._get_candidate_approval_categories()
+        if categories is None:
+            categories = self._get_candidate_approval_categories()
         for category in categories:
             if category._is_applicable_for(self):
                 trace.MIXIN.event(

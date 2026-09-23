@@ -31,12 +31,21 @@ class TestApprovalGate(ApprovalCommon):
     def _approve(self, document):
         document.approval_request_id.with_user(self.approver_1).action_approve()
 
-    def _enforce(self, operation):
+    def _gate(self, operation):
         gate = self.env["approval.gate"].search(
             [("model_name", "=", "approval.test.gated"), ("operation", "=", operation)]
         )
         self.assertEqual(len(gate), 1, "the registry declares this gate")
+        return gate
+
+    def _enforce(self, operation):
+        gate = self._gate(operation)
         gate.enforced = True
+        return gate
+
+    def _watch(self, operation):
+        gate = self._gate(operation)
+        gate.enforced = False
         return gate
 
     def test_the_operation_asks_instead_of_running(self):
@@ -135,7 +144,8 @@ class TestApprovalGate(ApprovalCommon):
         self.assertEqual(gated.ship_count, 0)
         self.assertEqual(gated.approval_state, "pending")
 
-    def test_another_path_is_watched_before_it_is_held(self):
+    def test_another_path_is_watched_while_the_gate_watches(self):
+        self._watch("action_ship")
         document = self._document()
         document.action_ship()
         Observation = self.env["approval.observation"]
@@ -156,8 +166,7 @@ class TestApprovalGate(ApprovalCommon):
             ],
         )
 
-    def test_another_path_is_refused_once_the_gate_is_enforced(self):
-        self._enforce("action_ship")
+    def test_another_path_is_refused(self):
         document = self._document()
         document.action_ship()
         with self.assertRaises(UserError):
@@ -194,9 +203,11 @@ class TestApprovalGate(ApprovalCommon):
             "names no checkpoint, so enforcing it could close no path and it is "
             "given no switch that would govern nothing",
         )
-        self.assertFalse(
+        self.assertEqual(
             gates.filtered("enforced"),
-            "a gate starts out watching, so shipping the code changes nothing",
+            gates,
+            "a gate enforces from its creation: a door the code declares is closed "
+            "before anyone has to remember to close it",
         )
 
     def test_enforcing_one_operation_leaves_the_other_watching(self):
@@ -215,6 +226,7 @@ class TestApprovalGate(ApprovalCommon):
             document.action_ship_from_elsewhere()
 
     def test_the_count_beside_a_gate_is_its_own(self):
+        self._watch("action_ship")
         document = self._document()
         document.action_ship()
         document.action_ship_from_elsewhere()
