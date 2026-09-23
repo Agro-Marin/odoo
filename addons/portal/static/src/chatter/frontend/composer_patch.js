@@ -6,7 +6,7 @@ patch(Composer.prototype, {
     get showComposerAvatar() {
         return (
             super.showComposerAvatar ||
-            (this.compact && this.props.composer.portalComment)
+            (this.props.mode === "compact" && this.props.composer.portalComment)
         );
     },
 

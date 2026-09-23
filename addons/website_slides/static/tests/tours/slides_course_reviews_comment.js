@@ -17,6 +17,10 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             run: "click",
         },
         {
+            content: "the publisher's compact comment composer shows their avatar",
+            trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-Composer-avatar",
+        },
+        {
             trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-Composer-input",
             run: "edit Putting a comment...",
         },
