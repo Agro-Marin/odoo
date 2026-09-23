@@ -795,6 +795,10 @@ class Field[T](
         env = records.env
         real_ids = [id_ for id_ in records._ids if id_]
         env.core.mark_dirty(self, real_ids)
+        snapshots = env.transaction.recompute_snapshots
+        if snapshots and (snapshot := snapshots.get(self)):
+            for id_ in real_ids:
+                snapshot.pop(id_, None)
         for many2one in env.registry.order_key_inverses.get(self, ()):
             many2one._resort_inverses(records)
         # the row is one: a sibling model's cached copy of it is stale now

@@ -32,6 +32,7 @@ from . import (
     test_recordset_operations,
     test_regressions_o2m_and_defaults,
     test_regressions_read_group_and_misc,
+    test_recursive_recompute,
     test_related_translation,
     test_schema,
     test_search,

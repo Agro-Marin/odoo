@@ -959,6 +959,28 @@ class TestOrmRecursiveTask(models.Model):
             record.line_id = record.line_id.search(domain, order="id desc", limit=1)
 
 
+class TestOrmRecursiveKeepGroup(models.Model):
+    _name = "test_orm.recursive.keep.group"
+    _description = "Group whose value every member takes when it has none"
+
+    value = fields.Char()
+
+
+class TestOrmRecursiveKeep(models.Model):
+    _name = "test_orm.recursive.keep"
+    _description = "Recursive field whose compute reads its own old value"
+
+    group_id = fields.Many2one("test_orm.recursive.keep.group")
+    parent_id = fields.Many2one("test_orm.recursive.keep")
+    label = fields.Char(compute="_compute_label", recursive=True, store=True)
+
+    @api.depends("group_id.value", "parent_id.label")
+    def _compute_label(self):
+        for record in self:
+            if not record.label:
+                record.label = record.parent_id.label or record.group_id.value
+
+
 class TestOrmCascade(models.Model):
     _name = "test_orm.cascade"
     _description = "Test ORM Cascade"

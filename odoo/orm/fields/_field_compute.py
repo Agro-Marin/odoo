@@ -144,6 +144,10 @@ def _recompute_singly(
             batch=len(records),
         )
 
+    transaction = records.env.transaction
+    owns_snapshots = transaction.recompute_snapshots is None
+    if owns_snapshots:
+        transaction.recompute_snapshots = {}
     try:
         apply_except_missing(recursive_compute, records)
     except AccessError:
@@ -155,6 +159,9 @@ def _recompute_singly(
             field=field.name,
             computed=len(computed_ids),
         )
+    finally:
+        if owns_snapshots:
+            transaction.recompute_snapshots = None
     if computed_ids:
         records.browse(computed_ids)._check_computed(field)
 

@@ -1071,6 +1071,13 @@ class PostgresBackend:
                                 fetched.browse([fetched._ids[i] for i in keep]),
                                 [values[i] for i in keep],
                             )
+                            snapshots = env.transaction.recompute_snapshots
+                            if snapshots is not None:
+                                snapshot = snapshots.setdefault(field, {})
+                                kept = set(keep)
+                                for i, id_ in enumerate(fetched._ids):
+                                    if i not in kept:
+                                        snapshot.setdefault(id_, values[i])
                             continue
                 field._insert_cache(fetched, values)
             prof.mark("cache")

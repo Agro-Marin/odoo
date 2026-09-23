@@ -100,6 +100,7 @@ class Transaction:
         "envs",
         "observers",
         "prefetch_batch",
+        "recompute_snapshots",
         "registry",
         "unit_of_work",
     )
@@ -145,6 +146,10 @@ class Transaction:
         # context is whatever the client sent
         self._admissions: list[tuple[str, str, frozenset[int]]] = []
         self.prefetch_batch: tuple[str, tuple] | None = None
+        # while a recursive recompute runs: the values a fetch read for rows
+        # still pending, kept for each row's own compute to read as its old
+        # value instead of fetching the batch again, row by row
+        self.recompute_snapshots: dict[typing.Any, dict] | None = None
         self.access_memo = AccessMemo()
 
         self.observers: tuple[OrmObserver, ...] = enabled_observers()

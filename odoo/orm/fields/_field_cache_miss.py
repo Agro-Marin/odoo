@@ -55,6 +55,17 @@ def missing_record_error(env: Environment, record: object) -> MissingError:
 def get_cache_miss_from_storage(
     field: Field, record: BaseModel, env: Environment, record_id: IdType
 ) -> typing.Any:
+    snapshots = env.transaction.recompute_snapshots
+    snapshot = snapshots.get(field) if snapshots else None
+    if (
+        snapshot
+        and record_id in snapshot
+        and env.is_protected(field, record)
+        and not env.core.is_pending_in_tree(field, record_id)
+    ):
+        value = snapshot.pop(record_id)
+        field._insert_cache(record, (value,))
+        return field._get_cache(env)[record_id]
     recs = field._to_prefetch(record)
     transaction = env.transaction
 
