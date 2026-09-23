@@ -4,8 +4,10 @@ from unittest.mock import ANY, Mock, patch
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.mail.tests.common import FakedDialCase
 
-class TestFetchmailOutlook(TransactionCase):
+
+class TestFetchmailOutlook(FakedDialCase, TransactionCase):
     @patch("odoo.addons.mail.tools.incoming_mail.OdooIMAP4_SSL")
     def test_connect(self, mock_imap):
         """Test that the connect method will use the right
