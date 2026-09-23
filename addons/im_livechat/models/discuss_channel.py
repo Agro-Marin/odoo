@@ -182,6 +182,7 @@ class DiscussChannel(models.Model):
         comodel_name="chatbot.message",
         inverse_name="discuss_channel_id",
         string="Chatbot Messages",
+        groups="im_livechat.im_livechat_group_manager",
     )
     country_id = fields.Many2one(
         comodel_name="res.country",
@@ -726,8 +727,8 @@ class DiscussChannel(models.Model):
 
     def _chatbot_find_customer_values_in_messages(self, step_type_to_field):
         values = {}
-        filtered_message_ids = self.chatbot_message_ids.filtered(
-            lambda m: m.script_step_id.sudo().step_type in step_type_to_field
+        filtered_message_ids = self.sudo().chatbot_message_ids.filtered(
+            lambda m: m.script_step_id.step_type in step_type_to_field
         )
         for message_id in filtered_message_ids:
             field_name = step_type_to_field[message_id.script_step_id.step_type]

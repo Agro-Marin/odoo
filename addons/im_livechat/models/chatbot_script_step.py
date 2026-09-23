@@ -210,9 +210,13 @@ class ChatbotScriptStep(models.Model):
 
     def _find_first_user_free_input(self, discuss_channel):
         chatbot_partner = self.chatbot_script_id.operator_partner_id
-        user_answers = discuss_channel.chatbot_message_ids.filtered(
-            lambda m: m.mail_message_id.author_id != chatbot_partner
-        ).sorted("id")
+        user_answers = (
+            discuss_channel.sudo()
+            .chatbot_message_ids.filtered(
+                lambda m: m.mail_message_id.author_id != chatbot_partner
+            )
+            .sorted("id")
+        )
         for answer in user_answers:
             if answer.script_step_id.step_type in (
                 "free_input_single",
