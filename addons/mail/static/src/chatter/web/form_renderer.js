@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
+import { useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
@@ -21,7 +22,7 @@ patch(FormRenderer.prototype, {
         this.uiService = useService("ui");
         this.mailPopoutService = useService("mail.popout");
         /** @type {{ thread?: import("models").Thread }} */
-        this.messagingThreadMemo = {};
+        this.messagingThreadMemo = useState({});
     },
     /** @returns {import("models").Thread | undefined} */
     get messagingThread() {
