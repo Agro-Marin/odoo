@@ -1496,10 +1496,11 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             "selection": "char",
             "text": "text",
         }
+        tracking_by_field_name = tracking_values.grouped(
+            lambda track: track.field_id.name
+        )
         for field_name, value_type, old_value, new_value in data:
-            tracking = tracking_values.filtered(
-                lambda track, field_name=field_name: track.field_id.name == field_name
-            )
+            tracking = tracking_by_field_name.get(field_name, tracking_values.browse())
             self.assertEqual(len(tracking), 1, f"Tracking: not found for {field_name}")
             msg_base = f"Tracking: {field_name} ({value_type}: "
             if value_type in suffix_mapping:

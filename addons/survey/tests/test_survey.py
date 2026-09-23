@@ -453,10 +453,11 @@ class TestSurveyInternals(common.TestSurveyCommon, MailCase):
         )
         survey_codes = surveys.mapped("session_code")
         self.assertEqual(len(survey_codes), 30)
+        surveys_by_code = surveys.grouped("session_code")
         for code in survey_codes:
             self.assertTrue(bool(code))
             self.assertEqual(
-                len(surveys.filtered(lambda survey, c=code: survey.session_code == c)),
+                len(surveys_by_code.get(code, ())),
                 1,
                 f"Each code should be unique, found multiple occurrences of: {code}",
             )

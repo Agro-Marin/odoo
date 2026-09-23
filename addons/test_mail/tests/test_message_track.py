@@ -1831,11 +1831,10 @@ class TestTrackingBatchCost(MailCommon):
             record.customer_id = self.customers[index]
         self.flush_tracking()
         tracking_messages = self._tracking_messages_of(records)
+        messages_by_res_id = tracking_messages.grouped("res_id")
         self.assertEqual(
             [
-                tracking_messages.filtered(
-                    lambda message, record=record: message.res_id == record.id
-                ).author_id
+                messages_by_res_id.get(record.id, tracking_messages.browse()).author_id
                 for record in records
             ],
             [self.customers[index] for index in range(3)],
@@ -2009,11 +2008,10 @@ class TestTrackingBatchCost(MailCommon):
             4, authors=self.customers[:2]
         )
         tracking_messages = self._tracking_messages_of(records)
+        messages_by_res_id = tracking_messages.grouped("res_id")
         self.assertEqual(
             [
-                tracking_messages.filtered(
-                    lambda message, record=record: message.res_id == record.id
-                ).author_id
+                messages_by_res_id.get(record.id, tracking_messages.browse()).author_id
                 for record in records
             ],
             [self.customers[index % 2] for index in range(4)],

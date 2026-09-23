@@ -1,3 +1,4 @@
+import functools
 import re
 
 from markupsafe import Markup
@@ -6,6 +7,14 @@ from odoo import api, models
 
 CARD_IMAGE_URL = re.compile(r'src=".*?/web/image/card.campaign/[0-9]+/image_preview"')
 CARD_PREVIEW_URL = re.compile(r'href=".*?/cards/[0-9]+/preview"')
+
+
+def _replace_card_image_url(card, match):
+    return Markup('src="{}"').format(card._get_path("card.jpg"))
+
+
+def _replace_card_preview_url(card, match):
+    return Markup('href="{}"').format(card._get_path("preview"))
 
 
 class MailComposeMessage(models.TransientModel):
@@ -60,18 +69,19 @@ class MailComposeMessage(models.TransientModel):
         bodies = []
         for card, body in card_body_pairs:
             if body:
-
-                def replace_card_image_url(match, card=card):
-                    return Markup('src="{}"').format(card._get_path("card.jpg"))
-
-                def replace_card_preview_url(match, card=card):
-                    return Markup('href="{}"').format(card._get_path("preview"))
-
                 body_is_markup = False
                 if isinstance(body, Markup):
                     body_is_markup = True
-                body = re.sub(CARD_IMAGE_URL, replace_card_image_url, body)
-                body = re.sub(CARD_PREVIEW_URL, replace_card_preview_url, body)
+                body = re.sub(
+                    CARD_IMAGE_URL,
+                    functools.partial(_replace_card_image_url, card),
+                    body,
+                )
+                body = re.sub(
+                    CARD_PREVIEW_URL,
+                    functools.partial(_replace_card_preview_url, card),
+                    body,
+                )
                 if body_is_markup:
                     body = Markup(body)
             bodies.append(body)

@@ -1,3 +1,4 @@
+import functools
 from contextlib import contextmanager
 from datetime import UTC
 from unittest.mock import patch
@@ -11,6 +12,14 @@ from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.phone_validation.tools import phone_validation
 from odoo.addons.sms.models.sms_sms import SmsSms
 from odoo.addons.sms.tools.sms_api import SmsApi
+
+
+def _is_notification_matching(partner, number, state, notification):
+    return (
+        notification.res_partner_id == partner
+        and notification.sms_number == number
+        and notification.notification_status == state
+    )
 
 
 class MockSMS(common.HttpCase):
@@ -410,11 +419,7 @@ class SMSCase(MockSMS):
                 number = partner._phone_format()
 
             notif = notifications.filtered(
-                lambda n, partner=partner, number=number, state=state: (
-                    n.res_partner_id == partner
-                    and n.sms_number == number
-                    and n.notification_status == state
-                )
+                functools.partial(_is_notification_matching, partner, number, state)
             )
 
             debug_info = ""

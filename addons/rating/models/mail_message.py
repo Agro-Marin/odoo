@@ -1,3 +1,5 @@
+import functools
+
 from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
@@ -5,6 +7,10 @@ from odoo.libs.debug_log import DebugLog
 from odoo.addons.mail.tools.discuss import Store
 
 _debug = DebugLog(__name__)
+
+
+def _get_record_stats(stats_by_id, record):
+    return stats_by_id.get(record.id)
 
 
 class MailMessage(models.Model):
@@ -96,9 +102,7 @@ class MailMessage(models.Model):
                         "rating_count",
                         Store.Attr(
                             "rating_stats",
-                            lambda record, all_stats=all_stats: all_stats.get(
-                                record.id
-                            ),
+                            functools.partial(_get_record_stats, all_stats),
                             predicate=lambda record: (
                                 record._allow_publish_rating_stats()
                             ),

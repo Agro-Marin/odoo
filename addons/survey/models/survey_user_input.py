@@ -773,8 +773,8 @@ class SurveyUser_Input(models.Model):
                     )
                     continue
 
-                existing = user_input.user_input_line_ids.filtered(
-                    lambda ln, q=question: ln.question_id == q
+                existing = user_input.user_input_line_ids.filtered_domain(
+                    [("question_id", "=", question.id)]
                 )
                 vals = {
                     "user_input_id": user_input.id,
@@ -1064,14 +1064,12 @@ class SurveyUser_Input(models.Model):
                 )
 
             question_section = question.page_id.title or self.env._("Uncategorized")
+            answered_line_domain = [("question_id", "=", question.id)]
+            if not question.comment_count_as_answer:
+                answered_line_domain.append(("answer_type", "!=", "char_box"))
             for user_input in self:
-                user_input_lines = user_input.user_input_line_ids.filtered(
-                    lambda line, q=question: (
-                        line.question_id == q
-                        and (
-                            line.answer_type != "char_box" or q.comment_count_as_answer
-                        )
-                    )
+                user_input_lines = user_input.user_input_line_ids.filtered_domain(
+                    answered_line_domain
                 )
                 if question.question_type in ("simple_choice", "dropdown"):
                     answer_result_key = self._simple_choice_question_answer_result(

@@ -215,8 +215,8 @@ class ImLivechatChannelMemberHistory(models.Model):
         )
         (self - agent_histories).rating_id = None
         for history in agent_histories:
-            history.rating_id = history.channel_id.rating_ids.filtered(
-                lambda r, history=history: r.rated_partner_id == history.partner_id
+            history.rating_id = history.channel_id.rating_ids.filtered_domain(
+                [("rated_partner_id", "=", history.partner_id.id)]
             )[:1]
 
     @api.depends("create_date", "channel_id.livechat_end_dt", "channel_id.message_ids")

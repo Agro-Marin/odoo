@@ -13,6 +13,14 @@ from odoo.addons.mail.models import mail_message as mail_message_module
 from odoo.addons.mail.tests import common
 
 
+def _get_counting_wrapper(calls, name, real):
+    def wrapper(records, *args, **kwargs):
+        calls[name] += 1
+        return real(records, *args, **kwargs)
+
+    return wrapper
+
+
 @tagged("-at_install", "post_install", "mail_message")
 class TestMailMessage(common.MailCommon):
     @users("employee")
@@ -334,15 +342,14 @@ class TestMailMessageMarkAllAsRead(common.MailCommon):
 
         MailMessage = type(self.env["mail.message"])
         calls = Counter()
-        patches = []
-        for name in ("fetch", "search"):
-            real = getattr(MailMessage, name)
-
-            def wrapper(records, *args, _name=name, _real=real, **kwargs):
-                calls[_name] += 1
-                return _real(records, *args, **kwargs)
-
-            patches.append(patch.object(MailMessage, name, wrapper))
+        patches = [
+            patch.object(
+                MailMessage,
+                name,
+                _get_counting_wrapper(calls, name, getattr(MailMessage, name)),
+            )
+            for name in ("fetch", "search")
+        ]
 
         with ExitStack() as stack:
             for p in patches:

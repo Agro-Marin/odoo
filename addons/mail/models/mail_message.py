@@ -752,10 +752,8 @@ class MailMessage(models.Model):
         for (model, res_id), doc_attachment_ids in doc_to_attachment_ids.items():
             foreign_ids.update(
                 AttachmentSudo.browse(doc_attachment_ids)
-                .filtered(
-                    lambda att, model=model, res_id=res_id: (
-                        att.res_model != model or att.res_id != res_id
-                    )
+                .filtered_domain(
+                    ["|", ("res_model", "!=", model), ("res_id", "!=", res_id)]
                 )
                 ._ids
             )

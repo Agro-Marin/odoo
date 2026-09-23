@@ -1,3 +1,4 @@
+import functools
 import random
 from urllib.parse import urlsplit
 
@@ -6,6 +7,14 @@ from odoo.tools import mail
 from odoo.addons.link_tracker.tests.common import MockLinkTracker
 from odoo.addons.mass_mailing.tests.common import MassMailCommon
 from odoo.addons.sms.tests.common import SMSCase, SMSCommon
+
+
+def _is_sms_trace_matching(number, status, record, trace):
+    return (
+        trace.sms_number == number
+        and trace.trace_status == status
+        and (trace.res_id == record.id if record else True)
+    )
 
 
 class MassSMSCase(SMSCase, MockLinkTracker):
@@ -84,7 +93,7 @@ class MassSMSCase(SMSCase, MockLinkTracker):
 
         traces_info = []
         for trace in traces:
-            record = records.filtered(lambda r, trace=trace: r.id == trace.res_id)
+            record = records.filtered_domain([("id", "=", trace.res_id)])
             if record:
                 traces_info.append(
                     f"Trace: doc {trace.res_id} on {trace.sms_number} - status {trace.trace_status} (rec {record.id})"
@@ -143,11 +152,7 @@ class MassSMSCase(SMSCase, MockLinkTracker):
             recipient_check_sms = recipient_info.get("check_sms", check_sms)
 
             trace = traces.filtered(
-                lambda t, number=number, record=record, status=status: (
-                    t.sms_number == number
-                    and t.trace_status == status
-                    and (t.res_id == record.id if record else True)
-                )
+                functools.partial(_is_sms_trace_matching, number, status, record)
             )
             self.assertTrue(
                 len(trace) == 1,

@@ -1699,10 +1699,11 @@ class AdvancedResponsibleNotifiedTest(MailCommon):
         self.assertEqual(
             len(notifications), 20, "every record still gets its own notification"
         )
+        notifications_by_res_id = notifications.grouped("res_id")
         self.assertEqual(
             [
-                notifications.filtered(
-                    lambda message, record=record: message.res_id == record.id
+                notifications_by_res_id.get(
+                    record.id, notifications.browse()
                 ).partner_ids
                 for record in many_records
             ],

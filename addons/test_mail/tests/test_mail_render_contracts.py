@@ -13,6 +13,14 @@ from odoo.tests import tagged
 from odoo.addons.mail.tests import common
 
 
+def _get_scanning(original, scanned):
+    def scanning(self, source, model, fname=None):
+        scanned.append(fname)
+        return original(self, source, model, fname=fname)
+
+    return scanning
+
+
 @tagged("mail_render", "post_install", "-at_install")
 class TestEncapsulateContext(common.MailCommon):
     """`_render_encapsulate_context` is the notification layouts' contract."""
@@ -638,15 +646,8 @@ class TestUnsafeExpressionScanScope(common.MailCommon):
             "_has_unsafe_expression_template_qweb",
             "_has_unsafe_expression_template_inline_template",
         ):
-            original = getattr(mixin_cls, name)
             self.patch(
-                mixin_cls,
-                name,
-                (
-                    lambda self, source, model, fname=None, _o=original: (
-                        scanned.append(fname) or _o(self, source, model, fname=fname)
-                    )
-                ),
+                mixin_cls, name, _get_scanning(getattr(mixin_cls, name), scanned)
             )
         # `body_html` is the field that declares an engine at all; point it at
         # the one whose value is a reference rather than a body

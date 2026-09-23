@@ -12,11 +12,9 @@ class CalendarEvent(models.Model):
                 [("state", "=", "declined")]
             ).partner_id
             for alarm in alarms:
-                partners = event._mail_get_partners()[event.id].filtered(
-                    lambda partner, declined_partners=declined_partners: (
-                        partner.phone_sanitized and partner not in declined_partners
-                    )
-                )
+                partners = (
+                    event._mail_get_partners()[event.id] - declined_partners
+                ).filtered("phone_sanitized")
                 if event.user_id and not alarm.notify_responsible:
                     partners -= event.user_id.partner_id
                 event._message_sms_with_template(

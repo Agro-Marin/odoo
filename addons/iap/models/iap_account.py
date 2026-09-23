@@ -205,11 +205,7 @@ class IapAccount(models.Model):
 
         for token, information in accounts_information.items():
             information.pop("link_to_service_page", None)
-            accounts = self.filtered(
-                lambda acc, token=token: secrets.compare_digest(
-                    acc.sudo().account_token, token
-                )
-            )
+            accounts = self._filtered_by_token(token)
 
             for account in accounts:
                 # Round to a unit for integer services, to 4 decimals otherwise,
@@ -224,6 +220,11 @@ class IapAccount(models.Model):
                 account.with_context(
                     disable_iap_update=True, tracking_disable=True
                 ).write(account_info)
+
+    def _filtered_by_token(self, token):
+        return self.filtered(
+            lambda account: secrets.compare_digest(account.sudo().account_token, token)
+        )
 
     def _get_account_info(self, account, balance, information):
         return {

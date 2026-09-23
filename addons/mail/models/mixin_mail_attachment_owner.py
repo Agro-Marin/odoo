@@ -34,11 +34,13 @@ class MixinMailAttachmentOwner(models.AbstractModel):
     def _update_attachment_ownership(self, linked_ids: Collection[int] = ()) -> Self:
         linked_ids = set(linked_ids)
         for record in self:
-            foreign = record.attachment_ids.filtered(
-                lambda attachment, record=record: (
-                    attachment.res_model != record._name
+            foreign = record.attachment_ids.browse(
+                [
+                    attachment.id
+                    for attachment in record.attachment_ids
+                    if attachment.res_model != record._name
                     or attachment.res_id != record.id
-                )
+                ]
             )
             if not foreign:
                 continue

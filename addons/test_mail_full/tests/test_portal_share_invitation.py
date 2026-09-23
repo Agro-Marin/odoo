@@ -91,7 +91,9 @@ class TestPortalShareInvitation(MockEmail, TransactionCase):
             (self.customer, "/web/signup?"),
             (self.portal_user.partner_id, "hash="),
         ):
-            mail = self._new_mails.filtered(lambda m, p=partner: p in m.recipient_ids)
+            mail = self._new_mails.filtered_domain(
+                [("recipient_ids", "in", partner.ids)]
+            )
             self.assertEqual(len(mail), 1)
             self.assertIn(marker, str(mail.body_html))
 

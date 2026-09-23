@@ -732,11 +732,11 @@ class TestMessageNotify(TestMessagePostCommon):
         )
         model_name = self.env["ir.model"].sudo()._get(test_records._name).name
         for test_record in test_records:
-            assign_notif = self._new_msgs.filtered(
-                lambda msg, test_record=test_record: (
-                    msg.message_type == "user_notification"
-                    and msg.res_id == test_record.id
-                )
+            assign_notif = self._new_msgs.filtered_domain(
+                [
+                    ("message_type", "=", "user_notification"),
+                    ("res_id", "=", test_record.id),
+                ]
             )
             self.assertTrue(assign_notif)
             self.assertMailNotifications(
@@ -3008,8 +3008,8 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 ooo_messages = self._new_msgs[1:]
                 self.assertEqual(ooo_messages.author_id, exp_ooo_authors)
                 for ooo_author in exp_ooo_authors:
-                    ooo_message = ooo_messages.filtered(
-                        lambda m, ooo_author=ooo_author: m.author_id == ooo_author
+                    ooo_message = ooo_messages.filtered_domain(
+                        [("author_id", "=", ooo_author.id)]
                     )
                     self.assertMailNotifications(
                         ooo_message,

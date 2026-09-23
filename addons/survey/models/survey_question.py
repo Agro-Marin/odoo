@@ -674,8 +674,9 @@ class SurveyQuestion(models.Model):
     def _compute_question_ids(self) -> None:
         for question in self:
             if question.is_page:
-                question.question_ids = question.survey_id.question_ids.filtered(
-                    lambda q, page=question: q.page_id == page
+                survey_questions = question.survey_id.question_ids
+                question.question_ids = survey_questions.browse(
+                    [q.id for q in survey_questions if q.page_id == question]
                 ).sorted(lambda q: q._index())
             else:
                 question.question_ids = self.env["survey.question"]
@@ -741,26 +742,28 @@ class SurveyQuestion(models.Model):
         )
         conditional_questions_sequences = dict(self.env.cr.fetchall())
 
+        trigger_questions_by_survey_id = possible_trigger_questions.grouped(
+            lambda q: q.survey_id.id
+        )
         for question in self:
             question_id = question._origin.id
+            survey_trigger_questions = trigger_questions_by_survey_id.get(
+                question.survey_id._origin.id, possible_trigger_questions.browse()
+            )
             if not question_id:
-                question.allowed_triggering_question_ids = (
-                    possible_trigger_questions.filtered(
-                        lambda q, survey_origin=question.survey_id._origin.id: (
-                            q.survey_id.id == survey_origin
-                        )
-                    )
-                )
+                question.allowed_triggering_question_ids = survey_trigger_questions
                 question.is_placed_before_trigger = False
                 continue
 
             question_sequence = conditional_questions_sequences[question_id]
 
-            question.allowed_triggering_question_ids = possible_trigger_questions.filtered(
-                lambda q, survey_origin=question.survey_id._origin.id, seq=question_sequence, qid=question_id: (
-                    q.survey_id.id == survey_origin
-                    and (q.sequence < seq or (q.sequence == seq and q.id < qid))
-                )
+            question.allowed_triggering_question_ids = survey_trigger_questions.browse(
+                [
+                    q.id
+                    for q in survey_trigger_questions
+                    if q.sequence < question_sequence
+                    or (q.sequence == question_sequence and q.id < question_id)
+                ]
             )
             question.is_placed_before_trigger = bool(
                 set(question.triggering_answer_ids.question_id.ids)
@@ -868,8 +871,8 @@ class SurveyQuestion(models.Model):
                 ids = answer if isinstance(answer, list) else [answer]
                 selected = {int(value) for value in ids}
                 answer = ", ".join(
-                    question.suggested_answer_ids.filtered(
-                        lambda choice, ids=selected: choice.id in ids
+                    question.suggested_answer_ids.filtered_domain(
+                        [("id", "in", list(selected))]
                     ).mapped("value")
                 )
             lines.append(

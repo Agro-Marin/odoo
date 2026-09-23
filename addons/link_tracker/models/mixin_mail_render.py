@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 from html import unescape
@@ -20,6 +21,10 @@ _logger = logging.getLogger(__name__)
 #: belongs to the module that owns the route, and arrives through
 #: ``_shorten_links_text_skip_prefixes``.
 TEXT_SHORTEN_SKIP_PATHS = ("/r/",)
+
+
+def _get_replacement(replacement, match):
+    return replacement
 
 
 class MixinMailRender(models.AbstractModel):
@@ -151,7 +156,7 @@ class MixinMailRender(models.AbstractModel):
                 # Ensures we only replace the same link and not a subpart of a longer one, multiple times if applicable
                 content = re.sub(
                     re.escape(original_url) + r"(?![\w@:%.+&~#=/-])",
-                    lambda _match, short_url=link.short_url: short_url,
+                    functools.partial(_get_replacement, link.short_url),
                     content,
                 )
 

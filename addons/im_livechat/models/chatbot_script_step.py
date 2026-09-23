@@ -107,9 +107,9 @@ class ChatbotScriptStep(models.Model):
                 )
             ).sorted(lambda s: s.sequence, reverse=True)
         for step in self:
-            parent_steps = parent_steps_by_chatbot[step.chatbot_script_id.id].filtered(
-                lambda s, step=step: s.sequence < step.sequence
-            )
+            parent_steps = parent_steps_by_chatbot[
+                step.chatbot_script_id.id
+            ].filtered_domain([("sequence", "<", step.sequence)])
             parent = step
             while True:
                 parent = parent._get_parent_step(parent_steps)

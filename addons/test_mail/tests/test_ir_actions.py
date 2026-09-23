@@ -835,8 +835,9 @@ class TestServerActionsMailBatch(MailCommon):
             [("res_model", "=", "mail.test.lead"), ("res_id", "in", leads.ids)]
         )
         self.assertEqual(len(activities), 9)
+        activities_by_res_id = activities.grouped("res_id")
         for lead in leads:
-            activity = activities.filtered(lambda a, lead=lead: a.res_id == lead.id)
+            activity = activities_by_res_id.get(lead.id, activities.browse())
             self.assertEqual(activity.user_id, lead.user_id)
 
     def test_an_action_with_no_target_record_says_so(self):
@@ -1650,8 +1651,9 @@ class TestMailPostBatch(MailCommon):
         records = self._run_on(4)
         messages = self._messages_for(records)
         self.assertEqual(len(messages), 4, "one message per record, as before")
+        messages_by_res_id = messages.grouped("res_id")
         for record in records:
-            message = messages.filtered(lambda m, r=record: m.res_id == r.id)
+            message = messages_by_res_id.get(record.id, messages.browse())
             self.assertEqual(
                 message.subject,
                 f"S {record.name}",
@@ -1706,8 +1708,9 @@ class TestMailPostBatch(MailCommon):
             with self.subTest(records=count):
                 records, messages = run(count, tag)
                 self.assertEqual(len(messages), count)
+                messages_by_res_id = messages.grouped("res_id")
                 for record in records:
-                    message = messages.filtered(lambda m, r=record: m.res_id == r.id)
+                    message = messages_by_res_id.get(record.id, messages.browse())
                     self.assertEqual(
                         message.partner_ids.mapped("email"),
                         [record.email_from],

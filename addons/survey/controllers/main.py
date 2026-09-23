@@ -1553,9 +1553,7 @@ class Survey(http.Controller):
                     search_filters.append(self._prepare_search_filter_answer(answer))
                 else:
                     for row_id in answer_by_column[answer.id]:
-                        row = answers_and_rows.filtered(
-                            lambda answer_or_row, rid=row_id: answer_or_row.id == rid
-                        )
+                        row = answers_and_rows.filtered_domain([("id", "=", row_id)])
                         user_input_line_subdomains.append(
                             answer._get_domain_answer_matching(row_id)
                         )

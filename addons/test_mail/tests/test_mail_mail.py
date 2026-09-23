@@ -1315,11 +1315,7 @@ class TestMailMail(MailCommon):
                 (gaierror("gaierror"), "gaierror"),
                 (TimeoutError("timeout"), "timeout"),
             ]:
-
-                def _connect(*args, _error=error, **kwargs):
-                    raise _error
-
-                self.connect_mocked.side_effect = _connect
+                self.connect_mocked.side_effect = error
 
                 mail.send(raise_exception=False)
                 self.assertEqual(mail.failure_reason, msg)

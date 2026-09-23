@@ -34,11 +34,10 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
     def assertSentMailCorrectCard(self, sent_mails, cards):
         IrHttp = self.env["ir.http"]
         sent_cards = self.env["card.card"]
+        cards_by_res_id = cards.grouped("res_id")
         for sent_mail in sent_mails:
             record_id = int(sent_mail["object_id"].split("-")[0])
-            card = cards.filtered(
-                lambda card, record_id=record_id: card.res_id == record_id
-            )
+            card = cards_by_res_id.get(record_id, cards.browse())
             self.assertEqual(len(card), 1)
             sent_cards += card
             campaign_base_url = card.campaign_id.get_base_url()
@@ -313,7 +312,7 @@ class TestMarketingCardRender(MarketingCardCommon):
             # force find different timezones to check the returned time
             with patch(
                 "odoo.addons.mail.models.base.Base._mail_get_timezone",
-                lambda model, tz=tz: tz,
+                return_value=tz,
             ):
                 timezone_result_headers.append(
                     campaign._get_card_element_values(campaign.preview_record_ref)[

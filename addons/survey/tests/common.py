@@ -49,8 +49,9 @@ class SurveyCase(common.TransactionCase):
             len(user_input["value"]) for user_input in answer_data.values()
         )
         self.assertEqual(len(lines), answer_count)
+        lines_by_question_id = lines.grouped(lambda l: l.question_id.id)
         for qid, user_input in answer_data.items():
-            answer_lines = lines.filtered(lambda l, q=qid: l.question_id.id == q)
+            answer_lines = lines_by_question_id.get(qid, lines.browse())
             question = answer_lines[0].question_id
             if question.question_type == "multiple_choice":
                 values = user_input["value"]

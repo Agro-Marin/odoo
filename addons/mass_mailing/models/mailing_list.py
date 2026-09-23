@@ -425,19 +425,13 @@ class MailingList(models.Model):
                     ]
                 )
 
+        switched = current_opt_in if opt_out else current_opt_out
+        switched_by_contact = switched.grouped("contact_id")
         for contact in contacts:
             # do not log if no opt-out / opt-in was actually done
-            if opt_out:
-                updated = current_opt_in.filtered(
-                    lambda sub, contact=contact: sub.contact_id == contact
-                ).list_id
-            else:
-                updated = (
-                    current_opt_out.filtered(
-                        lambda sub, contact=contact: sub.contact_id == contact
-                    ).list_id
-                    + missing_lists
-                )
+            updated = switched_by_contact.get(contact, switched.browse()).list_id
+            if not opt_out:
+                updated += missing_lists
             if not updated:
                 continue
 

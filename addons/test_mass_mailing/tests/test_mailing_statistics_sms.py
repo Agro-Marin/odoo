@@ -54,10 +54,8 @@ class TestMailingStatistics(TestMassSMSCommon):
 
         for record_idx in (7, 8):
             record = target_records[record_idx]
-            trace = mailing.mailing_trace_ids.filtered(
-                lambda t, record=record: (
-                    t.model == record._name and t.res_id == record.id
-                )
+            trace = mailing.mailing_trace_ids.filtered_domain(
+                [("model", "=", record._name), ("res_id", "=", record.id)]
             )
             trace.set_bounced()
 

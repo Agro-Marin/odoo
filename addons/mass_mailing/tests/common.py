@@ -1,4 +1,5 @@
 import datetime
+import functools
 import random
 from unittest.mock import patch
 from urllib.parse import urlsplit
@@ -8,6 +9,14 @@ from odoo.tools import email_normalize, mail
 
 from odoo.addons.link_tracker.tests.common import MockLinkTracker
 from odoo.addons.mail.tests.common import MailCase, MailCommon, mail_new_test_user
+
+
+def _is_trace_matching(email, status, record, trace):
+    return (
+        (trace.email == email or (not email and not trace.email))
+        and trace.trace_status == status
+        and (trace.res_id == record.id if record else True)
+    )
 
 
 class MassMailCase(MailCase, MockLinkTracker):
@@ -159,11 +168,7 @@ class MassMailCase(MailCase, MockLinkTracker):
             record = record or recipient_info.get("record")
 
             recipient_trace = traces.filtered(
-                lambda t, email=email, status=status, record=record: (
-                    (t.email == email or (not email and not t.email))
-                    and t.trace_status == status
-                    and (t.res_id == record.id if record else True)
-                )
+                functools.partial(_is_trace_matching, email, status, record)
             )
             self.assertTrue(
                 len(recipient_trace) == 1,

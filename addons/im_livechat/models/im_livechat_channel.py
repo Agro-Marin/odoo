@@ -1,3 +1,4 @@
+import functools
 import random
 import re
 from collections import defaultdict
@@ -242,9 +243,7 @@ class Im_LivechatChannel(models.Model):
         for livechat_channel in self:
             possible_users = users if users is not None else livechat_channel.user_ids
             operators_by_livechat_channel[livechat_channel] = possible_users.filtered(
-                lambda user, livechat_channel=livechat_channel: is_available(
-                    user, livechat_channel
-                )
+                functools.partial(is_available, channel=livechat_channel)
             )
         return operators_by_livechat_channel
 

@@ -1,6 +1,8 @@
 import random
 import re
 from datetime import UTC, date, datetime, timedelta
+from functools import partial
+from operator import eq, ge, gt, le, lt, ne
 from unittest.mock import patch
 
 from dateutil.relativedelta import relativedelta
@@ -14,6 +16,10 @@ from odoo.tools import mute_logger
 from odoo.addons.mail.models.mail_activity import MailActivity
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_mail.tests.test_mail_activity import TestActivityCommon
+
+
+def _is_set_and(compare, bound, value):
+    return bool(value) and compare(value, bound)
 
 
 @tagged("mail_activity", "mail_activity_mixin")
@@ -2290,34 +2296,30 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
 
         for summary in ("a", "b", False):
             assertSearchMatches(
-                "activity_summary", "in", [summary], lambda v, s=summary: v == s
+                "activity_summary", "in", [summary], partial(eq, summary)
             )
             assertSearchMatches(
-                "activity_summary", "not in", [summary], lambda v, s=summary: v != s
+                "activity_summary", "not in", [summary], partial(ne, summary)
             )
         for user_id in [*users.ids, False]:
             assertSearchMatches(
-                "activity_user_id", "in", [user_id], lambda v, u=user_id: v == u
+                "activity_user_id", "in", [user_id], partial(eq, user_id)
             )
         for type_id in [*types.ids, False]:
             assertSearchMatches(
-                "activity_type_id", "in", [type_id], lambda v, t=type_id: v == t
+                "activity_type_id", "in", [type_id], partial(eq, type_id)
             )
         for state in ("overdue", "today", "planned", False):
-            assertSearchMatches(
-                "activity_state", "in", [state], lambda v, s=state: v == s
-            )
-            assertSearchMatches(
-                "activity_state", "not in", [state], lambda v, s=state: v != s
-            )
+            assertSearchMatches("activity_state", "in", [state], partial(eq, state))
+            assertSearchMatches("activity_state", "not in", [state], partial(ne, state))
         for offset in (-2, 0, 2):
             day = today + timedelta(days=offset)
             for operator, keep in (
-                ("<", lambda v, d=day: bool(v) and v < d),
-                ("<=", lambda v, d=day: bool(v) and v <= d),
-                (">", lambda v, d=day: bool(v) and v > d),
-                (">=", lambda v, d=day: bool(v) and v >= d),
-                ("in", lambda v, d=day: v == d),
+                ("<", partial(_is_set_and, lt, day)),
+                ("<=", partial(_is_set_and, le, day)),
+                (">", partial(_is_set_and, gt, day)),
+                (">=", partial(_is_set_and, ge, day)),
+                ("in", partial(eq, day)),
             ):
                 assertSearchMatches(
                     "activity_date_deadline",
@@ -2329,7 +2331,7 @@ class TestNextActivityProjectionProperties(TestActivityCommon):
                 "my_activity_date_deadline",
                 "<",
                 day,
-                lambda v, d=day: bool(v) and v < d,
+                partial(_is_set_and, lt, day),
             )
         assertSearchMatches(
             "activity_date_deadline", "in", [False], lambda v: v is False

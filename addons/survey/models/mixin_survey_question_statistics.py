@@ -33,14 +33,19 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
                 "matrix",
                 "likert",
             ]:
-                answer_lines = all_lines.filtered(
-                    lambda line, q=question: (
-                        line.answer_type == "suggestion"
-                        or (line.skipped and not line.answer_type)
-                        or (
-                            line.answer_type == "char_box" and q.comment_count_as_answer
-                        )
-                    )
+                answer_types = (
+                    ("suggestion", "char_box")
+                    if question.comment_count_as_answer
+                    else ("suggestion",)
+                )
+                answer_lines = all_lines.filtered_domain(
+                    [
+                        "|",
+                        ("answer_type", "in", answer_types),
+                        "&",
+                        ("skipped", "=", True),
+                        ("answer_type", "=", False),
+                    ]
                 )
                 comment_line_ids = all_lines.filtered(
                     lambda line: line.answer_type == "char_box"
@@ -292,8 +297,8 @@ class MixinSurveyQuestionStatistics(models.AbstractModel):
         table_data = []
         graph_data = []
         for answer in self.suggested_answer_ids:
-            lines = user_input_lines.filtered(
-                lambda ln, a=answer: ln.suggested_answer_id == a and not ln.skipped
+            lines = user_input_lines.filtered_domain(
+                [("suggested_answer_id", "=", answer.id), ("skipped", "=", False)]
             )
             values = [ln.value_numerical_box for ln in lines]
             avg_val = sum(values) / len(values) if values else 0

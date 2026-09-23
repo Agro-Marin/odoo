@@ -1107,9 +1107,7 @@ class MailActivity(models.Model):
         gone = self.browse()
         for model, activities, res_ids in self._activities_with_records():
             existing = set(self.env[model].sudo().browse(res_ids).exists()._ids)
-            gone |= activities.filtered(
-                lambda act, alive=existing: act.res_id not in alive
-            )
+            gone |= activities.filtered_domain([("res_id", "not in", list(existing))])
         return gone
 
     def _post_done_messages(

@@ -806,10 +806,8 @@ class DiscussChannel(models.Model):
                 }
                 for partner in partners_new
             ]
-            outdated += current_members.filtered(
-                lambda m, partners=partners: (
-                    m.partner_id and m.partner_id not in partners
-                )
+            outdated += current_members.filtered_domain(
+                [("partner_id", "!=", False), ("partner_id", "not in", partners.ids)]
             )
         if new_members:
             self.env["discuss.channel.member"].create(new_members)

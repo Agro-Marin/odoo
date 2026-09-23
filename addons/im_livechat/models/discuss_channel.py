@@ -539,12 +539,15 @@ class DiscussChannel(models.Model):
             chatbot_script = current_step_sudo.chatbot_script_id
             step_message = self.env["chatbot.message"]
             if not current_step_sudo.is_forward_operator:
-                step_message = channel.sudo().chatbot_message_ids.filtered(
-                    lambda m, chatbot_script=chatbot_script, current_step_sudo=current_step_sudo: (
-                        m.script_step_id == current_step_sudo
-                        and m.mail_message_id.author_id
-                        == chatbot_script.operator_partner_id
-                    )
+                step_message = channel.sudo().chatbot_message_ids.filtered_domain(
+                    [
+                        ("script_step_id", "=", current_step_sudo.id),
+                        (
+                            "mail_message_id.author_id",
+                            "=",
+                            chatbot_script.operator_partner_id.id,
+                        ),
+                    ]
                 )[:1]
             current_step = {
                 "scriptStep": current_step_sudo.id,

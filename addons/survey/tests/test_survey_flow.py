@@ -10,9 +10,7 @@ class TestSurveyFlow(common.TestSurveyCommon, HttpCase):
         post_data = {}
         post_data["page_id"] = page.id
         for question_id, answer_vals in answer_data.items():
-            question = page.question_ids.filtered(
-                lambda q, qid=question_id: q.id == qid
-            )
+            question = page.question_ids.filtered_domain([("id", "=", question_id)])
             post_data.update(
                 self._prepare_post_data(question, answer_vals["value"], post_data)
             )
