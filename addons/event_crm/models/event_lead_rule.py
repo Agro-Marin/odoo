@@ -117,9 +117,7 @@ class EventLeadRule(models.Model):
         new_registrations = self.env["event.registration"]
         rule_to_new_regs = {}
         for rule in self:
-            new_for_rule = registrations.filtered(
-                lambda reg, rule=rule: reg not in rule_to_existing_regs[rule]
-            )
+            new_for_rule = registrations - rule_to_existing_regs[rule]
             rule_registrations = rule._filter_registrations(new_for_rule)
             new_registrations |= rule_registrations
             rule_to_new_regs[rule] = rule_registrations

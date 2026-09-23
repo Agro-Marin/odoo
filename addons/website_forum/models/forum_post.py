@@ -761,14 +761,8 @@ class ForumPost(models.Model):
                 )
             elif post.state == "pending" and not post.parent_id:
                 partners = post.sudo().message_partner_ids | tag_partners
-                partners = partners.filtered(
-                    lambda partner, post=post: (
-                        partner.user_ids
-                        and any(
-                            user.karma >= post.forum_id.karma_moderate
-                            for user in partner.user_ids
-                        )
-                    )
+                partners = partners.filtered_domain(
+                    [("user_ids.karma", ">=", post.forum_id.karma_moderate)]
                 )
 
                 post.message_post_with_source(

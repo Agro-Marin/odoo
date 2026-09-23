@@ -1,7 +1,13 @@
+import functools
+
 from odoo.tests import tagged
 from odoo.tests.common import users
 
 from odoo.addons.test_event_full.tests.common import TestWEventCommon
+
+
+def _has_url_suffix(suffix, menu):
+    return menu.menu_id.url.endswith(suffix)
 
 
 @tagged("event_online", "post_install", "-at_install")
@@ -38,7 +44,7 @@ class TestWEventMenu(TestWEventCommon):
             if menu_field == "track_menu_ids":
                 menu_url = "/track" if menu_name == "Talks" else "/agenda"
                 menu = self.event[menu_field].filtered(
-                    lambda menu, menu_url=menu_url: menu.menu_id.url.endswith(menu_url)
+                    functools.partial(_has_url_suffix, menu_url)
                 )
 
             self.assertFalse(

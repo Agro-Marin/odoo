@@ -100,12 +100,14 @@ class ResPartnerAgeRange(models.Model):
     def _compute_gap_before(self) -> None:
         scale = self.search([])
         for band in self:
-            closed_below = scale.filtered(
-                lambda other, band=band: (
-                    other.max_value and other.max_value <= band.min_value
-                )
+            highest = max(
+                (
+                    other.max_value
+                    for other in scale
+                    if other.max_value and other.max_value <= band.min_value
+                ),
+                default=band.min_value,
             )
-            highest = max(closed_below.mapped("max_value"), default=band.min_value)
             band.gap_before = (
                 self.env._(
                     "%(first)s-%(last)s",

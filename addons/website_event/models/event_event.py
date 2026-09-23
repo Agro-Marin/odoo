@@ -341,7 +341,7 @@ class EventEvent(models.Model):
     def _split_menus_state_by_field(self):
         menus_state_by_field = {}
         for fname in self._get_fields_menu_update():
-            activated = self.filtered(lambda event, fname=fname: event[fname])
+            activated = self.filtered(fname)
             menus_state_by_field[fname] = {
                 "activated": activated,
                 "deactivated": self - activated,
@@ -354,13 +354,10 @@ class EventEvent(models.Model):
             if fname in force_update:
                 menus_update_by_field[fname] = self
             else:
-                menus_update_by_field[fname] = self.env["event.event"]
-                menus_update_by_field[fname] |= menus_state_by_field[fname][
-                    "activated"
-                ].filtered(lambda event, fname=fname: not event[fname])
-                menus_update_by_field[fname] |= menus_state_by_field[fname][
-                    "deactivated"
-                ].filtered(lambda event, fname=fname: event[fname])
+                activated = menus_state_by_field[fname]["activated"]
+                menus_update_by_field[fname] = (
+                    activated - activated.filtered(fname)
+                ) | menus_state_by_field[fname]["deactivated"].filtered(fname)
         return menus_update_by_field
 
     def _get_website_menu_entries(self):

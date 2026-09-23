@@ -129,13 +129,11 @@ class EventTrackController(http.Controller):
             lambda track: not track.is_track_live and track.is_track_soon
         )
         tracks_by_day = []
+        tracks_by_date = tracks_wdate.grouped(
+            lambda track: self._get_dt_in_event_tz([track.date], event)[0].date()
+        )
         for display_date in date_begin_tz_all:
-            matching_tracks = tracks_wdate.filtered(
-                lambda track, display_date=display_date: (
-                    self._get_dt_in_event_tz([track.date], event)[0].date()
-                    == display_date
-                )
-            )
+            matching_tracks = tracks_by_date.get(display_date, tracks_wdate.browse())
             tracks_by_day.append(
                 {"date": display_date, "name": display_date, "tracks": matching_tracks}
             )

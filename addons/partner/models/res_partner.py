@@ -101,11 +101,14 @@ class ResPartner(models.Model):
         )
         for partner in self:
             if partner.birthdate:
-                age_range = age_ranges.filtered(
-                    lambda age_range, partner=partner: age_range._is_covering(
-                        partner.birthdate.year
-                    )
-                )[:1]
+                age_range = next(
+                    (
+                        age_range
+                        for age_range in age_ranges
+                        if age_range._is_covering(partner.birthdate.year)
+                    ),
+                    age_ranges.browse(),
+                )
             else:
                 age_range = self.env["res.partner.age.range"].browse()
             if partner.age_range_id != age_range:

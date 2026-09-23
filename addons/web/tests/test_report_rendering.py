@@ -754,27 +754,28 @@ class TestReportsRendering(TestReportsRenderingCommon):
                     page_content.append(elem[1])
             pages_contents.append(page_content)
 
+        def create_page_content(partner, start, end, page_number, include_name=False):
+            content = [
+                "LTFigure",
+                "Some header Text",
+            ]
+            if include_name:
+                content.append(f"Name: {partner.name}")
+            content.extend([str(i) for i in range(start, end)])
+            content.append(f"Footer for {partner.name} Page: {page_number} / 3")
+            return content
+
         expected_pages_contents = []
         for partner in self.partners:
-
-            def create_page_content(
-                start, end, page_number, include_name=False, partner=partner
-            ):
-                content = [
-                    "LTFigure",
-                    "Some header Text",
-                ]
-                if include_name:
-                    content.append(f"Name: {partner.name}")
-                content.extend([str(i) for i in range(start, end)])
-                content.append(f"Footer for {partner.name} Page: {page_number} / 3")
-                return content
-
             expected_pages_contents.extend(
                 [
-                    create_page_content(0, first_page_break_at, 1, include_name=True),
-                    create_page_content(first_page_break_at, second_page_break_at, 2),
-                    create_page_content(second_page_break_at, nb_lines, 3),
+                    create_page_content(
+                        partner, 0, first_page_break_at, 1, include_name=True
+                    ),
+                    create_page_content(
+                        partner, first_page_break_at, second_page_break_at, 2
+                    ),
+                    create_page_content(partner, second_page_break_at, nb_lines, 3),
                 ]
             )
 

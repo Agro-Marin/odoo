@@ -401,22 +401,21 @@ class TestControllerIntegrity(TransactionCase):
                 MockRequest(self.env, website=self.website) as req,
             ):
                 req.render = Mock(return_value="<rendered/>")
-                calls = []
-
-                def fake_autocomplete(*args, calls=calls, **kw):
-                    # Every call answers with both counts: the controller reads
-                    # them from whichever search renders the page, and a mock
-                    # that only answers on one call shape pins the shape rather
-                    # than the behaviour.
-                    calls.append(kw)
-                    return {
+                # Every call answers with both counts: the controller reads
+                # them from whichever search renders the page, and a mock
+                # that only answers on one call shape pins the shape rather
+                # than the behaviour.
+                fake_autocomplete = Mock(
+                    return_value={
                         "results": page_rows,
                         "results_count": 51,
                         "results_reachable": 51,
                     }
+                )
 
                 with patch.object(controller, "autocomplete", fake_autocomplete):
                     controller.hybrid_list(page=page, search="example")
+                calls = [call.kwargs for call in fake_autocomplete.call_args_list]
                 values = req.render.call_args.args[1]
                 _logger.debug(
                     "Hybrid page=%s pager=%s calls=%s", page, values["pager"], calls

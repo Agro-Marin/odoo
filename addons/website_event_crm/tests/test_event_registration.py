@@ -1,8 +1,13 @@
+import functools
 from datetime import datetime, timedelta
 
 from odoo.tests.common import RecordCapturer, tagged, users
 
 from odoo.addons.event_crm.tests.common import TestEventCrmCommon
+
+
+def _has_exactly_registrations(registrations, lead):
+    return lead.registration_ids == registrations
 
 
 @tagged("event_crm", "post_install", "-at_install")
@@ -126,7 +131,7 @@ class EventRegistrationCase(TestEventCrmCommon):
             registrations, self.batch_customer_data, strict=True
         ):
             lead = attendee_leads.filtered(
-                lambda l, registration=registration: l.registration_ids == registration
+                functools.partial(_has_exactly_registrations, registration)
             )
             self.assertTrue(lead)
             self.assertEqual(lead.registration_ids, registration)

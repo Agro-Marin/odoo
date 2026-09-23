@@ -52,10 +52,8 @@ class TestWebsiteEventTrack(TestEventOnlineCommon, HttpCase):
                             ("subject", "=", f"Add talk reminder: {self.track.name}"),
                         ]
                     )
-                    .mail_ids.filtered(
-                        lambda m, user=user: (
-                            m.email_to == (user.email or "visitor@odoo.com")
-                        )
+                    .mail_ids.filtered_domain(
+                        [("email_to", "=", user.email or "visitor@odoo.com")]
                     )
                 )
                 self.assertEqual(len(mails), 1)

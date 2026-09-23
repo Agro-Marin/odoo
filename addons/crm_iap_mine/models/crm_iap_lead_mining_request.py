@@ -283,9 +283,7 @@ class CrmIapLeadMiningRequest(models.Model):
             "countries": [
                 {
                     "code": country.code,
-                    "states": self.state_ids.filtered(
-                        lambda state, country=country: state in country.state_ids
-                    ).mapped("code"),
+                    "states": (self.state_ids & country.state_ids).mapped("code"),
                 }
                 for country in self.country_ids
             ],

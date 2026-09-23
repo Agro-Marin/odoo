@@ -49,10 +49,9 @@ class WebManifest(http.Controller):
             len(menu_roots),
             len(menu_data_records),
         )
+        menu_data_by_module = menu_data_records.grouped("module")
         for module in module_ids:
-            data = menu_data_records.filtered(
-                lambda res, m=module: res.module == m.name
-            )
+            data = menu_data_by_module.get(module.name)
             if data:
                 shortcuts.append(
                     {

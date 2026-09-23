@@ -815,9 +815,10 @@ class SlideChannel(models.Model):
             )
             .mapped("slide_id")
         )
+        new_slides_by_channel = new_published_slides.grouped("channel_id")
         for channel in self:
-            new_slides = new_published_slides.filtered(
-                lambda slide, channel=channel: slide.channel_id == channel
+            new_slides = new_slides_by_channel.get(
+                channel, new_published_slides.browse()
             )
             channel.partner_has_new_content = any(
                 slide not in slide_partner_completed for slide in new_slides

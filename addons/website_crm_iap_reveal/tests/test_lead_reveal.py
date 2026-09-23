@@ -176,10 +176,8 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
             else:
                 rule = self.test_request_1
 
-            lead = self._new_leads.filtered(
-                lambda lead, base_name=base_name, rule=rule: (
-                    lead.name == "%s GmbH - %s" % (base_name, rule.suffix)
-                )
+            lead = self._new_leads.filtered_domain(
+                [("name", "=", "%s GmbH - %s" % (base_name, rule.suffix))]
             )
             self.assertTrue(bool(lead))
 

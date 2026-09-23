@@ -421,10 +421,8 @@ class EventEvent(models.Model):
                 continue
 
             if questions_tokeep_ids:
-                questions_toremove = event._origin.question_ids.filtered(
-                    lambda question, questions_tokeep_ids=questions_tokeep_ids: (
-                        question.id not in questions_tokeep_ids
-                    )
+                questions_toremove = event._origin.question_ids.filtered_domain(
+                    [("id", "not in", questions_tokeep_ids)]
                 )
                 command = [
                     Command.unlink(question.id) for question in questions_toremove

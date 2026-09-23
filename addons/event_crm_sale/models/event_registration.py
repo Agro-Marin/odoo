@@ -23,6 +23,12 @@ class EventRegistration(models.Model):
                 ]
             )
 
+            leads_by_rule_and_order = related_leads.grouped(
+                lambda lead: (
+                    lead.event_lead_rule_id,
+                    lead.registration_ids.sale_order_id,
+                )
+            )
             for rule in rules:
                 rule_new_regs = rule_to_new_regs[rule]
 
@@ -33,11 +39,8 @@ class EventRegistration(models.Model):
                 so_res = []
                 for sale_order, registrations in so_to_regs.items():
                     registrations = registrations.sorted("id")
-                    leads = related_leads.filtered(
-                        lambda lead, rule=rule, sale_order=sale_order: (
-                            lead.event_lead_rule_id == rule
-                            and lead.registration_ids.sale_order_id == sale_order
-                        )
+                    leads = leads_by_rule_and_order.get(
+                        (rule, sale_order), related_leads.browse()
                     )
                     so_res.append((leads, sale_order, registrations))
                 if so_res:

@@ -347,11 +347,10 @@ class Website(models.Model):
         all_menus = self.env["website.menu"].search_fetch(
             Domain("website_id", "in", self.ids)
         )
+        menus_by_website = all_menus.grouped("website_id")
 
         for website in self:
-            menus = all_menus.filtered(
-                lambda m, website=website: m.website_id == website
-            )
+            menus = menus_by_website.get(website, all_menus.browse())
 
             children = dict.fromkeys(menus, ())
             for menu in menus:

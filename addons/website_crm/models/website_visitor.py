@@ -43,8 +43,8 @@ class WebsiteVisitor(models.Model):
         )
 
         for visitor in left_visitors:
-            visitor_leads = leads.filtered(
-                lambda lead, visitor=visitor: lead.id in visitor_to_lead_ids[visitor.id]
+            visitor_leads = leads.filtered_domain(
+                [("id", "in", list(visitor_to_lead_ids[visitor.id]))]
             )
             if not visitor.email:
                 visitor.email = next(

@@ -81,8 +81,8 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         )
 
         for base_name in ["Heinrich", "Rivil", "LidGen"]:
-            lead = self._new_leads.filtered(
-                lambda lead, base_name=base_name: lead.name == "%s GmbH" % base_name
+            lead = self._new_leads.filtered_domain(
+                [("name", "=", "%s GmbH" % base_name)]
             )
             self.assertTrue(bool(lead))
 
@@ -126,8 +126,8 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
         )
 
         for base_name in ["Heinrich", "Rivil", "LidGen"]:
-            lead = self._new_leads.filtered(
-                lambda lead, base_name=base_name: lead.name == "%s GmbH" % base_name
+            lead = self._new_leads.filtered_domain(
+                [("name", "=", "%s GmbH" % base_name)]
             )
             self.assertTrue(bool(lead))
 

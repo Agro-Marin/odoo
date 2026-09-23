@@ -157,10 +157,8 @@ class EventRegistration(models.Model):
         if vals.get("event_ticket_id"):
             updated_fields_to_notify.append(("event.event.ticket", "event_ticket_id"))
         for model, field in updated_fields_to_notify:
-            self.filtered(
-                lambda registration, field=field: (
-                    registration[field] and registration[field].id != vals[field]
-                )
+            self.filtered_domain(
+                [(field, "!=", False), (field, "!=", vals[field])]
             )._sale_order_registration_data_change_notify(
                 field, self.env[model].browse(vals[field])
             )

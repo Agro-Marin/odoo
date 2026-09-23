@@ -1,3 +1,4 @@
+import functools
 import logging
 from collections import OrderedDict, defaultdict
 from itertools import batched
@@ -16,6 +17,10 @@ from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
+
+
+def _get_term_translation(translations, lang, term):
+    return translations.get(term, {lang: None})[lang]
 
 
 class IrModuleModule(models.Model):
@@ -555,8 +560,8 @@ class IrModuleModule(models.Model):
             specific_arch_db[
                 ("_" + lang) if ("_" + lang) in specific_arch_db else lang
             ] = field.translate(
-                lambda term, lang=lang, translations=specific_translation_dictionary: (
-                    translations.get(term, {lang: None})[lang]
+                functools.partial(
+                    _get_term_translation, specific_translation_dictionary, lang
                 ),
                 specific_arch_db_en,
             )

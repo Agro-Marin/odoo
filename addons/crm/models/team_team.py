@@ -208,6 +208,7 @@ class TeamTeam(models.Model):
                     ]
                 )
             )
+            noteam_by_key = existing_noteam.grouped(lambda f: (f.variable, f.value))
             for frequency in frequencies:
                 if (
                     float_compare(frequency.won_count, 0.1, 2) != 1
@@ -215,12 +216,7 @@ class TeamTeam(models.Model):
                 ):
                     continue
 
-                match = existing_noteam.filtered(
-                    lambda frequ_nt, frequency=frequency: (
-                        frequ_nt.variable == frequency.variable
-                        and frequ_nt.value == frequency.value
-                    )
-                )
+                match = noteam_by_key.get((frequency.variable, frequency.value))
                 if match:
                     exist_won_count = float_round(
                         match.won_count, precision_digits=0, rounding_method="HALF-UP"
@@ -251,7 +247,7 @@ class TeamTeam(models.Model):
                         else 0.1
                     )
                 else:
-                    existing_noteam += (
+                    noteam_by_key[frequency.variable, frequency.value] = (
                         self.env["crm.lead.scoring.frequency"]
                         .sudo()
                         .create(

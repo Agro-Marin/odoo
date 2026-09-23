@@ -611,7 +611,7 @@ class CrmLead(models.Model):
                 if value == "correct" and tools.float_compare(score, 0.50, 2) < 0:
                     continue
             if field == "tag_id":
-                tag = self.tag_ids.filtered(lambda tag, value=value: tag.id == value)
+                tag = self.tag_ids.filtered_domain([("id", "=", value)])
                 sorted_scores_with_name.append(
                     (score, field, tag.display_name, tag.color)
                 )

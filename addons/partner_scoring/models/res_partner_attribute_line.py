@@ -98,9 +98,7 @@ class ResPartnerAttributeLine(models.Model):
             taken = set(
                 line_model.search([("partner_id", "=", commercial.id)]).attribute_id.ids
             )
-            movable = stray.filtered(
-                lambda line, taken=taken: line.attribute_id.id not in taken
-            )
+            movable = stray.filtered_domain([("attribute_id", "not in", list(taken))])
             if movable:
                 movable.partner_id = commercial
             blocked = stray - movable

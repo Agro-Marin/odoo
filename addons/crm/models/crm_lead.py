@@ -1948,10 +1948,11 @@ class CrmLead(models.Model):
         all_attachments = self.env["ir.attachment"].search(
             [("res_model", "=", self._name), ("res_id", "in", opportunities.ids)]
         )
+        attachments_by_res_id = all_attachments.grouped("res_id")
 
         for opportunity in opportunities:
-            attachments = all_attachments.filtered(
-                lambda attach, opportunity=opportunity: attach.res_id == opportunity.id
+            attachments = attachments_by_res_id.get(
+                opportunity.id, all_attachments.browse()
             )
             for attachment in attachments:
                 attachment.write(

@@ -1,4 +1,5 @@
 import copy
+import functools
 import logging
 import uuid
 
@@ -20,6 +21,10 @@ EDITING_ATTRIBUTES = MOVABLE_BRANDING | {
     "data-oe-translation-id",
     "data-note-id",
 }
+
+
+def _get_term_translation(translations, lang, term):
+    return translations.get(term, {}).get(lang)
 
 
 class IrUiView(models.Model):
@@ -205,7 +210,7 @@ class IrUiView(models.Model):
         for lang in langs:
             lang_ = f"_{lang}" if f"_{lang}" in stored_translation else lang
             stored_translation[lang_] = field_to.translate(
-                lambda term, lang=lang: translation_dictionary.get(term, {}).get(lang),
+                functools.partial(_get_term_translation, translation_dictionary, lang),
                 record_to[name_field_to],
             )
             if not self.env.context.get("delay_translations") and lang_.startswith("_"):

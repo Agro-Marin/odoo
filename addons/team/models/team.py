@@ -293,8 +293,8 @@ class Team(models.Model):
                 {"team_id": team.id, "user_id": user.id}
                 for user in users_current - memberships.user_id
             ]
-            to_archive += memberships.filtered(
-                lambda m, users_current=users_current: m.user_id not in users_current
+            to_archive += memberships.filtered_domain(
+                [("user_id", "not in", users_current.ids)]
             )
 
         if to_create:

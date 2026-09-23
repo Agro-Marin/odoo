@@ -266,18 +266,20 @@ class TeamMember(models.Model):
             kept |= winner
             if not winner.team_id._get_mono_usage_keys():
                 continue
-            protected = kept
-            obsolete |= live.filtered(
-                lambda member, winner=winner, protected=protected: (
-                    member.user_id == winner.user_id
-                    and member not in protected
-                    and member.team_id != winner.team_id
-                    and winner.team_id._filter_sharing_mono_usage(member.team_id)
-                )
-            )
+            obsolete |= live._filtered_evicted_by(winner, kept)
         if obsolete:
             _debug.logic("mono_membership_evicted", winners=self, evicted=obsolete)
             obsolete.action_archive()
+
+    def _filtered_evicted_by(self, winner, protected):
+        return self.filtered(
+            lambda member: (
+                member.user_id == winner.user_id
+                and member not in protected
+                and member.team_id != winner.team_id
+                and winner.team_id._filter_sharing_mono_usage(member.team_id)
+            )
+        )
 
     def _clear_membership_dependent_caches(self):
         _debug.logic("membership_caches_cleared", memberships=self)

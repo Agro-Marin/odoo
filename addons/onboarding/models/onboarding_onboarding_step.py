@@ -83,11 +83,10 @@ class OnboardingOnboardingStep(models.Model):
                 ("company_id", "in", [False, self.env.company.id]),
             ]
         )
+        progress_steps_by_step = existing_progress_steps.grouped("step_id")
         for step in self:
-            if step in existing_progress_steps.step_id:
-                current_progress_step_id = existing_progress_steps.filtered(
-                    lambda progress_step, step=step: progress_step.step_id == step
-                )
+            if step in progress_steps_by_step:
+                current_progress_step_id = progress_steps_by_step[step]
                 step.current_progress_step_id = current_progress_step_id
                 step.current_step_state = current_progress_step_id.step_state
             else:

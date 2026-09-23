@@ -25,8 +25,8 @@ class ResUsers(models.Model):
             .search([("enroll_group_ids", "in", self.all_group_ids.ids)])
         )
         for user in self:
-            matching = channels.filtered(
-                lambda channel, user=user: channel.enroll_group_ids & user.all_group_ids
+            matching = channels.filtered_domain(
+                [("enroll_group_ids", "in", user.all_group_ids.ids)]
             )
             if matching:
                 matching._action_add_members(user.partner_id)
