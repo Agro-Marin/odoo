@@ -141,7 +141,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
             }
         )
         partner_model = self.env.ref("base.model_res_partner")
-        with self.assertQueryCount(__system__=105):
+        with self.assertQueryCount(__system__=103):
             event = self.env["calendar.event"].create(
                 {
                     "name": "Event",

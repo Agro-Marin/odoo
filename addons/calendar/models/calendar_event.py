@@ -1340,7 +1340,16 @@ class CalendarEvent(models.Model):
         """Return (start_field, end_field) names for reservation sync."""
         return ("start", "stop")
 
-    def _prepare_reservation_vals_list(self):
+    def _prepare_reservation_vals_by_record(self):
+        partner_resources = self.partner_ids._get_calendar_event_resources()
+        return {
+            event.id: event._prepare_reservation_vals_list(
+                partner_resources=partner_resources
+            )
+            for event in self
+        }
+
+    def _prepare_reservation_vals_list(self, partner_resources=None):
         """Project busy, non-declined attendance, once per physical resource."""
         self.check_singleton()
         if not self.start or not self.stop or self.show_as != "busy":
@@ -1349,7 +1358,8 @@ class CalendarEvent(models.Model):
         vals_list = []
         booked = set()
         partners = self._get_scheduled_partners()
-        partner_resources = partners._get_calendar_event_resources()
+        if partner_resources is None:
+            partner_resources = partners._get_calendar_event_resources()
         for partner in partners:
             resource = partner_resources[partner]
             # One row per resource, not per attendee.  A person invited both in

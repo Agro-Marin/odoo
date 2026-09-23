@@ -474,8 +474,10 @@ class CalendarEvent(models.Model):
             return self.env["res.partner"]
         return super()._get_scheduled_partners()
 
-    def _prepare_reservation_vals_list(self):
-        vals_list = super()._prepare_reservation_vals_list()
+    def _prepare_reservation_vals_list(self, partner_resources=None):
+        vals_list = super()._prepare_reservation_vals_list(
+            partner_resources=partner_resources
+        )
         if not self.start or not self.stop or self.show_as != "busy":
             return vals_list
         by_resource = {vals["resource_id"]: vals for vals in vals_list}
