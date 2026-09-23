@@ -233,7 +233,7 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                     "website": 1,
                     "website_menu": 1,
                     "ir_ui_view": 1,
-                    "res_company": 1,
+                    "social_media_config": 1,
                 }
                 expected_query_count = 8
                 self._check_url_hot_query(
@@ -272,7 +272,7 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                         "website": 1,
                         "website_menu": 1,
                         "ir_ui_view": 1,
-                        "res_company": 1,
+                        "social_media_config": 1,
                     }
                 )
                 expected_query_count = 2 if cache else 8
@@ -325,7 +325,7 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                     "website_page": 2,
                     "website": 1,
                     "ir_ui_view": 1,
-                    "res_company": 1,
+                    "social_media_config": 1,
                 }
                 expected_query_count = 7
                 insert_tables_perf = {}
@@ -387,7 +387,7 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
             "website": 1,
             "website_menu": 1,
             "ir_ui_view": 1,
-            "res_company": 1,
+            "social_media_config": 1,
         }
         self._check_url_hot_query(self.page.url, 8, select_tables_perf, nocache=True)
         self.assertEqual(self._get_url_hot_query(self.page.url, nocache=True), 8)
