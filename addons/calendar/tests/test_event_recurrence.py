@@ -849,8 +849,9 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
         # update the base event
         new_events = new_recurrence.calendar_event_ids.sorted("start")
         new_events[0].write({"name": "Old name", "recurrence_update": "subsequent"})
-        self.assertTrue(new_recurrence.exists())
-        for event in new_recurrence.calendar_event_ids:
+        rewritten = new_events[0].recurrence_id
+        self.assertTrue(rewritten)
+        for event in rewritten.calendar_event_ids:
             self.assertEqual(event.name, "Old name")
 
     def test_update_recurrence_all(self):
