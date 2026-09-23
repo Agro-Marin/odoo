@@ -93,8 +93,17 @@ class TestSecurityAccess(APITransportTestCase):
         self.assertFalse(service.exists())
 
     def test_basic_user_cannot_access_services(self):
+        service = self.env["integration.service"].create(
+            {
+                "name": "Hidden Service",
+                "code": "hidden_service",
+                "category": "other",
+                "endpoint_url": "https://api.test.com",
+                "environment": "production",
+            }
+        )
         with self.assertRaises(AccessError):
-            self.env["integration.service"].with_user(self.user_basic).search([])
+            service.with_user(self.user_basic).read(["name"])
 
     def test_api_admin_can_create_credential(self):
         credential = (
