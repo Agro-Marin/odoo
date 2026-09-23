@@ -68,7 +68,7 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
                 "visitor_ids": [(4, visitor.id)],
             }
         )
-        self.assertEqual(visitor.email, lead_1.email_normalized)
+        self.assertEqual(visitor.email, lead_2.email_normalized)
         self.assertEqual(visitor.mobile, lead_2._phone_get_number().number)
 
         visitor_sudo.write({"partner_id": self.test_partner.id})

@@ -31,7 +31,7 @@ class WebsiteVisitor(models.Model):
         left_visitors = self.filtered(
             lambda visitor: not visitor.email or not visitor.mobile
         )
-        leads = left_visitors.mapped("lead_ids").sorted("create_date", reverse=True)
+        leads = left_visitors.mapped("lead_ids").sorted("create_date desc, id desc")
         visitor_to_lead_ids = {
             visitor.id: visitor.lead_ids.ids for visitor in left_visitors
         }
