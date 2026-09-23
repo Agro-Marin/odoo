@@ -221,8 +221,8 @@ class AccountReportExpression(models.Model):
 
             for candidate_expr in to_expand:
                 if candidate_expr.formula == SUM_CHILDREN_FORMULA:
-                    sub_expressions |= candidate_expr.report_line_id.children_ids.expression_ids.filtered(
-                        lambda e, label=candidate_expr.label: e.label == label
+                    sub_expressions |= candidate_expr.report_line_id.children_ids.expression_ids.filtered_domain(
+                        [("label", "=", candidate_expr.label)]
                     )
                 else:
                     labels_by_code = candidate_expr._get_aggregation_terms_details()
@@ -253,11 +253,8 @@ class AccountReportExpression(models.Model):
                     Domain.OR(domains)
                 )
 
-            seen_ids = set(result.ids)
-            to_expand = sub_expressions.filtered(
-                lambda x, seen_ids=seen_ids: (
-                    x.engine == "aggregation" and x.id not in seen_ids
-                )
+            to_expand = (sub_expressions - result).filtered(
+                lambda x: x.engine == "aggregation"
             )
             result |= sub_expressions
             _debug.pipeline(

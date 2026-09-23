@@ -872,10 +872,8 @@ class AccountMoveLine(models.Model):
             non_accountable = line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES
             if line.account_id or non_accountable:
                 continue
-            previous_two_accounts = line.move_id.line_ids.filtered(
-                lambda l, dtype=line.display_type: (
-                    l.account_id and l.display_type == dtype
-                )
+            previous_two_accounts = line.move_id.line_ids.filtered_domain(
+                [("account_id", "!=", False), ("display_type", "=", line.display_type)]
             )[-2:].account_id
             if len(previous_two_accounts) == 1 and len(line.move_id.line_ids) > 2:
                 line.account_id = previous_two_accounts
@@ -3424,14 +3422,11 @@ class AccountMoveLine(models.Model):
             currencies = sorted_amls.mapped(lambda x: value_of(x, "currency_id"))
             results = as_node(sorted_amls)
             if len(currencies) != 1:
+                amls_by_currency = sorted_amls.grouped(
+                    lambda x: value_of(x, "currency_id")
+                )
                 results["nodes"] = [
-                    as_node(
-                        sorted_amls.filtered(
-                            lambda x, currency=currency: (
-                                value_of(x, "currency_id") == currency
-                            )
-                        )
-                    )
+                    as_node(amls_by_currency.get(currency, sorted_amls.browse()))
                     for currency in currencies
                 ]
             return results

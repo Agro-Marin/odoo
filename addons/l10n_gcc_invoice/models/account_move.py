@@ -41,6 +41,11 @@ class AccountMove(models.Model):
 
         return num2words(number, lang=lang).title()
 
+    def _filtered_with_terms_in(self, terms_by_company_id, language):
+        return self.filtered(
+            lambda move: language in (terms_by_company_id[move.company_id.id] or {})
+        )
+
     def _load_narration_translation(self):
         # Workaround to have the english/arabic version of the payment terms
         # in the report
@@ -86,11 +91,7 @@ class AccountMove(models.Model):
             for language in terms
         }
         for language in languages:
-            moves = moves_to_fix.filtered(
-                lambda move, language=language: (
-                    language in (terms_by_company_id[move.company_id.id] or {})
-                )
-            )
+            moves = moves_to_fix._filtered_with_terms_in(terms_by_company_id, language)
             if not moves:
                 continue
             self.env.cache.update_raw(

@@ -771,8 +771,8 @@ class ResPartner(models.Model):
         for partner, move_lines in partner2move_lines.items():
             commercial_partner = partner.commercial_partner_id
             lines_by_commercial[commercial_partner] |= move_lines
-            moves_by_commercial[commercial_partner] |= move_lines.move_id.filtered(
-                lambda move, partner=partner: move.partner_id == partner
+            moves_by_commercial[commercial_partner] |= (
+                move_lines.move_id.filtered_domain([("partner_id", "=", partner.id)])
             )
 
         unlocked = {"bypass_lock_check": BYPASS_LOCK_CHECK}

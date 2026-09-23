@@ -209,13 +209,10 @@ class BankAccountVerification(models.Model):
                 )
                 vat = partner_bank.partner_id.vat
                 if not vat or vat in ["/", "na", "NA"]:  # void vat
-                    if not partner_bank_verif or not partner_bank_verif.filtered(
-                        lambda verif, partner_bank=partner_bank: (
-                            verif.partner_id == partner_bank.partner_id
-                            and (
-                                not verif.partner_vat
-                                or verif.partner_vat in ["/", "na", "NA"]
-                            )
+                    if (
+                        not partner_bank_verif
+                        or not partner_bank_verif._filtered_void_vat_of(
+                            partner_bank.partner_id
                         )
                     ):
                         create_vals += self._prepare_verification_vals(
@@ -378,6 +375,14 @@ class BankAccountVerification(models.Model):
                 verif.partner_bank_account_number
                 in partner_banks.mapped("sanitized_acc_number")
                 or verif.partner_vat in partners_without_bank_account.mapped("vat")
+            )
+        )
+
+    def _filtered_void_vat_of(self, partner):
+        return self.filtered(
+            lambda verif: (
+                verif.partner_id == partner
+                and (not verif.partner_vat or verif.partner_vat in ["/", "na", "NA"])
             )
         )
 

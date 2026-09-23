@@ -502,10 +502,12 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                     report_line_id = report._get_res_id_from_line_id(
                         line_to_expand["id"], "report.formula.line"
                     )
-                    expressions_to_evaluate = report.line_ids.expression_ids.filtered(
-                        lambda x, report_line_id=report_line_id: (
-                            x.report_line_id.id == report_line_id
-                            and x.engine == "custom"
+                    expressions_to_evaluate = (
+                        report.line_ids.expression_ids.filtered_domain(
+                            [
+                                ("report_line_id", "=", report_line_id),
+                                ("engine", "=", "custom"),
+                            ]
                         )
                     )
 

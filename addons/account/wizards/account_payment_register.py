@@ -554,13 +554,7 @@ class AccountPaymentRegister(models.TransientModel):
                         untrusted_payments_count += (
                             1
                             if wizard.group_payment
-                            else len(
-                                batch["lines"].filtered(
-                                    lambda line, total_amount_values=total_amount_values: (
-                                        line in total_amount_values["lines"]
-                                    )
-                                )
-                            )
+                            else len(batch["lines"] & total_amount_values["lines"])
                         )
                         untrusted_accounts |= batch_account
 
@@ -627,14 +621,7 @@ class AccountPaymentRegister(models.TransientModel):
             else:
                 total_amounts_to_pay = wizard.total_amounts_to_pay
                 wizard.can_group_payments = any(
-                    len(
-                        batch_result["lines"].filtered(
-                            lambda line, total_amounts_to_pay=total_amounts_to_pay: (
-                                line in total_amounts_to_pay["lines"]
-                            )
-                        )
-                    )
-                    != 1
+                    len(batch_result["lines"] & total_amounts_to_pay["lines"]) != 1
                     for batch_result in wizard.batches
                 )
 

@@ -76,9 +76,7 @@ class AccountMoveReversal(models.TransientModel):
             )
             if record.move_ids:
                 types = record.move_ids.journal_id.mapped("type")
-                allowed = allowed.filtered(
-                    lambda journal, types=types: journal.type in types
-                )
+                allowed = allowed.filtered_domain([("type", "in", types)])
             record.available_journal_ids = allowed
 
     @api.constrains("journal_id", "move_ids")

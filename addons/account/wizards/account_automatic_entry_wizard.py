@@ -852,8 +852,8 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         for move in self.move_line_ids.move_id:
             amount = sum((self.move_line_ids._origin & move.line_ids).mapped("balance"))
             lock_safe_date = self._get_lock_safe_date(move.date)
-            accrual_move = created_moves[1:].filtered(
-                lambda m, lock_safe_date=lock_safe_date: m.date == lock_safe_date
+            accrual_move = created_moves[1:].filtered_domain(
+                [("date", "=", lock_safe_date)]
             )
 
             if (
@@ -911,14 +911,14 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 destination_lines=len(destination_lines),
                 destination_reconcilable=self.destination_account_id.reconcile,
             )
+        new_lines_by_key = new_move.line_ids.grouped(
+            lambda x: (x.account_id, x.partner_id, x.currency_id)
+        )
+        no_line = new_move.line_ids.browse()
         for (partner, currency, account), lines in grouped_lines.items():
             if account.reconcile:
-                to_reconcile = lines + new_move.line_ids.filtered(
-                    lambda x, account=account, partner=partner, currency=currency: (
-                        x.account_id == account
-                        and x.partner_id == partner
-                        and x.currency_id == currency
-                    )
+                to_reconcile = lines + new_lines_by_key.get(
+                    (account, partner, currency), no_line
                 )
                 to_reconcile.reconcile()
 
@@ -926,12 +926,8 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             for partner, currency in {
                 (partner, currency) for partner, currency, __ in grouped_lines
             }:
-                to_reconcile = destination_lines + new_move.line_ids.filtered(
-                    lambda x, partner=partner, currency=currency: (
-                        x.account_id == self.destination_account_id
-                        and x.partner_id == partner
-                        and x.currency_id == currency
-                    )
+                to_reconcile = destination_lines + new_lines_by_key.get(
+                    (self.destination_account_id, partner, currency), no_line
                 )
                 to_reconcile.reconcile()
 

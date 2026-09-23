@@ -35,11 +35,11 @@ class L10nMyEdiConfig(models.Model):
         """
         for config in self:
             config.l10n_my_edi_proxy_user_id = (
-                config.company_id.account_edi_proxy_client_ids.filtered(
-                    lambda u, config=config: (
-                        u.proxy_type == "l10n_my_edi"
-                        and u.edi_mode == config.l10n_my_edi_mode
-                    )
+                config.company_id.account_edi_proxy_client_ids.filtered_domain(
+                    [
+                        ("proxy_type", "=", "l10n_my_edi"),
+                        ("edi_mode", "=", config.l10n_my_edi_mode),
+                    ]
                 )[:1]
             )
 

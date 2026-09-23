@@ -238,11 +238,15 @@ class AccountMove(models.Model):
                         move.l10n_gr_edi_inv_type = "5.2"
                 else:  # move.move_type in ('out_invoice', 'in_invoice', 'out_receipt', 'in_receipt')
                     inv_type = "1.1" if move.move_type == "out_invoice" else "13.1"
-                    preferred_clss = move.fiscal_position_id.l10n_gr_edi_preferred_classification_ids.filtered(
-                        lambda p, move=move: (
-                            p.l10n_gr_edi_inv_type
-                            in (move.l10n_gr_edi_available_inv_type or "").split(",")
-                        )
+                    available_inv_types = [
+                        available
+                        for available in (
+                            move.l10n_gr_edi_available_inv_type or ""
+                        ).split(",")
+                        if available
+                    ]
+                    preferred_clss = move.fiscal_position_id.l10n_gr_edi_preferred_classification_ids.filtered_domain(
+                        [("l10n_gr_edi_inv_type", "in", available_inv_types)]
                     )
                     if preferred_clss:
                         inv_type = preferred_clss[0].l10n_gr_edi_inv_type

@@ -607,24 +607,20 @@ class AccountMove(models.Model):
             ):
                 vat_taxable |= line
         for tax_group in vat_taxable.mapped("tax_group_id"):
+            afip_code = tax_group.l10n_ar_vat_afip_code
             base_imp = sum(
-                self.invoice_line_ids.filtered(
-                    lambda x, tax_group=tax_group: x.tax_ids.filtered(
-                        lambda y, tax_group=tax_group: (
-                            y.tax_group_id.l10n_ar_vat_afip_code
-                            == tax_group.l10n_ar_vat_afip_code
-                        )
-                    )
-                ).mapped("price_subtotal")
+                line.price_subtotal
+                for line in self.invoice_line_ids
+                if any(
+                    tax.tax_group_id.l10n_ar_vat_afip_code == afip_code
+                    for tax in line.tax_ids
+                )
             )
             imp = abs(
                 sum(
-                    vat_taxable.filtered(
-                        lambda x, tax_group=tax_group: (
-                            x.tax_group_id.l10n_ar_vat_afip_code
-                            == tax_group.l10n_ar_vat_afip_code
-                        )
-                    ).mapped("amount_currency")
+                    line.amount_currency
+                    for line in vat_taxable
+                    if line.tax_group_id.l10n_ar_vat_afip_code == afip_code
                 )
             )
             res += [

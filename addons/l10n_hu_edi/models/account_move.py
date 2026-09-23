@@ -124,6 +124,73 @@ class AccountMove(models.Model):
 
     # === Constraints === #
 
+    def _l10n_hu_get_chain_invoices_before(self):
+        self.check_singleton()
+        return (
+            self._l10n_hu_get_chain_base()
+            ._l10n_hu_get_chain_invoices()
+            .filtered(
+                lambda m: (
+                    m.id < self.id
+                    and m.l10n_hu_edi_state in [False, "rejected", "cancelled"]
+                )
+            )
+        )
+
+    def _filtered_l10n_hu_edi_transaction_match(
+        self,
+        invoice_name,
+        canonicalized_attachment,
+        annulment_invoice_name,
+        transaction,
+        processing_result,
+    ):
+        return self.filtered(
+            lambda m: (
+                (
+                    # 1. Match invoice if the entire XML matches.
+                    # For performance, we first check the invoice name before trying to match the whole XML.
+                    (
+                        m.name == invoice_name
+                        and etree.canonicalize(
+                            base64.b64decode(m.l10n_hu_edi_attachment).decode()
+                        )
+                        == canonicalized_attachment
+                    )
+                    or m.name == annulment_invoice_name
+                )
+                and (
+                    # 2. We update the invoice state only if:
+                    # - the invoice doesn't have a transaction code, or
+                    # - it currently has a duplicate error, or
+                    # - the current transaction is more recent than the latest transaction on the invoice
+                    #   and is not a duplicate error (this avoid overwriting the state with a previous, obsolete one).
+                    not m.l10n_hu_edi_transaction_code
+                    or any(
+                        "INVOICE_NUMBER_NOT_UNIQUE" in error
+                        or "ANNULMENT_IN_PROGRESS" in error
+                        for error in m.l10n_hu_edi_messages["errors"]
+                    )
+                    or (
+                        transaction["send_time"] >= m.l10n_hu_edi_send_time
+                        and not (
+                            processing_result["technical_validation_messages"]
+                            or any(
+                                message["validation_error_code"]
+                                in [
+                                    "INVOICE_NUMBER_NOT_UNIQUE",
+                                    "ANNULMENT_IN_PROGRESS",
+                                ]
+                                for message in processing_result[
+                                    "business_validation_messages"
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
     @api.constrains("l10n_hu_edi_state", "state")
     def _check_posted_if_active(self):
         """Enforce the constraint that you cannot reset to draft / cancel a posted invoice if it was already sent to NAV."""
@@ -492,19 +559,7 @@ class AccountMove(models.Model):
             },
             "invoice_chain_not_confirmed": {
                 "records": self.env["account.move"].union(
-                    *[
-                        move._l10n_hu_get_chain_base()
-                        ._l10n_hu_get_chain_invoices()
-                        .filtered(
-                            lambda m, move=move: (
-                                m.id < move.id
-                                and m.l10n_hu_edi_state
-                                in [False, "rejected", "cancelled"]
-                                and m not in self
-                            )
-                        )
-                        for move in self
-                    ]
+                    *[move._l10n_hu_get_chain_invoices_before() - self for move in self]
                 ),
                 "message": self.env._(
                     "The following invoices appear to be earlier in the chain, but have not yet been sent. Please send them first."
@@ -792,11 +847,12 @@ class AccountMove(models.Model):
                     }
                 )
 
+        moves_by_upload_index = self.grouped(
+            lambda m: str(m.l10n_hu_edi_batch_upload_index)
+        )
         for processing_result in results["processing_results"]:
-            invoice = self.filtered(
-                lambda m, processing_result=processing_result: (
-                    str(m.l10n_hu_edi_batch_upload_index) == processing_result["index"]
-                )
+            invoice = moves_by_upload_index.get(
+                processing_result["index"], self.browse()
             )
             if not invoice:
                 _logger.error(
@@ -1243,12 +1299,12 @@ class AccountMove(models.Model):
                     if last_reconciled_payment:
                         line_values.update(
                             {
-                                "advanceOriginalInvoice": advance_invoices.filtered(
-                                    lambda m, last_reconciled_payment=last_reconciled_payment: (
-                                        last_reconciled_payment
-                                        in m._get_reconciled_amls().move_id
-                                    )
-                                )[0].name,
+                                "advanceOriginalInvoice": next(
+                                    m
+                                    for m in advance_invoices
+                                    if last_reconciled_payment
+                                    in m._get_reconciled_amls().move_id
+                                ).name,
                                 "advancePaymentDate": last_reconciled_payment.date,
                                 "advanceExchangeRate": last_reconciled_payment._l10n_hu_get_currency_rate(),
                             }

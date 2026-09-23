@@ -12,6 +12,11 @@ class ResCompany(models.Model):
         domain=[("scope", "=", "facturae")],
     )
 
+    def _filtered_l10n_es_edi_facturae_missing_all(self, field_names):
+        return self.filtered(
+            lambda record: not any(record[field] for field in field_names)
+        )
+
     def _l10n_es_edi_facturae_export_check(self):
         checks = {
             "company_currency_check": {
@@ -24,10 +29,8 @@ class ResCompany(models.Model):
         errors = {}
         for key, check in checks.items():
             for fields_tuple in check.pop("fields"):
-                if invalid_records := self.filtered(
-                    lambda record, fields_tuple=fields_tuple: (
-                        not any(record[field] for field in fields_tuple)
-                    )
+                if invalid_records := self._filtered_l10n_es_edi_facturae_missing_all(
+                    fields_tuple
                 ):
                     errors[f"l10n_es_edi_facturae_{key}"] = {
                         "level": "danger",

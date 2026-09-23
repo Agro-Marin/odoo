@@ -278,8 +278,8 @@ class L10n_InWithholdWizard(models.TransientModel):
                         order="id desc",
                     )
                     if withhold_move_line:
-                        tax = withhold_move_line.tax_ids.filtered(
-                            lambda t, section=section: t.l10n_in_section_id == section
+                        tax = withhold_move_line.tax_ids.filtered_domain(
+                            [("l10n_in_section_id", "=", section.id)]
                         )
                         break
                 if tax:
@@ -298,13 +298,11 @@ class L10n_InWithholdWizard(models.TransientModel):
                 )
             ):
                 sign = -1 if wizard.related_move_id.is_inbound() else 1
+                section = wizard.tax_id.l10n_in_section_id
                 wizard.base = sign * sum(
-                    wizard.related_move_id.line_ids.filtered(
-                        lambda l, wizard=wizard: (
-                            l.account_id.l10n_in_tds_tcs_section_id
-                            == wizard.tax_id.l10n_in_section_id
-                        )
-                    ).mapped("balance")
+                    line.balance
+                    for line in wizard.related_move_id.line_ids
+                    if line.account_id.l10n_in_tds_tcs_section_id == section
                 )
 
     @api.depends("tax_id", "base")

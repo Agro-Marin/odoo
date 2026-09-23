@@ -94,6 +94,13 @@ class ResCompany(models.Model):
         for company in self:
             company.l10n_it_edi_config_id = by_company.get(company.id, False)
 
+    def _filtered_l10n_it_missing_all(self, field_names):
+        return self.filtered(
+            lambda record: (
+                not any(record._config_owner_of(field)[field] for field in field_names)
+            )
+        )
+
     def _l10n_it_edi_export_check(self):
         checks = {
             "company_vat_codice_fiscale_missing": {
@@ -116,14 +123,7 @@ class ResCompany(models.Model):
         errors = {}
         for key, check in checks.items():
             for fields_tuple in check.pop("fields"):
-                if invalid_records := self.filtered(
-                    lambda record, fields_tuple=fields_tuple: (
-                        not any(
-                            record._config_owner_of(field)[field]
-                            for field in fields_tuple
-                        )
-                    )
-                ):
+                if invalid_records := self._filtered_l10n_it_missing_all(fields_tuple):
                     errors[f"l10n_it_edi_{key}"] = {
                         "message": check["message"],
                         "action_text": self.env._("View Company/ies"),

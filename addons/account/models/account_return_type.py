@@ -328,10 +328,10 @@ class AccountReturnType(models.Model):
             .filtered("is_tax_return")
         )
         for account_return in returns_to_submit:
-            for user in self.env.ref("account.group_account_manager").user_ids.filtered(
-                lambda user, account_return=account_return: (
-                    set(user.company_ids) & set(account_return.company_ids)
-                )
+            for user in self.env.ref(
+                "account.group_account_manager"
+            ).user_ids.filtered_domain(
+                [("company_ids", "in", account_return.company_ids.ids)]
             ):
                 mail_template.with_context(partner=user.partner_id).send_mail(
                     account_return.id
@@ -362,10 +362,11 @@ class AccountReturnType(models.Model):
         all_domestic_tax_units = self.env["account.tax.unit"]
         for company in root_companies:
             fiscal_country = company.account_config_id.account_fiscal_country_id
-            domestic_tax_unit = all_tax_units.filtered(
-                lambda x, fiscal_country=fiscal_country, company=company: (
-                    x.country_id == fiscal_country and company in x.company_ids
-                )
+            domestic_tax_unit = all_tax_units.filtered_domain(
+                [
+                    ("country_id", "=", fiscal_country.id),
+                    ("company_ids", "in", company.ids),
+                ]
             )  # At most 1
             self._generate_all_returns(fiscal_country.code, company, domestic_tax_unit)
             all_domestic_tax_units += domestic_tax_unit

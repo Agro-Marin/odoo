@@ -1577,9 +1577,10 @@ class TestReportEngines(TestAccountReportsCommon):
             ("test7", moves[0].line_ids[0]),
             ("test12_1", moves[1].line_ids[:3]),
         ]
+        report_lines_by_name = report.line_ids.grouped("name")
         for report_line_name, expected_amls in expected_amls_to_test:
-            report_line = report.line_ids.filtered(
-                lambda x, report_line_name=report_line_name: x.name == report_line_name
+            report_line = report_lines_by_name.get(
+                report_line_name, report.line_ids.browse()
             )
             report_line_dict = next(
                 x for x in report_lines if x["name"] == report_line.name
@@ -1733,9 +1734,10 @@ class TestReportEngines(TestAccountReportsCommon):
             ("main_report_line", moves[0].line_ids[0:2]),
         ]
 
+        report_lines_by_name = main_report.line_ids.grouped("name")
         for report_line_name, expected_amls in expected_amls_to_test:
-            report_line = main_report.line_ids.filtered(
-                lambda x, report_line_name=report_line_name: x.name == report_line_name
+            report_line = report_lines_by_name.get(
+                report_line_name, main_report.line_ids.browse()
             )
             report_line_dict = next(
                 x for x in main_report_lines if x["name"] == report_line.name
@@ -2628,10 +2630,8 @@ class TestReportEngines(TestAccountReportsCommon):
             )
             action_dict = report.action_audit_cell(col_group_options, audit_params)
 
-            expected_amls = move.line_ids.filtered(
-                lambda x, expected_partner=expected_partner: (
-                    x.partner_id == expected_partner
-                )
+            expected_amls = move.line_ids.filtered_domain(
+                [("partner_id", "=", expected_partner.id)]
             )
             audit_result_amls = move.line_ids.filtered_domain(action_dict["domain"])
             self.assertEqual(

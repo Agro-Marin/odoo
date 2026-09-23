@@ -1,3 +1,4 @@
+import functools
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -175,15 +176,14 @@ class ResCompany(models.Model):
                     company=company,
                     root_template=root_template,
                 )
-
-                def try_loading(company=company, root_template=root_template):
-                    self.env["account.chart.template"]._load(
+                self.env.cr.precommit.add(
+                    functools.partial(
+                        self.env["account.chart.template"]._load,
                         root_template,
                         company,
                         install_demo=False,
                     )
-
-                self.env.cr.precommit.add(try_loading)
+                )
         companies._set_category_defaults()
         return companies
 
@@ -718,13 +718,13 @@ class ResCompany(models.Model):
                     code=company.country_id.code,
                 )
                 if template_code != "generic_coa":
-
-                    @self.env.cr.precommit.add
-                    def try_loading(template_code=template_code, company=company):
-                        env["account.chart.template"].try_loading(
+                    self.env.cr.precommit.add(
+                        functools.partial(
+                            env["account.chart.template"].try_loading,
                             template_code,
                             env["res.company"].browse(company.id),
                         )
+                    )
 
         return res
 

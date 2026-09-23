@@ -4166,12 +4166,15 @@ class AccountTax(models.Model):
             "total_included": total_included,
         }
 
+    def _filtered_of_company(self, company):
+        return self.filtered(lambda tax: company in tax.company_ids)
+
     def _filter_taxes_by_company(self, company_id):
         if not self:
             return self
         taxes, company = self.env["account.tax"], company_id
         while not taxes and company:
-            taxes = self.sudo().filtered(lambda t, c=company: c in t.company_ids)
+            taxes = self.sudo()._filtered_of_company(company)
             company = company.sudo().parent_id
         return taxes.with_env(self.env)
 

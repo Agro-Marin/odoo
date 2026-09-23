@@ -9,3 +9,6 @@ class AccountMoveLine(models.Model):
         inverse_name="outstanding_line_id",
         string="Checks",
     )
+
+    def _filtered_amount_currency(self, amount_currency):
+        return self.filtered(lambda line: line.amount_currency == amount_currency)

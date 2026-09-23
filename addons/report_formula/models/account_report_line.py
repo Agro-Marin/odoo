@@ -614,10 +614,8 @@ class AccountReportLine(models.Model):
 
             # Growth comparison column.
             if options.get("column_percent_comparison") == "growth":
-                compared_expression = self.expression_ids.filtered(
-                    lambda expr, group_line_dict=group_line_dict: (
-                        expr.label == group_line_dict["columns"][0]["expression_label"]
-                    )
+                compared_expression = self.expression_ids.filtered_domain(
+                    [("label", "=", group_line_dict["columns"][0]["expression_label"])]
                 )
 
                 if options["comparison"]["period_order"] == "descending":

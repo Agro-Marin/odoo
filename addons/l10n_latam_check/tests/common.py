@@ -60,10 +60,12 @@ class L10nLatamCheckTest(AccountTestInvoicingCommon):
             "Rejected check journal was not created so we can run the tests",
         )
 
+        channels = cls.bank_journal.outbound_payment_channel_ids
+        channels_by_company = channels.grouped("company_id")
         for company in third_party_checks_journals.grouped("company_id"):
             outstanding_account = cls.outbound_payment_channel.payment_account_id.copy(
                 {"company_ids": [Command.set(company.ids)]}
             )
-            cls.bank_journal.outbound_payment_channel_ids.filtered(
-                lambda m, company=company: m.company_id == company
+            channels_by_company.get(
+                company, channels.browse()
             ).payment_account_id = outstanding_account

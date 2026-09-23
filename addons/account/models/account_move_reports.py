@@ -110,14 +110,15 @@ class AccountMove(models.Model):
         empty_status = self.env["account.audit.account.status"]
 
         for line in self.line_ids:
-            matching_statuses = account_to_statuses.get(
-                line.account_id, empty_status
-            ).filtered(
-                lambda status, line=line: (
-                    audit_id_to_dates[status.audit_id.id]["date_from"]
+            account_statuses = account_to_statuses.get(line.account_id, empty_status)
+            matching_statuses = account_statuses.browse(
+                [
+                    status.id
+                    for status in account_statuses
+                    if audit_id_to_dates[status.audit_id.id]["date_from"]
                     <= line.date
                     <= audit_id_to_dates[status.audit_id.id]["date_to"]
-                )
+                ]
             )
             statuses_to_update |= matching_statuses
 

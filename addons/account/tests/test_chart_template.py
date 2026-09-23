@@ -220,6 +220,13 @@ CSV_DATA = {
 }
 
 
+def _get_external_id_getter(xmlid):
+    def get_external_id(records):
+        return {records.id: xmlid}
+
+    return get_external_id
+
+
 @tagged("post_install", "-at_install")
 @patch.object(
     AccountChartTemplate, "_get_chart_template_mapping", _get_chart_template_mapping
@@ -2065,9 +2072,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             with (
                 self.subTest(xmlid=xmlid),
                 patch.object(
-                    type(probe),
-                    "get_external_id",
-                    lambda records, xmlid=xmlid: {records.id: xmlid},
+                    type(probe), "get_external_id", _get_external_id_getter(xmlid)
                 ),
             ):
                 self.assertEqual(

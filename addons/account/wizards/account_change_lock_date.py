@@ -188,10 +188,9 @@ class AccountChangeLockDate(models.TransientModel):
                     wizard.company_id, SOFT_LOCK_DATE_FIELDS
                 )
             )
+            exceptions_by_field = exceptions.grouped("lock_date_field")
             for field in SOFT_LOCK_DATE_FIELDS:
-                field_exceptions = exceptions.filtered(
-                    lambda e, field=field: e.lock_date_field == field
-                )
+                field_exceptions = exceptions_by_field.get(field, exceptions.browse())
                 field_exceptions_for_me = field_exceptions.filtered(
                     lambda e: e.user_id.id == self.env.user.id
                 )

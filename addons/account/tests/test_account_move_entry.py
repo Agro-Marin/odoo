@@ -1768,7 +1768,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
                     ],
                 }
             )
-            line = move.line_ids.filtered(lambda x, label=label: x.name == label)
+            line = move.line_ids.filtered_domain([("name", "=", label)])
             if discount_date:
                 self.env.cr.execute(
                     "UPDATE account_move_line SET discount_date = %s WHERE id = %s",

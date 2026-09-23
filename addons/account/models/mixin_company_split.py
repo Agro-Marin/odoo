@@ -9,6 +9,16 @@ from odoo.tools import SQL, Query
 _debug = DebugLog(__name__)
 
 
+def _filtered_of_company(records, company):
+    return records.filtered(
+        lambda record: (
+            company in record.company_ids
+            if "company_ids" in record._fields
+            else record.company_id == company
+        )
+    )
+
+
 class MixinCompanySplit(models.AbstractModel):
     _name = "mixin.company.split"
     _description = "Per-company record split"
@@ -199,13 +209,7 @@ class MixinCompanySplit(models.AbstractModel):
                 default={
                     **self._unmerge_copy_defaults(),
                     **{
-                        fname: self[fname].filtered(
-                            lambda record, company=company: (
-                                company in record.company_ids
-                                if "company_ids" in record._fields
-                                else record.company_id == company
-                            ),
-                        )
+                        fname: _filtered_of_company(self[fname], company)
                         for fname in check_company_fields
                     },
                 }

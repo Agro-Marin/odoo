@@ -1,3 +1,4 @@
+import functools
 import json
 from contextlib import closing
 from unittest.mock import patch
@@ -10,6 +11,10 @@ from odoo.tests import Form, tagged, users
 from odoo.tools import SQL
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+
+
+def _get_values_of_move(move_values, debit_move, move):
+    return move_values if move == debit_move else None
 
 
 @tagged("post_install", "-at_install")
@@ -9816,8 +9821,8 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                         move_model,
                         "_collect_tax_cash_basis_values",
                         autospec=True,
-                        side_effect=lambda move, move_values=move_values, debit_move=debit_line.move_id: (
-                            move_values if move == debit_move else None
+                        side_effect=functools.partial(
+                            _get_values_of_move, move_values, debit_line.move_id
                         ),
                     ),
                     self.assertRaisesRegex(ValidationError, error),

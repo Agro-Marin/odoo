@@ -1,7 +1,25 @@
+from functools import partial
+
 from odoo import models
 from odoo.tools import frozendict
 
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
+
+
+def _get_tax_totals_keys(sub_currency, base_line, tax_data):
+    return base_line["_tax_totals_keys"][(tax_data or {}).get("tax"), sub_currency]
+
+
+def _get_tax_total_key(sub_currency, base_line, tax_data):
+    return _get_tax_totals_keys(sub_currency, base_line, tax_data)["tax_total_key"]
+
+
+def _get_tax_subtotal_keys(sub_currency, base_line, tax_data):
+    return {
+        k: v
+        for k, v in _get_tax_totals_keys(sub_currency, base_line, tax_data).items()
+        if k in ("tax_total_key", "tax_subtotal_key")
+    }
 
 
 class AccountEdiUBL(models.AbstractModel):
@@ -497,13 +515,10 @@ class AccountEdiUBL(models.AbstractModel):
         for sub_currency, suffix in ((currency, "_currency"), (company_currency, "")):
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    self._ubl_default_base_line_item_classified_tax_category_grouping_key(
-                        base_line=base_line,
-                        tax_data=tax_data,
-                        vals=vals,
-                        currency=sub_currency,
-                    )
+                grouping_function=partial(
+                    self._ubl_default_base_line_item_classified_tax_category_grouping_key,
+                    vals=vals,
+                    currency=sub_currency,
                 ),
             )
             for base_line, aggregated_values in base_lines_aggregated_values:
@@ -638,8 +653,8 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    tax_totals_grouping_function(base_line, tax_data, sub_currency)
+                grouping_function=partial(
+                    tax_totals_grouping_function, sub_currency=sub_currency
                 ),
             )
             values_per_grouping_key = (
@@ -668,8 +683,8 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    tax_subtotal_grouping_function(base_line, tax_data, sub_currency)
+                grouping_function=partial(
+                    tax_subtotal_grouping_function, sub_currency=sub_currency
                 ),
             )
             values_per_grouping_key = (
@@ -708,8 +723,8 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    tax_category_grouping_function(base_line, tax_data, sub_currency)
+                grouping_function=partial(
+                    tax_category_grouping_function, sub_currency=sub_currency
                 ),
             )
             values_per_grouping_key = (
@@ -772,13 +787,10 @@ class AccountEdiUBL(models.AbstractModel):
         for sub_currency, suffix in ((currency, "_currency"), (company_currency, "")):
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    self._ubl_default_payable_amount_tax_withholding_grouping_key(
-                        base_line=base_line,
-                        tax_data=tax_data,
-                        vals=vals,
-                        currency=sub_currency,
-                    )
+                grouping_function=partial(
+                    self._ubl_default_payable_amount_tax_withholding_grouping_key,
+                    vals=vals,
+                    currency=sub_currency,
                 ),
             )
             values_per_grouping_key = (
@@ -863,13 +875,10 @@ class AccountEdiUBL(models.AbstractModel):
         for sub_currency, suffix in ((currency, "_currency"), (company_currency, "")):
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    self._ubl_default_allowance_charge_early_payment_grouping_key(
-                        base_line=base_line,
-                        tax_data=tax_data,
-                        vals=vals,
-                        currency=sub_currency,
-                    )
+                grouping_function=partial(
+                    self._ubl_default_allowance_charge_early_payment_grouping_key,
+                    vals=vals,
+                    currency=sub_currency,
                 ),
             )
             values_per_grouping_key = (
@@ -1549,11 +1558,7 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=new_base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    base_line["_tax_totals_keys"][
-                        (tax_data or {}).get("tax"), sub_currency
-                    ]["tax_total_key"]
-                ),
+                grouping_function=partial(_get_tax_total_key, sub_currency),
             )
             values_per_grouping_key = (
                 AccountTax._aggregate_base_lines_aggregated_values(
@@ -1581,13 +1586,7 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=new_base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: {
-                    k: v
-                    for k, v in base_line["_tax_totals_keys"][
-                        (tax_data or {}).get("tax"), sub_currency
-                    ].items()
-                    if k in ("tax_total_key", "tax_subtotal_key")
-                },
+                grouping_function=partial(_get_tax_subtotal_keys, sub_currency),
             )
             values_per_grouping_key = (
                 AccountTax._aggregate_base_lines_aggregated_values(
@@ -1623,11 +1622,7 @@ class AccountEdiUBL(models.AbstractModel):
 
             base_lines_aggregated_values = AccountTax._aggregate_base_lines_tax_details(
                 base_lines=new_base_lines,
-                grouping_function=lambda base_line, tax_data, sub_currency=sub_currency: (
-                    base_line["_tax_totals_keys"][
-                        (tax_data or {}).get("tax"), sub_currency
-                    ]
-                ),
+                grouping_function=partial(_get_tax_totals_keys, sub_currency),
             )
             values_per_grouping_key = (
                 AccountTax._aggregate_base_lines_aggregated_values(

@@ -247,10 +247,8 @@ class AccountReportLines(models.Model):
 
                 if model == "report.formula.line" and line_id:
                     report_line = self.env["report.formula.line"].browse(line_id)
-                    compared_expression = report_line.expression_ids.filtered(
-                        lambda expr, line=line: (
-                            expr.label == line["columns"][0]["expression_label"]
-                        )
+                    compared_expression = report_line.expression_ids.filtered_domain(
+                        [("label", "=", line["columns"][0]["expression_label"])]
                     )
                     green_on_positive = compared_expression.green_on_positive
 

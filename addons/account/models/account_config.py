@@ -766,8 +766,8 @@ class AccountConfig(models.Model):
         )
         for config in self:
             company = config.company_id
-            config.account_tax_unit_ids = units.filtered(
-                lambda unit, company=company: company in unit.company_ids
+            config.account_tax_unit_ids = units.filtered_domain(
+                [("company_ids", "in", company.ids)]
             )
 
     def _apply_invoicing_switch(self, vals, old_threshold_vals):

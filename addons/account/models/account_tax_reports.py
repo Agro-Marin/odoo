@@ -90,10 +90,8 @@ class AccountTaxUnit(models.Model):
         generic_ec_sales_report.horizontal_group_ids |= horizontal_groups
 
         for tax_unit in res:
-            generic_tax_report.variant_report_ids.filtered(
-                lambda variant, tax_unit=tax_unit: (
-                    variant.country_id == tax_unit.country_id
-                )
+            generic_tax_report.variant_report_ids.filtered_domain(
+                [("country_id", "=", tax_unit.country_id.id)]
             ).write(
                 {
                     "horizontal_group_ids": [
@@ -137,9 +135,14 @@ class AccountTaxUnit(models.Model):
             for company in unit.company_ids:
                 origin_company = company._origin
                 fp = unit._get_tax_unit_fiscal_positions(companies=origin_company)
+                company_partners = all_companies.with_company(origin_company).partner_id
                 all_partners_with_fp = (
-                    all_companies.with_company(origin_company).partner_id.filtered(
-                        lambda p, fp=fp: p.property_account_position_id == fp
+                    company_partners.browse(
+                        [
+                            partner.id
+                            for partner in company_partners
+                            if partner.property_account_position_id == fp
+                        ]
                     )
                     if fp
                     else self.env["res.partner"]

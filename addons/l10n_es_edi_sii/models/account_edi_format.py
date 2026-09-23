@@ -685,6 +685,11 @@ class AccountEdiFormat(models.Model):
             return {inv: {"success": True} for inv in invoices}
 
         results = {}
+        # Note: Invoices are batched per move_type.
+        is_sale = invoices[0].is_sale_document()
+        invoices_by_number = invoices.grouped(
+            (lambda x: x.name[:60]) if is_sale else (lambda x: x.ref[:60])
+        )
         for respl in res.RespuestaLinea:
             invoice_number = respl.IDFactura.NumSerieFacturaEmisor
 
@@ -692,20 +697,11 @@ class AccountEdiFormat(models.Model):
             # Note: ref can be the same for different partners but there is no enough information on the response
             # to match the partner.
 
-            # Note: Invoices are batched per move_type.
-            if invoices[0].is_sale_document():
-                inv = invoices.filtered(
-                    lambda x, invoice_number=invoice_number: (
-                        x.name[:60] == invoice_number
-                    )
-                )
+            if is_sale:
+                inv = invoices_by_number.get(invoice_number, invoices.browse())
             else:
                 # 'ref' can be the same for different partners.
-                candidates = invoices.filtered(
-                    lambda x, invoice_number=invoice_number: (
-                        x.ref[:60] == invoice_number
-                    )
-                )
+                candidates = invoices_by_number.get(invoice_number, invoices.browse())
                 if len(candidates) > 1:
                     respl_partner_info = respl.IDFactura.IDEmisorFactura
                     inv = None

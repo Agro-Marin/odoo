@@ -99,13 +99,15 @@ class AccountMove(models.Model):
             if not tax or not move.l10n_it_edi_doi_id:
                 move.l10n_it_edi_doi_amount = 0
                 continue
-            declaration_lines = move.invoice_line_ids.filtered(
-                # The declaration tax cannot be used with other taxes on a single line
-                # (checked in `_post`)
-                lambda line, tax=tax: line.tax_ids.ids == tax.ids
-            )
             move.l10n_it_edi_doi_amount = (
-                sum(declaration_lines.mapped("price_total")) * -move.direction_sign
+                sum(
+                    line.price_total
+                    for line in move.invoice_line_ids
+                    # The declaration tax cannot be used with other taxes on a single line
+                    # (checked in `_post`)
+                    if line.tax_ids.ids == tax.ids
+                )
+                * -move.direction_sign
             )
 
     @api.depends("l10n_it_edi_doi_id", "l10n_it_edi_doi_amount", "state")
@@ -232,10 +234,8 @@ class AccountMove(models.Model):
             if not declaration_of_intent_tax:
                 continue
 
-            declaration_lines = move.invoice_line_ids.filtered(
-                lambda line, declaration_of_intent_tax=declaration_of_intent_tax: (
-                    declaration_of_intent_tax in line.tax_ids
-                )
+            declaration_lines = move.invoice_line_ids.filtered_domain(
+                [("tax_ids", "in", declaration_of_intent_tax.ids)]
             )
             if declaration_lines and not declaration:
                 errors.append(

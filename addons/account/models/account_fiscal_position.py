@@ -283,10 +283,8 @@ class AccountFiscalPosition(models.Model):
             if (
                 not fiscal_position.foreign_vat
                 or not fiscal_position.country_id
-                or country_taxes.filtered(
-                    lambda tax, fiscal_position=fiscal_position: (
-                        tax.country_id == fiscal_position.country_id
-                    )
+                or country_taxes.filtered_domain(
+                    [("country_id", "=", fiscal_position.country_id.id)]
                 ).filtered_domain(
                     AccountTax._check_company_domain(fiscal_position.company_id)
                 )

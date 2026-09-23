@@ -422,12 +422,10 @@ class AccountMove(models.Model):
                 "tax_name": line.tax_line_id.name,
                 "tax_base": abs(
                     sum(
-                        self.invoice_line_ids.filtered(
-                            lambda x, line=line: (
-                                line.tax_line_id.l10n_cl_sii_code
-                                in x.tax_ids.mapped("l10n_cl_sii_code")
-                            )
-                        ).mapped("balance")
+                        invoice_line.balance
+                        for invoice_line in self.invoice_line_ids
+                        if line.tax_line_id.l10n_cl_sii_code
+                        in invoice_line.tax_ids.mapped("l10n_cl_sii_code")
                     )
                 ),
                 "tax_percent": abs(line.tax_line_id.amount),

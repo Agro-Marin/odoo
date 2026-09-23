@@ -289,8 +289,8 @@ class AccountMove(models.Model):
                             )
                         )
 
-                    existing_edi_document = move.edi_document_ids.filtered(
-                        lambda x, edi_format=edi_format: x.edi_format_id == edi_format
+                    existing_edi_document = move.edi_document_ids.filtered_domain(
+                        [("edi_format_id", "=", edi_format.id)]
                     )
                     if existing_edi_document:
                         existing_edi_document.sudo().write(

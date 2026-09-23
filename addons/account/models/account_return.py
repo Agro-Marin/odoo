@@ -2109,8 +2109,8 @@ class AccountReturn(models.Model):
 
             if record._is_check_run_required():
                 check_codes_to_ignore = set(
-                    record.check_ids.filtered(
-                        lambda x, record=record: x.state != record.state
+                    record.check_ids.filtered_domain(
+                        [("state", "!=", record.state)]
                     ).mapped("code")
                 )
                 rslt = record._run_checks(check_codes_to_ignore)
@@ -2141,10 +2141,8 @@ class AccountReturn(models.Model):
                     obsolete_check_codes_count=len(obsolete_check_codes),
                 )
                 if obsolete_check_codes:
-                    to_unlink |= record.check_ids.filtered(
-                        lambda c, obsolete_check_codes=obsolete_check_codes: (
-                            c.code in obsolete_check_codes
-                        )
+                    to_unlink |= record.check_ids.filtered_domain(
+                        [("code", "in", list(obsolete_check_codes))]
                     )
         if to_create:
             self.env["account.return.check"].with_user(SUPERUSER_ID).create(to_create)
@@ -2223,8 +2221,8 @@ class AccountReturn(models.Model):
                     existing_check_by_template_id[template].attachment_ids.unlink()
 
             if template.activity_type:
-                current_template_activities = self.activity_ids.filtered(
-                    lambda act, template=template: act.summary == template.name
+                current_template_activities = self.activity_ids.filtered_domain(
+                    [("summary", "=", template.name)]
                 )
                 activities_to_unlink = current_template_activities.filtered(
                     lambda act: act.state != "done"

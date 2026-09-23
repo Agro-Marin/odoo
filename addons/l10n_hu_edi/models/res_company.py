@@ -1,4 +1,3 @@
-import base64
 from datetime import timedelta
 from itertools import islice
 
@@ -227,53 +226,13 @@ class ResCompany(models.Model):
                         "data:annulmentReference", namespaces=XML_NAMESPACES
                     )
 
-                    matched_invoice = invoices_to_check.filtered(
-                        lambda m, invoice_name=invoice_name, canonicalized_attachment=canonicalized_attachment, annulment_invoice_name=annulment_invoice_name, transaction=transaction, processing_result=processing_result: (
-                            (
-                                # 1. Match invoice if the entire XML matches.
-                                # For performance, we first check the invoice name before trying to match the whole XML.
-                                (
-                                    m.name == invoice_name
-                                    and etree.canonicalize(
-                                        base64.b64decode(
-                                            m.l10n_hu_edi_attachment
-                                        ).decode()
-                                    )
-                                    == canonicalized_attachment
-                                )
-                                or m.name == annulment_invoice_name
-                            )
-                            and (
-                                # 2. We update the invoice state only if:
-                                # - the invoice doesn't have a transaction code, or
-                                # - it currently has a duplicate error, or
-                                # - the current transaction is more recent than the latest transaction on the invoice
-                                #   and is not a duplicate error (this avoid overwriting the state with a previous, obsolete one).
-                                not m.l10n_hu_edi_transaction_code
-                                or any(
-                                    "INVOICE_NUMBER_NOT_UNIQUE" in error
-                                    or "ANNULMENT_IN_PROGRESS" in error
-                                    for error in m.l10n_hu_edi_messages["errors"]
-                                )
-                                or (
-                                    transaction["send_time"] >= m.l10n_hu_edi_send_time
-                                    and not (
-                                        processing_result[
-                                            "technical_validation_messages"
-                                        ]
-                                        or any(
-                                            message["validation_error_code"]
-                                            in [
-                                                "INVOICE_NUMBER_NOT_UNIQUE",
-                                                "ANNULMENT_IN_PROGRESS",
-                                            ]
-                                            for message in processing_result[
-                                                "business_validation_messages"
-                                            ]
-                                        )
-                                    )
-                                )
-                            )
+                    matched_invoice = (
+                        invoices_to_check._filtered_l10n_hu_edi_transaction_match(
+                            invoice_name,
+                            canonicalized_attachment,
+                            annulment_invoice_name,
+                            transaction,
+                            processing_result,
                         )
                     )
 
@@ -295,11 +254,11 @@ class ResCompany(models.Model):
                 )
 
             # Any invoices still in a 'timeout' state that are more than 6 minutes old and could not be matched should be considered not received.
-            invoices_to_check.filtered(
-                lambda m, recovery_close_time=recovery_close_time: (
-                    m.l10n_hu_edi_state == "send_timeout"
-                    and m.l10n_hu_edi_send_time < recovery_close_time
-                )
+            invoices_to_check.filtered_domain(
+                [
+                    ("l10n_hu_edi_state", "=", "send_timeout"),
+                    ("l10n_hu_edi_send_time", "<", recovery_close_time),
+                ]
             ).write(
                 {
                     "l10n_hu_invoice_chain_index": 0,
@@ -307,11 +266,11 @@ class ResCompany(models.Model):
                 }
             )
 
-            invoices_to_check.filtered(
-                lambda m, recovery_close_time=recovery_close_time: (
-                    m.l10n_hu_edi_state == "cancel_timeout"
-                    and m.l10n_hu_edi_send_time < recovery_close_time
-                )
+            invoices_to_check.filtered_domain(
+                [
+                    ("l10n_hu_edi_state", "=", "cancel_timeout"),
+                    ("l10n_hu_edi_send_time", "<", recovery_close_time),
+                ]
             ).write(
                 {
                     "l10n_hu_edi_state": "confirmed_warning",

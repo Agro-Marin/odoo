@@ -154,12 +154,11 @@ class AccountPaymentRegister(models.TransientModel):
                 }
             )
 
+        withholdings_by_base = self.l10n_ar_withholding_ids.grouped("base_amount")
         for base_amount in list(
             set(self.l10n_ar_withholding_ids.mapped("base_amount"))
         ):
-            withholding_lines = self.l10n_ar_withholding_ids.filtered(
-                lambda x, base_amount=base_amount: x.base_amount == base_amount
-            )
+            withholding_lines = withholdings_by_base[base_amount]
             nice_base_label = ",".join(withholding_lines.mapped("name"))
             account_id = self.company_id.l10n_ar_withholding_config_id.l10n_ar_tax_base_account_id.id
             base_amount = sign * base_amount

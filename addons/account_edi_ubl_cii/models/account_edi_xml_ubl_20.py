@@ -1549,15 +1549,15 @@ class AccountEdiXmlUBL20(models.AbstractModel):
                 tax_percent = float(percentage.text)
                 # Compare the result with our tax total on the invoice, and apply correction if needed.
                 # First look for taxes matching the percentage in the xml.
-                taxes = invoice.line_ids.tax_line_id.filtered(
-                    lambda tax, tax_percent=tax_percent: tax.amount == tax_percent
+                taxes = invoice.line_ids.tax_line_id.filtered_domain(
+                    [("amount", "=", tax_percent)]
                 )
                 # If we found taxes with the correct amount, look for a tax line using it, and correct it as needed.
                 if taxes:
                     tax_total = document_amount_sign * float(amount.text)
                     # Sometimes we have multiple lines for the same tax.
-                    tax_lines = invoice.line_ids.filtered(
-                        lambda line, taxes=taxes: line.tax_line_id in taxes
+                    tax_lines = invoice.line_ids.filtered_domain(
+                        [("tax_repartition_line_id.tax_id", "in", taxes.ids)]
                     )
                     if tax_lines:
                         sign = -1 if invoice.is_inbound(include_receipts=True) else 1

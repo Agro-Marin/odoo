@@ -27,20 +27,22 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         for base_line in vals["base_lines"]:
             product = base_line["product_id"]
             partner = base_line["partner_id"]
-            supplier_info = product.variant_seller_ids.filtered(
-                lambda s, partner=partner, product=product: (
-                    s.partner_id == partner
-                    and (
-                        s.product_id == product
-                        or (
-                            not s.product_id
-                            and s.product_tmpl_id == product.product_tmpl_id
-                        )
+            base_line["supplier_info"] = self._get_supplier_info(product, partner)
+
+    def _get_supplier_info(self, product, partner):
+        return product.variant_seller_ids.filtered(
+            lambda s: (
+                s.partner_id == partner
+                and (
+                    s.product_id == product
+                    or (
+                        not s.product_id
+                        and s.product_tmpl_id == product.product_tmpl_id
                     )
-                    and (s.product_code or s.product_name)
-                ),
-            )[:1]
-            base_line["supplier_info"] = supplier_info
+                )
+                and (s.product_code or s.product_name)
+            ),
+        )[:1]
 
     def _get_purchase_order_node(self, vals):
         self._add_purchase_order_config_vals(vals)

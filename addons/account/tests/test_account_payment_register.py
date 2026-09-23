@@ -2756,8 +2756,8 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
                 .with_company(branch)
                 .copy({"company_ids": branch.ids})
             )
-            branch_invoice = branch_invoices.filtered(
-                lambda inv, branch=branch: inv.company_id == branch
+            branch_invoice = branch_invoices.filtered_domain(
+                [("company_id", "=", branch.id)]
             )
             branch_invoice.line_ids.filtered(
                 lambda l: l.display_type == "payment_term"

@@ -108,10 +108,8 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
             for name in marker_by_lang.values():
                 with self.subTest(acting_lang=lang, line_named=name):
                     move = self._unbalanced_entry(env, name)
-                    entered = move.line_ids.filtered(
-                        lambda line, name=name: (
-                            line.display_type != "balancing" and line.name == name
-                        )
+                    entered = move.line_ids.filtered_domain(
+                        [("display_type", "!=", "balancing"), ("name", "=", name)]
                     )
                     self.assertEqual(
                         entered.balance,
@@ -606,16 +604,16 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
         for display_type, build in cases:
             with self.subTest(display_type=display_type):
                 move = build()
-                line = move.line_ids.filtered(
-                    lambda line, dt=display_type: line.display_type == dt
+                line = move.line_ids.filtered_domain(
+                    [("display_type", "=", display_type)]
                 )
                 self.assertTrue(line, "fixture must produce a %s line" % display_type)
                 line.copy({"move_id": move.id})
                 self.env.flush_all()
                 self.assertEqual(
                     len(
-                        move.line_ids.filtered(
-                            lambda line, dt=display_type: line.display_type == dt
+                        move.line_ids.filtered_domain(
+                            [("display_type", "=", display_type)]
                         )
                     ),
                     1,
@@ -699,9 +697,7 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
         bill.journal_id = second
 
         for display_type in ("non_deductible_product_total", "non_deductible_tax"):
-            line = bill.line_ids.filtered(
-                lambda line, dt=display_type: line.display_type == dt
-            )
+            line = bill.line_ids.filtered_domain([("display_type", "=", display_type)])
             self.assertEqual(
                 line.account_id,
                 account_b,

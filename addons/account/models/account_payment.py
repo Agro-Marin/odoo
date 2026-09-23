@@ -802,8 +802,8 @@ class AccountPayment(models.Model):
                 pay.available_bank_account_ids = pay.journal_id.bank_account_id
             else:
                 pay.available_bank_account_ids = (
-                    pay.partner_id.bank_account_ids.filtered(
-                        lambda x, pay=pay: x.company_id.id in (False, pay.company_id.id)
+                    pay.partner_id.bank_account_ids.filtered_domain(
+                        [("company_id", "in", [False, pay.company_id.id])]
                     )._origin
                 )
 
@@ -843,8 +843,12 @@ class AccountPayment(models.Model):
         for pay in self:
             channels = pay.journal_id._get_available_payment_channels(pay.payment_type)
             if to_exclude := pay._get_payment_method_codes_to_exclude():
-                channels = channels.filtered(
-                    lambda x, to_exclude=to_exclude: x.code not in to_exclude
+                channels = channels.browse(
+                    [
+                        channel.id
+                        for channel in channels
+                        if channel.code not in to_exclude
+                    ]
                 )
             pay.available_payment_channel_ids = channels
 

@@ -102,12 +102,16 @@ class AccountSecureEntriesWizard(models.TransientModel):
 
             last_move_hashed = chain_info["last_move_hashed"]
             if last_move_hashed:
-                not_hashable_unlocked_moves = chain_info["remaining_moves"].filtered(
-                    lambda move, last_move_hashed=last_move_hashed: (
-                        not move.inalterable_hash
+                remaining_moves = chain_info["remaining_moves"]
+                hard_lock_date = company_id.account_config_id.user_hard_lock_date
+                not_hashable_unlocked_moves = remaining_moves.browse(
+                    [
+                        move.id
+                        for move in remaining_moves
+                        if not move.inalterable_hash
                         and move.sequence_number < last_move_hashed.sequence_number
-                        and move.date > company_id.account_config_id.user_hard_lock_date
-                    )
+                        and move.date > hard_lock_date
+                    ]
                 )
             else:
                 not_hashable_unlocked_moves = self.env["account.move"]

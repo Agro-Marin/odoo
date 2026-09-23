@@ -439,8 +439,8 @@ class AccountPartialReconcile(models.Model):
             lines = tax_lines.filtered(lambda x: not x.reconciled)
             if not lines:
                 continue
-            counterpart_line = moves[move_index].line_ids.filtered(
-                lambda line, sequence=sequence: line.sequence == sequence
+            counterpart_line = moves[move_index].line_ids.filtered_domain(
+                [("sequence", "=", sequence)]
             )
             if counterpart_line.reconciled:
                 continue

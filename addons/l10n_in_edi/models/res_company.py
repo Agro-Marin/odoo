@@ -104,6 +104,11 @@ class ResCompany(models.Model):
             )
         return response
 
+    def _filtered_l10n_in_missing_any(self, field_names):
+        return self.filtered(
+            lambda record: any(not record[field] for field in field_names)
+        )
+
     def _l10n_in_check_einvoice_validation(self):
         checks = {
             "company_address_missing": {
@@ -132,11 +137,5 @@ class ResCompany(models.Model):
                 ),
             }
             for key, check in checks.items()
-            if (
-                invalid_records := self.filtered(
-                    lambda record, check=check: any(
-                        not record[field] for field in check["fields"]
-                    )
-                )
-            )
+            if (invalid_records := self._filtered_l10n_in_missing_any(check["fields"]))
         }

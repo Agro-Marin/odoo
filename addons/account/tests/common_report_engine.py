@@ -189,12 +189,11 @@ class TestAccountReportsCommon(AccountTestInvoicingCommon):
         if not reports:
             raise UserError(self.env._("There are no reports to compare."))
         visited_line_codes = set()
+        lines_by_code = reports.line_ids.grouped("code")
         for line in reports.line_ids:
             if not line.code or line.code in visited_line_codes:
                 continue
-            identical_lines = reports.line_ids.filtered(
-                lambda l, line=line: l != line and l.code == line.code
-            )
+            identical_lines = lines_by_code[line.code] - line
             if not identical_lines:
                 continue
             with self.subTest(line_code=line.code):

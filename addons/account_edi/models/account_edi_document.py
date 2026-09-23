@@ -100,8 +100,8 @@ class AccountEdiDocument(models.Model):
         # Classify jobs by (edi_format, edi_doc.state, doc_type, move.company_id, custom_key)
         to_process = {}
         for state, edi_flow in (("to_send", "post"), ("to_cancel", "cancel")):
-            documents = self.filtered(
-                lambda d, state=state: d.state == state and d.blocking_level != "error"
+            documents = self.filtered_domain(
+                [("state", "=", state), ("blocking_level", "!=", "error")]
             )
             for edi_doc in documents:
                 edi_format = edi_doc.edi_format_id

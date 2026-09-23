@@ -264,9 +264,7 @@ class AccountResequenceWizard(models.TransientModel):
             sequence_number_reset = record.move_ids[0]._deduce_sequence_number_reset(
                 record.first_name
             )
-            moves_by_period = defaultdict(
-                lambda record=record: record.env["account.move"]
-            )
+            moves_by_period = defaultdict(record.env["account.move"].browse)
             for move in record.move_ids._origin:
                 key = self._get_resequence_period_key(move, sequence_number_reset)
                 moves_by_period[key] += move

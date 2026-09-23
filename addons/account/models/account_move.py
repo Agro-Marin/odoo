@@ -3594,13 +3594,14 @@ class AccountMove(models.Model):
                 if not move.is_invoice(include_receipts=True):
                     continue
                 invoice_totals = move.tax_totals
+                lines_by_tax_group_id = move.line_ids.grouped(
+                    lambda line: line.tax_group_id.id
+                )
 
                 for subtotal in invoice_totals["subtotals"]:
                     for tax_group in subtotal["tax_groups"]:
-                        tax_lines = move.line_ids.filtered(
-                            lambda line, tax_group=tax_group: (
-                                line.tax_group_id.id == tax_group["id"]
-                            )
+                        tax_lines = lines_by_tax_group_id.get(
+                            tax_group["id"], move.line_ids.browse()
                         )
 
                         if tax_lines:
@@ -6073,10 +6074,13 @@ class AccountMove(models.Model):
                 )
 
             move_company_and_parents = move.company_id.sudo().parent_ids
-            mismatched_accounts = move.line_ids.mapped("account_id").filtered(
-                lambda account, move_company_and_parents=move_company_and_parents: (
-                    not move_company_and_parents & account.sudo().company_ids
-                )
+            move_accounts = move.line_ids.account_id
+            mismatched_accounts = move_accounts.browse(
+                [
+                    account.id
+                    for account in move_accounts
+                    if not move_company_and_parents & account.sudo().company_ids
+                ]
             )
             if mismatched_accounts:
                 _debug.logic(
@@ -6167,10 +6171,8 @@ class AccountMove(models.Model):
                             else counterpart_move
                         )
                         caba_moves = (
-                            caba_source.tax_cash_basis_created_move_ids.filtered(
-                                lambda m, partial=partial: (
-                                    m.tax_cash_basis_rec_id == partial
-                                )
+                            caba_source.tax_cash_basis_created_move_ids.filtered_domain(
+                                [("tax_cash_basis_rec_id", "=", partial.id)]
                             )
                         )
                         side_move_ids.update(caba_moves.ids)
@@ -6281,11 +6283,11 @@ class AccountMove(models.Model):
         _debug.lifecycle("_post_update_line_partners", records=self)
         wrong_line_ids_per_partner = defaultdict(list)
         for invoice in self.filtered(lambda move: move.is_invoice()):
-            wrong_lines = invoice.line_ids.filtered(
-                lambda aml, invoice=invoice: (
-                    aml.partner_id != invoice.commercial_partner_id
-                    and aml.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
-                )
+            wrong_lines = invoice.line_ids.filtered_domain(
+                [
+                    ("partner_id", "!=", invoice.commercial_partner_id.id),
+                    ("display_type", "not in", list(NON_ACCOUNTABLE_DISPLAY_TYPES)),
+                ]
             )
             if wrong_lines:
                 wrong_line_ids_per_partner[invoice.commercial_partner_id.id].extend(
@@ -8069,13 +8071,15 @@ class AccountMove(models.Model):
                 continue
 
             credit_note_sale_lines = credit_note.invoice_line_ids.sale_line_ids
-            original_invoice = self.filtered(
-                lambda inv, sale_lines=credit_note_sale_lines: (
-                    inv.move_type == "out_invoice"
-                    and sale_lines
-                    and set(sale_lines.ids)
+            original_invoice = self.browse(
+                [
+                    inv.id
+                    for inv in self
+                    if inv.move_type == "out_invoice"
+                    and credit_note_sale_lines
+                    and set(credit_note_sale_lines.ids)
                     <= set(inv.invoice_line_ids.sale_line_ids.ids)
-                )
+                ]
             )
             if (
                 len(original_invoice) == 1

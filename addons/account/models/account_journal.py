@@ -761,10 +761,8 @@ class AccountJournal(models.Model):
                     journal, f"_default_{payment_type}_payment_methods"
                 )()
                 for pay_method in default_methods:
-                    payment_account = existing_method_lines.filtered(
-                        lambda m, pay_method=pay_method: (
-                            m.payment_method_id == pay_method
-                        )
+                    payment_account = existing_method_lines.filtered_domain(
+                        [("payment_method_id", "=", pay_method.id)]
                     )[:1].payment_account_id
                     commands.append(
                         Command.create(

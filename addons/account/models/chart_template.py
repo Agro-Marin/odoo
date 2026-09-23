@@ -554,19 +554,22 @@ class AccountChartTemplate(models.AbstractModel):
                     self._get_field_translation(journal_data, "code", lang)
                     or journal_data["code"]
                 )
-                journal = existing_journals.filtered(
-                    lambda j, code=code: j.code == code
+                journal = existing_journals.browse(
+                    [j.id for j in existing_journals if j.code == code]
                 )
             if not journal and "name" in journal_data and "type" in journal_data:
                 translated_name = self._get_field_translation(
                     journal_data, "name", lang
                 )
-                journal = existing_journals.filtered(
-                    lambda j, journal_data=journal_data, translated_name=translated_name: (
-                        j.type == journal_data["type"]
+                journal = next(
+                    (
+                        j
+                        for j in existing_journals
+                        if j.type == journal_data["type"]
                         and j.name in (journal_data["name"], translated_name)
-                    )
-                )[:1]
+                    ),
+                    existing_journals.browse(),
+                )
             _debug.logic(
                 "journal_matched_existing",
                 company=company,

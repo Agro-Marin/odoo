@@ -226,10 +226,8 @@ class SaleOrder(models.Model):
             )
             if not declaration_of_intent_tax:
                 continue
-            declaration_tax_lines = order.line_ids.filtered(
-                lambda line, declaration_of_intent_tax=declaration_of_intent_tax: (
-                    declaration_of_intent_tax in line.tax_ids
-                )
+            declaration_tax_lines = order.line_ids.filtered_domain(
+                [("tax_ids", "in", declaration_of_intent_tax.ids)]
             )
             if declaration_tax_lines and not order.l10n_it_edi_doi_id:
                 errors.append(

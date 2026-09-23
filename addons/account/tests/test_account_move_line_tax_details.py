@@ -63,10 +63,9 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
     def assertTotalAmounts(self, moves, tax_details):
         tax_lines = moves.line_ids.filtered("tax_line_id")
         taxes = tax_lines.mapped(lambda x: x.group_tax_id or x.tax_line_id)
+        lines_by_tax = tax_lines.grouped(lambda x: x.group_tax_id or x.tax_line_id)
         for tax in taxes:
-            lines = tax_lines.filtered(
-                lambda x, tax=tax: (x.group_tax_id or x.tax_line_id) == tax
-            )
+            lines = lines_by_tax[tax]
             tax_amount = sum(lines.mapped("balance"))
             tax_details_amount = sum(
                 x["tax_amount"]

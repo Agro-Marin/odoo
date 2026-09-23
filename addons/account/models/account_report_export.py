@@ -397,69 +397,73 @@ class AccountReportExport(models.Model):
             expressions=expressions,
             linked_tags=len(tag_ids_linked_to_account),
         )
+
+        # Rewrite the aml domain into an account one by mapping every
+        # leaf in place and letting Domain recombine, so the nesting and
+        # the arity stay correct by construction and a dropped term is a
+        # TRUE substitution rather than list surgery. The hand-rolled
+        # version popped the operator only when the skipped term followed
+        # it directly, so `['&', ('account_id.code', ...), ('date', ...)]`
+        # came out as a dangling operator with one operand, and a domain
+        # opening on a non-account term popped from an empty list.
+        def get_condition_rewriter(expr):
+            def rewrite_condition(condition):
+                field_expr = condition.field_expr
+                if not field_expr.startswith("account_id."):
+                    return Domain.TRUE
+                operand = [
+                    field_expr.replace("account_id.", "", 1),
+                    condition.operator,
+                    condition.value,
+                ]
+                # Check that the code exists in the CoA
+                if operand[0] == "code" and not AccountAccount.search_count(
+                    [operand], limit=1
+                ):
+                    _debug.logic(
+                        "coverage_code_missing", expression=expr, code=operand[2]
+                    )
+                    non_existing_codes[operand[2]] |= expr.report_line_id
+                elif operand[0] == "tag_ids":
+                    tag_ids = operand[2]
+                    if not isinstance(tag_ids, (list, tuple, set)):
+                        tag_ids = [tag_ids]
+
+                    if operand[1] in ("=", "in"):
+                        tag_ids_to_browse = [
+                            tag_id
+                            for tag_id in tag_ids
+                            if tag_id not in tag_ids_linked_to_account
+                        ]
+                        for tag in self.env["account.account.tag"].browse(
+                            tag_ids_to_browse
+                        ):
+                            lines_per_non_linked_tag[f"{tag.name} ({tag.id})"] |= (
+                                expr.report_line_id
+                            )
+                    else:
+                        _debug.logic(
+                            "coverage_tag_bad_operator",
+                            expression=expr,
+                            operator=operand[1],
+                            tags=len(tag_ids),
+                        )
+                        for tag in self.env["account.account.tag"].browse(tag_ids):
+                            lines_using_bad_operator_per_tag[
+                                f"{tag.name} ({tag.id}) - Operator: {operand[1]}"
+                            ] |= expr.report_line_id
+
+                return Domain(*operand)
+
+            return rewrite_condition
+
         for i, expr in enumerate(expressions):
             reported_accounts = AccountAccount
             if expr.engine == "domain":
                 domain = literal_eval(expr.formula.strip())
 
-                # Rewrite the aml domain into an account one by mapping every
-                # leaf in place and letting Domain recombine, so the nesting and
-                # the arity stay correct by construction and a dropped term is a
-                # TRUE substitution rather than list surgery. The hand-rolled
-                # version popped the operator only when the skipped term followed
-                # it directly, so `['&', ('account_id.code', ...), ('date', ...)]`
-                # came out as a dangling operator with one operand, and a domain
-                # opening on a non-account term popped from an empty list.
-                def rewrite_condition(condition, expr=expr):
-                    field_expr = condition.field_expr
-                    if not field_expr.startswith("account_id."):
-                        return Domain.TRUE
-                    operand = [
-                        field_expr.replace("account_id.", "", 1),
-                        condition.operator,
-                        condition.value,
-                    ]
-                    # Check that the code exists in the CoA
-                    if operand[0] == "code" and not AccountAccount.search_count(
-                        [operand], limit=1
-                    ):
-                        _debug.logic(
-                            "coverage_code_missing", expression=expr, code=operand[2]
-                        )
-                        non_existing_codes[operand[2]] |= expr.report_line_id
-                    elif operand[0] == "tag_ids":
-                        tag_ids = operand[2]
-                        if not isinstance(tag_ids, (list, tuple, set)):
-                            tag_ids = [tag_ids]
-
-                        if operand[1] in ("=", "in"):
-                            tag_ids_to_browse = [
-                                tag_id
-                                for tag_id in tag_ids
-                                if tag_id not in tag_ids_linked_to_account
-                            ]
-                            for tag in self.env["account.account.tag"].browse(
-                                tag_ids_to_browse
-                            ):
-                                lines_per_non_linked_tag[f"{tag.name} ({tag.id})"] |= (
-                                    expr.report_line_id
-                                )
-                        else:
-                            _debug.logic(
-                                "coverage_tag_bad_operator",
-                                expression=expr,
-                                operator=operand[1],
-                                tags=len(tag_ids),
-                            )
-                            for tag in self.env["account.account.tag"].browse(tag_ids):
-                                lines_using_bad_operator_per_tag[
-                                    f"{tag.name} ({tag.id}) - Operator: {operand[1]}"
-                                ] |= expr.report_line_id
-
-                    return Domain(*operand)
-
                 reported_accounts += AccountAccount.search(  # noqa: E8507 - a coverage audit: one query per expression, each with its own domain
-                    Domain(domain).map_conditions(rewrite_condition)
+                    Domain(domain).map_conditions(get_condition_rewriter(expr))
                 )
             elif expr.engine == "account_codes":
                 account_codes = []

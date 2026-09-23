@@ -176,6 +176,11 @@ class ResPartner(models.Model):
                     )
                 )
 
+    def _filtered_l10n_it_missing_all(self, field_names):
+        return self.filtered(
+            lambda record: not any(record[field] for field in field_names)
+        )
+
     def _l10n_it_edi_export_check(self, checks=None):
         checks = checks or [
             "partner_vat_codice_fiscale_missing",
@@ -214,11 +219,7 @@ class ResPartner(models.Model):
         errors = {}
         for key, check in selected_checks.items():
             for fields_tuple in check["fields"]:
-                if invalid_records := self.filtered(
-                    lambda record, fields_tuple=fields_tuple: (
-                        not any(record[field] for field in fields_tuple)
-                    )
-                ):
+                if invalid_records := self._filtered_l10n_it_missing_all(fields_tuple):
                     views = single_views if len(invalid_records) == 1 else multi_views
                     errors[f"l10n_it_edi_{key}"] = {
                         "message": check["message"],

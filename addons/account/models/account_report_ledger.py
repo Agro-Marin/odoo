@@ -1,5 +1,6 @@
 import bisect
 import datetime
+import functools
 import itertools
 import re
 from collections import defaultdict
@@ -27,6 +28,10 @@ from odoo.addons.report_formula.models.account_report import (
 )
 
 _debug = DebugLog(__name__)
+
+
+def _has_code_prefix(prefix, account):
+    return account["code"].startswith(prefix)
 
 
 class AccountReport(models.Model):
@@ -1792,7 +1797,7 @@ class AccountReport(models.Model):
                         accounts, prefix, key=lambda acc: acc["code"]
                     )
                     accs = itertools.takewhile(
-                        lambda acc, prefix=prefix: acc["code"].startswith(prefix),
+                        functools.partial(_has_code_prefix, prefix),
                         itertools.islice(accounts, idx, None),
                     )
 
@@ -2775,8 +2780,8 @@ class AccountReport(models.Model):
                 # The default expression needs to have the same label as the target external expression, e.g. '_default_balance'
                 target_label = default_expression.label[len("_default_") :]
                 target_by_default_expression[default_expression] = (
-                    default_expression.report_line_id.expression_ids.filtered(
-                        lambda x, target_label=target_label: x.label == target_label
+                    default_expression.report_line_id.expression_ids.filtered_domain(
+                        [("label", "=", target_label)]
                     )
                 )
             # If the value has been created before/modified manually, we shouldn't create anything

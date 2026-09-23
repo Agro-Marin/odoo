@@ -144,10 +144,12 @@ class AccountJournal(models.Model):
         queries = []
         for lock_date, journals in to_check.items():
             journal_companies = journals.company_id
-            companies = descendants.filtered(
-                lambda company, journal_companies=journal_companies: (
-                    journal_companies & company.parent_ids
-                )
+            companies = descendants.browse(
+                [
+                    company.id
+                    for company in descendants
+                    if journal_companies & company.parent_ids
+                ]
             )
             queries.append(
                 SQL(

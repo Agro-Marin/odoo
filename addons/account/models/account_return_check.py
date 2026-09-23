@@ -262,8 +262,8 @@ class AccountReturnCheck(models.Model):
         for record in self:
             if (
                 len(
-                    record.return_id.check_ids.filtered(
-                        lambda check, record=record: check.code == record.code
+                    record.return_id.check_ids.filtered_domain(
+                        [("code", "=", record.code)]
                     )
                 )
                 > 1
