@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class TestOrmScopeTag(models.Model):
@@ -26,6 +26,20 @@ class TestOrmScopeBox(models.Model):
         comodel_name="test_orm.scope_narrow",
         inverse_name="box_id",
     )
+    open_ids = fields.One2many(
+        comodel_name="test_orm.scope_open",
+        inverse_name="box_id",
+    )
+    flagged_open_ids = fields.One2many(
+        comodel_name="test_orm.scope_open",
+        inverse_name="box_id",
+        compute="_compute_flagged_open_ids",
+    )
+
+    @api.depends("open_ids.flagged")
+    def _compute_flagged_open_ids(self):
+        for box in self:
+            box.flagged_open_ids = box.open_ids.filtered("flagged")
 
 
 class TestOrmScopeItem(models.Model):
@@ -74,3 +88,15 @@ class TestOrmScopeNarrow(models.Model):
         if not (self.env.su or bypass_access):
             domain = [*domain, ("hidden", "=", False)]
         return super()._search(domain, *args, bypass_access=bypass_access, **kwargs)
+
+
+class TestOrmScopeOpen(models.Model):
+    _name = "test_orm.scope_open"
+    _description = "Record whose _search is overridden without declaring what it reads"
+
+    name = fields.Char()
+    box_id = fields.Many2one(comodel_name="test_orm.scope_box")
+    flagged = fields.Boolean()
+
+    def _search(self, domain, *args, **kwargs):
+        return super()._search(domain, *args, **kwargs)

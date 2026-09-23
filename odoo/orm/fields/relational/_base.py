@@ -634,6 +634,9 @@ class _RelationalMulti(_Relational):
         # hold empty stays empty whatever the rule now reads
         verdicts: dict[tuple, bool] = {}
         evicted = 0
+        # a record being computed holds the value its compute is assigning
+        # now, from the very inputs the write reports
+        computing = env.core.get_protected_ids(self)
         narrows_superuser = not (
             callable(self.domain) or is_search_overridden(type(env[self.comodel_name]))
         )
@@ -655,14 +658,13 @@ class _RelationalMulti(_Relational):
                 if narrows_superuser
                 else None
             )
-            if not superuser_slot:
-                evicted += len(slot)
-                slot.clear()
-                continue
             for id_ in [
                 id_
                 for id_, ids in slot.items()
-                if ids != () or superuser_slot.get(id_) != ()
+                if id_ not in computing
+                and (
+                    not superuser_slot or ids != () or superuser_slot.get(id_) != ()
+                )
             ]:
                 del slot[id_]
                 evicted += 1

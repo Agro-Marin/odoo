@@ -108,3 +108,18 @@ class TestX2manyScopeFollowsWhatTheRulesRead(TransactionCase):
         self.assertTrue(item.has_access("read"))
         self.shown.unlink()
         self.assertFalse(item.has_access("read"))
+
+
+class TestComputedX2manyUserScope(TransactionCase):
+    def test_a_computed_x2many_keeps_the_value_its_compute_assigns(self):
+        user = new_test_user(self.env, "scope_computer", groups="base.group_user")
+        box = self.env["test_orm.scope_box"].create({"name": "box"})
+        flagged, _plain = self.env["test_orm.scope_open"].create(
+            [
+                {"name": "o1", "box_id": box.id, "flagged": True},
+                {"name": "o2", "box_id": box.id},
+            ]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(box.with_user(user).flagged_open_ids, flagged)
