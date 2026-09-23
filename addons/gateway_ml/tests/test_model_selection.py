@@ -169,6 +169,7 @@ class TestSelectModel(_SelectionCase):
             self._select("chat")
             return self.env.cr.sql_statement_count - before
 
+        count()
         few = count()
         for index in range(1, 6):
             self._model(provider, f"sel-q-{index}")

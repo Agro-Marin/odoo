@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import ormcache
 
 
 class GatewayMlPurpose(models.Model):
@@ -40,8 +41,30 @@ class GatewayMlPurpose(models.Model):
 
     @api.model
     def _is_sensitive(self, key: str) -> bool:
-        return bool(
-            self.sudo().search_count(
-                [("key", "in", self._lineage(key)), ("sensitive", "=", True)], limit=1
-            )
+        return not self._sensitive_keys().isdisjoint(self._lineage(key))
+
+    @api.model
+    @ormcache()
+    def _sensitive_keys(self) -> frozenset[str]:
+        return frozenset(
+            self.sudo()
+            .with_context(active_test=False)
+            .search_fetch([("sensitive", "=", True)], ["key"])
+            .mapped("key")
         )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        purposes = super().create(vals_list)
+        self.env.registry.clear_cache()
+        return purposes
+
+    def write(self, vals):
+        result = super().write(vals)
+        self.env.registry.clear_cache()
+        return result
+
+    def unlink(self):
+        result = super().unlink()
+        self.env.registry.clear_cache()
+        return result
