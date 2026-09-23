@@ -63,7 +63,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
         cls.old_account_default_pos_receivable_account_id = (
             cls.company.account_config_id.account_default_pos_receivable_account_id
         )
-        cls.account_config_id.account_default_pos_receivable_account_id = cls.env[
+        cls.account_default_pos_receivable_account_id = cls.env[
             "account.account"
         ].create(
             {
@@ -74,7 +74,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
             }
         )
         cls.company.account_config_id.account_default_pos_receivable_account_id = (
-            cls.account_config_id.account_default_pos_receivable_account_id
+            cls.account_default_pos_receivable_account_id
         )
         cls.receivable_cash_account = cls.copy_account(
             cls.company.account_config_id.account_default_pos_receivable_account_id,
@@ -196,9 +196,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
 
         self.assertTrue(self.company)
         self.assertTrue(self.cash_journal)
-        self.assertTrue(
-            self.account_config_id.account_default_pos_receivable_account_id
-        )
+        self.assertTrue(self.account_default_pos_receivable_account_id)
         self.assertTrue(self.receivable_cash_account)
         self.assertTrue(self.sales_journal)
         self.assertTrue(self.cash_payment_method)
@@ -489,4 +487,4 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
         cls.cash_payment_method.unlink()
         cls.receivable_cash_account.unlink()
         cls.cash_journal.unlink()
-        cls.account_config_id.account_default_pos_receivable_account_id.unlink()
+        cls.account_default_pos_receivable_account_id.unlink()
