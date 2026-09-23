@@ -464,6 +464,19 @@ class TestRenewalChain(DocumentTypeCase):
         self.assertEqual(original.legal_number, "LN-ORIGINAL")
         self.assertEqual(original.attachment_id.raw, b"OLD FILE")
 
+    def test_renewal_stays_linked_to_the_same_record(self):
+        partner = self.env["res.partner"].create({"name": "Renewal Owner"})
+        original = self._doc(
+            self.renewable_type, -10, res_model="res.partner", res_id=partner.id
+        )
+
+        new_doc = self.env["document.document"].browse(
+            original.action_renew_document()["res_id"]
+        )
+
+        self.assertEqual(new_doc.res_model, "res.partner")
+        self.assertEqual(new_doc.res_id, partner.id)
+
     def test_a_document_cannot_be_renewed_twice(self):
         original = self._doc(self.renewable_type, name="Twice")
         first = self.env["document.document"].browse(
