@@ -16,6 +16,7 @@ timesheet_analysis_report_manager_group_timesheet_manager,Timesheets Analysis Re
 access_hr_employee_delete_wizard,hr.employee.delete.wizard,model_hr_employee_delete_wizard,hr.group_hr_user,permission,cru,
 access_account_analytic_line_calendar_employee,account.analytic.line.calendar.employee.timesheet.user,model_account_analytic_line_calendar_employee,group_hr_timesheet_user,permission,crud,
 hr_timesheet_config_rule_company_group_user,hr_timesheet.config: the reader's companies,model_hr_timesheet_config,base.group_user,permission,r,"[('company_id', 'in', company_ids)]"
+hr_timesheet_config_rule_company_group_portal,hr_timesheet.config: the reader's companies,model_hr_timesheet_config,base.group_portal,permission,r,"[('company_id', 'in', company_ids)]"
 hr_timesheet_config_rule_erp_manager,hr_timesheet.config: every company for an access-rights manager,model_hr_timesheet_config,base.group_erp_manager,permission,r,
 hr_timesheet_config_rule_erp_manager_group_system,hr_timesheet.config: every company for an access-rights manager,model_hr_timesheet_config,base.group_system,permission,cud,
 timesheets_analysis_report_comp_rule,Timesheets Analysis Report multi-company,model_timesheets_analysis_report,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
