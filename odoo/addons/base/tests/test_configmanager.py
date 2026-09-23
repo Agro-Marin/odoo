@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import call, patch
@@ -109,7 +110,7 @@ class TestConfigManager(TransactionCase):
                 "test_enable": False,
                 "test_tags": None,
                 "screencasts": "",
-                "screenshots": "/tmp/odoo_tests",
+                "screenshots": str(Path(tempfile.gettempdir(), "odoo_tests")),
                 "logfile": "",
                 "syslog": False,
                 "log_handler": [":INFO"],
@@ -355,6 +356,7 @@ class TestConfigManager(TransactionCase):
                 save_content = save_file.read().format(
                     project_path=PROJECT_PATH,
                     homedir=self.config._normalize("~"),
+                    tempdir=tempfile.gettempdir(),
                     empty_dict=r"{}",
                     pid="{pid}",
                 )
