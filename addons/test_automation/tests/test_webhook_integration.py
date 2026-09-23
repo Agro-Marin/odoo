@@ -10,10 +10,13 @@ Tests cover:
 """
 
 import contextlib
+import json
 import logging
 
 from odoo.exceptions import ValidationError
 from odoo.tests import common, tagged
+
+from odoo.addons.integration.tests.common import open_admission
 
 _logger = logging.getLogger(__name__)
 
@@ -639,7 +642,11 @@ record.write({'state': next_states.get(current, 'cancel')})
             }
         )
 
-        automation._execute_webhook({"test": "logging"})
+        payload = {"test": "logging"}
+        admission = open_admission(
+            automation, body=json.dumps(payload).encode(), path="/web/hook/x"
+        )
+        automation._execute_webhook(payload, admission=admission)
         self.env.cr.precommit.run()
 
         call = self.env["integration.exchange"].search(
@@ -675,8 +682,9 @@ record.write({'state': next_states.get(current, 'cancel')})
         )
 
         # Execute webhook - will fail
+        admission = open_admission(automation, body=b"{}", path="/web/hook/x")
         with contextlib.suppress(ValidationError):
-            automation._execute_webhook({})
+            automation._execute_webhook({}, admission=admission)
 
         self.env.cr.precommit.run()
 
