@@ -38,8 +38,8 @@ def get_kpi_summary(cr: Any, uid: int) -> list[dict]:
     without loading a registry, allowing multi-database servers to serve them faster.
 
     .. warning::
-        The returned count is **database-wide**: it is not filtered by access
-        rights, record rules, nor by company. ``uid`` is used *only* to pick the
+        The returned count is **database-wide**: it is not filtered by ir.access
+        rows, nor by company. ``uid`` is used *only* to pick the
         language for the translated label -- despite that parameter, the value
         is NOT per-user. This matches the other KPI providers (e.g. ``account``)
         and the only consumer is the SaaS ``databases`` module. Do not surface

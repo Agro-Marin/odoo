@@ -8,7 +8,7 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class TestSecurityRules(common.TransactionCase):
-    """Tests for ir.rule security rules on gamification models."""
+    """Tests for the ir.access rows on gamification models."""
 
     @classmethod
     def setUpClass(cls):
@@ -169,7 +169,7 @@ class TestAclParity(common.TransactionCase):
         "gamification.quest": (1, 0, 0, 0),
         "gamification.quest.enrollment": (1, 1, 1, 0),
         "gamification.quest.step": (1, 0, 0, 0),
-        # Read-only since 1.2.  It was employee-writable with no record rule, so
+        # Read-only since 1.2.  It was employee-writable with no access domain, so
         # anyone could INSERT a completion on someone else's enrolment and skip
         # the prerequisite check that only complete_step performs; that method
         # sudo()es the create now.

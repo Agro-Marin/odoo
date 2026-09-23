@@ -406,7 +406,7 @@ class TestManagerDepartmentReportAccessShape(TestHrCommon):
                 ("employee_id.user_id", "=", self.boss.id),
                 ("employee_id.department_id", "child_of", managed),
             ],
-            "three ir.rule domain_force declarations resolve through this exact"
+            "three ir.access domains resolve through this exact"
             " shape (%s); it is the compute's own domain with employee_id."
             " prefixed onto each field, and the two must stay that way"
             % ", ".join(self.IR_RULES_THAT_DEPEND_ON_THIS_SEARCH),

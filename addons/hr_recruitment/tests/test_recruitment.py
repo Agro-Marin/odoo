@@ -1341,7 +1341,7 @@ class TestRecruitment(TransactionCase):
                 }
             )
         )
-        # the write is buffered: the record rule is checked at flush, so a bare
+        # the write is buffered: the access domain is checked at flush, so a bare
         # `assertRaises` around the action alone exits before the error is raised
         # `assertRaises(AccessError)` cannot be used here, and the reason is
         # worth stating because the obvious test passes against the bug.

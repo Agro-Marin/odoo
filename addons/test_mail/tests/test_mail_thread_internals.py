@@ -2229,7 +2229,7 @@ class TestDiscuss(MailCommon, TestRecipients):
     def test_partner_find_company_conflict(self):
         """One address shared by records of two companies must not stamp the
         partner with whichever record was iterated last -- that also hid the
-        contact behind the *other* company's record rules."""
+        contact behind the *other* company's access guard."""
         company_b = self.env["res.company"].sudo().create({"name": "Probe Co B"})
         Model = self.env["mail.test.gateway.company"]
         record_a = Model.create({"name": "ra", "company_id": self.env.company.id})

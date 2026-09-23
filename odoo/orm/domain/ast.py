@@ -853,7 +853,7 @@ class DomainCustom(Domain):
 def _defines_the_condition(field: Field, su: bool) -> bool:
     # a search method answers the condition instead of the field's value. A
     # related or inherited field's generic search is the path rewrite, whose
-    # sub-select a record rule may narrow for a user but never for the
+    # sub-select an access domain may narrow for a user but never for the
     # superuser: as the superuser the in-memory read through the path answers
     # the same, unless the path ends on a field with a search method of its own
     search = field.search

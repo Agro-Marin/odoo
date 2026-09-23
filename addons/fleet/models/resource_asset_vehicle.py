@@ -9,8 +9,8 @@ class ResourceAssetVehicle(models.Model):
     Everything a vehicle is remains declared on `resource.asset`, so a
     reference held as `resource.asset` still reads and writes it: PostgreSQL's
     SELECT, UPDATE and DELETE on a parent reach the children unless told ONLY.
-    What this model buys is a place to put what only vehicles have -- access
-    rights, record rules, views, actions and, later, columns no other kind
+    What this model buys is a place to put what only vehicles have -- ir.access
+    rows, views, actions and, later, columns no other kind
     carries.
     """
 

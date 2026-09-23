@@ -186,7 +186,7 @@ class GamificationMentorship(models.Model):
         Scoped to the mentorship's own mentor/mentee: a third party has no
         business writing `state` either, but that case is already denied by
         `mentorship_own_only` raising its own `AccessError` -- this only adds
-        a stricter rule for the one path that record rule *does* allow, a
+        a stricter rule for the one path that permission *does* allow, a
         party editing their own mentorship directly instead of through the
         `action_*` methods.
         """
@@ -307,7 +307,7 @@ class GamificationMentorship(models.Model):
 
     def action_cancel(self):
         """Cancel the mentorship. Either party may cancel their own active
-        mentorship; the `mentorship_own_only` record rule already scopes
+        mentorship; the `mentorship_own_only` permission already scopes
         that. sudo() only bypasses `write()`'s state-change guard above.
         """
         self.filtered(lambda r: r.state == "active").sudo().write(
@@ -333,7 +333,7 @@ class GamificationMentorship(models.Model):
         if not mentees:
             return
         # sudo: a rank-up is a system event.  The mentee triggering it has no
-        # rights on their mentor's mentorship record (record rule) nor on the
+        # rights on their mentor's mentorship record (`mentorship_own_only`) nor on the
         # manager-only reward fields, but the mentor must still be paid.
         pairings = self.sudo().search(
             [

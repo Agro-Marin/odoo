@@ -54,7 +54,7 @@ class TestCrmCommon(TestSalesCommon, MailCase):
 
         The rehearsal starts from the same empty record cache as the counted
         run, so it takes the same path and fills the registry caches that path
-        reads (record rules, group membership, defaults, the company's
+        reads (access rows, group membership, defaults, the company's
         configuration rows), which a fresh process fills on
         first use with ten to twenty queries that belong to no code under
         test and vary with the installed module set. The random state is

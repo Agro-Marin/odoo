@@ -133,7 +133,7 @@ class TestWebReadRelational(common.TransactionCase):
             res["parent_id"],
             {"id": secret.id},
             "a sub-field spec must not change whether the many2one reports the "
-            "value the readable record holds, and a target a record rule hides "
+            "value the readable record holds, and a target the access domain hides "
             "keeps its label and sub-fields to itself",
         )
 

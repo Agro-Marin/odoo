@@ -176,7 +176,7 @@ class TestRecurrencePrivacy(CalendarPrivacyCommon, TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCalendarFiltersPrivacy(CalendarPrivacyCommon, TransactionCase):
-    """`calendar.filters` had no record rule and a public unlink-everything RPC."""
+    """`calendar.filters` had no owner guard and a public unlink-everything RPC."""
 
     def test_filters_are_private_to_their_user(self):
         own = (

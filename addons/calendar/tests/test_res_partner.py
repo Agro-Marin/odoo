@@ -80,7 +80,7 @@ class TestResPartner(TransactionCase):
             }
         )
 
-        # Test rule to see if ir.rules are applied
+        # an ir.access row to see if access domains are applied
         calendar_event_model_id = self.env["ir.model"]._get("calendar.event").id
         self.env["ir.access"].create(
             {

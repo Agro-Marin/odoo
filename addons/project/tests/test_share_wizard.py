@@ -160,13 +160,12 @@ class TestCollaboratorRulesLetAManagerShare(TestProjectCommon):
     def test_a_manager_can_share_a_project_they_neither_follow_nor_own(self) -> None:
         # project.collaborator carries the comp / visibility / manager triad that
         # project.risk and project.gate carry. The manager member is what makes
-        # the pair work: an ir.rule with no perm_* fields governs create as well
-        # as read, group_project_manager implies group_project_user, and rules of
-        # different groups OR together -- so without an unrestricted manager rule
-        # the read-scoping visibility rule also blocks a manager from CREATING a
-        # collaborator on a project they do not follow. That is every project the
-        # setUpClass of an HttpCase builds, which is how it reached the sharing
-        # tours rather than a unit test.
+        # the pair work: the visibility permission is read-only and scoped to
+        # projects the user may access, and permissions only ever add -- so
+        # without the manager's unrestricted `crud` permission nothing lets a
+        # manager CREATE a collaborator on a project they do not follow. That is
+        # every project the setUpClass of an HttpCase builds, which is how it
+        # reached the sharing tours rather than a unit test.
         project = (
             self.env["project.project"]
             .with_user(self.env.ref("base.user_root"))

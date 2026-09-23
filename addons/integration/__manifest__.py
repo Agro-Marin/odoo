@@ -48,7 +48,7 @@ Logging
 * Secret redaction
 * Configurable retention
 
-Secrets are encrypted by ``credential``. Record rules scope every
+Secrets are encrypted by ``credential``. ir.access guards scope every
 model by company.
     """,
     "author": "AgroMarin",

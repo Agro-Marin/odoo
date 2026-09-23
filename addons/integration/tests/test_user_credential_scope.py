@@ -129,7 +129,7 @@ class TestUserCredentialScope(TransactionCase):
             .with_user(self.bob)
             .search([("id", "=", alice_cred.id)])
         )
-        self.assertFalse(visible, "the record rule must hide it from Bob")
+        self.assertFalse(visible, "the access domain must hide it from Bob")
         self.assertTrue(
             self.env["credential.credential"]
             .with_user(self.alice)

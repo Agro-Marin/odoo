@@ -36,7 +36,7 @@ class ImportController(http.Controller):
         file = files[0]
 
         # `exists()` after the browse so that a record belonging to someone else
-        # is indistinguishable from one that never existed: the record rule on
+        # is indistinguishable from one that never existed: the guard on
         # base_import.import restricts access to the creator, and this route is
         # the only way a raw id reaches the model from the outside.
         record = request.env["base_import.import"].browse(import_id).exists()

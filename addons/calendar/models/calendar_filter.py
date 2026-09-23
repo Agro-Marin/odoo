@@ -33,6 +33,6 @@ class CalendarFilters(models.Model):
 
     # `unlink_from_partner_id(partner_id)` used to live here: an @api.model
     # public -- so RPC-callable -- method that unlinked the filters of *every*
-    # user for a partner. Nothing in any repo called it, and with no record rule
+    # user for a partner. Nothing in any repo called it, and with no guard
     # on this model it let any employee wipe another's calendar overlays. The
-    # rule is now `calendar_filters_rule_own`; the method is gone.
+    # guard is now `calendar_filters_rule_own`; the method is gone.

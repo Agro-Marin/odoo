@@ -20,7 +20,7 @@ BUCKET_OWNERS: dict[str, str] = {
         "nodes, so a signed-in website page recompiled with esbuild on every "
         "request (measured, signed-in /contactus warm: 112 -> 18 queries)"
     ),
-    "stable": "base — long-lived lookups (xmlids, ACLs, record-rule domains)",
+    "stable": "base — long-lived lookups (xmlids, ir.access rows)",
     "templates": "base — QWeb template lookup",
     "templates.mail": (
         "the `mail` addon — mixin.mail.render._get_qweb_template_node, which "
@@ -40,21 +40,21 @@ BUCKET_OWNERS: dict[str, str] = {
         "the `product` addon — product.template._get_variant_id_for_combination "
         "and _get_first_possible_variant_id. Its own bucket because product "
         "churn invalidates it constantly, and a bare clear_cache() would "
-        "otherwise evict `default` (record rules, ACLs, xmlids) in every worker "
+        "otherwise evict `default` (every unnamed ormcache) in every worker "
         "each time a product is touched"
     ),
     "actions": (
         "base — ir.actions.actions._get_bindings, the sidebar bindings per "
         "model. Its own bucket because a binding change is signalled to every "
-        "worker, and from `default` that signal evicted record rules, ACLs, "
-        "menus and every other unnamed ormcache cluster-wide"
+        "worker, and from `default` that signal evicted menus and every other "
+        "unnamed ormcache cluster-wide"
     ),
     "xmlid": (
         "base — ir.model.data._xmlid_target, hits and misses. Its own bucket "
         "because a miss is cached too (an optional xmlid probed on every request "
         "re-ran its SELECT forever when only hits were kept), so a fresh insert "
-        "has to invalidate it, and from `default` that would have evicted record "
-        "rules, ACLs and menus in every worker on each new xmlid"
+        "has to invalidate it, and from `default` that would have evicted menus "
+        "and every other unnamed ormcache in every worker on each new xmlid"
     ),
     "mail": (
         "the `mail` addon — its small configuration snapshots: "

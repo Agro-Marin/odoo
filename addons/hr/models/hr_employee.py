@@ -1231,7 +1231,7 @@ class HrEmployee(models.Model):
         """Project the allocations onto the accounts this reader may see.
 
         A stored many2many filtered itself: its read is a search on the
-        comodel, so record rules dropped what the reader cannot see and the
+        comodel, so access domains dropped what the reader cannot see and the
         field simply came back shorter. This projection has to say so out
         loud, or it hands out records whose first dereference raises.
         """

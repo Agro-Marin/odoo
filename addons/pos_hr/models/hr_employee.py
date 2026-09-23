@@ -88,7 +88,7 @@ class HrEmployee(models.Model):
                 employees=self,
             )
             return []
-        # Apply visibility filters (record rules)
+        # Apply visibility filters (the access domain)
         visible_emp_ids = self.search([("id", "in", self.ids)])
         employees_data = self.sudo().search_read(
             [("id", "in", visible_emp_ids.ids)], ["barcode", "pin"]

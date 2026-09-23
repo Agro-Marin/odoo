@@ -200,7 +200,7 @@ class HTML_Editor(http.Controller):
         self._clean_context()
         Attachment = attachments_to_remove = request.env["ir.attachment"]
         # sudo(): the existence-check must see every referencing view, not
-        # just the ones visible under the caller's own ACL/record rules
+        # just the ones visible under the caller's own access
         # (e.g. a restricted-visibility website page) -- otherwise a
         # lower-privileged caller could delete an attachment still in use
         # by a page they can't see.

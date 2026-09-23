@@ -278,7 +278,7 @@ class TestProduct(AccountTestInvoicingCommon):
                 allowed_company_ids=self.env.company.ids
             ).taxes_id.company_ids,
             self.env.company,
-            "control: with a single company active the account.tax record rule"
+            "control: with a single company active the account.tax company guard"
             " already filters them out - which is what used to hide the defect",
         )
 
@@ -311,7 +311,7 @@ class TestProduct(AccountTestInvoicingCommon):
         self.assertIn(
             self.other_company,
             product.sudo().taxes_id.company_ids,
-            "control: sudo bypasses the record rule that was masking this",
+            "control: sudo bypasses the company guard that was masking this",
         )
         self.assertEqual(
             product.currency_id.compare_amounts(

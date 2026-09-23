@@ -872,7 +872,7 @@ class TestDigestDefects(TestDigestCommon):
         memo = {}
         self.cr.cache[KPI_AGGREGATE_MEMO] = memo
         try:
-            # warm AFTER invalidating: record-rule resolution is a query of its
+            # warm AFTER invalidating: access-domain resolution is a query of its
             # own, it is shared across every KPI in the render, and measuring it
             # here would be measuring the wrong thing.
             self.env.invalidate_all()

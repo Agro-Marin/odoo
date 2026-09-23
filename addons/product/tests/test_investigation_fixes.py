@@ -346,7 +346,7 @@ class TestTransientWizardIsolation(TransactionCase):
                 self.assertTrue(
                     rules,
                     f"{model} is a TransientModel reachable by id and has no"
-                    " record rule scoping it to its creator",
+                    " ir.access row scoping it to its creator",
                 )
                 self.assertIn("create_uid", "".join(rules.mapped("domain")))
 

@@ -486,7 +486,7 @@ class DigestDigest(models.Model):
         }
         # A KPI the recipient may not read raises AccessError once and is dropped
         # for good. The previous shape retried it in every one of the six windows,
-        # so a denied KPI paid its group resolution and record-rule lookup six
+        # so a denied KPI paid its group resolution and access-domain lookup six
         # times over to reach the same answer.
         denied = set()
 
@@ -805,7 +805,7 @@ class DigestDigest(models.Model):
         timezone, so with ``tz`` set (which `_action_send` now does) an
         Asia/Kolkata recipient would get buckets offset half an hour from the
         naive-UTC bounds. That approach was measured and rejected; this one goes
-        through ``_search``, so record rules still apply.
+        through ``_search``, so the access domain still applies.
 
         Returns ``{company_id: {(start, end): value}}``, or ``None`` when there
         is no window list in the context -- a KPI field read outside

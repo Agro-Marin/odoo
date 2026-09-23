@@ -2213,7 +2213,7 @@ is approved, validated or refused."
         return super()._track_subtype(init_values)
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None):
-        # due to record rule can not allow to add follower and mention on validated leave so subscribe through sudo
+        # the access domain does not allow adding a follower or mention on a validated leave, so subscribe through sudo
         if any(holiday.state in ["validate", "validate1"] for holiday in self):
             self.check_access("read")
             return super(HrLeave, self.sudo()).message_subscribe(

@@ -290,7 +290,7 @@ class Query:
         """Ids of the rows matched by this query.
 
         :param env: environment to execute on, when the caller has a live one.
-            A query may outlive the request that built it -- a record rule
+            A query may outlive the request that built it -- an access
             domain is cached across requests, and the queries inside it come
             along -- and by then its own environment holds a closed cursor.
         :return: the matched ids

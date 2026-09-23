@@ -155,7 +155,7 @@ if __name__ == "__main__":
 class TestQueryForeignEnvironment(unittest.TestCase):
     """A query outliving its request must run on the caller's cursor.
 
-    A record rule domain is cached across requests, and the queries inside it
+    An access domain is cached across requests, and the queries inside it
     come along, holding an environment whose cursor is closed by then. Running
     the query there raises `InterfaceError: cursor already closed`.
     """

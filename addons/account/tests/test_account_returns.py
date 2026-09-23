@@ -3198,7 +3198,7 @@ class TestAccountReturn(TestAccountReportsCommon):
 
         # ... and company 1 on its own must not see company 2's. The cache has to go
         # first: a restricted environment reads what a wider one already fetched, so
-        # without this the record rule is never consulted and the check always passes.
+        # without this the company guard is never consulted and the check always passes.
         self.env.invalidate_all()
         self.assertFalse(
             self.env["account.audit.account.status"]

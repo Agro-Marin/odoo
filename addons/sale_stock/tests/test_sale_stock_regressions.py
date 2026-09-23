@@ -179,7 +179,7 @@ class TestSaleStockRegressions(TestSaleStockCommon):
                 ]
             )
         )
-        self.assertTrue(rules, "no record rule scopes the report to a company")
+        self.assertTrue(rules, "no ir.access row scopes the report to a company")
 
     def test_search_late_availability_negation_is_the_complement(self):
         product = self._storable("LATE MIX", 2)

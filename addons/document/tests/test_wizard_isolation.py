@@ -1,7 +1,7 @@
 """One user's open wizard is not another user's record.
 
 Every wizard this module ships is a `TransientModel` whose ACL grants read and
-write to `base.group_user` as a whole, so without an owner record rule any
+write to `base.group_user` as a whole, so without an owner guard any
 internal user reaches any other's live wizard by id. `document.operation`
 carried such a rule from the start (`document_operation_rwu`); its four
 siblings did not, and `document.sharing` is the one that costs something:
@@ -106,9 +106,9 @@ class TestWizardIsolation(TransactionCaseDocuments):
     def _owner_rule_models(self):
         """Models carrying an active rule that restricts rows to their creator.
 
-        The domain is evaluated the way `ir.rule` evaluates it and its leaves
+        The domain is evaluated the way `ir.access` evaluates it and its leaves
         are inspected. Two weaker versions were tried and are worth not
-        repeating: `"create_uid" in domain_force` also accepts
+        repeating: `"create_uid" in domain` also accepts
         `[('create_uid', '!=', user.id)]`, the opposite rule; and
         `literal_eval` cannot evaluate `user.id`, so it raised on exactly the
         rules being looked for and reported every wizard as unprotected.

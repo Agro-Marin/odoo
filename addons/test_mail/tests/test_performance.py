@@ -361,10 +361,11 @@ class TestBaseMailPerformance(BaseMailPerformance):
     @warmup
     def test_write_mail_simple(self):
         rec = self.env["mail.test.simple"].create({"name": "Test"})
-        # +1 vs the pre-fork floor, all of it the ORM record-rule access check:
-        # since a7450df423d rules are evaluated in Python against the records
-        # (check_access -> _check_access -> filtered_domain), so a non-superuser
-        # fetches whatever field the rule names when it is not already cached.
+        # +1 vs the pre-fork floor, all of it the ORM access-domain check:
+        # since a7450df423d access domains are evaluated in Python against the
+        # records (check_access -> _check_access -> filtered_domain), so a
+        # non-superuser fetches whatever field the domain names when it is not
+        # already cached.
         with self.assertQueryCount(admin=1, employee=1):
             rec.write(
                 {
@@ -987,10 +988,11 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_log_with_post(self):
         record = self.env["mail.test.simple"].create({"name": "Test"})
 
-        # +2 vs the pre-fork floor, all of it the ORM record-rule access check:
-        # since a7450df423d rules are evaluated in Python against the records
-        # (check_access -> _check_access -> filtered_domain), so a non-superuser
-        # fetches whatever field the rule names when it is not already cached.
+        # +2 vs the pre-fork floor, all of it the ORM access-domain check:
+        # since a7450df423d access domains are evaluated in Python against the
+        # records (check_access -> _check_access -> filtered_domain), so a
+        # non-superuser fetches whatever field the domain names when it is not
+        # already cached.
         with self.assertQueryCount(admin=3, employee=3):
             record.message_post(
                 body=Markup("<p>Test message_post as log</p>"),
@@ -1003,7 +1005,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_post_no_notification(self):
         record = self.env["mail.test.simple"].create({"name": "Test"})
 
-        # +2: the ORM record-rule access check (see test_write_mail_simple).
+        # +2: the ORM access-domain check (see test_write_mail_simple).
         # 8 -> 7: `_message_post_subscribe_author` reaches `_get_get_subtypes`
         # only after reading `real_author.partner_share` and finding it False, so the
         # `partner_share = True` search that method runs when `customer_ids` is None
@@ -1053,12 +1055,12 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         record = self.env["mail.test.simple"].create({"name": "Test"})
 
         # +3: the two follower upserts (+2, new followers are added)
-        # plus one ORM record-rule access-check fetch (+1). See the sibling
+        # plus one ORM access-domain check fetch (+1). See the sibling
         # block below for the access-check explanation.
         with self.assertQueryCount(admin=5, employee=5):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids)
 
-        # +1: the ORM record-rule access check (see test_write_mail_simple).
+        # +1: the ORM access-domain check (see test_write_mail_simple).
         with self.assertQueryCount(admin=2, employee=2):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids)
 
@@ -1073,14 +1075,14 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         ).ids
 
         # +3: the two follower upserts (+2, new followers are added)
-        # plus one ORM record-rule access-check fetch (+1). See the sibling
+        # plus one ORM access-domain check fetch (+1). See the sibling
         # block below for the access-check explanation.
         with self.assertQueryCount(admin=5, employee=5):
             record.message_subscribe(
                 partner_ids=self.user_emp_inbox.partner_id.ids, subtype_ids=subtype_ids
             )
 
-        # +1: the ORM record-rule access check (see test_write_mail_simple).
+        # +1: the ORM access-domain check (see test_write_mail_simple).
         with self.assertQueryCount(admin=2, employee=2):
             record.message_subscribe(
                 partner_ids=self.user_emp_inbox.partner_id.ids, subtype_ids=subtype_ids
@@ -1610,7 +1612,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @warmup
     def test_message_get_suggested_recipients(self):
         record = self.test_records_recipients[0].with_env(self.env)
-        # +2: the ORM record-rule access check (see test_write_mail_simple).
+        # +2: the ORM access-domain check (see test_write_mail_simple).
         # +1: the company's mail configuration is a row of its own (mixin.company.config), read once per transaction on a cold cache.
         with self.assertQueryCount(employee=18):
             recipients = record._message_get_suggested_recipients(no_create=False)

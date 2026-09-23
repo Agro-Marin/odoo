@@ -255,7 +255,7 @@ class GamificationQuestEnrollment(models.Model):
         equivalent guard: a third party has no business writing `state`
         either, but that case is already denied by `quest_enrollment_own_only`
         raising its own `AccessError` -- this only adds a stricter rule for
-        the one path that record rule *does* allow, the owner editing their
+        the one path that permission *does* allow, the owner editing their
         own enrollment directly instead of through the methods above.
         """
         if (
@@ -322,7 +322,7 @@ class GamificationQuestEnrollment(models.Model):
                 )
 
         # sudo: employees have read-only access to the completion table now.
-        # It used to be employee-writable with no record rule, so anyone could
+        # It used to be employee-writable with no access domain, so anyone could
         # INSERT a row on someone else's enrolment and skip the prerequisite
         # check above -- the only place prerequisites are enforced.  Recording a
         # completion is a system act; deciding to is what this method guards.
@@ -393,7 +393,7 @@ class GamificationQuestEnrollment(models.Model):
 
     def action_abandon(self):
         """Abandon the quest. sudo() only bypasses write()'s state-change
-        guard above; the `quest_enrollment_own_only` record rule already
+        guard above; the `quest_enrollment_own_only` permission already
         scopes this to the enrollment's own user.
         """
         self.filtered(lambda e: e.state == "in_progress").sudo().write(

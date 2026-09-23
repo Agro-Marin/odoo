@@ -72,7 +72,7 @@ class TestPrintedCvAccess(HttpCase):
     def test_an_hr_user_cannot_print_an_employee_they_cannot_read(self):
         self.assertFalse(
             self.elsewhere.with_user(self.hr_user).has_access("read"),
-            "the fixture only means something if the record rule hides them",
+            "the fixture only means something if the access domain hides them",
         )
         self.assertEqual(self._print("cv.hr", self.elsewhere.id).status_code, 404)
 

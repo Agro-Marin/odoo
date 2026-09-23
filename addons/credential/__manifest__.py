@@ -26,7 +26,7 @@ the same mixin used here, with no separate install.
 
 **Multi-Tenancy:**
 * Company-scoped credentials with automatic isolation
-* Record rules enforce company boundaries
+* ir.access guards enforce company boundaries
 * Cost segregation per company
 
 **Security:**

@@ -57,7 +57,7 @@ def test_a_related_field_delegates_for_a_user_and_reads_through_as_the_superuser
         user_model = model.with_user(member.id)
         plain, _ = _condition(env, "parent_code", "=", "x")
         searched, _ = _condition(env, "parent_computed", "=", "x")
-        # a record rule may narrow the path's sub-select for a user, never
+        # an access domain may narrow the path's sub-select for a user, never
         # for the superuser, who reads through the path in memory -- unless
         # the path ends on a field a search method defines
         assert plain._is_search_defined(user_model) is True

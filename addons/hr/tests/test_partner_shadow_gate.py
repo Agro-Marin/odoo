@@ -44,7 +44,7 @@ SEPARATE_DESTINATION = frozenset(
 )
 DELEGATION_PROVIDES = frozenset({"name", "lang", "phone_ids", "email", "im_status"})
 # What the employee reads from the PRIVATE FACET rather than from the party:
-# confidential person data, on a child row of type 'private' that a record rule
+# confidential person data, on a child row of type 'private' that an access guard
 # hides from everyone but HR. Putting these on the party would show an
 # employee's marital status or home address to every internal user, and giving
 # them a field group on res.partner would hide a customer's from sales.

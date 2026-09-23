@@ -290,7 +290,7 @@ class TestMentorshipSecurity(common.TransactionCase):
         self.assertEqual(mentorship.state, "active")
 
     def test_employee_cannot_see_third_party_mentorship(self):
-        """The record rule hides pairings the user is not part of."""
+        """The access domain hides pairings the user is not part of."""
         other_a = (
             self.env["res.users"]
             .with_context(no_reset_password=True)
@@ -915,7 +915,7 @@ class TestGoalOutcomeFields(common.TransactionCase):
 
 class TestQuestOwnership(common.TransactionCase):
     """Quest enrolments and step completions were the only employee-writable
-    models in this module with no record rule, so anyone could rewrite another
+    models in this module with no access domain, so anyone could rewrite another
     user's progress and skip the prerequisite check `complete_step` performs.
     """
 

@@ -163,7 +163,7 @@ class TestPosInvoiceGuards(TestPoSCommon):
         self.assertFalse(
             foreign,
             "pos.printer leaks another company's proxy/printer IP addresses to any"
-            " POS user when the multi-company record rule is missing",
+            " POS user when the multi-company guard is missing",
         )
 
     def test_posted_payments_cannot_be_changed_or_removed(self):

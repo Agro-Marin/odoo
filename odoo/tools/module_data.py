@@ -1361,7 +1361,7 @@ def rename_in_stored_expressions(
     model: str | None = None,
     unique: bool = False,
 ) -> int:
-    # A record rule or filter reaches a renamed field through a path from its own
+    # An access domain or filter reaches a renamed field through a path from its own
     # model (`user_id.crm_team_ids`), so scoping to the field's model misses it;
     # `unique` asserts no other model has a field of that name.
     if not _RENAMEABLE.match(old) or not _REPLACEMENT.match(new):

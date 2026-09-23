@@ -307,8 +307,8 @@ class BaseFollowersTest(MailCommon):
         """The subtypes a partner gets depend on the partner, not on the caller.
 
         `_get_get_subtypes` asked `default_subtypes` unsudoed, and
-        `mail.message.subtype` carries a record rule hiding internal subtypes
-        from portal and public users. So the *same* internal partner, subscribed
+        `mail.message.subtype` grants portal and public users only the
+        non-internal subtypes. So the *same* internal partner, subscribed
         to the *same* record, came out with strictly fewer subtypes when a share
         user did the subscribing -- and stayed that way, silently, until someone
         re-subscribed them from an internal session.
@@ -381,9 +381,9 @@ class BaseFollowersTest(MailCommon):
 
         `message_subscribe` short-circuited the customer lookup to `[]` when the
         only partner was the caller's own, which hands a portal user the
-        internal default subtypes. Nothing caught it because the `internal`
-        record rule on `mail.message.subtype` hid them from the portal user's
-        own search -- and `sudo()` lifts that rule, which is exactly how
+        internal default subtypes. Nothing caught it because the portal
+        permission on `mail.message.subtype`, `internal = False` only, hid them
+        from the portal user's own search -- and `sudo()` lifts that domain, which is exactly how
         `website_event_track`, `website_forum` and `website_mail` subscribe a
         visitor to the document they are looking at.
         """
@@ -861,7 +861,7 @@ class BaseFollowersTest(MailCommon):
 
     def test_followers_expose_no_partner_prose(self):
         """``mail.followers`` is readable by every internal user and carries no
-        record rule, so a ``related`` field on it answers in sudo for partners the
+        access domain, so a ``related`` field on it answers in sudo for partners the
         partner ACL denies. Only the flag the client renders may do that."""
         Followers = self.env["mail.followers"]
         for fname in ("name", "email"):

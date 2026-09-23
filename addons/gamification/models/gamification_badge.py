@@ -137,7 +137,7 @@ class GamificationBadge(models.Model):
 
     # Every column here is "as seen by the acting user": the four stat_* ones
     # count that user's own sending and receiving, and the owner ones go through
-    # res.users._search, so record rules decide which owners are visible. Merging
+    # res.users._search, so access domains decide which owners are visible. Merging
     # the two passes made that one compute, and it has to say so or the cache
     # serves one user's numbers to the next.
     @api.depends_context("uid")

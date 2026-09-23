@@ -320,7 +320,7 @@ class GamificationGoal(models.Model):
     def _measure_aggregate_goals(self, definition, goals) -> dict:
         """Count or sum records for count/sum definitions."""
         # sudo: a count/sum goal measures an objective metric; under the
-        # caller's record rules the stored value would depend on who triggered
+        # caller's access domain the stored value would depend on who triggered
         # the refresh (and pair badly with the sudo write). Scoping still comes
         # from the goal's own domain/batch_user_expression, not from the actor.
         Obj = self.env[definition.model_id.model].sudo()

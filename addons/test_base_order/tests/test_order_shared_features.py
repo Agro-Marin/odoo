@@ -554,6 +554,6 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertEqual(
                     count,
                     2,
-                    "the personal-orders record rule must not narrow the "
+                    "the personal-orders access row must not narrow the "
                     "stat-button count the way it narrows the order list",
                 )

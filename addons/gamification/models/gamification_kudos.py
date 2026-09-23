@@ -144,10 +144,10 @@ class GamificationKudos(models.Model):
         disagreeing about what was actually recognized. ``sudo()`` (imports,
         migrations) still bypasses this, same as ``create()``'s sender check.
 
-        The ``kudos_user_write`` record rule already blocks anyone but the
+        The ``kudos_user_write`` permission already blocks anyone but the
         sender from writing at all, so a non-sender's attempt must keep
         raising the ORM's own ``AccessError`` via ``super().write()`` below
-        -- this only adds a stricter rule for the one path the record rule
+        -- this only adds a stricter rule for the one path the permission
         *does* allow: the sender editing their own already-sent kudos.
         """
         if (

@@ -656,7 +656,7 @@ class TestLotCompanyIsNotDecidedByTheReader(TestStockCommon):
     """`stock.lot.company_id` is stored and its compute reads `self.env`.
 
     That makes the stored value a function of who last recomputed it, and
-    `company_id` drives record-rule visibility and `check_company` on the lot's
+    `company_id` drives the company guard's visibility and `check_company` on the lot's
     quants and move lines.
     """
 
@@ -913,7 +913,7 @@ class TestARerateDoesNotRewriteHistory(TestStockCommon):
 @tagged("post_install", "-at_install")
 class TestBatchIsCompanyScoped(TransactionCase):
     """`stock.picking.batch` carries a required `company_id` and was the only
-    company-scoped model in this module with no record rule -- the rule was
+    company-scoped model in this module with no company guard -- the guard was
     left behind when the model moved in from `stock_picking_batch`.
     """
 

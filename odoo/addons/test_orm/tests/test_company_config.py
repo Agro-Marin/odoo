@@ -59,7 +59,7 @@ class TestCompanyConfig(TransactionCase):
                 rows = Access.search([("model_id.model", "=", Config._name)])
                 self.assertTrue(
                     any("company_id" in (row.domain or "") for row in rows),
-                    f"{Config._name} ships no record rule on company_id",
+                    f"{Config._name} ships no ir.access row on company_id",
                 )
 
     def test_a_configuration_is_read_in_the_callers_scope(self):

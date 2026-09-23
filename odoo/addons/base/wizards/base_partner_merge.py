@@ -231,7 +231,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _merge_identifiers(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        # record rules hide a confidential identifier from all but its holder,
+        # access guards hide a confidential identifier from all but its holder,
         # and one left on a source is deleted with it by cascade
         src_partners = src_partners.sudo().with_context(active_test=False)
         dst_partner = dst_partner.sudo().with_context(active_test=False)

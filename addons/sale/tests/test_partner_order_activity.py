@@ -145,7 +145,7 @@ class TestPartnerOrderActivity(TransactionCase):
             self.env["sale.order"]
             .with_user(restricted)
             .search([("partner_id", "=", self.partner.id)]),
-            "the record rule really does hide the order from this user",
+            "the access domain really does hide the order from this user",
         )
 
         partner = self.partner.with_user(restricted)

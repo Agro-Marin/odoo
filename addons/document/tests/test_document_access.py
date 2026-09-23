@@ -545,7 +545,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         # `user_permission` is a projection of `_search_user_permission` rather
         # than a second Python implementation of it, so the compute flushes what
         # the domain reads (required -- without it it reads stale rows and
-        # disagrees with the record rules) and evaluates the domain in SQL. The
+        # disagrees with the access domain) and evaluates the domain in SQL. The
         # read path improved with it (kanban page 5 -> 4 queries, 200-document
         # compute 2 -> 1).
         #

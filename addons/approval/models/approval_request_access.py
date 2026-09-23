@@ -676,7 +676,7 @@ class ApprovalRequestAccess(models.Model):
         The generic `check_company` said the first for both, and the second
         broke on real data: an allocation for an employee of company B owned by
         that employee's user, whose login only reaches company A, or by the
-        officer acting for an employee with no user at all. Record rules on
+        officer acting for an employee with no user at all. Access domains on
         `company_id` still decide who sees the request.
         """
         for request in self:

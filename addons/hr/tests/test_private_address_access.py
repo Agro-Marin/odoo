@@ -21,7 +21,7 @@ class TestPrivateAddressAccess(TransactionCase):
     column ACL is the gate and the row rule never has to make an exception.
 
     Every read goes through `with_user` -- `TransactionCase` runs as superuser,
-    where `env.su` skips record rules and every assertion below would pass
+    where `env.su` skips access domains and every assertion below would pass
     against no rule at all.
     """
 

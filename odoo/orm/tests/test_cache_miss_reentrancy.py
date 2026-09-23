@@ -45,7 +45,7 @@ class CacheMissReal(models.Model):
 class CacheMissGuarded(models.Model):
     _name = "cache.miss.guarded"
     _module = _MOD
-    _description = "model whose fetch searches, the way a record rule would"
+    _description = "model whose fetch searches, the way an access domain would"
 
     name = fields.Char()
 

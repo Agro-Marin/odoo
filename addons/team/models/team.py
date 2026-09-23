@@ -169,7 +169,7 @@ class Team(models.Model):
             self._sync_usage_aliases()
             # a usage the team now carries may be mono for its members
             self.team_member_ids._enforce_mono_membership()
-            # record rules inline a user's teams per usage
+            # access domains inline a user's teams per usage
             self.env.registry.clear_cache()
         if "company_id" in vals:
             self._refresh_usage_aliases()

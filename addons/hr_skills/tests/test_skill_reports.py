@@ -180,7 +180,7 @@ class TestCertificationReportAccess(SkillsCase):
         cls.env.flush_all()
 
     def test_the_report_is_scoped_like_its_sibling(self):
-        """The certification report had no ir.rule at all; its two siblings do."""
+        """The certification report had no access domain at all; its two siblings do."""
         certifications = (
             self.env["hr.employee.certification.report"]
             .with_user(self.onlooker)

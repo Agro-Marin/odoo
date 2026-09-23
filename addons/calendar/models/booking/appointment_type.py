@@ -408,7 +408,7 @@ class AppointmentType(models.Model):
             allowed_events.setdefault(appointment_type.id, set()).update(event_ids)
 
         mapped_upcoming_data = {
-            # For performance reasons, we add sudo() to bypass record rules and private field domain
+            # For performance reasons, we add sudo() to bypass access domains and private field domain
             # since they were already validated in the previous _read_group.
             # Security is ensured by taking intersection with previously validated events.
             appointment_type.id: len(

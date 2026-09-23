@@ -26,9 +26,9 @@ class ResPartner(models.Model):
     )
 
     # What a person IS, kept where an employee's confidential facts already
-    # live: on the private facet, a child partner behind its own record rule.
+    # live: on the private facet, a child partner behind its own access guard.
     # They are declared by hr because hr owns their vocabulary and is their
-    # only reader; base owns the facet and its rule.
+    # only reader; base owns the facet and its guard.
     place_of_birth = fields.Char()
     country_of_birth = fields.Many2one(comodel_name="res.country")
     marital = fields.Selection(

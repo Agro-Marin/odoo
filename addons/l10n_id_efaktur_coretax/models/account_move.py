@@ -680,7 +680,7 @@ class AccountMove(models.Model):
         # Pre-download checks
 
         # Should prevent users from generating e-Faktur document on invoices across multi-company.
-        # Allowing it will cause issues on the invoice/eFaktur document record rule
+        # Allowing it will cause issues on the invoice/eFaktur document company guard
         if len(self.company_id) > 1:
             raise UserError(
                 self.env._(

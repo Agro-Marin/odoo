@@ -295,7 +295,7 @@ class StockLot(models.Model):
                 # lot created by a user allowed only in the child, gets the
                 # child -- and the same row recomputed by a user allowed in
                 # both silently moves to the parent. `company_id` drives
-                # record-rule visibility and `check_company` on the lot's
+                # the company guard's visibility and `check_company` on the lot's
                 # quants and move lines, so that move can hide a lot from the
                 # people who created it.
                 #

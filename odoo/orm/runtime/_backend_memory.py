@@ -734,7 +734,7 @@ class _InMemoryReadGroup:
         granularity: str | None,
         spec: str,
     ) -> typing.Callable[[BaseModel], typing.Any]:
-        # the SQL path LEFT JOINs the comodel under the user's record rules
+        # the SQL path LEFT JOINs the comodel under the user's access domain
         # and groups by the rest of the spec on the joined row
         if not field.is_many2one:
             raise ValueError(

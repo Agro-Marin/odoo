@@ -72,6 +72,6 @@ class TestHrHolidaysMultiCompanyCommon(TestHrHolidaysCommon):
                 missing.add(f"{table}.{column}")
         self.assertFalse(
             missing,
-            "no index covers %s, so the multi-company record rules scan the "
+            "no index covers %s, so the multi-company guards scan the "
             "whole table on every read" % ", ".join(sorted(missing)),
         )

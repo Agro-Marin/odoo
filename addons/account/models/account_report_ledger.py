@@ -881,7 +881,7 @@ class AccountReport(models.Model):
         options["partner_categories"] = previous_options.get("partner_categories") or []
 
         selected_partner_ids = [int(partner) for partner in previous_partner_ids]
-        # search instead of browse so that record rules apply and filter out the ones the user does not have access to
+        # search instead of browse so that the access domain applies and filters out the ones the user does not have access to
         selected_partners = (
             selected_partner_ids
             and self.env["res.partner"]
