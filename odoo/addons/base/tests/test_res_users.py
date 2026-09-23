@@ -59,6 +59,18 @@ class UsersCommonCase(TransactionCase):
 
 
 class TestUsers(UsersCommonCase):
+    def test_a_user_name_reads_whose_party_the_reader_cannot(self):
+        public = self.env.ref("base.public_user")
+        for reader in (public, self.user_portal_1):
+            with self.subTest(reader=reader.login):
+                self.assertFalse(
+                    self.user_internal.partner_id.with_user(reader).has_access("read")
+                )
+                self.env.invalidate_all()
+                user = self.user_internal.with_user(reader)
+                self.assertEqual(user.name, "Internal")
+                self.assertEqual(user.display_name, "Internal")
+
     def test_name_search(self):
         User = self.env["res.users"]
 

@@ -200,6 +200,7 @@ class Field[T](
     _toplevel: bool = False
 
     inherited: bool = False
+    joins_delegation: bool = False
     # the same-named fields of the other models sharing this model's table
     tree_siblings: tuple[Field, ...] = ()
     inherited_field: typing.Any = None
@@ -506,7 +507,7 @@ class Field[T](
         # access, which the row's SELECT reaches through the delegation join
         if self.store:
             return True
-        if not (self.inherited and self.compute_sudo):
+        if not (self.inherited and self.compute_sudo and self.joins_delegation):
             return False
         target = self.related_field
         seq = self._related_field_seq

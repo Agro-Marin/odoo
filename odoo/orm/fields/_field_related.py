@@ -65,6 +65,10 @@ def setup_related(field: Field, model: BaseModel) -> None:
         )
 
     field.related_field = related_field
+    # the join reads the parent's column under the child row's access, which
+    # binds the parent's rules unless the model opts out: a sudo field there
+    # would refuse what it is declared to read
+    field.joins_delegation = field.inherited and not model._inherits_rules
     if field.inherited and field.fetched_with_row and not field.manual:
         # decided before the target was known: a delegated column travels
         # with the row like a stored one
