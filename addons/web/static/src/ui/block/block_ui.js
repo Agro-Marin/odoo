@@ -60,8 +60,8 @@ export class BlockUI extends Component {
         });
 
         const { bus } = useService("ui");
-        useBus(bus, AppEvent.BLOCK, this.block);
-        useBus(bus, AppEvent.UNBLOCK, this.unblock);
+        useBus(bus, AppEvent.BLOCK, this.block.bind(this));
+        useBus(bus, AppEvent.UNBLOCK, this.unblock.bind(this));
 
         onWillDestroy(() => {
             browser.clearTimeout(this.showBlockedUITimer);

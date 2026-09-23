@@ -19,7 +19,11 @@ export class EditInBackendSystrayItem extends Component {
         this.state = useState({ mainObjectName: "" });
 
         onWillStart(this._updateMainObjectName);
-        useBus(websiteSystrayRegistry, "CONTENT-UPDATED", this._updateMainObjectName);
+        useBus(
+            websiteSystrayRegistry,
+            "CONTENT-UPDATED",
+            this._updateMainObjectName.bind(this),
+        );
     }
 
     editInBackend() {

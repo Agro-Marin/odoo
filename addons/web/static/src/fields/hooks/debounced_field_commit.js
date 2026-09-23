@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 import { useDebounced } from "@web/core/utils/timing";
 
 /**
@@ -12,7 +12,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @returns {ReturnType<typeof useDebounced>}
  */
 export function useDebouncedFieldCommit(commit, delay) {
-    const component = /** @type {any} */ (useComponent());
+    const props = useProps();
     const debounced = useDebounced(commit, delay, { execBeforeUnmount: true });
 
     /** @param {any} ev */
@@ -24,7 +24,7 @@ export function useDebouncedFieldCommit(commit, delay) {
         }
     };
 
-    useFieldFlush(component.props.record.model.bus, flush);
+    useFieldFlush(props.record.model.bus, flush);
 
     return debounced;
 }

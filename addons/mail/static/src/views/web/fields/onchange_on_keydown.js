@@ -14,7 +14,7 @@ const onchangeOnKeydownMixin = () => ({
             const input = this.input || this.textareaRef;
 
             const triggerOnChange = useDebounced(
-                this.triggerOnChange,
+                this.triggerOnChange.bind(this),
                 this.props.keydownDebounceDelay,
             );
             useEffect(

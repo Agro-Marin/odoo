@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillUpdateProps, useComponent, useState } from "@odoo/owl";
+import { onWillUpdateProps, useEnv, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime";
 import { Domain } from "@web/core/domain";
 import { serializeDate } from "@web/core/l10n/dates";
@@ -7,6 +7,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 import {
     StatusBarField,
     statusBarField,
@@ -140,15 +141,16 @@ export class VersionsTimeline extends StatusBarField {
 }
 
 export function useSpecialDataNoCache(loadFn) {
-    const component = useComponent();
-    const orm = component.env.services.orm;
+    const env = useEnv();
+    const componentProps = useProps();
+    const orm = env.services.orm;
 
     const result = useState({ data: [] });
     useRecordObserver(async (record, props) => {
         result.data = await loadFn(orm, { ...props, record });
     });
     onWillUpdateProps(async (props) => {
-        if (props.record.id === component.props.record.id) {
+        if (props.record.id === componentProps.record.id) {
             result.data = await loadFn(orm, props);
         }
     });

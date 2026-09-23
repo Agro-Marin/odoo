@@ -1,7 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, onWillUpdateProps, toRaw, useSubEnv } from "@odoo/owl";
+import {
+    Component,
+    onWillStart,
+    onWillUpdateProps,
+    toRaw,
+    useState,
+    useSubEnv,
+} from "@odoo/owl";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
@@ -73,10 +80,11 @@ export class WithSearch extends Component {
             : null;
         useSubEnv({ searchModel: this.searchModel, searchPanelState });
 
+        this.state = useState({ searchModelUpdates: 0 });
         useBus(
             this.searchModel,
             SearchModelEvent.UPDATE,
-            /** @type {any} */ (this.render),
+            () => this.state.searchModelUpdates++,
         );
         useSetupAction({
             getGlobalState: () => ({
@@ -111,5 +119,10 @@ export class WithSearch extends Component {
                 }
             }
         });
+    }
+
+    get observedSearchModel() {
+        void this.state.searchModelUpdates;
+        return this.searchModel;
     }
 }

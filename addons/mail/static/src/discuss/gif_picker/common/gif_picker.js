@@ -108,7 +108,7 @@ export class GifPicker extends Component {
             },
             focused: false,
         });
-        this.loadFavoritesDebounced = useDebounced(this.loadFavorites, 200);
+        this.loadFavoritesDebounced = useDebounced(this.loadFavorites.bind(this), 200);
         onWillStart(() => {
             this.loadCategories();
         });

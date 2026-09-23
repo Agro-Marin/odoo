@@ -35,7 +35,7 @@ export class LocationSelectorDialog extends Component {
 
         this.getLocationUrl = "/delivery/get_pickup_locations";
 
-        this.debouncedOnResize = useDebounced(this.updateSize, 300);
+        this.debouncedOnResize = useDebounced(this.updateSize.bind(this), 300);
         this.debouncedSearchButton = useDebounced((zipCode) => {
             this.state.locations = [];
             this._updateLocations(zipCode);

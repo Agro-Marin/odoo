@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { reactive, useComponent } from "@odoo/owl";
+import { reactive, useEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -629,8 +629,8 @@ export class EmbeddedActions {
 
 /** @returns {EmbeddedActions | null} */
 export function useEmbeddedActions() {
-    const component = useComponent();
-    const env = /** @type {import("@web/env").OdooEnv} */ (component.env);
+    const componentEnv = useEnv();
+    const env = /** @type {import("@web/env").OdooEnv} */ (componentEnv);
     if (!(env.config?.embeddedActions?.length > 0)) {
         return null;
     }

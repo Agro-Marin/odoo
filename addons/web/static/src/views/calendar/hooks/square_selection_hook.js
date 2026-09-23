@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import { useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { useCallbackRecorder } from "@web/core/action_hook";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
+import { useProps } from "@web/core/utils/props";
 
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
 const ROW_SELECTOR = `[role="row"]`;
@@ -208,7 +209,7 @@ function selectCellsOnClick(ev, state, ctx) {
  */
 export function useSquareSelection(params = {}) {
     const cellIsSelectable = params.cellIsSelectable || (() => true);
-    const component = useComponent();
+    const props = useProps();
     const ref = useRef("fullCalendar");
     const highlightClass = "o-highlight";
     const isCtrlPressed = useCtrlKey();
@@ -226,10 +227,10 @@ export function useSquareSelection(params = {}) {
     };
     const publish = () => {
         highlight(state.allSelectedCells);
-        component.props.onSquareSelection([...state.allSelectedCells]);
+        props.onSquareSelection([...state.allSelectedCells]);
     };
 
-    useCallbackRecorder(component.props.callbackRecorder, () => {
+    useCallbackRecorder(props.callbackRecorder, () => {
         state.allSelectedCells = new Set();
         state.prevSelectedCell = null;
         highlight([]);
@@ -237,7 +238,7 @@ export function useSquareSelection(params = {}) {
 
     const selectState = useBlockSelection(
         /** @type {any} */ ({
-            enable: () => component.props.model.hasMultiCreate,
+            enable: () => props.model.hasMultiCreate,
             ignore: EVENT_CONTAINER_SELECTOR,
             elements: CELL_SELECTOR,
             ref,
@@ -282,6 +283,6 @@ export function useSquareSelection(params = {}) {
                 el?.removeEventListener("click", onClick);
             };
         },
-        () => [ref.el, component.props.model.hasMultiCreate],
+        () => [ref.el, props.model.hasMultiCreate],
     );
 }

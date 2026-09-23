@@ -14,11 +14,11 @@ import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { AppEvent, ModelEvent } from "@web/core/events";
+import { ModelEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { createElement } from "@web/core/utils/dom/xml";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { Field } from "@web/fields/field";
 import { useModel } from "@web/model/model";
@@ -126,10 +126,9 @@ export class FormController extends ViewController {
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         super.setupControllerServices();
         this.viewService = useService("view");
-        this.ui = useService("ui");
+        this.ui = useState(useService("ui"));
         this.multiCompanyRecovery = useService("multi_company_recovery");
         this.formDialogStack = useService("form_dialog_stack");
-        useBus(this.ui.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
 
         const { create, edit } = this.archInfo.activeActions;
         this.canCreate = create && !this.props.preventCreate;

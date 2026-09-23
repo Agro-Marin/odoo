@@ -28,9 +28,13 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
-        this.debouncedUpdateQuantity = useDebounced(this._updateQuantity, 500, {
-            execBeforeUnmount: true,
-        });
+        this.debouncedUpdateQuantity = useDebounced(
+            this._updateQuantity.bind(this),
+            500,
+            {
+                execBeforeUnmount: true,
+            },
+        );
         this._pendingUpdate = Promise.resolve();
 
         // Leaving the catalog has to outlast the debounce above.

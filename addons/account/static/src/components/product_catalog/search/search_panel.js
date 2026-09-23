@@ -23,7 +23,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         useBus(
             this.env.searchModel,
             "section-line-count-change",
-            this.updateSectionLineCount,
+            this.updateSectionLineCount.bind(this),
         );
 
         onWillStart(async () => await this.loadSections());

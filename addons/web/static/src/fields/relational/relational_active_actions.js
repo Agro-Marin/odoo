@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillRender, useComponent } from "@odoo/owl";
+import { onWillRender } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
+import { useProps } from "@web/core/utils/props";
 
 /**
  * @typedef {Object} RelationalActiveActions
@@ -109,10 +110,10 @@ export function useActiveActions({
         return result;
     };
 
-    const component = useComponent();
-    const activeActions = compute(component.props);
+    const props = useProps();
+    const activeActions = compute(props);
     onWillRender(() => {
-        Object.assign(activeActions, compute(component.props));
+        Object.assign(activeActions, compute(props));
     });
 
     return activeActions;

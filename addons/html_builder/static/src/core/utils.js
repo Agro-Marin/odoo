@@ -17,6 +17,7 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
 
@@ -64,11 +65,12 @@ export function useDomState(getState, { checkEditingElement = true } = {}) {
 }
 
 export function useActionInfo() {
-    const comp = useComponent();
+    const env = useEnv();
+    const props = useProps();
 
     const getParam = (paramName) => {
-        let param = comp.props[paramName];
-        param = param === undefined ? comp.env.weContext[paramName] : param;
+        let param = props[paramName];
+        param = param === undefined ? env.weContext[paramName] : param;
         if (typeof param === "object") {
             param = JSON.stringify(param);
         }
@@ -78,14 +80,14 @@ export function useActionInfo() {
     const actionParam = getParam("actionParam");
 
     return {
-        actionId: comp.props.action || comp.env.weContext.action,
+        actionId: props.action || env.weContext.action,
         actionParam,
-        actionValue: comp.props.actionValue,
+        actionValue: props.actionValue,
         classAction: getParam("classAction"),
         styleAction: getParam("styleAction"),
-        styleActionValue: comp.props.styleActionValue,
+        styleActionValue: props.styleActionValue,
         attributeAction: getParam("attributeAction"),
-        attributeActionValue: comp.props.attributeActionValue,
+        attributeActionValue: props.attributeActionValue,
     };
 }
 
@@ -100,11 +102,11 @@ function querySelectorAll(targets, selector) {
 }
 
 export function useBuilderComponent() {
-    const comp = useComponent();
+    const props = useProps();
     const newEnv = {};
     const oldEnv = useEnv();
     let editingElements;
-    let applyTo = comp.props.applyTo;
+    let applyTo = props.applyTo;
     const updateEditingElements = () => {
         editingElements = applyTo
             ? querySelectorAll(oldEnv.getEditingElements(), applyTo)
@@ -113,7 +115,7 @@ export function useBuilderComponent() {
     updateEditingElements();
     oldEnv.editorBus.addEventListener("UPDATE_EDITING_ELEMENT", updateEditingElements);
     onWillUpdateProps(async (nextProps) => {
-        if (comp.props.applyTo !== nextProps.applyTo) {
+        if (props.applyTo !== nextProps.applyTo) {
             applyTo = nextProps.applyTo;
             oldEnv.editorBus.trigger("UPDATE_EDITING_ELEMENT");
             await oldEnv.triggerDomUpdated();
@@ -129,12 +131,12 @@ export function useBuilderComponent() {
     newEnv.getEditingElement = () => editingElements[0];
     const weContext = {};
     for (const key in basicContainerBuilderComponentProps) {
-        if (key in comp.props) {
-            weContext[key] = comp.props[key];
+        if (key in props) {
+            weContext[key] = props[key];
         }
     }
     if (Object.keys(weContext).length) {
-        newEnv.weContext = { ...comp.env.weContext, ...weContext };
+        newEnv.weContext = { ...oldEnv.weContext, ...weContext };
     }
     useSubEnv(newEnv);
 }
@@ -440,8 +442,9 @@ function useReloadAction(getAllActions) {
 }
 
 export function useHasPreview(getAllActions) {
-    const comp = useComponent();
-    const getAction = comp.env.editor.shared.builderActions.getAction;
+    const env = useEnv();
+    const props = useProps();
+    const getAction = env.editor.shared.builderActions.getAction;
 
     let hasPreview = true;
     for (const descr of getAllActions()) {
@@ -455,8 +458,8 @@ export function useHasPreview(getAllActions) {
 
     return (
         hasPreview &&
-        (comp.props.preview === true ||
-            (comp.props.preview === undefined && comp.env.weContext.preview !== false))
+        (props.preview === true ||
+            (props.preview === undefined && env.weContext.preview !== false))
     );
 }
 

@@ -2,17 +2,19 @@
 /** @odoo-module native */
 
 import {
+    onMounted,
     onPatched,
+    onWillDestroy,
     onWillUnmount,
-    status,
     toRaw,
-    useComponent,
     useEffect,
+    useEnv,
     useRef,
     useState,
 } from "@odoo/owl";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveElement } from "@web/core/utils/dom/ui";
+import { useProps } from "@web/core/utils/props";
 
 /** @typedef {{ readonly el: HTMLElement | null; }} Ref */
 
@@ -69,10 +71,9 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
  * @returns {void}
  */
 export function useBus(bus, eventName, callback) {
-    const component = useComponent();
     useEffect(
         () => {
-            const listener = /** @type {EventListener} */ (callback.bind(component));
+            const listener = /** @type {EventListener} */ (callback);
             bus.addEventListener(eventName, listener);
             return () => bus.removeEventListener(eventName, listener);
         },
@@ -96,22 +97,21 @@ export const useServiceProtectMethodHandling = {
 };
 
 /**
- * @param {import("@odoo/owl").Component} component
+ * @param {() => boolean} isDestroyed
  * @param {() => Function} resolve
  * @returns {Function}
  */
-function _protectMethod(component, resolve) {
+function _protectMethod(isDestroyed, resolve) {
     return function (/** @type {any[]} */ ...args) {
-        if (status(component) === "destroyed") {
+        if (isDestroyed()) {
             return useServiceProtectMethodHandling.fn();
         }
 
         const prom = Promise.resolve(resolve().call(this, ...args));
         const protectedProm = prom.then(
-            (result) =>
-                status(component) === "destroyed" ? new Promise(() => {}) : result,
+            (result) => (isDestroyed() ? new Promise(() => {}) : result),
             (error) => {
-                if (status(component) !== "destroyed") {
+                if (!isDestroyed()) {
                     throw error;
                 }
                 console.warn(
@@ -126,6 +126,27 @@ function _protectMethod(component, resolve) {
             cancel: /** @type {any} */ (prom).cancel,
         });
     };
+}
+
+/** @returns {() => boolean} */
+export function useIsMounted() {
+    let mounted = false;
+    onMounted(() => {
+        mounted = true;
+    });
+    onWillUnmount(() => {
+        mounted = false;
+    });
+    return () => mounted;
+}
+
+/** @returns {() => boolean} */
+export function useIsDestroyed() {
+    let destroyed = false;
+    onWillDestroy(() => {
+        destroyed = true;
+    });
+    return () => destroyed;
 }
 
 /** @type {WeakMap<string[], Set<PropertyKey>>} */
@@ -145,12 +166,12 @@ function guardedMethodSet(methods) {
 }
 
 /**
- * @param {import("@odoo/owl").Component} component
+ * @param {() => boolean} isDestroyed
  * @param {any} observed
  * @param {string[]} methods
  * @returns {any}
  */
-function makeGuardedView(component, observed, methods) {
+function makeGuardedView(isDestroyed, observed, methods) {
     const methodSet = guardedMethodSet(methods);
     /** @type {Map<PropertyKey, Function>} */
     const guarded = new Map();
@@ -159,7 +180,7 @@ function makeGuardedView(component, observed, methods) {
             if (methodSet.has(property)) {
                 let fn = guarded.get(property);
                 if (!fn) {
-                    fn = _protectMethod(component, () => observed[property]);
+                    fn = _protectMethod(isDestroyed, () => observed[property]);
                     guarded.set(property, fn);
                 }
                 return fn;
@@ -170,7 +191,7 @@ function makeGuardedView(component, observed, methods) {
                 typeof value === "object" &&
                 Object.getPrototypeOf(value) === target
             ) {
-                return makeGuardedView(component, value, methods);
+                return makeGuardedView(isDestroyed, value, methods);
             }
             return value;
         },
@@ -205,8 +226,7 @@ export function useOptionalService(serviceName) {
  * @returns {any}
  */
 function _useService(serviceName, optional) {
-    const component = useComponent();
-    const { services } = component.env;
+    const { services } = useEnv();
     if (!(serviceName in services)) {
         if (optional) {
             return null;
@@ -220,9 +240,13 @@ function _useService(serviceName, optional) {
             : service;
     if (SERVICES_METADATA[serviceName]) {
         if (service instanceof Function) {
-            return _protectMethod(component, () => services[serviceName]);
+            return _protectMethod(useIsDestroyed(), () => services[serviceName]);
         }
-        return makeGuardedView(component, observed, SERVICES_METADATA[serviceName]);
+        return makeGuardedView(
+            useIsDestroyed(),
+            observed,
+            SERVICES_METADATA[serviceName],
+        );
     }
     return observed;
 }
@@ -325,10 +349,10 @@ export function useChildRef() {
  * @returns {Ref}
  */
 export function useForwardRefToParent(refName) {
-    const component = useComponent();
+    const props = useProps();
     const ref = useRef(refName);
-    if (component.props[refName]) {
-        component.props[refName](ref);
+    if (props[refName]) {
+        props[refName](ref);
     }
     return ref;
 }

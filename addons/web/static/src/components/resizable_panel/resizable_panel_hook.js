@@ -4,12 +4,12 @@
 import {
     onWillUnmount,
     onWillUpdateProps,
-    useComponent,
     useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useProps } from "@web/core/utils/props";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const log = makeLogger("web.components.resizable_panel");
@@ -218,12 +218,12 @@ export function useResizable({
         typeof _containerRef == "string" ? useRef(_containerRef) : _containerRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     const handleRef = typeof _handleRef == "string" ? useRef(_handleRef) : _handleRef;
-    const component = useComponent();
+    const props = useProps();
     const controller = new ResizeController(
         containerRef,
         handleRef,
         { getInitialWidth, getMinWidth, onResize, getResizeSide },
-        component.props,
+        props,
     );
 
     useExternalListener(

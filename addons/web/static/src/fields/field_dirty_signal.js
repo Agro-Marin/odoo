@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, useComponent } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
+import { useProps } from "@web/core/utils/props";
 
 /** @typedef {{ id: symbol, isDirty: boolean }} FieldDirtyPayload */
 
@@ -38,9 +39,8 @@ export function applyFieldDirtyPayload(owners, detail) {
  * @returns {(isDirty: boolean) => void}
  */
 export function useFieldDirtySignal(model) {
-    const component = useComponent();
-    const getBus = () =>
-        (model ?? /** @type {any} */ (component).props.record.model).bus;
+    const props = useProps();
+    const getBus = () => (model ?? props.record.model).bus;
     const id = Symbol("field-dirty-owner");
     let lastReported = false;
 

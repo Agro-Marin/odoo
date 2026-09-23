@@ -19,7 +19,7 @@ export class TodoChatterPanel extends Component {
             displayChatter: this.env.isSmall,
         });
         this.rootRef = useRef("root");
-        useBus(this.env.bus, "TODO:TOGGLE_CHATTER", this.toggleChatter);
+        useBus(this.env.bus, "TODO:TOGGLE_CHATTER", this.toggleChatter.bind(this));
     }
 
     toggleChatter(ev) {

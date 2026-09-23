@@ -1,15 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent, useEffect, useRef } from "@odoo/owl";
+import { useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ParseError } from "@web/core/parse_error";
+import { useProps } from "@web/core/utils/props";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 
 /**
  * @typedef InputFieldContext
- * @property {any} component
+ * @property {Record<string, any>} props
  * @property {any} params
  * @property {{ el: HTMLInputElement | HTMLTextAreaElement | null }} inputRef
  * @property {string} fieldName
@@ -33,7 +34,7 @@ function syncDirtyFromInput(ctx) {
  * @returns {Promise<void>}
  */
 async function commitInputChanges(ctx, urgent) {
-    const { component, params, inputRef, fieldName, edit } = ctx;
+    const { props, params, inputRef, fieldName, edit } = ctx;
     if (!inputRef.el) {
         return;
     }
@@ -54,7 +55,7 @@ async function commitInputChanges(ctx, urgent) {
         try {
             value = params.parse(value);
         } catch (error) {
-            component.props.record.setInvalidField(fieldName);
+            props.record.setInvalidField(fieldName);
             if (!(error instanceof ParseError)) {
                 console.error(
                     `[useInputField] parsing "${fieldName}" threw a non-ParseError; ` +
@@ -66,7 +67,7 @@ async function commitInputChanges(ctx, urgent) {
         }
     }
 
-    const current = component.props.record.data[fieldName];
+    const current = props.record.data[fieldName];
     if ((value ?? false) === (current ?? false)) {
         inputRef.el.value = params.getValue();
         edit.lastSetValue = inputRef.el.value;
@@ -76,10 +77,7 @@ async function commitInputChanges(ctx, urgent) {
 
     edit.lastSetValue = inputRef.el.value;
     try {
-        await component.props.record.update(
-            { [fieldName]: value },
-            { save: ctx.shouldSave() },
-        );
+        await props.record.update({ [fieldName]: value }, { save: ctx.shouldSave() });
     } finally {
         syncDirtyFromInput(ctx);
     }
@@ -90,7 +88,7 @@ async function commitInputChanges(ctx, urgent) {
  * @returns {Promise<void>}
  */
 async function commitUrgently(ctx) {
-    const { component, params, inputRef, fieldName } = ctx;
+    const { props, params, inputRef, fieldName } = ctx;
     if (!inputRef.el) {
         return;
     }
@@ -102,15 +100,15 @@ async function commitUrgently(ctx) {
             return;
         }
     }
-    if ((value ?? false) === (component.props.record.data[fieldName] ?? false)) {
+    if ((value ?? false) === (props.record.data[fieldName] ?? false)) {
         return;
     }
-    await component.props.record.update({ [fieldName]: value }, { save: false });
+    await props.record.update({ [fieldName]: value }, { save: false });
 }
 
 /** @param {InputFieldContext} ctx */
 function bindInputListeners(ctx) {
-    const { component, params, inputRef, fieldName, edit } = ctx;
+    const { props, params, inputRef, fieldName, edit } = ctx;
 
     const onInput = (/** @type {any} */ ev) => {
         edit.isDirty = ev.target.value !== edit.lastSetValue;
@@ -118,8 +116,8 @@ function bindInputListeners(ctx) {
             ev.target.value = ev.target.value.replace(/[\r\n]+/g, " ");
         }
         ctx.setFieldDirty(edit.isDirty);
-        if (!component.props.record.isValid) {
-            component.props.record.resetFieldValidity(fieldName);
+        if (!props.record.isValid) {
+            props.record.resetFieldValidity(fieldName);
         }
     };
     const onChange = () => commitInputChanges(ctx, false);
@@ -167,16 +165,16 @@ function bindInputListeners(ctx) {
  */
 export function useInputField(params) {
     const inputRef = params.ref || useRef(params.refName || "input");
-    const component = useComponent();
+    const props = useProps();
 
-    const fieldName = "fieldName" in params ? params.fieldName : component.props.name;
+    const fieldName = "fieldName" in params ? params.fieldName : props.name;
     if (!fieldName) {
         return inputRef;
     }
 
     /** @type {InputFieldContext} */
     const ctx = {
-        component,
+        props,
         params,
         inputRef,
         fieldName,
@@ -190,11 +188,7 @@ export function useInputField(params) {
     useEffect(() => {
         const value = params.getValue();
         const el = inputRef.el;
-        if (
-            !el ||
-            ctx.edit.isDirty ||
-            component.props.record.isFieldInvalid(fieldName)
-        ) {
+        if (!el || ctx.edit.isDirty || props.record.isFieldInvalid(fieldName)) {
             return;
         }
         if (el.value !== value) {
@@ -209,7 +203,7 @@ export function useInputField(params) {
         ctx.edit.lastSetValue = el.value;
     });
 
-    useFieldFlush(component.props.record.model.bus, (ev, urgent) => {
+    useFieldFlush(props.record.model.bus, (ev, urgent) => {
         ev.detail?.proms?.push(commitInputChanges(ctx, urgent));
     });
 

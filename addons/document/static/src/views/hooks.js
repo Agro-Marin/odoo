@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { notifyEmbeddedActionWarning } from "@document/views/utils";
+import { useProps } from "@web/core/utils/props";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -53,8 +54,8 @@ export function preSuperSetup() {
             bus: new EventBus(),
         },
     });
-    const component = useComponent();
-    const props = component.props;
+    const componentProps = useProps();
+    const props = componentProps;
     if (props.globalState && props.globalState.sharedSelection) {
         if (!props.state) {
             props.state = {};

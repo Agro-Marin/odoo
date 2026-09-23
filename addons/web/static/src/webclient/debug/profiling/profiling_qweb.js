@@ -63,7 +63,7 @@ export class ProfilingQwebView extends Component {
         });
 
         this.renderProfilingInformation = useDebounced(
-            this.renderProfilingInformation,
+            this.renderProfilingInformation.bind(this),
             100,
         );
 

@@ -1,19 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@odoo/owl";
+import { onWillDestroy, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
+import { useProps } from "@web/core/utils/props";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
 /** @param {(record: any, props?: any) => void | Promise<void>} callback */
 export function useRecordObserver(callback) {
-    const component = useComponent();
+    const componentProps = useProps();
     let currentId;
     let disposeEffect;
-    let latestProps = component.props;
+    let latestProps = componentProps;
     const observeRecord = (props) => {
         currentId = uniqueId();
         disposeEffect?.();
@@ -76,12 +77,12 @@ export function useRecordObserver(callback) {
         disposeEffect = undefined;
     });
     onWillStart(async () => {
-        latestProps = component.props;
-        await observeRecord(component.props);
+        latestProps = componentProps;
+        await observeRecord(componentProps);
     });
     onWillUpdateProps(async (nextProps) => {
         latestProps = nextProps;
-        if (nextProps.record !== component.props.record) {
+        if (nextProps.record !== componentProps.record) {
             await observeRecord(nextProps);
         }
     });

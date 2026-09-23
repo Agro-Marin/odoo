@@ -16,10 +16,9 @@ import { Notebook } from "@web/components/notebook/notebook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
-import { AppEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { mutate } from "@web/core/utils/dom/layout_batch";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { Field } from "@web/fields/field";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -83,8 +82,7 @@ export class FormRenderer extends Component {
         this.templates = compileViewTemplates(Compiler || FormCompiler, templates);
         this.hasUnsavedEdits = useFieldIsDirty(record.model);
         useSubEnv({ model: record.model });
-        this.uiService = useService("ui");
-        useBus(this.uiService.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
+        this.uiService = useState(useService("ui"));
         this.setupStickyStatusbar();
 
         const { autofocusFieldIds } = archInfo;

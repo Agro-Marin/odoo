@@ -26,7 +26,7 @@ export class ShapeSelector extends BaseOptionComponent {
         this.rootRef = useRef("root");
         this.tabsRef = useRef("tabs");
         this.state = useState({ activeGroup: "basic" });
-        this.onScroll = useThrottleForAnimation(this._onScroll);
+        this.onScroll = useThrottleForAnimation(this._onScroll.bind(this));
         useHotkey("escape", () => this.props.onClose());
         useAutofocus({ refName: "backButton" });
     }

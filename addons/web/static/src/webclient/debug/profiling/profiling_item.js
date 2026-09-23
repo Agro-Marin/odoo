@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, EventBus } from "@odoo/owl";
+import { Component, EventBus, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
+
 export class ProfilingItem extends Component {
     static components = { DropdownItem };
     static template = "web.DebugMenu.ProfilingItem";
@@ -18,12 +19,17 @@ export class ProfilingItem extends Component {
     setup() {
         this.profiling = useService("profiling");
         this.action = useService("action");
-        useBus(this.props.bus, "UPDATE", /** @type {any} */ (this.render));
+        this.state = useState(this.profiling.state);
     }
 
     changeParam(param, ev) {
         this.profiling.setParam(param, ev.target.value);
     }
+    /** @param {string} collector */
+    isCollectorEnabled(collector) {
+        return this.state.collectors.includes(collector);
+    }
+
     toggleParam(param) {
         const value = this.profiling.state.params[param];
         this.profiling.setParam(param, !value);

@@ -158,7 +158,7 @@ export class ModelFieldSelectorPopover extends Component {
         this.popoverId = uniqueId("o_model_field_selector_popover_");
         this.hasPendingSearch = false;
         this.debouncedSearchFields = useDebounced(
-            this.searchFields,
+            this.searchFields.bind(this),
             INPUT_DEBOUNCE_DELAY,
         );
 

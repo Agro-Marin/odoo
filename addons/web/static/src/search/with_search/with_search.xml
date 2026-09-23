@@ -3,11 +3,11 @@
 
   <t t-name="web.WithSearch">
     <t t-slot="default"
-      context="this.searchModel.context"
-      domain="this.searchModel.domain"
-      groupBy="this.searchModel.groupBy"
-      orderBy="this.searchModel.orderBy"
-      display="this.searchModel.display"/>
+      context="this.observedSearchModel.context"
+      domain="this.observedSearchModel.domain"
+      groupBy="this.observedSearchModel.groupBy"
+      orderBy="this.observedSearchModel.orderBy"
+      display="this.observedSearchModel.display"/>
   </t>
 
 </templates>

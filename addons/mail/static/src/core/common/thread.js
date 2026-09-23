@@ -74,7 +74,7 @@ export class Thread extends Component {
     static template = "mail.Thread";
 
     _setupServicesAndRefs() {
-        this.onScroll = useThrottleForAnimation(this.onScroll);
+        this.onScroll = useThrottleForAnimation(this.onScroll.bind(this));
         this.registerMessageRef = this.registerMessageRef.bind(this);
         this.store = useService("mail.store");
         this.ui = useService("ui");

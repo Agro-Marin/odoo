@@ -5,7 +5,6 @@ import {
     onMounted,
     onWillUnmount,
     onWillUpdateProps,
-    useComponent,
     useEffect,
     useRef,
     useState,
@@ -15,6 +14,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
+import { useProps } from "@web/core/utils/props";
 
 const log = makeLogger("mail.attachment_view");
 class AbstractAttachmentView extends Component {
@@ -119,12 +119,12 @@ function extractPopoutProps(props) {
     };
 }
 export function usePopoutAttachment() {
-    const component = useComponent();
+    const componentProps = useProps();
     const uiService = useService("ui");
     const mailPopoutService = useService("mail.popout");
 
     function popout() {
-        log.logic("popout", () => extractPopoutProps(component.props));
+        log.logic("popout", () => extractPopoutProps(componentProps));
         mailPopoutService.addHooks(
             () => {
                 setAttachmentViewHidden(true);
@@ -137,12 +137,12 @@ export function usePopoutAttachment() {
         );
         mailPopoutService.popout(
             PopoutAttachmentView,
-            extractPopoutProps(component.props),
+            extractPopoutProps(componentProps),
         );
     }
 
-    /** @param {{threadId: number, threadModel: string}} [newProps=component.props] */
-    function updatePopout(newProps = component.props) {
+    /** @param {{threadId: number, threadModel: string}} [newProps=componentProps] */
+    function updatePopout(newProps = componentProps) {
         if (mailPopoutService.externalWindow) {
             log.logic("updatePopout", () => extractPopoutProps(newProps));
             setAttachmentViewHidden(true);
@@ -160,7 +160,7 @@ export function usePopoutAttachment() {
     onMounted(updatePopout);
     onWillUpdateProps(
         /** @param {{threadId: number, threadModel: string}} props */ (props) => {
-            const oldProps = extractPopoutProps(component.props);
+            const oldProps = extractPopoutProps(componentProps);
             const newProps = extractPopoutProps(props);
             if (!deepEqual(oldProps, newProps)) {
                 updatePopout(newProps);

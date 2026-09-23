@@ -28,6 +28,7 @@ import {
     onPatched,
     onWillStart,
     onWillUpdateProps,
+    reactive,
     useEffect,
     useRef,
     useState,
@@ -368,21 +369,18 @@ test(`button box rendering invisible`, async () => {
 });
 
 test(`form view gets size class on small and big screens`, async () => {
-    let uiSize = SIZES.MD;
-    const bus = new EventBus();
+    const ui = reactive({
+        bus: new EventBus(),
+        size: SIZES.MD,
+        get isSmall() {
+            return this.size <= SIZES.SM;
+        },
+    });
     /** @type {any} */ (mockService)("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
-        return {
-            bus,
-            get size() {
-                return uiSize;
-            },
-            get isSmall() {
-                return uiSize <= SIZES.SM;
-            },
-        };
+        return ui;
     });
 
     await mountView({
@@ -393,14 +391,12 @@ test(`form view gets size class on small and big screens`, async () => {
     });
     expect(`.o_xxl_form_view, .o_xxs_form_view`).toHaveCount(0);
 
-    uiSize = SIZES.XXL;
-    bus.trigger("resize");
+    ui.size = SIZES.XXL;
     await animationFrame();
     expect(`.o_xxs_form_view`).toHaveCount(0);
     expect(`.o_xxl_form_view`).toHaveCount(1);
 
-    uiSize = SIZES.XS;
-    bus.trigger("resize");
+    ui.size = SIZES.XS;
     await animationFrame();
     expect(`.o_xxl_form_view`).toHaveCount(0);
     expect(`.o_xxs_form_view`).toHaveCount(1);

@@ -29,7 +29,7 @@ export class ProjectRightSidePanel extends Component {
         this.actionService = useService("action");
         this.dialog = useService("dialog");
         this.uiService = useService("ui");
-        useBus(this.uiService.bus, "resize", this.updateGridTemplateColumns);
+        useBus(this.uiService.bus, "resize", this.updateGridTemplateColumns.bind(this));
         this.state = useState({
             data: {
                 milestones: {

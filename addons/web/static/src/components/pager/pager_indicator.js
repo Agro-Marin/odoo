@@ -24,7 +24,7 @@ export class PagerIndicator extends Component {
             value: "-",
             total: 0,
         });
-        useBus(this.env.bus, PagerEvent.UPDATED, this.pagerUpdate);
+        useBus(this.env.bus, PagerEvent.UPDATED, this.pagerUpdate.bind(this));
         onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 

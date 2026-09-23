@@ -1,7 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, useComponent, useEffect, useExternalListener } from "@odoo/owl";
+import {
+    onMounted,
+    useComponent,
+    useEffect,
+    useEnv,
+    useExternalListener,
+} from "@odoo/owl";
+import { useProps } from "@web/core/utils/props";
 
 export const scrollSymbol = Symbol("scroll");
 
@@ -60,14 +67,15 @@ export function useCallbackRecorder(callbackRecorder, callback) {
  * @returns {{ setScrollFromState: Function }}
  */
 export function useSetupAction(params = {}) {
-    const component = useComponent();
+    const env = useEnv();
+    const props = useProps();
     const {
         __beforeLeave__,
         __getGlobalState__,
         __getLocalState__,
         __getContext__,
         __getOrderBy__,
-    } = component.env;
+    } = env;
 
     const {
         beforeVisibilityChange,
@@ -102,10 +110,10 @@ export function useSetupAction(params = {}) {
     }
 
     function setScrollFromState() {
-        const { state } = component.props;
+        const { state } = props;
         const scrolling = state && state[scrollSymbol];
         if (scrolling && rootRef?.el) {
-            if (component.env.isSmall) {
+            if (env.isSmall) {
                 rootRef.el.scrollTop = (scrolling.root && scrolling.root.top) || 0;
                 rootRef.el.scrollLeft = (scrolling.root && scrolling.root.left) || 0;
             } else if (scrolling.content) {
@@ -128,7 +136,7 @@ export function useSetupAction(params = {}) {
             }
             const rootEl = rootRef?.el;
             if (rootEl) {
-                if (component.env.isSmall) {
+                if (env.isSmall) {
                     state[scrollSymbol] = {
                         root: {
                             left: rootEl.scrollLeft,

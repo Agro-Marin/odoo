@@ -60,7 +60,7 @@ export class KanbanHeader extends Component {
         this.rootRef = useRef("root");
         this.popover = usePopover(KanbanHeaderTooltip);
         this.titleHovered = false;
-        this.onTitleMouseEnter = useDebounced(this.onTitleMouseEnter, 400);
+        this.onTitleMouseEnter = useDebounced(this.onTitleMouseEnter.bind(this), 400);
         this.groupOps = useGroupManagement({
             getList: () => this.props.list,
             getMenuActiveActions: () => this.props.activeActions,

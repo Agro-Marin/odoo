@@ -7,13 +7,13 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useComponent,
     useState,
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 
 const log = makeLogger("web.field.special_data");
 
@@ -136,13 +136,13 @@ function cachedCall(orm, specialDataCaches, key, args) {
  * @returns {{ data: T, isReady: boolean }}
  */
 export function useSpecialData(loadFn) {
-    const component = useComponent();
-    const record = component.props.record;
+    const componentProps = useProps();
+    const record = componentProps.record;
     const specialDataCaches = toRaw(record.model.specialDataCaches);
     const orm = useService("orm");
     let loadTicket = 0;
     let destroyed = false;
-    let currentProps = component.props;
+    let currentProps = componentProps;
     let reloadQueued = false;
     let currentLoad;
     const keepLast = new KeepLast({ rejectSuperseded: true });
@@ -232,7 +232,7 @@ export function useSpecialData(loadFn) {
         }
     }
     onWillStart(async () => {
-        await requestLoad(component.props);
+        await requestLoad(componentProps);
         // Superseding the initial request must not release the first render
         // while data still has its uninitialized shape.
         while (!destroyed && !result.isReady) {

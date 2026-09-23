@@ -30,8 +30,16 @@ export class LoadingIndicator extends Component {
         });
         this.rpcIds = new Set();
         this.startShowTimer = null;
-        useBus(rpcBus, RpcEvent.REQUEST, /** @type {any} */ (this.requestCall));
-        useBus(rpcBus, RpcEvent.RESPONSE, /** @type {any} */ (this.responseCall));
+        useBus(
+            rpcBus,
+            RpcEvent.REQUEST,
+            /** @type {any} */ (this.requestCall.bind(this)),
+        );
+        useBus(
+            rpcBus,
+            RpcEvent.RESPONSE,
+            /** @type {any} */ (this.responseCall.bind(this)),
+        );
         onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 

@@ -105,7 +105,11 @@ export class NavBar extends Component {
             this._clearQuickLauncherTimer();
             this.quickLauncher.close();
         };
-        useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, this._busToggledCallback);
+        useBus(
+            this.env.bus,
+            AppEvent.HOME_MENU_TOGGLED,
+            this._busToggledCallback.bind(this),
+        );
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);
         onWillDestroy(() => debouncedAdapt.cancel());
         useExternalListener(window, "resize", debouncedAdapt);

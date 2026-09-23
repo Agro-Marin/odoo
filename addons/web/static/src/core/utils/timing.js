@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUnmount, useComponent } from "@odoo/owl";
+import { onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 
@@ -289,10 +289,7 @@ export function useDebounced(
     delay,
     { execBeforeUnmount = false, immediate = false, trailing = !immediate } = {},
 ) {
-    const component = useComponent();
-    /** @type {(...args: Parameters<T>) => ReturnType<T>} */
-    const invoke = (...args) => callback.apply(component, args);
-    const debounced = debounce(invoke, delay, {
+    const debounced = debounce(callback, delay, {
         leading: immediate,
         trailing,
     });
@@ -301,16 +298,12 @@ export function useDebounced(
 }
 
 /**
- * The component supplies the callback receiver; callers only supply its arguments.
  * @template {(...args: any[]) => any} T
  * @param {T} func
  * @returns {((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) & { cancel: () => void }}
  */
 export function useThrottleForAnimation(func) {
-    const component = useComponent();
-    /** @type {(...args: Parameters<T>) => ReturnType<T>} */
-    const bound = func.bind(component);
-    const throttledForAnimation = throttleForAnimation(bound);
+    const throttledForAnimation = throttleForAnimation(func);
     onWillUnmount(() => throttledForAnimation.cancel());
     return throttledForAnimation;
 }

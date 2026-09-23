@@ -31,7 +31,7 @@ export class FontSizeSelector extends Component {
         useDropdownAutoVisibility(this.env.overlayState, this.menuRef);
         this.iframeContentRef = useRef("iframeContent");
         this.debouncedCustomFontSizeInput = useDebounced(
-            this.onCustomFontSizeInput,
+            this.onCustomFontSizeInput.bind(this),
             200,
         );
 

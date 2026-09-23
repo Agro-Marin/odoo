@@ -63,7 +63,11 @@ export class WebClient extends Component {
                 this.state.fullscreen = mode === "fullscreen";
             }
         });
-        useBus(this.env.bus, AppEvent.WEBCLIENT_LOAD_DEFAULT_APP, this._loadDefaultApp);
+        useBus(
+            this.env.bus,
+            AppEvent.WEBCLIENT_LOAD_DEFAULT_APP,
+            this._loadDefaultApp.bind(this),
+        );
         onMounted(() => {
             this.loadRouterState();
             this.env.bus.trigger(AppEvent.WEB_CLIENT_READY);

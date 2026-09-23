@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 import { usePopover } from "@web/ui/popover";
 
 import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";
@@ -45,7 +45,7 @@ function insertAtRange(element, text, { rangeIndex, removeTriggerKey }) {
 }
 
 export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
-    const ownerField = useComponent();
+    const props = useProps();
     /** @type {Function | undefined} */
     let closeCallback;
     const popover = usePopover(DynamicPlaceholderPopover, {
@@ -134,7 +134,7 @@ export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
         }
     }
     function updateModel(modelNameLocation) {
-        const recordData = ownerField.props.record.data;
+        const recordData = props.record.data;
         model =
             (modelNameLocation && recordData[modelNameLocation]) ||
             recordData.render_model ||

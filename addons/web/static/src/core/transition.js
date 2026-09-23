@@ -5,13 +5,12 @@ import {
     Component,
     onWillDestroy,
     onWillUpdateProps,
-    status,
-    useComponent,
     useEffect,
     useState,
     xml,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useIsMounted } from "@web/core/utils/hooks";
 export const config = {
     disabled: false,
 };
@@ -29,7 +28,7 @@ export function useTransition(options) {
     const name = () => options.name;
     const leaveDuration = () => options.leaveDuration ?? 500;
     const onLeave = () => options.onLeave?.();
-    const component = useComponent();
+    const isMounted = useIsMounted();
     const state = useState({
         shouldMount: initialVisibility,
         stage: initialVisibility ? "enter" : "leave",
@@ -74,9 +73,8 @@ export function useTransition(options) {
             browser.clearTimeout(timer);
             prevState = newState;
             if (newState) {
-                if (status(component) === "mounted" || immediate) {
+                if (isMounted() || immediate) {
                     state.stage = "enter";
-                    component.render();
                     onNextPatch = () => {
                         state.stage = "enter-active";
                     };

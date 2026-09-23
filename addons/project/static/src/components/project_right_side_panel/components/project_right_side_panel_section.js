@@ -34,7 +34,7 @@ export class ProjectRightSidePanelSection extends Component {
         });
         this.ui = useService("ui");
 
-        useBus(this.ui.bus, "resize", this.setDefaultIsClosed);
+        useBus(this.ui.bus, "resize", this.setDefaultIsClosed.bind(this));
     }
 
     setDefaultIsClosed() {

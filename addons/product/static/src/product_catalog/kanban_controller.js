@@ -16,10 +16,14 @@ export class ProductCatalogKanbanController extends KanbanController {
         // Guard a double click on a navigation button: act on the first one and
         // swallow the rest. The default (trailing) form would instead make every
         // click wait out the full delay before anything happens.
-        this.backToQuotationDebounced = useDebounced(this.backToQuotation, 500, {
-            immediate: true,
-            trailing: false,
-        });
+        this.backToQuotationDebounced = useDebounced(
+            this.backToQuotation.bind(this),
+            500,
+            {
+                immediate: true,
+                trailing: false,
+            },
+        );
         // Cards debounce their quantity writes by 500ms. Every card registers
         // itself here so leaving the catalog can flush and await them; without
         // that, a product added just before leaving was still being written

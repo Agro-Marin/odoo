@@ -16,7 +16,7 @@ export class BarcodeHandlerField extends Component {
         this.anchorRef = useRef("anchor");
         this.ui = useService("ui");
         const barcode = useService("barcode");
-        useBus(barcode.bus, "barcode_scanned", this.onBarcodeScanned);
+        useBus(barcode.bus, "barcode_scanned", this.onBarcodeScanned.bind(this));
     }
 
     get isActive() {

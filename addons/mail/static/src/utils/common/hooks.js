@@ -23,6 +23,7 @@ import { _t } from "@web/core/translation";
 import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { useProps } from "@web/core/utils/props";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 
 const log = makeLogger("mail.thread.ui");
@@ -79,11 +80,10 @@ export function useOnChange(target, key, callback) {
  * @returns {import("@odoo/owl").Ref<HTMLElement>}
  */
 export function useRegisterMessageRef(refName = "root") {
-    const component = useComponent();
+    const props = useProps();
     const ref = useRef(refName);
     /** @param {import("@odoo/owl").Ref<HTMLElement>|null} value */
-    const register = (value) =>
-        component.props.registerMessageRef?.(component.props.message, value);
+    const register = (value) => props.registerMessageRef?.(props.message, value);
     onWillUpdateProps(() => register(null));
     onMounted(() => register(ref));
     onPatched(() => register(ref));
@@ -795,11 +795,11 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
 
 export const inDiscussCallViewProps = ["isPip?"];
 export function useInDiscussCallView() {
-    const component = useComponent();
+    const props = useProps();
     useSubEnv({
         inDiscussCallView: {
             get isPip() {
-                return component.props.isPip;
+                return props.isPip;
             },
         },
     });
