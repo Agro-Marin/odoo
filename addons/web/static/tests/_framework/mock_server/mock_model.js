@@ -30,7 +30,7 @@ import {
 } from "./mock_server_utils.js";
 
 const {
-    DEFAULT_FIELD_VALUES,
+    getDefaultFieldValue,
     DEFAULT_RELATIONAL_FIELD_VALUES,
     DEFAULT_SELECTION_FIELD_VALUES,
     S_FIELD,
@@ -1802,12 +1802,7 @@ export class Model extends Array {
                 result[fieldName] = field.default;
                 continue;
             } else {
-                if (!(field.type in DEFAULT_FIELD_VALUES)) {
-                    throw new MockServerError(
-                        `Missing default value for field type "${field.type}"`,
-                    );
-                }
-                result[fieldName] = DEFAULT_FIELD_VALUES[field.type]();
+                result[fieldName] = getDefaultFieldValue(field.type);
             }
         }
         for (const fieldName in result) {
@@ -3490,8 +3485,8 @@ export class Model extends Array {
                     typeof fieldDef.default === "function"
                         ? fieldDef.default.call(this, record)
                         : fieldDef.default;
-            } else if (fieldDef.type in DEFAULT_FIELD_VALUES) {
-                record[fieldName] = DEFAULT_FIELD_VALUES[fieldDef.type]();
+            } else {
+                record[fieldName] = getDefaultFieldValue(fieldDef.type);
             }
         }
     }
@@ -3525,7 +3520,7 @@ export class Model extends Array {
                 return;
             }
             if (value === undefined) {
-                record[fieldName] ??= DEFAULT_FIELD_VALUES[field.type]();
+                record[fieldName] ??= getDefaultFieldValue(field.type);
             } else {
                 record[fieldName] = value;
             }
