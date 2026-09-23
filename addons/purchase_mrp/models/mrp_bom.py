@@ -32,12 +32,7 @@ class MrpBom(models.Model):
                 variants = variants[:1]
             for product in variants:
                 total_variant_cost_share = sum(
-                    lines.filtered(
-                        lambda bl, product=product: (
-                            not bl._is_bom_line_skipped(product)
-                            and not bl.product_uom_id.is_zero(bl.product_qty)
-                        )
-                    ).mapped("cost_share")
+                    lines._filtered_cost_sharing(product).mapped("cost_share")
                 )
                 if (
                     not float_is_zero(total_variant_cost_share, precision_digits=2)
@@ -80,6 +75,14 @@ class MrpBomLine(models.Model):
                         "Components cost share have to be positive or equals to zero."
                     )
                 )
+
+    def _filtered_cost_sharing(self, product):
+        return self.filtered(
+            lambda bl: (
+                not bl._is_bom_line_skipped(product)
+                and not bl.product_uom_id.is_zero(bl.product_qty)
+            )
+        )
 
     def _get_cost_share(self, product=None):
         self.check_singleton()

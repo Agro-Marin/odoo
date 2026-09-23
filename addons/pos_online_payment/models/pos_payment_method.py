@@ -82,10 +82,8 @@ class PosPaymentMethod(models.Model):
         """Check that each POS config has at most one online payment method,"""
         for pm in self.filtered("is_online_payment"):
             for config in pm.config_ids:
-                other_online_pms = config.payment_method_ids.filtered(
-                    lambda other_pm, pm=pm: (
-                        other_pm.is_online_payment and other_pm.id != pm.id
-                    )
+                other_online_pms = config.payment_method_ids.filtered_domain(
+                    [("is_online_payment", "=", True), ("id", "!=", pm.id)]
                 )
                 if other_online_pms:
                     raise ValidationError(

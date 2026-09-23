@@ -24,10 +24,8 @@ class SaleOrderLine(models.Model):
 
     @api.onchange("product_id", "product_template_id")
     def _onchange_product(self):
-        for line in self:
-            line.product_document_ids = line.product_document_ids.filtered(
-                lambda doc, line=line: doc in line.available_product_document_ids
-            )
+        for line in self.filtered("product_document_ids"):
+            line.product_document_ids &= line.available_product_document_ids
 
     @api.depends("product_id", "product_template_id")
     def _compute_available_product_document_ids(self):

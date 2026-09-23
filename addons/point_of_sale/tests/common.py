@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from functools import partial
 from itertools import starmap
 from random import randint
 from unittest.mock import patch
@@ -33,6 +34,17 @@ def archive_products(env):
         type(Template), "_is_blocked_by_open_pos_session", return_value=False
     ):
         (all_pos_product - reserved).write({"active": False})
+
+
+def _is_payment_expected(pos_payment, rounding, args):
+    payment_method, amount = args
+    return payment_method == pos_payment.payment_method_id and tools.float_is_zero(
+        pos_payment.amount - amount, precision_rounding=rounding
+    )
+
+
+def _is_amount_expected(amount, rounding, args):
+    return tools.float_is_zero(amount - args[0], precision_rounding=rounding)
 
 
 class CommonPosTest(ValuationReconciliationTestCommon):
@@ -1197,19 +1209,10 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 if pos_payment.payment_method_id == self.pay_later_pm:
                     continue
 
-                def predicate(args, pos_payment=pos_payment):
-                    payment_method, amount = args
-                    first = payment_method == pos_payment.payment_method_id
-                    second = tools.float_is_zero(
-                        pos_payment.amount - amount,
-                        precision_rounding=currency_rounding,
-                    )
-                    return first and second
-
                 self._find_then_assert_values(
                     pos_payment.account_move_id,
                     expected_payments,
-                    predicate,
+                    partial(_is_payment_expected, pos_payment, currency_rounding),
                     consumed,
                     f"invoice payment of order {uid}",
                 )
@@ -1235,17 +1238,10 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         expected_cash_statement = expected_values["cash_statement"]
         cash_consumed = set()
         for statement_line in pos_session.statement_line_ids:
-
-            def statement_line_predicate(args, statement_line=statement_line):
-                return tools.float_is_zero(
-                    statement_line.amount - args[0],
-                    precision_rounding=currency_rounding,
-                )
-
             self._find_then_assert_values(
                 statement_line.move_id,
                 expected_cash_statement,
-                statement_line_predicate,
+                partial(_is_amount_expected, statement_line.amount, currency_rounding),
                 cash_consumed,
                 "cash statement line",
             )
@@ -1257,16 +1253,10 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
         expected_bank_payments = expected_values["bank_payments"]
         bank_consumed = set()
         for bank_payment in pos_session.bank_payment_ids:
-
-            def bank_payment_predicate(args, bank_payment=bank_payment):
-                return tools.float_is_zero(
-                    bank_payment.amount - args[0], precision_rounding=currency_rounding
-                )
-
             self._find_then_assert_values(
                 bank_payment.move_id,
                 expected_bank_payments,
-                bank_payment_predicate,
+                partial(_is_amount_expected, bank_payment.amount, currency_rounding),
                 bank_consumed,
                 "bank payment",
             )

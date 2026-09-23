@@ -53,10 +53,11 @@ class SaleOrder(models.Model):
         order_lines = self.env["sale.order.line"].search_fetch(
             [("order_id", "in", self.ids)]
         )
+        lines_by_order = order_lines.grouped("order_id")
         for order in self:
-            order.website_order_line = order_lines.filtered(
-                lambda sol, order=order: sol.order_id == order and sol._show_in_cart(),
-            )
+            order.website_order_line = lines_by_order.get(
+                order, order_lines.browse()
+            ).filtered(lambda sol: sol._show_in_cart())
 
     @api.depends("line_ids.price_total", "line_ids.price_subtotal")
     def _compute_amount_delivery(self):
@@ -701,34 +702,39 @@ class SaleOrder(models.Model):
             lambda sol: sol.product_id and not sol.product_id.active
         ).unlink()
 
+    def _get_cart_accessories_of_line(self, line, excluded_product_ids):
+        accessory_products = (
+            line.product_id.product_tmpl_id._get_website_accessory_product()
+        )
+        if not accessory_products:
+            return accessory_products
+        combination = (
+            line.product_id.product_template_attribute_value_ids
+            + line.product_no_variant_attribute_value_ids
+        )
+        company_domain = self.env["product.product"]._check_company_domain(
+            line.company_id
+        )
+        return accessory_products.filtered(
+            lambda product: (
+                product.id not in excluded_product_ids
+                and product._website_show_quick_add()
+                and product.filtered_domain(company_domain)
+                and product._is_variant_possible(parent_combination=combination)
+                and (
+                    not self.website_id.prevent_zero_price_sale
+                    or product._get_contextual_price()
+                )
+            )
+        )
+
     def _cart_accessories(self):
         product_ids = set(self.website_order_line.product_id.ids)
         all_accessory_products = self.env["product.product"]
         for line in self.website_order_line.filtered("product_id"):
-            accessory_products = (
-                line.product_id.product_tmpl_id._get_website_accessory_product()
+            all_accessory_products |= self._get_cart_accessories_of_line(
+                line, product_ids
             )
-            if accessory_products:
-                combination = (
-                    line.product_id.product_template_attribute_value_ids
-                    + line.product_no_variant_attribute_value_ids
-                )
-                all_accessory_products |= accessory_products.filtered(
-                    lambda product, line=line, combination=combination: (
-                        product.id not in product_ids
-                        and product._website_show_quick_add()
-                        and product.filtered_domain(
-                            self.env["product.product"]._check_company_domain(
-                                line.company_id
-                            )
-                        )
-                        and product._is_variant_possible(parent_combination=combination)
-                        and (
-                            not self.website_id.prevent_zero_price_sale
-                            or product._get_contextual_price()
-                        )
-                    )
-                )
 
         _debug.perf.count(
             "cart_accessories",

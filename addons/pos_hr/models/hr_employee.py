@@ -150,12 +150,14 @@ class HrEmployee(models.Model):
             for employee in self:
                 config_ids = (
                     configs_with_all_employees
-                    | configs_with_specific_employees.filtered(
-                        lambda c, employee=employee: (
-                            employee in c.basic_employee_ids
-                            or employee in c.advanced_employee_ids
-                            or employee in c.minimal_employee_ids
-                        )
+                    | configs_with_specific_employees.filtered_domain(
+                        [
+                            "|",
+                            "|",
+                            ("basic_employee_ids", "in", employee.ids),
+                            ("advanced_employee_ids", "in", employee.ids),
+                            ("minimal_employee_ids", "in", employee.ids),
+                        ]
                     )
                 )
                 if config_ids:

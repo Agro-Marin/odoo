@@ -366,10 +366,9 @@ class PosOrder(models.Model):
                 ]
             )
             if gift_cards:
+                gift_cards_by_program = gift_cards.grouped("program_id")
                 for program in gift_card_programs:
-                    filtered_gift_cards = gift_cards.filtered(
-                        lambda gc, program=program: gc.program_id == program
-                    )
+                    filtered_gift_cards = gift_cards_by_program.get(program)
                     if filtered_gift_cards:
                         action_report = program.pos_report_print_id
                         report = action_report._render_qweb_pdf(

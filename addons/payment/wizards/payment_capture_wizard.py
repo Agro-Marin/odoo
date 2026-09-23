@@ -154,10 +154,8 @@ class PaymentCaptureWizard(models.TransientModel):
         for source_tx in self.transaction_ids.filtered(
             lambda tx: tx.state == "authorized"
         ):
-            partial_capture_child_txs = self.transaction_ids.child_transaction_ids.filtered(
-                lambda tx, source_tx=source_tx: (
-                    tx.source_transaction_id == source_tx and tx.state == "done"
-                )
+            partial_capture_child_txs = self.transaction_ids.child_transaction_ids.filtered_domain(
+                [("source_transaction_id", "=", source_tx.id), ("state", "=", "done")]
             )  # We can void all the remaining amount only at once => don't check cancel state.
             source_tx_remaining_amount = source_tx.currency_id.round(
                 source_tx.amount - sum(partial_capture_child_txs.mapped("amount"))

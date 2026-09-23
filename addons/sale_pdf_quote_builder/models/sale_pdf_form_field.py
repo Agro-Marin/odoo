@@ -196,15 +196,12 @@ class SalePdfFormField(models.Model):
             ]
         )
         if existing_mapping:
+            existing_keys = {(ff.document_type, ff.name) for ff in existing_mapping}
             form_fields_to_add = {
                 doc_type: {
                     name: path
                     for name, path in mapping.items()
-                    if not existing_mapping.filtered(
-                        lambda ff, doc_type=doc_type, name=name: (
-                            ff.document_type == doc_type and ff.name == name
-                        )
-                    )
+                    if (doc_type, name) not in existing_keys
                 }
                 for doc_type, mapping in mapped_form_fields.items()
             }
@@ -233,10 +230,12 @@ class SalePdfFormField(models.Model):
 
     @api.model
     def _create_or_update_form_fields_on_pdf_records(self, records, doc_type):
-        existing_form_fields = self.env["sale.pdf.form.field"].search(
-            [("document_type", "=", doc_type)]
-        )
-        existing_form_fields_name = existing_form_fields.mapped("name")
+        form_field_by_name = {
+            ff.name: ff
+            for ff in self.env["sale.pdf.form.field"].search(
+                [("document_type", "=", doc_type)]
+            )
+        }
         return_bin_size = self.env.context.get("bin_size")
         if return_bin_size:
             records = records.with_context(bin_size=False)
@@ -245,19 +244,12 @@ class SalePdfFormField(models.Model):
             if document.datas:
                 form_fields = utils._get_form_fields_from_pdf(document.datas)
                 for field in form_fields:
-                    if field not in existing_form_fields_name:
+                    if field not in form_field_by_name:
                         document.form_field_ids = [
                             Command.create({"name": field, "document_type": doc_type})
                         ]
-                        existing_form_fields_name.append(field)
-                        existing_form_fields += document.form_field_ids[-1]
+                        form_field_by_name[field] = document.form_field_ids[-1]
                     else:
                         document.form_field_ids = [
-                            Command.link(
-                                existing_form_fields.filtered(
-                                    lambda form_field, field=field: (
-                                        form_field.name == field
-                                    )
-                                ).id
-                            )
+                            Command.link(form_field_by_name[field].id)
                         ]

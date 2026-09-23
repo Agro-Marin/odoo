@@ -290,22 +290,23 @@ class ProjectProject(models.Model):
             )
             if not timesheet_ids:
                 continue
-            for employee_id in project.sale_line_employee_ids.filtered(
-                lambda l, project=project: l.project_id == project
-            ).employee_id:
-                sale_line_id = project.sale_line_employee_ids.filtered(
-                    lambda l, employee_id=employee_id, project=project: (
-                        l.project_id == project and l.employee_id == employee_id
-                    )
-                ).sale_line_id
+            timesheets_by_employee = timesheet_ids.grouped("employee_id")
+            for employee_id, mappings in (
+                project.sale_line_employee_ids.filtered_domain(
+                    [("project_id", "=", project.id)]
+                )
+                .grouped("employee_id")
+                .items()
+            ):
+                sale_line_id = mappings.sale_line_id
                 _debug.lifecycle(
                     "timesheets_repointed",
                     project=project,
                     employee=employee_id,
                     line=sale_line_id,
                 )
-                timesheet_ids.filtered(
-                    lambda t, employee_id=employee_id: t.employee_id == employee_id
+                timesheets_by_employee.get(
+                    employee_id, timesheet_ids.browse()
                 ).sudo().so_line = sale_line_id
 
     def action_view_timesheet(self):

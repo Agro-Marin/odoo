@@ -132,10 +132,9 @@ class PosSession(models.Model):
             if default_cash_payment_method_id
             else self.payment_method_ids
         )
+        payments_by_method = orders.payment_ids.grouped("payment_method_id")
         non_cash_payments_grouped_by_method_id = {
-            pm.id: orders.payment_ids.filtered(
-                lambda p, pm=pm: p.payment_method_id == pm
-            )
+            pm.id: payments_by_method.get(pm, orders.payment_ids.browse())
             for pm in non_cash_payment_method_ids
         }
 

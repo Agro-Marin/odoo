@@ -420,19 +420,19 @@ class MixinOrder(models.AbstractModel):
     def _get_order_lines_copiable(self):
         return self.line_ids.filtered(lambda line: not line.is_downpayment)
 
+    def _get_inaccessible_product_companies(self):
+        self.check_singleton()
+        return self.line_ids.product_id.company_id.filtered(
+            lambda company: self.company_id not in company._get_accessible_branches()
+        )
+
     @api.constrains("company_id", "line_ids")
     def _check_line_ids_company_id(self):
         for order in self:
-            invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c, order=order: (
-                    order.company_id not in c._get_accessible_branches()
-                ),
-            )
+            invalid_companies = order._get_inaccessible_product_companies()
             if invalid_companies:
-                bad_products = order.line_ids.product_id.filtered(
-                    lambda p, invalid=invalid_companies: (
-                        p.company_id and p.company_id in invalid
-                    ),
+                bad_products = order.line_ids.product_id.filtered_domain(
+                    [("product_tmpl_id.company_id", "in", invalid_companies.ids)]
                 )
                 _debug.logic(
                     "company_consistency_refused",

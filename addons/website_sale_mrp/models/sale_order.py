@@ -31,8 +31,8 @@ class SaleOrder(models.Model):
                     continue
                 component = bom_line.product_id
                 unavailable_component_qties[component] = sum(
-                    self.line_ids.filtered(
-                        lambda sol, component=component: sol.product_id == component
+                    self.line_ids.filtered_domain(
+                        [("product_id", "=", component.id)]
                     ).mapped("product_uom_qty")
                 )
                 uom_qty_per_kit = bom_line_data["qty"] / bom_line_data["original_qty"]

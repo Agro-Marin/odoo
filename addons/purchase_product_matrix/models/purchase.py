@@ -1,3 +1,4 @@
+import functools
 import json
 
 from odoo import api, fields, models
@@ -68,14 +69,8 @@ class PurchaseOrder(models.Model):
                 )
 
                 product = product_template._create_product_variant(combination)
-                order_lines = self.line_ids.filtered(
-                    lambda line, no_variant_attribute_values=no_variant_attribute_values, product=product: (
-                        (line._origin or line).product_id == product
-                        and (
-                            line._origin or line
-                        ).product_no_variant_attribute_value_ids
-                        == no_variant_attribute_values
-                    )
+                order_lines = self._get_matrix_cell_lines(
+                    product, no_variant_attribute_values
                 )
 
                 old_qty = sum(order_lines.mapped("product_qty"))
@@ -139,6 +134,15 @@ class PurchaseOrder(models.Model):
                 # onchange adds get them from their own computes.
                 self.update({"line_ids": new_lines})
 
+    def _get_matrix_cell_lines(self, product, no_variant_attribute_values):
+        return self.line_ids.filtered(
+            lambda line: (
+                (line._origin or line).product_id == product
+                and (line._origin or line).product_no_variant_attribute_value_ids
+                == no_variant_attribute_values
+            )
+        )
+
     def _get_matrix(self, product_template):
         def has_ptavs(line, sorted_attr_ids):
             ptav = line.product_template_attribute_value_ids.ids
@@ -159,7 +163,9 @@ class PurchaseOrder(models.Model):
                 for cell in line:
                     if not cell.get("name", False):
                         line = order_lines.filtered(
-                            lambda line, cell=cell: has_ptavs(line, cell["ptav_ids"])
+                            functools.partial(
+                                has_ptavs, sorted_attr_ids=cell["ptav_ids"]
+                            )
                         )
                         if line:
                             cell.update({"qty": sum(line.mapped("product_qty"))})
@@ -171,17 +177,9 @@ class PurchaseOrder(models.Model):
             grid_configured_templates = self.line_ids.filtered(
                 "is_configurable_product"
             ).product_template_id
+            lines_by_template = self.line_ids.grouped("product_template_id")
             for template in grid_configured_templates:
-                if (
-                    len(
-                        self.line_ids.filtered(
-                            lambda line, template=template: (
-                                line.product_template_id == template
-                            )
-                        )
-                    )
-                    > 1
-                ):
+                if len(lines_by_template[template]) > 1:
                     matrix = self._get_matrix(template)
                     matrix["matrix"] = [
                         row

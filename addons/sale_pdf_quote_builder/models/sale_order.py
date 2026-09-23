@@ -49,12 +49,7 @@ class SaleOrder(models.Model):
                     ),
                     order="sequence",
                 )
-                .filtered(
-                    lambda doc, order=order: (
-                        not (templates := doc.sudo().quotation_template_ids)
-                        or order.sale_order_template_id in templates
-                    )
-                )
+                ._filtered_available_for_order(order)
             )
 
     @api.depends(

@@ -133,8 +133,8 @@ class TestPosSessionChallenge(TestPoSCommon):
                 moves = self.env["account.move"].search(
                     [("pos_diff_session_id", "=", empty.id)]
                 )
-                lines = moves.line_ids.filtered(
-                    lambda line, account=expected_account: line.account_id == account
+                lines = moves.line_ids.filtered_domain(
+                    [("account_id", "=", expected_account.id)]
                 )
                 self.assertEqual(sum(lines.mapped("balance")), 20 * sign)
                 self.assertEqual(moves.state, "posted")

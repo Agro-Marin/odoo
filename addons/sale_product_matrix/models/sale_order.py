@@ -1,3 +1,4 @@
+import functools
 import json
 
 from odoo import api, fields, models
@@ -65,13 +66,8 @@ class SaleOrder(models.Model):
                 )
 
                 product = product_template._create_product_variant(combination)
-                order_lines = self.line_ids.filtered(
-                    lambda line, no_variant_attribute_values=no_variant_attribute_values, product=product: (
-                        line.product_id.id == product.id
-                        and line.product_no_variant_attribute_value_ids.ids
-                        == no_variant_attribute_values.ids
-                        and not line.combo_item_id
-                    )
+                order_lines = self._get_matrix_cell_lines(
+                    product, no_variant_attribute_values
                 )
 
                 old_qty = sum(order_lines.mapped("product_qty"))
@@ -134,6 +130,16 @@ class SaleOrder(models.Model):
             if new_lines:
                 self.update({"line_ids": new_lines})
 
+    def _get_matrix_cell_lines(self, product, no_variant_attribute_values):
+        return self.line_ids.filtered(
+            lambda line: (
+                line.product_id.id == product.id
+                and line.product_no_variant_attribute_value_ids.ids
+                == no_variant_attribute_values.ids
+                and not line.combo_item_id
+            )
+        )
+
     def _get_matrix(self, product_template):
 
         def has_ptavs(line, sorted_attr_ids):
@@ -157,7 +163,9 @@ class SaleOrder(models.Model):
                 for cell in row:
                     if not cell.get("name", False):
                         matching_lines = order_lines.filtered(
-                            lambda l, cell=cell: has_ptavs(l, cell["ptav_ids"])
+                            functools.partial(
+                                has_ptavs, sorted_attr_ids=cell["ptav_ids"]
+                            )
                         )
                         if matching_lines and not matching_lines.combo_item_id:
                             cell.update(
@@ -173,17 +181,9 @@ class SaleOrder(models.Model):
             ).product_template_id.filtered(
                 lambda ptmpl: ptmpl.product_add_mode == "matrix"
             )
+            lines_by_template = self.line_ids.grouped("product_template_id")
             for template in grid_configured_templates:
-                if (
-                    len(
-                        self.line_ids.filtered(
-                            lambda line, template=template: (
-                                line.product_template_id == template
-                            )
-                        )
-                    )
-                    > 1
-                ):
+                if len(lines_by_template[template]) > 1:
                     matrix = self._get_matrix(template)
                     matrix["matrix"] = [
                         row

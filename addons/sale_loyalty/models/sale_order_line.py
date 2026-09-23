@@ -165,10 +165,8 @@ class SaleOrderLine(models.Model):
                 ):
                     coupons_to_unlink |= line.coupon_id
                     line.order_id.code_enabled_rule_ids = (
-                        line.order_id.code_enabled_rule_ids.filtered(
-                            lambda r, line=line: (
-                                r.program_id != line.coupon_id.program_id
-                            )
+                        line.order_id.code_enabled_rule_ids.filtered_domain(
+                            [("program_id", "!=", line.coupon_id.program_id.id)]
                         )
                     )
         for line in related_lines:

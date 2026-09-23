@@ -1,4 +1,5 @@
 import uuid
+from functools import partial
 
 from odoo import fields, models
 
@@ -7,6 +8,10 @@ from ..tools import debug_log as dbg
 
 def _new_access_token():
     return str(uuid.uuid4())
+
+
+def _describe_payload(message):
+    return sorted(message) if isinstance(message, dict) else type(message).__name__
 
 
 class MixinPosBus(models.AbstractModel):
@@ -43,13 +48,7 @@ class MixinPosBus(models.AbstractModel):
                 name,
                 dbg.rec(self),
                 private,
-                dbg.lazy(
-                    lambda message=message: (
-                        sorted(message)
-                        if isinstance(message, dict)
-                        else type(message).__name__
-                    )
-                ),
+                dbg.lazy(partial(_describe_payload, message)),
             )
             self.env["bus.bus"]._sendone(
                 token,

@@ -55,10 +55,8 @@ class MrpProduction(models.Model):
                 production=production,
                 line=production.sale_line_id,
             )
-            production.move_finished_ids.filtered(
-                lambda move, production=production: (
-                    move.product_id == production.product_id
-                )
+            production.move_finished_ids.filtered_domain(
+                [("product_id", "=", production.product_id.id)]
             ).sale_line_id = production.sale_line_id
         return res
 

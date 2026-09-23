@@ -259,8 +259,8 @@ class TestSaleMrpKitQuantity(BaseCommon):
 
                 for product, (price, _qty) in zip(products, components, strict=True):
                     self.assertEqual(
-                        done_moves.filtered(
-                            lambda move, product=product: move.product_id == product
+                        done_moves.filtered_domain(
+                            [("product_id", "=", product.id)]
                         )._get_price_unit(),
                         price,
                     )

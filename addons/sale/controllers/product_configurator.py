@@ -287,8 +287,8 @@ class SaleProductConfiguratorController(Controller):
                         if ptav.ptav_active
                         or (combination and ptav.id in combination.ids)
                     ],
-                    "selected_attribute_value_ids": combination.filtered(
-                        lambda c, ptal=ptal: ptal in c.attribute_line_id,
+                    "selected_attribute_value_ids": combination.filtered_domain(
+                        [("attribute_line_id", "=", ptal.id)]
                     ).ids,
                     "create_variant": ptal.attribute_id.create_variant,
                 }

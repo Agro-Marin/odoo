@@ -403,8 +403,8 @@ class ProductProduct(models.Model):
                 product.pricelist_rule_ids = False
                 continue
             product.pricelist_rule_ids = (
-                product.product_tmpl_id.pricelist_rule_ids.filtered(
-                    lambda rule, product=product: rule.product_id <= product,
+                product.product_tmpl_id.pricelist_rule_ids.filtered_domain(
+                    ["|", ("product_id", "=", False), ("product_id", "=", product.id)]
                 )
             )
 
@@ -631,10 +631,8 @@ class ProductProduct(models.Model):
             template = product.product_tmpl_id
             template.pricelist_rule_ids = (
                 product.pricelist_rule_ids
-                | template.pricelist_rule_ids.filtered(
-                    lambda rule, product=product: (
-                        rule.product_id and rule.product_id != product
-                    ),
+                | template.pricelist_rule_ids.filtered_domain(
+                    [("product_id", "!=", False), ("product_id", "!=", product.id)]
                 )
             )
 
@@ -1432,15 +1430,17 @@ class ProductProduct(models.Model):
                 )
             )
 
-        return {
-            (template_id, pav.id): template_attribute_to_ptal[
+        ptavs_by_template_value = {}
+        for (template_id, attribute_id), pavs in pt_to_attribute_to_values.items():
+            ptavs = template_attribute_to_ptal[
                 template_id, attribute_id
-            ].product_template_value_ids.filtered(
-                lambda v, pav=pav: v.product_attribute_value_id.id == pav.id
-            )
-            for (template_id, attribute_id), pavs in pt_to_attribute_to_values.items()
-            for pav in pavs
-        }
+            ].product_template_value_ids
+            ptavs_by_value = ptavs.grouped("product_attribute_value_id")
+            for pav in pavs:
+                ptavs_by_template_value[template_id, pav.id] = ptavs_by_value.get(
+                    pav, ptavs.browse()
+                )
+        return ptavs_by_template_value
 
     def _prepare_sellers(self, params=False):
         all_sellers = self.sudo().variant_seller_ids

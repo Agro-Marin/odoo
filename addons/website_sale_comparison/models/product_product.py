@@ -21,11 +21,11 @@ class ProductProduct(models.Model):
                 [
                     (
                         product,
-                        product.product_template_attribute_value_ids.filtered(
-                            lambda ptav, pa=pa: ptav.attribute_id == pa
+                        product.product_template_attribute_value_ids.filtered_domain(
+                            [("attribute_id", "=", pa.id)]
                         )
-                        or product.attribute_line_ids.filtered(
-                            lambda ptal, pa=pa: ptal.attribute_id == pa
+                        or product.attribute_line_ids.filtered_domain(
+                            [("attribute_id", "=", pa.id)]
                         ).value_ids,
                     )
                     for product in self

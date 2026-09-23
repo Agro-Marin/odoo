@@ -1083,14 +1083,11 @@ class SaleOrderLine(models.Model):
                 values=", ".join(ptav.name for ptav in ptavs),
             )
 
-        sorted_custom_ptav = self.product_custom_attribute_value_ids.custom_product_template_attribute_value_id.sorted()
-        for patv in sorted_custom_ptav:
-            pacv = self.product_custom_attribute_value_ids.filtered(
-                lambda pcav, patv=patv: (
-                    pcav.custom_product_template_attribute_value_id == patv
-                ),
-            )
-            name += "\n" + pacv.display_name
+        pcavs_by_ptav = self.product_custom_attribute_value_ids.grouped(
+            "custom_product_template_attribute_value_id"
+        )
+        for patv in self.product_custom_attribute_value_ids.custom_product_template_attribute_value_id.sorted():
+            name += "\n" + pcavs_by_ptav[patv].display_name
 
         return name
 
@@ -1502,9 +1499,7 @@ class SaleOrderLine(models.Model):
             inv_line_vals["analytic_distribution"] = self.analytic_distribution
 
     def _update_line_quantity(self, values):
-        orders = self.mapped("order_id")
-        for order in orders:
-            order_lines = self.filtered(lambda x, order=order: x.order_id == order)
+        for order, order_lines in self.grouped("order_id").items():
             msg = Markup("<b>%s</b><ul>") % self.env._(
                 "The ordered quantity has been updated."
             )

@@ -50,10 +50,8 @@ class PosSession(models.Model):
                 )
             )
             account_payment = payment.online_account_payment_id
-            payment_receivable_line = account_payment.move_id.line_ids.filtered(
-                lambda line, account_payment=account_payment: (
-                    line.account_id == account_payment.destination_account_id
-                )
+            payment_receivable_line = account_payment.move_id.line_ids.filtered_domain(
+                [("account_id", "=", account_payment.destination_account_id.id)]
             )
             online_payment_to_receivable_lines[payment] = (
                 split_receivable_line | payment_receivable_line

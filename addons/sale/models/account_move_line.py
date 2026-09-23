@@ -92,10 +92,8 @@ class AccountMoveLine(models.Model):
             discount_product = company.sudo().sale_config_id.sale_discount_product_id
             if discount_product:
                 discount_line_ids.extend(
-                    company_lines.filtered(
-                        lambda line, discount_product=discount_product: (
-                            line.product_id == discount_product
-                        )
+                    company_lines.filtered_domain(
+                        [("product_id", "=", discount_product.id)]
                     ).ids
                 )
         if discount_line_ids:

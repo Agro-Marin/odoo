@@ -1,4 +1,5 @@
 from datetime import UTC, timedelta
+from functools import partial
 from itertools import starmap
 
 from odoo import api, fields, models
@@ -915,13 +916,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         for row in payments:
             session = sessions_by_id[row["session"]]
             date = session.stop_at or session.start_at or fields.Date.today()
-
-            def convert(amount, session=session, date=date):
-                if session.currency_id == currency:
-                    return amount
-                return session.currency_id._convert(
-                    amount, currency, session.company_id, date
-                )
+            convert = partial(self._convert_session_amount, session, currency, date)
 
             converted_total = convert(row["total"])
             row["total"] = totals.get((session.id, row["id"]), converted_total)
@@ -932,6 +927,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 movement["amount"] = convert(movement["amount"])
             if row.get("count"):
                 row["money_difference"] = row["money_counted"] - row["final_count"]
+
+    def _convert_session_amount(self, session, currency, date, amount):
+        if session.currency_id == currency:
+            return amount
+        return session.currency_id._convert(amount, currency, session.company_id, date)
 
     def _prepare_invoice_section(self, orders, currency):
         """List invoices from the same order selection as sales and payments."""

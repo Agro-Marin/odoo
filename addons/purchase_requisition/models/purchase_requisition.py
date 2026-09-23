@@ -324,10 +324,8 @@ class PurchaseRequisitionLine(models.Model):
             for po in line.requisition_id.purchase_ids.filtered(
                 lambda purchase_order: purchase_order.state == "done"
             ):
-                for po_line in po.line_ids.filtered(
-                    lambda order_line, line=line: (
-                        order_line.product_id == line.product_id
-                    )
+                for po_line in po.line_ids.filtered_domain(
+                    [("product_id", "=", line.product_id.id)]
                 ):
                     if po_line.product_uom_id != line.product_uom_id:
                         total += po_line.product_uom_id._get_quantity_in_unit(

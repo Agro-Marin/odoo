@@ -12,7 +12,6 @@ class AccountMoveLine(models.Model):
             return super()._get_downpayment_lines()
 
         for record in self:
-            rounding = record.currency_id.rounding
             if related_sol := record.sale_line_ids:
                 # if order is not settled through POS
                 # We're assuming that if an order is settled through POS it will have sale_line_ids empty.
@@ -20,16 +19,8 @@ class AccountMoveLine(models.Model):
                 pos_downpayment_moves = related_sol.filtered(
                     "is_downpayment"
                 ).pos_order_line_ids.order_id.account_move
-                downpayment_lines |= pos_downpayment_moves.invoice_line_ids.filtered(
-                    lambda r, record=record, rounding=rounding: (
-                        float_compare(
-                            r.price_subtotal,
-                            -record.price_subtotal,
-                            precision_rounding=rounding,
-                        )
-                        == 0
-                        and r.tax_ids == record.tax_ids
-                    ),
+                downpayment_lines |= record._get_matching_downpayment_lines(
+                    pos_downpayment_moves.invoice_line_ids
                 )
 
             elif related_posl := record.move_id.pos_order_ids.lines:
@@ -42,16 +33,8 @@ class AccountMoveLine(models.Model):
                         lambda r: r._is_downpayment()
                     )
                 )
-                applicable_lines = candidate_moves.invoice_line_ids.filtered(
-                    lambda line, record=record, rounding=rounding: (
-                        float_compare(
-                            line.price_subtotal,
-                            -record.price_subtotal,
-                            precision_rounding=rounding,
-                        )
-                        == 0
-                        and line.tax_ids == record.tax_ids
-                    ),
+                applicable_lines = record._get_matching_downpayment_lines(
+                    candidate_moves.invoice_line_ids
                 )
 
                 move_lines = record.move_id.invoice_line_ids
@@ -77,3 +60,18 @@ class AccountMoveLine(models.Model):
                     downpayment_lines |= applicable_lines
 
         return downpayment_lines | super()._get_downpayment_lines()
+
+    def _get_matching_downpayment_lines(self, lines):
+        self.check_singleton()
+        rounding = self.currency_id.rounding
+        return lines.filtered(
+            lambda line: (
+                float_compare(
+                    line.price_subtotal,
+                    -self.price_subtotal,
+                    precision_rounding=rounding,
+                )
+                == 0
+                and line.tax_ids == self.tax_ids
+            )
+        )

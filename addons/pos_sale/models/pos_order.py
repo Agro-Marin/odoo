@@ -101,11 +101,10 @@ class PosOrder(models.Model):
             used_pos_lines = (
                 pos_order.lines.sale_order_origin_id.line_ids.pos_order_line_ids
             )
-            downpayment_pos_order_lines = pos_order.lines.filtered(
-                lambda line, used_pos_lines=used_pos_lines, pos_order=pos_order: (
-                    line not in used_pos_lines
-                    and line.product_id == pos_order.config_id.down_payment_product_id
-                )
+            downpayment_pos_order_lines = (
+                pos_order.lines - used_pos_lines
+            ).filtered_domain(
+                [("product_id", "=", pos_order.config_id.down_payment_product_id.id)]
             )
             so_x_pos_order_lines = downpayment_pos_order_lines.grouped(
                 lambda l: (
@@ -157,29 +156,9 @@ class PosOrder(models.Model):
                         picking = stock_move.picking_id
                         if picking.state not in ["waiting", "confirmed", "assigned"]:
                             continue
-
-                        def get_expected_qty_to_ship_later(so_line=so_line):
-                            pos_pickings = (
-                                so_line.pos_order_line_ids.order_id.picking_ids
-                            )
-                            if pos_pickings and all(
-                                pos_picking.state in ["confirmed", "assigned"]
-                                for pos_picking in pos_pickings
-                            ):
-                                return sum(
-                                    (
-                                        so_line._convert_qty(
-                                            so_line, pos_line.qty, "p2s"
-                                        )
-                                        for pos_line in so_line.pos_order_line_ids
-                                        if so_line.product_id.type != "service"
-                                    ),
-                                    0,
-                                )
-                            return 0
-
                         qty_transferred = max(
-                            so_line.qty_transferred, get_expected_qty_to_ship_later()
+                            so_line.qty_transferred,
+                            self._get_expected_qty_to_ship_later(so_line),
                         )
                         new_qty = so_line.product_uom_qty - qty_transferred
                         if stock_move.product_uom_id.compare(new_qty, 0) <= 0:
@@ -188,11 +167,11 @@ class PosOrder(models.Model):
                             new_qty, stock_move, False
                         )
                         # If the product is delivered with more than one step, we need to update the quantity of the other steps
-                        for move in so_line_stock_move_ids.filtered(
-                            lambda m, stock_move=stock_move: (
-                                m.state in ["waiting", "confirmed", "assigned"]
-                                and m.product_id == stock_move.product_id
-                            )
+                        for move in so_line_stock_move_ids.filtered_domain(
+                            [
+                                ("state", "in", ["waiting", "confirmed", "assigned"]),
+                                ("product_id", "=", stock_move.product_id.id),
+                            ]
                         ):
                             move.product_uom_qty = stock_move.product_uom_qty
                             waiting_picking_ids.add(move.picking_id.id)
@@ -209,6 +188,23 @@ class PosOrder(models.Model):
                     picking.action_assign()
 
         return data
+
+    @api.model
+    def _get_expected_qty_to_ship_later(self, so_line):
+        pos_pickings = so_line.pos_order_line_ids.order_id.picking_ids
+        if pos_pickings and all(
+            pos_picking.state in ["confirmed", "assigned"]
+            for pos_picking in pos_pickings
+        ):
+            return sum(
+                (
+                    so_line._convert_qty(so_line, pos_line.qty, "p2s")
+                    for pos_line in so_line.pos_order_line_ids
+                    if so_line.product_id.type != "service"
+                ),
+                0,
+            )
+        return 0
 
     def action_view_sale_order(self):
         self.check_singleton()
@@ -307,10 +303,11 @@ class PosOrderLine(models.Model):
                 )
 
                 if outgoing_pickings and order_line.order_id.shipping_date:
-                    moves = outgoing_pickings.move_ids.filtered(
-                        lambda m, order_line=order_line: (
-                            m.state == "done" and m.product_id == order_line.product_id
-                        )
+                    moves = outgoing_pickings.move_ids.filtered_domain(
+                        [
+                            ("state", "=", "done"),
+                            ("product_id", "=", order_line.product_id.id),
+                        ]
                     )
                     qty_left = product_qty_left_to_assign.get(
                         order_line.product_id.id, False

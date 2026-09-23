@@ -138,10 +138,8 @@ class SaleOrderLine(models.Model):
                     sale_line.product_id.tracking != "none"
                     and "move_ids" in sale_line._fields
                 ):
-                    move_lines = sale_line.move_ids.move_line_ids.filtered(
-                        lambda ml, sale_line=sale_line: (
-                            ml.product_id.id == sale_line.product_id.id
-                        )
+                    move_lines = sale_line.move_ids.move_line_ids.filtered_domain(
+                        [("product_id", "=", sale_line.product_id.id)]
                     )
                     item["lot_names"] = move_lines.lot_id.mapped("name")
                     item["lot_qty_by_name"] = {

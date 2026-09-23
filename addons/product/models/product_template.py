@@ -345,10 +345,12 @@ class ProductTemplate(models.Model):
         for template in self:
             if not template.uom_id:
                 continue
-            incompatible = template.uom_ids.filtered(
-                lambda uom, template=template: (
-                    not uom._has_common_reference(template.uom_id)
-                )
+            incompatible = template.uom_ids.browse(
+                [
+                    uom.id
+                    for uom in template.uom_ids
+                    if not uom._has_common_reference(template.uom_id)
+                ]
             )
             if incompatible:
                 raise ValidationError(

@@ -82,6 +82,14 @@ class QuotationDocument(models.Model):
                 "sale.pdf.form.field"
             ]._create_or_update_form_fields_on_pdf_records(document_to_parse, doc_type)
 
+    def _filtered_available_for_order(self, order):
+        return self.filtered(
+            lambda doc: (
+                not (templates := doc.sudo().quotation_template_ids)
+                or order.sale_order_template_id in templates
+            )
+        )
+
     def action_view_pdf_form_fields(self):
         self.check_singleton()
         return {

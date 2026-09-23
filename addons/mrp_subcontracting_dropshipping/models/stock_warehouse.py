@@ -61,10 +61,9 @@ class StockWarehouse(models.Model):
             self.env._("Dropship Subcontractor on Order"),
         )
         all_rules = route_id.sudo().rule_ids.filtered(lambda r: r.active)
+        rules_by_company = all_rules.grouped("company_id")
         for company in self.company_id:
-            company_rules = all_rules.filtered(
-                lambda r, company=company: r.company_id == company
-            )
+            company_rules = rules_by_company.get(company, all_rules.browse())
             company.mrp_subcontracting_dropshipping_config_id.dropship_subcontractor_pick_type_id.active = bool(
                 company_rules.filtered(lambda r: r.action == "pull")
             )

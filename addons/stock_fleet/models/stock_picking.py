@@ -53,12 +53,14 @@ class StockPicking(models.Model):
             self._reset_location()
         return res
 
+    def _get_moves_outside_destination(self):
+        self.check_singleton()
+        return self.move_ids.filtered(
+            lambda move: not move.location_dest_id._is_child_of(self.location_dest_id)
+        )
+
     def _reset_location(self):
         _debug.logic("fleet_picking_location_reset", pickings=self)
         for picking in self:
-            moves = picking.move_ids.filtered(
-                lambda m, dest=picking.location_dest_id: (
-                    not m.location_dest_id._is_child_of(dest)
-                )
-            )
+            moves = picking._get_moves_outside_destination()
             moves.write({"location_dest_id": picking.location_dest_id.id})

@@ -2333,10 +2333,9 @@ class PosSession(models.Model):
         unposted.move_id._post(soft=False)
 
         accounts = all_lines.mapped("account_id")
+        all_lines_by_account = all_lines.grouped("account_id")
         lines_by_account = [
-            all_lines.filtered(
-                lambda l, account=account: l.account_id == account and not l.reconciled
-            )
+            all_lines_by_account[account].filtered(lambda l: not l.reconciled)
             for account in accounts
             if account.reconcile
         ]

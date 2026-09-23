@@ -677,8 +677,9 @@ class PosConfig(models.Model):
     @api.depends("payment_method_ids")
     def _compute_fast_payment_method_ids(self):
         for config in self:
-            config.fast_payment_method_ids = config.fast_payment_method_ids.filtered(
-                lambda pm, config=config: pm.id in config.payment_method_ids.ids
+            fast_methods = config.fast_payment_method_ids
+            config.fast_payment_method_ids = fast_methods.browse(
+                [pm.id for pm in fast_methods if pm.id in config.payment_method_ids.ids]
             )
 
     @api.constrains("use_fast_payment")
@@ -1019,11 +1020,8 @@ class PosConfig(models.Model):
                     )
 
             if config.use_pricelist and any(
-                config.available_pricelist_ids.mapped(
-                    lambda pricelist, config=config: (
-                        pricelist.currency_id != config.currency_id
-                    )
-                )
+                pricelist.currency_id != config.currency_id
+                for pricelist in config.available_pricelist_ids
             ):
                 raise ValidationError(
                     self.env._(

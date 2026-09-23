@@ -43,14 +43,10 @@ class EventEvent(models.Model):
         self.check_singleton()
         slot_tickets = [
             (
-                self.event_slot_ids.filtered(
-                    lambda slot, slot_id=slot_id: slot.id == slot_id
-                )
+                self.event_slot_ids.filtered_domain([("id", "=", slot_id)])
                 if slot_id
                 else self.env["event.slot"],
-                self.event_ticket_ids.filtered(
-                    lambda ticket, ticket_id=ticket_id: ticket.id == ticket_id
-                )
+                self.event_ticket_ids.filtered_domain([("id", "=", ticket_id)])
                 if ticket_id
                 else self.env["event.event.ticket"],
             )

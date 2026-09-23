@@ -19,6 +19,14 @@ log = logging.getLogger("odoo.addons.point_of_sale.debug.challenge")
 log.setLevel(logging.DEBUG)
 
 
+def _get_counted(original, calls):
+    def counted(records):
+        calls.append(records.ids)
+        return original(records)
+
+    return counted
+
+
 @tagged("post_install", "-at_install")
 class TestPosModelRegressions(CommonPosTest):
     def test_pos_address_cache_is_language_sensitive(self):
@@ -700,14 +708,13 @@ class TestPosModelRegressions(CommonPosTest):
         original = type(method)._compute_open_session_ids
         for enabled in [False, True]:
             calls = []
-
-            def counted(records, calls=calls):
-                calls.append(records.ids)
-                return original(records)
-
             method.invalidate_recordset(["open_session_ids"])
             with (
-                patch.object(type(method), "_compute_open_session_ids", counted),
+                patch.object(
+                    type(method),
+                    "_compute_open_session_ids",
+                    _get_counted(original, calls),
+                ),
                 patch.object(dbg.lifecycle, "isEnabledFor", return_value=enabled),
             ):
                 method.write({"sequence": method.sequence + 1})

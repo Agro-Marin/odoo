@@ -471,6 +471,94 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
 
         cls.env.flush_all()
 
+    def _create_po_with_lines(self, lc):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.products[i % 100].id,
+                            "product_qty": 10,
+                        }
+                    )
+                    for i in range(lc)
+                ],
+            }
+        )
+
+    def _create_po_batch(self, pc, lines_per_po):
+        return self.env["purchase.order"].create(
+            [
+                {
+                    "partner_id": self.partners[i].id,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.products[j].id,
+                                "product_qty": 5,
+                            }
+                        )
+                        for j in range(lines_per_po)
+                    ],
+                }
+                for i in range(pc)
+            ]
+        )
+
+    def _create_large_po(self, lc):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.products_heavy[i % 200].id,
+                            "product_qty": 10 + (i % 50),
+                        }
+                    )
+                    for i in range(lc)
+                ],
+            }
+        )
+
+    def _create_heavy_po_batch(self, bs, lines_per_po):
+        return self.env["purchase.order"].create(
+            [
+                {
+                    "partner_id": self.partners_heavy[i % 200].id,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.products_heavy[
+                                    (i * lines_per_po + j) % 200
+                                ].id,
+                                "product_qty": 5 + j,
+                            }
+                        )
+                        for j in range(lines_per_po)
+                    ],
+                }
+                for i in range(bs)
+            ]
+        )
+
+    def _create_po_with_sellers(self, lc):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.products_heavy[i % 200].id,
+                            "product_qty": [1, 5, 10, 25, 50, 100, 250, 500][i % 8],
+                        }
+                    )
+                    for i in range(lc)
+                ],
+            }
+        )
+
     def _measure_operation(self, description, operation_func):
         self.env.flush_all()
         self.env.invalidate_all()
@@ -497,25 +585,9 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         line_counts = [5, 10, 25, 50, 100]
 
         for line_count in line_counts:
-
-            def create_po(lc=line_count):
-                return self.env["purchase.order"].create(
-                    {
-                        "partner_id": self.partner_a.id,
-                        "line_ids": [
-                            Command.create(
-                                {
-                                    "product_id": self.products[i % 100].id,
-                                    "product_qty": 10,
-                                }
-                            )
-                            for i in range(lc)
-                        ],
-                    }
-                )
-
             duration, queries, _po = self._measure_operation(
-                f"Create PO with {line_count} lines", create_po
+                f"Create PO with {line_count} lines",
+                functools.partial(self._create_po_with_lines, line_count),
             )
             results.append(
                 {
@@ -553,28 +625,9 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
 
         results = []
         for po_count in po_counts:
-
-            def create_batch(pc=po_count):
-                return self.env["purchase.order"].create(
-                    [
-                        {
-                            "partner_id": self.partners[i].id,
-                            "line_ids": [
-                                Command.create(
-                                    {
-                                        "product_id": self.products[j].id,
-                                        "product_qty": 5,
-                                    }
-                                )
-                                for j in range(lines_per_po)
-                            ],
-                        }
-                        for i in range(pc)
-                    ]
-                )
-
             duration, queries, _pos = self._measure_operation(
-                f"Batch create {po_count} POs x {lines_per_po} lines", create_batch
+                f"Batch create {po_count} POs x {lines_per_po} lines",
+                functools.partial(self._create_po_batch, po_count, lines_per_po),
             )
             results.append(
                 {
@@ -626,11 +679,9 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
 
             lines_to_update = po.line_ids[:update_count]
 
-            def update_lines(lines=lines_to_update):
-                lines.write({"product_qty": 20})
-
             duration, queries, _ = self._measure_operation(
-                f"Update {update_count} line quantities", update_lines
+                f"Update {update_count} line quantities",
+                functools.partial(lines_to_update.write, {"product_qty": 20}),
             )
             results.append(
                 {
@@ -738,25 +789,9 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [200, 500]
 
         for line_count in line_counts:
-
-            def create_large_po(lc=line_count):
-                return self.env["purchase.order"].create(
-                    {
-                        "partner_id": self.partner_a.id,
-                        "line_ids": [
-                            Command.create(
-                                {
-                                    "product_id": self.products_heavy[i % 200].id,
-                                    "product_qty": 10 + (i % 50),
-                                }
-                            )
-                            for i in range(lc)
-                        ],
-                    }
-                )
-
             result = self._stress_measure(
-                f"Create PO with {line_count} lines", create_large_po
+                f"Create PO with {line_count} lines",
+                functools.partial(self._create_large_po, line_count),
             )
             result["lines"] = line_count
             result["queries_per_line"] = result["queries"] / line_count
@@ -806,30 +841,11 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         lines_per_po = 10
 
         for batch_size in batch_sizes:
-
-            def create_batch(bs=batch_size):
-                return self.env["purchase.order"].create(
-                    [
-                        {
-                            "partner_id": self.partners_heavy[i % 200].id,
-                            "line_ids": [
-                                Command.create(
-                                    {
-                                        "product_id": self.products_heavy[
-                                            (i * lines_per_po + j) % 200
-                                        ].id,
-                                        "product_qty": 5 + j,
-                                    }
-                                )
-                                for j in range(lines_per_po)
-                            ],
-                        }
-                        for i in range(bs)
-                    ]
-                )
-
             result = self._stress_measure(
-                f"Batch create {batch_size} POs × {lines_per_po} lines", create_batch
+                f"Batch create {batch_size} POs × {lines_per_po} lines",
+                functools.partial(
+                    self._create_heavy_po_batch, batch_size, lines_per_po
+                ),
             )
             result["po_count"] = batch_size
             result["total_lines"] = batch_size * lines_per_po
@@ -882,11 +898,9 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
 
             lines_to_update = po.line_ids[:update_count]
 
-            def update_lines(lines=lines_to_update):
-                lines.write({"product_qty": 50})
-
             result = self._stress_measure(
-                f"Update {update_count} line quantities", update_lines
+                f"Update {update_count} line quantities",
+                functools.partial(lines_to_update.write, {"product_qty": 50}),
             )
             result["lines_updated"] = update_count
             results.append(result)
@@ -911,28 +925,9 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [50, 100, 200]
 
         for line_count in line_counts:
-
-            def create_po_with_sellers(lc=line_count):
-                return self.env["purchase.order"].create(
-                    {
-                        "partner_id": self.partner_a.id,
-                        "line_ids": [
-                            Command.create(
-                                {
-                                    "product_id": self.products_heavy[i % 200].id,
-                                    "product_qty": [1, 5, 10, 25, 50, 100, 250, 500][
-                                        i % 8
-                                    ],
-                                }
-                            )
-                            for i in range(lc)
-                        ],
-                    }
-                )
-
             result = self._stress_measure(
                 f"Create PO with {line_count} lines (seller lookup)",
-                create_po_with_sellers,
+                functools.partial(self._create_po_with_sellers, line_count),
             )
             result["lines"] = line_count
             result["queries_per_line"] = result["queries"] / line_count
@@ -976,11 +971,8 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             self.env.flush_all()
             self.env.invalidate_all()
 
-            def confirm_po(p=po):
-                p.action_confirm()
-
             result = self._stress_measure(
-                f"Confirm PO with {line_count} lines", confirm_po
+                f"Confirm PO with {line_count} lines", po.action_confirm
             )
             result["lines"] = line_count
             result["queries_per_line"] = result["queries"] / line_count

@@ -1,4 +1,5 @@
 import ast
+import functools
 import json
 import logging
 import re
@@ -13,6 +14,10 @@ RENAMES = {
 }
 
 MODELS = ["res.partner", "res.users"]
+
+
+def _get_renamed(new, match):
+    return (match.group(1) or "") + new
 
 
 def migrate(cr, version):
@@ -266,7 +271,7 @@ def _rename_words(text):
     for old, new in RENAMES.items():
         text = re.sub(
             rf"\b(default_|search_default_)?{old}\b",
-            lambda m, new=new: (m.group(1) or "") + new,
+            functools.partial(_get_renamed, new),
             text,
         )
     return text

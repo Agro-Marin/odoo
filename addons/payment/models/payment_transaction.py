@@ -1289,10 +1289,12 @@ class PaymentTransaction(models.Model):
         :return: None
         """
         for child_tx in self.filtered("source_transaction_id"):
-            sibling_txs = child_tx.source_transaction_id.child_transaction_ids.filtered(
-                lambda tx, child_tx=child_tx: (
-                    tx.state in ["done", "cancel"]
-                    and tx.operation == child_tx.operation
+            sibling_txs = (
+                child_tx.source_transaction_id.child_transaction_ids.filtered_domain(
+                    [
+                        ("state", "in", ["done", "cancel"]),
+                        ("operation", "=", child_tx.operation),
+                    ]
                 )
             )
             processed_amount = sum(tx.amount for tx in sibling_txs)

@@ -31,10 +31,8 @@ class PurchaseOrderLine(models.Model):
                     )
                     .root_plan_id
                 )
-                if accounts_to_add := project._get_analytic_accounts().filtered(
-                    lambda account, applied_root_plans=applied_root_plans: (
-                        account.root_plan_id not in applied_root_plans
-                    )
+                if accounts_to_add := project._get_analytic_accounts().filtered_domain(
+                    [("root_plan_id", "not in", applied_root_plans.ids)]
                 ):
                     line.analytic_distribution = {
                         f"{account_ids},{','.join(map(str, accounts_to_add.ids))}": percentage
