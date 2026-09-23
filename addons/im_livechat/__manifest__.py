@@ -280,6 +280,9 @@ Help your customers with this chat, and analyse their feedback.
                 "im_livechat.assets_livechat_support_tours",
             ],
         },
+        "dynamic_children_from": {
+            "im_livechat.embed_assets_unit_tests_setup": "web.assets_web",
+        },
     },
     "application": True,
 }
