@@ -5011,7 +5011,7 @@ class TestFailedStatementsAreCounted(BaseCase):
                 with self.subTest(case=label):
                     self.assertEqual(
                         self._delta(
-                            cr, lambda s=stmt: cr.execute(s, log_exceptions=False)
+                            cr, partial(cr.execute, stmt, log_exceptions=False)
                         ),
                         (1, 1),
                         f"a {label} reached the server and cost a round trip",

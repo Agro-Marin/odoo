@@ -4,6 +4,7 @@ import json
 import logging
 from collections import deque
 from datetime import date, datetime
+from functools import partial
 
 from odoo.orm.domain import Domain
 from odoo.tests.benchmark import PerfTimer
@@ -32,6 +33,11 @@ def _log_result(stats: dict):
 
 
 _RESULTS_REGISTRY: dict[str, list[dict]] = {}
+
+
+def _iterate(records):
+    for _ in records:
+        pass
 
 
 class PerfTestCase(TransactionCase):
@@ -182,7 +188,7 @@ class TestFieldConversion(PerfTestCase):
             ("f_many2one", self.partner.id, "convert_to_record(many2one)"),
         ]:
             field = self.Model._fields[fname]
-            timer = _bench(lambda f=field, v=cache_val: f.convert_to_record(v, record))
+            timer = _bench(partial(field.convert_to_record, cache_val, record))
             stats = timer.stats(label, warmup=0)
             _log_result(stats)
             self.results.append(stats)
@@ -196,7 +202,7 @@ class TestFieldConversion(PerfTestCase):
             ("f_selection", "draft", "convert_to_read(selection)"),
         ]:
             field = self.Model._fields[fname]
-            timer = _bench(lambda f=field, v=cache_val: f.convert_to_read(v, record))
+            timer = _bench(partial(field.convert_to_read, cache_val, record))
             stats = timer.stats(label, warmup=0)
             _log_result(stats)
             self.results.append(stats)
@@ -348,16 +354,10 @@ class TestFieldGet(PerfTestCase):
             field = self.Model._fields[fname]
             spec_get = type(field).__get__
 
-            def bench_spec(f=field, r=record, g=spec_get):
-                g(f, r)
-
-            timer_spec = _bench(bench_spec, n=500, warmup=20)
+            timer_spec = _bench(partial(spec_get, field, record), n=500, warmup=20)
             s_spec = timer_spec.stats(f"spec:{label}", warmup=0)
 
-            def bench_base(f=field, r=record, g=base_get):
-                g(f, r)
-
-            timer_base = _bench(bench_base, n=500, warmup=20)
+            timer_base = _bench(partial(base_get, field, record), n=500, warmup=20)
             s_base = timer_base.stats(f"base:{label}", warmup=0)
 
             speedup = (
@@ -397,11 +397,9 @@ class TestIteration(PerfTestCase):
         for size in (1, 10, 100, 1000):
             records = self.Model.search([], limit=size)
 
-            def iterate(rs=records):
-                for _ in rs:
-                    pass
-
-            timer = _bench(iterate, n=ITERATIONS if size <= 100 else 50)
+            timer = _bench(
+                partial(_iterate, records), n=ITERATIONS if size <= 100 else 50
+            )
             self._log(timer.stats(f"__iter__({size} records)", warmup=0))
 
     def test_02_browse(self):

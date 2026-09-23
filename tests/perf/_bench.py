@@ -60,19 +60,21 @@ class ServerClock:
         for name in names:
             original = getattr(cls, name)
             self._restore.append((cls, name, cls.__dict__.get(name, _MISSING)))
+            setattr(cls, name, self._get_timed(original))
 
-            def timed(record, *args, _original=original, **kwargs):
-                if self._depth:
-                    return _original(record, *args, **kwargs)
-                self._depth += 1
-                start = time.perf_counter()
-                try:
-                    return _original(record, *args, **kwargs)
-                finally:
-                    self.seconds += time.perf_counter() - start
-                    self._depth -= 1
+    def _get_timed(self, original):
+        def timed(record, *args, **kwargs):
+            if self._depth:
+                return original(record, *args, **kwargs)
+            self._depth += 1
+            start = time.perf_counter()
+            try:
+                return original(record, *args, **kwargs)
+            finally:
+                self.seconds += time.perf_counter() - start
+                self._depth -= 1
 
-            setattr(cls, name, timed)
+        return timed
 
     def unwrap(self) -> None:
         for cls, name, previous in reversed(self._restore):

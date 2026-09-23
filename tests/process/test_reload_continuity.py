@@ -3,6 +3,7 @@ import re
 import signal
 import socket
 import time
+from functools import partial
 
 import pytest
 
@@ -10,6 +11,10 @@ from .conftest import REPO_ROOT, Poller, is_evented, requires_pg, requires_posix
 
 WORKERS = 2
 RELOAD_TIMEOUT_S = 60.0
+
+
+def _has_logged_more_than(srv, text, count):
+    return srv.log_text().count(text) > count
 
 
 def _child_pids(srv):
@@ -433,9 +438,7 @@ def test_failed_replacements_leave_the_same_generation_serving(
         for attempt in range(2):
             os.kill(srv.proc.pid, signal.SIGHUP)
             assert srv.wait_until(
-                lambda attempt=attempt: (
-                    srv.log_text().count("Reload aborted") > attempt
-                ),
+                partial(_has_logged_more_than, srv, "Reload aborted", attempt),
                 timeout=30,
             )
             assert srv.wait_until(lambda: _child_pids(srv) == original)

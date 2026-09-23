@@ -334,7 +334,7 @@ class TestForceLazyValues:
         from odoo.tools import OrderedSet, frozendict, lazy
 
         seen = []
-        s1, s2, s3 = (lazy(lambda i=i: seen.append(i)) for i in (1, 2, 3))
+        s1, s2, s3 = (lazy(seen.append, i) for i in (1, 2, 3))
         result = [
             frozendict({"a": s1, "b": 2, "c": [s2]}),
             OrderedSet([10, 20]),

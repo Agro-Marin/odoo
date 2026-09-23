@@ -270,10 +270,8 @@ class ResDeviceLog(models.Model):
                 missing_sessions=len(revoked_session_identifiers),
             )
             if revoked_session_identifiers:
-                to_revoke = candidate_device_log_ids.filtered(
-                    lambda candidate, revoked=revoked_session_identifiers: (
-                        candidate.session_identifier in revoked
-                    )
+                to_revoke = candidate_device_log_ids.filtered_domain(
+                    [("session_identifier", "in", list(revoked_session_identifiers))]
                 )
                 to_revoke.write({"revoked": True})
                 self.env["ir.cron"]._commit_progress(len(to_revoke))

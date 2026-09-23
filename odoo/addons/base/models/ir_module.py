@@ -777,8 +777,8 @@ class IrModuleModule(models.Model):
         exclusives = self.env["ir.module.category"].search([("exclusive", "=", True)])
         for category in exclusives:
             categories = category.search([("id", "child_of", category.ids)])
-            category_mods = install_mods.filtered(
-                lambda mod, categories=categories: mod.category_id in categories
+            category_mods = install_mods.filtered_domain(
+                [("category_id", "in", categories.ids)]
             )
             if category_mods and not any(
                 category_mods

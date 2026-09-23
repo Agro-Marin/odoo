@@ -90,6 +90,10 @@ def _get_filestore_dir_path(filestore: str, name: str) -> Path:
     return Path(filestore, name)
 
 
+def _scope_res_model(codomain: Domain, cond: Domain) -> Domain:
+    return codomain & cond if cond.field_expr == "res_model" else cond
+
+
 def _get_condition_values(
     model: Any, field_name: str, domain: Domain
 ) -> Collection[Any] | None:
@@ -1355,11 +1359,7 @@ class IrAttachment(models.Model):
             comodel_res_ids = _get_condition_values(
                 self,
                 "res_id",
-                domain.map_conditions(
-                    lambda cond, codomain=codomain: (
-                        codomain & cond if cond.field_expr == "res_model" else cond
-                    )
-                ),
+                domain.map_conditions(functools.partial(_scope_res_model, codomain)),
             )
             try:
                 query = comodel._search(

@@ -32,6 +32,12 @@ if typing.TYPE_CHECKING:
     from ...runtime import TriggerTree
 
 
+def _filtered_referencing(
+    records: BaseModel, fname: str, ids: Collection[typing.Any]
+) -> BaseModel:
+    return records.filtered(lambda r: not set(r[fname]._ids).isdisjoint(ids))
+
+
 def _fires_constraints(env: typing.Any, field: Field) -> bool:
     if field.store or not field.related:
         return False
@@ -341,11 +347,7 @@ class RecomputeMixin(_ModelStubs):
                     field_cache = field._get_cache(model.env)
                     cache_records = model.browse(field_cache)
                     new_ids = set(self_ids)
-                    records |= cache_records.filtered(
-                        lambda r, field=field, new_ids=new_ids: (
-                            not set(r[field.name]._ids).isdisjoint(new_ids)
-                        )
-                    )
+                    records |= _filtered_referencing(cache_records, field.name, new_ids)
 
             yield from records._modified_triggers(subtree)
 

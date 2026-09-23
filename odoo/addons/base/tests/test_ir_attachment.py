@@ -6,6 +6,7 @@ import os
 import shutil
 import time
 import uuid
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -2654,6 +2655,9 @@ class TestPermissions(TransactionCaseWithUserDemo):
             f"{model_name} was expected to become unreadable",
         )
 
+    def _search_ids(self, domain):
+        return self.Attachments.search(domain).ids
+
     def _unprefiltered(self, func):
         with patch.object(
             IrAttachment,
@@ -2684,15 +2688,11 @@ class TestPermissions(TransactionCaseWithUserDemo):
             with self.subTest(domain=domain):
                 self.assertEqual(
                     self.Attachments.search(domain).ids,
-                    self._unprefiltered(
-                        lambda d=domain: self.Attachments.search(d).ids
-                    ),
+                    self._unprefiltered(partial(self._search_ids, domain)),
                 )
                 self.assertEqual(
                     self.Attachments.search_count(domain),
-                    self._unprefiltered(
-                        lambda d=domain: self.Attachments.search_count(d)
-                    ),
+                    self._unprefiltered(partial(self.Attachments.search_count, domain)),
                 )
 
     @mute_logger("odoo.addons.base.models.ir_access", "odoo.models")

@@ -14,6 +14,14 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 
 class TestDomain(TransactionExpressionCase):
+    @staticmethod
+    def _filtered_in(records, fname, values):
+        return records.filtered(lambda record: record[fname] in values)
+
+    @staticmethod
+    def _filtered_not_in(records, fname, values):
+        return records.filtered(lambda record: record[fname] not in values)
+
     def test_00_test_bool_undefined(self):
 
         self.env["ir.model.fields"].create(
@@ -148,16 +156,12 @@ class TestDomain(TransactionExpressionCase):
             for subset in combinations(values, length):
                 self.assertEqual(
                     self._search(EmptyInt, [("number", "in", list(subset))]),
-                    records.filtered(
-                        lambda record, subset=subset: record.number in subset
-                    ),
+                    self._filtered_in(records, "number", subset),
                     f"Incorrect result for search([('number', 'in', {sorted(subset)})])",
                 )
                 self.assertEqual(
                     self._search(EmptyInt, [("number", "not in", list(subset))]),
-                    records.filtered(
-                        lambda record, subset=subset: record.number not in subset
-                    ),
+                    self._filtered_not_in(records, "number", subset),
                     f"Incorrect result for search([('number', 'not in', {sorted(subset)})])",
                 )
 
@@ -241,20 +245,12 @@ class TestDomain(TransactionExpressionCase):
                     subset_check |= {False, ""}
                 self.assertEqual(
                     self._search(EmptyChar, [("name", "in", list(subset))]),
-                    records.filtered(
-                        lambda record, subset_check=subset_check: (
-                            record.name in subset_check
-                        )
-                    ),
+                    self._filtered_in(records, "name", subset_check),
                     f"Incorrect result for search([('name', 'in', {list(subset)})])",
                 )
                 self.assertEqual(
                     self._search(EmptyChar, [("name", "not in", list(subset))]),
-                    records.filtered(
-                        lambda record, subset_check=subset_check: (
-                            record.name not in subset_check
-                        )
-                    ),
+                    self._filtered_not_in(records, "name", subset_check),
                     f"Incorrect result for search([('name', 'not in', {list(subset)})])",
                 )
 
@@ -346,20 +342,12 @@ class TestDomain(TransactionExpressionCase):
                     subset_check |= {False, ""}
                 self.assertEqual(
                     self._search(records_fr, [("name", "in", list(subset))]),
-                    records_fr.filtered(
-                        lambda record, subset_check=subset_check: (
-                            record.name in subset_check
-                        )
-                    ),
+                    self._filtered_in(records_fr, "name", subset_check),
                     f"Incorrect result for search([('name', 'in', {list(subset)})])",
                 )
                 self.assertEqual(
                     self._search(records_fr, [("name", "not in", list(subset))]),
-                    records_fr.filtered(
-                        lambda record, subset_check=subset_check: (
-                            record.name not in subset_check
-                        )
-                    ),
+                    self._filtered_not_in(records_fr, "name", subset_check),
                     f"Incorrect result for search([('name', 'not in', {list(subset)})])",
                 )
 

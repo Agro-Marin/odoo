@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import time
+from functools import partial
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -717,7 +718,7 @@ class TestRun:
                 "spawn_missing_workers",
             ):
                 setattr(
-                    prefork, name, MagicMock(side_effect=lambda n=name: calls.append(n))
+                    prefork, name, MagicMock(side_effect=partial(calls.append, name))
                 )
             prefork.stop = MagicMock(side_effect=lambda *a: calls.append("stop"))
             prefork.sleep = MagicMock(side_effect=loop_raises or KeyboardInterrupt)

@@ -350,8 +350,12 @@ class ResCompany(models.Model):
                 branches=len(all_branches),
             )
             for company in roots:
-                branches = all_branches.filtered(
-                    lambda branch, root=company: root in branch.parent_ids
+                branches = all_branches.browse(
+                    [
+                        branch.id
+                        for branch in all_branches
+                        if company in branch.parent_ids
+                    ]
                 )
                 changed_vals = {
                     fname: self._fields[fname].convert_to_write(

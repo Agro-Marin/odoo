@@ -118,28 +118,30 @@ class TestARootInUseIsNeverReplaced(unittest.TestCase):
             root = esbuild._shared_resolution_root(self.base, "digest", self.roots)
         self.assertEqual(root.stat().st_ino, handed_out[0])
 
+    def _compile_into(self, delay, base, barrier, outcomes):
+        barrier.wait()
+        time.sleep(delay)
+        try:
+            root = esbuild._shared_resolution_root(base, "digest", self.roots)
+            inode = root.stat().st_ino
+            time.sleep(0.05)
+            still = root.stat().st_ino == inode
+        except OSError as exc:
+            outcomes.append(type(exc).__name__)
+            return
+        outcomes.append((inode, still))
+
     def test_concurrent_first_builds_share_one_root(self):
         callers = 4
         for stagger in (0.01, 0.0) * 3:
             base = Path(tempfile.mkdtemp(dir=self.base))
             barrier = threading.Barrier(callers)
             outcomes: list[str | tuple[int, bool]] = []
-
-            def compile_with(delay, base=base, barrier=barrier, outcomes=outcomes):
-                barrier.wait()
-                time.sleep(delay)
-                try:
-                    root = esbuild._shared_resolution_root(base, "digest", self.roots)
-                    inode = root.stat().st_ino
-                    time.sleep(0.05)
-                    still = root.stat().st_ino == inode
-                except OSError as exc:
-                    outcomes.append(type(exc).__name__)
-                    return
-                outcomes.append((inode, still))
-
             threads = [
-                threading.Thread(target=compile_with, args=(k * stagger,))
+                threading.Thread(
+                    target=self._compile_into,
+                    args=(k * stagger, base, barrier, outcomes),
+                )
                 for k in range(callers)
             ]
             for thread in threads:

@@ -2,6 +2,7 @@ import os
 import pathlib
 import shutil
 import time
+from functools import partial
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -16,6 +17,10 @@ from .conftest import fake_pg_cursor, requires_inotify
 @pytest.fixture(scope="module")
 def srv():
     return _watcher
+
+
+def _is_watched(watches, path):
+    return str(path) in watches()
 
 
 class TestFSWatcherBase:
@@ -273,7 +278,7 @@ class TestFSWatcherInotifyRewatch:
             "subtree root was never watched"
         )
         for nested in (moved / "utils", moved / "utils" / "dnd"):
-            assert self._wait_for(lambda n=nested: str(n) in watches()), (
+            assert self._wait_for(partial(_is_watched, watches, nested)), (
                 f"nested directory {nested} of a moved subtree was never watched"
             )
 

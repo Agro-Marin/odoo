@@ -47,6 +47,14 @@ def test_faster_rule_is_a_drop_in_werkzeug_rule():
     assert fast.match("/a/5") == plain.match("/a/5")
 
 
+def _build_into(adapter, barrier, results, errors):
+    barrier.wait()
+    try:
+        results.append(adapter.build("e", {"i": 1, "name": "a"}))
+    except Exception as exc:
+        errors.append(exc)
+
+
 def test_concurrent_first_build_is_thread_safe():
     n_threads = 8
     old_interval = sys.getswitchinterval()
@@ -58,15 +66,12 @@ def test_concurrent_first_build_is_thread_safe():
             barrier = threading.Barrier(n_threads)
             results: list[Any] = []
             errors: list[Any] = []
-
-            def build(adapter=adapter, barrier=barrier, results=results, errors=errors):
-                barrier.wait()
-                try:
-                    results.append(adapter.build("e", {"i": 1, "name": "a"}))
-                except Exception as exc:
-                    errors.append(exc)
-
-            threads = [threading.Thread(target=build) for _ in range(n_threads)]
+            threads = [
+                threading.Thread(
+                    target=_build_into, args=(adapter, barrier, results, errors)
+                )
+                for _ in range(n_threads)
+            ]
             for t in threads:
                 t.start()
             for t in threads:

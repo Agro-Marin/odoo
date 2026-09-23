@@ -126,12 +126,12 @@ class ResPartnerIdentifier(models.Model):
         )
         for identifier in candidates:
             commercial = identifier.partner_id.commercial_partner_id
-            taken = holders[
-                (identifier.type_id.id, identifier.normalized_value)
-            ].filtered(
-                lambda other, commercial=commercial, identifier=identifier: (
-                    other != identifier
-                    and other.partner_id.commercial_partner_id != commercial
+            same_value = holders[(identifier.type_id.id, identifier.normalized_value)]
+            taken = (
+                same_value
+                - identifier
+                - same_value.filtered_domain(
+                    [("partner_id.commercial_partner_id", "=", commercial.id)]
                 )
             )
             if taken:

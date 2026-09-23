@@ -45,26 +45,15 @@ class Cache:
         core = self.transaction.core
         for field in sorted(core.iter_cached_fields(), key=str):
             dirty_ids = core.get_dirty(field) or ()
-
-            def entries(
-                values: typing.Any,
-                dirty_ids: typing.Any = dirty_ids,
-                field: Field = field,
-            ) -> dict:
-                return {
-                    Starred(id_) if id_ in dirty_ids else id_: (
-                        "<binary>" if field.is_binary else val
-                    )
-                    for id_, val in values.items()
-                }
-
             if field in self.transaction.registry.field_depends_context:
                 data[field] = {
-                    key: entries(key_cache)
+                    key: _get_repr_entries(key_cache, dirty_ids, field)
                     for key, key_cache in core.iter_context_caches(field)
                 }
             else:
-                data[field] = entries(core.get_field_data_or_none(field) or {})
+                data[field] = _get_repr_entries(
+                    core.get_field_data_or_none(field) or {}, dirty_ids, field
+                )
         return repr(data)
 
     def _get_field_cache(
@@ -300,3 +289,14 @@ class Starred:
 
     def __repr__(self) -> str:
         return f"{self.value!r}*"
+
+
+def _get_repr_entries(
+    values: typing.Any, dirty_ids: typing.Any, field: Field
+) -> dict[typing.Any, typing.Any]:
+    return {
+        Starred(id_) if id_ in dirty_ids else id_: (
+            "<binary>" if field.is_binary else val
+        )
+        for id_, val in values.items()
+    }

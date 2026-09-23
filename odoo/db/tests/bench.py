@@ -10,6 +10,7 @@ server round trips of a local socket.
 
 from __future__ import annotations
 
+import functools
 import sys
 import threading
 import time
@@ -95,7 +96,7 @@ def _cursor_paths(db_name: str) -> None:
         ("classify_statement CREATE", "CREATE TABLE t (a int)"),
         ("classify_statement comment-led", "-- c\nSELECT 1"),
     ):
-        _ns(label, lambda q=q: classify_statement(q))
+        _ns(label, functools.partial(classify_statement, q))
 
     raw = psycopg.connect(f"dbname={db_name}")
     _us(

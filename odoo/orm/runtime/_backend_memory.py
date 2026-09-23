@@ -99,6 +99,22 @@ class InMemorySequenceStore:
         return {name: sequences[name].peek() for name in names if name in sequences}
 
 
+def _get_sort_key(
+    index: int, rank: typing.Any, null_is_true: bool
+) -> typing.Callable[[tuple], tuple]:
+    def key(row: tuple) -> tuple:
+        value = row[index]
+        if value is not None and rank is not None:
+            value = rank(value)
+        if isinstance(value, list):
+            # PostgreSQL compares arrays element by element, a shorter
+            # prefix first and a NULL element after every value
+            value = tuple((item is None, item) for item in value)
+        return (value is None if null_is_true else value is not None, value)
+
+    return key
+
+
 def _load(value: typing.Any) -> typing.Any:
     # what the cursor's loaders answer for the stored value: a numeric as a
     # float (db.lifecycle registers the loader), a json object unwrapped
@@ -1048,23 +1064,7 @@ class _InMemoryReadGroup:
             # a NULL sorts first when its flag is the largest in the direction
             # of the pass: None-is-True ascending puts it last, descending first
             null_is_true = nulls_first == desc
-
-            def key(
-                row: tuple,
-                index: int = index,
-                rank: typing.Any = rank,
-                null_is_true: bool = null_is_true,
-            ) -> tuple:
-                value = row[index]
-                if value is not None and rank is not None:
-                    value = rank(value)
-                if isinstance(value, list):
-                    # PostgreSQL compares arrays element by element, a shorter
-                    # prefix first and a NULL element after every value
-                    value = tuple((item is None, item) for item in value)
-                return (value is None if null_is_true else value is not None, value)
-
-            rows.sort(key=key, reverse=desc)
+            rows.sort(key=_get_sort_key(index, rank, null_is_true), reverse=desc)
 
     def _day_of_week_rank(self, spec: str) -> typing.Any:
         if parse_read_group_spec(spec)[2] != "day_of_week":

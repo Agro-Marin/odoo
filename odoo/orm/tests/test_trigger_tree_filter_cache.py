@@ -26,6 +26,13 @@ def _registry():
     return registry, a, b, c, d
 
 
+def _select_static_or(static, cached):
+    def select(field):
+        return static(field) or field in cached
+
+    return select
+
+
 def test_the_filtered_tree_is_the_walk_for_every_cache_outcome_and_is_reused():
     registry, a, _b, c, d = _registry()
 
@@ -35,9 +42,7 @@ def test_the_filtered_tree_is_the_walk_for_every_cache_outcome_and_is_reused():
     for cached in itertools.chain.from_iterable(
         itertools.combinations((c, d), n) for n in range(3)
     ):
-
-        def select(field, cached=frozenset(cached)):
-            return static(field) or field in cached
+        select = _select_static_or(static, frozenset(cached))
 
         expected = registry.model_graph.get_trigger_tree([a])._filtered(select)
         first = registry.get_trigger_tree([a], select=select, static=static)

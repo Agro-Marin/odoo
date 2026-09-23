@@ -8,6 +8,10 @@ from odoo.libs.func import lazy
 from odoo.tools.json import fast_dumps, json_default, orjson_default
 
 
+def _identity(value):
+    return value
+
+
 @dataclasses.dataclass
 class _Point:
     x: int = 1
@@ -39,7 +43,7 @@ class TestConversionPolicyIsShared(unittest.TestCase):
         for name, value in cases.items():
             with self.subTest(case=name):
                 expected = json.loads(json.dumps({"a": value}, default=json_default))
-                for wrapped in (value, lazy(lambda v=value: v)):
+                for wrapped in (value, lazy(_identity, value)):
                     self.assertEqual(
                         json.loads(fast_dumps({"a": wrapped}, default=orjson_default)),
                         expected,

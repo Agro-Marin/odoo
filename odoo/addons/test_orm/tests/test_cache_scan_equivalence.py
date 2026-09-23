@@ -1,3 +1,4 @@
+from operator import itemgetter
 from unittest.mock import patch
 
 from odoo.orm.models.mixins._cache_scan import (
@@ -77,7 +78,7 @@ class CacheScanEquivalenceCase(TransactionCase):
                 self.records.fetch([name])
                 fast = self.records.filtered(name)
                 self.env.invalidate_all()
-                slow = self.records.filtered(lambda r, n=name: r[n])
+                slow = self.records.filtered(itemgetter(name))
                 self.assertEqual(fast, slow)
 
     def test_grouped_agrees_with_a_lambda(self):

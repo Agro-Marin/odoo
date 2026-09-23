@@ -1083,10 +1083,7 @@ class IrActionsServer(models.Model):
             caller = action.sudo(self.env.su)
             caller._check_access_to_run(records)
             res = caller._gate_run(
-                records,
-                lambda runnable, action=action, eval_context=eval_context: (
-                    action._run_on(runnable, eval_context)
-                ),
+                records, partial(action._run_on, eval_context=eval_context)
             )
         return res
 

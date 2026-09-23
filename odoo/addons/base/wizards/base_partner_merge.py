@@ -177,10 +177,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         absorbed = 0  # debuglog
         for src_account in all_src_accounts:
-            duplicate_account = dst_partner.bank_account_ids.filtered(
-                lambda a, src_account=src_account: (
-                    a.sanitized_acc_number == src_account.sanitized_acc_number
-                )
+            duplicate_account = dst_partner.bank_account_ids.filtered_domain(
+                [("sanitized_acc_number", "=", src_account.sanitized_acc_number)]
             ).sorted(lambda a: not a.active)[:1]
             if duplicate_account:
                 if src_account.active and not duplicate_account.active:

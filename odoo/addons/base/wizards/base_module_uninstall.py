@@ -6,6 +6,10 @@ from odoo.libs.debug_log import DebugLog
 _debug = DebugLog(__name__)
 
 
+def _is_owned_only_by(xids, module_names):
+    return bool(xids) and all(xid.split(".")[0] in module_names for xid in xids)
+
+
 class BaseModuleUninstall(models.TransientModel):
     _name = "base.module.uninstall"
     _description = "Module Uninstall"
@@ -63,14 +67,15 @@ class BaseModuleUninstall(models.TransientModel):
         for wizard in self:
             if wizard.module_ids:
                 module_names = set(wizard._get_modules().mapped("name"))
-
-                def lost(model, _module_names=module_names):
-                    xids = ir_models_xids.get(model.id, ())
-                    return xids and all(
-                        xid.split(".")[0] in _module_names for xid in xids
-                    )
-
-                wizard.model_ids = ir_models.filtered(lost).sorted("name")
+                wizard.model_ids = ir_models.browse(
+                    [
+                        model.id
+                        for model in ir_models
+                        if _is_owned_only_by(
+                            ir_models_xids.get(model.id, ()), module_names
+                        )
+                    ]
+                ).sorted("name")
                 _debug.pipeline(
                     "uninstall_lost_models",
                     modules=len(module_names),

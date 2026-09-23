@@ -27,9 +27,9 @@ class Line(models.Model):
     @api.depends("code")
     def _compute_tag_ids(self):
         tags = self.env["mwp.tag"].search([])
+        tags_by_name = tags.grouped("name")
         for line in self:
-            code = line.code
-            line.tag_ids = tags.filtered(lambda tag, code=code: tag["name"] == code)
+            line.tag_ids = tags_by_name.get(line.code, tags.browse())
 
 
 def test_a_compute_assigning_a_many2many_per_record_reads_the_batch_once():

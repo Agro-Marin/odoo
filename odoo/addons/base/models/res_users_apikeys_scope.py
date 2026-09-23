@@ -187,8 +187,8 @@ class ResUsersApikeysScopeLine(models.Model):
     @api.constrains("denied_field_ids", "model_id")
     def _check_denied_fields_belong_to_the_model(self):
         for line in self:
-            foreign = line.denied_field_ids.filtered(
-                lambda f, line=line: f.model_id != line.model_id
+            foreign = line.denied_field_ids.filtered_domain(
+                [("model_id", "!=", line.model_id.id)]
             )
             if foreign:
                 raise ValidationError(

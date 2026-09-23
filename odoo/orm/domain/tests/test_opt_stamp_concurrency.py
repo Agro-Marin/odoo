@@ -54,6 +54,20 @@ def _iter_nodes(domain):
             stack.append(node.child)
 
 
+def _optimize_into(shared, model, key, barrier, results, failures):
+    try:
+        barrier.wait()
+        results[key] = shared.optimize(model)
+    except Exception as exc:
+        failures.append(exc)
+
+
+def _read_stamps_into(shared, barrier, samples):
+    barrier.wait()
+    for _ in range(30):
+        samples.extend(node._opt for node in _iter_nodes(shared))
+
+
 class TestOptStampConcurrency(unittest.TestCase):
     def setUp(self):
         self.m_seed = _Model("m_seed", {"a": "integer", "b": "integer"})
@@ -74,30 +88,18 @@ class TestOptStampConcurrency(unittest.TestCase):
             results: dict[str, typing.Any] = {}
             samples: list = []
             failures: list = []
-
-            def optimize(
-                model,
-                key,
-                barrier=barrier,
-                shared=shared,
-                results=results,
-                failures=failures,
-            ):
-                try:
-                    barrier.wait()
-                    results[key] = shared.optimize(model)
-                except Exception as exc:
-                    failures.append(exc)
-
-            def read_stamps(barrier=barrier, shared=shared, samples=samples):
-                barrier.wait()
-                for _ in range(30):
-                    samples.extend(node._opt for node in _iter_nodes(shared))
-
             threads = [
-                threading.Thread(target=optimize, args=(self.m_int, "int")),
-                threading.Thread(target=optimize, args=(self.m_bool, "bool")),
-                threading.Thread(target=read_stamps),
+                threading.Thread(
+                    target=_optimize_into,
+                    args=(shared, self.m_int, "int", barrier, results, failures),
+                ),
+                threading.Thread(
+                    target=_optimize_into,
+                    args=(shared, self.m_bool, "bool", barrier, results, failures),
+                ),
+                threading.Thread(
+                    target=_read_stamps_into, args=(shared, barrier, samples)
+                ),
             ]
             for thread in threads:
                 thread.start()
@@ -148,18 +150,11 @@ class TestOptStampConcurrency(unittest.TestCase):
             barrier = threading.Barrier(2)
             results: dict[str, typing.Any] = {}
             failures: list = []
-
-            def optimize(
-                key, barrier=barrier, shared=shared, results=results, failures=failures
-            ):
-                try:
-                    barrier.wait()
-                    results[key] = shared.optimize(self.m_int)
-                except Exception as exc:
-                    failures.append(exc)
-
             threads = [
-                threading.Thread(target=optimize, args=(key,))
+                threading.Thread(
+                    target=_optimize_into,
+                    args=(shared, self.m_int, key, barrier, results, failures),
+                )
                 for key in ("first", "second")
             ]
             for thread in threads:

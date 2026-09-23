@@ -25,6 +25,14 @@ def _trace_targets():
     ]
 
 
+def _get_ordering_wrapper(original, label, order):
+    def wrapper(*args, **kwargs):
+        order.append(label)
+        return original(*args, **kwargs)
+
+    return wrapper
+
+
 class _Tracer:
     def __init__(self):
         self.calls: list[str] = []
@@ -32,20 +40,23 @@ class _Tracer:
 
     def __enter__(self):
         for owner, attr, label in _trace_targets():
-            original = getattr(owner, attr)
-
-            def wrapper(*args, __original=original, __label=label, **kwargs):
-                label = __label
-                if __label == "migrate_module":
-                    stage = kwargs.get("stage") or (args[2] if len(args) > 2 else "?")
-                    label = f"migrate_module({stage})"
-                self.calls.append(label)
-                return __original(*args, **kwargs)
-
-            patcher = mock.patch.object(owner, attr, wrapper)
+            patcher = mock.patch.object(
+                owner, attr, self._get_tracing_wrapper(getattr(owner, attr), label)
+            )
             patcher.start()
             self._patches.append(patcher)
         return self
+
+    def _get_tracing_wrapper(self, original, traced_label):
+        def wrapper(*args, **kwargs):
+            label = traced_label
+            if traced_label == "migrate_module":
+                stage = kwargs.get("stage") or (args[2] if len(args) > 2 else "?")
+                label = f"migrate_module({stage})"
+            self.calls.append(label)
+            return original(*args, **kwargs)
+
+        return wrapper
 
     def __exit__(self, *exc):
         for patcher in reversed(self._patches):
@@ -140,13 +151,9 @@ def test_inherit_xmlids_are_re_reflected_before_the_orphan_sweep(base_db):
     ]
     patches = []
     for owner, attr, label in targets:
-        original = getattr(owner, attr)
-
-        def wrapper(*args, __original=original, __label=label, **kwargs):
-            order.append(__label)
-            return __original(*args, **kwargs)
-
-        patcher = mock.patch.object(owner, attr, wrapper)
+        patcher = mock.patch.object(
+            owner, attr, _get_ordering_wrapper(getattr(owner, attr), label, order)
+        )
         patcher.start()
         patches.append(patcher)
     try:

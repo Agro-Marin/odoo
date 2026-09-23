@@ -22,6 +22,14 @@ def server():
     return obj
 
 
+def _get_recording_resolver(ran):
+    def resolve(self):
+        ran.append(self)
+        return lambda _db: None
+
+    return resolve
+
+
 class TestEachListenerIsWiredToItsOwnQueue:
     """Cron and job are the same loop given different arguments.
 
@@ -198,12 +206,7 @@ class TestBothFlavoursReadOneDeclarationOfEachKind:
             assert cls.kind is kind
 
             ran: list[object] = []
-
-            def resolve(self, _seen=ran):
-                _seen.append(self)
-                return lambda _db: None
-
-            with patch.object(type(kind), "process_jobs", resolve):
+            with patch.object(type(kind), "process_jobs", _get_recording_resolver(ran)):
                 worker._run_jobs_for_database("somedb")
             assert ran == [kind], (
                 f"{cls.__name__} resolved its processor somewhere other than "
