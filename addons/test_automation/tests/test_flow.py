@@ -2215,7 +2215,7 @@ class TestHttp(common.HttpCase):
         response = self.url_open(
             "/web/hook/0123456789", data=json.dumps({"name": "some name"})
         )
-        self.assertEqual(response.json(), {"status": "error"})
+        self.assertEqual(response.json()["error"], "endpoint_not_found")
         self.assertEqual(response.status_code, 404)
 
     def test_payload_in_action_server(self):
